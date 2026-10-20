@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -8,6 +9,7 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class TrashRestoreController extends BaseController {
@@ -31,40 +33,94 @@ class TrashRestoreController extends BaseController {
     try {
       final loadedItems = <Map<String, dynamic>>[];
       final firestore = FirebaseFirestore.instance;
+      final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+      final targetChannelId = channelId.isNotEmpty ? channelId : currentUid;
 
-      // 1. Fetch deleted videos belonging to this channel
-      if (channelId.isNotEmpty) {
-        final videosSnap = await firestore
-            .collection(FirestoreCollections.videos)
-            .where('channelId', isEqualTo: channelId)
-            .where('status', isEqualTo: 'deletion_pending')
-            .get();
+      // 1. Fetch deleted videos belonging to this channel or creator
+      if (targetChannelId.isNotEmpty) {
+        final videoDocs = <String, DocumentSnapshot<Map<String, dynamic>>>{};
 
-        for (final doc in videosSnap.docs) {
-          final data = doc.data();
+        try {
+          final videosSnap = await firestore
+              .collection(FirestoreCollections.videos)
+              .where('channelId', isEqualTo: targetChannelId)
+              .where('status', whereIn: ['deletion_pending', 'trashed'])
+              .get();
+          for (final doc in videosSnap.docs) {
+            videoDocs[doc.id] = doc;
+          }
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'TrashRestore.loadChannelVideos');
+        }
+
+        if (currentUid.isNotEmpty && currentUid != targetChannelId) {
+          try {
+            final ownerVideosSnap = await firestore
+                .collection(FirestoreCollections.videos)
+                .where('ownerId', isEqualTo: currentUid)
+                .where('status', whereIn: ['deletion_pending', 'trashed'])
+                .get();
+            for (final doc in ownerVideosSnap.docs) {
+              videoDocs[doc.id] = doc;
+            }
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'TrashRestore.loadOwnerVideos');
+          }
+        }
+
+        for (final doc in videoDocs.values) {
+          final data = doc.data() ?? {};
           loadedItems.add({
             'id': doc.id,
             'type': 'Video',
             'title': data['title'] ?? 'Untitled Video',
             'imageUrl': data['thumbnailUrl'] ?? '',
+            'videoUrl': data['videoUrl'] ?? '',
+            'originalUrl': data['originalUrl'] ?? '',
+            'isShort': data['isShort'] == true,
             'deletedAt':
                 (data['deletionRequestedAt'] as Timestamp?)?.toDate() ??
+                (data['updatedAt'] as Timestamp?)?.toDate() ??
                 DateTime.now(),
             'ref': doc.reference,
           });
         }
       }
 
-      // 3. Fetch deleted topics belonging to this channel
-      if (channelId.isNotEmpty) {
-        final topicsSnap = await firestore
-            .collection(FirestoreCollections.topics)
-            .where('channelId', isEqualTo: channelId)
-            .where('status', isEqualTo: 'deletion_pending')
-            .get();
+      // 2. Fetch deleted topics belonging to this channel
+      if (targetChannelId.isNotEmpty) {
+        final topicDocs = <String, DocumentSnapshot<Map<String, dynamic>>>{};
 
-        for (final doc in topicsSnap.docs) {
-          final data = doc.data();
+        try {
+          final topicsSnap = await firestore
+              .collection(FirestoreCollections.topics)
+              .where('channelId', isEqualTo: targetChannelId)
+              .where('status', isEqualTo: 'deletion_pending')
+              .get();
+          for (final doc in topicsSnap.docs) {
+            topicDocs[doc.id] = doc;
+          }
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'TrashRestore.loadChannelTopics');
+        }
+
+        if (currentUid.isNotEmpty && currentUid != targetChannelId) {
+          try {
+            final ownerTopicsSnap = await firestore
+                .collection(FirestoreCollections.topics)
+                .where('ownerId', isEqualTo: currentUid)
+                .where('status', isEqualTo: 'deletion_pending')
+                .get();
+            for (final doc in ownerTopicsSnap.docs) {
+              topicDocs[doc.id] = doc;
+            }
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'TrashRestore.loadOwnerTopics');
+          }
+        }
+
+        for (final doc in topicDocs.values) {
+          final data = doc.data() ?? {};
           loadedItems.add({
             'id': doc.id,
             'type': 'Topic',
@@ -72,22 +128,47 @@ class TrashRestoreController extends BaseController {
             'imageUrl': data['coverImage'] ?? data['thumbnailUrl'] ?? '',
             'deletedAt':
                 (data['deletionRequestedAt'] as Timestamp?)?.toDate() ??
+                (data['updatedAt'] as Timestamp?)?.toDate() ??
                 DateTime.now(),
             'ref': doc.reference,
           });
         }
       }
 
-      // 4. Fetch deleted playlists belonging to this channel
-      if (channelId.isNotEmpty) {
-        final playlistsSnap = await firestore
-            .collection(FirestoreCollections.playlists)
-            .where('channelId', isEqualTo: channelId)
-            .where('status', isEqualTo: 'deletion_pending')
-            .get();
+      // 3. Fetch deleted playlists belonging to this channel
+      if (targetChannelId.isNotEmpty) {
+        final playlistDocs = <String, DocumentSnapshot<Map<String, dynamic>>>{};
 
-        for (final doc in playlistsSnap.docs) {
-          final data = doc.data();
+        try {
+          final playlistsSnap = await firestore
+              .collection(FirestoreCollections.playlists)
+              .where('channelId', isEqualTo: targetChannelId)
+              .where('status', isEqualTo: 'deletion_pending')
+              .get();
+          for (final doc in playlistsSnap.docs) {
+            playlistDocs[doc.id] = doc;
+          }
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'TrashRestore.loadChannelPlaylists');
+        }
+
+        if (currentUid.isNotEmpty && currentUid != targetChannelId) {
+          try {
+            final ownerPlaylistsSnap = await firestore
+                .collection(FirestoreCollections.playlists)
+                .where('ownerId', isEqualTo: currentUid)
+                .where('status', isEqualTo: 'deletion_pending')
+                .get();
+            for (final doc in ownerPlaylistsSnap.docs) {
+              playlistDocs[doc.id] = doc;
+            }
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'TrashRestore.loadOwnerPlaylists');
+          }
+        }
+
+        for (final doc in playlistDocs.values) {
+          final data = doc.data() ?? {};
           loadedItems.add({
             'id': doc.id,
             'type': 'Playlist',
@@ -95,6 +176,68 @@ class TrashRestoreController extends BaseController {
             'imageUrl': data['imageUrl'] ?? '',
             'deletedAt':
                 (data['deletionRequestedAt'] as Timestamp?)?.toDate() ??
+                (data['updatedAt'] as Timestamp?)?.toDate() ??
+                DateTime.now(),
+            'ref': doc.reference,
+          });
+        }
+      }
+
+      // 4. Fetch deleted community posts belonging to this channel
+      if (targetChannelId.isNotEmpty) {
+        final postDocs = <String, DocumentSnapshot<Map<String, dynamic>>>{};
+
+        try {
+          final postsSnap = await firestore
+              .collection(FirestoreCollections.community)
+              .where('channelId', isEqualTo: targetChannelId)
+              .where('status', whereIn: ['deletion_pending', 'trashed'])
+              .get();
+          for (final doc in postsSnap.docs) {
+            postDocs[doc.id] = doc;
+          }
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'TrashRestore.loadChannelPosts');
+        }
+
+        if (currentUid.isNotEmpty && currentUid != targetChannelId) {
+          try {
+            final ownerPostsSnap = await firestore
+                .collection(FirestoreCollections.community)
+                .where('ownerId', isEqualTo: currentUid)
+                .where('status', whereIn: ['deletion_pending', 'trashed'])
+                .get();
+            for (final doc in ownerPostsSnap.docs) {
+              postDocs[doc.id] = doc;
+            }
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'TrashRestore.loadOwnerPosts');
+          }
+        }
+
+        for (final doc in postDocs.values) {
+          final data = doc.data() ?? {};
+          var postImg = '';
+          if (data['images'] is List && (data['images'] as List).isNotEmpty) {
+            postImg = (data['images'] as List).first.toString();
+          } else if (data['image'] != null && (data['image'] as String).isNotEmpty) {
+            postImg = data['image'].toString();
+          }
+
+          final rawTitle = (data['title'] as String?)?.trim() ?? '';
+          final rawDesc = (data['description'] as String?)?.trim() ?? '';
+          final displayTitle = rawTitle.isNotEmpty
+              ? rawTitle
+              : (rawDesc.isNotEmpty ? rawDesc : 'Untitled Post');
+
+          loadedItems.add({
+            'id': doc.id,
+            'type': 'Post',
+            'title': displayTitle,
+            'imageUrl': postImg,
+            'deletedAt':
+                (data['deletionRequestedAt'] as Timestamp?)?.toDate() ??
+                (data['updatedAt'] as Timestamp?)?.toDate() ??
                 DateTime.now(),
             'ref': doc.reference,
           });
@@ -131,12 +274,29 @@ class TrashRestoreController extends BaseController {
     try {
       final updateFields = <String, dynamic>{
         'deletionRequestedAt': FieldValue.delete(),
+        'updatedAt': FieldValue.serverTimestamp(),
       };
 
       if (type == 'Channel') {
         updateFields['status'] = 'active';
       } else if (type == 'Video') {
         updateFields['status'] = 'ready';
+        updateFields['visibility'] = 'public';
+        if (item['isShort'] == true) {
+          try {
+            await FirebaseFirestore.instance
+                .collection('shorts')
+                .doc(item['id'] as String)
+                .update({
+              'status': 'ready',
+              'visibility': 'public',
+              'deletionRequestedAt': FieldValue.delete(),
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'TrashRestore.restoreShort');
+          }
+        }
       } else if (type == 'Topic') {
         final docSnap = await docRef.get();
         final topicData = docSnap.data() as Map<String, dynamic>? ?? {};
@@ -169,6 +329,9 @@ class TrashRestoreController extends BaseController {
         updateFields['visibilityType'] = 'public';
       } else if (type == 'Playlist') {
         updateFields['status'] = 'active';
+      } else if (type == 'Post') {
+        updateFields['status'] = 'published';
+        updateFields['visibility'] = 'Public';
       }
 
       await docRef.update(updateFields);
@@ -187,6 +350,130 @@ class TrashRestoreController extends BaseController {
       ErrorHandler.log(e);
       AppSnackbar.error(
         'Unable to restore item. Please try again.',
+      );
+    }
+  }
+
+  void confirmPermanentDelete(BuildContext context, Map<String, dynamic> item) {
+    Get.dialog<void>(
+      Dialog(
+        backgroundColor: AppColors.bgSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppColors.bgDivider),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Delete Permanently?',
+                style: AppTextStyles.titleLarge.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: TWTypography.brandFamily,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                "Are you sure you want to permanently delete '${item['title']}'? This action cannot be undone and media assets will be destroyed.",
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: Get.back<void>,
+                    child: Text(
+                      'Cancel',
+                      style: AppTextStyles.buttonText.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.error,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    onPressed: () {
+                      Get.back<void>();
+                      permanentlyDeleteItem(item);
+                    },
+                    child: const Text(
+                      'Delete Forever',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> permanentlyDeleteItem(Map<String, dynamic> item) async {
+    final docRef = item['ref'] as DocumentReference;
+    final type = item['type'] as String;
+    final id = item['id'] as String;
+
+    Get.dialog(
+      const Center(child: CircularProgressIndicator(color: AppColors.brand)),
+      barrierDismissible: false,
+    );
+
+    try {
+      await docRef.delete();
+
+      if (type == 'Video') {
+        if (item['isShort'] == true) {
+          try {
+            await FirebaseFirestore.instance.collection('shorts').doc(id).delete();
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'TrashRestore.deleteShort');
+          }
+        }
+        await VideoManagementController.safeDeleteStorageUrl(
+          item['videoUrl'] as String? ?? '',
+        );
+        await VideoManagementController.safeDeleteStorageUrl(
+          item['imageUrl'] as String? ?? '',
+        );
+        final origUrl = item['originalUrl'] as String? ?? '';
+        if (origUrl.isNotEmpty) {
+          await VideoManagementController.safeDeleteStorageUrl(origUrl);
+        }
+      } else if (type == 'Post') {
+        final img = item['imageUrl'] as String? ?? '';
+        if (img.isNotEmpty) {
+          await VideoManagementController.safeDeleteStorageUrl(img);
+        }
+      }
+
+      Get.back(); // Close loading dialog
+      AppSnackbar.success(
+        "'${item['title']}' has been permanently deleted.",
+      );
+      loadTrashItems();
+    } catch (e, s) {
+      Get.back();
+      ErrorHandler.log(e, stackTrace: s, tag: 'TrashRestore.permanentlyDeleteItem');
+      AppSnackbar.error(
+        'Unable to permanently delete item. Please try again.',
       );
     }
   }
@@ -261,7 +548,7 @@ class TrashRestoreScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'Deleted videos, topics, and playlists are retained for 30 days before permanent deletion.',
+                                'Deleted videos, community posts, topics, and playlists are retained for 30 days before permanent deletion.',
                                 style: TextStyle(
                                   fontFamily: TWTypography.uiFamily,
                                   fontFamilyFallback: TWTypography.fallbackFamilies,
@@ -344,7 +631,7 @@ class TrashRestoreScreen extends StatelessWidget {
   }
 
   Widget _buildFiltersRow(TrashRestoreController controller) {
-    final filters = ['All', 'Video', 'Topic', 'Playlist'];
+    final filters = ['All', 'Video', 'Post', 'Topic', 'Playlist'];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -454,6 +741,9 @@ class TrashRestoreScreen extends StatelessWidget {
         } else if (type == 'Playlist') {
           typeIcon = Icons.playlist_play_rounded;
           typeColor = AppColors.brandVariant;
+        } else if (type == 'Post') {
+          typeIcon = Icons.article_rounded;
+          typeColor = AppColors.info;
         }
 
         return Container(
@@ -566,36 +856,74 @@ class TrashRestoreScreen extends StatelessWidget {
                 ),
               ),
 
-              // Restore Button
-              OutlinedButton.icon(
-                icon: const Icon(
-                  Icons.restore_rounded,
-                  size: 16,
-                  color: Colors.white,
-                ),
-                label: const Text(
-                  'Restore',
-                  style: TextStyle(
-                    fontFamily: TWTypography.uiFamily,
-                    fontFamilyFallback: TWTypography.fallbackFamilies,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
+              // Action Buttons
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  OutlinedButton.icon(
+                    icon: const Icon(
+                      Icons.restore_rounded,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                    label: const Text(
+                      'Restore',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontFamilyFallback: TWTypography.fallbackFamilies,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: AppColors.bgDivider),
+                      backgroundColor: AppColors.bgSurfaceHover,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    onPressed: () => controller.restoreItem(item),
                   ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: AppColors.bgDivider),
-                  backgroundColor: AppColors.bgSurfaceHover,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
+                  OutlinedButton.icon(
+                    icon: const Icon(
+                      Icons.delete_forever_rounded,
+                      size: 16,
+                      color: AppColors.error,
+                    ),
+                    label: const Text(
+                      'Delete Forever',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontFamilyFallback: TWTypography.fallbackFamilies,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.error,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.error,
+                      side: const BorderSide(color: AppColors.error),
+                      backgroundColor: Colors.transparent,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    onPressed: () =>
+                        controller.confirmPermanentDelete(context, item),
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                onPressed: () => controller.restoreItem(item),
+                ],
               ),
             ],
           ),

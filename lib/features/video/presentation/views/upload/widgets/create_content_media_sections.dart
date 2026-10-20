@@ -316,25 +316,29 @@ class CreateContentThumbnailSection extends StatelessWidget {
                     const Icon(Icons.file_upload_outlined,
                         color: Colors.white, size: 20),
                     const SizedBox(width: 10),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          pickedImage != null || thumbnailUrl.isNotEmpty
-                              ? 'Change Thumbnail'
-                              : 'Upload custom image',
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13),
-                        ),
-                        Text(
-                          '16:9 Aspect Ratio (1280x720). PNG, JPG or WEBP.',
-                          style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.4),
-                              fontSize: 11),
-                        ),
-                      ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            pickedImage != null || thumbnailUrl.isNotEmpty
+                                ? 'Change Thumbnail'
+                                : 'Upload custom image',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13),
+                          ),
+                          Text(
+                            '16:9 Aspect Ratio (1280x720). PNG, JPG or WEBP.',
+                            style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.4),
+                                fontSize: 11),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),

@@ -153,7 +153,7 @@ class HomeDiscoveryController extends BaseController {
             .collection('topics')
             .where('isFeatured', isEqualTo: true)
             .limit(10)
-            .get();
+            .getCacheFirst();
         if (snapshot.docs.isNotEmpty) {
           topicsList = snapshot.docs
               .map(Topic.fromDocumentSnapshot)
@@ -176,12 +176,12 @@ class HomeDiscoveryController extends BaseController {
               .where('status', isEqualTo: 'active')
               .orderBy('videoCount', descending: true)
               .limit(10)
-              .get();
+              .getCacheFirst();
           if (fallbackSnapshot.docs.isNotEmpty) {
             topicsList = fallbackSnapshot.docs
-                .map(Topic.fromDocumentSnapshot)
-                .where((t) => t.isValidTopic && t.videoCount > 0)
-                .toList();
+              .map(Topic.fromDocumentSnapshot)
+              .where((t) => t.isValidTopic && t.videoCount > 0)
+              .toList();
           }
         } catch (e, stackTrace) {
           ErrorHandler.log(
@@ -199,7 +199,7 @@ class HomeDiscoveryController extends BaseController {
               .collection('topics')
               .where('status', isEqualTo: 'active')
               .limit(15)
-              .get();
+              .getCacheFirst();
           if (fallbackSnapshot2.docs.isNotEmpty) {
             topicsList = fallbackSnapshot2.docs
                 .map(Topic.fromDocumentSnapshot)
@@ -351,7 +351,8 @@ class HomeDiscoveryController extends BaseController {
         return;
       }
       
-      final snapshot = await _firestore.collection('videos').limit(80).getCacheFirst();
+      final snapshot =
+          await _firestore.collection('videos').limit(80).getCacheFirst();
       final firestoreCounts = <String, int>{};
       for (final doc in snapshot.docs) {
         final rawCat = (doc.data()['category'] as String?)?.trim();
@@ -501,17 +502,31 @@ class HomeDiscoveryController extends BaseController {
         subscribedChannelList.clear();
         return;
       }
-      final channelsData = <Map<String, dynamic>>[];
+      final chunks = <List<String>>[];
       for (var i = 0; i < channelIds.length; i += 10) {
-        final chunk = channelIds.sublist(i, i + 10 > channelIds.length ? channelIds.length : i + 10);
-        final channelsSnapshot = await _firestore.collection('channels').where(FieldPath.documentId, whereIn: chunk).getCacheFirst();
+        chunks.add(channelIds.sublist(
+            i, i + 10 > channelIds.length ? channelIds.length : i + 10));
+      }
+      final chunkSnapshots = await Future.wait(
+        chunks.map((chunk) => _firestore
+            .collection('channels')
+            .where(FieldPath.documentId, whereIn: chunk)
+            .getCacheFirst()),
+      );
+      final channelsData = <Map<String, dynamic>>[];
+      for (final channelsSnapshot in chunkSnapshots) {
         for (final doc in channelsSnapshot.docs) {
           final data = doc.data();
           var avatarUrl = data['avatarUrl']?.toString() ?? '';
           if (avatarUrl.isEmpty) {
-            avatarUrl = 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(data['channelName'] ?? 'Channel')}&background=random';
+            avatarUrl =
+                'https://ui-avatars.com/api/?name=${Uri.encodeComponent(data['channelName'] ?? 'Channel')}&background=random';
           }
-          channelsData.add({'id': doc.id, 'name': data['channelName'] ?? 'Unknown', 'avatar': avatarUrl});
+          channelsData.add({
+            'id': doc.id,
+            'name': data['channelName'] ?? 'Unknown',
+            'avatar': avatarUrl,
+          });
         }
       }
       subscribedChannelList.assignAll(channelsData);

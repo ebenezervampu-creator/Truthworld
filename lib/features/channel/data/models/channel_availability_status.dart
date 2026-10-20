@@ -4,6 +4,13 @@ import 'package:truthworld/theme/app_theme.dart';
 enum AvailabilityStatus { unknown, checking, available, taken, invalid, error }
 
 extension AvailabilityStatusExtension on AvailabilityStatus {
+  bool get isAvailable => this == AvailabilityStatus.available;
+  bool get isChecking => this == AvailabilityStatus.checking;
+  bool get isTaken => this == AvailabilityStatus.taken;
+  bool get isInvalid => this == AvailabilityStatus.invalid;
+  bool get isError => this == AvailabilityStatus.error;
+  bool get isUnknown => this == AvailabilityStatus.unknown;
+
   Color get color {
     switch (this) {
       case AvailabilityStatus.unknown:
@@ -26,12 +33,13 @@ extension AvailabilityStatusExtension on AvailabilityStatus {
       case AvailabilityStatus.checking:
         return Icons.hourglass_empty;
       case AvailabilityStatus.available:
-        return Icons.check_circle;
+        return Icons.check_circle_rounded;
       case AvailabilityStatus.taken:
-        return Icons.cancel;
+        return Icons.cancel_rounded;
       case AvailabilityStatus.invalid:
+        return Icons.info_outline_rounded;
       case AvailabilityStatus.error:
-        return Icons.error;
+        return Icons.error_outline_rounded;
     }
   }
 
@@ -44,7 +52,7 @@ extension AvailabilityStatusExtension on AvailabilityStatus {
       case AvailabilityStatus.available:
         return 'Available!';
       case AvailabilityStatus.taken:
-        return 'This name is already taken';
+        return 'This handle is already taken';
       case AvailabilityStatus.invalid:
         return 'Invalid format';
       case AvailabilityStatus.error:

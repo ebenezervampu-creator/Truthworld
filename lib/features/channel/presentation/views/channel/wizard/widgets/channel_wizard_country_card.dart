@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -612,6 +613,9 @@ class ChannelWizardCountryCard extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: TextField(
                       controller: searchController,
+                      maxLength: 100,
+                      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                      inputFormatters: TruthworldTextInputFormatters.withLimit(100),
                       onChanged: (query) {
                         final q = query.trim().toLowerCase();
                         if (q.isEmpty) {

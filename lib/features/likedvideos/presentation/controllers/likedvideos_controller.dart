@@ -8,6 +8,7 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/repositories/library_repository_impl.dart';
 import 'package:truthworld/domain/repositories/library_repository.dart';
@@ -90,22 +91,29 @@ class LikedVideosController extends BaseController {
 
   Future<List<Video>> _fetchVideosInBatches(List<String> videoIds) async {
     const batchSize = 10;
-    final allVideos = <Video>[];
+    final batches = <List<String>>[];
 
     for (var i = 0; i < videoIds.length; i += batchSize) {
-      final batch = videoIds.sublist(
-        i,
-        i + batchSize > videoIds.length ? videoIds.length : i + batchSize,
+      batches.add(
+        videoIds.sublist(
+          i,
+          i + batchSize > videoIds.length ? videoIds.length : i + batchSize,
+        ),
       );
+    }
 
-      final batchDocs = await FirebaseFirestore.instance
-          .collection(FirestoreCollections.videos)
-          .where(FieldPath.documentId, whereIn: batch)
-          .get();
+    final results = await Future.wait(
+      batches.map(
+        (batch) => FirebaseFirestore.instance
+            .collection(FirestoreCollections.videos)
+            .where(FieldPath.documentId, whereIn: batch)
+            .getCacheFirst(),
+      ),
+    );
 
-      allVideos.addAll(
-        batchDocs.docs.map(Video.fromDocumentSnapshot),
-      );
+    final allVideos = <Video>[];
+    for (final snap in results) {
+      allVideos.addAll(snap.docs.map(Video.fromDocumentSnapshot));
     }
 
     return allVideos;
@@ -189,7 +197,9 @@ class LikedVideosController extends BaseController {
   }
 
   String formatViews(int views) {
-    if (views >= 1000000) {
+    if (views >= 1000000000) {
+      return '${(views / 1000000000).toStringAsFixed(1)}B';
+    } else if (views >= 1000000) {
       return '${(views / 1000000).toStringAsFixed(1)}M';
     } else if (views >= 1000) {
       return '${(views / 1000).toStringAsFixed(1)}K';

@@ -418,7 +418,7 @@ export class TranslationService {
     if (!this.gemini) {
       throw new Error("Gemini client not initialized for premium translation");
     }
-    const model = this.gemini.getGenerativeModel({ model: PIPELINE_CONFIG.GEMINI_MODELS?.translation || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-3.1-flash-lite" });
+    const model = this.gemini.getGenerativeModel({ model: PIPELINE_CONFIG.GEMINI_MODELS?.translation || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-2.5-flash" });
 
     // We translate in chunks to avoid prompt limits
     const CHUNK_SIZE = 20;

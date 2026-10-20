@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 
@@ -44,6 +45,9 @@ class PlaylistHeaderBar extends StatelessWidget {
                   child: TextField(
                     controller: searchController,
                     autofocus: true,
+                    maxLength: defaultMaxSearchLength,
+                    buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                    inputFormatters: TruthworldTextInputFormatters.withLimit(defaultMaxSearchLength),
                     onChanged: controller.updateSearchQuery,
                     style: const TextStyle(
                       color: Colors.white,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -55,9 +56,9 @@ class AdvertiserSubtitleCueRow extends StatelessWidget {
           const SizedBox(width: 16),
           Expanded(
             child: TextField(
-              inputFormatters: const [
-                TruthworldTextInputFormatters.profanityFilter,
-              ],
+              maxLength: 500,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(500),
               controller: TextEditingController(text: cue['text'])
                 ..selection = TextSelection.fromPosition(
                   TextPosition(offset: (cue['text'] ?? '').length),
@@ -129,6 +130,12 @@ class AdvertiserTimeInputField extends StatelessWidget {
             child: TextFormField(
               initialValue: value,
               onChanged: onChanged,
+              maxLength: 15,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(15),
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9:.]')),
+              ],
               style: const TextStyle(
                 fontFamily: TWTypography.uiFamily,
                 color: Colors.white,

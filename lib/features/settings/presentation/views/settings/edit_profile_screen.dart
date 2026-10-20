@@ -151,7 +151,11 @@ class EditProfileScreen extends GetView<EditProfileController> {
             // Display Name
             TextField(
               controller: controller.nameController,
-              inputFormatters: const [TruthworldTextInputFormatters.profanityFilter],
+              maxLength: ContentValidator.defaultMaxDisplayNameLength,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(
+                ContentValidator.defaultMaxDisplayNameLength,
+              ),
               style: const TextStyle(color: AppColors.textPrimary),
               decoration: InputDecoration(
                 labelText: 'Display Name',
@@ -175,7 +179,11 @@ class EditProfileScreen extends GetView<EditProfileController> {
             // Handle
             TextField(
               controller: controller.handleController,
-              inputFormatters: TruthworldTextInputFormatters.standard,
+              maxLength: ContentValidator.defaultMaxHandleLength,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: TruthworldTextInputFormatters.withLimit(
+                ContentValidator.defaultMaxHandleLength,
+              ),
               style: const TextStyle(color: AppColors.textPrimary),
               decoration: InputDecoration(
                 labelText: 'Handle',
@@ -202,7 +210,11 @@ class EditProfileScreen extends GetView<EditProfileController> {
             // Bio
             TextField(
               controller: controller.bioController,
-              inputFormatters: TruthworldTextInputFormatters.standard,
+              maxLength: ContentValidator.defaultMaxBioLength,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: TruthworldTextInputFormatters.withLimit(
+                ContentValidator.defaultMaxBioLength,
+              ),
               maxLines: 3,
               style: const TextStyle(color: AppColors.textPrimary),
               decoration: InputDecoration(
@@ -273,6 +285,8 @@ class EditProfileScreen extends GetView<EditProfileController> {
               return TextField(
                 controller: controller.ageController,
                 keyboardType: TextInputType.number,
+                maxLength: 3,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
                   LengthLimitingTextInputFormatter(3),
@@ -352,7 +366,11 @@ class EditProfileScreen extends GetView<EditProfileController> {
               final isSearching = controller.isSearchingLocation.value;
               return TextField(
                 controller: controller.locationController,
-                inputFormatters: TruthworldTextInputFormatters.standard,
+                maxLength: ContentValidator.defaultMaxLocationLength,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: TruthworldTextInputFormatters.withLimit(
+                  ContentValidator.defaultMaxLocationLength,
+                ),
                 style: const TextStyle(color: AppColors.textPrimary),
                 decoration: InputDecoration(
                   labelText: 'Locality (Town, City, or Village)',
@@ -709,7 +727,12 @@ class EditProfileScreen extends GetView<EditProfileController> {
             const SizedBox(height: 14),
             TextField(
               controller: pasteCtrl,
-              inputFormatters: TruthworldTextInputFormatters.standard,
+              maxLength: 500,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(500),
+                FilteringTextInputFormatter.deny(RegExp(r'\s')),
+              ],
               style: const TextStyle(color: AppColors.textPrimary),
               decoration: InputDecoration(
                 hintText: 'https://maps.app.goo.gl/... or 37.77, -122.41',

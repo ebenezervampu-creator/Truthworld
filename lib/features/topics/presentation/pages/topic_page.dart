@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/topics/presentation/controllers/topic_controller.dart';
@@ -53,7 +54,9 @@ class TopicPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.bgPage,
       body: Obx(() {
-        if (controller.rxIsLoading.value && controller.videos.isEmpty) {
+        if (controller.rxIsLoading.value &&
+            controller.videos.isEmpty &&
+            controller.featuredVideos.isEmpty) {
           return _buildLoadingState(isDesktop, isTablet);
         }
 
@@ -67,6 +70,69 @@ class TopicPage extends StatelessWidget {
           slivers: [
             // Top Sliver App Bar
             _buildSliverAppBar(isDesktop, isTablet),
+
+            // Owner Moderation Banner (if owner and topic is rejected)
+            if (controller.isOwnerTopic.value && controller.isTopicRejected.value)
+              SliverToBoxAdapter(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1400),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: horizontalPadding,
+                        vertical: 12,
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2C1515),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: const Color(0xFFEF4444).withValues(alpha: 0.6),
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              Icons.warning_amber_rounded,
+                              color: Color(0xFFEF4444),
+                              size: 22,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Topic Unavailable in Public Feeds — Action Required',
+                                    style: TextStyle(
+                                      color: Color(0xFFEF4444),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    controller.topicModerationReason.value.isNotEmpty
+                                        ? controller.topicModerationReason.value
+                                        : 'Gemini AI moderation rejected this topic per Community Guidelines. Edit the topic details to fix issues and resubmit.',
+                                    style: const TextStyle(
+                                      color: Color(0xFFFCA5A5),
+                                      fontSize: 12.5,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
 
             // Hero Banner Section
             SliverToBoxAdapter(
@@ -161,6 +227,7 @@ class TopicPage extends StatelessWidget {
                         _buildTopicFilterTabs(),
                         const SizedBox(height: 16),
                         TopicVideoGrid(
+                          topic: controller.topic.value,
                           videos: controller.filteredVideos,
                           isLoadingMore: controller.isLoadingMore.value,
                           hasMore: controller.hasMoreVideos.value,
@@ -304,6 +371,9 @@ class TopicPage extends StatelessWidget {
       ),
       child: TextField(
         controller: _searchController,
+        maxLength: defaultMaxSearchLength,
+        buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+        inputFormatters: TruthworldTextInputFormatters.withLimit(defaultMaxSearchLength),
         onChanged: (value) {
           controller.searchQuery.value = value;
         },
@@ -611,6 +681,10 @@ class TopicPage extends StatelessWidget {
           routeArguments: {
             'video': video,
             'heroTag': controller.getHeroTag(video.id),
+            'fromTopic': true,
+            if (controller.topic.value != null)
+              'topic': controller.topic.value,
+            'topicVideos': controller.filteredVideos,
           },
         );
       },

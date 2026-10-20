@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -35,11 +37,53 @@ class VideoTranscriptController extends BaseController {
   DateTime _lastAutoScroll = DateTime(2000);
   String? currentVideoId;
 
+  final Map<int, GlobalKey> _segmentKeys = <int, GlobalKey>{};
+  Timer? _autoResumeTimer;
+
+  GlobalKey getSegmentKey(int index) {
+    return _segmentKeys.putIfAbsent(
+      index,
+      () => GlobalKey(debugLabel: 'transcript_seg_$index'),
+    );
+  }
+
+  void onUserScrolled() {
+    autoScrollEnabled.value = false;
+    _autoResumeTimer?.cancel();
+    _autoResumeTimer = Timer(const Duration(milliseconds: 3500), () {
+      if (isClosed) return;
+      resumeAutoScroll();
+    });
+  }
+
+  void onUserScrollEnded() {
+    if (!autoScrollEnabled.value) {
+      _autoResumeTimer?.cancel();
+      _autoResumeTimer = Timer(const Duration(milliseconds: 3500), () {
+        if (isClosed) return;
+        resumeAutoScroll();
+      });
+    }
+  }
+
+  void resumeAutoScroll() {
+    _autoResumeTimer?.cancel();
+    _autoResumeTimer = null;
+    autoScrollEnabled.value = true;
+    if (isTranscriptVisible.value && activeSegmentIndex.value != -1) {
+      scrollToSegmentIndex(activeSegmentIndex.value, animate: true);
+    }
+  }
+
   void resetForVideo(String newVideoId) {
     if (currentVideoId != newVideoId) {
       currentVideoId = newVideoId;
+      _autoResumeTimer?.cancel();
+      _autoResumeTimer = null;
+      _segmentKeys.clear();
       transcriptSegments.clear();
       activeSegmentIndex.value = -1;
+      autoScrollEnabled.value = true;
       isTranscriptVisible.value = false;
       hasAttemptedTranscriptFetch.value = false;
       moderationSummary.value = '';
@@ -122,65 +166,60 @@ class VideoTranscriptController extends BaseController {
     }
   }
 
-  /// Scrolls to [targetIndex] safely, handling lazy RenderSliverList expansion
-  /// when the item has not yet been materialized.
+  /// Scrolls to [targetIndex] so that the active segment moves near the top of the container,
+  /// causing previous dialogue lines to scroll off/disappear while upcoming lines remain visible.
   void scrollToSegmentIndex(int targetIndex, {bool animate = false}) {
     if (targetIndex < 0 || targetIndex >= transcriptSegments.length) return;
     if (!transcriptScrollController.hasClients) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (isClosed) return;
+        if (isClosed || !transcriptScrollController.hasClients) return;
         scrollToSegmentIndex(targetIndex, animate: animate);
       });
       return;
     }
 
-    final targetOffset = (targetIndex * 52.0 - 100.0).clamp(0.0, double.infinity);
-    _performScrollToOffset(targetOffset, targetIndex, animate: animate, attempt: 0);
-  }
-
-  void _performScrollToOffset(
-    double targetOffset,
-    int targetIndex, {
-    required bool animate,
-    required int attempt,
-  }) {
-    if (isClosed || !transcriptScrollController.hasClients || attempt > 12) return;
-
-    final pos = transcriptScrollController.position;
-    final currentMax = pos.maxScrollExtent;
-
-    if (pos.pixels < targetOffset && currentMax < targetOffset) {
-      pos.jumpTo(currentMax);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (isClosed || !transcriptScrollController.hasClients) return;
-        final newMax = transcriptScrollController.position.maxScrollExtent;
-        if (newMax > currentMax) {
-          _performScrollToOffset(targetOffset, targetIndex, animate: animate, attempt: attempt + 1);
-        } else {
-          if (animate) {
-            transcriptScrollController.animateTo(
-              newMax,
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOut,
-            );
-          } else {
-            transcriptScrollController.jumpTo(newMax);
-          }
-        }
-      });
+    // 1. Direct alignment using the segment's GlobalKey if rendered
+    final key = _segmentKeys[targetIndex];
+    if (key?.currentContext != null) {
+      Scrollable.ensureVisible(
+        key!.currentContext!,
+        alignment: 0.04, // Aligns active line near the top (previous lines disappear)
+        duration: animate ? const Duration(milliseconds: 300) : Duration.zero,
+        curve: Curves.easeOutCubic,
+      );
       return;
     }
 
-    final finalOffset = targetOffset.clamp(0.0, currentMax);
-    if (animate) {
-      transcriptScrollController.animateTo(
-        finalOffset,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutCubic,
-      );
-    } else {
-      transcriptScrollController.jumpTo(finalOffset);
+    // 2. If the item is not yet rendered by the lazy sliver, scroll to estimated offset
+    final pos = transcriptScrollController.position;
+    final maxScroll = pos.maxScrollExtent;
+    final estimatedOffset = (targetIndex * 42.0).clamp(0.0, maxScroll);
+
+    if ((pos.pixels - estimatedOffset).abs() > 2.0) {
+      if (animate && (pos.pixels - estimatedOffset).abs() < 400.0) {
+        transcriptScrollController.animateTo(
+          estimatedOffset,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+        );
+      } else {
+        transcriptScrollController.jumpTo(estimatedOffset);
+      }
     }
+
+    // 3. Post-frame refinement once the sliver has built the requested tile
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (isClosed || !transcriptScrollController.hasClients) return;
+      final renderedKey = _segmentKeys[targetIndex];
+      if (renderedKey?.currentContext != null) {
+        Scrollable.ensureVisible(
+          renderedKey!.currentContext!,
+          alignment: 0.04,
+          duration: animate ? const Duration(milliseconds: 200) : Duration.zero,
+          curve: Curves.easeOutCubic,
+        );
+      }
+    });
   }
 
   void _smoothScrollToIndex(int index) {
@@ -438,13 +477,23 @@ class VideoTranscriptController extends BaseController {
     return IsolateComputeUtils.parseSubtitlesAsync(content);
   }
 
-  /// Fetches the AI Summary from moderation.summary in the video document or credibility cache
+  /// Fetches the AI Summary from moderation.summary in the video document or credibility cache.
+  /// If the summary is missing, invalid, or a verbatim transcript snippet, invokes Cloud Function
+  /// `getVideoAiSummary` to synthesize a genuine AI summary on demand.
   Future<void> fetchSummary(Video video) async {
-    if (UserFeedbackSanitizer.isValidVideoSummary(moderationSummary.value)) return;
+    if (UserFeedbackSanitizer.isValidVideoSummary(
+      moderationSummary.value,
+      transcriptSegments: transcriptSegments,
+    )) {
+      return;
+    }
     isLoadingSummary.value = true;
     try {
       // 1. Direct check on video.moderationSummary from Video model
-      if (UserFeedbackSanitizer.isValidVideoSummary(video.moderationSummary)) {
+      if (UserFeedbackSanitizer.isValidVideoSummary(
+        video.moderationSummary,
+        transcriptSegments: transcriptSegments,
+      )) {
         moderationSummary.value = video.moderationSummary;
         isLoadingSummary.value = false;
         return;
@@ -452,7 +501,10 @@ class VideoTranscriptController extends BaseController {
 
       // 2. Check VideoMediaService credibility cache
       final credibility = await VideoMediaService().getCredibility(video.id);
-      if (UserFeedbackSanitizer.isValidVideoSummary(credibility.summary)) {
+      if (UserFeedbackSanitizer.isValidVideoSummary(
+        credibility.summary,
+        transcriptSegments: transcriptSegments,
+      )) {
         moderationSummary.value = credibility.summary;
         isLoadingSummary.value = false;
         return;
@@ -465,21 +517,57 @@ class VideoTranscriptController extends BaseController {
           .get();
       if (doc.exists && doc.data() != null) {
         final data = doc.data()!;
-        final topSummary = (data['summary'] as String?)?.trim() ?? '';
         final mod = data['moderation'] as Map<String, dynamic>?;
         final modSummary = (mod?['summary'] as String?)?.trim() ?? '';
+        final directModSummary = (data['moderationSummary'] as String?)?.trim() ?? '';
+        final topSummary = (data['summary'] as String?)?.trim() ?? '';
 
         var candidate = '';
-        if (UserFeedbackSanitizer.isValidVideoSummary(topSummary)) {
-          candidate = topSummary;
-        } else if (UserFeedbackSanitizer.isValidVideoSummary(modSummary)) {
+        if (UserFeedbackSanitizer.isValidVideoSummary(
+          modSummary,
+          transcriptSegments: transcriptSegments,
+        )) {
           candidate = modSummary;
+        } else if (UserFeedbackSanitizer.isValidVideoSummary(
+          directModSummary,
+          transcriptSegments: transcriptSegments,
+        )) {
+          candidate = directModSummary;
+        } else if (UserFeedbackSanitizer.isValidVideoSummary(
+          topSummary,
+          transcriptSegments: transcriptSegments,
+        )) {
+          candidate = topSummary;
         }
 
         if (candidate.isNotEmpty) {
           moderationSummary.value = candidate;
+          isLoadingSummary.value = false;
           return;
         }
+      }
+
+      // 4. Synthesize genuine AI summary on demand via Cloud Function
+      try {
+        final callable = FirebaseFunctions.instanceFor(region: 'asia-south1')
+            .httpsCallable('getVideoAiSummary');
+        final result = await callable.call<Map<String, dynamic>>({
+          'videoId': video.id,
+        });
+        final genSummary = (result.data['summary'] as String?)?.trim() ?? '';
+        if (UserFeedbackSanitizer.isValidVideoSummary(
+          genSummary,
+          transcriptSegments: transcriptSegments,
+        )) {
+          moderationSummary.value = genSummary;
+          return;
+        }
+      } catch (callErr, stack) {
+        ErrorHandler.log(
+          callErr,
+          stackTrace: stack,
+          tag: 'VideoTranscriptController.getVideoAiSummary',
+        );
       }
     } catch (e, stackTrace) {
       ErrorHandler.log(
@@ -494,6 +582,8 @@ class VideoTranscriptController extends BaseController {
 
   @override
   void onClose() {
+    _autoResumeTimer?.cancel();
+    _segmentKeys.clear();
     transcriptScrollController.dispose();
     super.onClose();
   }

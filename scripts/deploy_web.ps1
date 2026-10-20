@@ -58,7 +58,8 @@ $versionObj = [ordered]@{
 }
 $versionJson = $versionObj | ConvertTo-Json -Compress
 $versionOutPath = Join-Path $WEB_DIR "version.json"
-[System.IO.File]::WriteAllText($versionOutPath, $versionJson, [System.Text.Encoding]::UTF8)
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+[System.IO.File]::WriteAllText($versionOutPath, $versionJson, $utf8NoBom)
 OK "web/version.json: $versionJson"
 
 # ── 3. Flutter pub get ───────────────────────────────────────
@@ -84,6 +85,7 @@ function Build-Flavor {
         flutter build web `
             --release `
             --no-tree-shake-icons `
+            --no-wasm-dry-run `
             --target=$EntryPoint `
             --output=$OutputDir
     } else {
@@ -98,7 +100,7 @@ function Build-Flavor {
 
     # Copy version.json into the build output
     $versionDst = Join-Path $ROOT "$OutputDir\version.json"
-    [System.IO.File]::WriteAllText($versionDst, $versionJson, [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText($versionDst, $versionJson, $utf8NoBom)
     OK "version.json copied -> $OutputDir"
 
     # Copy sw.js into the build output
@@ -107,6 +109,14 @@ function Build-Flavor {
     if (Test-Path $swSrc) {
         Copy-Item $swSrc $swDst -Force
         OK "sw.js copied -> $OutputDir/sw.js"
+    }
+
+    # Copy safe flutter_service_worker.js into build output to prevent infinite reload loops
+    $fswSrc = Join-Path $WEB_DIR "flutter_service_worker.js"
+    $fswDst = Join-Path $ROOT "$OutputDir\flutter_service_worker.js"
+    if (Test-Path $fswSrc) {
+        Copy-Item $fswSrc $fswDst -Force
+        OK "flutter_service_worker.js copied -> $OutputDir/flutter_service_worker.js"
     }
 
     # Copy .well-known folder

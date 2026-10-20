@@ -120,13 +120,29 @@ class QualityPanel extends StatelessWidget {
             const PlayerDivider(),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              child: SelectTile(
-                label: 'Audio only',
-                sublabel:
-                    'Playing dedicated audio stream without video decoding',
-                selected: true,
-                badge: 'AUDIO',
-                onTap: () => ctrl.activePanel.value = '',
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SelectTile(
+                    label: 'Audio only',
+                    sublabel:
+                        'Ultra Data Saver · Streaming without video decoding',
+                    selected: true,
+                    badge: 'ACTIVE',
+                    onTap: () => ctrl.activePanel.value = '',
+                  ),
+                  const SizedBox(height: 4),
+                  SelectTile(
+                    label: 'Switch to Video Mode',
+                    sublabel: 'Resume standard video streaming',
+                    selected: false,
+                    badge: 'VIDEO',
+                    onTap: () {
+                      ctrl.activePanel.value = '';
+                      ctrl.setAudioOnly(false);
+                    },
+                  ),
+                ],
               ),
             ),
           ],
@@ -182,9 +198,9 @@ class QualityPanel extends StatelessWidget {
                 children: [
                   SelectTile(
                     label: 'Auto',
-                    sublabel: 'Adapts to network speed',
-                    selected: ctrl.abr.isAutoMode.value,
-                    badge: ctrl.abr.isAutoMode.value
+                    sublabel: 'Adapts to network speed (down to 144p)',
+                    selected: ctrl.abr.isAutoMode.value && !ctrl.isAudioOnly.value,
+                    badge: (ctrl.abr.isAutoMode.value && !ctrl.isAudioOnly.value)
                         ? (ctrl.abr.currentTier.height > 0
                             ? ctrl.abr.currentTier.label
                             : 'Auto')
@@ -220,6 +236,7 @@ class QualityPanel extends StatelessWidget {
                           sublabel: '${tier.bitrate} kbps',
                           badge: resBadge,
                           selected:
+                              !ctrl.isAudioOnly.value &&
                               !ctrl.abr.isAutoMode.value &&
                               (ctrl.abr.currentTier.label == tier.label ||
                                   (ctrl.abr.currentTier.height == tier.height &&
@@ -240,6 +257,17 @@ class QualityPanel extends StatelessWidget {
                           },
                         );
                       }),
+                  const SizedBox(height: 4),
+                  SelectTile(
+                    label: 'Audio only',
+                    sublabel: 'Manual toggle · Listen without video (saves data)',
+                    badge: 'AUDIO',
+                    selected: ctrl.isAudioOnly.value,
+                    onTap: () {
+                      ctrl.activePanel.value = '';
+                      ctrl.setAudioOnly(true);
+                    },
+                  ),
                   const SizedBox(height: 8),
                 ],
               ),

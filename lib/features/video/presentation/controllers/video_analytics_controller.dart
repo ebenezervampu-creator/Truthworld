@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/analytics/data/services/impression_tracking_service.dart';
 import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
 import 'package:truthworld/features/analytics/data/services/video_presence_service.dart';
@@ -90,6 +91,17 @@ class VideoAnalyticsController extends BaseController {
     // NEVER on scrubbed playhead position (prevents dragging to end from inflating metrics).
     final actualWatchPct = (watchTimeSeconds / totalDurationSeconds * 100)
         .clamp(0, 100);
+
+    // CRITICAL POLICY: Views, qualified views, and playback milestones are strictly counted
+    // ONLY for authenticated users. Unsigned / guest viewers are excluded from view counts.
+    final isAuth = !Get.isRegistered<AuthService>() ||
+        (AuthService.to.isAuthenticated.value && AuthService.to.uid.isNotEmpty);
+
+    if (!isAuth) {
+      // Unsigned user: Do NOT record qualified views or milestones.
+      // Watch time for guest preview limits is handled exclusively by GuestPlaybackLimitService.
+      return;
+    }
 
     // Qualified View check (e.g. at 30s or 50% true watch time)
     if (!_hasCountedQualifiedView &&

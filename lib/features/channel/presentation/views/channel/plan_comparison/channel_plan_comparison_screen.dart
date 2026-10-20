@@ -82,6 +82,7 @@ class ChannelPlanComparisonScreen extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: isDark ? const Color(0xFF0F0F0F) : Colors.white,
           elevation: 0,
+          titleSpacing: 0,
           leading: IconButton(
             icon: Icon(
               Icons.arrow_back,
@@ -89,12 +90,18 @@ class ChannelPlanComparisonScreen extends StatelessWidget {
             ),
             onPressed: () => Navigator.of(context).pop(controller.selectedPlan.value),
           ),
-          title: Text(
-            'Compare Channel Plans',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
+          title: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Compare Channel Plans',
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
+                letterSpacing: -0.2,
+              ),
             ),
           ),
           centerTitle: false,
@@ -102,9 +109,13 @@ class ChannelPlanComparisonScreen extends StatelessWidget {
             Obx(() {
               final isStandard = controller.selectedPlan.value == 'standard';
               final badgeColor = isStandard ? const Color(0xFF3B82F6) : const Color(0xFF8B5CF6);
+              final isSmallScreen = MediaQuery.of(context).size.width < 420;
               return Container(
-                margin: const EdgeInsets.only(right: 16),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                margin: const EdgeInsets.only(right: 12),
+                padding: EdgeInsets.symmetric(
+                  horizontal: isSmallScreen ? 8 : 10,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: badgeColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
@@ -115,12 +126,14 @@ class ChannelPlanComparisonScreen extends StatelessWidget {
                   children: [
                     Icon(
                       isStandard ? Icons.storefront_rounded : Icons.rocket_launch,
-                      size: 14,
+                      size: 13,
                       color: badgeColor,
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 5),
                     Text(
-                      isStandard ? 'Standard Selected' : 'Custom Selected',
+                      isStandard
+                          ? (isSmallScreen ? 'Standard' : 'Standard Selected')
+                          : (isSmallScreen ? 'Custom' : 'Custom Selected'),
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
@@ -284,8 +297,12 @@ class ChannelPlanComparisonScreen extends StatelessWidget {
     ChannelPlanComparisonController controller,
     bool isDark,
   ) {
+    final isSmallScreen = MediaQuery.of(context).size.width < 420;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: EdgeInsets.symmetric(
+        horizontal: isSmallScreen ? 16 : 24,
+        vertical: 16,
+      ),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF161618) : Colors.white,
         border: Border(
@@ -319,19 +336,21 @@ class ChannelPlanComparisonScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      isStandard ? r'Standard Channel ($0/mo • 70% Ad Split)' : r'Custom Channel (100% Retention • From $15/mo)',
+                      isStandard
+                          ? r'Standard Channel ($0/mo • 70% Ad Split)'
+                          : r'Custom Channel (100% Retention • From $15/mo)',
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: isSmallScreen ? 12 : 13,
                         fontWeight: FontWeight.bold,
                         color: primaryColor,
                       ),
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               ElevatedButton.icon(
                 onPressed: () {
                   final chosen = controller.selectedPlan.value;
@@ -342,13 +361,18 @@ class ChannelPlanComparisonScreen extends StatelessWidget {
                 },
                 icon: const Icon(Icons.arrow_forward_rounded, size: 16),
                 label: Text(
-                  'Continue with ${isStandard ? 'Standard' : 'Custom'}',
+                  isSmallScreen
+                      ? 'Continue'
+                      : 'Continue with ${isStandard ? 'Standard' : 'Custom'}',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryColor,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isSmallScreen ? 14 : 20,
+                    vertical: 14,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),

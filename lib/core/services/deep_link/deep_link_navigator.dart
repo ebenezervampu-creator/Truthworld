@@ -112,6 +112,9 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
       case TruthworldUrlType.post:
         _handlePostNavigation(parsed, replace: replace);
 
+      case TruthworldUrlType.claim:
+        _handleClaimNavigation(parsed, replace: replace);
+
       case TruthworldUrlType.studio:
         if (!kIsWeb) {
           StudioLauncher.openStudio();
@@ -247,6 +250,55 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
     final routeUrl = '/watch?${queryParams.join('&')}';
     debugPrint(
       '[DeepLinkService] 🧭 Low-latency navigating to video: $routeUrl (cached: ${cachedVideo != null})',
+    );
+
+    if (replace) {
+      AppNavigator.offNamed(routeUrl, arguments: args, preventDuplicates: false);
+    } else {
+      AppNavigator.toNamed(routeUrl, arguments: args, preventDuplicates: false);
+    }
+  }
+
+  void _handleClaimNavigation(
+    ParsedTruthworldUrl parsed, {
+    required bool replace,
+  }) {
+    final videoId = parsed.id;
+    if (videoId == null || videoId.isEmpty) return;
+
+    final cachedVideo = getVideoFromCache(videoId);
+    final args = <String, dynamic>{
+      'videoId': videoId,
+    };
+    if (cachedVideo != null) {
+      args['video'] = cachedVideo;
+    }
+
+    final queryParams = <String>['videoId=$videoId'];
+    if (parsed.claimIndex != null) {
+      args['claimIndex'] = parsed.claimIndex;
+      queryParams.add('claimIndex=${parsed.claimIndex}');
+    } else {
+      final claimIndexStr = parsed.queryParameters['claimIndex'] ??
+          parsed.queryParameters['index'] ??
+          parsed.queryParameters['claim'];
+      if (claimIndexStr != null && claimIndexStr.isNotEmpty) {
+        queryParams.add('claimIndex=$claimIndexStr');
+        final idx = int.tryParse(claimIndexStr);
+        if (idx != null) {
+          if (parsed.queryParameters['claim'] != null &&
+              parsed.queryParameters['claimIndex'] == null) {
+            args['claimIndex'] = (idx > 0) ? idx - 1 : 0;
+          } else {
+            args['claimIndex'] = idx;
+          }
+        }
+      }
+    }
+
+    final routeUrl = '/claim-detail?${queryParams.join('&')}';
+    debugPrint(
+      '[DeepLinkService] 🧭 Low-latency navigating to claim: $routeUrl (cached: ${cachedVideo != null})',
     );
 
     if (replace) {

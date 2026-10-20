@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
@@ -24,6 +25,9 @@ class FindReplaceDialog {
           children: [
             TextField(
               controller: findCtrl,
+              maxLength: 200,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: [LengthLimitingTextInputFormatter(200)],
               decoration: const InputDecoration(
                 labelText: 'Find Text',
                 hintText: 'Enter word or phrase to find...',
@@ -33,9 +37,11 @@ class FindReplaceDialog {
             const SizedBox(height: 12),
             TextField(
               controller: replaceCtrl,
+              maxLength: 200,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
               inputFormatters: controller.selectedLanguage.value == 'en'
-                  ? TruthworldTextInputFormatters.standard
-                  : [TruthworldTextInputFormatters.profanityFilter],
+                  ? TruthworldTextInputFormatters.withLimit(200)
+                  : TruthworldTextInputFormatters.internationalWithLimit(200),
               decoration: const InputDecoration(
                 labelText: 'Replace With',
                 hintText: 'Enter replacement text...',

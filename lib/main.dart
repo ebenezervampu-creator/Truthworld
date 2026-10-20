@@ -19,6 +19,7 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
+import 'package:truthworld/core/services/guest_playback_limit_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/services/pip_service.dart';
 import 'package:truthworld/core/services/push_notification_service.dart';
@@ -26,6 +27,7 @@ import 'package:truthworld/core/services/user_preferences_service.dart';
 import 'package:truthworld/core/utils/color_blind_matrices.dart';
 import 'package:truthworld/core/utils/error_handler_utils.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
+import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/utils/url_strategy/url_strategy.dart';
 import 'package:truthworld/core/widgets/truthworld_splash_screen.dart';
 import 'package:truthworld/features/miniplayer/presentation/widgets/components/pip_dedicated_view.dart';
@@ -57,6 +59,11 @@ void bootstrap({AppFlavor? flavor}) {
         // This must be the very first line to avoid "Binding has not yet been initialized" on Web
         // and "Zone mismatch" error when using runZonedGuarded.
         WidgetsFlutterBinding.ensureInitialized();
+
+        // Tune image cache capacity to prevent RAM bloat and GC frame drops
+        PaintingBinding.instance.imageCache
+          ..maximumSize = 350
+          ..maximumSizeBytes = 64 * 1024 * 1024; // 64 MB
 
         // Optimize visibility_detector update interval to prevent per-frame recalculations on scroll
         VisibilityDetectorController.instance.updateInterval =
@@ -103,12 +110,32 @@ void bootstrap({AppFlavor? flavor}) {
             }),
           ]);
 
-          // Non-blocking Firebase AppCheck
-          unawaited(
-            (() async {
-              try {
-                await FirebaseAppCheck.instance.activate(
-                  providerWeb: kDebugMode
+          // Synchronous Firebase App Check activation before AuthService instantiation.
+          // In Identity Platform / Firebase Auth, App Check is strictly enforced on OAuth endpoints.
+          // The App Check component must be registered with the Firebase App before FirebaseAuth.instance
+          // is initialized, so Auth can attach the '#fac=<token>' parameter to the Google Sign-In popup URL.
+          try {
+            final isLocalDev = kDebugMode ||
+                (kIsWeb &&
+                    (() {
+                      try {
+                        final host = Uri.base.host.toLowerCase();
+                        return host == 'localhost' ||
+                            host == '127.0.0.1' ||
+                            host == '0.0.0.0' ||
+                            host == '[::1]' ||
+                            host.endsWith('.local') ||
+                            host.startsWith('192.168.') ||
+                            host.startsWith('10.') ||
+                            host.startsWith('172.');
+                      } catch (_) {
+                        return false;
+                      }
+                    })());
+
+            await FirebaseAppCheck.instance
+                .activate(
+                  providerWeb: isLocalDev
                       ? WebDebugProvider(
                           debugToken: 'aeb2d92a-1f8d-4014-819d-b24f3ffefec3',
                         )
@@ -125,43 +152,47 @@ void bootstrap({AppFlavor? flavor}) {
                           debugToken: 'aeb2d92a-1f8d-4014-819d-b24f3ffefec3',
                         )
                       : const AppleDeviceCheckProvider(),
-                );
+                )
+                .timeout(const Duration(seconds: 4));
 
-                // Safely test token retrieval. If attestation provider is pending registration
-                // (e.g. debug token not yet whitelisted or domain unconfigured), gracefully disable
-                // auto-refresh to prevent continuous token exchange network spam.
-                try {
-                  final token = await FirebaseAppCheck.instance
-                      .getToken()
-                      .timeout(const Duration(seconds: 4));
-                  if (token != null && token.isNotEmpty) {
-                    await FirebaseAppCheck.instance
-                        .setTokenAutoRefreshEnabled(true);
-                    logger.info(
-                      'Firebase App Check active & token acquired',
-                      tag: 'Startup',
-                    );
-                  } else {
-                    await FirebaseAppCheck.instance
-                        .setTokenAutoRefreshEnabled(false);
-                  }
-                } catch (tokenErr) {
-                  logger.info(
-                    'AppCheck token exchange unavailable in current environment (disabling auto-refresh): $tokenErr. '
-                    'If using debug mode, ensure your debug token is registered in Firebase Console -> App Check -> Apps for this flavor, or keep Authentication in Unenforce mode during development.',
-                    tag: 'Startup',
-                  );
-                  await FirebaseAppCheck.instance
-                      .setTokenAutoRefreshEnabled(false);
-                }
-              } catch (e) {
-                logger.warning(
-                  'Firebase App Check error: $e',
+            // Prime and cache the initial token
+            try {
+              final token = await FirebaseAppCheck.instance
+                  .getToken()
+                  .timeout(const Duration(seconds: 3));
+              if (token != null && token.isNotEmpty) {
+                StorageUtils.updateAppCheckToken(token);
+                await FirebaseAppCheck.instance
+                    .setTokenAutoRefreshEnabled(true);
+                logger.info(
+                  'Firebase App Check active & token acquired',
                   tag: 'Startup',
                 );
+              } else {
+                await FirebaseAppCheck.instance
+                    .setTokenAutoRefreshEnabled(false);
               }
-            })(),
-          );
+
+              // Continuously sync token updates into StorageUtils for media player requests
+              FirebaseAppCheck.instance.onTokenChange.listen((newToken) {
+                if (newToken != null && newToken.isNotEmpty) {
+                  StorageUtils.updateAppCheckToken(newToken);
+                }
+              });
+            } catch (tokenErr) {
+              logger.info(
+                'AppCheck initial token acquisition skipped: $tokenErr',
+                tag: 'Startup',
+              );
+              await FirebaseAppCheck.instance
+                  .setTokenAutoRefreshEnabled(false);
+            }
+          } catch (e) {
+            logger.warning(
+              'Firebase App Check activation error: $e',
+              tag: 'Startup',
+            );
+          }
 
           Get.put(RaspSecurityService(), permanent: true);
           Get.put(ScreenSecurityService(), permanent: true);
@@ -174,6 +205,7 @@ void bootstrap({AppFlavor? flavor}) {
           Get.put(UserPreferencesService(), permanent: true);
           final currencyService =
               Get.put(CurrencyLocalizationService(), permanent: true);
+          Get.put(GuestPlaybackLimitService(), permanent: true);
 
           // Low-latency asynchronous Auth session & provider initialization
           final authInit = authService.init();
@@ -264,37 +296,52 @@ void bootstrap({AppFlavor? flavor}) {
 
           // Show error UI
           runApp(
-            const MaterialApp(
+            MaterialApp(
+              themeMode: ThemeMode.dark,
+              theme: buildAppTheme(),
+              darkTheme: buildAppTheme(),
               home: Scaffold(
+                backgroundColor: AppColors.bgPage,
                 body: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 64,
-                        color: Colors.white,
-                      ),
-                      SizedBox(height: 20),
-                      Text(
-                        'Application Error',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: AppColors.error,
                         ),
-                      ),
-                      SizedBox(height: 10),
-                      Text(
-                        'Truthworld was unable to complete startup. Please check your internet connection and try again.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 14),
-                      ),
-                      SizedBox(height: 30),
-                      ElevatedButton(
-                        onPressed: main,
-                        child: Text('Retry'),
-                      ),
-                    ],
+                        const SizedBox(height: 20),
+                        const Text(
+                          'Application Error',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Truthworld was unable to complete startup. Please check your internet connection and try again.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 30),
+                        ElevatedButton(
+                          onPressed: main,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.brand,
+                            foregroundColor: Colors.black,
+                          ),
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -314,7 +361,7 @@ void bootstrap({AppFlavor? flavor}) {
           return;
         }
         // Catch ALL errors outside of Flutter's zone
-        if (kDebugMode) {
+        if (kDebugMode || kIsWeb) {
           debugPrint('Zone error caught: $error');
           debugPrintStack(stackTrace: stackTrace);
         }
@@ -429,23 +476,45 @@ class Truthworld extends StatelessWidget {
           maxScaleFactor: 1.4,
         );
 
+        final mainView = Obx(() {
+          final isInPip = PipService.to.isPiP.value;
+          // When entering or restoring from Android Picture-in-Picture mode, the window
+          // dimensions can be temporarily in a compact PiP aspect ratio (< 280px width & height)
+          // while the platform window animates between PiP and full screen.
+          final isCompactPipWindow = !kIsWeb &&
+              defaultTargetPlatform == TargetPlatform.android &&
+              mediaQueryData.size.width < 280 &&
+              mediaQueryData.size.height < 280;
+          final isPipActive = isInPip || isCompactPipWindow;
+          final safeChild = child ?? const SizedBox.shrink();
+
+          return Stack(
+            children: [
+              Offstage(
+                offstage: isPipActive,
+                child: TickerMode(
+                  enabled: !isPipActive,
+                  child: isPipActive
+                      ? OverflowBox(
+                          minWidth: 360,
+                          maxWidth: 360,
+                          minHeight: 640,
+                          maxHeight: 640,
+                          alignment: Alignment.topLeft,
+                          child: safeChild,
+                        )
+                      : safeChild,
+                ),
+              ),
+              if (!isPipActive) const MiniplayerOverlayManager(),
+              if (isPipActive) const PipDedicatedView(),
+            ],
+          );
+        });
+
         final content = MediaQuery(
           data: mediaQueryData.copyWith(textScaler: clampedTextScaler),
-          child: TruthworldSplashScreen(
-            child: Obx(() {
-              final isInPip = PipService.to.isPiP.value;
-              return Stack(
-                children: [
-                  Offstage(
-                    offstage: isInPip,
-                    child: child,
-                  ),
-                  if (!isInPip) const MiniplayerOverlayManager(),
-                  if (isInPip) const PipDedicatedView(),
-                ],
-              );
-            }),
-          ),
+          child: kIsWeb ? mainView : TruthworldSplashScreen(child: mainView),
         );
 
         return _AccessibilityColorFilterWrapper(child: content);

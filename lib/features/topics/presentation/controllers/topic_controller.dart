@@ -62,6 +62,11 @@ class TopicController extends BaseController {
   final RxString rxErrorMessage = ''.obs;
   final RxBool hasMoreVideos = true.obs;
 
+  /// Owner Moderation state
+  final RxBool isOwnerTopic = false.obs;
+  final RxBool isTopicRejected = false.obs;
+  final RxString topicModerationReason = ''.obs;
+
   /// Search & View state
   final RxString searchQuery = ''.obs;
   final RxBool isSearchVisible = false.obs;
@@ -92,11 +97,15 @@ class TopicController extends BaseController {
   bool get rxIsEmpty => filteredVideos.isEmpty && !rxIsLoading.value;
 
   bool get hasFactCheckedVideos {
-    return videos.any((v) => v.isFactChecked);
+    return videos.any((v) => v.isFactChecked) ||
+        featuredVideos.any((v) => v.isFactChecked);
   }
 
   List<Video> get filteredVideos {
     var list = List<Video>.from(videos);
+    if (list.isEmpty && featuredVideos.isNotEmpty) {
+      list = List<Video>.from(featuredVideos);
+    }
 
     // 1. Filter by search query if any
     final query = searchQuery.value.trim().toLowerCase();
@@ -297,14 +306,29 @@ class TopicController extends BaseController {
         return;
       }
 
+      final isOwner = AuthService.to.isAuthenticated.value &&
+          ((topicData.channelId != null &&
+              topicData.channelId!.isNotEmpty &&
+              AuthService.to.userChannel?.id == topicData.channelId) ||
+          (topicData.creatorId != null &&
+              topicData.creatorId!.isNotEmpty &&
+              AuthService.to.uid == topicData.creatorId));
+
+      final isRejected = topicData.status.toLowerCase() == 'verificationrejected' ||
+          topicData.status.toLowerCase() == 'rejected';
+
       if (!topicData.isValidTopic) {
-        if (topicData.effectiveVideoCount <= 0 && topicData.featuredVideoIds.isEmpty) {
+        if (!isOwner) {
           hasError.value = true;
-          rxErrorMessage.value = 'This topic is unavailable or contains no videos.';
+          rxErrorMessage.value = 'This topic is currently unavailable.';
           rxIsLoading.value = false;
           return;
         }
       }
+
+      isOwnerTopic.value = isOwner;
+      isTopicRejected.value = isRejected;
+      topicModerationReason.value = topicData.moderationReason ?? '';
 
       topic.value = topicData;
       if (Get.isRegistered<UserSignalTracker>()) {

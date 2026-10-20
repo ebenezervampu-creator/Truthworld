@@ -206,9 +206,12 @@ class ChannelWalletTopupSheet {
               const SizedBox(height: 8),
               TextField(
                 controller: customAmountController,
+                maxLength: 8,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                  LengthLimitingTextInputFormatter(8),
                 ],
                 style: const TextStyle(color: AppColors.textPrimary),
                 decoration: InputDecoration(
@@ -322,6 +325,10 @@ class ChannelWalletTopupSheet {
                                     'Successfully added \$${amt.toStringAsFixed(2)} to your channel wallet!',
                                   );
                                   onTopupSuccess?.call();
+                                } else {
+                                  AppSnackbar.warning(
+                                    'Deposit was not completed. If funds were debited, they will be credited automatically upon gateway verification.',
+                                  );
                                 }
                               },
                         style: ElevatedButton.styleFrom(

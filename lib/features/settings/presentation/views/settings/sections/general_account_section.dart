@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/auth/email_verification_sheet.dart';
 import 'package:truthworld/components/ui/auth/phone_verification_sheet.dart';
@@ -816,6 +817,11 @@ class GeneralAccountSection extends StatelessWidget {
               TextField(
                 controller: passwordController,
                 obscureText: true,
+                maxLength: 128,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(128),
+                ],
                 style: TextStyle(color: colors.textPrimary),
                 decoration: InputDecoration(
                   labelText: 'Confirm Password',

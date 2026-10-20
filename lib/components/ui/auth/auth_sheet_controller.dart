@@ -1,27 +1,34 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/components/ui/auth/country_dial_codes.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
+import 'package:truthworld/core/services/user_languages_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/features/video/data/models/ai_features.dart';
 
 export 'package:truthworld/components/ui/auth/country_dial_codes.dart';
 
 /// Steps within the multi-method authentication sheet.
 enum AuthStep {
+  languageSelection,
+  languageNotice,
   options,
   phoneInput,
   otpVerification,
 }
 
-/// Controller managing authentication options (Google, Apple, Phone OTP).
+/// Controller managing authentication options (Google, Apple, Phone OTP) and language onboarding.
 class AuthSheetController extends BaseController {
   /// Returns whether the target platform is an Apple platform (iOS, macOS).
   /// On Web (`kIsWeb`), Google Sign-In is used as the exclusive authentication provider.
@@ -45,7 +52,18 @@ class AuthSheetController extends BaseController {
     return isWeb ?? kIsWeb;
   }
 
-  final Rx<AuthStep> currentStep = AuthStep.options.obs;
+  final Rx<AuthStep> currentStep = AuthStep.languageSelection.obs;
+  final RxnString selectedLanguage = RxnString();
+  final RxString languageSearchQuery = ''.obs;
+  final RxBool isSubmittingLanguageRequest = false.obs;
+  final RxBool isLanguageRequestSubmitted = false.obs;
+  final RxSet<String> requestedLanguages = <String>{}.obs;
+
+  late final TextEditingController languageSearchController =
+      trackTextController(TextEditingController());
+  late final TextEditingController requestEmailController =
+      trackTextController(TextEditingController());
+
   final RxBool isAuthBusy = false.obs;
   final RxString activeProvider = ''.obs;
 
@@ -98,6 +116,140 @@ class AuthSheetController extends BaseController {
   void clearCountrySearch() {
     countrySearchController.clear();
     countrySearchQuery.value = '';
+  }
+
+  /// Dynamically filtered translation languages for onboarding.
+  /// English is always positioned first as the canonical platform language.
+  List<TranslationLanguage> get filteredLanguages {
+    final query = languageSearchQuery.value.trim().toLowerCase();
+
+    final english = supportedLanguages.firstWhere(
+      (l) => l.code == 'en' || l.name.toLowerCase() == 'english',
+      orElse: () => const TranslationLanguage(
+        code: 'en',
+        name: 'English',
+        nativeName: 'English',
+        category: LanguageCategory.global,
+      ),
+    );
+
+    final nonEnglish = supportedLanguages
+        .where((l) => l.code != 'en' && l.name.toLowerCase() != 'english')
+        .toList();
+
+    if (query.isEmpty) {
+      return [english, ...nonEnglish];
+    }
+
+    final matches = supportedLanguages.where((l) {
+      final nameLower = l.name.toLowerCase();
+      final nativeLower = l.nativeName.toLowerCase();
+      return nameLower.contains(query) || nativeLower.contains(query);
+    }).toList();
+
+    if (matches.any((l) => l.code == 'en')) {
+      matches.removeWhere((l) => l.code == 'en');
+      return [english, ...matches];
+    }
+    return matches;
+  }
+
+  void updateLanguageSearch(String query) {
+    languageSearchQuery.value = query;
+  }
+
+  void clearLanguageSearch() {
+    languageSearchController.clear();
+    languageSearchQuery.value = '';
+  }
+
+  void selectPrimaryLanguage(String languageName) {
+    if (languageName.trim().toLowerCase() == 'english') {
+      selectedLanguage.value = 'English';
+      if (Get.isRegistered<UserLanguagesService>()) {
+        UserLanguagesService.to.setPrimaryLanguage('English');
+      }
+      currentStep.value = AuthStep.options;
+    } else {
+      selectedLanguage.value = languageName;
+      final key = languageName.toLowerCase();
+      var alreadyRequested = requestedLanguages.contains(key);
+      if (!alreadyRequested) {
+        try {
+          final box = GetStorage();
+          alreadyRequested = box.read<bool>('lang_req_$key') ?? false;
+        } catch (_) {}
+      }
+      isLanguageRequestSubmitted.value = alreadyRequested;
+      currentStep.value = AuthStep.languageNotice;
+    }
+  }
+
+  void continueWithEnglish() {
+    selectedLanguage.value = 'English';
+    if (Get.isRegistered<UserLanguagesService>()) {
+      UserLanguagesService.to.setPrimaryLanguage('English');
+    }
+    currentStep.value = AuthStep.options;
+  }
+
+  void goToLanguageSelection() {
+    clearLanguageSearch();
+    currentStep.value = AuthStep.languageSelection;
+  }
+
+  Future<void> submitLanguageRequest([String? lang]) async {
+    final language = lang ?? selectedLanguage.value ?? '';
+    if (language.isEmpty || isSubmittingLanguageRequest.value) return;
+
+    try {
+      isSubmittingLanguageRequest.value = true;
+      requestedLanguages.add(language.toLowerCase());
+      try {
+        final box = GetStorage();
+        box.write('lang_req_${language.toLowerCase()}', true);
+      } catch (_) {}
+
+      final email = requestEmailController.text.trim();
+      final currentUid =
+          Get.isRegistered<AuthService>() ? AuthService.to.uid : '';
+
+      if (currentUid.isNotEmpty) {
+        try {
+          await FirebaseFirestore.instance
+              .collection(FirestoreCollections.channelLanguageRequests)
+              .add({
+            'userId': currentUid,
+            'email': email.isNotEmpty ? email : AuthService.to.email,
+            'languageName': language,
+            'status': 'pending',
+            'createdAt': FieldValue.serverTimestamp(),
+            'platform': kIsWeb ? 'web' : defaultTargetPlatform.name,
+            'source': 'sign_in_language_modal',
+          });
+        } catch (e, st) {
+          ErrorHandler.log(
+            e,
+            stackTrace: st,
+            tag: 'AuthSheetController.submitLangReq',
+          );
+        }
+      }
+
+      isLanguageRequestSubmitted.value = true;
+      AppSnackbar.success(
+        'Thank you! Your request for $language has been recorded.',
+      );
+    } catch (e, st) {
+      ErrorHandler.log(
+        e,
+        stackTrace: st,
+        tag: 'AuthSheetController.submitLangReq',
+      );
+      AppSnackbar.error('Unable to submit request. Please try again.');
+    } finally {
+      isSubmittingLanguageRequest.value = false;
+    }
   }
 
   @override

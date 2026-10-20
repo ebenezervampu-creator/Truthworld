@@ -50,27 +50,25 @@ class MonetizationScreen extends StatelessWidget {
 
     final controller = Get.isRegistered<DashboardController>()
         ? Get.find<DashboardController>()
-        : (targetChannelId.isNotEmpty
-            ? Get.put(DashboardController(channelId: targetChannelId))
-            : null);
+        : Get.put(DashboardController(channelId: targetChannelId.isNotEmpty ? targetChannelId : 'creator_default'));
 
     final revController = RevenueAnalyticsController.to;
 
     final effectiveChannelId = argChannelId.isNotEmpty
         ? argChannelId
-        : (controller?.channelId.isNotEmpty == true
-            ? controller!.channelId
-            : (controller?.currentChannel.value?.id.isNotEmpty == true
-                ? controller!.currentChannel.value!.id
+        : (controller.channelId.isNotEmpty
+            ? controller.channelId
+            : (controller.currentChannel.value?.id.isNotEmpty == true
+                ? controller.currentChannel.value!.id
                 : uid));
 
     final effectiveChannelName = argChannelName.isNotEmpty
         ? argChannelName
-        : (controller?.currentChannel.value?.name ?? 'Channel');
+        : (controller.currentChannel.value?.name ?? 'Channel');
 
     final effectiveRevChange = argRevenueChange.isNotEmpty
         ? argRevenueChange
-        : (controller?.channelStats['revenueChange']?.toString() ?? '+₹0.00');
+        : (controller.channelStats['revenueChange']?.toString() ?? '+₹0.00');
 
     if (initialTabIndex != null) {
       revController.selectedEarningsTab.value = initialTabIndex!;
@@ -78,8 +76,7 @@ class MonetizationScreen extends StatelessWidget {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (effectiveChannelId.isNotEmpty &&
-          (revController.channelId.value != effectiveChannelId ||
-              revController.totalRevenue.value == 0.0)) {
+          revController.channelId.value != effectiveChannelId) {
         revController.loadRevenueAnalytics(
           effectiveChannelId,
           chName: effectiveChannelName,
@@ -94,7 +91,7 @@ class MonetizationScreen extends StatelessWidget {
         title: Obx(() {
           final chName = revController.channelName.value.isNotEmpty
               ? revController.channelName.value
-              : (controller?.currentChannel.value?.name ?? '');
+              : (controller.currentChannel.value?.name ?? '');
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -140,16 +137,18 @@ class MonetizationScreen extends StatelessWidget {
             icon: const Icon(Icons.refresh_rounded, color: AppColors.textPrimary),
             onPressed: () async {
               revController.refreshData();
-              controller?.refreshChannelData();
+              controller.refreshChannelData();
             },
           ),
           const SizedBox(width: 8),
         ],
       ),
-      body: controller == null
-          ? _buildMonetizationSkeleton()
-          : Obx(() {
-              final channel = controller.currentChannel.value;
+      body: Obx(() {
+        if ((controller.rxIsLoading.value || revController.isLoading) &&
+            controller.currentChannel.value == null) {
+          return _buildMonetizationSkeleton();
+        }
+        final channel = controller.currentChannel.value;
               final isCustom = channel?.channelType == ChannelType.custom;
               final selectedTab = revController.selectedEarningsTab.value;
 

@@ -90,7 +90,7 @@ void showPlaylistOptionsSheet({
                   ),
                   PlaylistOptionItem(
                     icon: Icons.delete_outline_rounded,
-                    title: 'Delete Playlist',
+                    title: 'Move to Trash',
                     isDestructive: true,
                     onTap: () {
                       Navigator.pop(context);
@@ -120,11 +120,11 @@ void _confirmDeletePlaylist(
         backgroundColor: AppColors.bgSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text(
-          'Delete Playlist?',
+          'Move to Trash?',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         content: Text(
-          'Are you sure you want to delete "${playlist.playlistName}"? This action cannot be undone.',
+          'Are you sure you want to move "${playlist.playlistName}" to Trash? Deleted items are retained for 30 days before permanent deletion.',
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
@@ -141,7 +141,7 @@ void _confirmDeletePlaylist(
               backgroundColor: AppColors.error,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Delete'),
+            child: const Text('Move to Trash'),
           ),
         ],
       );

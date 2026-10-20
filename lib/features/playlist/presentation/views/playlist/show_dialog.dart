@@ -15,6 +15,9 @@ void showModernizedPlaylistDialog({
   required BuildContext context,
   required String videoId,
 }) {
+  if (Get.isRegistered<PlaylistDialogController>()) {
+    Get.find<PlaylistDialogController>().resetForm();
+  }
   showGeneralDialog(
     context: context,
     barrierDismissible: true,
@@ -36,7 +39,11 @@ void showModernizedPlaylistDialog({
         child: FadeTransition(opacity: animation, child: child),
       );
     },
-  );
+  ).then((_) {
+    if (Get.isRegistered<PlaylistDialogController>()) {
+      Get.find<PlaylistDialogController>().resetForm();
+    }
+  });
 }
 
 class _ModernizedPlaylistDialog extends StatelessWidget {
@@ -359,7 +366,9 @@ class _ModernizedPlaylistDialogView extends StatelessWidget {
             const SizedBox(height: 12),
             TextField(
               controller: controller.newPlaylistCtrl,
-              inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+              maxLength: 100,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: TruthworldTextInputFormatters.withLimit(100),
               style: const TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 14,
@@ -523,7 +532,7 @@ class _ModernizedPlaylistDialogView extends StatelessWidget {
 
       final videoCount = isWatchLater
           ? playlistController.watchLaterVideoIds.length
-          : playlist.videoCount;
+          : playlist.effectiveVideoCount;
       final videoCountText =
           '$videoCount ${videoCount == 1 ? "video" : "videos"}';
       final visibilityText = playlist.isPublic ? 'Public' : 'Private';

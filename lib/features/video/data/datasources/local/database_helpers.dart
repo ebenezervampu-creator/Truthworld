@@ -318,6 +318,21 @@ Future<Uint8List?> getVideoBytes(String id) async {
   return rawBytes;
 }
 
+/// Verifies that an encrypted .twenc file exists and is fully downloaded/written.
+Future<bool> _isEncryptedFileComplete(File encFile) async {
+  if (!await encFile.exists()) return false;
+  final fileLen = await encFile.length();
+  if (fileLen <= MediaCryptoService.headerSize) return false;
+  try {
+    final headerBytes = await encFile.openRead(0, MediaCryptoService.headerSize).first;
+    if (!MediaCryptoService.instance.isEncryptedMedia(headerBytes)) return false;
+    final header = MediaCryptoService.instance.parseHeader(headerBytes);
+    return fileLen >= header.originalLength + MediaCryptoService.headerSize;
+  } catch (_) {
+    return false;
+  }
+}
+
 /// Resolves a streaming loopback URL for offline video playback via LocalPlaybackProxyServer.
 /// On native platforms, serves the encrypted file on-the-fly without writing unencrypted bytes to disk.
 Future<String?> getOfflinePlaybackUrl(String id) async {
@@ -326,7 +341,7 @@ Future<String?> getOfflinePlaybackUrl(String id) async {
   final dir = await _getOfflineDir();
   final encFile = File('${dir.path}/$id.twenc');
 
-  if (await encFile.exists() && (await encFile.length()) > MediaCryptoService.headerSize) {
+  if (await _isEncryptedFileComplete(encFile)) {
     return LocalPlaybackProxyServer.instance.serveVideo(id, encFile);
   }
 
@@ -428,7 +443,7 @@ Future<bool> hasOfflineVideo(String id) async {
     final dir = await _getOfflineDir();
 
     final encFile = File('${dir.path}/$id.twenc');
-    if (await encFile.exists() && (await encFile.length()) > MediaCryptoService.headerSize) {
+    if (await _isEncryptedFileComplete(encFile)) {
       return true;
     }
 

@@ -76,7 +76,11 @@ class DashboardCommentReplyDrawer extends StatelessWidget {
 
           TextField(
             controller: replyCtrl,
-            inputFormatters: TruthworldTextInputFormatters.standard,
+            maxLength: ContentValidator.defaultMaxReplyLength,
+            buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+            inputFormatters: TruthworldTextInputFormatters.withLimit(
+              ContentValidator.defaultMaxReplyLength,
+            ),
             maxLines: 3,
             minLines: 1,
             autofocus: true,
@@ -142,6 +146,7 @@ class DashboardCommentReplyDrawer extends StatelessWidget {
                           final valRes = ContentValidator.validate(
                             text,
                             fieldName: 'Reply',
+                            maxLength: ContentValidator.defaultMaxReplyLength,
                           );
                           if (!valRes.isValid) {
                             AppSnackbar.warning(valRes.message);

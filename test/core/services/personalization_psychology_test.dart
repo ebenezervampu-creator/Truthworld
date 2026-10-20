@@ -256,7 +256,7 @@ void main() {
     test('FlipCoinService boosts videos in unexplored categories and unexplored topics', () {
       final profile = UserInterestProfile(
         userId: 'user_flip_test',
-        categoryAffinities: {'Technology': 0.9, 'Gaming': 0.8},
+        categoryAffinities: {'Technology': 0.9, 'Short Films': 0.8},
         exploredTopicSlugs: {'flutter', 'unity', 'coding'},
         topicAffinities: {'topic:flutter': 0.9, 'topic:unity': 0.8},
         recentlyWatchedVideoIds: {'vid_tech_1', 'vid_tech_2'},

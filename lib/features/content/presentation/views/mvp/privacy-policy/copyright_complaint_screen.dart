@@ -26,7 +26,13 @@ class CopyrightComplaintScreen extends GetView<CopyrightComplaintController> {
                 Icons.arrow_back,
                 color: Colors.white,
               ),
-              onPressed: Get.back,
+              onPressed: () {
+                if (Navigator.of(context).canPop()) {
+                  Get.back();
+                } else {
+                  Get.offAllNamed('/');
+                }
+              },
             ),
             title: const Text(
               'Copyright Infringement Notice',
@@ -86,7 +92,11 @@ class CopyrightComplaintScreen extends GetView<CopyrightComplaintController> {
                             label: 'Contact Email Address *',
                             hint: 'email@example.com',
                             keyboardType: TextInputType.emailAddress,
-                            inputFormatters: const [],
+                            maxLength: 254,
+                            inputFormatters: [
+                              LengthLimitingTextInputFormatter(254),
+                              FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                            ],
                             validator: (v) {
                               if (v == null || v.trim().isEmpty) {
                                 return 'Email address is required';
@@ -105,7 +115,11 @@ class CopyrightComplaintScreen extends GetView<CopyrightComplaintController> {
                             label: 'Contact Phone Number *',
                             hint: '+91 98765 43210',
                             keyboardType: TextInputType.phone,
-                            inputFormatters: const [],
+                            maxLength: 20,
+                            inputFormatters: [
+                              LengthLimitingTextInputFormatter(20),
+                              FilteringTextInputFormatter.allow(RegExp(r'[0-9+\s-]')),
+                            ],
                             validator: (v) => (v == null || v.trim().isEmpty)
                                 ? 'Phone number is required'
                                 : null,
@@ -148,6 +162,11 @@ class CopyrightComplaintScreen extends GetView<CopyrightComplaintController> {
                           'Link to Original Work / Registration Number (Optional)',
                       hint:
                           'https://... or Copyright Registration No. with jurisdiction',
+                      maxLength: 500,
+                      inputFormatters: [
+                        LengthLimitingTextInputFormatter(500),
+                        FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                      ],
                     ),
                     const SizedBox(height: 32),
                     _buildSectionHeader(
@@ -161,6 +180,11 @@ class CopyrightComplaintScreen extends GetView<CopyrightComplaintController> {
                       label: 'Truthworld Video URL or Video ID *',
                       hint:
                           'https://truthworld.in/watch/VIDEO_ID or VIDEO_ID',
+                      maxLength: 500,
+                      inputFormatters: [
+                        LengthLimitingTextInputFormatter(500),
+                        FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                      ],
                       validator: (v) => (v == null || v.trim().isEmpty)
                           ? 'Truthworld Video URL or ID is required'
                           : null,
@@ -170,6 +194,7 @@ class CopyrightComplaintScreen extends GetView<CopyrightComplaintController> {
                       controller: controller.timestampsController,
                       label: 'Timestamp / Portion Infringed (Optional)',
                       hint: 'e.g. 01:23 - 04:56 or Entire Video',
+                      maxLength: 50,
                     ),
                     const SizedBox(height: 16),
                     _buildTextFormField(
@@ -476,12 +501,19 @@ class CopyrightComplaintScreen extends GetView<CopyrightComplaintController> {
     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
+    int? maxLength,
   }) {
+    final effectiveLimit = maxLength ?? (maxLines > 1 ? 2000 : 100);
+    final effectiveFormatters = inputFormatters ??
+        TruthworldTextInputFormatters.internationalWithLimit(effectiveLimit);
+
     return TextFormField(
       controller: controller,
       maxLines: maxLines,
+      maxLength: effectiveLimit,
+      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
       keyboardType: keyboardType,
-      inputFormatters: inputFormatters ?? TruthworldTextInputFormatters.standard,
+      inputFormatters: effectiveFormatters,
       validator: validator,
       decoration: InputDecoration(
         labelText: label,

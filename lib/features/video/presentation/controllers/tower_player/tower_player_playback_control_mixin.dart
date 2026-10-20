@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/guest_playback_limit_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/audio_only_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/playback_source.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player/tower_player_preferences.dart';
@@ -31,6 +32,8 @@ mixin TowerPlayerPlaybackControlMixin on GetxController {
   AudioOnlyService? get audioService;
   bool get hasEnded;
   set hasEnded(bool val);
+  void hideSeekPreview();
+  RxDouble get aspectRatio;
 
   // ── State ──
   final RxDouble volume = 1.0.obs;
@@ -45,6 +48,128 @@ mixin TowerPlayerPlaybackControlMixin on GetxController {
   // Zoom & aspect ratio
   final RxBool isZoomToFill = false.obs;
   final RxDouble zoomScale = 1.0.obs;
+  final Rx<Offset> zoomPanOffset = Offset.zero.obs;
+
+  bool get isZoomedIn => zoomScale.value > 1.02 || isZoomToFill.value;
+
+  /// Calculate the zoom scale needed to fill the screen horizontally/vertically without black bars,
+  /// preserving authentic aspect ratio exactly like YouTube's "Zoomed to fill".
+  double calculateFillScale(Size viewportSize) {
+    if (viewportSize.width <= 0 || viewportSize.height <= 0) return 1.0;
+    final ar = aspectRatio.value > 0 ? aspectRatio.value : (16 / 9);
+    final viewportAspect = viewportSize.width / viewportSize.height;
+
+    if (viewportAspect >= ar) {
+      // Screen is wider than video (pillarbox)
+      return (viewportAspect / ar).clamp(1.0, 8.0);
+    } else {
+      // Screen is taller than video (letterbox)
+      return (ar / viewportAspect).clamp(1.0, 8.0);
+    }
+  }
+
+  /// Clamps the pan offset so that the zoomed video never shows empty black borders
+  /// and remains cleanly framed within the viewport bounds.
+  Offset clampPanOffset(Offset pan, double scale, Size viewportSize) {
+    if (viewportSize.width <= 0 || viewportSize.height <= 0 || scale <= 1.001) {
+      return Offset.zero;
+    }
+    final ar = aspectRatio.value > 0 ? aspectRatio.value : (16 / 9);
+    final viewportAspect = viewportSize.width / viewportSize.height;
+
+    double fitWidth;
+    double fitHeight;
+    if (viewportAspect >= ar) {
+      fitHeight = viewportSize.height;
+      fitWidth = viewportSize.height * ar;
+    } else {
+      fitWidth = viewportSize.width;
+      fitHeight = viewportSize.width / ar;
+    }
+
+    final scaledWidth = fitWidth * scale;
+    final scaledHeight = fitHeight * scale;
+
+    final maxDx = scaledWidth > viewportSize.width
+        ? (scaledWidth - viewportSize.width) / 2.0
+        : 0.0;
+    final maxDy = scaledHeight > viewportSize.height
+        ? (scaledHeight - viewportSize.height) / 2.0
+        : 0.0;
+
+    final clampedX = maxDx > 0 ? pan.dx.clamp(-maxDx, maxDx) : 0.0;
+    final clampedY = maxDy > 0 ? pan.dy.clamp(-maxDy, maxDy) : 0.0;
+
+    return Offset(clampedX, clampedY);
+  }
+
+  Timer? _zoomAnimationTimer;
+
+  void cancelZoomAnimation() {
+    _zoomAnimationTimer?.cancel();
+    _zoomAnimationTimer = null;
+  }
+
+  /// Smoothly animates zoom scale and pan offset using an ease-out cubic curve (60/120 FPS).
+  void animateZoomTo({
+    required double targetScale,
+    required Offset targetPan,
+    bool fill = false,
+    Duration duration = const Duration(milliseconds: 240),
+  }) {
+    cancelZoomAnimation();
+    final startScale = zoomScale.value;
+    final startPan = zoomPanOffset.value;
+    final startTime = DateTime.now();
+    final totalMs = duration.inMilliseconds;
+
+    if (totalMs <= 0 ||
+        ((startScale - targetScale).abs() < 0.001 &&
+            (startPan - targetPan).distance < 0.5)) {
+      zoomScale.value = targetScale;
+      zoomPanOffset.value = targetPan;
+      isZoomToFill.value = fill;
+      return;
+    }
+
+    _zoomAnimationTimer =
+        Timer.periodic(const Duration(milliseconds: 16), (timer) {
+      if (isClosed) {
+        timer.cancel();
+        return;
+      }
+      final elapsed = DateTime.now().difference(startTime).inMilliseconds;
+      final t = (elapsed / totalMs).clamp(0.0, 1.0);
+      final curveVal = Curves.easeOutCubic.transform(t);
+
+      zoomScale.value = startScale + (targetScale - startScale) * curveVal;
+      zoomPanOffset.value = Offset.lerp(startPan, targetPan, curveVal)!;
+
+      if (t >= 1.0) {
+        timer.cancel();
+        _zoomAnimationTimer = null;
+        zoomScale.value = targetScale;
+        zoomPanOffset.value = targetPan;
+        isZoomToFill.value = fill;
+      }
+    });
+  }
+
+  /// Reset zoom and pan offset cleanly back to original 1.0x fit
+  void resetZoom({bool animated = false}) {
+    if (animated) {
+      animateZoomTo(
+        targetScale: 1.0,
+        targetPan: Offset.zero,
+        fill: false,
+      );
+    } else {
+      cancelZoomAnimation();
+      isZoomToFill.value = false;
+      zoomScale.value = 1.0;
+      zoomPanOffset.value = Offset.zero;
+    }
+  }
 
   // Analytics & watch time
   final List<PlayerEvent> _events = [];
@@ -73,34 +198,70 @@ mixin TowerPlayerPlaybackControlMixin on GetxController {
   }
 
   String get zoomLabel {
-    if (isZoomToFill.value) return 'Fill screen';
-    if (zoomScale.value == 1.0) return 'Fit (1.0x)';
+    if (isZoomToFill.value) return 'Zoomed to fill';
+    if (zoomScale.value <= 1.0) return 'Fit (1.0x)';
     final valStr = zoomScale.value % 1 == 0
         ? zoomScale.value.toInt().toString()
         : zoomScale.value.toStringAsFixed(1);
     return '${valStr}x';
   }
 
-  void setZoomScale(double scale, {bool fill = false}) {
+  void setZoomScale(
+    double scale, {
+    bool fill = false,
+    Size? viewportSize,
+    bool animated = false,
+  }) {
     if (fill) {
-      isZoomToFill.value = true;
-      zoomScale.value = 1.0;
-      showToast('Zoom to Fill');
+      final fScale =
+          viewportSize != null ? calculateFillScale(viewportSize) : 1.0;
+      if (animated && viewportSize != null) {
+        animateZoomTo(
+          targetScale: fScale,
+          targetPan: Offset.zero,
+          fill: true,
+        );
+      } else {
+        cancelZoomAnimation();
+        isZoomToFill.value = true;
+        zoomScale.value = 1.0;
+        zoomPanOffset.value = Offset.zero;
+      }
+      showToast('Zoomed to fill');
     } else {
-      isZoomToFill.value = false;
-      zoomScale.value = scale;
-      final valStr = scale % 1 == 0
-          ? scale.toInt().toString()
-          : scale.toStringAsFixed(1);
-      showToast(scale == 1.0 ? 'Original (Fit)' : 'Zoom ${valStr}x');
+      if (scale <= 1.0) {
+        resetZoom(animated: animated);
+        showToast('Original');
+      } else {
+        final targetPan = viewportSize != null
+            ? clampPanOffset(zoomPanOffset.value, scale, viewportSize)
+            : zoomPanOffset.value;
+        if (animated) {
+          animateZoomTo(
+            targetScale: scale,
+            targetPan: targetPan,
+            fill: false,
+          );
+        } else {
+          cancelZoomAnimation();
+          isZoomToFill.value = false;
+          zoomScale.value = scale;
+          zoomPanOffset.value = targetPan;
+        }
+        final valStr = scale % 1 == 0
+            ? scale.toInt().toString()
+            : scale.toStringAsFixed(1);
+        showToast('${valStr}x');
+      }
     }
   }
 
-  void toggleZoomToFill() {
-    if (isZoomToFill.value) {
-      setZoomScale(1.0);
+  void toggleZoomToFill({Size? viewportSize, bool animated = false}) {
+    if (isZoomToFill.value || zoomScale.value > 1.05) {
+      resetZoom(animated: animated);
+      showToast('Original');
     } else {
-      setZoomScale(1.0, fill: true);
+      setZoomScale(1.0, fill: true, viewportSize: viewportSize, animated: animated);
     }
   }
 
@@ -122,6 +283,11 @@ mixin TowerPlayerPlaybackControlMixin on GetxController {
           ),
         );
       } else {
+        if (Get.isRegistered<GuestPlaybackLimitService>() &&
+            !GuestPlaybackLimitService.to.isPlaybackAllowed()) {
+          GuestPlaybackLimitService.to.promptGuestSignIn();
+          return;
+        }
         if (activePlayback.duration > Duration.zero &&
             activePlayback.position >= activePlayback.duration) {
           await activePlayback.seek(Duration.zero);
@@ -154,6 +320,7 @@ mixin TowerPlayerPlaybackControlMixin on GetxController {
       hasEnded = false;
       await activePlayback.seek(pos);
       syncActiveSubtitle();
+      hideSeekPreview();
       if (audioTrackController != null &&
           audioTrackController!.value.isInitialized) {
         final audioDur = audioTrackController!.value.duration;
@@ -290,9 +457,19 @@ mixin TowerPlayerPlaybackControlMixin on GetxController {
     timers.setPeriodic(
       'watch',
       const Duration(seconds: 1),
-      (_) => _totalWatchSeconds++,
+      (_) {
+        _totalWatchSeconds++;
+        if (Get.isRegistered<GuestPlaybackLimitService>()) {
+          GuestPlaybackLimitService.to.onPlaybackActive();
+        }
+      },
     );
   }
 
-  void stopWatchTimer() => timers.cancel('watch');
+  void stopWatchTimer() {
+    timers.cancel('watch');
+    if (Get.isRegistered<GuestPlaybackLimitService>()) {
+      GuestPlaybackLimitService.to.onPlaybackPaused();
+    }
+  }
 }

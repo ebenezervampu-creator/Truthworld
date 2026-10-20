@@ -203,7 +203,7 @@ class VideoEngagementController extends BaseController {
         .collection(FirestoreCollections.videos)
         .doc(videoId)
         .collection('language_requests')
-        .get()
+        .getCacheFirst()
         .then((snapshot) {
           final requests = snapshot.docs.map((doc) {
             return LanguageRequest.fromMap(doc.data(), doc.id);

@@ -80,6 +80,9 @@ mixin MiniplayerHandoffMixin on
       PipService.to.updateAutoPip(
         enabled: isPlaying.value,
         aspectRatio: currentAspectRatio,
+        isPlaying: isPlaying.value,
+        hasPrevious: hasPreviousVideo,
+        hasNext: hasNextVideo,
       );
       return;
     }
@@ -108,6 +111,15 @@ mixin MiniplayerHandoffMixin on
     isPlaying.value = false;
     isBuffering.value = true;
     isVideoReady.value = false;
+
+    // Immediately enable auto-pip with loading state so exiting to home during load enters PiP cleanly
+    PipService.to.updateAutoPip(
+      enabled: true,
+      aspectRatio: currentAspectRatio,
+      isPlaying: false,
+      hasPrevious: hasPreviousVideo,
+      hasNext: hasNextVideo,
+    );
 
     // Determine initial positions and duration based on clip vs full video
     final Duration hardwareSeekTarget;
@@ -261,8 +273,11 @@ mixin MiniplayerHandoffMixin on
 
       startPositionTimer();
       PipService.to.updateAutoPip(
-        enabled: isPlaying.value,
+        enabled: mode.value != MiniplayerMode.dismissed,
         aspectRatio: currentAspectRatio,
+        isPlaying: isPlaying.value,
+        hasPrevious: hasPreviousVideo,
+        hasNext: hasNextVideo,
       );
     } catch (e, s) {
       if (isControllerClosed) return;
@@ -295,7 +310,12 @@ mixin MiniplayerHandoffMixin on
   @override
   void dismiss() {
     if (isControllerClosed) return;
-    PipService.to.updateAutoPip(enabled: false);
+    PipService.to.updateAutoPip(
+      enabled: false,
+      isPlaying: false,
+      hasPrevious: false,
+      hasNext: false,
+    );
     recoveryDebounceTimer?.cancel();
     recoveryAttempts = 0;
     disposeVideoControllers();

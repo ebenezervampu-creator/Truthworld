@@ -124,7 +124,7 @@ export const onAdCampaignWritten = onDocumentWritten(
       try {
         const genAI = getVertexAI();
         const model = genAI.getGenerativeModel({
-          model: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-3.1-flash-lite",
+          model: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-2.5-flash",
           systemInstruction: `You are a strict advertisement moderation system for Truthworld. Review the advertisement details (brand name, headline, description, CTA text, CTA target, and media URLs) for violations of the Community Guidelines and Advertising Standards.\n\n${COMMUNITY_GUIDELINES_TEXT}`,
           generationConfig: {
             responseMimeType: "application/json",

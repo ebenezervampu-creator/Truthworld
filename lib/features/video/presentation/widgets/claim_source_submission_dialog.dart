@@ -25,18 +25,36 @@ class ClaimSourceSubmissionDialog extends StatelessWidget {
 
   static Future<void> show({
     required BuildContext context,
-    required Video video,
+    Video? video,
+    String? videoId,
+    String? claimText,
     List<dynamic> claims = const [],
     Map<dynamic, dynamic>? initialClaim,
   }) async {
+    final effectiveVideo = video ??
+        Video(
+          id: videoId ?? '',
+          title: '',
+          description: '',
+          thumbnailUrl: '',
+          ownerId: '',
+          channelId: '',
+          channelName: '',
+          category: '',
+          tags: const [],
+        );
+    final effectiveInitialClaim = initialClaim ??
+        (claimText != null
+            ? <dynamic, dynamic>{'claim': claimText, 'statement': claimText}
+            : null);
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => ClaimSourceSubmissionDialog(
-        video: video,
+        video: effectiveVideo,
         claims: claims,
-        initialClaim: initialClaim,
+        initialClaim: effectiveInitialClaim,
       ),
     );
   }
@@ -215,6 +233,11 @@ class ClaimSourceSubmissionDialog extends StatelessWidget {
                   const SizedBox(height: 6),
                   TextField(
                     controller: controller.urlController,
+                    maxLength: ContentValidator.defaultMaxUrlLength,
+                    buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                    inputFormatters: TruthworldTextInputFormatters.withLimit(
+                      ContentValidator.defaultMaxUrlLength,
+                    ),
                     style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 13,
@@ -255,7 +278,9 @@ class ClaimSourceSubmissionDialog extends StatelessWidget {
                         const SizedBox(height: 6),
                         TextField(
                           controller: controller.titleController,
-                          inputFormatters: TruthworldTextInputFormatters.standard,
+                          maxLength: 200,
+                          buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                          inputFormatters: TruthworldTextInputFormatters.withLimit(200),
                           style: const TextStyle(
                             color: AppColors.textPrimary,
                             fontSize: 13,
@@ -296,7 +321,9 @@ class ClaimSourceSubmissionDialog extends StatelessWidget {
                   const SizedBox(height: 6),
                   TextField(
                     controller: controller.noteController,
-                    inputFormatters: TruthworldTextInputFormatters.standard,
+                    maxLength: 1000,
+                    buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                    inputFormatters: TruthworldTextInputFormatters.withLimit(1000),
                     maxLines: 3,
                     style: const TextStyle(
                       color: AppColors.textPrimary,

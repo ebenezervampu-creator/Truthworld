@@ -12,13 +12,13 @@ class DashboardTruthworldIssuesNotice extends StatelessWidget {
   final bool isDarkMode;
   final Channel channel;
   final int copyrightClaimsCount;
-  final VoidCallback onOpenIntelligence;
+  final VoidCallback onOpenNotifications;
 
   const DashboardTruthworldIssuesNotice({
     required this.isDarkMode,
     required this.channel,
     required this.copyrightClaimsCount,
-    required this.onOpenIntelligence,
+    required this.onOpenNotifications,
     super.key,
   });
 
@@ -105,7 +105,7 @@ class DashboardTruthworldIssuesNotice extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 ElevatedButton.icon(
-                  onPressed: onOpenIntelligence,
+                  onPressed: onOpenNotifications,
                   icon: const Icon(
                     Icons.notifications_rounded,
                     color: Colors.white,

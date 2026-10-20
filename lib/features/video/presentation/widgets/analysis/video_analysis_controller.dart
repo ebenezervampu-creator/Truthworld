@@ -7,6 +7,11 @@ class VideoAnalysisController extends BaseController {
   final RxString selectedClaimFilter = 'All'.obs;
   final RxInt selectedTab = 0.obs;
 
+  // Search & Sorting state for claims
+  final RxString searchQuery = ''.obs;
+  final RxBool isSearchOpen = false.obs;
+  final RxString sortOrder = 'Video Order'.obs;
+
   void toggleClaimExpanded(int index) {
     if (expandedClaimIndices.contains(index)) {
       expandedClaimIndices.remove(index);
@@ -21,5 +26,20 @@ class VideoAnalysisController extends BaseController {
 
   void setSelectedTab(int index) {
     selectedTab.value = index;
+  }
+
+  void toggleSearch() {
+    isSearchOpen.value = !isSearchOpen.value;
+    if (!isSearchOpen.value) {
+      searchQuery.value = '';
+    }
+  }
+
+  void setSearchQuery(String query) {
+    searchQuery.value = query;
+  }
+
+  void setSortOrder(String order) {
+    sortOrder.value = order;
   }
 }

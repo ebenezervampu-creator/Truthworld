@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/digital_wellbeing_service.dart';
 import 'package:truthworld/core/utils/time_of_day_helper.dart';
@@ -453,6 +454,11 @@ class WellbeingSection extends StatelessWidget {
                 obscureText: true,
                 keyboardType: TextInputType.number,
                 maxLength: 4,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(4),
+                ],
                 style: const TextStyle(
                   color: AppColors.textPrimary,
                   letterSpacing: 8,

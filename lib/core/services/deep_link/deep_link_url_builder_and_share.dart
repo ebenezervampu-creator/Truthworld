@@ -34,9 +34,39 @@ mixin DeepLinkUrlBuilderAndShare {
       clean = clean.substring(2);
     } else if (clean.startsWith('t/')) {
       clean = clean.substring(2);
+    } else if (clean.startsWith('#')) {
+      clean = clean.substring(1);
     }
     return '$baseUrl/T/$clean';
   }
+
+  /// Generates a shareable post URL.
+  /// Pattern: https://www.truthworld.in/post/{postId}
+  static String postUrl(String postId) => '$baseUrl/post/$postId';
+
+  /// Generates a shareable clip URL.
+  /// Pattern: https://www.truthworld.in/watch?v={videoId}&start={start}&end={end}&clipTitle={clipTitle}
+  static String clipUrl(
+    String videoId, {
+    required num startSeconds,
+    required num endSeconds,
+    String? clipTitle,
+  }) {
+    final titleParam = clipTitle != null && clipTitle.trim().isNotEmpty
+        ? '&clipTitle=${Uri.encodeComponent(clipTitle.trim())}'
+        : '';
+    return '$baseUrl/watch?v=$videoId&start=${startSeconds.toInt()}&end=${endSeconds.toInt()}$titleParam';
+  }
+
+  /// Generates a shareable chapter / timestamped video URL.
+  /// Pattern: https://www.truthworld.in/watch?v={videoId}&t={timestampSeconds}
+  static String chapterUrl(String videoId, {required int timestampSeconds}) =>
+      '$baseUrl/watch?v=$videoId&t=$timestampSeconds';
+
+  /// Generates a shareable claim verification URL.
+  /// Pattern: https://www.truthworld.in/claim-detail?videoId={videoId}&claimIndex={claimIndex}
+  static String claimUrl(String videoId, {required int claimIndex}) =>
+      '$baseUrl/claim-detail?videoId=$videoId&claimIndex=$claimIndex';
 
   /// Share a video with title and URL.
   Future<void> shareVideo(
@@ -70,7 +100,7 @@ mixin DeepLinkUrlBuilderAndShare {
     String? handle,
   }) async {
     try {
-      final url = channelUrl(channelId);
+      final url = channelUrl(channelId, handle: handle);
       final cleanHandle = (handle ?? '').replaceAll(RegExp('^@'), '').trim();
       final handleStr = cleanHandle.isNotEmpty ? ' (@$cleanHandle)' : '';
       final text = channelName != null
@@ -117,4 +147,84 @@ mixin DeepLinkUrlBuilderAndShare {
       ErrorHandler.log(e, stackTrace: s, tag: 'DeepLinkService.shareTopic');
     }
   }
+
+  /// Share a community post with title and URL.
+  Future<void> sharePost(
+    String postId,
+    String postTitle, {
+    String? channelName,
+  }) async {
+    try {
+      final url = postUrl(postId);
+      final authorStr = (channelName != null && channelName.trim().isNotEmpty)
+          ? ' by $channelName'
+          : '';
+      await SharePlus.instance.share(
+        ShareParams(
+          text: 'Check out "$postTitle"$authorStr on TruthWorld:\n$url',
+          subject: postTitle,
+        ),
+      );
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'DeepLinkService.sharePost');
+    }
+  }
+
+  /// Share a clip with title and URL.
+  Future<void> shareClip(
+    String videoId,
+    String clipTitle, {
+    required num startSeconds,
+    required num endSeconds,
+    String? videoTitle,
+    String? channelName,
+  }) async {
+    try {
+      final url = clipUrl(
+        videoId,
+        startSeconds: startSeconds,
+        endSeconds: endSeconds,
+        clipTitle: clipTitle,
+      );
+      final byChannel = (channelName != null && channelName.trim().isNotEmpty)
+          ? ' • $channelName'
+          : '';
+      await SharePlus.instance.share(
+        ShareParams(
+          text: 'Watch "$clipTitle" clip$byChannel on TruthWorld:\n$url',
+          subject: clipTitle,
+        ),
+      );
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'DeepLinkService.shareClip');
+    }
+  }
+
+  /// Share a claim verification with statement, verdict, and direct link.
+  Future<void> shareClaim(
+    String videoId, {
+    required String claimText,
+    required String verdictLabel,
+    required String videoTitle,
+    required int claimIndex,
+  }) async {
+    try {
+      final url = claimUrl(videoId, claimIndex: claimIndex);
+      final text = 'Fact Check by TruthWorld\n'
+          'Claim: "$claimText"\n'
+          'Verdict: $verdictLabel\n'
+          '$videoTitle\n\n'
+          'Verify on TruthWorld:\n'
+          '$url';
+      await SharePlus.instance.share(
+        ShareParams(
+          text: text,
+          subject: 'TruthWorld Fact Check: $verdictLabel',
+        ),
+      );
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'DeepLinkService.shareClaim');
+    }
+  }
 }
+

@@ -298,6 +298,9 @@ class AdsTab extends StatelessWidget {
           width: 240,
           height: 38,
           child: TextField(
+            maxLength: ContentValidator.defaultMaxSearchLength,
+            buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+            inputFormatters: TruthworldTextInputFormatters.withLimit(ContentValidator.defaultMaxSearchLength),
             onChanged: (val) => controller.searchQuery.value = val,
             style: const TextStyle(
               fontFamily: TWTypography.uiFamily,
@@ -702,7 +705,9 @@ class AdsTab extends StatelessWidget {
             const SizedBox(height: 12),
             TextField(
               controller: reasonController,
-              inputFormatters: TruthworldTextInputFormatters.standard,
+              maxLength: 500,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: TruthworldTextInputFormatters.withLimit(500),
               maxLines: 3,
               style: const TextStyle(
                 fontFamily: TWTypography.uiFamily,

@@ -25,7 +25,7 @@ export interface SpeakerProfile {
 }
 
 export class SpeakerProfilingService {
-  private readonly model = genAI.getGenerativeModel({ model: PIPELINE_CONFIG.GEMINI_MODELS?.profiling || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-3.1-flash-lite" });
+  private readonly model = genAI.getGenerativeModel({ model: PIPELINE_CONFIG.GEMINI_MODELS?.profiling || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-2.5-flash" });
 
   /**
    * Profile all speakers in a transcript

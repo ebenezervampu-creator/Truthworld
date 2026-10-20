@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
+import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
@@ -438,6 +440,19 @@ class AuthProfileManager {
     if (currentUser == null || currentUser.isAnonymous || !isAuthenticated) {
       needsOnboarding.value = false;
       return;
+    }
+
+    // Safety guard: Never show consumer onboarding in Studio flavor or Studio domain
+    if (AppFlavor.isStudio) {
+      needsOnboarding.value = false;
+      return;
+    }
+    if (kIsWeb) {
+      final host = Uri.base.host.toLowerCase();
+      if (host.startsWith('studio') || host.contains('studio.truthworld.in')) {
+        needsOnboarding.value = false;
+        return;
+      }
     }
 
     // Only prompt if onboarding is actually flagged as needed (new signed user)

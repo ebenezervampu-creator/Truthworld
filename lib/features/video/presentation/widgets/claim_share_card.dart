@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:get/get.dart';
@@ -9,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -344,12 +346,31 @@ class ClaimShareService {
   /// 4. Converts the image to PNG byte data and saves it in the temporary directory.
   /// 5. Summons [Share.shareXFiles] with the generated image.
   /// 6. Safely cleans up the [OverlayEntry] in all execution paths.
+  /// Static alias for [shareClaimCard].
+  static Future<void> shareClaim({
+    required BuildContext context,
+    required Video video,
+    required String claimText,
+    required ClaimVerdictInfo verdict,
+    String? primarySourceDomain,
+    int? claimIndex,
+  }) =>
+      shareClaimCard(
+        context: context,
+        video: video,
+        claimText: claimText,
+        verdict: verdict,
+        primarySourceDomain: primarySourceDomain,
+        claimIndex: claimIndex,
+      );
+
   static Future<void> shareClaimCard({
     required BuildContext context,
     required Video video,
     required String claimText,
     required ClaimVerdictInfo verdict,
     String? primarySourceDomain,
+    int? claimIndex,
   }) async {
     // Obtain share origin synchronously before any async operations
     final box = context.findRenderObject() as RenderBox?;
@@ -357,21 +378,33 @@ class ClaimShareService {
         ? box.localToGlobal(Offset.zero) & box.size
         : null;
 
-    // Show a brief loading snackbar while generating
-    Get.rawSnackbar(
-      message: 'Generating shareable fact-check card...',
-      duration: const Duration(seconds: 2),
-      backgroundColor: AppColors.bgSurface,
-      margin: const EdgeInsets.all(16),
-      borderRadius: 10,
-      icon: const SizedBox(
-        width: 20,
-        height: 20,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          color: Colors.white,
-        ),
-      ),
+    final targetClaimIndex = claimIndex ?? 0;
+    final claimUrl = DeepLinkUrlBuilderAndShare.claimUrl(
+      video.id,
+      claimIndex: targetClaimIndex,
+    );
+
+    final subject = 'TruthWorld Fact Check: ${verdict.label}';
+    final text =
+        'Fact Check by TruthWorld\n'
+        'Claim: "$claimText"\n'
+        'Verdict: ${verdict.label}\n'
+        '${video.title}\n\n'
+        'Verify on TruthWorld:\n'
+        '$claimUrl';
+
+    // On Web, invoke native share directly
+    if (kIsWeb) {
+      await Share.share(
+        text,
+        subject: subject,
+        sharePositionOrigin: sharePositionOrigin,
+      );
+      return;
+    }
+
+    AppSnackbar.info(
+      'Generating shareable fact-check card...',
     );
 
     final repaintBoundaryKey = GlobalKey();
@@ -456,13 +489,6 @@ class ClaimShareService {
         overlayEntry = null;
       }
 
-      final subject = 'TruthWorld Fact Check: ${verdict.label}';
-      final text =
-          'Fact Check by TruthWorld\n'
-          'Claim: "$claimText"\n'
-          'Verdict: ${verdict.label}\n'
-          '${video.title}';
-
       await Share.shareXFiles(
         [XFile(file.path)],
         subject: subject,
@@ -470,10 +496,19 @@ class ClaimShareService {
         sharePositionOrigin: sharePositionOrigin,
       );
     } catch (e) {
-      ErrorHandler.log(e);
-      AppSnackbar.error(
-        'Unable to generate fact-check card. Please try again.',
-      );
+      ErrorHandler.log(e, tag: 'ClaimShareService.shareClaim');
+      // Direct text fallback so the user is never blocked from sharing
+      try {
+        await Share.share(
+          text,
+          subject: subject,
+          sharePositionOrigin: sharePositionOrigin,
+        );
+      } catch (fallbackError) {
+        AppSnackbar.error(
+          'Unable to share fact-check card. Please try again.',
+        );
+      }
     } finally {
       if (overlayEntry != null && overlayEntry.mounted) {
         overlayEntry.remove();

@@ -95,7 +95,9 @@ void showReportAdDialogModal({
                 const SizedBox(height: 12),
                 TextField(
                   controller: detailsController,
-                  inputFormatters: TruthworldTextInputFormatters.standard,
+                  maxLength: 500,
+                  buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                  inputFormatters: TruthworldTextInputFormatters.withLimit(500),
                   maxLines: 2,
                   style: const TextStyle(
                     color: AppColors.textPrimary,

@@ -28,15 +28,21 @@ class PipDedicatedView extends StatelessWidget {
           var hasSubtitles = false;
           var currentSubtitle = '';
 
-          if (miniplayer != null &&
-              miniplayer.isVisible &&
-              miniplayer.internalVpc != null &&
-              miniplayer.internalVpc!.value.isInitialized) {
-            vpc = miniplayer.internalVpc;
-            hasSubtitles = miniplayer.subtitlesEnabled.value;
-            currentSubtitle = miniplayer.currentSubtitle.value;
+          if (miniplayer != null && miniplayer.isVisible) {
+            // Touch reactive observables to ensure Obx rebuilds the moment initialization completes
+            miniplayer.isVideoReady.value;
+            miniplayer.isBuffering.value;
+            miniplayer.isPlaying.value;
+
+            if (miniplayer.internalVpc != null &&
+                miniplayer.internalVpc!.value.isInitialized) {
+              vpc = miniplayer.internalVpc;
+              hasSubtitles = miniplayer.subtitlesEnabled.value;
+              currentSubtitle = miniplayer.currentSubtitle.value;
+            }
           } else if (TowerPlayerRegistry.activePlayers.isNotEmpty) {
             final towerCtrl = TowerPlayerRegistry.activePlayers.last;
+            towerCtrl.isPlaying.value;
             if (towerCtrl.videoPlayerController.value.isInitialized) {
               vpc = towerCtrl.videoPlayerController;
               hasSubtitles = towerCtrl.subtitlesEnabled.value;

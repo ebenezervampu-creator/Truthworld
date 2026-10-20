@@ -232,14 +232,54 @@ async function fulfillOrder(
           );
         }
       }
-    } else if (purpose === "channel_topup" || purpose === "channel_wallet_topup") {
+    } else if (purpose === "channel_topup" || purpose === "channel_wallet_topup" || purpose === "custom_channel_plan") {
       const channelId = metadata.channelId;
       if (channelId) {
         const channelRef = firestore.collection("channels").doc(channelId);
         const packType = metadata.packType;
         const amountUSD = metadata.amountUSD || (amount > 0 ? Number((amount / 84.0).toFixed(2)) : 0);
 
-        if (packType === "storage") {
+        if (purpose === "custom_channel_plan") {
+          const planTier = String(metadata.planTier || "starter_15");
+          const autoPay = metadata.autoPay !== false;
+          let storageGB = 50;
+          let bandwidthGB = 250;
+          let fee = metadata.priceUSD || 15.0;
+
+          if (planTier === "growth_30") {
+            storageGB = 100;
+            bandwidthGB = 500;
+            fee = 30.0;
+          } else if (planTier === "pro_45") {
+            storageGB = 150;
+            bandwidthGB = 750;
+            fee = 45.0;
+          } else if (planTier === "scale_100") {
+            storageGB = 400;
+            bandwidthGB = 1600;
+            fee = 100.0;
+          } else if (planTier === "premier_200") {
+            storageGB = 800;
+            bandwidthGB = 3200;
+            fee = 200.0;
+          }
+
+          transaction.set(
+            channelRef,
+            {
+              channelType: "custom",
+              "infraConfig.planTier": planTier,
+              "infraConfig.flatPlatformFee": fee,
+              "infraConfig.autoPay": autoPay,
+              "infraConfig.storageQuotaBytes": storageGB * 1024 * 1024 * 1024,
+              "infraConfig.bandwidthQuotaBytesThisMonth": bandwidthGB * 1024 * 1024 * 1024,
+              "infraConfig.isWithdrawalHeld": false,
+              "infraConfig.withdrawalHoldReason": "",
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        } else if (packType === "storage") {
           const additionalBytes = (metadata.gigabytes || 0) * 1024 * 1024 * 1024;
           transaction.set(
             channelRef,
@@ -634,6 +674,14 @@ export const createCashfreeOrder = onCall(
       "videoId",
       "userCountry",
       "currency",
+      "text",
+      "userName",
+      "userProfilePicUrl",
+      "tierColor",
+      "chargeAmount",
+      "originalAmount",
+      "originalCurrency",
+      "isDebug",
     ];
     const safeMetadata: Record<string, any> = {};
     if (metadata && typeof metadata === "object") {
@@ -1602,10 +1650,11 @@ export const cashfreeHostedCheckout = onRequest(
     res.setHeader("Permissions-Policy", "payment=*");
     res.setHeader(
       "Content-Security-Policy",
-      "default-src 'self' 'unsafe-inline' https:; " +
-      "script-src 'self' 'unsafe-inline' https://sdk.cashfree.com https://*.cashfree.com; " +
-      "connect-src 'self' https://*.cashfree.com https://api.cashfree.com https://sandbox.cashfree.com https://payments.cashfree.com; " +
-      "frame-src 'self' https://*.cashfree.com https://payments.cashfree.com; " +
+      "default-src 'self' 'unsafe-inline' https: data: blob:; " +
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.cashfree.com https://*.cashfree.com https:; " +
+      "connect-src 'self' https: wss:; " +
+      "frame-src 'self' https: data: blob:; " +
+      "form-action 'self' https:; " +
       "img-src 'self' data: blob: https: https://*.cashfree.com;"
     );
 
@@ -1675,13 +1724,16 @@ export const cashfreeHostedCheckout = onRequest(
     <div id="loader" class="spinner"></div>
     <div id="title" class="title">Redirecting to Secure Payment...</div>
     <div id="subtitle" class="subtitle">Connecting to Cashfree Payment Gateway. Please do not refresh.</div>
-    <button id="proceedBtn" class="action-btn" onclick="retryCheckout()">Retry Payment</button>
+    <button id="proceedBtn" class="action-btn" onclick="retryCheckout()">Continue to Cashfree</button>
   </div>
 
   <script>
     let hasInitiated = false;
     const clientEnv = ${JSON.stringify(env)};
     const clientSessionId = ${JSON.stringify(sessionId)};
+    const directCheckoutUrl = (clientEnv === 'sandbox'
+      ? 'https://payments-test.cashfree.com/order/#'
+      : 'https://payments.cashfree.com/order/#') + encodeURIComponent(clientSessionId);
 
     function initiateCheckout() {
       if (hasInitiated) return;
@@ -1692,48 +1744,47 @@ export const cashfreeHostedCheckout = onRequest(
           cf.checkout({
             paymentSessionId: clientSessionId,
             redirectTarget: "_self"
+          }).then(function(result) {
+            if (result && result.error) {
+              console.warn("[Cashfree SDK result error, redirecting directly]:", result.error);
+              window.location.replace(directCheckoutUrl);
+            }
           }).catch(function(err) {
-            console.error("[Cashfree Checkout Error]:", err);
-            hasInitiated = false;
-            showError("Unable to open payment window. Please tap Retry to try again.");
+            console.warn("[Cashfree SDK catch error, redirecting directly]:", err);
+            window.location.replace(directCheckoutUrl);
           });
           return;
         }
       } catch (e) {
-        console.error("[Cashfree Init Error]:", e);
-        hasInitiated = false;
-        showError("Unable to initialize payment gateway. Please tap Retry to try again.");
+        console.warn("[Cashfree Init Exception, redirecting directly]:", e);
+        window.location.replace(directCheckoutUrl);
       }
     }
 
     function showError(msg) {
       document.getElementById('loader').style.display = 'none';
-      document.getElementById('title').textContent = 'Unable to Load Payment Gateway';
-      document.getElementById('subtitle').textContent = msg || 'Please check your connection and tap Retry.';
+      document.getElementById('title').textContent = 'Opening Payment Gateway...';
+      document.getElementById('subtitle').textContent = msg || 'If redirect does not start automatically, please tap Continue below.';
       const btn = document.getElementById('proceedBtn');
       btn.style.display = 'inline-block';
-      btn.textContent = 'Retry Payment';
+      btn.textContent = 'Continue to Cashfree';
     }
 
     function retryCheckout() {
-      document.getElementById('loader').style.display = 'block';
-      document.getElementById('title').textContent = 'Redirecting to Secure Payment...';
-      document.getElementById('subtitle').textContent = 'Connecting to Cashfree Payment Gateway. Please do not refresh.';
-      document.getElementById('proceedBtn').style.display = 'none';
-      hasInitiated = false;
-      checks = 0;
-      checkSdkReady();
+      window.location.replace(directCheckoutUrl);
     }
 
     let checks = 0;
     function checkSdkReady() {
       if (typeof window.Cashfree === 'function') {
         initiateCheckout();
-      } else if (checks < 50) {
+      } else if (checks < 20) {
         checks++;
         setTimeout(checkSdkReady, 100);
       } else {
-        showError("Payment gateway took too long to load. Tap Retry to reload.");
+        // Automatically direct-fallback to Cashfree hosted portal without blocking
+        console.warn("[Cashfree JS SDK timeout, auto-redirecting to portal]");
+        window.location.replace(directCheckoutUrl);
       }
     }
 

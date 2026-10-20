@@ -19,7 +19,7 @@ Widget buildSection1TopicName(BuildContext context, CreateTopicController contro
             TextFormField(
               controller: controller.nameController,
               maxLength: 60,
-              inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+              inputFormatters: TruthworldTextInputFormatters.withLimit(60),
               onChanged: (_) => controller.formKey.currentState?.validate(),
               style: const TextStyle(color: Colors.white, fontSize: 14),
               decoration: buildCreateTopicInputDecoration(hintText: 'Enter topic name'),
@@ -69,7 +69,7 @@ Widget buildSection2Handle(BuildContext context, CreateTopicController controlle
             TextFormField(
               controller: controller.handleController,
               maxLength: 30,
-              inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+              inputFormatters: TruthworldTextInputFormatters.withLimit(30),
               onChanged: (_) => controller.onHandleManualEdit(),
               style: const TextStyle(color: Colors.white, fontSize: 14),
               decoration: buildCreateTopicInputDecoration(
@@ -122,7 +122,7 @@ Widget buildSection3Title(BuildContext context, CreateTopicController controller
             TextFormField(
               controller: controller.titleController,
               maxLength: 100,
-              inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+              inputFormatters: TruthworldTextInputFormatters.withLimit(100),
               style: const TextStyle(color: Colors.white, fontSize: 14),
               decoration: buildCreateTopicInputDecoration(hintText: 'Enter a catchy title for your topic'),
               validator: (val) {
@@ -179,7 +179,7 @@ Widget buildSection4Description(
               maxLines: maxLines,
               maxLength: 500,
               textAlignVertical: TextAlignVertical.top,
-              inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+              inputFormatters: TruthworldTextInputFormatters.withLimit(500),
               onChanged: (_) => controller.formKey.currentState?.validate(),
               style: const TextStyle(color: Colors.white, fontSize: 14),
               decoration: buildCreateTopicInputDecoration(
@@ -239,7 +239,9 @@ Widget buildSection7Tags(
         const SizedBox(height: 12),
         TextFormField(
           controller: controller.tagInputController,
-          inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+          maxLength: 30,
+          buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+          inputFormatters: TruthworldTextInputFormatters.withLimit(30),
           style: const TextStyle(color: Colors.white, fontSize: 14),
           decoration: buildCreateTopicInputDecoration(hintText: 'Add tags and press Enter'),
           onFieldSubmitted: (val) {

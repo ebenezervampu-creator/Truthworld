@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/features/community/presentation/controllers/saved_community_posts_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -35,6 +36,9 @@ class SavedCommunityPostsScreen
           }
           return TextField(
             autofocus: true,
+            maxLength: 100,
+            buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+            inputFormatters: TruthworldTextInputFormatters.withLimit(100),
             style: const TextStyle(
               color: AppColors.textPrimary,
               fontSize: 16,

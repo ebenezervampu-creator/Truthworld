@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/pipeline/pipeline_components.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -74,10 +75,17 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                   .doc(video.id)
                   .snapshots(),
               builder: (context, resolutionSnap) {
+                final videoDocData = videoDocSnap.data?.data();
+                final resolvedJobId = video.jobId?.isNotEmpty == true
+                    ? video.jobId!
+                    : ((videoDocData?['jobId'] as String?)?.isNotEmpty == true
+                        ? videoDocData!['jobId'] as String
+                        : video.id);
+
                 return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                   stream: FirebaseFirestore.instance
                       .collection('video_jobs')
-                      .doc(video.id)
+                      .doc(resolvedJobId)
                       .snapshots(),
                   builder: (context, jobDocSnap) {
                     final videoDocData = videoDocSnap.data?.data();
@@ -460,11 +468,13 @@ class VideoPipelineStatusWidget extends StatelessWidget {
             ? cred.trustScore
             : ((outputsTrustScore != null && outputsTrustScore > 0)
                 ? outputsTrustScore
-                : video.trustScore);
+                : (cred.claims.isNotEmpty ? video.trustScore : 0.0));
 
         final rawSummary = cred.summary.isNotEmpty
             ? cred.summary
-            : ((videoDocData?['summary'] as String?) ?? '');
+            : UserFeedbackSanitizer.sanitizeVideoSummary(
+                (videoDocData?['summary'] as String?) ?? '',
+              );
         final hasRealAiSummary = rawSummary.isNotEmpty &&
             rawSummary.trim() != video.description.trim();
 
@@ -486,7 +496,12 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                     label: 'Not Requested',
                     color: AppColors.textTertiary,
                   )
-                else if (hasCredibilityResults && effectiveTrustScore > 0)
+                else if (hasCredibilityResults && cred.claims.isEmpty)
+                  _buildMiniBadge(
+                    label: 'Unassessed Claims',
+                    color: AppColors.textTertiary,
+                  )
+                else if (hasCredibilityResults && effectiveTrustScore > 0 && cred.claims.isNotEmpty)
                   _buildMiniBadge(
                     label: '${effectiveTrustScore.toInt()}% Trust Score',
                     color: effectiveTrustScore >= 75
@@ -741,8 +756,10 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                       ),
                       onPressed: () {
                         final factData = cred.toMap();
-                        if (!factData.containsKey('trustScore') ||
-                            (factData['trustScore'] as num? ?? 0) == 0) {
+                        if (cred.claims.isNotEmpty &&
+                            (!factData.containsKey('trustScore') ||
+                                (factData['trustScore'] as num? ?? 0) == 0) &&
+                            effectiveTrustScore > 0) {
                           factData['trustScore'] = effectiveTrustScore;
                         }
                         Get.bottomSheet(

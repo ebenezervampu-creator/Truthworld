@@ -23,6 +23,20 @@ class ContentValidator {
   static const int defaultMaxTitleLength = 100;
   static const int defaultMaxDescriptionLength = 5000;
   static const int defaultMaxTags = 5;
+  static const int defaultMaxCommentLength = 1000;
+  static const int defaultMaxReplyLength = 1000;
+  static const int defaultMaxDisplayNameLength = 50;
+  static const int defaultMaxHandleLength = 30;
+  static const int defaultMaxBioLength = 300;
+  static const int defaultMaxSearchLength = 100;
+  static const int defaultMaxLiveChatLength = 250;
+  static const int defaultMaxTierNameLength = 50;
+  static const int defaultMaxTierDescLength = 200;
+  static const int defaultMaxPerkLength = 100;
+  static const int defaultMaxLocationLength = 100;
+  static const int defaultMaxFeedbackLength = 2000;
+  static const int defaultMaxDisputeReasonLength = 2000;
+  static const int defaultMaxUrlLength = 500;
 
   static const List<String> _extraOffensiveWords = [
     'xxx',
@@ -261,6 +275,33 @@ class ContentValidator {
   static TextInputFormatter get englishOnlyFormatter => TruthworldTextInputFormatters.englishOnly;
   static TextInputFormatter get profanitySanitizingFormatter => TruthworldTextInputFormatters.profanityFilter;
 
+  /// Resolves the default maximum length for common field types if none was explicitly provided.
+  static int? _resolveDefaultMaxLength(String fieldName) {
+    final lower = fieldName.toLowerCase().trim();
+    if (lower.contains('comment')) return defaultMaxCommentLength;
+    if (lower.contains('reply')) return defaultMaxReplyLength;
+    if (lower.contains('display name') || lower == 'name') {
+      return defaultMaxDisplayNameLength;
+    }
+    if (lower.contains('handle') || lower.contains('username')) {
+      return defaultMaxHandleLength;
+    }
+    if (lower.contains('bio')) return defaultMaxBioLength;
+    if (lower.contains('search')) return defaultMaxSearchLength;
+    if (lower.contains('chat')) return defaultMaxLiveChatLength;
+    if (lower.contains('tier') && lower.contains('name')) {
+      return defaultMaxTierNameLength;
+    }
+    if (lower.contains('perk')) return defaultMaxPerkLength;
+    if (lower.contains('location')) return defaultMaxLocationLength;
+    if (lower.contains('feedback')) return defaultMaxFeedbackLength;
+    if (lower.contains('dispute')) return defaultMaxDisputeReasonLength;
+    if (lower.contains('title')) return defaultMaxTitleLength;
+    if (lower.contains('channel') && lower.contains('description')) return 1000;
+    if (lower.contains('description')) return defaultMaxDescriptionLength;
+    return null;
+  }
+
   /// Synchronous multi-layer content validation check.
   static ContentValidationResult validate(
     String text, {
@@ -284,10 +325,13 @@ class ContentValidator {
       );
     }
 
-    if (maxLength != null && text.trim().length > maxLength) {
+    final effectiveMaxLength =
+        maxLength ?? _resolveDefaultMaxLength(fieldName);
+
+    if (effectiveMaxLength != null && text.trim().length > effectiveMaxLength) {
       return ContentValidationResult(
         isValid: false,
-        message: '$fieldName cannot exceed $maxLength characters',
+        message: '$fieldName cannot exceed $effectiveMaxLength characters',
       );
     }
 
@@ -509,6 +553,24 @@ class ContentValidator {
   }
 }
 
+const int defaultMaxTitleLength = ContentValidator.defaultMaxTitleLength;
+const int defaultMaxDescriptionLength = ContentValidator.defaultMaxDescriptionLength;
+const int defaultMaxTags = ContentValidator.defaultMaxTags;
+const int defaultMaxCommentLength = ContentValidator.defaultMaxCommentLength;
+const int defaultMaxReplyLength = ContentValidator.defaultMaxReplyLength;
+const int defaultMaxDisplayNameLength = ContentValidator.defaultMaxDisplayNameLength;
+const int defaultMaxHandleLength = ContentValidator.defaultMaxHandleLength;
+const int defaultMaxBioLength = ContentValidator.defaultMaxBioLength;
+const int defaultMaxSearchLength = ContentValidator.defaultMaxSearchLength;
+const int defaultMaxLiveChatLength = ContentValidator.defaultMaxLiveChatLength;
+const int defaultMaxTierNameLength = ContentValidator.defaultMaxTierNameLength;
+const int defaultMaxTierDescLength = ContentValidator.defaultMaxTierDescLength;
+const int defaultMaxPerkLength = ContentValidator.defaultMaxPerkLength;
+const int defaultMaxLocationLength = ContentValidator.defaultMaxLocationLength;
+const int defaultMaxFeedbackLength = ContentValidator.defaultMaxFeedbackLength;
+const int defaultMaxDisputeReasonLength = ContentValidator.defaultMaxDisputeReasonLength;
+const int defaultMaxUrlLength = ContentValidator.defaultMaxUrlLength;
+
 /// Shared content validation mixin for upload controllers and forms.
 ///
 /// Provides multi-layer profanity, spam, URL, emoji, and pattern checking.
@@ -521,6 +583,16 @@ mixin ContentValidationMixin {
   static const int maxTitleLength = ContentValidator.defaultMaxTitleLength;
   static const int maxDescriptionLength = ContentValidator.defaultMaxDescriptionLength;
   static const int maxTags = ContentValidator.defaultMaxTags;
+  static const int maxCommentLength = ContentValidator.defaultMaxCommentLength;
+  static const int maxReplyLength = ContentValidator.defaultMaxReplyLength;
+  static const int maxDisplayNameLength = ContentValidator.defaultMaxDisplayNameLength;
+  static const int maxHandleLength = ContentValidator.defaultMaxHandleLength;
+  static const int maxBioLength = ContentValidator.defaultMaxBioLength;
+  static const int maxSearchLength = ContentValidator.defaultMaxSearchLength;
+  static const int maxLiveChatLength = ContentValidator.defaultMaxLiveChatLength;
+  static const int maxTierNameLength = ContentValidator.defaultMaxTierNameLength;
+  static const int maxTierDescLength = ContentValidator.defaultMaxTierDescLength;
+  static const int maxFeedbackLength = ContentValidator.defaultMaxFeedbackLength;
 
   /// Call during [onInit] if needed (filters are lazily initialized).
   void initializeContentFilters() {
@@ -691,5 +763,22 @@ class TruthworldTextInputFormatters {
   static List<TextInputFormatter> get standard => [
         englishOnly,
         profanityFilter,
+      ];
+
+  /// Standard formatters combination with length limiting and profanity sanitization.
+  static List<TextInputFormatter> withLimit(
+    int maxLength, {
+    bool englishOnly = true,
+  }) =>
+      [
+        if (englishOnly) TruthworldTextInputFormatters.englishOnly,
+        profanityFilter,
+        LengthLimitingTextInputFormatter(maxLength),
+      ];
+
+  /// Formatters for international fields (allows foreign scripts, but censors profanity & limits length).
+  static List<TextInputFormatter> internationalWithLimit(int maxLength) => [
+        profanityFilter,
+        LengthLimitingTextInputFormatter(maxLength),
       ];
 }

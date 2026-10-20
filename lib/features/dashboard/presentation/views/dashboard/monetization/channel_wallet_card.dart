@@ -31,16 +31,25 @@ class ChannelWalletCard extends StatelessWidget {
         ? CurrencyLocalizationService.to.rate
         : CurrencyLocalizationService.defaultRate;
 
+    final liveChannel = controller?.currentChannel.value ?? channel;
+
+    // Convert dashboard INR revenues to USD before computing spendable balance
+    final rawTotalRevINR = controller?.rxTotalRevenue.value ?? 0.0;
+    final withdrawableRevINR = (controller?.rxMembershipsRevenue.value ?? 0.0) +
+        (controller?.rxSuperchatRevenue.value ?? 0.0);
+    final rawTotalRevUSD = rawTotalRevINR > 0 ? (rawTotalRevINR / rate) : 0.0;
+    final withdrawableRevUSD =
+        withdrawableRevINR > 0 ? (withdrawableRevINR / rate) : 0.0;
+
     final spendable = walletService.getSpendableBalance(
-      channel: channel,
-      rawTotalRevenue: controller?.rxTotalRevenue.value ?? 0.0,
-      withdrawableRevenue: (controller?.rxMembershipsRevenue.value ?? 0.0) +
-          (controller?.rxSuperchatRevenue.value ?? 0.0),
+      channel: liveChannel,
+      rawTotalRevenue: rawTotalRevUSD,
+      withdrawableRevenue: withdrawableRevUSD,
     );
 
     final totalUsd = spendable.totalSpendableBalance;
     final inrEquiv = (totalUsd * rate).toStringAsFixed(2);
-    final isCustom = channel.channelType == ChannelType.custom;
+    final isCustom = liveChannel.channelType == ChannelType.custom;
 
     return MonetizationCardContainer(
       child: Column(
@@ -192,7 +201,7 @@ class ChannelWalletCard extends StatelessWidget {
                   onPressed: () {
                     ChannelWalletTopupSheet.show(
                       context,
-                      channel: channel,
+                      channel: liveChannel,
                       onTopupSuccess: () {
                         controller?.refreshChannelData();
                       },

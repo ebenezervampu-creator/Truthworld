@@ -5,29 +5,85 @@ import 'package:truthworld/features/channel/data/models/channel_availability_sta
 import 'package:truthworld/features/channel/presentation/controllers/channel_mixins/channel_controller_base.dart';
 
 mixin ChannelAvailabilityMixin on ChannelControllerBase {
+  static const Set<String> reservedHandles = {
+    'admin',
+    'administrator',
+    'truthworld',
+    'truth',
+    'support',
+    'official',
+    'api',
+    'help',
+    'root',
+    'moderator',
+    'moderation',
+    'terms',
+    'privacy',
+    'channel',
+    'system',
+    'studio',
+    'verify',
+    'verified',
+    'auth',
+    'null',
+    'undefined',
+    'security',
+    'billing',
+  };
+
   Timer? _channelNameDebounceTimer;
   Timer? _customUrlDebounceTimer;
+  int _channelNameRequestId = 0;
+  int _customUrlRequestId = 0;
+  bool _listenersAttached = false;
+
+  final Map<String, AvailabilityStatus> _channelNameCache = {};
+  final Map<String, AvailabilityStatus> _customUrlCache = {};
+
+  @override
+  void applyHandleSuggestion(String handle) {
+    var clean = handle.trim();
+    if (clean.startsWith('@')) clean = clean.substring(1).trim();
+    customUrl.text = clean;
+    checkCustomUrlAvailability(clean);
+  }
 
   void _updateHandleSuggestions(String baseSlug) {
-    if (baseSlug.trim().isEmpty) {
+    var base = baseSlug.trim().toLowerCase();
+    if (base.startsWith('@')) base = base.substring(1);
+    if (base.isEmpty) {
       handleSuggestions.clear();
       return;
     }
-    final base = baseSlug.length > 25 ? baseSlug.substring(0, 25) : baseSlug;
-    handleSuggestions.value = [
-      base,
-      '${base}123',
-      '${base}_vsp',
-      '${base}777',
+    final normalized = base.length > 20 ? base.substring(0, 20) : base;
+    final candidates = <String>[
+      '${normalized}_official',
+      '${normalized}_channel',
+      '${normalized}101',
+      '${normalized}_vsp',
+      '${normalized}777',
+      'real_${normalized}',
     ];
+    final validSuggestions = candidates
+        .where((s) => s.length <= ChannelControllerBase.maxCustomUrlLength)
+        .where((s) => _customUrlCache[s] != AvailabilityStatus.taken)
+        .take(4)
+        .toList();
+
+    handleSuggestions.value = validSuggestions;
   }
 
   @override
   void setupTextFieldListeners() {
+    if (_listenersAttached) return;
+    _listenersAttached = true;
+
     channelName.addListener(() {
-      checkChannelNameAvailability(channelName.text);
+      final nameText = channelName.text;
+      checkChannelNameAvailability(nameText);
+
       // Auto-fill custom URL if it's empty or was previously auto-filled
-      final slug = channelName.text
+      final slug = nameText
           .toLowerCase()
           .trim()
           .replaceAll(RegExp('[^a-z0-9_-]'), '-')
@@ -45,18 +101,26 @@ mixin ChannelAvailabilityMixin on ChannelControllerBase {
         lastAutoSlug = cleanSlug;
         if (cleanSlug.isNotEmpty) {
           checkCustomUrlAvailability(cleanSlug);
+        } else {
+          customUrlAvailability.value = AvailabilityStatus.unknown;
+          customUrlAvailabilityMessage.value = '';
+          handleSuggestions.clear();
         }
       }
-      _updateHandleSuggestions(cleanSlug);
       formChangeTrigger.value++;
     });
+
     customUrl.addListener(() {
-      if (customUrl.text.isNotEmpty) {
-        checkCustomUrlAvailability(customUrl.text);
+      final text = customUrl.text;
+      if (text.isNotEmpty) {
+        checkCustomUrlAvailability(text);
       } else {
         customUrlAvailability.value = AvailabilityStatus.unknown;
+        customUrlAvailabilityMessage.value = '';
+        handleSuggestions.clear();
       }
     });
+
     description.addListener(() {
       formChangeTrigger.value++;
     });
@@ -64,100 +128,271 @@ mixin ChannelAvailabilityMixin on ChannelControllerBase {
 
   @override
   void setupFormValidationListeners() {
-    // Already handled in _setupTextFieldListeners
+    // Already handled in setupTextFieldListeners
   }
 
-  void checkChannelNameAvailability(String channelName) {
+  void checkChannelNameAvailability(String rawName) {
     _channelNameDebounceTimer?.cancel();
+    final name = rawName.trim();
 
-    if (channelName.trim().isEmpty) {
+    if (name.isEmpty) {
       channelNameAvailability.value = AvailabilityStatus.unknown;
+      channelNameAvailabilityMessage.value = '';
       return;
     }
 
-    if (channelName.length < ChannelControllerBase.minChannelNameLength ||
-        channelName.length > ChannelControllerBase.maxChannelNameLength) {
+    // Instant local validation (0ms, $0 cost)
+    if (name.length < ChannelControllerBase.minChannelNameLength) {
       channelNameAvailability.value = AvailabilityStatus.invalid;
+      channelNameAvailabilityMessage.value =
+          'Channel name must be at least ${ChannelControllerBase.minChannelNameLength} characters.';
       return;
     }
 
-    channelNameAvailability.value = AvailabilityStatus.checking;
+    if (name.length > ChannelControllerBase.maxChannelNameLength) {
+      channelNameAvailability.value = AvailabilityStatus.invalid;
+      channelNameAvailabilityMessage.value =
+          'Channel name cannot exceed ${ChannelControllerBase.maxChannelNameLength} characters.';
+      return;
+    }
 
+    if (profanityFilter.hasProfanity(name)) {
+      channelNameAvailability.value = AvailabilityStatus.invalid;
+      channelNameAvailabilityMessage.value =
+          'Please choose an appropriate channel name.';
+      return;
+    }
+
+    // In-memory cache check (0ms, $0 cost)
+    final lowerName = name.toLowerCase();
+    if (_channelNameCache.containsKey(lowerName)) {
+      final cached = _channelNameCache[lowerName]!;
+      channelNameAvailability.value = cached;
+      channelNameAvailabilityMessage.value = cached == AvailabilityStatus.available
+          ? 'Channel name is available!'
+          : 'This channel name is already taken.';
+      return;
+    }
+
+    // Set checking state
+    channelNameAvailability.value = AvailabilityStatus.checking;
+    channelNameAvailabilityMessage.value = 'Checking availability...';
+
+    // Industry standard debounce
+    final requestId = ++_channelNameRequestId;
     _channelNameDebounceTimer = Timer(
-      const Duration(milliseconds: 500),
-      () => _performChannelNameAvailabilityCheck(channelName),
+      const Duration(milliseconds: ChannelControllerBase.debounceDurationMs),
+      () => _performChannelNameAvailabilityCheck(name, requestId),
     );
   }
 
-  Future<void> _performChannelNameAvailabilityCheck(String channelName) async {
+  Future<void> _performChannelNameAvailabilityCheck(
+      String name, int requestId) async {
+    final lowerName = name.trim().toLowerCase();
     try {
       final snapshot = await firestore
           .collection(ChannelControllerBase.channelsCol)
-          .where('nameLowercase', isEqualTo: channelName.trim().toLowerCase())
+          .where('nameLowercase', isEqualTo: lowerName)
           .limit(1)
           .get();
 
-      channelNameAvailability.value = snapshot.docs.isEmpty
-          ? AvailabilityStatus.available
-          : AvailabilityStatus.taken;
+      // Discard stale responses
+      if (requestId != _channelNameRequestId) return;
+
+      bool isTaken = false;
+      if (snapshot.docs.isNotEmpty) {
+        final docData = snapshot.docs.first.data();
+        final status = (docData['status'] as String? ?? 'active').toLowerCase();
+        if (status != 'deleted') {
+          isTaken = true;
+        }
+      }
+
+      final status =
+          isTaken ? AvailabilityStatus.taken : AvailabilityStatus.available;
+      _channelNameCache[lowerName] = status;
+      channelNameAvailability.value = status;
+      channelNameAvailabilityMessage.value = isTaken
+          ? 'This channel name is already taken.'
+          : 'Channel name is available!';
     } catch (e, stackTrace) {
+      if (requestId != _channelNameRequestId) return;
       ErrorHandler.log(
         e,
         stackTrace: stackTrace,
         tag: 'ChannelAvailabilityMixin.checkNameAvailability',
       );
       channelNameAvailability.value = AvailabilityStatus.error;
+      channelNameAvailabilityMessage.value =
+          'Unable to check name availability right now.';
     }
   }
 
-  void checkCustomUrlAvailability(String customUrl) {
+  void checkCustomUrlAvailability(String rawCustomUrl) {
     _customUrlDebounceTimer?.cancel();
+    var cleanHandle = rawCustomUrl.trim();
+    if (cleanHandle.startsWith('@')) {
+      cleanHandle = cleanHandle.substring(1).trim();
+    }
 
-    if (customUrl.trim().isEmpty) {
+    if (cleanHandle.isEmpty) {
       customUrlAvailability.value = AvailabilityStatus.unknown;
+      customUrlAvailabilityMessage.value = '';
+      handleSuggestions.clear();
       return;
     }
 
-    if (!RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(customUrl) ||
-        customUrl.length < ChannelControllerBase.minCustomUrlLength ||
-        customUrl.length > ChannelControllerBase.maxCustomUrlLength) {
+    // Instant local validation (0ms, $0 cost)
+    if (cleanHandle.length < ChannelControllerBase.minCustomUrlLength) {
       customUrlAvailability.value = AvailabilityStatus.invalid;
+      customUrlAvailabilityMessage.value =
+          'Handle must be at least ${ChannelControllerBase.minCustomUrlLength} characters.';
+      _updateHandleSuggestions(cleanHandle);
       return;
     }
 
-    customUrlAvailability.value = AvailabilityStatus.checking;
+    if (cleanHandle.length > ChannelControllerBase.maxCustomUrlLength) {
+      customUrlAvailability.value = AvailabilityStatus.invalid;
+      customUrlAvailabilityMessage.value =
+          'Handle cannot exceed ${ChannelControllerBase.maxCustomUrlLength} characters.';
+      return;
+    }
 
+    if (!RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(cleanHandle)) {
+      customUrlAvailability.value = AvailabilityStatus.invalid;
+      customUrlAvailabilityMessage.value =
+          'Handle can only contain letters, numbers, underscores, and hyphens.';
+      return;
+    }
+
+    final lowerHandle = cleanHandle.toLowerCase();
+
+    // Reserved handles check (Instant, 0ms, $0 cost)
+    if (reservedHandles.contains(lowerHandle)) {
+      customUrlAvailability.value = AvailabilityStatus.taken;
+      customUrlAvailabilityMessage.value = 'Handle "@$cleanHandle" is reserved.';
+      _updateHandleSuggestions(cleanHandle);
+      return;
+    }
+
+    if (profanityFilter.hasProfanity(cleanHandle)) {
+      customUrlAvailability.value = AvailabilityStatus.invalid;
+      customUrlAvailabilityMessage.value = 'Please choose an appropriate handle.';
+      return;
+    }
+
+    // In-memory cache check (0ms, $0 cost)
+    if (_customUrlCache.containsKey(lowerHandle)) {
+      final cached = _customUrlCache[lowerHandle]!;
+      customUrlAvailability.value = cached;
+      customUrlAvailabilityMessage.value = cached == AvailabilityStatus.available
+          ? 'Handle @$cleanHandle is available!'
+          : 'Handle @$cleanHandle is already taken.';
+      if (cached == AvailabilityStatus.taken) {
+        _updateHandleSuggestions(cleanHandle);
+      } else {
+        handleSuggestions.clear();
+      }
+      return;
+    }
+
+    // Set checking state
+    customUrlAvailability.value = AvailabilityStatus.checking;
+    customUrlAvailabilityMessage.value = 'Checking availability...';
+
+    // Industry standard debounce
+    final requestId = ++_customUrlRequestId;
     _customUrlDebounceTimer = Timer(
-      const Duration(milliseconds: 500),
-      () => _performCustomUrlAvailabilityCheck(customUrl),
+      const Duration(milliseconds: ChannelControllerBase.debounceDurationMs),
+      () => _performCustomUrlAvailabilityCheck(cleanHandle, requestId),
     );
   }
 
-  Future<void> _performCustomUrlAvailabilityCheck(String customUrl) async {
+  Future<void> _performCustomUrlAvailabilityCheck(
+      String cleanHandle, int requestId) async {
+    final lowerHandle = cleanHandle.toLowerCase();
     try {
-      final snapshot = await firestore
-          .collection(ChannelControllerBase.channelsCol)
-          .where('handleLowercase', isEqualTo: customUrl.trim().toLowerCase())
-          .limit(1)
+      final currentUid = auth.currentUser?.uid;
+
+      // 1. Point-read on channel_handles collection: O(1) document ID lookup.
+      // Fastest possible read in Firestore (< 40ms) and costs only 1 document read.
+      final handleDoc = await firestore
+          .collection('channel_handles')
+          .doc(lowerHandle)
           .get();
 
-      customUrlAvailability.value = snapshot.docs.isEmpty
-          ? AvailabilityStatus.available
-          : AvailabilityStatus.taken;
+      // Discard stale responses
+      if (requestId != _customUrlRequestId) return;
+
+      bool isTaken = false;
+
+      if (handleDoc.exists) {
+        final data = handleDoc.data();
+        final ownerId = data?['ownerId'] as String?;
+        if (ownerId != null && currentUid != null && ownerId == currentUid) {
+          isTaken = false;
+        } else {
+          isTaken = true;
+        }
+      } else {
+        // 2. Query channels collection with limit(1) to check legacy/existing channels
+        final snapshot = await firestore
+            .collection(ChannelControllerBase.channelsCol)
+            .where('handleLowercase', isEqualTo: lowerHandle)
+            .limit(1)
+            .get();
+
+        if (requestId != _customUrlRequestId) return;
+
+        if (snapshot.docs.isNotEmpty) {
+          final docData = snapshot.docs.first.data();
+          final ownerId = (docData['ownerId'] ?? docData['userId']) as String?;
+          final status = (docData['status'] as String? ?? 'active').toLowerCase();
+          if (status != 'deleted' && (currentUid == null || ownerId != currentUid)) {
+            isTaken = true;
+          }
+        }
+      }
+
+      final status =
+          isTaken ? AvailabilityStatus.taken : AvailabilityStatus.available;
+      _customUrlCache[lowerHandle] = status;
+      customUrlAvailability.value = status;
+      customUrlAvailabilityMessage.value = isTaken
+          ? 'Handle @$cleanHandle is already taken.'
+          : 'Handle @$cleanHandle is available!';
+
+      if (isTaken) {
+        _updateHandleSuggestions(cleanHandle);
+      } else {
+        handleSuggestions.clear();
+      }
     } catch (e, stackTrace) {
+      if (requestId != _customUrlRequestId) return;
       ErrorHandler.log(
         e,
         stackTrace: stackTrace,
         tag: 'ChannelAvailabilityMixin.checkCustomUrlAvailability',
       );
       customUrlAvailability.value = AvailabilityStatus.error;
+      customUrlAvailabilityMessage.value =
+          'Unable to check handle availability right now.';
     }
   }
 
   void resetAvailabilityStatus() {
     channelNameAvailability.value = AvailabilityStatus.unknown;
     customUrlAvailability.value = AvailabilityStatus.unknown;
+    channelNameAvailabilityMessage.value = '';
+    customUrlAvailabilityMessage.value = '';
+    handleSuggestions.clear();
   }
 
-
+  @override
+  void disposeAvailabilityTimers() {
+    _channelNameDebounceTimer?.cancel();
+    _customUrlDebounceTimer?.cancel();
+    _channelNameDebounceTimer = null;
+    _customUrlDebounceTimer = null;
+  }
 }

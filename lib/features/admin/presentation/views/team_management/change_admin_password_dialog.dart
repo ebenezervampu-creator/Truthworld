@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
@@ -59,6 +60,11 @@ void showChangeAdminPasswordDialog(
             Obx(
               () => TextField(
                 controller: currentPassCtrl,
+                maxLength: 128,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(128),
+                ],
                 obscureText: isObscureCurrent.value,
                 style: const TextStyle(color: AppColors.textPrimary),
                 decoration: InputDecoration(
@@ -93,6 +99,11 @@ void showChangeAdminPasswordDialog(
             Obx(
               () => TextField(
                 controller: newPassCtrl,
+                maxLength: 128,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(128),
+                ],
                 obscureText: isObscureNew.value,
                 style: const TextStyle(color: AppColors.textPrimary),
                 decoration: InputDecoration(
@@ -126,6 +137,11 @@ void showChangeAdminPasswordDialog(
             // Confirm New Password
             TextField(
               controller: confirmPassCtrl,
+              maxLength: 128,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(128),
+              ],
               obscureText: true,
               style: const TextStyle(color: AppColors.textPrimary),
               decoration: InputDecoration(

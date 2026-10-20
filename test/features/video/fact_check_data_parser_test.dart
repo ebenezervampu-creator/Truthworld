@@ -264,5 +264,59 @@ void main() {
       expect(nestedParsed.factCheckTier, 'short');
       expect(nestedParsed.isShortOverview, isTrue);
     });
+
+    test('parses conclusion with sources from map and string formats', () {
+      // 1. Structured conclusion map with dedicated sources
+      final structuredData = {
+        'conclusion': {
+          'label': 'Supported',
+          'text': 'The video findings are rigorously supported by independent peer reviews.',
+          'confidence': 0.94,
+          'sources': [
+            {
+              'title': 'Nature Journal of Climate Science',
+              'url': 'https://nature.com/articles/s41558',
+              'domain': 'nature.com',
+              'trustLevel': 'High',
+              'type': 'Primary',
+            },
+            {
+              'title': 'NOAA Global Climate Report',
+              'url': 'https://noaa.gov/climate/2024',
+              'domain': 'noaa.gov',
+              'trustLevel': 'High',
+              'type': 'Primary',
+            },
+          ],
+        },
+      };
+
+      final parsedStructured = FactCheckDataParser.parse(structuredData);
+      expect(parsedStructured.conclusion, 'The video findings are rigorously supported by independent peer reviews.');
+      expect(parsedStructured.conclusionSources.length, 2);
+      expect(parsedStructured.conclusionSources[0].title, 'Nature Journal of Climate Science');
+      expect(parsedStructured.conclusionSources[0].domain, 'nature.com');
+      expect(parsedStructured.conclusionSources[1].title, 'NOAA Global Climate Report');
+      expect(parsedStructured.conclusionSources[1].domain, 'noaa.gov');
+
+      // 2. String conclusion with explicit conclusionSources
+      final stringData = {
+        'conclusion': 'Empirical verification completed across global databases.',
+        'conclusionSources': [
+          {
+            'title': 'World Health Organization',
+            'url': 'https://who.int/report',
+            'domain': 'who.int',
+            'trustLevel': 'High',
+          },
+        ],
+      };
+
+      final parsedString = FactCheckDataParser.parse(stringData);
+      expect(parsedString.conclusion, 'Empirical verification completed across global databases.');
+      expect(parsedString.conclusionSources.length, 1);
+      expect(parsedString.conclusionSources[0].title, 'World Health Organization');
+      expect(parsedString.conclusionSources[0].domain, 'who.int');
+    });
   });
 }

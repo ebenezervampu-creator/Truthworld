@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 ///
 /// Contains:
 /// - 10 Fact-checking & High-credibility categories
-/// - 21 General, Entertainment & Lifestyle categories
-/// Total: 31 unified categories
+/// - 20 General, Entertainment & Lifestyle categories
+/// Total: 30 unified categories
 class AppCategories {
   AppCategories._();
 
@@ -26,7 +26,7 @@ class AppCategories {
   ];
 
   // ==========================================================================
-  // 2. GENERAL, ENTERTAINMENT & LIFESTYLE CATEGORIES (21)
+  // 2. GENERAL, ENTERTAINMENT & LIFESTYLE CATEGORIES (20)
   // ==========================================================================
   static const List<String> generalCategories = [
     'Music',
@@ -35,7 +35,6 @@ class AppCategories {
     'Lifestyle',
     'Travel',
     'Food',
-    'Fashion',
     'Comedy',
     'Art',
     'Animation',
@@ -44,16 +43,16 @@ class AppCategories {
     'DIY & How-to',
     'Nature',
     'Spirituality',
-    'People & Blogs',
     'Kids & Family',
     'Movies',
     'TV Shows',
     'Vlogs',
+    'Short Films',
     'Other',
   ];
 
   // ==========================================================================
-  // MASTER UNIFIED LIST (31 CATEGORIES)
+  // MASTER UNIFIED LIST (30 CATEGORIES)
   // ==========================================================================
   static const List<String> allCategories = [
     ...factCheckingCategories,
@@ -68,7 +67,6 @@ class AppCategories {
     'Lifestyle',
     'Travel',
     'Food',
-    'Fashion',
     'Comedy',
     'Art',
     'Animation',
@@ -77,11 +75,11 @@ class AppCategories {
     'DIY & How-to',
     'Nature',
     'Spirituality',
-    'People & Blogs',
     'Kids & Family',
     'Movies',
     'TV Shows',
     'Vlogs',
+    'Short Films',
     'Other',
   };
 
@@ -95,8 +93,6 @@ class AppCategories {
     'travel',
     'food',
     'food & cooking',
-    'fashion',
-    'fashion & beauty',
     'comedy',
     'art',
     'art & design',
@@ -110,7 +106,6 @@ class AppCategories {
     'nature',
     'nature & wildlife',
     'spirituality',
-    'people & blogs',
     'kids & family',
     'movies',
     'movie',
@@ -118,6 +113,9 @@ class AppCategories {
     'tv show',
     'vlogs',
     'vlog',
+    'short films',
+    'shortfilms',
+    'short film',
     'other',
     'creative',
     'performance',
@@ -132,7 +130,7 @@ class AppCategories {
     return factCheckingCategories.contains(normalized);
   }
 
-  /// Normalizes any legacy or combined category names into canonical 31 names
+  /// Normalizes any legacy or combined category names into canonical 30 names
   static String normalizeCategory(String category) {
     final clean = category.trim();
     if (allCategories.contains(clean)) return clean;
@@ -159,8 +157,12 @@ class AppCategories {
       case 'design':
         return 'Art';
       case 'fashion & beauty':
+      case 'fashion':
       case 'beauty':
-        return 'Fashion';
+        return 'Lifestyle';
+      case 'romance':
+      case 'romantic':
+        return 'Other';
       case 'animals & pets':
       case 'animals':
       case 'pets':
@@ -176,11 +178,23 @@ class AppCategories {
       case 'diy':
         return 'DIY & How-to';
       case 'vlog':
+      case 'vlogs':
+      case 'people & blogs':
+      case 'people and blogs':
+      case 'people_blogs':
+      case 'people':
+      case 'blogs':
+      case 'blog':
         return 'Vlogs';
       case 'movie':
         return 'Movies';
       case 'tv show':
         return 'TV Shows';
+      case 'short films':
+      case 'shortfilms':
+      case 'short film':
+      case 'gaming':
+        return 'Short Films';
       case 'general':
         return 'Other';
       default:
@@ -216,7 +230,7 @@ class AppCategories {
       case 'fitness':
         return Icons.fitness_center_rounded;
 
-      // 21 General, Entertainment & Lifestyle
+      // 20 General, Entertainment & Lifestyle
       case 'music':
         return Icons.music_note_rounded;
       case 'entertainment':
@@ -229,8 +243,6 @@ class AppCategories {
         return Icons.flight_takeoff_rounded;
       case 'food':
         return Icons.restaurant_rounded;
-      case 'fashion':
-        return Icons.checkroom_rounded;
       case 'comedy':
         return Icons.sentiment_very_satisfied_rounded;
       case 'art':
@@ -248,8 +260,6 @@ class AppCategories {
         return Icons.park_rounded;
       case 'spirituality':
         return Icons.self_improvement_rounded;
-      case 'people & blogs':
-        return Icons.people_alt_rounded;
       case 'kids & family':
         return Icons.child_care_rounded;
       case 'movies':
@@ -258,6 +268,9 @@ class AppCategories {
         return Icons.tv_rounded;
       case 'vlogs':
         return Icons.videocam_rounded;
+      case 'short films':
+      case 'shortfilms':
+        return Icons.movie_creation_rounded;
       case 'other':
       default:
         return Icons.category_rounded;
@@ -299,8 +312,6 @@ class AppCategories {
         return 'travel_explore';
       case 'food':
         return 'restaurant';
-      case 'fashion':
-        return 'brush';
       case 'comedy':
         return 'sentiment_very_satisfied';
       case 'art':
@@ -317,8 +328,6 @@ class AppCategories {
         return 'park';
       case 'spirituality':
         return 'self_improvement';
-      case 'people & blogs':
-        return 'people';
       case 'kids & family':
         return 'child_care';
       case 'movies':
@@ -327,6 +336,9 @@ class AppCategories {
         return 'tv';
       case 'vlogs':
         return 'videocam';
+      case 'short films':
+      case 'shortfilms':
+        return 'movie_creation';
       case 'other':
       default:
         return 'category';
@@ -358,7 +370,7 @@ class AppCategories {
       case 'fitness':
         return 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=800&q=80';
 
-      // 21 General, Entertainment & Lifestyle
+      // 20 General, Entertainment & Lifestyle
       case 'music':
         return 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=800&q=80';
       case 'entertainment':
@@ -372,9 +384,6 @@ class AppCategories {
       case 'food':
       case 'food & cooking':
         return 'https://images.unsplash.com/photo-1498837167922-ddd27525d352?auto=format&fit=crop&w=800&q=80';
-      case 'fashion':
-      case 'fashion & beauty':
-        return 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?auto=format&fit=crop&w=800&q=80';
       case 'comedy':
         return 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=800&q=80';
       case 'art':
@@ -395,8 +404,6 @@ class AppCategories {
         return 'https://images.unsplash.com/photo-1441974231531-c627a92ad1ab?auto=format&fit=crop&w=800&q=80';
       case 'spirituality':
         return 'https://images.unsplash.com/photo-1518241353330-0f7941c2d9b5?auto=format&fit=crop&w=800&q=80';
-      case 'people & blogs':
-        return 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=800&q=80';
       case 'kids & family':
         return 'https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?auto=format&fit=crop&w=800&q=80';
       case 'movies':
@@ -405,6 +412,9 @@ class AppCategories {
         return 'https://images.unsplash.com/photo-1593784991095-a205069470b6?auto=format&fit=crop&w=800&q=80';
       case 'vlogs':
         return 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=800&q=80';
+      case 'short films':
+      case 'shortfilms':
+        return 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=800&q=80';
       case 'other':
       default:
         return 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=800&q=80';
@@ -436,7 +446,7 @@ class AppCategories {
       case 'fitness':
         return 'Workouts, strength training, athletic conditioning, and fitness motivation.';
 
-      // 21 General, Entertainment & Lifestyle
+      // 20 General, Entertainment & Lifestyle
       case 'music':
         return 'Original tracks, live acoustic sessions, music production, and performances.';
       case 'entertainment':
@@ -450,9 +460,6 @@ class AppCategories {
       case 'food':
       case 'food & cooking':
         return 'Delicious recipes, culinary mastery, baking guides, and street food.';
-      case 'fashion':
-      case 'fashion & beauty':
-        return 'Style lookbooks, apparel aesthetics, sustainable fashion, and trends.';
       case 'comedy':
         return 'Stand-up routines, satirical parodies, comedy sketches, and humor.';
       case 'art':
@@ -473,8 +480,6 @@ class AppCategories {
         return 'Wilderness expeditions, scenic landscapes, conservation, and ecology.';
       case 'spirituality':
         return 'Inner peace, prayer, mindfulness meditation, and spiritual reflection.';
-      case 'people & blogs':
-        return 'Personal narratives, creator journeys, community diaries, and life stories.';
       case 'kids & family':
         return 'Wholesome family adventures, parenting, and values-based children content.';
       case 'movies':
@@ -482,7 +487,10 @@ class AppCategories {
       case 'tv shows':
         return 'Series reviews, broadcast television, streaming drama, and episode recaps.';
       case 'vlogs':
-        return 'Creator day-in-the-life vlogs, unfiltered experiences, and live diaries.';
+        return 'Day-in-the-life chronicles, personal narratives, travel diaries, and unscripted creator journeys.';
+      case 'short films':
+      case 'shortfilms':
+        return 'Creative indie cinema, narrative storytelling, festival entries, and cinematic shorts.';
       case 'other':
       default:
         return 'Explore top creators, verified channels, and engaging video content.';

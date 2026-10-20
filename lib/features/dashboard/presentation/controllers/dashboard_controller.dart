@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:intl/intl.dart';
@@ -13,6 +15,7 @@ import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/utils/watch_time_formatter.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/revenue_analytics_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 class AnalyticsData {
@@ -158,6 +161,7 @@ class DashboardController extends BaseController {
 
   StreamSubscription? _statsSubscription;
   StreamSubscription? _videosSubscription;
+  StreamSubscription? _ownerVideosSubscription;
   StreamSubscription? _analyticsSubscription;
   StreamSubscription? _channelSubscription;
   StreamSubscription? _copyrightSubscription;
@@ -251,6 +255,7 @@ class DashboardController extends BaseController {
     _loadingTimeoutTimer?.cancel();
     _statsSubscription?.cancel();
     _videosSubscription?.cancel();
+    _ownerVideosSubscription?.cancel();
     _analyticsSubscription?.cancel();
     _channelSubscription?.cancel();
     _copyrightSubscription?.cancel();
@@ -276,11 +281,11 @@ class DashboardController extends BaseController {
     }
     // Use managed Timer to set loading to false after a short period,
     // allowing streams to populate data.
-    _loadingTimeoutTimer = Timer(const Duration(seconds: 2), () {
-      if (rxIsLoading.value) {
+    _loadingTimeoutTimer = trackTimer(Timer(const Duration(seconds: 2), () {
+      if (!isClosed && rxIsLoading.value) {
         rxIsLoading.value = false;
       }
-    });
+    }));
   }
 
   void _loadChannelStats() {
@@ -679,50 +684,43 @@ class DashboardController extends BaseController {
   }
 
   void _loadRecentVideos() {
+    if (channelId.isEmpty) return;
+
     final videosRef = _firestore
         .collection(FirestoreCollections.videos)
-        .where('channelId', isEqualTo: channelId)
-        .orderBy('uploadedAt', descending: true)
-        .limit(20); // Fetch more for better fallback
+        .where('channelId', isEqualTo: channelId);
+
     trackSubscription(_videosSubscription = videosRef.snapshots().listen(
       (snapshot) {
-        recentVideos.value = snapshot.docs
+        final videos = snapshot.docs
             .map(Video.fromDocumentSnapshot)
+            .where((v) => v.status != VideoStatus.deleted)
             .toList();
 
-        // Fallback view count from recent videos if still zero
-        if ((channelStats['views'] == '0' || channelStats['views'] == null) &&
-            recentVideos.isNotEmpty) {
-          final totalViews = recentVideos.fold(
-            0,
-            (acc, v) => acc + v.viewCount,
-          );
-          if (totalViews > 0) {
-            channelStats.value = {
-              ...channelStats,
-              'views': _formatNumber(totalViews),
-            };
+        // Sort in memory by most recent upload/creation date descending
+        videos.sort((a, b) {
+          final dateA = a.uploadedAt.toDate().isAfter(a.createdAt.toDate())
+              ? a.uploadedAt.toDate()
+              : a.createdAt.toDate();
+          final dateB = b.uploadedAt.toDate().isAfter(b.createdAt.toDate())
+              ? b.uploadedAt.toDate()
+              : b.createdAt.toDate();
+          return dateB.compareTo(dateA);
+        });
+
+        // If channel query returned no videos, check if creator videos exist by ownerId
+        if (videos.isEmpty) {
+          final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+          final ownerId = currentChannel.value?.ownerId.isNotEmpty == true
+              ? currentChannel.value!.ownerId
+              : currentUid;
+          if (ownerId.isNotEmpty && ownerId != channelId) {
+            _checkOwnerVideosFallback(ownerId);
+            return;
           }
         }
 
-        // Reconcile and clamp watch time from recent videos
-        if (recentVideos.isNotEmpty) {
-          final totalVideoWatchSeconds = recentVideos.fold<int>(
-            0,
-            (acc, v) => acc + v.totalWatchTimeSeconds,
-          );
-          if (totalVideoWatchSeconds > 0) {
-            if (totalWatchTimeSeconds.value == 0 ||
-                totalWatchTimeSeconds.value > totalVideoWatchSeconds) {
-              totalWatchTimeSeconds.value = totalVideoWatchSeconds;
-              channelStats.value = {
-                ...channelStats,
-                'watchTime': formattedWatchTime,
-              };
-            }
-          }
-        }
-        checkAndActivateMonetization();
+        _applyRecentVideos(videos);
       },
       onError: (error, stackTrace) {
         ErrorHandler.log(
@@ -730,9 +728,118 @@ class DashboardController extends BaseController {
           stackTrace: stackTrace,
           tag: 'DashboardController._loadRecentVideos',
         );
+        // Fallback to VideoManagementController if available
+        if (Get.isRegistered<VideoManagementController>()) {
+          final vmVideos = Get.find<VideoManagementController>().channelVideos;
+          if (vmVideos.isNotEmpty) {
+            _applyRecentVideos(vmVideos.toList());
+            return;
+          }
+        }
         rxErrorMessage.value = 'Failed to load recent videos.';
       },
     ));
+  }
+
+  void _checkOwnerVideosFallback(String ownerId) {
+    _ownerVideosSubscription?.cancel();
+    final ownerRef = _firestore
+        .collection(FirestoreCollections.videos)
+        .where('ownerId', isEqualTo: ownerId);
+    trackSubscription(_ownerVideosSubscription = ownerRef.snapshots().listen(
+      (snapshot) {
+        if (recentVideos.isNotEmpty && snapshot.docs.isEmpty) return;
+        final ownerVideos = snapshot.docs
+            .map(Video.fromDocumentSnapshot)
+            .where((v) => v.status != VideoStatus.deleted)
+            .toList();
+        if (ownerVideos.isNotEmpty) {
+          ownerVideos.sort((a, b) {
+            final dateA = a.uploadedAt.toDate().isAfter(a.createdAt.toDate())
+                ? a.uploadedAt.toDate()
+                : a.createdAt.toDate();
+            final dateB = b.uploadedAt.toDate().isAfter(b.createdAt.toDate())
+                ? b.uploadedAt.toDate()
+                : b.createdAt.toDate();
+            return dateB.compareTo(dateA);
+          });
+          _applyRecentVideos(ownerVideos);
+        }
+      },
+      onError: (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'DashboardController._checkOwnerVideosFallback',
+        );
+      },
+    ));
+  }
+
+  @visibleForTesting
+  void applyRecentVideosForTest(List<Video> videos) => _applyRecentVideos(videos);
+
+  void _applyRecentVideos(List<Video> videos) {
+    recentVideos.value = videos.take(20).toList();
+
+    // Auto-heal channel videoCount if Firestore doc had stale 0
+    if (recentVideos.isNotEmpty && currentChannel.value != null) {
+      final ch = currentChannel.value!;
+      if (ch.videoCount < recentVideos.length) {
+        currentChannel.value = ch.copyWith(videoCount: recentVideos.length);
+        if (channelId.isNotEmpty) {
+          _firestore
+              .collection(FirestoreCollections.channels)
+              .doc(channelId)
+              .update({'videoCount': recentVideos.length})
+              .catchError((_) {});
+        }
+      }
+    }
+
+    // Fallback view count from recent videos if still zero
+    if ((channelStats['views'] == '0' || channelStats['views'] == null) &&
+        recentVideos.isNotEmpty) {
+      final totalViews = recentVideos.fold(
+        0,
+        (acc, v) => acc + v.viewCount,
+      );
+      if (totalViews > 0) {
+        channelStats.value = {
+          ...channelStats,
+          'views': _formatNumber(totalViews),
+          'videos': (currentChannel.value?.videoCount ?? 0) > 0
+              ? (currentChannel.value?.videoCount ?? 0)
+              : recentVideos.length,
+        };
+      }
+    } else {
+      channelStats.value = {
+        ...channelStats,
+        'videos': (currentChannel.value?.videoCount ?? 0) > 0
+            ? (currentChannel.value?.videoCount ?? 0)
+            : recentVideos.length,
+      };
+    }
+
+    // Reconcile and clamp watch time from recent videos
+    if (recentVideos.isNotEmpty) {
+      final totalVideoWatchSeconds = recentVideos.fold<int>(
+        0,
+        (acc, v) => acc + v.totalWatchTimeSeconds,
+      );
+      if (totalVideoWatchSeconds > 0) {
+        if (totalWatchTimeSeconds.value == 0 ||
+            totalWatchTimeSeconds.value > totalVideoWatchSeconds) {
+          totalWatchTimeSeconds.value = totalVideoWatchSeconds;
+          channelStats.value = {
+            ...channelStats,
+            'watchTime': formattedWatchTime,
+          };
+        }
+      }
+    }
+    checkAndActivateMonetization();
   }
 
   void _loadAnalyticsData() {

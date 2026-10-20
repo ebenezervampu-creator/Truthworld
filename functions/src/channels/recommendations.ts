@@ -110,7 +110,10 @@ function calculateDiscoveryScore(params: {
   // Novelty penalty → exponential for same sub-topic spam
   penalty += params.noveltyPenalty;
 
-  return Math.max(0, baseScore + tierBoost - penalty);
+  const rawScore = baseScore + tierBoost - penalty;
+  // If credibility gate passed and not marked "not interested", ensure a minimal positive baseline (0.1)
+  // so valid videos are ranked lower rather than discarded entirely to prevent 0-video starvation.
+  return Math.max(0.1, rawScore);
 }
 
 /**
@@ -302,11 +305,17 @@ export const getHomeFeed = onRequest(
         return docs.filter(d => d.data()?.category === category);
       };
 
-      const allCandidateDocs = successfulSnaps.flatMap(snap => filterByCategory(snap.docs));
+      let allCandidateDocs = successfulSnaps.flatMap(snap => filterByCategory(snap.docs));
       if (allCandidateDocs.length === 0) {
         try {
           const fallbackSnap = await db().collection("videos").limit(40).get();
-          allCandidateDocs.push(...filterByCategory(fallbackSnap.docs));
+          const filtered = filterByCategory(fallbackSnap.docs);
+          if (filtered.length > 0) {
+            allCandidateDocs = filtered;
+          } else {
+            // Category has no matching videos: return any other available videos
+            allCandidateDocs = fallbackSnap.docs;
+          }
         } catch (_) {}
       }
 
@@ -522,6 +531,65 @@ export const getHomeFeed = onRequest(
           const ts = v.createdAt?.toMillis ? v.createdAt.toMillis() : v.createdAt;
           return ts < startAfterTs;
         });
+      }
+
+      // YouTube-style backfill: First prefer personalized videos (feed already contains them).
+      // If candidate scoring or filters resulted in fewer than limit videos,
+      // never leave feed_home low or facing a content crisis!
+      // Fetch remaining available public videos from Firestore to fill up to limit.
+      if (feed.length < limit) {
+        const needed = limit - feed.length;
+        logger.info(`[getHomeFeed] Personalized feed has ${feed.length} videos (< ${limit}). Backfilling remaining ${needed} videos from TruthWorld Firestore catalog...`);
+        try {
+          const existingIds = new Set(feed.map(v => v.id));
+          let fallbackDocs: admin.firestore.DocumentSnapshot[] = [];
+          try {
+            const snap = await db().collection("videos").orderBy("createdAt", "desc").limit(limit * 2).get();
+            fallbackDocs = snap.docs;
+          } catch (_) {
+            try {
+              const snap = await db().collection("videos").orderBy("uploadedAt", "desc").limit(limit * 2).get();
+              fallbackDocs = snap.docs;
+            } catch (_) {
+              const snap = await db().collection("videos").limit(limit * 2).get();
+              fallbackDocs = snap.docs;
+            }
+          }
+
+          if (fallbackDocs.length === 0) {
+            const snap = await db().collection("videos").limit(limit * 2).get();
+            fallbackDocs = snap.docs;
+          }
+
+          for (const doc of fallbackDocs) {
+            if (feed.length >= limit) break;
+            if (existingIds.has(doc.id)) continue;
+
+            const data = doc.data();
+            if (!data) continue;
+            const vis = (data.visibility || "").toString().trim().toLowerCase();
+            if (vis === "private" || vis === "private_draft" || vis === "draft") continue;
+            const stat = (data.status || "").toString().trim().toLowerCase();
+            if (stat === "deleted" || stat === "rejected") continue;
+
+            const ch = channelsMap[data.channelId] || {};
+            feed.push({
+              id: doc.id,
+              ...data,
+              discoveryScore: 0.5,
+              tier: ch.tier || "basic",
+              channelAvatarUrl: ch.avatarUrl || data.channelAvatarUrl || "",
+              channelName: ch.channelName || data.channelName || "",
+              recommendationReason: "TruthWorld Catalog",
+              recommendationExplanation: "Recommended for you on TruthWorld",
+              topicAffinityScore: 0,
+              twoTowerAffinity: 0.5,
+            });
+            existingIds.add(doc.id);
+          }
+        } catch (fallbackErr) {
+          logger.warn("[getHomeFeed] Error backfilling fallback videos:", fallbackErr);
+        }
       }
 
       // Trim to limit and format response

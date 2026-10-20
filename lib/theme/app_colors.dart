@@ -73,6 +73,6 @@ class AppColors {
   static const playerTimelineBuffered = Color(0x3DFFFFFF);   // 24% white
   static const Color playerTimelinePlayed = brand;                 // TruthWorld brand white
   static const playerTimelineThumb = Color(0xFFFFFFFF);
-  static const playerChapterMarker = Color(0x99FFFFFF);      // 60% white
+  static const playerChapterMarker = Color(0xFF3EA6FF);      // Signature chapter cyan-blue
   static const playerAdMarker = Color(0xFFFFB300);           // subtle amber
 }

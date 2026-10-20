@@ -30,22 +30,43 @@ class ChannelDetailsPage extends GetView<ChannelController> {
             ? args['channel'] as Channel
             : null);
 
-    if (targetChannel != null) {
-      controller.initForChannelDetails(targetChannel);
-    } else {
-      final channelTarget =
-          Get.parameters['channelId'] ??
-          Get.parameters['handle'] ??
-          Get.parameters['id'];
-      if (channelTarget != null && channelTarget.isNotEmpty) {
-        controller.loadChannelFromDeepLink(channelTarget);
-      }
-    }
+    // Safely sync channel initialization post-frame to eliminate markNeedsBuild/setState during the build phase
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (controller.isClosed) return;
 
-    controller.startPageAnimations();
+      if (targetChannel != null) {
+        if (controller.selectedChannel.value?.channelId != targetChannel.channelId) {
+          controller.initForChannelDetails(targetChannel);
+          controller.startPageAnimations();
+        } else if (!controller.pageFadeAnimationController.isCompleted &&
+            !controller.pageFadeAnimationController.isAnimating) {
+          controller.startPageAnimations();
+        }
+      } else {
+        final channelTarget =
+            Get.parameters['channelId'] ??
+            Get.parameters['handle'] ??
+            Get.parameters['id'];
+        if (channelTarget != null && channelTarget.isNotEmpty) {
+          final current = controller.selectedChannel.value;
+          final isAlreadyLoaded = current != null &&
+              (current.id == channelTarget ||
+                  current.channelId == channelTarget ||
+                  current.handle == channelTarget ||
+                  '@${current.handle}' == channelTarget);
+          if (!isAlreadyLoaded) {
+            controller.loadChannelFromDeepLink(channelTarget);
+            controller.startPageAnimations();
+          } else if (!controller.pageFadeAnimationController.isCompleted &&
+              !controller.pageFadeAnimationController.isAnimating) {
+            controller.startPageAnimations();
+          }
+        }
+      }
+    });
 
     return Obx(() {
-      final currentChannel = controller.selectedChannel.value;
+      final currentChannel = controller.selectedChannel.value ?? targetChannel;
       if (currentChannel == null) {
         return const ShimmerChannelDetailsScreen();
       }

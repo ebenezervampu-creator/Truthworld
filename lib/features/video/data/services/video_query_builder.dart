@@ -33,15 +33,9 @@ class VideoQueryBuilder {
         category == '⭐ Popular' ||
         category == 'Popular';
 
-    // Server-side status & visibility filtering matching composite index:
-    // status ASC, visibility ASC, [uploadedAt/createdAt/views] DESC
-    if (onlyReady && isSpecialCategory) {
-      query = query.where('status', isEqualTo: 'ready');
-    }
-
-    if (onlyPublic && isSpecialCategory) {
-      query = query.where('visibility', isEqualTo: 'public');
-    }
+    // Do not restrict status to exact 'ready' or visibility to exact 'public' at query level,
+    // as videos are uploaded with status: 'published' and visibility: 'Public', and
+    // VideoVisibilityPolicy / VideoSanitizer enforce authoritative checks in memory.
 
     if (!isSpecialCategory) {
       query = query.where('category', isEqualTo: category);

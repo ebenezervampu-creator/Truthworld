@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/ad_service.dart';
+import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/utils/subtitle_parser.dart';
 import 'package:truthworld/features/video/presentation/controllers/playback_source.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
@@ -163,7 +164,10 @@ mixin TowerPlayerAdMixin on GetxController {
     skipCountdown.value = ad.skippable ? 5 : 0;
     adTimeRemaining.value = ad.duration.inSeconds;
 
-    final apc = VideoPlayerController.networkUrl(Uri.parse(ad.videoUrl));
+    final apc = VideoPlayerController.networkUrl(
+      Uri.parse(ad.videoUrl),
+      httpHeaders: StorageUtils.getSyncMediaHeaders(),
+    );
     adPlayerController = apc;
 
     try {
@@ -244,7 +248,10 @@ mixin TowerPlayerAdMixin on GetxController {
     skipCountdown.value = ad.skippable ? 5 : 0;
     adTimeRemaining.value = ad.duration.inSeconds;
 
-    final apc = VideoPlayerController.networkUrl(Uri.parse(ad.videoUrl));
+    final apc = VideoPlayerController.networkUrl(
+      Uri.parse(ad.videoUrl),
+      httpHeaders: StorageUtils.getSyncMediaHeaders(),
+    );
     adPlayerController = apc;
 
     try {
@@ -315,7 +322,10 @@ mixin TowerPlayerAdMixin on GetxController {
       if (apc != null) {
         apc.setVolume(0);
       }
-      adAudioTrackController = VideoPlayerController.networkUrl(Uri.parse(url));
+      adAudioTrackController = VideoPlayerController.networkUrl(
+        Uri.parse(url),
+        httpHeaders: StorageUtils.getSyncMediaHeaders(),
+      );
       adAudioTrackController!.initialize().then((_) {
         if (adAudioTrackController == null || isFinishingAd) return;
         adAudioTrackController!.setVolume(isMuted.value ? 0.0 : volume.value);

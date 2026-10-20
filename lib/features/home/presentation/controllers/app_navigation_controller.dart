@@ -13,6 +13,9 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart' as app_exceptions;
 import 'package:truthworld/core/services/distributed_counter_service.dart';
+import 'package:truthworld/core/services/guest_playback_limit_service.dart';
+import 'package:truthworld/core/utils/storage_utils.dart';
+import 'package:truthworld/features/video/presentation/controllers/tower_player/tower_player_registry.dart';
 
 class AppNavigationController extends BaseController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -91,60 +94,83 @@ class AppNavigationController extends BaseController {
       final isAuthenticated = currentUser != null && !currentUser.isAnonymous;
       final actualAuthUid = currentUser?.uid;
 
-      // If user is authenticated, enforce one view per user doc
-      if (isAuthenticated &&
-          actualAuthUid != null &&
-          actualAuthUid.isNotEmpty &&
-          userId != 'anonymous') {
-        final viewRef = _firestore
-            .collection(FirestoreCollections.videos)
-            .doc(videoId)
-            .collection('views')
-            .doc(actualAuthUid);
+      // CRITICAL POLICY: Views are strictly counted ONLY for authenticated, signed-in users.
+      // Unsigned / guest viewers NEVER increment video or channel views.
+      if (!isAuthenticated ||
+          actualAuthUid == null ||
+          actualAuthUid.isEmpty ||
+          userId == 'anonymous') {
+        if (kDebugMode) {
+          debugPrint(
+            '[Views] Skipped view increment for unsigned / guest user on video $videoId',
+          );
+        }
+        return;
+      }
 
-        try {
-          final viewDoc = await viewRef.get().timeout(_defaultTimeout);
-          if (!viewDoc.exists) {
-            // Record unique user view doc (independent document, zero contention)
-            await viewRef
-                .set({'timestamp': FieldValue.serverTimestamp()})
-                .timeout(_defaultTimeout);
+      final viewRef = _firestore
+          .collection(FirestoreCollections.videos)
+          .doc(videoId)
+          .collection('views')
+          .doc(actualAuthUid);
 
-            // Increment distributed counter shards
-            await counterService.incrementVideoViews(
-              videoId: videoId,
-              isQualified: isQualified,
-              channelId: channelId,
-              timeout: _defaultTimeout,
-            );
-          }
-        } catch (e) {
-          final errStr = e.toString().toLowerCase();
-          if (errStr.contains('permission')) {
-            // Fallback to distributed counter shards if subcollection rule denies
-            await counterService.incrementVideoViews(
-              videoId: videoId,
-              isQualified: isQualified,
-              channelId: channelId,
-              timeout: _defaultTimeout,
-            );
-          } else {
-            rethrow;
+      try {
+        final viewDoc = await viewRef.get().timeout(_defaultTimeout);
+        if (!viewDoc.exists) {
+          // Record unique user view doc (independent document, zero contention)
+          await viewRef
+              .set({'timestamp': FieldValue.serverTimestamp()})
+              .timeout(_defaultTimeout);
+
+          // Increment distributed counter shards & parent doc
+          await counterService.incrementVideoViews(
+            videoId: videoId,
+            isQualified: isQualified,
+            channelId: channelId,
+            timeout: _defaultTimeout,
+          );
+        } else {
+          // Self-healing: if the unique view doc exists but the parent video document
+          // is at 0 views (e.g. from prior permission error), heal the parent document.
+          final videoSnap = await _firestore
+              .collection(FirestoreCollections.videos)
+              .doc(videoId)
+              .get()
+              .timeout(_defaultTimeout);
+          if (videoSnap.exists) {
+            final vData = videoSnap.data() ?? {};
+            final vCount = (vData['viewCount'] as num?)?.toInt() ?? 0;
+            final views = (vData['views'] as num?)?.toInt() ?? 0;
+            if (vCount == 0 && views == 0) {
+              await _firestore
+                  .collection(FirestoreCollections.videos)
+                  .doc(videoId)
+                  .update({
+                    'viewCount': FieldValue.increment(1),
+                    'views': FieldValue.increment(1),
+                  })
+                  .catchError((_) {});
+            }
           }
         }
-      } else {
-        // Anonymous view (directly increment distributed counter shards)
-        await counterService.incrementVideoViews(
-          videoId: videoId,
-          isQualified: isQualified,
-          channelId: channelId,
-          timeout: _defaultTimeout,
-        );
+      } catch (e) {
+        final errStr = e.toString().toLowerCase();
+        if (errStr.contains('permission')) {
+          // Fallback to distributed counter shards if subcollection rule denies
+          await counterService.incrementVideoViews(
+            videoId: videoId,
+            isQualified: isQualified,
+            channelId: channelId,
+            timeout: _defaultTimeout,
+          );
+        } else {
+          rethrow;
+        }
       }
 
       if (kDebugMode) {
         debugPrint(
-          'MainController: Distributed view counted for video $videoId (Qualified: $isQualified, User: $userId)',
+          'MainController: Distributed view counted for video $videoId (Qualified: $isQualified, User: $actualAuthUid)',
         );
       }
     } catch (e, stackTrace) {
@@ -213,51 +239,43 @@ class AppNavigationController extends BaseController {
         } catch (_) {}
       }
 
+      final appCheckToken = await StorageUtils.getAppCheckToken();
+
       final headers = {
         'Content-Type': 'application/json',
         if (idToken != null && idToken.isNotEmpty) 'Authorization': 'Bearer $idToken',
+        if (appCheckToken != null && appCheckToken.isNotEmpty)
+          'X-Firebase-AppCheck': appCheckToken,
       };
 
-      // Try direct Cloud Run service first, with fallback to Cloud Functions endpoint
-      http.Response response;
-      try {
-        response = await http
-            .post(
-              Uri.parse('https://trackwatchevent-prcqnsipmq-el.a.run.app'),
-              headers: headers,
-              body: payload,
-            )
-            .timeout(const Duration(seconds: 5));
-      } catch (_) {
-        response = await http
-            .post(
-              Uri.parse('${AppConfig.cloudFunctionsBaseUrl}/trackWatchEvent'),
-              headers: headers,
-              body: payload,
-            )
-            .timeout(const Duration(seconds: 10));
-      }
+      final response = await http
+          .post(
+            Uri.parse('${AppConfig.cloudFunctionsBaseUrl}/trackWatchEvent'),
+            headers: headers,
+            body: payload,
+          )
+          .timeout(const Duration(seconds: 8));
 
       if (response.statusCode != 200) {
-        // Retry via Cloud Functions endpoint if direct Cloud Run returned non-200
-        final fallbackResponse = await http
-            .post(
-              Uri.parse('${AppConfig.cloudFunctionsBaseUrl}/trackWatchEvent'),
-              headers: headers,
-              body: payload,
-            )
-            .timeout(const Duration(seconds: 5));
-
-        if (fallbackResponse.statusCode != 200) {
-          if (kDebugMode) {
-            debugPrint(
-              'MainController: trackWatchEvent failed (${fallbackResponse.statusCode}): ${fallbackResponse.body}',
-            );
-          }
-          return false;
-        }
-        return true;
+        ErrorHandler.log(
+          'trackWatchEvent endpoint responded with status ${response.statusCode}',
+          tag: 'AppNavigationController.trackWatchEvent',
+        );
+        return false;
       }
+
+      try {
+        final resData = jsonDecode(response.body);
+        if (resData is Map && resData['limitExceeded'] == true) {
+          if (Get.isRegistered<GuestPlaybackLimitService>()) {
+            GuestPlaybackLimitService.to.isLimitReached.value = true;
+            GuestPlaybackLimitService.to.remainingSeconds.value = 0;
+            TowerPlayerRegistry.pauseAllActivePlayers();
+            GuestPlaybackLimitService.to.promptGuestSignIn();
+          }
+        }
+      } catch (_) {}
+
       return true;
     } on http.ClientException catch (e, stackTrace) {
       // Caught client exception usually indicates CORS preflight blocking or missing network connection

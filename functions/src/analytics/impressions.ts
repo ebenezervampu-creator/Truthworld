@@ -155,6 +155,10 @@ export const aggregateVideoViews = onSchedule(
     const videoCounts = new Map<string, { rawViews: number; qualifiedViews: number }>();
     for (const doc of snapshot.docs) {
       const data = doc.data();
+      // Epistemic honesty: DO NOT count views for unsigned/guest/anonymous viewers
+      if (!data.userId || data.userId === "anonymous") {
+        continue;
+      }
       const videoId = data.videoId;
       const isQualified = data.isQualified === true;
       if (videoId && typeof videoId === "string") {

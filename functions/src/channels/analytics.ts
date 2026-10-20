@@ -133,7 +133,7 @@ export const getChannelOverview = onCall(
   {
     region: REGION,
     memory: "256MiB",
-    maxInstances: 50,
+    maxInstances: 10,
   },
   async (request) => {
     const userId = request.auth?.uid;
@@ -227,7 +227,7 @@ export const getChannelViewsDetails = onCall(
   {
     region: REGION,
     memory: "512MiB",
-    maxInstances: 50,
+    maxInstances: 10,
   },
   async (request) => {
     const userId = request.auth?.uid;
@@ -374,7 +374,7 @@ export const getChannelWatchtimeDetails = onCall(
   {
     region: REGION,
     memory: "512MiB",
-    maxInstances: 50,
+    maxInstances: 10,
   },
   async (request) => {
     const userId = request.auth?.uid;
@@ -503,7 +503,7 @@ export const getChannelSubscribers = onCall(
   {
     region: REGION,
     memory: "512MiB",
-    maxInstances: 50,
+    maxInstances: 10,
   },
   async (request) => {
     const userId = request.auth?.uid;
@@ -600,7 +600,7 @@ export const getChannelRevenueDetails = onCall(
   {
     region: REGION,
     memory: "256MiB",
-    maxInstances: 50,
+    maxInstances: 10,
   },
   async (request) => {
     const userId = request.auth?.uid;

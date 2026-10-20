@@ -294,6 +294,80 @@ class SourceUrlSanitizer {
     return 'https://www.google.com/search?q=${Uri.encodeComponent(cleanQuery)}';
   }
 
+  /// Returns true if [url] points to a bare root domain / static landing homepage
+  /// without any specific article, document, or section path (e.g. 'https://bbc.com', 'https://en.wikipedia.org/').
+  static bool isStaticHomepageUrl(String? url) {
+    if (url == null || isBlankOrDummyUrl(url)) return true;
+    final clean = url.trim();
+
+    // Vertex AI / Google Grounding redirects are dynamic redirects to specific articles, not static homepages
+    if (isGroundingRedirect(clean)) return false;
+
+    // Google search URLs are targeted searches, not static homepages
+    if (isGoogleSearchUrl(clean)) return false;
+
+    final uri = Uri.tryParse(clean.startsWith('http') ? clean : 'https://$clean');
+    if (uri == null || !uri.hasAuthority) return true;
+
+    final path = uri.path.trim().toLowerCase();
+    if (path.isEmpty ||
+        path == '/' ||
+        path == '/index.html' ||
+        path == '/index.htm' ||
+        path == '/index.php' ||
+        path == '/home' ||
+        path == '/default.aspx') {
+      if (!uri.hasQuery && (!uri.hasFragment || uri.fragment.isEmpty)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Resolves a URL that directly navigates to the particular article or document,
+  /// preventing users from landing on a generic static root website homepage.
+  static String resolveDirectNavigationUrl({
+    required String url,
+    String? title,
+    String? publisher,
+    String? domain,
+  }) {
+    if (!isStaticHomepageUrl(url)) {
+      return url;
+    }
+
+    final cleanTitle = title?.trim() ?? '';
+    final isGeneric = cleanTitle.isEmpty ||
+        cleanTitle.toLowerCase() == 'reference source' ||
+        cleanTitle.toLowerCase() == 'verified source' ||
+        cleanTitle.toLowerCase() == 'source citation';
+
+    if (isGeneric) {
+      return url;
+    }
+
+    final uri = Uri.tryParse(url.startsWith('http') ? url : 'https://$url');
+    final host = uri?.host.toLowerCase() ?? (domain?.toLowerCase() ?? '');
+
+    // 1. Wikipedia: use Wikipedia's direct search route to land directly on the particular topic
+    if (host.contains('wikipedia.org')) {
+      final topicQuery = cleanTitle.split(RegExp(r'\s+[-|–—]\s+')).first.trim();
+      final wikiHost = host.isEmpty ? 'en.wikipedia.org' : host;
+      return 'https://$wikiHost/wiki/Special:Search?search=${Uri.encodeComponent(topicQuery)}';
+    }
+
+    // 2. Authoritative publishers: construct targeted search to navigate directly to the specific article
+    final targetDomain = resolveCanonicalDomain(host) ??
+        resolveCanonicalDomain(domain) ??
+        resolveCanonicalDomain(publisher);
+
+    return createSearchUrl(
+      cleanTitle,
+      publisher: publisher,
+      domain: targetDomain ?? host,
+    );
+  }
+
   /// Sanitizes any raw source URL.
   ///
   /// - Preserves Vertex AI grounding redirect URLs for direct browser navigation to authentic sources.
@@ -710,7 +784,10 @@ class SourceUrlSanitizer {
       if (rawUrl == null || rawUrl.isEmpty) {
         rawUrl = cleanMap['directUrl']?.toString();
       }
-      rawTitle = cleanMap['title']?.toString() ?? rawTitle;
+      rawTitle = cleanMap['title']?.toString() ??
+          cleanMap['bookTitle']?.toString() ??
+          cleanMap['author']?.toString() ??
+          rawTitle;
       rawDomain = cleanMap['domain']?.toString() ?? rawDomain;
       rawPublisher = cleanMap['publisher']?.toString() ?? rawPublisher;
     }
@@ -723,8 +800,17 @@ class SourceUrlSanitizer {
       client: httpClient,
     );
 
-    final finalUrl = (safeUrl != null && safeUrl.isNotEmpty)
-        ? safeUrl
+    final directDestination = (safeUrl != null && safeUrl.isNotEmpty)
+        ? resolveDirectNavigationUrl(
+            url: safeUrl,
+            title: rawTitle,
+            publisher: rawPublisher,
+            domain: rawDomain,
+          )
+        : null;
+
+    final finalUrl = (directDestination != null && directDestination.isNotEmpty)
+        ? directDestination
         : (rawTitle != null && rawTitle.isNotEmpty)
             ? createSearchUrl(rawTitle, publisher: rawPublisher, domain: rawDomain)
             : null;

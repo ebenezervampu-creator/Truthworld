@@ -121,6 +121,11 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
   }
 
   void flushRemainingWatchTime() {
+    if (!AuthService.to.isAuthenticated.value || AuthService.to.uid.isEmpty) {
+      // Unsigned / guest user: Do not credit watch time to channel/video.
+      // Guest watch limit is tracked exclusively by GuestPlaybackLimitService.
+      return;
+    }
     final currentWatchSeconds = watchStopwatch.elapsed.inSeconds;
     final delta = currentWatchSeconds - lastPingWatchSeconds;
     if (delta > 0 && isVpcInitialized && videoPlayerController != null) {
@@ -141,6 +146,7 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
     int duration,
     int deltaSeconds,
   ) async {
+    if (!AuthService.to.isAuthenticated.value || AuthService.to.uid.isEmpty) return;
     if (isAlreadyWatchedVideo) return; // Never record watch time for re-watching!
     final totalDur = duration > 0
         ? duration
@@ -176,11 +182,13 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
   }
 
   bool canCountQualifiedView() {
+    if (!AuthService.to.isAuthenticated.value || AuthService.to.uid.isEmpty) {
+      // Unsigned / guest viewers NEVER count as qualified views
+      return false;
+    }
     try {
       final storage = GetStorage();
-      final identifier = AuthService.to.uid.isNotEmpty
-          ? AuthService.to.uid
-          : (viewerHash.isNotEmpty ? viewerHash : 'device');
+      final identifier = AuthService.to.uid;
       final key = 'qv_${video.id}_$identifier';
       final lastTimestamp = storage.read<int>(key);
       if (lastTimestamp == null) return true;
@@ -192,11 +200,10 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
   }
 
   void markQualifiedViewTimestamp() {
+    if (!AuthService.to.isAuthenticated.value || AuthService.to.uid.isEmpty) return;
     try {
       final storage = GetStorage();
-      final identifier = AuthService.to.uid.isNotEmpty
-          ? AuthService.to.uid
-          : (viewerHash.isNotEmpty ? viewerHash : 'device');
+      final identifier = AuthService.to.uid;
       final key = 'qv_${video.id}_$identifier';
       storage.write(key, DateTime.now().millisecondsSinceEpoch);
     } catch (e, stackTrace) {
@@ -213,6 +220,7 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
     int position,
     int duration,
   ) async {
+    if (!AuthService.to.isAuthenticated.value || AuthService.to.uid.isEmpty) return;
     final isSub = isSubscribed.value;
 
     String? dedupKey;

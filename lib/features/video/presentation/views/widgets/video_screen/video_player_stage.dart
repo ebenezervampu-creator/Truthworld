@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -40,9 +41,11 @@ class VideoPlayerStage extends StatelessWidget {
             // On desktop, the left column width is already constrained, so let the player comfortably
             // fill the column width up to 80% screen height (at least 480px, up to screenHeight - 80px)
             // so standard 16:9 desktop videos fit full column width without shrinking.
+            final upperLimit = (screenHeight - 80.0).clamp(240.0, 1600.0);
+            final lowerLimit = math.min(480.0, upperLimit);
             final maxHeight = isDesktop
-                ? (screenHeight * 0.80).clamp(480.0, (screenHeight - 80.0).clamp(320.0, 1600.0))
-                : screenHeight * 0.55;
+                ? (screenHeight * 0.80).clamp(lowerLimit, upperLimit)
+                : (screenHeight * 0.55).clamp(200.0, upperLimit);
 
             final validRatio = ratio.isFinite && ratio > 0 ? ratio : 16 / 9;
             final height = maxWidth / validRatio;

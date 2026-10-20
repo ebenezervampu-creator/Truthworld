@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -329,7 +328,12 @@ class AudioTrackCard extends StatelessWidget {
             const SizedBox(height: 6),
             TextField(
               controller: trackUrlController,
-              inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+              maxLength: 500,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(500),
+                FilteringTextInputFormatter.deny(RegExp(r'\s')),
+              ],
               style: TextStyle(fontSize: 13, color: textColor, fontFamily: 'monospace'),
               onChanged: (val) => controller.updateTrackUrl(index, val),
               decoration: InputDecoration(

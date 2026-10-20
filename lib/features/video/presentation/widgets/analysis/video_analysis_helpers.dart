@@ -105,14 +105,18 @@ class VideoAnalysisHelpers {
         .toString()
         .trim();
 
-    rawResponse = ClaimVerdictHelper.cleanResponseText(rawResponse);
+    rawResponse = ClaimVerdictHelper.cleanResponseText(rawResponse, claimText: rawText);
 
     // If no AI reasoning is available, provide polite and informative takeaway from verdict
     if (rawResponse.isEmpty ||
         rawResponse.startsWith('This statement relies on contextual') ||
         rawResponse.startsWith('Summary unavailable')) {
       final verdictInfo = ClaimVerdictHelper.resolveVerdict(claim);
-      rawResponse = verdictInfo.summaryTakeaway;
+      if (verdictInfo.isOpinion) {
+        rawResponse = ClaimVerdictHelper.formatOpinionExplanation(rawText);
+      } else {
+        rawResponse = verdictInfo.summaryTakeaway;
+      }
     }
 
     final realSources = <Map<dynamic, dynamic>>[];

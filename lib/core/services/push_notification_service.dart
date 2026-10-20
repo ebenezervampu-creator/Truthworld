@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/digital_wellbeing_service.dart';
@@ -192,7 +193,12 @@ class PushNotificationService extends GetxService {
 
     try {
       final box = GetStorage();
-      final deviceId = box.read('device_id') as String? ?? '';
+      final currentApp = AppFlavor.active.name;
+      final deviceKey = 'device_id_$currentApp';
+      var deviceId = box.read(deviceKey) as String? ?? '';
+      if (deviceId.isEmpty) {
+        deviceId = box.read('device_id') as String? ?? '';
+      }
       if (deviceId.isNotEmpty) {
         await FirebaseFirestore.instance
             .collection(FirestoreCollections.users)
@@ -203,7 +209,7 @@ class PushNotificationService extends GetxService {
               },
             );
         logger.info(
-          'FCM token unregistered for device: $deviceId',
+          'FCM token unregistered for device: $deviceId (app: $currentApp)',
           tag: 'PUSH_NOTIFICATIONS',
         );
       }
@@ -219,10 +225,15 @@ class PushNotificationService extends GetxService {
   Future<void> _saveTokenToFirestore(String userId, String token) async {
     try {
       final box = GetStorage();
-      var deviceId = box.read('device_id') as String? ?? '';
+      final currentApp = AppFlavor.active.name; // 'app', 'studio', 'admin', 'advertiser'
+      final deviceKey = 'device_id_$currentApp';
+      var deviceId = box.read(deviceKey) as String? ?? '';
       if (deviceId.isEmpty) {
-        deviceId = const Uuid().v4();
-        box.write('device_id', deviceId);
+        final legacyId = box.read('device_id') as String? ?? '';
+        deviceId = legacyId.isNotEmpty
+            ? '${currentApp}_$legacyId'
+            : '${currentApp}_${const Uuid().v4()}';
+        box.write(deviceKey, deviceId);
       }
 
       final userDocRef = FirebaseFirestore.instance
@@ -268,6 +279,8 @@ class PushNotificationService extends GetxService {
       updates['fcmTokens.$deviceId'] = {
         'token': token.trim(),
         'platform': platformStr,
+        'app': currentApp,
+        'appFlavor': currentApp,
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
@@ -279,6 +292,8 @@ class PushNotificationService extends GetxService {
               deviceId: {
                 'token': token.trim(),
                 'platform': platformStr,
+                'app': currentApp,
+                'appFlavor': currentApp,
                 'updatedAt': FieldValue.serverTimestamp(),
               },
             },
@@ -290,6 +305,8 @@ class PushNotificationService extends GetxService {
             deviceId: {
               'token': token.trim(),
               'platform': platformStr,
+              'app': currentApp,
+              'appFlavor': currentApp,
               'updatedAt': FieldValue.serverTimestamp(),
             },
           },
@@ -311,6 +328,16 @@ class PushNotificationService extends GetxService {
   /// Resolve deep-linking routing paths upon notification tap
   void _handleNotificationClick(RemoteMessage message) {
     try {
+      final targetApp =
+          (message.data['targetApp'] as String? ?? '').trim().toLowerCase();
+      final currentApp = AppFlavor.active.name;
+      if (targetApp.isNotEmpty && targetApp != 'all' && targetApp != currentApp) {
+        logger.info(
+          'Notification clicked in flavor "$currentApp" targeted at "$targetApp" - delegating to cross-app launcher.',
+          tag: 'PUSH_NOTIFICATIONS',
+        );
+      }
+
       logger.info(
         'Handling push notification click for: ${message.notification?.title ?? message.data['title']}',
         tag: 'PUSH_NOTIFICATIONS',
@@ -331,6 +358,34 @@ class PushNotificationService extends GetxService {
 
   /// Display a styled in-app banner for notifications received while using the app
   void _showForegroundInAppNotification(RemoteMessage message) {
+    final targetApp =
+        (message.data['targetApp'] as String? ?? '').trim().toLowerCase();
+    final currentApp = AppFlavor.active.name;
+
+    final isStudio = targetApp == 'studio' ||
+        NotificationNavigationHandler.isStudioNotificationPayload(
+          message.data,
+          title: message.notification?.title,
+          body: message.notification?.body,
+          actionUrl: message.data['actionUrl'] as String?,
+        );
+
+    if (isStudio && !AppFlavor.isStudio) {
+      logger.info(
+        'Suppressing studio-related notification banner in consumer app flavor "$currentApp"',
+        tag: 'PUSH_NOTIFICATIONS',
+      );
+      return;
+    }
+
+    if (targetApp.isNotEmpty && targetApp != 'all' && targetApp != currentApp) {
+      logger.info(
+        'Suppressing foreground banner meant for targetApp "$targetApp" in current flavor "$currentApp"',
+        tag: 'PUSH_NOTIFICATIONS',
+      );
+      return;
+    }
+
     if (Get.isRegistered<UserSettingsController>() &&
         !UserSettingsController.to.pushNotificationsEnabled.value) {
       logger.info(
@@ -361,11 +416,19 @@ class PushNotificationService extends GetxService {
     final context = Get.context;
     final textTheme = context != null ? Theme.of(context).textTheme : null;
 
-    final customIconUrl = message.notification?.android?.imageUrl ??
-        message.data['userAvatar'] as String? ??
-        message.data['avatarUrl'] as String? ??
-        message.data['thumbnailUrl'] as String? ??
-        '';
+    final rawUrl = (message.data['thumbnailUrl'] as String? ??
+            message.data['userAvatar'] as String? ??
+            message.data['avatarUrl'] as String? ??
+            message.notification?.android?.imageUrl ??
+            '')
+        .trim();
+    // Exclude generic fallback icons or legacy icon filenames from network loading
+    final isGenericIcon = rawUrl.contains('Icon-512.png') ||
+        rawUrl.contains('Icon-192.png') ||
+        rawUrl.contains('play_icon') ||
+        rawUrl.contains('app_logo');
+    final customIconUrl =
+        (!isGenericIcon && rawUrl.startsWith('http')) ? rawUrl : '';
 
     Widget leadingWidget;
     if (customIconUrl.isNotEmpty) {
@@ -384,7 +447,17 @@ class PushNotificationService extends GetxService {
       leadingWidget = const AppLogo(size: 36, borderRadius: 8);
     }
 
+    final topPadding = context != null ? MediaQuery.of(context).padding.top : 0.0;
+
     Get.rawSnackbar(
+      snackPosition: SnackPosition.TOP,
+      snackStyle: SnackStyle.FLOATING,
+      dismissDirection: DismissDirection.up,
+      margin: EdgeInsets.only(
+        top: topPadding + 10,
+        left: 16,
+        right: 16,
+      ),
       titleText: Text(
         title,
         style:
@@ -414,8 +487,16 @@ class PushNotificationService extends GetxService {
         child: leadingWidget,
       ),
       backgroundColor: AppColors.bgSurface,
-      borderRadius: 12,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      borderRadius: 14,
+      borderColor: AppColors.bgDivider,
+      borderWidth: 1,
+      boxShadows: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.4),
+          blurRadius: 16,
+          offset: const Offset(0, 4),
+        ),
+      ],
       duration: const Duration(seconds: 4),
       onTap: (_) => _handleNotificationClick(message),
     );

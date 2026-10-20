@@ -84,7 +84,7 @@ class DiscoverChannelsPage extends StatelessWidget {
           ? DiscoverChannelsAppBar(
               isDesktop: isDesktop,
               isTablet: isTablet,
-              onRefresh: () => controller.loadChannels(),
+              onRefresh: () => controller.loadChannels(forceRefresh: true),
             )
           : null,
       body: SafeArea(

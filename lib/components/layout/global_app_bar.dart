@@ -126,6 +126,9 @@ Widget _buildDesktopHeader(BuildContext context) {
                       AuthService.to.isPremiumUser.value;
                   return Text(
                     isPremium ? 'Truthworld Premium' : 'Truthworld',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
                     style: GoogleFonts.roboto(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
@@ -199,19 +202,24 @@ Widget _buildMobileHeader(BuildContext context) {
               borderRadius: 6,
             ),
             const SizedBox(width: 8),
-            Obx(() {
-              final isPremium = Get.isRegistered<AuthService>() &&
-                  AuthService.to.isPremiumUser.value;
-              return Text(
-                isPremium ? 'Truthworld Premium' : 'Truthworld',
-                style: GoogleFonts.roboto(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: darkOnSurface,
-                  letterSpacing: 0.15,
-                ),
-              );
-            }),
+            Flexible(
+              child: Obx(() {
+                final isPremium = Get.isRegistered<AuthService>() &&
+                    AuthService.to.isPremiumUser.value;
+                return Text(
+                  isPremium ? 'Truthworld Premium' : 'Truthworld',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                  style: GoogleFonts.roboto(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: darkOnSurface,
+                    letterSpacing: 0.15,
+                  ),
+                );
+              }),
+            ),
           ],
         ),
       ),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/core/utils/content_validator.dart';
-import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/features/admin/presentation/views/team_management/team_role_selection_section.dart';
@@ -76,7 +76,9 @@ void showEditTeamMemberDialog(
 
               TextField(
                 controller: nameCtrl,
-                inputFormatters: TruthworldTextInputFormatters.standard,
+                maxLength: defaultMaxDisplayNameLength,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(defaultMaxDisplayNameLength),
                 style: const TextStyle(color: AppColors.textPrimary),
                 decoration: InputDecoration(
                   labelText: 'Name',
@@ -94,6 +96,9 @@ void showEditTeamMemberDialog(
                 () => TextField(
                   controller: passCtrl,
                   obscureText: isObscure.value,
+                  maxLength: 128,
+                  buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                  inputFormatters: [LengthLimitingTextInputFormatter(128)],
                   style: const TextStyle(color: AppColors.textPrimary),
                   decoration: InputDecoration(
                     labelText: 'Reset Password',

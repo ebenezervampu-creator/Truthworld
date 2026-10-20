@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class DashboardSearchField extends StatelessWidget {
@@ -39,6 +40,9 @@ class DashboardSearchField extends StatelessWidget {
       child: TextField(
         controller: searchController,
         focusNode: focusNode,
+        maxLength: 100,
+        buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+        inputFormatters: TruthworldTextInputFormatters.withLimit(100),
         style: const TextStyle(
           fontFamily: TWTypography.uiFamily,
           color: AppColors.textPrimary,

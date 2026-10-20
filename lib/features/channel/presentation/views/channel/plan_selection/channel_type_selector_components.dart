@@ -192,7 +192,7 @@ class ChannelTypeBenefitsBox extends StatelessWidget {
             ),
             const ChannelTypeBulletPoint(
               text:
-                  r'Payout Threshold: Revenue unlocked & cashable after reaching $100 minimum earnings',
+                  'Cash-Out Rule: Per-video cash withdrawal unlocks at 1,000 views & 10 hours watch time (Min ₹100 for India / \$10 for other countries)',
             ),
             const SizedBox(height: 12),
             const Divider(height: 1, color: AppColors.bgDivider),
@@ -237,7 +237,7 @@ class ChannelTypeBenefitsBox extends StatelessWidget {
             ),
             const ChannelTypeBulletPoint(
               text:
-                  'Cash-Out Rule: Per-video cash withdrawal unlocks after 1,000 views and 10 hours watch time (100% creator retention)',
+                  'Cash-Out Rule: Per-video cash withdrawal unlocks at 1,000 views & 10 hours watch time (Min ₹100 for India / \$10 for other countries • 100% creator retention)',
             ),
             const SizedBox(height: 12),
             const Divider(height: 1, color: AppColors.bgDivider),

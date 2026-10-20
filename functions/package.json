@@ -9,7 +9,7 @@
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
     "test": "jest --runInBand --forceExit",
-    "test:unit": "jest tests/unit --runInBand",
+    "test:unit": "jest tests/unit --runInBand --forceExit",
     "test:integration": "jest tests/api tests/auth tests/callable tests/database tests/payment --runInBand",
     "test:api": "jest tests/api --runInBand",
     "test:callable": "jest tests/callable --runInBand",

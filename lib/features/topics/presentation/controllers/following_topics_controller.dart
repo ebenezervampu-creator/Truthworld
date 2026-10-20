@@ -120,9 +120,9 @@ class FollowingTopicsController extends BaseController {
             !followedTopics.any((t) => t.id == selectedTopic.value?.id)) {
           selectedTopic.value = followedTopics.first;
         }
-        for (final t in followedTopics) {
-          fetchVideosForTopic(t);
-          fetchPostsForTopic(t);
+        if (selectedTopic.value != null) {
+          fetchVideosForTopic(selectedTopic.value!);
+          fetchPostsForTopic(selectedTopic.value!);
         }
       } else {
         selectedTopic.value = null;
@@ -325,7 +325,8 @@ class FollowingTopicsController extends BaseController {
     final topicSlug = topic.slug;
     final wasFollowed = isTopicFollowed(topicId);
 
-    if (!wasFollowed && (!topic.isValidTopic || topic.videoCount <= 0)) {
+    final hasVideos = topic.effectiveVideoCount > 0 || topic.featuredVideoIds.isNotEmpty;
+    if (!wasFollowed && (topic.isArchivedOrDeleted || (!topic.isValidTopic && !hasVideos))) {
       SnackbarService.error(message: 'Cannot follow an inactive or empty topic.');
       return;
     }

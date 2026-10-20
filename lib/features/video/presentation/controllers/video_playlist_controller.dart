@@ -3,7 +3,9 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 
@@ -33,20 +35,54 @@ class VideoPlaylistController extends BaseController {
   }
 
   Future<void> fetchPlaylistVideos() async {
-    if (currentPlaylist.value == null || currentPlaylist.value!.videoIds.isEmpty) {
-      return;
+    if (currentPlaylist.value == null) return;
+    var ids = currentPlaylist.value!.videoIds;
+
+    if (ids.isEmpty && Get.isRegistered<PlaylistController>()) {
+      try {
+        final playlistController = Get.find<PlaylistController>();
+        final fetchedIds = await playlistController.fetchPlaylistVideoIds(
+          currentPlaylist.value!.id,
+          currentPlaylist.value!.isPublic,
+          ownerId: currentPlaylist.value!.ownerId,
+        );
+        if (fetchedIds.isNotEmpty) {
+          ids = fetchedIds;
+          currentPlaylist.value = currentPlaylist.value!.copyWith(
+            videoIds: fetchedIds,
+            videoCount: fetchedIds.length,
+          );
+        }
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'VideoPlaylistController.fetchPlaylistVideoIds',
+        );
+      }
     }
+
+    if (ids.isEmpty) return;
 
     try {
       final ids = currentPlaylist.value!.videoIds;
       final fetchedVideos = <Video>[];
 
+      final chunks = <List<String>>[];
       for (var i = 0; i < ids.length; i += 10) {
-        final chunk = ids.sublist(i, i + 10 > ids.length ? ids.length : i + 10);
-        final snapshot = await FirebaseFirestore.instance
-            .collection(FirestoreCollections.videos)
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get();
+        chunks.add(ids.sublist(i, i + 10 > ids.length ? ids.length : i + 10));
+      }
+
+      final snapshots = await Future.wait(
+        chunks.map(
+          (chunk) => FirebaseFirestore.instance
+              .collection(FirestoreCollections.videos)
+              .where(FieldPath.documentId, whereIn: chunk)
+              .getCacheFirst(),
+        ),
+      );
+
+      for (final snapshot in snapshots) {
         fetchedVideos.addAll(snapshot.docs.map(Video.fromDocumentSnapshot));
       }
 

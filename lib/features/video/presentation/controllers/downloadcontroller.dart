@@ -263,6 +263,21 @@ class DownloadsController extends BaseController {
       return false;
     }
 
+    // 3. Check premium requirement for resolutions > 720p
+    if (resolution != null && !isAudioOnly) {
+      if (DownloadQualityDialog.isPremiumResolution(resolution)) {
+        final hasPremium = DownloadQualityDialog.hasPremiumAccess(video);
+        if (!hasPremium) {
+          AppSnackbar.info(
+            'Downloading in ${resolution.label} requires a Premium subscription.',
+            title: 'Premium Required',
+          );
+          DownloadQualityDialog.showUpgradeSheet(context ?? Get.context, video);
+          return false;
+        }
+      }
+    }
+
     final qualityLabel = isAudioOnly
         ? 'Audio only'
         : (resolution?.label.isNotEmpty == true

@@ -378,7 +378,9 @@ class HomeMainContent extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 TextField(
-                  inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+                  maxLength: 100,
+                  buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                  inputFormatters: TruthworldTextInputFormatters.withLimit(100),
                   style: GoogleFonts.roboto(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: 'Search categories...',

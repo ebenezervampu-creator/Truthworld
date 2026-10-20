@@ -120,6 +120,8 @@ class ChannelHorizontalVideoCard extends StatelessWidget {
                 routeArguments: {
                   'video': video,
                   'heroTag': 'channel_topic_${topic.id}_${video.id}',
+                  'fromTopic': true,
+                  'topic': topic,
                 },
               );
             },
@@ -183,40 +185,6 @@ class ChannelHorizontalVideoCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (video.isFactChecked)
-                  Positioned(
-                    top: 36,
-                    left: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF10B981),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.verified_rounded,
-                            color: AppColors.textPrimary,
-                            size: 10,
-                          ),
-                          SizedBox(width: 4),
-                          Text(
-                            'Fact Checked',
-                            style: TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
                 Positioned(
                   bottom: 8,
                   right: 8,
@@ -229,13 +197,26 @@ class ChannelHorizontalVideoCard extends StatelessWidget {
                       color: AppColors.bgPage.withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Text(
-                      video.duration,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (video.isFactChecked) ...[
+                          const Icon(
+                            Icons.verified_rounded,
+                            color: Color(0xFF00E676),
+                            size: 12,
+                          ),
+                          const SizedBox(width: 3),
+                        ],
+                        Text(
+                          video.duration,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

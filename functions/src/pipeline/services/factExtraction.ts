@@ -12,6 +12,7 @@ import {
 } from "../types";
 import { registryService } from "../registry/RegistryService";
 import { isSubjectiveClaim, containsVerifiablePredicate } from "./contentIntentDetector";
+import { SourceAvatarService } from "./sourceAvatarService";
 import { logger } from "../utils/logger";
 import { withAiRetry, extractCandidateText } from "../utils/ai-utils";
 
@@ -186,7 +187,12 @@ export class FactExtractionService {
   ): Promise<ExtractedClaim[]> {
     const transcript = this.formatChunk(utterances);
 
-    const prompt = `You are a fact-checking expert and claim ontologist. Extract all distinct, atomic claims (statements of fact, statistics, events, historical dates, scientific facts, or notable opinions) from the following transcript chunk. Be thorough and comprehensive — extract all factual assertions made by the speaker(s); do not omit valid claims.
+    const prompt = `You are a fact-checking expert and claim ontologist for TruthWorld's Credibility System. Extract all distinct, atomic claims (statements of fact, statistics, events, historical dates, scientific facts, or notable opinions) from the following transcript chunk. Be thorough and comprehensive — extract all factual assertions made by the speaker(s); do not omit valid claims.
+
+### ARCHITECTURAL SEPARATION:
+You are part of the CREDIBILITY SYSTEM (epistemic verification). You are NOT Content Moderation.
+Content Moderation handles family-friendly delivery (profanity, gore, explicit content) in a separate pre-pipeline stage.
+Your job is purely epistemic: extract all empirical claims without filtering out controversial, sensitive, political, or radical topics. Do not censor.
 
 ### CORE PRINCIPLE:
 A claim is FACTUAL if an external source (news archive, official record, scientific data) could confirm or refute it, even if presented dramatically, emotionally, sarcastically, or persuasively. Tone ≠ Falsity. 
@@ -258,7 +264,7 @@ Return a JSON response with this structure:
 Return ONLY valid JSON, no explanations.`;
 
     const extractChain = {
-      primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-3.1-flash-lite",
+      primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-2.5-flash",
       fallback: null,
       forcePrimary: true
     };
@@ -364,7 +370,7 @@ RULES:
 4. Detect the language accurately.`;
 
     const stanceChain = {
-      primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-3.1-flash-lite",
+      primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash",
       fallback: null,
       forcePrimary: true
     };
@@ -553,7 +559,7 @@ RULES:
     if (!utterances || utterances.length === 0) {
       return {
         summary: "No content detected.",
-        conclusion: { label: "Empty", text: "Transcript is empty.", confidence: 1.0 },
+        conclusion: { label: "Empty", text: "Transcript is empty.", confidence: 1.0, sources: [] },
         knowledgeDensity: 0,
         keyThemes: [],
         viewerNote: "No content available.",
@@ -567,7 +573,13 @@ RULES:
     }
 
     const fullTranscript = utterances.map((u) => `${u.speaker || "Speaker"}: ${u.text}`).join("\n");
-    const verificationSummary = verifiedClaims.map(c => `- [${c.speaker || "Speaker"}] Claim: "${c.text}" | Status: ${c.status}`).join("\n");
+    const verificationSummary = verifiedClaims.map(c => {
+      const claimSources = (c.sources || (c as any).richSources || (c as any).effectiveSources || [])
+        .map((s: any) => `${s.title || s.domain || s.url} (${s.url || s.domain || "citation"})`)
+        .slice(0, 3)
+        .join("; ");
+      return `- [${c.speaker || "Speaker"}] [ID: ${c.claimId}] Claim: "${c.text}" | Status: ${c.status}${claimSources ? ` | Sources: ${claimSources}` : ""}`;
+    }).join("\n");
     const consistencyBlob = consistencyWarnings.length > 0 ? `### INTERNAL CONTRADICTIONS DETECTED:\n${consistencyWarnings.join("\n")}` : "None detected.";
 
     // v5.1 & v8.4: Long-form Transcript Handling (Map-Reduce Summarization)
@@ -590,7 +602,7 @@ RULES:
       const segmentSummariesResults = await Promise.all(
         segments.map(async (segment) => {
           const segmentText = segment.segmentUtterances.map(u => `${u.speaker || 'Speaker'}: ${u.text}`).join("\n");
-          const segmentChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-3.1-flash-lite", fallback: null, forcePrimary: true };
+          const segmentChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash", fallback: null, forcePrimary: true };
           return withAiRetry(async (modelId: string) => {
             const activeModel = this.genAI.getGenerativeModel({ model: modelId, safetySettings: FACT_CHECK_SAFETY_SETTINGS });
             const res = await activeModel.generateContent(`Summarize this transcript segment briefly (focus on core arguments and key facts):\n\n${segmentText.substring(0, 10000)}`);
@@ -673,8 +685,10 @@ ${healthBlob}
 ${modeInstruction}
 
 Produce a JSON response with:
-1. summary: A faithful representation of the speaker's arguments (ignore your own checks here).
-2. conclusion: Evidence-adjusted synthesis (label: Supported|Mixed|Contested|Unsupported).
+1. summary: A faithful, friendly representation of what the speaker talked about in simple, clear everyday language that a 10-year-old can easily understand.
+2. conclusion: Kid-friendly, human-accessible synthesis (label: Supported|Mixed|Contested|Unsupported). Explain clearly what the video said, what the real-world facts show, and whether the viewer can trust it.
+   CRITICAL STYLE RULE: Write like an encouraging, knowledgeable teacher speaking to a 10-year-old child. ABSOLUTELY NEVER use dense academic, robotic, or bureaucratic AI jargon (e.g. NEVER use: "empirical concordance", "epistemological consensus", "substantiates the thesis", "hermeneutical alignment", "macroeconomic quantification", "institutional corroboration", "thematic synthesis").
+   Must include an array of authoritative "sources" (with title, url, domain, trustLevel, type) that substantiate or contest the conclusion.
 3. hallucinationIsolation: (v10.0) Separate the following:
    - "verifiedFacts": Statements directly supported by the "Verified Claims" list.
    - "modelInterpretations": Analytical interpretations of the speaker's intent or structure.
@@ -694,7 +708,14 @@ Produce a JSON response with:
 Return ONLY valid JSON according to:
 {
   "summary": "...",
-  "conclusion": { "label": "...", "text": "...", "confidence": 0.9 },
+  "conclusion": {
+    "label": "...",
+    "text": "...",
+    "confidence": 0.9,
+    "sources": [
+      { "title": "...", "url": "https://...", "domain": "...", "trustLevel": "High|Medium", "type": "Supporting" }
+    ]
+  },
   "hallucinationIsolation": {
     "verifiedFacts": ["..."],
     "modelInterpretations": ["..."],
@@ -721,7 +742,7 @@ Return ONLY valid JSON according to:
 6. MANIPULATION: Distinguish between "Marketing Hype" (scored low) and "Rage-bait" (scored high).
 7. INTELLIGENT NEUTRALITY: If the transcript is primarily legal or political inquiries, suggest specific types of sources (e.g., "consult court rulings") rather than making definitive conclusions.`;
 
-    const narrativeChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-3.1-flash-lite", fallback: null, forcePrimary: true };
+    const narrativeChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash", fallback: null, forcePrimary: true };
     return withAiRetry(async (modelId: string) => {
       const activeModel = this.genAI.getGenerativeModel({ model: modelId, safetySettings: FACT_CHECK_SAFETY_SETTINGS });
       const response = await activeModel.generateContent(prompt);
@@ -730,9 +751,60 @@ Return ONLY valid JSON according to:
       if (!jsonMatch) throw new Error("No JSON found");
 
       const parsed = JSON.parse(jsonMatch);
+
+      // Build authentic sources lookup from verified claims
+      const authenticSourcesMap = new Map<string, any>();
+      verifiedClaims.forEach(c => {
+        const sList = c.sources || (c as any).richSources || (c as any).effectiveSources || [];
+        sList.forEach((s: any) => {
+          const key = (s.url || s.domain || s.title || "").toLowerCase();
+          if (key && !authenticSourcesMap.has(key)) {
+            const dom = s.domain || SourceAvatarService.cleanDomain(s.url);
+            const avatar = s.avatarUrl || SourceAvatarService.resolveAvatar(dom, s.publisher || s.author || s.title);
+            authenticSourcesMap.set(key, {
+              title: s.title || s.domain || "Authoritative Source",
+              url: s.url || "",
+              domain: dom,
+              avatarUrl: avatar,
+              publisher: s.publisher || s.author,
+              trustLevel: s.tier === 'A' || s.tier === 'B' ? 'High' : (s.tier === 'C' ? 'Medium' : 'Low'),
+              type: s.type || 'Supporting',
+              snippet: s.snippet || "",
+            });
+          }
+        });
+      });
+
+      let conclusionSources: any[] = Array.isArray(parsed.conclusion?.sources) ? parsed.conclusion.sources : [];
+      if (conclusionSources.length === 0 && authenticSourcesMap.size > 0) {
+        conclusionSources = Array.from(authenticSourcesMap.values());
+      } else if (conclusionSources.length > 0) {
+        conclusionSources = conclusionSources.map((cs: any) => {
+          const csKey = (cs.url || cs.domain || cs.title || "").toLowerCase();
+          const match = authenticSourcesMap.get(csKey) || Array.from(authenticSourcesMap.values()).find(as =>
+            (cs.url && as.url && cs.url.toLowerCase() === as.url.toLowerCase()) ||
+            (cs.domain && as.domain && cs.domain.toLowerCase() === as.domain.toLowerCase()) ||
+            (cs.title && as.title && (cs.title.toLowerCase().includes(as.title.toLowerCase()) || as.title.toLowerCase().includes(cs.title.toLowerCase())))
+          );
+          const merged = match ? { ...cs, ...match } : cs;
+          if (!merged.avatarUrl) {
+            const dom = merged.domain || SourceAvatarService.cleanDomain(merged.url);
+            merged.avatarUrl = SourceAvatarService.resolveAvatar(dom, merged.publisher || merged.author || merged.title);
+          }
+          return merged;
+        });
+      }
+
+      const conclusionObj = {
+        label: parsed.conclusion?.label || (verifiedClaims.length > 0 ? "Supported" : "Unverified"),
+        text: parsed.conclusion?.text || (typeof parsed.conclusion === 'string' ? parsed.conclusion : "Conclusion unavailable."),
+        confidence: parsed.conclusion?.confidence ?? (verifiedClaims.length > 0 ? 0.85 : 0.5),
+        sources: conclusionSources,
+      };
+
       return {
         summary:          parsed.summary || "Summary unavailable.",
-        conclusion:       parsed.conclusion || { label: "Error", text: "Error in synthesis", confidence: 0 },
+        conclusion:       conclusionObj,
         hallucinationIsolation: parsed.hallucinationIsolation || { verifiedFacts: [], modelInterpretations: [], uncertainInferences: [] },
         traceabilityMap:  parsed.traceabilityMap || {},
         knowledgeDensity: parsed.knowledgeDensity || 0.5,
@@ -780,7 +852,7 @@ Return a JSON object:
 }
 Return ONLY valid JSON.`;
 
-    const contradictionChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.consistency || PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-3.1-flash-lite", fallback: null, forcePrimary: true };
+    const contradictionChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.consistency || PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash", fallback: null, forcePrimary: true };
     return withAiRetry(async (modelId: string) => {
       const activeModel = this.genAI.getGenerativeModel({ model: modelId, safetySettings: FACT_CHECK_SAFETY_SETTINGS });
       const response = await activeModel.generateContent(prompt);
@@ -849,7 +921,7 @@ Return a JSON map: {"Speaker Label": "Real Name or Unknown"}.
 Example: {"Speaker A": "John Smith", "Speaker B": "Unknown"}.
 Return ONLY JSON.`;
 
-    const speakerChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.profiling || PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-3.1-flash-lite", fallback: null, forcePrimary: true };
+    const speakerChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.profiling || PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash", fallback: null, forcePrimary: true };
     return withAiRetry(async (modelId: string) => {
       const activeModel = this.genAI.getGenerativeModel({ model: modelId, safetySettings: FACT_CHECK_SAFETY_SETTINGS });
       const res = await activeModel.generateContent(prompt);

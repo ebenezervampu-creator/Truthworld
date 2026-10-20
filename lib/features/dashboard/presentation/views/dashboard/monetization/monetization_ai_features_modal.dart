@@ -139,7 +139,7 @@ class SpendRevenueBottomSheet {
               ),
               const SizedBox(height: 6),
               Text(
-                'Available Spendable: \$${spendable.totalSpendableBalance.toStringAsFixed(2)} (\$${spendable.fundedBalance.toStringAsFixed(2)} Wallet + \$${spendable.totalRevenue.toStringAsFixed(2)} Revenue)',
+                'Available Spendable: \$${spendable.totalSpendableBalance.toStringAsFixed(2)} (\$${spendable.fundedBalance.toStringAsFixed(2)} Wallet + \$${spendable.totalRevenue.toStringAsFixed(2)} Revenue${spendable.rolloverCredit > 0 ? " + \$${spendable.rolloverCredit.toStringAsFixed(2)} Rollover" : ""})',
                 style: const TextStyle(
                   fontSize: 13,
                   color: AppColors.textSecondary,
@@ -227,7 +227,7 @@ class SpendRevenueBottomSheet {
                       ? effectiveVideo.title
                       : 'Video #$videoId';
 
-                  await walletService.spendForVideoAIFeatures(
+                  final success = await walletService.spendForVideoAIFeatures(
                     channel: ch,
                     userId: uid,
                     videoId: videoId,
@@ -236,9 +236,16 @@ class SpendRevenueBottomSheet {
                     targetLanguages: ['en'],
                   );
 
-                  AppSnackbar.success(
-                    'Channel balance applied for Fact-Checking & Credibility verification on "$videoTitle"!',
-                  );
+                  if (success) {
+                    AppSnackbar.success(
+                      'Channel balance applied for Fact-Checking & Credibility verification on "$videoTitle"!',
+                    );
+                    controller.refreshChannelData();
+                  } else {
+                    AppSnackbar.warning(
+                      'Unable to apply balance for Fact-Checking. Please ensure your channel has sufficient funds or add money to your wallet.',
+                    );
+                  }
                 },
               ),
               const SizedBox(height: 10),
@@ -265,7 +272,7 @@ class SpendRevenueBottomSheet {
                       ? effectiveVideo.title
                       : 'Video #$videoId';
 
-                  await walletService.spendForVideoAIFeatures(
+                  final success = await walletService.spendForVideoAIFeatures(
                     channel: ch,
                     userId: uid,
                     videoId: videoId,
@@ -274,9 +281,16 @@ class SpendRevenueBottomSheet {
                     targetLanguages: ['te', 'hi', 'en'],
                   );
 
-                  AppSnackbar.success(
-                    'Channel balance applied for AI Subtitles on "$videoTitle"!',
-                  );
+                  if (success) {
+                    AppSnackbar.success(
+                      'Channel balance applied for AI Subtitles on "$videoTitle"!',
+                    );
+                    controller.refreshChannelData();
+                  } else {
+                    AppSnackbar.warning(
+                      'Unable to apply balance for AI Subtitles. Please ensure your channel has sufficient funds or add money to your wallet.',
+                    );
+                  }
                 },
               ),
               const SizedBox(height: 10),
@@ -306,7 +320,7 @@ class SpendRevenueBottomSheet {
                       ? effectiveVideo.title
                       : 'Video #$videoId';
 
-                  await walletService.spendForVideoAIFeatures(
+                  final success = await walletService.spendForVideoAIFeatures(
                     channel: ch,
                     userId: uid,
                     videoId: videoId,
@@ -316,9 +330,16 @@ class SpendRevenueBottomSheet {
                     durationSeconds: dubbingDurationSec,
                   );
 
-                  AppSnackbar.success(
-                    'Channel balance applied for AI Multilingual Dubbing on "$videoTitle"!',
-                  );
+                  if (success) {
+                    AppSnackbar.success(
+                      'Channel balance applied for AI Multilingual Dubbing on "$videoTitle"!',
+                    );
+                    controller.refreshChannelData();
+                  } else {
+                    AppSnackbar.warning(
+                      'Unable to apply balance for AI Multilingual Dubbing. Please ensure your channel has sufficient funds or add money to your wallet.',
+                    );
+                  }
                 },
               ),
               const SizedBox(height: 10),
@@ -345,7 +366,7 @@ class SpendRevenueBottomSheet {
                       ? effectiveVideo.title
                       : 'Video #$videoId';
 
-                  await walletService.spendForVideoAIFeatures(
+                  final success = await walletService.spendForVideoAIFeatures(
                     channel: ch,
                     userId: uid,
                     videoId: videoId,
@@ -354,9 +375,16 @@ class SpendRevenueBottomSheet {
                     targetLanguages: ['en'],
                   );
 
-                  AppSnackbar.success(
-                    'Channel balance applied for AI Chapters & Summary!',
-                  );
+                  if (success) {
+                    AppSnackbar.success(
+                      'Channel balance applied for AI Chapters & Summary!',
+                    );
+                    controller.refreshChannelData();
+                  } else {
+                    AppSnackbar.warning(
+                      'Unable to apply balance for AI Chapters. Please ensure your channel has sufficient funds or add money to your wallet.',
+                    );
+                  }
                 },
               ),
 
@@ -385,15 +413,22 @@ class SpendRevenueBottomSheet {
                       ? AuthService.to.uid
                       : ch.ownerId;
                   final pack = ChannelWalletService.storagePacks[1]; // 50GB
-                  await walletService.spendForStorageTopup(
+                  final success = await walletService.spendForStorageTopup(
                     channel: ch,
                     userId: uid,
                     pack: pack,
                   );
 
-                  AppSnackbar.success(
-                    '+50 GB storage added to your channel from balance!',
-                  );
+                  if (success) {
+                    AppSnackbar.success(
+                      '+50 GB storage added to your channel from balance!',
+                    );
+                    controller.refreshChannelData();
+                  } else {
+                    AppSnackbar.warning(
+                      'Unable to apply balance for storage top-up. Please ensure your channel has sufficient funds or add money to your wallet.',
+                    );
+                  }
                 },
               ),
               const SizedBox(height: 10),
@@ -410,15 +445,22 @@ class SpendRevenueBottomSheet {
                       ? AuthService.to.uid
                       : ch.ownerId;
                   final pack = ChannelWalletService.bandwidthPacks[1]; // 250GB
-                  await walletService.spendForBandwidthTopup(
+                  final success = await walletService.spendForBandwidthTopup(
                     channel: ch,
                     userId: uid,
                     pack: pack,
                   );
 
-                  AppSnackbar.success(
-                    '+250 GB streaming bandwidth added to your channel from balance!',
-                  );
+                  if (success) {
+                    AppSnackbar.success(
+                      '+250 GB streaming bandwidth added to your channel from balance!',
+                    );
+                    controller.refreshChannelData();
+                  } else {
+                    AppSnackbar.warning(
+                      'Unable to apply balance for bandwidth top-up. Please ensure your channel has sufficient funds or add money to your wallet.',
+                    );
+                  }
                 },
               ),
               const SizedBox(height: 16),

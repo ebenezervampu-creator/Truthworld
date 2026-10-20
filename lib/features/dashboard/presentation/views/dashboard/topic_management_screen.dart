@@ -256,11 +256,19 @@ class TopicManagementScreen extends StatelessWidget {
                     var baseTopics = topics;
                     if (filterMode == 'public') {
                       baseTopics = topics
-                          .where((t) => t.visibilityType == TopicVisibilityType.public)
+                          .where((t) =>
+                              t.visibilityType == TopicVisibilityType.public &&
+                              t.status.toLowerCase() == 'active')
                           .toList();
                     } else if (filterMode == 'private') {
                       baseTopics = topics
                           .where((t) => t.visibilityType == TopicVisibilityType.private)
+                          .toList();
+                    } else if (filterMode == 'rejected') {
+                      baseTopics = topics
+                          .where((t) =>
+                              t.status.toLowerCase() == 'verificationrejected' ||
+                              t.status.toLowerCase() == 'rejected')
                           .toList();
                     }
 

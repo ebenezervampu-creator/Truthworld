@@ -95,17 +95,18 @@ void main() {
       expect(find.byType(TrashRestoreScreen), findsOneWidget);
       expect(find.text('Trash & Restoration'), findsOneWidget);
 
-      // Verify Trash filter chips (All, Video, Topic, Playlist) and absence of Channel filter
+      // Verify Trash filter chips (All, Video, Post, Topic, Playlist) and absence of Channel filter
       expect(find.widgetWithText(ChoiceChip, 'All'), findsOneWidget);
       expect(find.widgetWithText(ChoiceChip, 'Video'), findsOneWidget);
+      expect(find.widgetWithText(ChoiceChip, 'Post'), findsOneWidget);
       expect(find.widgetWithText(ChoiceChip, 'Topic'), findsOneWidget);
       expect(find.widgetWithText(ChoiceChip, 'Playlist'), findsOneWidget);
       expect(find.widgetWithText(ChoiceChip, 'Channel'), findsNothing);
 
-      // Verify description does not contain 'channels'
+      // Verify description contains videos, community posts, topics, playlists
       expect(
         find.text(
-          'Deleted videos, topics, and playlists are retained for 30 days before permanent deletion.',
+          'Deleted videos, community posts, topics, and playlists are retained for 30 days before permanent deletion.',
         ),
         findsOneWidget,
       );
@@ -122,7 +123,7 @@ void main() {
 
       final dashboardCtrl =
           Get.put(DashboardController(channelId: 'test_channel_123'));
-      final viewCtrl = Get.put(DashboardViewController());
+      Get.put(DashboardViewController());
 
       await tester.pumpWidget(
         GetMaterialApp(
@@ -140,6 +141,22 @@ void main() {
 
       // Verify 'Trash & Recovery' is NOT in sidebar
       expect(find.text('Trash & Recovery'), findsNothing);
+    });
+
+    test('TrashRestoreController calculates 30-day retention grace period correctly', () {
+      final controller = TrashRestoreController(channelId: 'test_channel_123');
+
+      final justDeleted = DateTime.now();
+      expect(controller.getRemainingDays(justDeleted), equals(30));
+
+      final deleted10DaysAgo = DateTime.now().subtract(const Duration(days: 10));
+      expect(controller.getRemainingDays(deleted10DaysAgo), equals(20));
+
+      final deleted30DaysAgo = DateTime.now().subtract(const Duration(days: 30));
+      expect(controller.getRemainingDays(deleted30DaysAgo), equals(0));
+
+      final deleted45DaysAgo = DateTime.now().subtract(const Duration(days: 45));
+      expect(controller.getRemainingDays(deleted45DaysAgo), equals(0));
     });
   });
 }

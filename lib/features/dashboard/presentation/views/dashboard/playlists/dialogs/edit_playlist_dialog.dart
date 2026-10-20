@@ -72,7 +72,9 @@ class EditPlaylistDialog extends StatelessWidget {
               const SizedBox(height: 16),
               TextField(
                 controller: titleController,
-                inputFormatters: TruthworldTextInputFormatters.standard,
+                maxLength: 100,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(100),
                 style: const TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 14,
@@ -103,7 +105,9 @@ class EditPlaylistDialog extends StatelessWidget {
               const SizedBox(height: 14),
               TextField(
                 controller: descController,
-                inputFormatters: TruthworldTextInputFormatters.standard,
+                maxLength: 500,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(500),
                 maxLines: 3,
                 style: const TextStyle(
                   color: AppColors.textPrimary,

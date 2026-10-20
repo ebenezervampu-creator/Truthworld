@@ -38,6 +38,7 @@ enum AppFlavor {
     }
     if (kIsWeb) {
       final host = Uri.base.host.toLowerCase();
+      final path = Uri.base.path.toLowerCase();
       if (host == 'admin.truthworld.in' ||
           host == 'admin.truthworld.app' ||
           host.startsWith('admin.')) {
@@ -45,7 +46,9 @@ enum AppFlavor {
       }
       if (host == 'studio.truthworld.in' ||
           host == 'studio.truthworld.app' ||
-          host.startsWith('studio.')) {
+          host.startsWith('studio.') ||
+          path == '/studio' ||
+          path.startsWith('/studio/')) {
         return AppFlavor.studio;
       }
       if (host == 'ads.truthworld.in' ||

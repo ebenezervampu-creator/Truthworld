@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/services/source_avatar_service.dart';
 import 'package:truthworld/core/utils/source_url_sanitizer.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -73,6 +74,8 @@ class FactCheckSourceCard extends StatelessWidget {
     final snippet = cleanSource['snippet']?.toString();
     final directUrl = cleanSource['directUrl']?.toString();
     final url = cleanSource['url']?.toString();
+    final publisher = cleanSource['publisher']?.toString();
+    final avatarUrl = cleanSource['avatarUrl']?.toString();
 
     IconData icon;
     switch (sourceType) {
@@ -125,7 +128,7 @@ class FactCheckSourceCard extends StatelessWidget {
       onTap: () async {
         await SourceUrlSanitizer.launchSourceUrl(
           url: directUrl ?? url,
-          title: author ?? title,
+          title: title ?? bookTitle ?? author,
           domain: domain,
           source: cleanSource,
         );
@@ -141,7 +144,14 @@ class FactCheckSourceCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: Colors.white, size: 24),
+            SourceAvatarService.buildAvatar(
+              domain: domain,
+              publisher: publisher ?? author,
+              url: directUrl ?? url,
+              avatarUrl: avatarUrl,
+              fallbackIcon: icon,
+              size: 38,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(

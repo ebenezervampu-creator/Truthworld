@@ -104,7 +104,11 @@ class LikedVideoScreen extends GetView<LikedVideosController> {
                               ),
                             ),
                             child: TextField(
-                              inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+                              maxLength: ContentValidator.defaultMaxSearchLength,
+                              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                              inputFormatters: TruthworldTextInputFormatters.withLimit(
+                                ContentValidator.defaultMaxSearchLength,
+                              ),
                               onChanged: (value) =>
                                   controller.searchQuery.value = value,
                               style: const TextStyle(
@@ -447,7 +451,7 @@ class _LikedVideoListCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${video.channelName} • ${video.views} views',
+                    '${video.channelName} • ${video.views} ${video.views == 1 ? 'view' : 'views'}',
                     style: const TextStyle(
                       fontSize: 13,
                       color: AppColors.textSecondary,

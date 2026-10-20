@@ -141,6 +141,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      expect(find.text('TRUTH CREDIBILITY CHECK'), findsNothing);
       expect(find.text('AI CREDIBILITY CHECK'), findsNothing);
       expect(find.text('EXCEPTIONAL INTEGRITY'), findsNothing);
       expect(find.text('View Full Analysis'), findsNothing);

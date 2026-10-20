@@ -118,7 +118,10 @@ class PlaylistScreenCard extends StatelessWidget {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              '${playlist.videoCount} videos',
+                              () {
+                                final count = playlist.effectiveVideoCount;
+                                return '$count ${count == 1 ? "video" : "videos"}';
+                              }(),
                               style: GoogleFonts.roboto(
                                 color: Colors.white,
                                 fontSize: 11,

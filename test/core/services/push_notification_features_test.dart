@@ -77,7 +77,8 @@ void main() {
           typeLower == 'subscription' ||
           typeLower == 'subscribers_milestone' ||
           typeLower == 'subscribers_milestone_v1' ||
-          typeLower == 'creator_intelligence' ||
+          typeLower == 'channel_notifications' ||
+          typeLower == 'studio_notifications' ||
           typeLower == 'coach_growth_tip' ||
           typeLower == 'coach_growth_tip_v1' ||
           typeLower == 'analytics_alert' ||
@@ -801,6 +802,318 @@ void main() {
       );
 
       expect(notifyTopic, isFalse, reason: 'Must not send duplicate notification if user already notified');
+    });
+  });
+
+  group('Multi-App Notification Flavor Separation Tests (Four Apps Isolation)', () {
+    test('UserNotification correctly parses targetApp and defaults to app', () {
+      final defaultNotif = UserNotification.fromJson('notif_1', {
+        'userId': 'usr_1',
+        'title': 'New Video',
+        'message': 'Watch now',
+      });
+      expect(defaultNotif.targetApp, equals('app'));
+      expect(defaultNotif.isConsumerNotification, isTrue);
+      expect(defaultNotif.isStudioNotification, isFalse);
+
+      final studioNotif = UserNotification.fromJson('notif_2', {
+        'userId': 'usr_1',
+        'title': 'Fact-Check Completed',
+        'message': 'Results visible',
+        'targetApp': 'studio',
+      });
+      expect(studioNotif.targetApp, equals('studio'));
+      expect(studioNotif.isStudioNotification, isTrue);
+      expect(studioNotif.isConsumerNotification, isFalse);
+    });
+
+    test('Studio specific notification types are never treated as consumer notifications', () {
+      final factCheckNotif = UserNotification.fromJson('notif_fc', {
+        'userId': 'creator_1',
+        'type': 'fact_check_ready',
+        'title': 'Fact-Check Ready for Review',
+        'message': 'Review your fact-check',
+        'actionUrl': '/video/vid_123',
+      });
+      expect(factCheckNotif.isStudioNotification, isTrue);
+      expect(factCheckNotif.isConsumerNotification, isFalse);
+
+      final truthVerificationQueuedNotif = UserNotification.fromJson('notif_queued', {
+        'userId': 'creator_1',
+        'type': 'fact_check_pending',
+        'title': 'Truth Verification Queued',
+        'message': 'Fact-checking for "Truth-World" is in progress...',
+      });
+      expect(truthVerificationQueuedNotif.isStudioNotification, isTrue);
+      expect(truthVerificationQueuedNotif.isConsumerNotification, isFalse);
+
+      final verificationNotif = UserNotification.fromJson('notif_ver', {
+        'userId': 'creator_1',
+        'type': 'verification_result',
+        'title': 'Video Approved & Published',
+        'message': 'Your video is live',
+        'actionUrl': '/studio',
+      });
+      expect(verificationNotif.isStudioNotification, isTrue);
+      expect(verificationNotif.isConsumerNotification, isFalse);
+
+      final payoutNotif = UserNotification.fromJson('notif_payout', {
+        'userId': 'creator_1',
+        'type': 'monetization_payout',
+        'title': 'Payout Processed',
+        'message': 'Earnings credited',
+      });
+      expect(payoutNotif.isStudioNotification, isTrue);
+      expect(payoutNotif.isConsumerNotification, isFalse);
+    });
+
+    test('Consumer notification feed strictly filters out Studio notifications', () {
+      final allNotifs = [
+        UserNotification.fromJson('notif_studio_1', {
+          'userId': 'creator_user',
+          'type': 'fact_check_ready',
+          'title': 'Fact-Check Completed',
+          'message': 'Your fact-check is done',
+          'targetApp': 'studio',
+        }),
+        UserNotification.fromJson('notif_consumer_1', {
+          'userId': 'creator_user',
+          'type': 'comment',
+          'title': 'New Comment!',
+          'message': 'Someone commented',
+          'actionUrl': '/watch/v_1',
+          'targetApp': 'app',
+        }),
+        UserNotification.fromJson('notif_consumer_2', {
+          'userId': 'creator_user',
+          'type': 'new_video_followed',
+          'title': 'New Video from Channel',
+          'message': 'New upload available',
+          'actionUrl': '/watch/v_2',
+          'targetApp': 'app',
+        }),
+        UserNotification.fromJson('notif_admin_1', {
+          'userId': 'creator_user',
+          'type': 'admin_alert',
+          'title': 'System Escalation',
+          'message': 'Admin action required',
+          'targetApp': 'admin',
+        }),
+      ];
+
+      // Consumer feed filtering
+      final consumerFeed = allNotifs.where((n) => n.isConsumerNotification).toList();
+      expect(consumerFeed.length, equals(2));
+      expect(consumerFeed.map((n) => n.id).toList(), equals(['notif_consumer_1', 'notif_consumer_2']));
+
+      // Studio feed filtering
+      final studioFeed = allNotifs.where((n) => n.isStudioNotification).toList();
+      expect(studioFeed.length, equals(1));
+      expect(studioFeed.first.id, equals('notif_studio_1'));
+    });
+  });
+
+  group('Comprehensive Four-App Notification Tap & Route Deep-Link Tests', () {
+    test('Consumer App: new_video_followed routes to /watch with autoplay and thumbnail', () {
+      final payload = {
+        'type': 'new_video_followed',
+        'videoId': 'vid_subscribed_123',
+        'channelId': 'chan_creator_456',
+        'thumbnailUrl': 'https://truthworld.in/thumbs/vid_subscribed_123.jpg',
+        'targetApp': 'app',
+      };
+
+      final target = NotificationNavigationHandler.resolveTarget(payload);
+
+      expect(target.route, equals('/watch?v=vid_subscribed_123'));
+      expect(target.targetApp.name, equals('app'));
+      expect(target.arguments?['videoId'], equals('vid_subscribed_123'));
+      expect(target.arguments?['autoplay'], isTrue);
+      expect(target.arguments?['fromNotification'], isTrue);
+      expect(target.arguments?['fromPush'], isTrue);
+      expect(target.arguments?['channelId'], equals('chan_creator_456'));
+      expect(target.arguments?['thumbnailUrl'], equals('https://truthworld.in/thumbs/vid_subscribed_123.jpg'));
+      expect(target.parameters?['v'], equals('vid_subscribed_123'));
+      expect(target.parameters?['autoplay'], equals('true'));
+    });
+
+    test('Consumer App: new_video_topic routes to /watch with autoplay and fromTopic flag', () {
+      final payload = {
+        'type': 'new_video_topic',
+        'videoId': 'vid_topic_789',
+        'topicId': 'topic_science',
+        'thumbnailUrl': 'https://truthworld.in/thumbs/vid_topic_789.jpg',
+      };
+
+      final target = NotificationNavigationHandler.resolveTarget(payload);
+
+      expect(target.route, equals('/watch?v=vid_topic_789'));
+      expect(target.targetApp.name, equals('app'));
+      expect(target.arguments?['videoId'], equals('vid_topic_789'));
+      expect(target.arguments?['fromTopic'], isTrue);
+      expect(target.arguments?['autoplay'], isTrue);
+      expect(target.arguments?['topicId'], equals('topic_science'));
+    });
+
+    test('Consumer App: comment notification routes to /watch with commentId and autoplay', () {
+      final payload = {
+        'type': 'comment',
+        'videoId': 'vid_comments_101',
+        'commentId': 'comm_999',
+      };
+
+      final target = NotificationNavigationHandler.resolveTarget(payload);
+
+      expect(target.route, equals('/watch?v=vid_comments_101'));
+      expect(target.arguments?['commentId'], equals('comm_999'));
+      expect(target.arguments?['autoplay'], isTrue);
+      expect(target.parameters?['commentId'], equals('comm_999'));
+    });
+
+    test('Creator Studio: fact_check_ready routes to /studio with truth verification tab 15', () {
+      final payload = {
+        'type': 'fact_check_ready',
+        'videoId': 'vid_verified_202',
+        'targetApp': 'studio',
+      };
+
+      final target = NotificationNavigationHandler.resolveTarget(payload);
+
+      expect(target.route, equals('/studio'));
+      expect(target.targetApp.name, equals('studio'));
+      expect(target.isStudio, isTrue);
+      expect(target.arguments?['tab'], equals(15));
+      expect(target.arguments?['filter'], equals('fact_check'));
+      expect(target.arguments?['videoId'], equals('vid_verified_202'));
+      expect(target.parameters?['tab'], equals('verification'));
+      expect(target.parameters?['videoId'], equals('vid_verified_202'));
+    });
+
+    test('Creator Studio: copyright_claim routes to /studio with copyright tab 9', () {
+      final payload = {
+        'type': 'copyright_claim',
+        'videoId': 'vid_claimed_303',
+      };
+
+      final target = NotificationNavigationHandler.resolveTarget(payload);
+
+      expect(target.route, equals('/studio'));
+      expect(target.targetApp.name, equals('studio'));
+      expect(target.isStudio, isTrue);
+      expect(target.arguments?['tab'], equals(9));
+      expect(target.arguments?['videoId'], equals('vid_claimed_303'));
+      expect(target.parameters?['tab'], equals('copyright'));
+    });
+
+    test('Creator Studio: subscribers_milestone routes to /subscribers with audience tab 12', () {
+      final payload = {
+        'type': 'subscribers_milestone',
+        'channelId': 'channel_100k',
+      };
+
+      final target = NotificationNavigationHandler.resolveTarget(payload);
+
+      expect(target.route, equals('/subscribers'));
+      expect(target.targetApp.name, equals('studio'));
+      expect(target.arguments?['tab'], equals(12));
+      expect(target.parameters?['tab'], equals('audience'));
+    });
+
+    test('Creator Studio: monetization_payout routes to /wallet with monetization tab 5', () {
+      final payload = {
+        'type': 'monetization_payout',
+      };
+
+      final target = NotificationNavigationHandler.resolveTarget(payload);
+
+      expect(target.route, equals('/wallet'));
+      expect(target.targetApp.name, equals('studio'));
+      expect(target.arguments?['tab'], equals(5));
+      expect(target.parameters?['tab'], equals('monetization'));
+    });
+
+    test('Admin App: moderation_escalation routes to /admin/dashboard with videos queue', () {
+      final payload = {
+        'type': 'moderation_escalation',
+        'videoId': 'vid_flagged_505',
+        'targetApp': 'admin',
+      };
+
+      final target = NotificationNavigationHandler.resolveTarget(payload);
+
+      expect(target.route, equals('/admin/dashboard'));
+      expect(target.targetApp.name, equals('admin'));
+      expect(target.isAdmin, isTrue);
+      expect(target.arguments?['tab'], equals('videos'));
+      expect(target.arguments?['videoId'], equals('vid_flagged_505'));
+      expect(target.parameters?['tab'], equals('videos'));
+      expect(target.parameters?['videoId'], equals('vid_flagged_505'));
+    });
+
+    test('Admin App: report_escalation routes to /admin/dashboard with reports queue', () {
+      final payload = {
+        'type': 'report_escalation',
+        'reportId': 'rep_909',
+        'targetApp': 'admin',
+      };
+
+      final target = NotificationNavigationHandler.resolveTarget(payload);
+
+      expect(target.route, equals('/admin/dashboard'));
+      expect(target.targetApp.name, equals('admin'));
+      expect(target.arguments?['tab'], equals('reports'));
+      expect(target.arguments?['reportId'], equals('rep_909'));
+    });
+
+    test('Advertiser Portal: campaign_approved routes to /advertiser with campaigns tab 1', () {
+      final payload = {
+        'type': 'campaign_approved',
+        'campaignId': 'camp_summer_2026',
+        'targetApp': 'advertiser',
+      };
+
+      final target = NotificationNavigationHandler.resolveTarget(payload);
+
+      expect(target.route, equals('/advertiser'));
+      expect(target.targetApp.name, equals('advertiser'));
+      expect(target.isAdvertiser, isTrue);
+      expect(target.arguments?['tab'], equals(1));
+      expect(target.arguments?['campaignId'], equals('camp_summer_2026'));
+      expect(target.parameters?['tab'], equals('1'));
+    });
+
+    test('Advertiser Portal: billing_invoice routes to /advertiser with billing tab 5', () {
+      final payload = {
+        'type': 'billing_invoice',
+        'targetApp': 'advertiser',
+      };
+
+      final target = NotificationNavigationHandler.resolveTarget(payload);
+
+      expect(target.route, equals('/advertiser'));
+      expect(target.targetApp.name, equals('advertiser'));
+      expect(target.isAdvertiser, isTrue);
+      expect(target.arguments?['tab'], equals(5));
+      expect(target.parameters?['tab'], equals('5'));
+    });
+
+    test('Cross-Flavor: accurately resolves product flavors across all 4 apps', () {
+      expect(
+        NotificationNavigationHandler.resolveTargetFlavor({'targetApp': 'app'}).name,
+        equals('app'),
+      );
+      expect(
+        NotificationNavigationHandler.resolveTargetFlavor({'targetApp': 'studio'}).name,
+        equals('studio'),
+      );
+      expect(
+        NotificationNavigationHandler.resolveTargetFlavor({'targetApp': 'admin'}).name,
+        equals('admin'),
+      );
+      expect(
+        NotificationNavigationHandler.resolveTargetFlavor({'targetApp': 'advertiser'}).name,
+        equals('advertiser'),
+      );
     });
   });
 }

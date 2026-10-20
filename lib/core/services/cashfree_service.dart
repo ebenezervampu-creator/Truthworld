@@ -239,6 +239,7 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
 
   static const _trustedPaymentHosts = {
     'payments.cashfree.com',
+    'payments-test.cashfree.com',
     'api.cashfree.com',
     'checkout.cashfree.com',
     'sandbox.cashfree.com',
@@ -307,14 +308,18 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
         lowerMsg.contains('verification failed') ||
         lowerMsg.contains('activity not found');
 
-    if (isInstallerOrIntegrityError && _activePaymentLink != null && _activePaymentLink!.isNotEmpty) {
+    final fallbackUrl = (_activePaymentLink != null && _activePaymentLink!.isNotEmpty)
+        ? _activePaymentLink!
+        : 'https://www.truthworld.in/checkout?order_id=${Uri.encodeComponent(orderId)}';
+
+    if (isInstallerOrIntegrityError) {
       if (kDebugMode) {
         debugPrint(
           '[CashfreePaymentService] Native SDK rejected installer in debug/sideloaded build ($rawMsg). '
-          'Gracefully launching hosted checkout fallback.',
+          'Gracefully launching hosted checkout fallback: $fallbackUrl',
         );
       }
-      _launchExternalCheckout(_activePaymentLink!, orderId);
+      _launchExternalCheckout(fallbackUrl, orderId);
       return;
     }
 
@@ -482,7 +487,10 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
       final envString = (data['environment'] as String? ?? 'SANDBOX').toUpperCase();
 
       activeOrderId.value = orderId;
-      _activePaymentLink = paymentLink;
+      _activePaymentLink = paymentLink ??
+          (paymentSessionId != null
+              ? 'https://www.truthworld.in/checkout?session_id=${Uri.encodeComponent(paymentSessionId)}&order_id=${Uri.encodeComponent(orderId)}&env=${envString.toLowerCase()}'
+              : null);
       _activeSubscriptionId = isSubscription ? (subscriptionId ?? orderId) : null;
       _activeCompleter = Completer<CashfreePaymentResult>();
 
@@ -529,6 +537,28 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
               errorMessage: 'Unable to launch Auto Pay authorization. Please try again.',
             ),
           );
+        }
+      } else if (_isMobile &&
+          enableNativeGateway &&
+          paymentSessionId != null &&
+          paymentSessionId.isNotEmpty) {
+        // Mobile platforms (Android / iOS): invoke native Cashfree PG SDK
+        try {
+          _initGatewayCallbacks();
+          _cfGateway.doPayment(
+            orderId: orderId,
+            paymentSessionId: paymentSessionId,
+            isProduction: envString == 'PRODUCTION',
+          );
+        } catch (nativeErr, stackTrace) {
+          ErrorHandler.log(
+            nativeErr,
+            stackTrace: stackTrace,
+            tag: 'CashfreePaymentService.nativePayment',
+          );
+          final fallbackLink = _activePaymentLink ??
+              'https://www.truthworld.in/checkout?session_id=${Uri.encodeComponent(paymentSessionId)}&order_id=${Uri.encodeComponent(orderId)}&env=${envString.toLowerCase()}';
+          await _launchExternalCheckout(fallbackLink, orderId);
         }
       } else if (paymentLink != null && paymentLink.isNotEmpty) {
         // Authoritative TruthWorld Hosted Checkout flow (works seamlessly on Android, iOS, Web, and Desktop)

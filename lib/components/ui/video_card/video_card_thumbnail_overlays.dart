@@ -10,49 +10,64 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Fact Checked badge displayed on the top-left of eligible video thumbnails.
+///
+/// Features an instantly recognizable emerald green circular badge with a bold
+/// white right mark (checkmark) ensuring high contrast and immediate clarity.
 class VideoCardFactCheckBadge extends StatelessWidget {
-  const VideoCardFactCheckBadge({super.key});
+  const VideoCardFactCheckBadge({
+    super.key,
+    this.top,
+    this.left,
+    this.right,
+    this.bottom,
+    this.size,
+  });
+
+  final double? top;
+  final double? left;
+  final double? right;
+  final double? bottom;
+  final double? size;
 
   @override
   Widget build(BuildContext context) {
+    final effectiveSize = size ?? 26.0;
+    final effectiveTop = (top == null && bottom == null) ? 12.0 : top;
+    final effectiveLeft = (left == null && right == null) ? 12.0 : left;
+
     return Positioned(
-      top: 14,
-      left: 14,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 10,
-          vertical: 5,
-        ),
-        decoration: BoxDecoration(
-          color: const Color(0xFF029C5D),
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black26,
-              blurRadius: 4,
-              offset: Offset(0, 2),
+      top: effectiveTop,
+      left: effectiveLeft,
+      right: right,
+      bottom: bottom,
+      child: Tooltip(
+        message: 'Fact Checked',
+        child: Container(
+          key: const ValueKey('video_card_fact_checked_badge'),
+          width: effectiveSize,
+          height: effectiveSize,
+          decoration: BoxDecoration(
+            color: const Color(0xFF029C5D),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Colors.black.withValues(alpha: 0.35),
+              width: 1.5,
             ),
-          ],
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black38,
+                blurRadius: 4,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Center(
+            child: Icon(
               Icons.verified_rounded,
               color: Colors.white,
-              size: 15,
+              size: (effectiveSize * 0.62).roundToDouble(),
             ),
-            SizedBox(width: 6),
-            Text(
-              'Fact Checked',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-                fontSize: 12.5,
-                letterSpacing: -0.1,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -60,16 +75,23 @@ class VideoCardFactCheckBadge extends StatelessWidget {
 }
 
 /// Duration indicator badge displayed on the bottom-right of video thumbnails.
+///
+/// When [isFactChecked] is true, displays a verified badge icon directly before
+/// the duration inside the badge.
 class VideoCardDurationBadge extends StatelessWidget {
   const VideoCardDurationBadge({
     required this.duration,
+    this.isFactChecked = false,
     super.key,
   });
 
   final String duration;
+  final bool isFactChecked;
 
   @override
   Widget build(BuildContext context) {
+    if (duration.isEmpty) return const SizedBox.shrink();
+
     return Positioned(
       bottom: 10,
       right: 10,
@@ -82,14 +104,27 @@ class VideoCardDurationBadge extends StatelessWidget {
           color: Colors.black.withValues(alpha: 0.85),
           borderRadius: BorderRadius.circular(5),
         ),
-        child: Text(
-          duration,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.2,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isFactChecked) ...[
+              const Icon(
+                Icons.verified_rounded,
+                color: Color(0xFF00E676),
+                size: 13,
+              ),
+              const SizedBox(width: 3.5),
+            ],
+            Text(
+              duration,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
         ),
       ),
     );

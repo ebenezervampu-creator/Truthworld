@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/base/base_repository.dart';
 import 'package:truthworld/core/network/result.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/domain/repositories/library_repository.dart';
 
 class LibraryRepositoryImpl extends BaseRepository implements LibraryRepository {
@@ -30,7 +31,7 @@ class LibraryRepositoryImpl extends BaseRepository implements LibraryRepository 
         query = query.startAfterDocument(_lastLikedDoc!);
       }
 
-      final snapshot = await query.get();
+      final snapshot = await query.getCacheFirst();
       if (snapshot.docs.isNotEmpty) {
         _lastLikedDoc = snapshot.docs.last;
       }
@@ -47,7 +48,7 @@ class LibraryRepositoryImpl extends BaseRepository implements LibraryRepository 
   Future<Result<void>> toggleLikeVideo(String userId, String videoId) async {
     return safeFetch(() async {
       final docRef = _firestore.collection('users').doc(userId).collection('liked_videos').doc(videoId);
-      final doc = await docRef.get();
+      final doc = await docRef.getCacheFirst();
       if (doc.exists) {
         await docRef.delete();
       } else {
@@ -73,7 +74,7 @@ class LibraryRepositoryImpl extends BaseRepository implements LibraryRepository 
         query = query.startAfterDocument(_lastHistoryDoc!);
       }
 
-      final snapshot = await query.get();
+      final snapshot = await query.getCacheFirst();
       if (snapshot.docs.isNotEmpty) {
         _lastHistoryDoc = snapshot.docs.last;
       }
@@ -105,7 +106,7 @@ class LibraryRepositoryImpl extends BaseRepository implements LibraryRepository 
   @override
   Future<Result<void>> clearWatchHistory(String userId) async {
     return safeFetch(() async {
-      final snapshot = await _firestore.collection('users').doc(userId).collection('watch_history').get();
+      final snapshot = await _firestore.collection('users').doc(userId).collection('watch_history').getCacheFirst();
       final batch = _firestore.batch();
       for (final doc in snapshot.docs) {
         batch.delete(doc.reference);
@@ -138,9 +139,24 @@ class LibraryRepositoryImpl extends BaseRepository implements LibraryRepository 
         query = query.startAfterDocument(_lastWatchLaterDoc!);
       }
 
-      final snapshot = await query.get();
+      final snapshot = await query.getCacheFirst();
       if (snapshot.docs.isNotEmpty) {
         _lastWatchLaterDoc = snapshot.docs.last;
+      } else if (page == 1) {
+        // Fallback for documents that may have createdAt or were saved before addedAt indexing
+        final fallbackSnapshot = await _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('watch_later')
+            .limit(limit)
+            .getCacheFirst();
+        if (fallbackSnapshot.docs.isNotEmpty) {
+          return fallbackSnapshot.docs.map((doc) {
+            final data = doc.data();
+            data['id'] = doc.id;
+            return data;
+          }).toList();
+        }
       }
 
       return snapshot.docs.map((doc) {
@@ -154,12 +170,23 @@ class LibraryRepositoryImpl extends BaseRepository implements LibraryRepository 
   @override
   Future<Result<void>> toggleWatchLater(String userId, String videoId) async {
     return safeFetch(() async {
-      final docRef = _firestore.collection('users').doc(userId).collection('watch_later').doc(videoId);
-      final doc = await docRef.get();
+      final docRef = _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('watch_later')
+          .doc(videoId);
+      final doc = await docRef.getCacheFirst();
       if (doc.exists) {
         await docRef.delete();
       } else {
-        await docRef.set({'addedAt': FieldValue.serverTimestamp()});
+        final now = FieldValue.serverTimestamp();
+        await docRef.set({
+          'id': videoId,
+          'videoId': videoId,
+          'userId': userId,
+          'addedAt': now,
+          'createdAt': now,
+        });
       }
     });
   }
@@ -186,7 +213,7 @@ class LibraryRepositoryImpl extends BaseRepository implements LibraryRepository 
         query = query.startAfterDocument(_lastSavedDoc!);
       }
 
-      final snapshot = await query.get();
+      final snapshot = await query.getCacheFirst();
       if (snapshot.docs.isNotEmpty) {
         _lastSavedDoc = snapshot.docs.last;
       }
@@ -214,7 +241,7 @@ class LibraryRepositoryImpl extends BaseRepository implements LibraryRepository 
           .collection('saved_videos')
           .doc(videoId);
 
-      final doc = await docRef.get();
+      final doc = await docRef.getCacheFirst();
       if (doc.exists) {
         await docRef.delete();
       } else {

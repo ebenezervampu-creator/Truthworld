@@ -24,7 +24,7 @@ import { extractCandidateText } from "../utils/ai-utils";
 export const FAST_TIER_CONFIG = {
   MAX_CLAIMS: 5,
   TIMEOUT_MS: 10_000,
-  MODEL: PIPELINE_CONFIG.GEMINI_MODELS?.fastTier || "gemini-3.1-flash-lite",
+  MODEL: PIPELINE_CONFIG.GEMINI_MODELS?.fastTier || "gemini-2.5-flash",
   ENABLE_GROUNDING: false,
   SIGNAL_THRESHOLDS: { green: 0.7, yellow: 0.4 }, // below 0.4 = red
   MAX_TEXT_LENGTH: 5000, // character limit for input text

@@ -129,6 +129,46 @@ describe('Unit: Validators and Data Sanitizers', () => {
       expect(result.success).toBe(true);
     });
 
+    it('validates GeminiIntelligenceSchema with conclusion sources and citations', () => {
+      const payload = {
+        summary: 'A deep-dive investigation into renewable energy systems.',
+        conclusion: {
+          label: 'VERIFIED',
+          text: 'Solar and wind infrastructure expanded significantly across multiple grids.',
+          confidence: 0.95,
+          sources: [
+            {
+              title: 'Global Energy Review 2026',
+              url: 'https://iea.org/reports/energy-2026',
+              domain: 'iea.org',
+              trustLevel: 'High',
+              snippet: 'Renewables accounted for over 80% of net capacity additions.',
+            },
+            {
+              title: 'Nature Energy Research',
+              url: 'https://nature.com/articles/energy123',
+              domain: 'nature.com',
+              trustLevel: 'High',
+              type: 'journal',
+            },
+          ],
+        },
+        keyThemes: ['Energy', 'Economy', 'Climate'],
+        viewerNote: 'Independent fact check verified with empirical metrics.',
+        chapters: [],
+      };
+
+      const result = GeminiIntelligenceSchema.safeParse(payload);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.conclusion.sources).toBeDefined();
+        expect(result.data.conclusion.sources?.length).toBe(2);
+        expect(result.data.conclusion.sources?.[0].title).toBe('Global Energy Review 2026');
+        expect(result.data.conclusion.sources?.[0].domain).toBe('iea.org');
+        expect(result.data.conclusion.sources?.[1].type).toBe('journal');
+      }
+    });
+
     it('validates GeminiVerificationSchema with verifiable claims', () => {
       const payload = {
         verifications: [

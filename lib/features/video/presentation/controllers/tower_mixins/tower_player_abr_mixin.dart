@@ -24,6 +24,7 @@ mixin TowerPlayerAbrMixin on GetxController {
   void closeSettings();
   void trackAnalytics(PlayerEvent event);
   void showToast(String msg);
+  Future<void> setAudioOnly(bool enabled) async {}
 
   // ── ABR / quality ─────────────────────────────────────────
   final AdaptiveBitrateController abr = AdaptiveBitrateController();
@@ -128,11 +129,11 @@ mixin TowerPlayerAbrMixin on GetxController {
                 );
             if (match == null) return;
 
-            // If already on this exact URL or (height and fps without manual switch), do not re-initialize player
-            if (vc.currentResolution.value?.url == match.url ||
-                (vc.currentResolution.value?.height == match.height &&
-                    vc.currentResolution.value?.fps == match.fps &&
-                    !isManual)) {
+            // For auto ABR (!isManual), do not re-initialize player if already on this exact URL and height/fps
+            if (!isManual &&
+                (vc.currentResolution.value?.url == match.url ||
+                    (vc.currentResolution.value?.height == match.height &&
+                        vc.currentResolution.value?.fps == match.fps))) {
               if (vc.currentResolution.value != match) {
                 vc.currentResolution.value = match;
               }
@@ -165,8 +166,8 @@ mixin TowerPlayerAbrMixin on GetxController {
     };
 
     // Apply network-aware User Settings quality preference or global quality preference
-    var pref = TowerPlayerController.globalQualityPreference;
-    if (pref == null || pref == 'Auto') {
+    var pref = TowerPlayerController.globalQualityPreference ?? 'Auto';
+    if (pref == 'Auto' || pref == '144p') {
       if (Get.isRegistered<UserSettingsController>()) {
         final pb = UserSettingsController.to.playback.value;
         final isWifi = !Get.isRegistered<ConnectivityService>() ||
@@ -189,27 +190,31 @@ mixin TowerPlayerAbrMixin on GetxController {
         } else {
           pref = 'Auto';
         }
+      } else {
+        pref = 'Auto';
       }
     }
 
-    if (pref != null) {
-      if (pref == 'Auto') {
-        abr.enableAutoMode();
+    if (pref == 'Auto' || pref == '144p') {
+      abr.enableAutoMode();
+    } else {
+      if (!isPremium &&
+          (pref.contains('1080') ||
+              pref.contains('1440') ||
+              pref.contains('2160') ||
+              pref.contains('4k') ||
+              pref.contains('4K'))) {
+        pref = '1040p';
+      }
+      final targetPref = pref.toLowerCase();
+      final matchIdx = abr.resolutionLadder.indexWhere(
+        (t) => t.label.toLowerCase() == targetPref ||
+            t.label.toLowerCase().startsWith(targetPref),
+      );
+      if (matchIdx != -1) {
+        abr.setManualTier(matchIdx);
       } else {
-        if (!isPremium &&
-            (pref.contains('1080') ||
-                pref.contains('1440') ||
-                pref.contains('2160') ||
-                pref.contains('4k') ||
-                pref.contains('4K'))) {
-          pref = '1040p';
-        }
-        final matchIdx = abr.resolutionLadder.indexWhere(
-          (t) => t.label.contains(pref!),
-        );
-        if (matchIdx != -1) {
-          abr.setManualTier(matchIdx);
-        }
+        abr.enableAutoMode();
       }
     }
   }
@@ -254,6 +259,9 @@ mixin TowerPlayerAbrMixin on GetxController {
 
   void selectQuality(int tierIndex) {
     if (tierIndex < 0 || tierIndex >= abr.resolutionLadder.length) return;
+    if (isAudioOnly.value) {
+      setAudioOnly(false);
+    }
     final isPremium = hasPremiumPlaybackAccess;
     if (isPremium && abr.maxHeightCap != null) {
       abr.updateMaxHeightCap(null);
@@ -275,10 +283,49 @@ mixin TowerPlayerAbrMixin on GetxController {
   }
 
   void selectAutoQuality() {
+    if (isAudioOnly.value) {
+      setAudioOnly(false);
+    }
     abr.enableAutoMode();
     TowerPlayerController.globalQualityPreference = 'Auto';
     showToast('Quality: Auto');
     activePanel.value = '';
     closeSettings();
+  }
+
+  /// Returns the Gaussian blur sigma to visually represent the active resolution tier.
+  /// When playing at lower resolutions (e.g. 144p, 240p, 360p, 480p) on a higher-res stream
+  /// or synthetic ladder tier, applying blur simulates authentic lower resolution playback.
+  double get resolutionBlurSigma {
+    if (isAudioOnly.value) return 0.0;
+
+    final res = videoController?.currentResolution.value;
+    final targetHeight = (res != null && res.height > 0)
+        ? res.height
+        : abr.currentTier.height;
+    if (targetHeight <= 0) return 0.0;
+
+    final vpc = videoPlayerController;
+    final nativeHeight =
+        vpc.value.isInitialized ? vpc.value.size.height.toInt() : 0;
+
+    // If native stream is already at or below target resolution (e.g. authentic 144p transcode stream),
+    // and not marked synthetic, native scaling is already low-resolution.
+    if (nativeHeight > 0 &&
+        nativeHeight <= targetHeight &&
+        !(res?.isSynthetic ?? false)) {
+      return 0.0;
+    }
+
+    if (targetHeight <= 144) {
+      return 4.5;
+    } else if (targetHeight <= 240) {
+      return 2.5;
+    } else if (targetHeight <= 360) {
+      return 1.4;
+    } else if (targetHeight <= 480) {
+      return 0.7;
+    }
+    return 0.0;
   }
 }

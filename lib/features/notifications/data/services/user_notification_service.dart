@@ -10,7 +10,7 @@ class UserNotificationService {
   FirebaseFunctions get _functions =>
       FirebaseFunctions.instanceFor(region: 'asia-south1');
 
-  /// Stream live real-time notifications for the given user
+  /// Stream live real-time notifications for the given user (Consumer app safe)
   Stream<List<UserNotification>> getNotificationsStream(
     String userId, {
     int limit = 50,
@@ -27,7 +27,10 @@ class UserNotificationService {
         .snapshots()
         .map(
           (snapshot) =>
-              snapshot.docs.map(UserNotification.fromDocumentSnapshot).toList(),
+              snapshot.docs
+                  .map(UserNotification.fromDocumentSnapshot)
+                  .where((n) => n.isConsumerNotification && !n.isStudioNotification)
+                  .toList(),
         );
   }
 
@@ -41,10 +44,13 @@ class UserNotificationService {
       final data = result.data as Map<String, dynamic>? ?? {};
       final list = data['notifications'] as List<dynamic>? ?? [];
 
-      return list.map((item) {
-        final map = Map<String, dynamic>.from(item as Map);
-        return UserNotification.fromJson(map['id'] as String? ?? '', map);
-      }).toList();
+      return list
+          .map((item) {
+            final map = Map<String, dynamic>.from(item as Map);
+            return UserNotification.fromJson(map['id'] as String? ?? '', map);
+          })
+          .where((n) => n.isConsumerNotification && !n.isStudioNotification)
+          .toList();
     } catch (e) {
       logger.error(
         'Failed to fetch notifications via callable: $e',
@@ -101,10 +107,23 @@ class UserNotificationService {
     required String message,
     String? actionUrl,
     Map<String, dynamic>? metadata,
+    String? targetApp,
+    String? category,
   }) async {
     if (userId.isEmpty || userId == 'guest_user') return;
     try {
       final docRef = _firestore.collection(_collectionPath).doc();
+      final effectiveAction = (actionUrl ?? '').toLowerCase();
+      final tLower = type.toLowerCase();
+      final isStudio = (targetApp?.toLowerCase().trim() == 'studio') ||
+          effectiveAction.contains('studio') ||
+          tLower.contains('studio') ||
+          tLower.contains('fact_check') ||
+          tLower.contains('verification') ||
+          tLower.contains('copyright') ||
+          tLower.contains('monetization');
+      final resolvedTarget = targetApp ?? (isStudio ? 'studio' : 'app');
+
       final notification = UserNotification(
         id: docRef.id,
         userId: userId,
@@ -113,9 +132,11 @@ class UserNotificationService {
         title: title,
         message: message,
         actionUrl: actionUrl,
+        category: category ?? (resolvedTarget == 'studio' ? 'verification' : 'system'),
         metadata: metadata,
         read: false,
         createdAt: DateTime.now(),
+        targetApp: resolvedTarget,
       );
       await docRef.set(notification.toJson());
     } catch (e) {

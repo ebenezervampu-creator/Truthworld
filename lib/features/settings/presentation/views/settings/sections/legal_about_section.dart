@@ -16,6 +16,13 @@ class LegalAboutSection extends StatelessWidget {
       children: [
         _buildLegalTile(
           context,
+          title: 'About TruthWorld',
+          icon: Icons.info_outline,
+          index: HomeController.indexAbout,
+          route: '/about',
+        ),
+        _buildLegalTile(
+          context,
           title: 'Privacy Policy',
           icon: Icons.privacy_tip_outlined,
           index: HomeController.indexPrivacy,

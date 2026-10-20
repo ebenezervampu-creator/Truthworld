@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/features/category/presentation/controllers/category_controller.dart';
 import 'package:truthworld/features/category/presentation/views/category/widgets/category_theme_constants.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -36,6 +37,9 @@ class CategorySearchBar extends StatelessWidget {
       child: Obx(
         () => TextField(
           controller: searchController,
+          maxLength: 100,
+          buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+          inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(100),
           style: AppTokens.typography.body.copyWith(
             color: Theme.of(context).colorScheme.onSurface,
           ),

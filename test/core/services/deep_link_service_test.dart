@@ -105,6 +105,28 @@ void main() {
       expect(parsed.id, equals('post_888'));
     });
 
+    test('Parses /p/postId short URL', () {
+      final parsed = DeepLinkService.parseUrl('https://www.truthworld.in/p/post_777');
+      expect(parsed.type, equals(TruthworldUrlType.post));
+      expect(parsed.id, equals('post_777'));
+    });
+
+    test('Parses /clip/videoId with query parameters', () {
+      final parsed = DeepLinkService.parseUrl('https://www.truthworld.in/clip/v12345?start=15&end=45&clipTitle=AwesomeClip');
+      expect(parsed.type, equals(TruthworldUrlType.video));
+      expect(parsed.id, equals('v12345'));
+      expect(parsed.clipStart, equals(15.0));
+      expect(parsed.clipEnd, equals(45.0));
+      expect(parsed.clipTitle, equals('AwesomeClip'));
+    });
+
+    test('Parses /chapter/videoId with timestamp query parameter', () {
+      final parsed = DeepLinkService.parseUrl('https://www.truthworld.in/chapter/v12345?t=90');
+      expect(parsed.type, equals(TruthworldUrlType.video));
+      expect(parsed.id, equals('v12345'));
+      expect(parsed.timestamp, equals(const Duration(seconds: 90)));
+    });
+
     test('Parses /upload and /upload/video routes', () {
       final upload1 = DeepLinkService.parseUrl('https://www.truthworld.in/upload');
       expect(upload1.type, equals(TruthworldUrlType.upload));
@@ -116,6 +138,9 @@ void main() {
     test('Parses /studio route', () {
       final studio = DeepLinkService.parseUrl('https://studio.truthworld.in');
       expect(studio.type, equals(TruthworldUrlType.studio));
+
+      final studioWeb = DeepLinkService.parseUrl('https://www.truthworld.in/studio');
+      expect(studioWeb.type, equals(TruthworldUrlType.studio));
     });
 
     test('Parses /admin route', () {
@@ -148,6 +173,33 @@ void main() {
       final feedback = DeepLinkService.parseUrl('/feedback');
       expect(feedback.type, equals(TruthworldUrlType.policy));
       expect(feedback.id, equals('feedback'));
+    });
+
+    test('Parses /claim-detail?videoId=...&claimIndex=... URL', () {
+      final claim = DeepLinkService.parseUrl(
+        'https://www.truthworld.in/claim-detail?videoId=b7df4415-6851-417f-9113-6d16ecf4fa12&claimIndex=4',
+      );
+      expect(claim.type, equals(TruthworldUrlType.claim));
+      expect(claim.id, equals('b7df4415-6851-417f-9113-6d16ecf4fa12'));
+      expect(claim.claimIndex, equals(4));
+    });
+
+    test('Parses /claim?v=...&claim=5 (1-based claim number converted to index 4)', () {
+      final claim = DeepLinkService.parseUrl(
+        'https://www.truthworld.in/claim?v=egg_doc_1&claim=5',
+      );
+      expect(claim.type, equals(TruthworldUrlType.claim));
+      expect(claim.id, equals('egg_doc_1'));
+      expect(claim.claimIndex, equals(4));
+    });
+
+    test('Parses /watch?v=...&claimIndex=... directly into claim type', () {
+      final claim = DeepLinkService.parseUrl(
+        'https://www.truthworld.in/watch?v=egg_doc_1&claimIndex=2',
+      );
+      expect(claim.type, equals(TruthworldUrlType.claim));
+      expect(claim.id, equals('egg_doc_1'));
+      expect(claim.claimIndex, equals(2));
     });
 
     test('Defensively rejects spoofed domains containing truthworld.in substring', () {
@@ -291,6 +343,51 @@ void main() {
       final bySlug = service.getTopicFromCache('ai-trends');
       expect(bySlug, isNotNull);
       expect(bySlug!.id, equals('topic_cache_1'));
+    });
+  });
+
+  group('DeepLinkService URL Builder Tests', () {
+    test('Builds video URL', () {
+      expect(DeepLinkService.videoUrl('v12345'), equals('https://www.truthworld.in/watch/v12345'));
+    });
+
+    test('Builds channel URL with handle', () {
+      expect(DeepLinkService.channelUrl('chan1', handle: 'truth_news'), equals('https://www.truthworld.in/@truth_news'));
+      expect(DeepLinkService.channelUrl('chan1', handle: '@truth_news'), equals('https://www.truthworld.in/@truth_news'));
+    });
+
+    test('Builds channel URL fallback with ID', () {
+      expect(DeepLinkService.channelUrl('chan_xyz'), equals('https://www.truthworld.in/channel/chan_xyz'));
+    });
+
+    test('Builds playlist URL', () {
+      expect(DeepLinkService.playlistUrl('pl_flutter'), equals('https://www.truthworld.in/playlist/pl_flutter'));
+    });
+
+    test('Builds topic URL', () {
+      expect(DeepLinkService.topicUrl('science'), equals('https://www.truthworld.in/T/science'));
+      expect(DeepLinkService.topicUrl('#technology'), equals('https://www.truthworld.in/T/technology'));
+    });
+
+    test('Builds community post URL', () {
+      expect(DeepLinkService.postUrl('post_123'), equals('https://www.truthworld.in/post/post_123'));
+    });
+
+    test('Builds clip URL with start, end, and title', () {
+      final clipUrl = DeepLinkService.clipUrl('v12345', startSeconds: 10, endSeconds: 40, clipTitle: 'Awesome Clip');
+      expect(clipUrl, contains('https://www.truthworld.in/watch?v=v12345&start=10&end=40'));
+      expect(clipUrl, contains('clipTitle=Awesome'));
+    });
+
+    test('Builds chapter URL with timestamp', () {
+      expect(DeepLinkService.chapterUrl('v12345', timestampSeconds: 75), equals('https://www.truthworld.in/watch?v=v12345&t=75'));
+    });
+
+    test('Builds claim URL with videoId and claimIndex', () {
+      expect(
+        DeepLinkService.claimUrl('v12345', claimIndex: 4),
+        equals('https://www.truthworld.in/claim-detail?videoId=v12345&claimIndex=4'),
+      );
     });
   });
 }

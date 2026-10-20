@@ -137,7 +137,8 @@ export function setCorsHeaders(req: Request, res: Response): void {
     "http://localhost:5173",
   ];
   const origin = (req.headers.origin as string) || "";
-  if (allowedOrigins.includes(origin)) {
+  const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+  if (allowedOrigins.includes(origin) || isLocalhost) {
     res.set("Access-Control-Allow-Origin", origin);
   } else {
     res.set("Access-Control-Allow-Origin", "https://admin.truthworld.in");

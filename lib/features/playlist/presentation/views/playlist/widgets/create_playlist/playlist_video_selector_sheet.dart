@@ -203,7 +203,9 @@ class PlaylistVideoSelectorSheet extends StatelessWidget {
           // Search Field
           TextField(
             onChanged: (val) => _searchQuery.value = val.trim().toLowerCase(),
-            inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+            maxLength: defaultMaxSearchLength,
+            buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+            inputFormatters: TruthworldTextInputFormatters.withLimit(defaultMaxSearchLength),
             style: const TextStyle(color: Colors.white, fontSize: 14),
             decoration: InputDecoration(
               hintText: 'Search videos...',

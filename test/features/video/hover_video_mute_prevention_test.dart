@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
@@ -57,13 +60,15 @@ class FakeConnectivityService extends GetxService implements ConnectivityService
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUpAll(() {
+  setUpAll(() async {
     VideoPlayerPlatform.instance = FakeVideoPlayerPlatform();
+    final tempDir = Directory.systemTemp.createTempSync('tw_hover_test_');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
       const MethodChannel('plugins.flutter.io/path_provider'),
-      (methodCall) async => '.',
+      (methodCall) async => tempDir.path,
     );
+    await GetStorage.init();
   });
 
   setUp(() {

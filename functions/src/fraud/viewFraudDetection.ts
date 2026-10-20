@@ -326,6 +326,7 @@ export const detectViewFraud = onSchedule({
 export const cleanupExpiredFraudBlocks = onSchedule({
   schedule: 'every 6 hours',
   region: REGION,
+  maxInstances: 1,
 }, async (event) => {
   const db = admin.firestore();
   const now = admin.firestore.Timestamp.now();

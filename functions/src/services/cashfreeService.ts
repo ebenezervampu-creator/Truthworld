@@ -232,11 +232,34 @@ export class CashfreeService {
     };
   }
 
+  public static cleanCustomerName(name?: string): string {
+    if (!name || typeof name !== "string") return "TruthWorld User";
+    const cleaned = name
+      .replace(/[^\w\s.]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .substring(0, 100);
+    return cleaned.length >= 2 ? cleaned : "TruthWorld User";
+  }
+
+  public static cleanOrderNote(note?: string): string {
+    if (!note || typeof note !== "string") return "TruthWorld Payment";
+    const cleaned = note
+      .replace(/[^\w\s.,\-_/]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .substring(0, 200);
+    return cleaned.length >= 3 ? cleaned : "TruthWorld Payment";
+  }
+
   public static cleanPhoneNumber(phone?: string): string {
     if (!phone) return "9999999999";
     const cleaned = String(phone).replace(/[^0-9]/g, "");
     if (cleaned.length >= 10) {
-      return cleaned.slice(-10);
+      const last10 = cleaned.slice(-10);
+      if (/^[6-9]\d{9}$/.test(last10)) {
+        return last10;
+      }
     }
     return "9999999999";
   }
@@ -245,13 +268,16 @@ export class CashfreeService {
     if (!email || typeof email !== "string") return "user@truthworld.tv";
     const trimmed = email.trim().toLowerCase();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(trimmed) ? trimmed : "user@truthworld.tv";
+    return (emailRegex.test(trimmed) ? trimmed : "user@truthworld.tv").substring(0, 100);
   }
 
   public static cleanCustomerId(customerId?: string): string {
     if (!customerId) return "cust_user";
-    const cleaned = String(customerId).replace(/[^a-zA-Z0-9_-]/g, "").substring(0, 50);
-    return cleaned.length > 0 ? cleaned : "cust_user";
+    let cleaned = String(customerId).replace(/[^a-zA-Z0-9_-]/g, "").substring(0, 50);
+    if (cleaned.length < 3) {
+      cleaned = `cust_${cleaned}`;
+    }
+    return cleaned.length > 0 ? cleaned.substring(0, 50) : "cust_user";
   }
 
   /**
@@ -280,7 +306,7 @@ export class CashfreeService {
       order_currency: currency,
       customer_details: {
         customer_id: this.cleanCustomerId(params.customerDetails.customer_id),
-        customer_name: params.customerDetails.customer_name || "TruthWorld User",
+        customer_name: this.cleanCustomerName(params.customerDetails.customer_name),
         customer_email: this.cleanEmail(params.customerDetails.customer_email),
         customer_phone: this.cleanPhoneNumber(params.customerDetails.customer_phone),
       },
@@ -288,7 +314,7 @@ export class CashfreeService {
         return_url: params.orderMeta?.return_url || "https://www.truthworld.in/payment-result?order_id={order_id}",
         notify_url: params.orderMeta?.notify_url,
       },
-      order_note: String(params.orderNote || "TruthWorld Payment").replace(/[()]/g, "").substring(0, 200),
+      order_note: this.cleanOrderNote(params.orderNote),
       order_tags: params.orderTags ? this.sanitizeOrderTags(params.orderTags) : undefined,
     };
 
@@ -357,7 +383,7 @@ export class CashfreeService {
       customer_details: {
         customer_phone: this.cleanPhoneNumber(params.customerDetails.customer_phone),
         customer_email: this.cleanEmail(params.customerDetails.customer_email),
-        customer_name: params.customerDetails.customer_name || "TruthWorld User",
+        customer_name: this.cleanCustomerName(params.customerDetails.customer_name),
       },
       link_meta: {
         return_url: params.returnUrl || "https://www.truthworld.in/payment-result?order_id={order_id}",
@@ -497,7 +523,7 @@ export class CashfreeService {
       subscription_id: cleanSubId,
       customer_details: {
         customer_id: this.cleanCustomerId(params.customerDetails.customer_id),
-        customer_name: params.customerDetails.customer_name || "TruthWorld User",
+        customer_name: this.cleanCustomerName(params.customerDetails.customer_name),
         customer_email: this.cleanEmail(params.customerDetails.customer_email),
         customer_phone: this.cleanPhoneNumber(params.customerDetails.customer_phone),
       },

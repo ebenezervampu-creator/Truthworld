@@ -129,5 +129,95 @@ void main() {
 
       await tester.pumpAndSettle();
     });
+
+    test('HomeVideoGridSection calculates responsive columns on desktop for prominent video cards', () {
+      // Mobile (<600px): 1 column
+      expect(
+        HomeVideoGridSection.calculateCrossAxisCountForWidth(
+          width: 390,
+          isMobile: true,
+          isTablet: false,
+          isDesktop: false,
+        ),
+        equals(1),
+      );
+
+      // Tablet / Mobile device: 2 columns
+      expect(
+        HomeVideoGridSection.calculateCrossAxisCountForWidth(
+          width: 800,
+          isMobile: false,
+          isTablet: true,
+          isDesktop: false,
+        ),
+        equals(2),
+      );
+
+      // Desktop compact / narrow (<1100px): 2 columns
+      expect(
+        HomeVideoGridSection.calculateCrossAxisCountForWidth(
+          width: 1000,
+          isMobile: false,
+          isTablet: false,
+          isDesktop: true,
+        ),
+        equals(2),
+      );
+
+      // Desktop standard laptop / 1080p scaled at 150% (1100px - 2099px): 3 columns
+      expect(
+        HomeVideoGridSection.calculateCrossAxisCountForWidth(
+          width: 1280,
+          isMobile: false,
+          isTablet: false,
+          isDesktop: true,
+        ),
+        equals(3),
+      );
+
+      // Desktop 1080p scaled at 125% / standard screen (1100px - 2099px): 3 columns (~386px card)
+      expect(
+        HomeVideoGridSection.calculateCrossAxisCountForWidth(
+          width: 1536,
+          isMobile: false,
+          isTablet: false,
+          isDesktop: true,
+        ),
+        equals(3),
+      );
+
+      // Desktop 1080p unscaled (1100px - 2099px): 3 columns (prominent ~514px card)
+      expect(
+        HomeVideoGridSection.calculateCrossAxisCountForWidth(
+          width: 1920,
+          isMobile: false,
+          isTablet: false,
+          isDesktop: true,
+        ),
+        equals(3),
+      );
+
+      // Desktop 1440p / 2K (2100px - 2799px): 4 columns (~542px card)
+      expect(
+        HomeVideoGridSection.calculateCrossAxisCountForWidth(
+          width: 2560,
+          isMobile: false,
+          isTablet: false,
+          isDesktop: true,
+        ),
+        equals(4),
+      );
+
+      // Desktop Ultra-wide / 4K (>=2800px): 5 columns
+      expect(
+        HomeVideoGridSection.calculateCrossAxisCountForWidth(
+          width: 2800,
+          isMobile: false,
+          isTablet: false,
+          isDesktop: true,
+        ),
+        equals(5),
+      );
+    });
   });
 }

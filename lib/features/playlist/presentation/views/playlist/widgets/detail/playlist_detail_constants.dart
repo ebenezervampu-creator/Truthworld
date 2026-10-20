@@ -20,7 +20,9 @@ const Color ytBorder = AppColors.searchBorder;
 // ==========================================================================
 
 String formatPlaylistViews(int views) {
-  if (views >= 1000000) {
+  if (views >= 1000000000) {
+    return '${(views / 1000000000).toStringAsFixed(1)}B';
+  } else if (views >= 1000000) {
     return '${(views / 1000000).toStringAsFixed(1)}M';
   } else if (views >= 1000) {
     return '${(views / 1000).toStringAsFixed(1)}K';

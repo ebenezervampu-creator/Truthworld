@@ -267,18 +267,21 @@ class UserInterestProfileService extends GetxService {
     for (final doc in watchHistoryQuery.docs) {
       final data = doc.data();
       final category = data['category'] as String?;
-      if (category != null) {
-        categoryWatchCounts[category] =
-            (categoryWatchCounts[category] ?? 0) + 1;
+      final cleanCat = category?.trim() ?? '';
+      if (cleanCat.isNotEmpty) {
+        categoryWatchCounts[cleanCat] =
+            (categoryWatchCounts[cleanCat] ?? 0) + 1;
         // Boost affinity from watch history if not yet explicitly stored
-        categoryAffinities.putIfAbsent(category, () => min(1.0, categoryWatchCounts[category]! * 0.08));
+        categoryAffinities.putIfAbsent(cleanCat, () => min(1.0, categoryWatchCounts[cleanCat]! * 0.08));
       }
       final topics = data['topics'] as List<dynamic>?;
       if (topics != null) {
         for (final topic in topics) {
-          final tStr = topic.toString();
-          topicWatchCounts[tStr] = (topicWatchCounts[tStr] ?? 0) + 1;
-          topicAffinities.putIfAbsent(tStr, () => min(1.0, topicWatchCounts[tStr]! * 0.05));
+          final tStr = topic.toString().trim();
+          if (tStr.isNotEmpty) {
+            topicWatchCounts[tStr] = (topicWatchCounts[tStr] ?? 0) + 1;
+            topicAffinities.putIfAbsent(tStr, () => min(1.0, topicWatchCounts[tStr]! * 0.05));
+          }
         }
       }
 
@@ -385,12 +388,27 @@ class UserInterestProfileService extends GetxService {
         ? (((p.avgWatchCompletion * (newTotalWatches - 1)) + completion) / newTotalWatches)
         : completion;
 
-    final newCategoryAffinities = Map<String, double>.from(p.categoryAffinities);
-    newCategoryAffinities[category] = min(1.0, (newCategoryAffinities[category] ?? 0.0) + (completion >= 0.7 ? 0.04 : 0.02));
+    final cleanCategory = category.trim();
+    final newCategoryAffinities = Map<String, double>.from(p.categoryAffinities)
+      ..removeWhere((k, v) => k.trim().isEmpty);
+    if (cleanCategory.isNotEmpty) {
+      newCategoryAffinities[cleanCategory] = min(
+        1.0,
+        (newCategoryAffinities[cleanCategory] ?? 0.0) +
+            (completion >= 0.7 ? 0.04 : 0.02),
+      );
+    }
 
-    final newTopicAffinities = Map<String, double>.from(p.topicAffinities);
+    final newTopicAffinities = Map<String, double>.from(p.topicAffinities)
+      ..removeWhere((k, v) => k.trim().isEmpty);
     for (final topic in topics) {
-      newTopicAffinities[topic] = min(1.0, (newTopicAffinities[topic] ?? 0.0) + 0.02);
+      final cleanTopic = topic.trim();
+      if (cleanTopic.isNotEmpty) {
+        newTopicAffinities[cleanTopic] = min(
+          1.0,
+          (newTopicAffinities[cleanTopic] ?? 0.0) + 0.02,
+        );
+      }
     }
 
     final updated = p.copyWith(
@@ -421,9 +439,11 @@ class UserInterestProfileService extends GetxService {
     final newSearchTopicCounts = Map<String, int>.from(p.searchTopicCounts);
     newSearchTopicCounts[clean.toLowerCase()] = (newSearchTopicCounts[clean.toLowerCase()] ?? 0) + 1;
 
-    final newCategoryAffinities = Map<String, double>.from(p.categoryAffinities);
-    if (category != null && category.isNotEmpty) {
-      newCategoryAffinities[category] = min(1.0, (newCategoryAffinities[category] ?? 0.0) + 0.04);
+    final newCategoryAffinities = Map<String, double>.from(p.categoryAffinities)
+      ..removeWhere((k, v) => k.trim().isEmpty);
+    final cleanCategory = category?.trim();
+    if (cleanCategory != null && cleanCategory.isNotEmpty) {
+      newCategoryAffinities[cleanCategory] = min(1.0, (newCategoryAffinities[cleanCategory] ?? 0.0) + 0.04);
     }
 
     final updated = p.copyWith(
@@ -465,9 +485,11 @@ class UserInterestProfileService extends GetxService {
     final newTopicAffinities = Map<String, double>.from(p.topicAffinities);
     newTopicAffinities['topic:$clean'] = min(1.0, (newTopicAffinities['topic:$clean'] ?? 0.0) + 0.05);
 
-    final newCategoryAffinities = Map<String, double>.from(p.categoryAffinities);
-    if (category != null && category.isNotEmpty) {
-      newCategoryAffinities[category] = min(1.0, (newCategoryAffinities[category] ?? 0.0) + 0.03);
+    final newCategoryAffinities = Map<String, double>.from(p.categoryAffinities)
+      ..removeWhere((k, v) => k.trim().isEmpty);
+    final cleanCategory = category?.trim();
+    if (cleanCategory != null && cleanCategory.isNotEmpty) {
+      newCategoryAffinities[cleanCategory] = min(1.0, (newCategoryAffinities[cleanCategory] ?? 0.0) + 0.03);
     }
 
     final updated = p.copyWith(
@@ -544,11 +566,17 @@ class UserInterestProfileService extends GetxService {
   }) {
     final p = _ensureProfileExists();
 
+    final cleanCategory = category.trim();
+    final cleanTopics = topics
+        .map((t) => t.trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
+
     final signal = UserSignal(
       type: 'like',
       targetId: videoId,
-      category: category,
-      topics: topics,
+      category: cleanCategory,
+      topics: cleanTopics,
       confidence: 0.95,
       source: 'explicit',
       timestamp: DateTime.now(),
@@ -558,17 +586,22 @@ class UserInterestProfileService extends GetxService {
     final newRecentSignals = [signal, ...p.recentSignals].take(500).toList();
     final newCategoryAffinities = Map<String, double>.from(
       p.categoryAffinities,
-    );
-    newCategoryAffinities[category] =
-        (newCategoryAffinities[category] ?? 0.0) + 0.05;
-    if (newCategoryAffinities[category]! > 1.0) {
-      newCategoryAffinities[category] = 1.0;
+    )..removeWhere((k, v) => k.trim().isEmpty);
+
+    if (cleanCategory.isNotEmpty) {
+      newCategoryAffinities[cleanCategory] = min(
+        1.0,
+        (newCategoryAffinities[cleanCategory] ?? 0.0) + 0.05,
+      );
     }
 
-    final newTopicAffinities = Map<String, double>.from(p.topicAffinities);
-    for (final topic in topics) {
-      newTopicAffinities[topic] = (newTopicAffinities[topic] ?? 0.0) + 0.03;
-      if (newTopicAffinities[topic]! > 1.0) newTopicAffinities[topic] = 1.0;
+    final newTopicAffinities = Map<String, double>.from(p.topicAffinities)
+      ..removeWhere((k, v) => k.trim().isEmpty);
+    for (final topic in cleanTopics) {
+      newTopicAffinities[topic] = min(
+        1.0,
+        (newTopicAffinities[topic] ?? 0.0) + 0.03,
+      );
     }
 
     final updated = p.copyWith(
@@ -582,7 +615,7 @@ class UserInterestProfileService extends GetxService {
     profile.refresh();
 
     final userId = p.userId;
-    if (userId.isNotEmpty && userId != 'guest_user') {
+    if (userId.isNotEmpty && userId != 'guest_user' && userId != 'guest') {
       _firestore.collection(FirestoreCollections.users).doc(userId).set({
         'categoryAffinities': newCategoryAffinities,
         'topicAffinities': newTopicAffinities,
@@ -598,11 +631,17 @@ class UserInterestProfileService extends GetxService {
   }) {
     final p = _ensureProfileExists();
 
+    final cleanCategory = category.trim();
+    final cleanTopics = topics
+        .map((t) => t.trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
+
     final signal = UserSignal(
       type: 'dislike',
       targetId: videoId,
-      category: category,
-      topics: topics,
+      category: cleanCategory,
+      topics: cleanTopics,
       confidence: 0.90,
       source: 'explicit',
       timestamp: DateTime.now(),
@@ -612,15 +651,19 @@ class UserInterestProfileService extends GetxService {
     final newRecentSignals = [signal, ...p.recentSignals].take(500).toList();
     final newCategoryAffinities = Map<String, double>.from(
       p.categoryAffinities,
-    );
+    )..removeWhere((k, v) => k.trim().isEmpty);
 
-    var newAffinity = (newCategoryAffinities[category] ?? 0.0) - 0.03;
-    if (newAffinity < 0.0) newAffinity = 0.0;
-    newCategoryAffinities[category] = newAffinity;
+    final newDislikedCategories = Set<String>.from(p.dislikedCategories)
+      ..removeWhere((c) => c.trim().isEmpty);
 
-    final newDislikedCategories = Set<String>.from(p.dislikedCategories);
-    if (newAffinity < 0.1) {
-      newDislikedCategories.add(category);
+    if (cleanCategory.isNotEmpty) {
+      var newAffinity = (newCategoryAffinities[cleanCategory] ?? 0.0) - 0.03;
+      if (newAffinity < 0.0) newAffinity = 0.0;
+      newCategoryAffinities[cleanCategory] = newAffinity;
+
+      if (newAffinity < 0.1) {
+        newDislikedCategories.add(cleanCategory);
+      }
     }
 
     final updated = p.copyWith(

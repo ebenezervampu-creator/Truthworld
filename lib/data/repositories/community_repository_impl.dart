@@ -58,6 +58,18 @@ class CommunityRepositoryImpl extends BaseRepository
 
   @override
   Future<Result<void>> deletePost(String postId) async {
+    return safeUpdate(
+      _firestore.collection(FirestoreCollections.community).doc(postId),
+      {
+        'status': 'deletion_pending',
+        'visibility': 'private',
+        'deletionRequestedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+    );
+  }
+
+  Future<Result<void>> permanentlyDeletePost(String postId) async {
     return safeDelete(
       _firestore.collection(FirestoreCollections.community).doc(postId),
     );

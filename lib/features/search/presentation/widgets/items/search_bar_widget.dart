@@ -78,7 +78,11 @@ class SearchBar extends StatelessWidget {
     final textField = TextField(
       controller: controller,
       focusNode: barController.focusNode,
-      inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+      maxLength: ContentValidator.defaultMaxSearchLength,
+      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+      inputFormatters: TruthworldTextInputFormatters.withLimit(
+        ContentValidator.defaultMaxSearchLength,
+      ),
       onChanged: onChanged,
       onSubmitted: (_) => onSearchSubmitted(),
       autofocus: true,

@@ -22,6 +22,7 @@ mixin ReplyCrudMixin on CommentServiceBase {
     String? memberTierName,
   }) async {
     try {
+      await ensureAuthFreshness();
       final callable = functions.httpsCallable('addReplyNested');
       final payload = <String, dynamic>{
         'videoId': videoId,
@@ -132,6 +133,7 @@ mixin ReplyCrudMixin on CommentServiceBase {
     String replyId,
   ) async {
     try {
+      await ensureAuthFreshness();
       final callable = functions.httpsCallable('deleteReplyNested');
       await callable.call({
         'videoId': videoId,

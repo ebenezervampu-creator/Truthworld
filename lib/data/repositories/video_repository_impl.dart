@@ -10,19 +10,25 @@ import 'package:truthworld/domain/repositories/video_repository.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 class VideoRepositoryImpl extends BaseRepository implements VideoRepository {
-  final VideoRemoteDataSource _remoteDataSource;
+  final VideoRemoteDataSource? _customRemoteDataSource;
   final DistributedCounterService? _counterService;
-  final FirebaseFirestore _firestore;
+  final FirebaseFirestore? _customFirestore;
 
   VideoRepositoryImpl({
     FirebaseFirestore? firestore,
     VideoRemoteDataSource? remoteDataSource,
     DistributedCounterService? counterService,
     super.isTestMode,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _remoteDataSource = remoteDataSource ??
-            FirestoreVideoRemoteDataSource(firestore: firestore),
+  })  : _customFirestore = firestore,
+        _customRemoteDataSource = remoteDataSource,
         _counterService = counterService;
+
+  FirebaseFirestore get _firestore =>
+      _customFirestore ?? FirebaseFirestore.instance;
+
+  VideoRemoteDataSource get _remoteDataSource =>
+      _customRemoteDataSource ??
+      FirestoreVideoRemoteDataSource(firestore: _customFirestore);
 
   VideoEntity _mapToEntity(Video model) {
     return model.toEntity();

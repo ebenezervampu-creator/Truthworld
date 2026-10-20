@@ -66,26 +66,39 @@ class VideoManagementController extends BaseController with ContentValidationMix
     _videosSub?.cancel();
     final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
     final targetId = channelId.isNotEmpty ? channelId : currentUid;
+    if (targetId.isEmpty) {
+      isLoadingChannelVideos.value = false;
+      return;
+    }
 
-    _videosSub = _firestore.collection('videos').snapshots().listen(
+    Query<Map<String, dynamic>> query = _firestore.collection('videos');
+    if (channelId.isNotEmpty) {
+      query = query.where('channelId', isEqualTo: channelId);
+    } else {
+      query = query.where('ownerId', isEqualTo: currentUid);
+    }
+
+    _videosSub = query.snapshots().listen(
       (snapshot) {
         final videos = snapshot.docs
             .map(Video.fromDocumentSnapshot)
-            .where((v) =>
-                v.channelId == targetId ||
-                v.ownerId == targetId ||
-                (v.channelId.isEmpty && currentUid.isNotEmpty && v.ownerId == currentUid))
+            .where((v) => v.status != VideoStatus.deleted)
             .toList();
         channelVideos.assignAll(videos);
         isLoadingChannelVideos.value = false;
       },
       onError: (e, stackTrace) {
-        ErrorHandler.log(
-          e,
-          stackTrace: stackTrace,
-          tag: 'VideoManagementController.listenToChannelVideos',
-        );
-        channelVideosError.value = 'Unable to load videos. Please check your connection and try again.';
+        if (e is FirebaseException && e.code == 'permission-denied') {
+          // Gracefully handle permission boundary without raising alarms
+          channelVideos.clear();
+        } else {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'VideoManagementController.listenToChannelVideos',
+          );
+        }
+        channelVideosError.value = '';
         isLoadingChannelVideos.value = false;
       },
     );
@@ -111,9 +124,13 @@ class VideoManagementController extends BaseController with ContentValidationMix
                   ),
                 )
                 .where((p) =>
-                    p.channelId == targetId ||
-                    p.ownerId == targetId ||
-                    (p.channelId.isEmpty && currentUid.isNotEmpty && p.ownerId == currentUid))
+                    !p.isDeleted &&
+                    p.status != 'deletion_pending' &&
+                    p.status != 'trashed' &&
+                    p.status != 'deleted' &&
+                    (p.channelId == targetId ||
+                     p.ownerId == targetId ||
+                     (p.channelId.isEmpty && currentUid.isNotEmpty && p.ownerId == currentUid)))
                 .toList();
             communityPosts.assignAll(posts);
             isLoadingPosts.value = false;
@@ -327,56 +344,111 @@ class VideoManagementController extends BaseController with ContentValidationMix
 
   Future<void> deleteVideo(Video video) async {
     try {
-      // 1. Delete Firestore document from videos collection
-      await _firestore.collection(FirestoreCollections.videos).doc(video.id).delete();
+      // 1. Soft-delete document in Firestore videos collection (retained in Trash for 30 days)
+      await _firestore.collection(FirestoreCollections.videos).doc(video.id).update({
+        'status': 'deletion_pending',
+        'visibility': 'private',
+        'deletionRequestedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
 
-      // If video is also present in 'shorts', clean it up
+      // If video is also present in 'shorts', soft-delete the short as well
       if (video.isShort) {
         try {
-          await _firestore.collection('shorts').doc(video.id).delete();
+          await _firestore.collection('shorts').doc(video.id).update({
+            'status': 'deletion_pending',
+            'visibility': 'private',
+            'deletionRequestedAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
         } catch (e, stackTrace) {
           ErrorHandler.log(
             e,
             stackTrace: stackTrace,
-            tag: 'VideoManagement.deleteShortDoc',
+            tag: 'VideoManagement.updateShortDeletionPending',
           );
         }
       }
 
-      // Immediately remove from local list for snappy UI feedback
+      // Immediately remove from active channel videos list for snappy UI feedback
       channelVideos.removeWhere((v) => v.id == video.id);
 
-      // 2. Perform safe storage cleanup
-      // Note: Backend Cloud Function onVideoDeleted also performs automatic cascade deletion.
-      // We attempt client storage deletion gracefully without throwing on non-existent or external files.
-      await _safeDeleteStorageUrl(video.videoUrl);
-      await _safeDeleteStorageUrl(video.thumbnailUrl);
-      if (video.originalUrl.isNotEmpty && video.originalUrl != video.videoUrl) {
-        await _safeDeleteStorageUrl(video.originalUrl);
-      }
-
       AppSnackbar.success(
-        "Video '${video.title.isNotEmpty ? video.title : 'Selected video'}' deleted successfully.",
+        "Video '${video.title.isNotEmpty ? video.title : 'Selected video'}' moved to Trash. It will be retained for 30 days.",
       );
     } catch (e) {
       ErrorHandler.log(e);
       AppSnackbar.error(
-        'Unable to delete video. Please try again.',
+        'Unable to move video to Trash. Please try again.',
       );
     }
   }
 
-  Future<void> _safeDeleteStorageUrl(String urlOrPath) async {
+  Future<void> deleteCommunityPost(CommunityPostModel post) async {
+    try {
+      await _firestore.collection(FirestoreCollections.community).doc(post.id).update({
+        'status': 'deletion_pending',
+        'visibility': 'private',
+        'deletionRequestedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      communityPosts.removeWhere((p) => p.id == post.id);
+
+      AppSnackbar.success(
+        "Post '${post.title.isNotEmpty ? post.title : 'Selected post'}' moved to Trash. It will be retained for 30 days.",
+      );
+    } catch (e) {
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to move post to Trash. Please try again.',
+      );
+    }
+  }
+
+  /// Permanently deletes video document and cleans up associated Storage assets.
+  /// Typically called from Trash & Restoration after confirmation or after 30 days.
+  static Future<void> permanentlyDeleteVideoDoc({
+    required String videoId,
+    bool isShort = false,
+    String videoUrl = '',
+    String thumbnailUrl = '',
+    String originalUrl = '',
+  }) async {
+    final firestore = FirebaseFirestore.instance;
+    await firestore.collection(FirestoreCollections.videos).doc(videoId).delete();
+
+    if (isShort) {
+      try {
+        await firestore.collection('shorts').doc(videoId).delete();
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'VideoManagement.permanentlyDeleteShortDoc',
+        );
+      }
+    }
+
+    await safeDeleteStorageUrl(videoUrl);
+    await safeDeleteStorageUrl(thumbnailUrl);
+    if (originalUrl.isNotEmpty && originalUrl != videoUrl) {
+      await safeDeleteStorageUrl(originalUrl);
+    }
+  }
+
+  static Future<void> safeDeleteStorageUrl(String urlOrPath) async {
     final clean = urlOrPath.trim();
     if (clean.isEmpty) return;
     try {
+      final storage = FirebaseStorage.instance;
       if (clean.startsWith('gs://') || clean.contains('firebasestorage.googleapis.com')) {
-        await _firebaseStorage.refFromURL(clean).delete();
+        await storage.refFromURL(clean).delete();
       } else if (!clean.startsWith('http://') &&
           !clean.startsWith('https://') &&
           !clean.startsWith('blob:') &&
           !clean.startsWith('assets/')) {
-        await _firebaseStorage.ref(clean).delete();
+        await storage.ref(clean).delete();
       }
     } catch (e, stackTrace) {
       ErrorHandler.log(
@@ -614,34 +686,52 @@ class VideoManagementController extends BaseController with ContentValidationMix
         '${AppConfig.cloudFunctionsBaseUrl}/triggerVideoAIFeatures',
       );
 
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'videoId': videoId,
-          'features': features,
-          'targetLanguages': targetLanguages,
-          'durationSeconds': durationSeconds,
-          'priorityMode': priorityMode,
-          'sensitiveTopics': sensitiveTopics,
-          'autoChapters': autoChapters,
-          'factCheckTier': factCheckTier,
-        }),
-      );
+      var pipelineTriggered = false;
+      try {
+        final response = await http.post(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({
+            'videoId': videoId,
+            'features': features,
+            'targetLanguages': targetLanguages,
+            'durationSeconds': durationSeconds,
+            'priorityMode': priorityMode,
+            'sensitiveTopics': sensitiveTopics,
+            'autoChapters': autoChapters,
+            'factCheckTier': factCheckTier,
+          }),
+        ).timeout(const Duration(seconds: 15));
 
-      if (response.statusCode == 200) {
-        AppSnackbar.success(
-          'AI features generation is underway. Subtitles and audio tracks will update automatically!',
+        if (response.statusCode == 200) {
+          pipelineTriggered = true;
+          AppSnackbar.success(
+            'AI features generation is underway. Subtitles and audio tracks will update automatically!',
+          );
+          return;
+        } else {
+          ErrorHandler.log(
+            'triggerVideoAIFeatures returned HTTP ${response.statusCode}: ${response.body}',
+            tag: 'VideoManagement',
+          );
+        }
+      } catch (httpError) {
+        ErrorHandler.log(
+          httpError,
+          tag: 'VideoManagement:triggerVideoAIFeatures:http',
         );
-      } else {
-        // Fallback: update Firestore document directly
+      }
+
+      // Fallback: update Firestore document directly
+      if (!pipelineTriggered) {
         await _firestore.collection('video_jobs').doc(videoId).set({
           'jobId': videoId,
           'videoId': videoId,
           'userId': currentUser.uid,
+          'channelId': channel?.id ?? currentUser.uid,
           'status': 'processing',
           'executionPlan': {
             'languages': targetLanguages,
@@ -667,13 +757,20 @@ class VideoManagementController extends BaseController with ContentValidationMix
           },
         }, SetOptions(merge: true));
 
-        await _firestore.collection('videos').doc(videoId).update({
-          'status': 'processing',
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+        try {
+          await _firestore.collection('videos').doc(videoId).update({
+            'status': 'processing',
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        } catch (videoUpdateErr) {
+          ErrorHandler.log(
+            videoUpdateErr,
+            tag: 'VideoManagement:updateVideoStatus',
+          );
+        }
 
         AppSnackbar.success(
-          'Pipeline job updated successfully for video.',
+          'Pipeline job queued successfully for video.',
         );
       }
     } catch (e) {

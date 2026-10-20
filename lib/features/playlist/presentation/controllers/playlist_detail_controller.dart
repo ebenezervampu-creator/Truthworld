@@ -5,6 +5,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 
 class PlaylistDetailController extends BaseController {
   final Rxn<PlaylistModel> activePlaylist = Rxn<PlaylistModel>();
@@ -24,6 +25,17 @@ class PlaylistDetailController extends BaseController {
   void onInit() {
     super.onInit();
     initFromRoute();
+
+    if (Get.isRegistered<PlaylistController>()) {
+      final playlistController = Get.find<PlaylistController>();
+      addWorker(
+        ever(playlistController.watchLaterVideoIds, (_) {
+          if (activePlaylist.value?.id == 'watchlater') {
+            activePlaylist.value = playlistController.getWatchLaterPlaylist();
+          }
+        }),
+      );
+    }
   }
 
   void initFromRoute() {
@@ -54,14 +66,26 @@ class PlaylistDetailController extends BaseController {
         Get.parameters['list'] ??
         Get.parameters['id'];
     if (playlistId != null && playlistId.isNotEmpty) {
+      if (playlistId == 'watchlater' && Get.isRegistered<PlaylistController>()) {
+        final wl = Get.find<PlaylistController>().getWatchLaterPlaylist();
+        if (wl != null && wl.videoCount > 0) {
+          activePlaylist.value = wl;
+          rxIsLoading.value = false;
+          return;
+        }
+      }
       loadPlaylistFromDeepLink(playlistId);
     }
   }
 
   void syncPlaylist(PlaylistModel? playlist) {
-    if (playlist != null && activePlaylist.value?.id != playlist.id) {
-      activePlaylist.value = playlist;
-      reset();
+    if (playlist != null) {
+      if (activePlaylist.value?.id != playlist.id ||
+          activePlaylist.value?.effectiveVideoCount !=
+              playlist.effectiveVideoCount) {
+        activePlaylist.value = playlist;
+        reset();
+      }
     }
   }
 
@@ -72,6 +96,15 @@ class PlaylistDetailController extends BaseController {
       activePlaylist.value = cached;
       rxIsLoading.value = false;
       return;
+    }
+
+    if (playlistId == 'watchlater' && Get.isRegistered<PlaylistController>()) {
+      final wl = Get.find<PlaylistController>().getWatchLaterPlaylist();
+      if (wl != null && wl.videoCount > 0) {
+        activePlaylist.value = wl;
+        rxIsLoading.value = false;
+        return;
+      }
     }
 
     try {

@@ -86,7 +86,8 @@ void main() {
           AdminRoutes.routes.length +
           AdvertiserRoutes.routes.length +
           EconomyRoutes.routes.length +
-          LegalRoutes.routes.length;
+          LegalRoutes.routes.length +
+          1; // ChannelRoutes.handleRoute
 
       expect(AppPages.routes.length, equals(totalModuleRoutes));
       expect(AppPages.initial, equals(AppRoutes.root));

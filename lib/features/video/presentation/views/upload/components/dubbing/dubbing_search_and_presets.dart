@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_dubbing_controller.dart';
 
 /// Search, category filters, and quick language presets.
@@ -24,6 +26,11 @@ class DubbingSearchAndPresets extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextField(
+          maxLength: ContentValidator.defaultMaxSearchLength,
+          buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+          inputFormatters: TruthworldTextInputFormatters.withLimit(
+            ContentValidator.defaultMaxSearchLength,
+          ),
           onChanged: (val) => controller.searchQuery.value = val,
           style: const TextStyle(color: Colors.white, fontSize: 13),
           decoration: InputDecoration(

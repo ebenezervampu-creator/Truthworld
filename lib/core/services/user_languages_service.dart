@@ -109,6 +109,30 @@ class UserLanguagesService extends GetxService {
     }
   }
 
+  Future<void> setPrimaryLanguage(String primary) async {
+    primaryLanguage.value = primary;
+    final uid = Get.isRegistered<AuthService>() ? AuthService.to.uid : '';
+    final keyPrefix = uid.isNotEmpty ? '${uid}_' : 'guest_';
+    await _box.write('${keyPrefix}primary_lang', primary);
+
+    if (uid.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance
+            .collection(FirestoreCollections.users)
+            .doc(uid)
+            .set({
+              'primaryLanguage': primary,
+            }, SetOptions(merge: true));
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'UserLanguagesService.setPrimaryLanguage',
+        );
+      }
+    }
+  }
+
   Future<void> saveLanguages({
     required String primary,
     required List<String> secondaries,

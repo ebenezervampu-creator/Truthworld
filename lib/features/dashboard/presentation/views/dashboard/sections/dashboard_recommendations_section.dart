@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -61,10 +62,27 @@ class DashboardRecommendationsSection extends StatelessWidget {
     }
 
     // 3. Upload frequency check
-    if (videos.isNotEmpty) {
+    final effectiveVideos = videos.isNotEmpty
+        ? videos
+        : (Get.isRegistered<VideoManagementController>()
+            ? Get.find<VideoManagementController>().channelVideos.toList()
+            : <Video>[]);
+
+    final hasUploadedVideos = effectiveVideos.isNotEmpty ||
+        (ch != null && ch.videoCount > 0) ||
+        ((stats['videos'] is int && (stats['videos'] as int) > 0) ||
+            (stats['videos'] is String &&
+                stats['videos'] != '0' &&
+                stats['videos'].toString().isNotEmpty));
+
+    if (effectiveVideos.isNotEmpty) {
       final now = DateTime.now();
-      final lastUpload = videos.first.createdAt.toDate();
-      final daysSince = now.difference(lastUpload).inDays;
+      final latest = effectiveVideos.first;
+      final effectiveDate =
+          latest.uploadedAt.toDate().isAfter(latest.createdAt.toDate())
+              ? latest.uploadedAt.toDate()
+              : latest.createdAt.toDate();
+      final daysSince = now.difference(effectiveDate).inDays;
       if (daysSince > 14) {
         recs.add({
           'title': 'Upload New Content',
@@ -75,7 +93,9 @@ class DashboardRecommendationsSection extends StatelessWidget {
           'onTap': () => Get.toNamed('/upload'),
         });
       }
-    } else if (ch != null) {
+    } else if (!controller.rxIsLoading.value &&
+        ch != null &&
+        !hasUploadedVideos) {
       recs.add({
         'title': 'Upload Your First Video',
         'description':
@@ -87,9 +107,9 @@ class DashboardRecommendationsSection extends StatelessWidget {
     }
 
     // 4. Engagement check — low average views
-    if (videos.length >= 3) {
-      final avgViews =
-          videos.fold(0, (acc, v) => acc + v.viewCount) / videos.length;
+    if (effectiveVideos.length >= 3) {
+      final avgViews = effectiveVideos.fold(0, (acc, v) => acc + v.viewCount) /
+          effectiveVideos.length;
       if (avgViews < 10) {
         recs.add({
           'title': 'Boost Video Visibility',
@@ -116,7 +136,7 @@ class DashboardRecommendationsSection extends StatelessWidget {
     }
 
     // 6. Subtitles check
-    if (videos.length >= 2) {
+    if (effectiveVideos.length >= 2) {
       recs.add({
         'title': 'Add Multi-Language Subtitles',
         'description':

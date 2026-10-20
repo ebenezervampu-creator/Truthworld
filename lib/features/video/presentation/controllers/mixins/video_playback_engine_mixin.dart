@@ -9,8 +9,10 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/guest_playback_limit_service.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
+import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -184,10 +186,8 @@ mixin VideoPlaybackEngineMixin on GetxController {
       final oldVpc = videoPlayerController;
       final oldCc = chewieController;
 
-      // Attempt to retrieve a pre-warmed/hovered controller from Google CDN for 0ms startup
-      final handoffVpc = (overrideUrl == null || overrideUrl.isEmpty)
-          ? VideoPlaybackHandoff.retrieveController(video.id)
-          : null;
+      // Attempt to retrieve a pre-warmed/hovered/miniplayer controller for 0ms startup
+      final handoffVpc = VideoPlaybackHandoff.retrieveController(video.id);
       final VideoPlayerController newVpc;
       final wasHandoff = handoffVpc != null;
 
@@ -223,16 +223,9 @@ mixin VideoPlaybackEngineMixin on GetxController {
           );
         } else {
           final isHlsOrCmaf = targetUrl.contains('.m3u8') || targetUrl.contains('/cmaf/');
-          final networkHeaders = isHlsOrCmaf
-              ? const {
-                  'Connection': 'keep-alive',
-                  'Accept': 'application/vnd.apple.mpegurl, application/x-mpegURL, video/mp4;q=0.9, */*;q=0.8',
-                  'Cache-Control': 'no-cache',
-                }
-              : const {
-                  'Connection': 'keep-alive',
-                  'Accept': '*/*',
-                };
+          final networkHeaders = await StorageUtils.getMediaHeaders(
+            isHlsOrCmaf: isHlsOrCmaf,
+          );
 
           newVpc = (rxIsOffline.value && targetUrl.startsWith('blob:'))
               ? VideoPlayerController.networkUrl(
@@ -581,17 +574,23 @@ mixin VideoPlaybackEngineMixin on GetxController {
           }
         }
 
-        // Immediately start playback to begin decoding and frame rendering at target position
-        try {
-          await newVpc.play();
-        } catch (e) {
-          debugPrint('[VideoController] Note: Immediate play trigger exception: $e');
-          if (kIsWeb) {
-            try {
-              await newVpc.setVolume(0);
-              await newVpc.play();
-            } catch (eWeb) {
-              debugPrint('[VideoController] web muted autoplay fallback error: $eWeb');
+        // Check guest playback limit before starting playback
+        if (Get.isRegistered<GuestPlaybackLimitService>() &&
+            !GuestPlaybackLimitService.to.isPlaybackAllowed()) {
+          GuestPlaybackLimitService.to.promptGuestSignIn();
+        } else {
+          // Immediately start playback to begin decoding and frame rendering at target position
+          try {
+            await newVpc.play();
+          } catch (e) {
+            debugPrint('[VideoController] Note: Immediate play trigger exception: $e');
+            if (kIsWeb) {
+              try {
+                await newVpc.setVolume(0);
+                await newVpc.play();
+              } catch (eWeb) {
+                debugPrint('[VideoController] web muted autoplay fallback error: $eWeb');
+              }
             }
           }
         }

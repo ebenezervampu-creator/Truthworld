@@ -19,6 +19,7 @@ mixin CommentStudioQueriesMixin on CommentServiceBase {
     String? description,
   }) async {
     try {
+      await ensureAuthFreshness();
       final callable = functions.httpsCallable('reportCommentNested');
       await callable.call({
         'videoId': videoId,

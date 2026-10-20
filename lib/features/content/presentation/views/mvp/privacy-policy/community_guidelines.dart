@@ -330,7 +330,11 @@ class CommunityGuidelinesPage extends StatelessWidget {
                           WebPlatformUtils.pushUrlHistory('/');
                         }
                       } else {
-                        Get.back();
+                        if (Navigator.of(context).canPop()) {
+                          Get.back();
+                        } else {
+                          Get.offAllNamed('/');
+                        }
                       }
                     },
                   )
@@ -488,8 +492,8 @@ class CommunityGuidelinesPage extends StatelessWidget {
   static const String _guidelinesText = """
 COMMUNITY GUIDELINES
 
-Last Updated: July 24, 2026
-Effective Date: July 24, 2026
+Last Updated: October 12, 2026
+Effective Date: October 12, 2026
 
 Welcome to Truthworld, operated by TowerVSP Services (OPC) Private Limited (CIN: U63111TS2025OPC207488). Our mission is to foster a truthful, knowledge-centric, and productive community through open debate and verified information.
 
@@ -509,7 +513,7 @@ We believe in:
 
 2. LUST-FREE AND ROMANCE-FREE POLICY
 
-To maintain our focus on productivity, knowledge, family-friendliness, and clean culture, Truthworld is a lust-free and romance-free platform. Romantic content, dating themes, and love/romance stories between opposite genders are strictly prohibited under all circumstances, even within or after marriage.
+To maintain our focus on productivity, knowledge, family-friendliness, and clean culture, Truthworld is a lust-free and romance-free platform. Romantic content, dating themes, and love/romance stories between opposite genders are strictly prohibited under all circumstances, even within or after marriage. Romance and Fashion are completely barred as content categories.
 
 **Permitted Content:**
 • Wedding documentaries, marriage ceremonies, and general family/marriage content (focusing on familial love, such as father's love, mother's love, or sibling bonds).
@@ -518,9 +522,11 @@ To maintain our focus on productivity, knowledge, family-friendliness, and clean
 
 **Prohibited Content:**
 • Romantic stories, movies, short films, songs, or web series focusing on romance, dating themes, hookups, or courtship (whether before, within, or after marriage).
+• Any romantic categories, romance genres, or opposite-sex romantic storylines.
 • Any romantic couples or opposite-sex romance stories, including honeymoons and romantic trips.
 • Content depicting, encouraging, or celebrating physical intimacy, dating apps, or lustful behavior.
 • Highly suggestive attire, gestures, and behavior designed to invoke physical attraction, romance, or lust.
+• Fashion showcases, glamour modeling, revealing outfit hauls, and vanity apparel displays (Fashion is permanently discontinued and prohibited as a platform category).
 
 3. CONSTRUCTIVE ROASTING AND BULLYING POLICY
 
@@ -565,20 +571,25 @@ Truthworld moderates HOW content is delivered — NOT what opinions, claims, or 
 • Profanity, vulgar language, slurs, and explicit curse words
 • Sexually explicit content
 • Graphic visual violence and gore for entertainment
-• Intense romantic/lustful content
+• Intense romantic/lustful content, romantic narratives, and all romance genres (strictly prohibited across Truthworld)
+• Fashion & glamour modeling content: Vanity-centric fashion showcases, revealing attire, suggestive modeling, and catwalks (Fashion is permanently discontinued and prohibited as a platform category)
 • Real-money gambling PROMOTION (referral codes, ads — not discussion)
 • Step-by-step dangerous manufacturing instructions (weapons, drugs)
+• Video gaming content: All video game walkthroughs, gameplay playthroughs, video game streaming, game recordings, and esports content (strictly prohibited across Truthworld)
 
 **Fully Allowed Content Categories:**
 • **Education & Science:** Lectures, tutorials, coding walkthroughs, historical research, science experiments.
-• **Technology & Gaming:** Software development, product reviews, clean gaming playthroughs, technical analysis.
+• **Technology:** Software development, product reviews, hardware architecture, AI engineering, and technical analysis.
+• **Short Films:** Drama, comedy sketches, narrative storytelling, creative indie cinema, and festival entries (must strictly comply with family-friendly and romance-free standards; romance is strictly barred).
 • **Debates & Commentary:** Political debates, religious discussions, controversial opinions, historical analysis — any topic.
-• **News, Documentaries & Sports:** Current events, independent journalism, historical documentaries, sports.
+• **News, Documentaries & Sports:** Current events, independent journalism, historical documentaries, and sports coverage.
+• **Sports & Athletics (Any and All Sports Allowed):** All athletic and physical sports are completely permitted and welcomed — including tournament coverage, match highlights, athletic training, competitive team sports (cricket, football, basketball, hockey, etc.), individual athletic disciplines, combat sports, extreme sports, fitness routines, and sports analysis. Any and all genuine physical sports content is fully allowed.
+• **Lifestyle & Living:** Mindful habits, daily routines, home design, personal development, productivity systems, and wellness living.
 • **Spirituality & Philosophy:** Mind, spirit, ethics, clean lifestyle guides.
 • **DIY, Cooking & Art:** Crafting, cooking, digital art, creative designs.
 • **Music & Songs:** Instrumental music, background tracks, clean songs (non-romantic themes).
-• **People & Blogs & Vlogs:** Personal vlogs, daily life, Q&A sessions, personal stories, life updates, and behind-the-scenes content (family-friendly delivery required).
-• **Movies & TV Shows:** Clean film reviews, trailers, cinematic analysis, television series discussions, and entertainment commentary.
+• **Vlogs (Personal Chronicles & Video Diaries):** Daily life vlogs, personal narratives, creator journeys, Q&A sessions, life updates, travel chronicles, and behind-the-scenes content (family-friendly delivery required).
+• **Movies & TV Shows:** Clean film reviews, trailers, cinematic analysis, television series discussions, and entertainment commentary (strictly zero romance or suggestive content).
 • **Kids & Family:** Child-friendly educational content, storytelling, wholesome family activities, and parenting guidance.
 
 6. SENSITIVE TOPICS - OPEN DEBATE RULES
@@ -590,9 +601,13 @@ Truthworld allows discussion of ANY sensitive topic. Our Credibility Engine fact
 • Prohibited: ONLY direct promotion — referral codes, "sign up and play" ads, sponsored gambling content.
 • Example: "How Hike's Rush platform generated ₹100Cr" = Allowed (analysis). "Download Rush! Use my code for ₹100 bonus!" = Prohibited (promotion).
 
-**Violent/Crime-Themed Games:**
-• Allowed: Game reviews, critiques, gaming industry analysis, esports, academic discussions.
-• Prohibited: Kill compilations glorifying in-game violence as entertainment.
+**Video Gaming Prohibition & Physical Sports Policy:**
+• Prohibited: All video gaming content is strictly prohibited across Truthworld. This includes gameplay playthroughs, video game walkthroughs, "Let's Play" recordings, esports competitions, gaming livestreams, speedruns, and gaming compilations. Truthworld maintains a strict focus on real-world knowledge, education, creative short films, and physical sports.
+• Allowed (Any of Sports): Any and all forms of athletic and physical sports are completely allowed and encouraged. Whether team sports, track and field, racket sports, swimming, martial arts, outdoor adventures, competitive championships, or sports analysis, all sports content is fully permitted.
+
+**Romance & Fashion Category Prohibition Policy:**
+• Prohibited (Romance): Romance is completely prohibited as a content category, genre, or theme across Truthworld. All romantic stories, dating series, courtship media, romantic music videos, and opposite-gender romantic fiction are strictly prohibited. Truthworld is dedicated to intellectual truth, knowledge, productive dialogue, and clean family-friendly entertainment. Only clean familial love (father's love, mother's love, sibling bonds) and platonic friendships are welcomed.
+• Prohibited / Discontinued (Fashion Category): The Fashion category has been permanently discontinued and removed from Truthworld. Content focusing on glamour modeling, revealing outfits, vanity lookbooks, and suggestive fashion hauls is strictly prohibited. Modest, functional, or cultural attire discussions in educational or historical contexts are permitted under Education or History, but fashion as a standalone category or vanity showcase is barred.
 
 **Cybercrime, Hacking & Digital Security:**
 • Allowed: ALL discussion — cybersecurity education, hacking news, phishing awareness, digital safety, investigative reporting.

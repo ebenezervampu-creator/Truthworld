@@ -31,7 +31,7 @@ import { setGlobalOptions } from "firebase-functions/v2";
 // ─── Global options ──────────────────────────────────────────────────────────
 setGlobalOptions({
   region: "asia-south1",
-  maxInstances: 100,
+  maxInstances: 10,
   cpu: "gcf_gen1",
 });
 
@@ -61,7 +61,7 @@ export {
   onVideoUploadedForModeration,
   moderateVideoManual,
   scheduledVideoModerationRetry,
-} from "./moderation/videoModeration";
+} from "./moderation/contentModeration";
 export {
   ingestUploadedImage,
   moderationWorkerHigh,
@@ -81,6 +81,10 @@ export {
   aggregateWatchStats,
   cleanupOldEvents,
 } from "./watchtime/watchtime";
+export {
+  checkGuestWatchQuota,
+  reportGuestWatchPulse,
+} from "./watchtime/guestWatchLimit";
 export { rollupDailyStats } from "./watchtime/rollup";
 export {
   onActiveViewerWrite,
@@ -236,6 +240,8 @@ export {
   getPremiumRevenueBreakdown,
   triggerPremiumDistributionManual,
 } from "./economy/premiumRevenueDistribution";
+export { spendChannelWallet } from "./economy/spendWallet";
+export { monthlyZeroWasteRollover } from "./economy/monthlyRollover";
 
 // ─── Edge Feed CDN Server ───────────────────────────────────────────────────
 export { publicFeedServer } from "./feed/publicFeedServer";

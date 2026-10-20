@@ -80,10 +80,7 @@ class ControlRow extends StatelessWidget {
                 const SizedBox(width: 4),
               ],
               Flexible(
-                child: TimeDisplay(
-                  ctrl: ctrl,
-                  showChapters: !isNarrow,
-                ),
+                child: TimeDisplay(ctrl: ctrl),
               ),
             ],
           ),

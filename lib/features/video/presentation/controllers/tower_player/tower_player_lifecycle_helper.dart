@@ -78,11 +78,15 @@ class TowerPlayerLifecycleHelper {
     required RxBool isFullScreen,
     required VideoController? Function() getVideoController,
     required VoidCallback onInteraction,
+    VoidCallback? onExitFullscreen,
   }) {
     if (!kIsWeb) return null;
     return WebPlatformUtils.onFullscreenChange((isFs) {
       if (isFullScreen.value != isFs) {
         isFullScreen.value = isFs;
+        if (!isFs) {
+          onExitFullscreen?.call();
+        }
         try {
           final vc = getVideoController();
           if (vc != null) {

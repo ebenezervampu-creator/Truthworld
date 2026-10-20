@@ -8,6 +8,7 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
@@ -174,7 +175,7 @@ class LibraryController extends BaseController
               .collection('watch_history')
               .orderBy('watchedAt', descending: true)
               .limit(10)
-              .get();
+              .getCacheFirst();
           watchHistory.value = snapshot.docs
               .map(Video.fromDocumentSnapshot)
               .toList();
@@ -194,7 +195,7 @@ class LibraryController extends BaseController
               .collection(FirestoreCollections.playlists)
               .orderBy('createdAt', descending: true)
               .limit(20)
-              .get();
+              .getCacheFirst();
           playlists.value = snapshot.docs
               .map(PlaylistModel.fromDocumentSnapshot)
               .toList();
@@ -214,7 +215,7 @@ class LibraryController extends BaseController
               .collection('likedVideos')
               .orderBy('timestamp', descending: true)
               .limit(10)
-              .get();
+              .getCacheFirst();
           if (snapshot.docs.isEmpty) {
             likedVideos.clear();
           } else {
@@ -243,7 +244,7 @@ class LibraryController extends BaseController
               .collection('clips')
               .orderBy('createdAt', descending: true)
               .limit(10)
-              .get();
+              .getCacheFirst();
           clips.value = snapshot.docs
               .map(VideoClip.fromDocumentSnapshot)
               .toList();
@@ -261,7 +262,7 @@ class LibraryController extends BaseController
               .collection(FirestoreCollections.videos)
               .where('ownerId', isEqualTo: uid)
               .limit(20)
-              .get();
+              .getCacheFirst();
           final list = snapshot.docs.map(Video.fromDocumentSnapshot).toList();
           list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
           yourVideos.value = list.take(10).toList();
@@ -285,16 +286,35 @@ class LibraryController extends BaseController
     if (videoIds.isEmpty) return [];
     try {
       final allVideos = <Video>[];
+      final chunks = <List<String>>[];
       for (var i = 0; i < videoIds.length; i += 10) {
-        final batch = videoIds.sublist(
-          i,
-          i + 10 > videoIds.length ? videoIds.length : i + 10,
+        chunks.add(
+          videoIds.sublist(
+            i,
+            i + 10 > videoIds.length ? videoIds.length : i + 10,
+          ),
         );
-        final docs = await _firestore
-            .collection(FirestoreCollections.videos)
-            .where(FieldPath.documentId, whereIn: batch)
-            .get();
-        allVideos.addAll(docs.docs.map(Video.fromDocumentSnapshot));
+      }
+
+      final snapshots = await Future.wait(
+        chunks.map(
+          (batch) => _firestore
+              .collection(FirestoreCollections.videos)
+              .where(FieldPath.documentId, whereIn: batch)
+              .getCacheFirst()
+              .catchError((e, s) {
+                ErrorHandler.log(
+                  e,
+                  stackTrace: s,
+                  tag: 'LibraryController.fetchVideosBatch',
+                );
+                return _firestore.collection(FirestoreCollections.videos).limit(0).get();
+              }),
+        ),
+      );
+
+      for (final snap in snapshots) {
+        allVideos.addAll(snap.docs.map(Video.fromDocumentSnapshot));
       }
       return allVideos;
     } catch (e, s) {

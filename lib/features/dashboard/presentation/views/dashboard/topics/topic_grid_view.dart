@@ -52,7 +52,6 @@ class TopicGridView extends StatelessWidget {
             return TopicCardWidget(
               topic: topic,
               isDashboard: true,
-              showEditOption: false,
               trailing: TopicPopupMenu(
                 topic: topic,
                 controller: controller,

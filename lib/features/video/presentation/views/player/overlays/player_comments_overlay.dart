@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
@@ -397,7 +398,7 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
           color: Colors.black26,
           child: Center(
             child: TextButton.icon(
-              onPressed: authService.signInWithGoogle,
+              onPressed: () => AuthBottomSheet.show(context),
               icon: const Icon(Icons.login_rounded, size: 16, color: Colors.white),
               label: const Text(
                 'Sign in to comment',
@@ -450,7 +451,11 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
               child: TextField(
                 controller: _textCtrl,
                 focusNode: _focusNode,
-                inputFormatters: TruthworldTextInputFormatters.standard,
+                maxLength: ContentValidator.defaultMaxCommentLength,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: TruthworldTextInputFormatters.withLimit(
+                  ContentValidator.defaultMaxCommentLength,
+                ),
                 style: const TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 13,

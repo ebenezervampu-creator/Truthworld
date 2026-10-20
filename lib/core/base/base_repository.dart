@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
@@ -10,7 +11,20 @@ import 'package:truthworld/core/network/result.dart';
 /// and safe `Result<T>` mapping for all data layer implementations.
 abstract class BaseRepository {
   final bool isTestMode;
-  const BaseRepository({this.isTestMode = false});
+  BaseRepository({bool? isTestMode})
+      : isTestMode = isTestMode ?? _defaultIsTestMode;
+
+  static bool get _defaultIsTestMode {
+    if (kIsWeb) return false;
+    try {
+      if (Platform.environment.containsKey('FLUTTER_TEST')) {
+        return true;
+      }
+    } catch (_) {
+      // Platform.environment might throw on unsupported platforms
+    }
+    return false;
+  }
 
   /// Execute an async data fetch task safely, transforming any thrown exceptions into a `Failure<T>`
   Future<Result<T>> safeFetch<T>(
@@ -28,6 +42,7 @@ abstract class BaseRepository {
         final data = await fetchTask().timeout(
           effectiveTimeout,
           onTimeout: () => throw AppTimeoutException(
+            code: 'timeout',
             message:
                 'Operation timed out after ${effectiveTimeout.inSeconds} seconds',
           ),

@@ -35,7 +35,7 @@ class ZoomPanel extends StatelessWidget {
                     label: 'Fill screen (Crop)',
                     selected: isFill,
                     onTap: () {
-                      ctrl.setZoomScale(1.0, fill: true);
+                      ctrl.setZoomScale(1.0, fill: true, animated: true);
                       ctrl.closeSettings();
                     },
                   );
@@ -51,7 +51,7 @@ class ZoomPanel extends StatelessWidget {
                       label: label,
                       selected: isSel,
                       onTap: () {
-                        ctrl.setZoomScale(s);
+                        ctrl.setZoomScale(s, animated: true);
                         ctrl.closeSettings();
                       },
                     );

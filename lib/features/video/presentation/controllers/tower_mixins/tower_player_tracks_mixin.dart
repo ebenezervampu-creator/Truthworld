@@ -220,6 +220,7 @@ mixin TowerPlayerTracksMixin on GetxController {
 
           audioTrackController = VideoPlayerController.networkUrl(
             Uri.parse(track.url!),
+            httpHeaders: StorageUtils.getSyncMediaHeaders(),
           );
           audioTrackController!.initialize().then((_) async {
             if (audioTrackController == null) return;

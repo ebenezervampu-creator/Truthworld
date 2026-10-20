@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:truthworld/components/ui/rive/rive_interaction_widgets.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
 /// ---------------------------------------------------------------------------
@@ -160,15 +159,6 @@ class _AnimatedLikeButtonState extends State<AnimatedLikeButton>
 
   @override
   Widget build(BuildContext context) {
-    if (widget.useRive) {
-      return TruthworldRiveLikeButton(
-        isLiked: widget.isLiked,
-        onTap: widget.onTap,
-        size: widget.size,
-        activeColor: widget.activeColor,
-        inactiveColor: widget.inactiveColor,
-      );
-    }
 
     final activeColor = widget.activeColor ?? AppColors.brand;
     final inactiveColor = widget.inactiveColor ?? AppColors.textPrimary;

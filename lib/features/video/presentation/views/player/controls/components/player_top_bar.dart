@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -70,40 +71,55 @@ class PlayerTopBar extends StatelessWidget {
 
           // Video title & Truth Credibility Badge
           Expanded(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: TS.body.copyWith(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (vc != null && vc.video.channelName.isNotEmpty)
-                        Text(
-                          vc.video.channelName,
-                          style: TS.bodySm.copyWith(
-                            fontSize: 11,
-                            color: Colors.white.withValues(alpha: 0.65),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final maxWidth = constraints.maxWidth;
+                final showFullBadge = maxWidth >= 260;
+                final showCompactBadge = maxWidth >= 150 && !showFullBadge;
+                final showBadge = (showFullBadge || showCompactBadge) && vc != null;
+
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: TS.body.copyWith(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                    ],
-                  ),
-                ),
-                // TruthWorld Credibility / Fact-Check badge
-                if (vc != null) _buildCredibilityBadge(context, ctrl, vc),
-              ],
+                          if (vc != null && vc.video.channelName.isNotEmpty)
+                            Text(
+                              vc.video.channelName,
+                              style: TS.bodySm.copyWith(
+                                fontSize: 11,
+                                color: Colors.white.withValues(alpha: 0.65),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                        ],
+                      ),
+                    ),
+                    // TruthWorld Credibility / Fact-Check badge
+                    if (showBadge)
+                      _buildCredibilityBadge(
+                        context,
+                        ctrl,
+                        vc,
+                        compact: showCompactBadge,
+                      ),
+                  ],
+                );
+              },
             ),
           ),
 
@@ -147,8 +163,9 @@ class PlayerTopBar extends StatelessWidget {
   Widget _buildCredibilityBadge(
     BuildContext context,
     TowerPlayerController ctrl,
-    VideoController vc,
-  ) {
+    VideoController vc, {
+    bool compact = false,
+  }) {
     final video = vc.video;
     final currentUid = AuthService.to.uid;
     final userChannelId = AuthService.to.userChannel?.id;
@@ -161,17 +178,23 @@ class PlayerTopBar extends StatelessWidget {
     final canView = video.canPublicViewFactCheck || isOwner;
     if (!canView) return const SizedBox.shrink();
 
-    final isFactChecked = video.hasAiCredibility;
+    final isFactChecked = video.hasAiCredibility ||
+        vc.factCheckData.isNotEmpty ||
+        (video.uiReport != null && video.uiReport!.keyClaims.isNotEmpty);
 
     if (!isFactChecked && !ctrl.isAnalyzingTruth) return const SizedBox.shrink();
 
     final score = ctrl.truthReportScore;
     final isHigh = score != null && score >= 75;
     final badgeColor = isHigh ? AppColors.success : AppColors.brand;
-    final badgeText = ctrl.truthReportBadgeText;
+    final badgeText = compact
+        ? (ctrl.isAnalyzingTruth
+            ? '…'
+            : (score != null ? '$score%' : '✓'))
+        : ctrl.truthReportBadgeText;
 
     return Padding(
-      padding: const EdgeInsets.only(left: 8),
+      padding: EdgeInsets.only(left: compact ? 6 : 8),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -185,7 +208,10 @@ class PlayerTopBar extends StatelessWidget {
           },
           borderRadius: BorderRadius.circular(14),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 6 : 8,
+              vertical: 3.5,
+            ),
             decoration: BoxDecoration(
               color: const Color(0x730F0F12), // rgba(15,15,18,0.45)
               borderRadius: BorderRadius.circular(14),
@@ -201,7 +227,7 @@ class PlayerTopBar extends StatelessWidget {
                   size: 12,
                   color: badgeColor,
                 ),
-                const SizedBox(width: 4),
+                SizedBox(width: compact ? 3 : 4),
                 Text(
                   badgeText,
                   style: const TextStyle(
@@ -210,6 +236,8 @@ class PlayerTopBar extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.3,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -251,7 +279,7 @@ class PlayerTopBar extends StatelessWidget {
                   'Please sign in to subscribe to channels.',
                   title: 'Sign In Required',
                   actionLabel: 'SIGN IN',
-                  onAction: AuthService.to.signInWithGoogle,
+                  onAction: () => AuthBottomSheet.show(context),
                 );
                 return;
               }

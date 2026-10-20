@@ -43,7 +43,9 @@ class CopyrightDialogs {
           children: [
             TextField(
               controller: messageController,
-              inputFormatters: TruthworldTextInputFormatters.standard,
+              maxLength: 1000,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(1000),
               maxLines: 4,
               style: const TextStyle(
                 fontFamily: TWTypography.uiFamily,

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart';
 import 'package:truthworld/features/search/data/services/engine/search_sanitizer.dart';
@@ -47,7 +48,7 @@ class SearchEntityQueryEngine {
           .collection('videos')
           .where('keywords', arrayContains: cleanQuery)
           .limit(20)
-          .get();
+          .getCacheFirst();
       for (final doc in s.docs) {
         addResult(SearchResult.fromFirestore(doc), doc.data());
       }
@@ -64,7 +65,7 @@ class SearchEntityQueryEngine {
               .where('title', isGreaterThanOrEqualTo: qPrefix)
               .where('title', isLessThanOrEqualTo: '$qPrefix\uf8ff')
               .limit(20)
-              .get();
+              .getCacheFirst();
           for (final doc in s.docs) {
             addResult(SearchResult.fromFirestore(doc), doc.data());
           }
@@ -85,7 +86,7 @@ class SearchEntityQueryEngine {
               .where('keywords', arrayContains: tok)
               .where('visibility', isEqualTo: 'public')
               .limit(10)
-              .get();
+              .getCacheFirst();
           for (final doc in s.docs) {
             addResult(SearchResult.fromFirestore(doc), doc.data());
           }
@@ -169,7 +170,7 @@ class SearchEntityQueryEngine {
           .where('nameLowercase', isGreaterThanOrEqualTo: cleanQuery)
           .where('nameLowercase', isLessThanOrEqualTo: '$cleanQuery\uf8ff')
           .limit(10)
-          .get();
+          .getCacheFirst();
       for (final doc in s1.docs) {
         addResult(SearchResult.fromFirestore(doc, type: ResultType.channel));
       }
@@ -182,7 +183,7 @@ class SearchEntityQueryEngine {
               .where('name', isGreaterThanOrEqualTo: qPrefix)
               .where('name', isLessThanOrEqualTo: '$qPrefix\uf8ff')
               .limit(10)
-              .get();
+              .getCacheFirst();
           for (final doc in s2.docs) {
             addResult(SearchResult.fromFirestore(doc, type: ResultType.channel));
           }
@@ -198,7 +199,7 @@ class SearchEntityQueryEngine {
               .where('handleLowercase', isGreaterThanOrEqualTo: handleQ)
               .where('handleLowercase', isLessThanOrEqualTo: '$handleQ\uf8ff')
               .limit(10)
-              .get();
+              .getCacheFirst();
           for (final doc in s3.docs) {
             addResult(SearchResult.fromFirestore(doc, type: ResultType.channel));
           }
@@ -215,7 +216,7 @@ class SearchEntityQueryEngine {
               .where('nameLowercase', isGreaterThanOrEqualTo: tok)
               .where('nameLowercase', isLessThanOrEqualTo: '$tok\uf8ff')
               .limit(5)
-              .get();
+              .getCacheFirst();
           for (final doc in s4.docs) {
             addResult(SearchResult.fromFirestore(doc, type: ResultType.channel));
           }
@@ -272,7 +273,7 @@ class SearchEntityQueryEngine {
             .where('name', isGreaterThanOrEqualTo: qPrefix)
             .where('name', isLessThanOrEqualTo: '$qPrefix\uf8ff')
             .limit(10)
-            .get();
+            .getCacheFirst();
         for (final doc in s1.docs) {
           addResult(SearchResult.fromFirestore(doc, type: ResultType.playlist), doc.data());
         }
@@ -287,7 +288,7 @@ class SearchEntityQueryEngine {
               .where('title', isGreaterThanOrEqualTo: qPrefix)
               .where('title', isLessThanOrEqualTo: '$qPrefix\uf8ff')
               .limit(10)
-              .get();
+              .getCacheFirst();
           for (final doc in s2.docs) {
             addResult(SearchResult.fromFirestore(doc, type: ResultType.playlist), doc.data());
           }
@@ -304,7 +305,7 @@ class SearchEntityQueryEngine {
               .where('name', isGreaterThanOrEqualTo: tok)
               .where('name', isLessThanOrEqualTo: '$tok\uf8ff')
               .limit(5)
-              .get();
+              .getCacheFirst();
           for (final doc in s3.docs) {
             addResult(SearchResult.fromFirestore(doc, type: ResultType.playlist), doc.data());
           }
@@ -360,7 +361,7 @@ class SearchEntityQueryEngine {
             .where('title', isGreaterThanOrEqualTo: qPrefix)
             .where('title', isLessThanOrEqualTo: '$qPrefix\uf8ff')
             .limit(10)
-            .get();
+            .getCacheFirst();
         for (final doc in s1.docs) {
           addResult(SearchResult.fromFirestore(doc, type: ResultType.topic), doc.data());
         }
@@ -374,7 +375,7 @@ class SearchEntityQueryEngine {
             .where('slug', isGreaterThanOrEqualTo: cleanQuery)
             .where('slug', isLessThanOrEqualTo: '$cleanQuery\uf8ff')
             .limit(10)
-            .get();
+            .getCacheFirst();
         for (final doc in s2.docs) {
           addResult(SearchResult.fromFirestore(doc, type: ResultType.topic), doc.data());
         }
@@ -386,7 +387,7 @@ class SearchEntityQueryEngine {
             .collection('topics')
             .where('tags', arrayContains: cleanQuery)
             .limit(10)
-            .get();
+            .getCacheFirst();
         for (final doc in s3.docs) {
           addResult(SearchResult.fromFirestore(doc, type: ResultType.topic), doc.data());
         }
@@ -401,7 +402,7 @@ class SearchEntityQueryEngine {
               .where('slug', isGreaterThanOrEqualTo: tok)
               .where('slug', isLessThanOrEqualTo: '$tok\uf8ff')
               .limit(5)
-              .get();
+              .getCacheFirst();
           for (final doc in s4.docs) {
             addResult(SearchResult.fromFirestore(doc, type: ResultType.topic), doc.data());
           }

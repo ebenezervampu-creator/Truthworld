@@ -544,7 +544,9 @@ class AbTestingTabView extends StatelessWidget {
             children: [
               TextField(
                 controller: titleController,
-                inputFormatters: TruthworldTextInputFormatters.standard,
+                maxLength: 100,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: TruthworldTextInputFormatters.withLimit(100),
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Experiment Name (e.g. CTA Button Urgency Test)',
@@ -557,7 +559,9 @@ class AbTestingTabView extends StatelessWidget {
               const SizedBox(height: 12),
               TextField(
                 controller: campaignController,
-                inputFormatters: TruthworldTextInputFormatters.standard,
+                maxLength: 100,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: TruthworldTextInputFormatters.withLimit(100),
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Target Campaign',
@@ -591,7 +595,9 @@ class AbTestingTabView extends StatelessWidget {
               const SizedBox(height: 12),
               TextField(
                 controller: variantAController,
-                inputFormatters: TruthworldTextInputFormatters.standard,
+                maxLength: 200,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: TruthworldTextInputFormatters.withLimit(200),
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Variant A (Control)',
@@ -604,7 +610,9 @@ class AbTestingTabView extends StatelessWidget {
               const SizedBox(height: 12),
               TextField(
                 controller: variantBController,
-                inputFormatters: TruthworldTextInputFormatters.standard,
+                maxLength: 200,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: TruthworldTextInputFormatters.withLimit(200),
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Variant B (Challenger)',

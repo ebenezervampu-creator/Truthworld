@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/services/image_verification_service.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
@@ -28,7 +29,7 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
     firestore
         .collection(ChannelControllerBase.channelsCol)
         .doc(cleanId)
-        .get()
+        .getCacheFirst()
         .then((doc) {
           if (doc.exists) {
             selectedChannel.value = Channel.fromDocumentSnapshot(doc);
@@ -307,7 +308,7 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
            (selectedChannel.value?.channelId != null &&
             selectedChannel.value!.channelId == AuthService.to.userChannel?.channelId));
 
-      final snapshot = await query.limit(12).get();
+      final snapshot = await query.limit(12).getCacheFirst();
 
       if (snapshot.docs.isNotEmpty) {
         videos.value = snapshot.docs
@@ -381,7 +382,7 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
       final snapshot = await query
           .startAfterDocument(lastVideoDocument.value!)
           .limit(12)
-          .get();
+          .getCacheFirst();
       if (snapshot.docs.isNotEmpty) {
         videos.addAll(
           snapshot.docs
@@ -497,19 +498,19 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
             .collection(FirestoreCollections.videos)
             .where('channelId', isEqualTo: channelId)
             .limit(10)
-            .get(),
+            .getCacheFirst(),
         firestore
             .collection('public_playlists')
             .where('channelId', isEqualTo: channelId)
             .limit(1)
-            .get(),
-        postQuery.limit(1).get(),
+            .getCacheFirst(),
+        postQuery.limit(1).getCacheFirst(),
         firestore
             .collection(FirestoreCollections.topics)
             .where('channelId', isEqualTo: channelId)
             .where('status', isEqualTo: 'active')
             .limit(5)
-            .get(),
+            .getCacheFirst(),
       ]);
 
       final videoDocs = results[0].docs;

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/wizard/widgets/language/channel_invite_only_language_dialog.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/wizard/widgets/language/channel_languages_data.dart';
@@ -131,6 +132,9 @@ void showLanguagePicker(BuildContext context, ChannelController controller) {
                       Expanded(
                         child: TextField(
                           controller: searchController,
+                          maxLength: 100,
+                          buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                          inputFormatters: TruthworldTextInputFormatters.withLimit(100),
                           onChanged: (query) {
                             searchQuery.value = query;
                             final q = query.trim().toLowerCase();

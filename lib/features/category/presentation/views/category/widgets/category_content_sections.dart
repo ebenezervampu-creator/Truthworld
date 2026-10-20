@@ -77,10 +77,14 @@ class CategoryVideoGrid extends StatelessWidget {
         defaultTargetPlatform == TargetPlatform.iOS;
     final screenWidth = MediaQuery.of(context).size.width;
     final crossAxisCount = (!isMobileDevice && isDesktop)
-        ? (screenWidth >= 2100 ? 4 : (screenWidth >= 1600 ? 3 : 2))
-        : (isDesktop ? 4 : (isTablet ? 3 : 2));
+        ? (screenWidth >= 2400
+            ? 5
+            : (screenWidth >= 1700
+                ? 4
+                : (screenWidth >= 1100 ? 3 : 2)))
+        : (isDesktop ? 3 : (isTablet ? 3 : 2));
     final childAspectRatio = (!isMobileDevice && isDesktop)
-        ? 1.25
+        ? 1.15
         : (isDesktop ? 1.1 : (isTablet ? 1.0 : 0.78));
 
     return GridView.builder(

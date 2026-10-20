@@ -1,7 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/playlists_management_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -111,6 +113,11 @@ class VideoPickerSheet extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           TextField(
+            maxLength: ContentValidator.defaultMaxSearchLength,
+            buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+            inputFormatters: TruthworldTextInputFormatters.withLimit(
+              ContentValidator.defaultMaxSearchLength,
+            ),
             onChanged: (val) => searchFilter.value = val.trim().toLowerCase(),
             style: const TextStyle(
               color: AppColors.textPrimary,

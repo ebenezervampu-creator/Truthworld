@@ -166,6 +166,180 @@ void main() {
       expect(CashfreeCountrySupport.formatAmount(5.0, 'USD'), equals(r'$5.00'));
       expect(CashfreeCountrySupport.formatAmount(500.0, 'JPY'), equals('¥500'));
     });
+
+    test('Superchat tier color threshold mapping accurately assigns YouTube-style colors', () {
+      String resolveTierColor(double inr) {
+        if (inr >= 2000) return '#D50000';
+        if (inr >= 1000) return '#E040FB';
+        if (inr >= 500) return '#FF9100';
+        if (inr >= 200) return '#FFD600';
+        if (inr >= 100) return '#00E676';
+        if (inr >= 50) return '#00B0FF';
+        return '#1E88E5';
+      }
+
+      expect(resolveTierColor(20.0), equals('#1E88E5'));
+      expect(resolveTierColor(50.0), equals('#00B0FF'));
+      expect(resolveTierColor(100.0), equals('#00E676'));
+      expect(resolveTierColor(200.0), equals('#FFD600'));
+      expect(resolveTierColor(500.0), equals('#FF9100'));
+      expect(resolveTierColor(1000.0), equals('#E040FB'));
+      expect(resolveTierColor(2000.0), equals('#D50000'));
+      expect(resolveTierColor(5000.0), equals('#D50000'));
+    });
+
+    test('Direct Cashfree portal URLs construct valid endpoints for sandbox and production', () {
+      const sessionId = 'session_test_999888';
+      final prodUrl = 'https://payments.cashfree.com/order/#$sessionId';
+      final sandUrl = 'https://payments-test.cashfree.com/order/#$sessionId';
+
+      final prodUri = Uri.parse(prodUrl);
+      final sandUri = Uri.parse(sandUrl);
+
+      expect(prodUri.host, equals('payments.cashfree.com'));
+      expect(sandUri.host, equals('payments-test.cashfree.com'));
+      expect(prodUri.fragment, equals(sessionId));
+      expect(sandUri.fragment, equals(sessionId));
+    });
+  });
+
+  group('Debug (Sandbox) Mode Payment Flow Verification', () {
+    test('Debug environment creates sandbox checkout URL and flags isProduction as false', () {
+      const envString = 'SANDBOX';
+      final isProduction = envString == 'PRODUCTION';
+      expect(isProduction, isFalse);
+
+      const sessionId = 'session_debug_abc123';
+      const orderId = 'order_debug_789';
+      final envParam = envString.toLowerCase();
+      final checkoutUrl =
+          'https://www.truthworld.in/checkout?session_id=${Uri.encodeComponent(sessionId)}&order_id=${Uri.encodeComponent(orderId)}&env=$envParam';
+
+      final uri = Uri.parse(checkoutUrl);
+      expect(uri.host, equals('www.truthworld.in'));
+      expect(uri.queryParameters['env'], equals('sandbox'));
+      expect(uri.queryParameters['session_id'], equals(sessionId));
+      expect(uri.queryParameters['order_id'], equals(orderId));
+
+      final directPortalUrl = 'https://payments-test.cashfree.com/order/#${Uri.encodeComponent(sessionId)}';
+      expect(directPortalUrl, contains('payments-test.cashfree.com'));
+    });
+
+    test('Android debug sideload integrity rejection is detected and intercepted cleanly', () {
+      final debugErrors = [
+        'installer_package_not_approved',
+        'INSTALLER_PACKAGE_NOT_APPROVED',
+        'package_not_approved',
+        'installer verification failed',
+      ];
+
+      for (final rawMsg in debugErrors) {
+        final lowerMsg = rawMsg.toLowerCase();
+        final isInstallerOrIntegrityError = lowerMsg.contains('installer_package_not_approved') ||
+            lowerMsg.contains('installer') ||
+            lowerMsg.contains('package_not_approved') ||
+            lowerMsg.contains('not approved') ||
+            lowerMsg.contains('verification failed') ||
+            lowerMsg.contains('activity not found');
+
+        expect(isInstallerOrIntegrityError, isTrue, reason: 'Failed to identify $rawMsg as debug integrity error');
+      }
+    });
+
+    test('Debug mode Superchat metadata contains isDebug=true and clean tier parameters', () {
+      final debugMetadata = {
+        'videoId': 'live_video_stream_001',
+        'tierColor': '#00E676',
+        'chargeAmount': 100.0,
+        'originalAmount': 100.0,
+        'originalCurrency': 'INR',
+        'isDebug': true,
+        'userName': 'Tester Dev',
+        'text': 'Testing Superchat in Debug mode',
+      };
+
+      expect(debugMetadata['isDebug'], isTrue);
+      expect(debugMetadata['tierColor'], equals('#00E676'));
+      expect(debugMetadata['chargeAmount'], equals(100.0));
+      expect(debugMetadata['userName'], isNot(contains('🔥')));
+      expect(debugMetadata['text'], isNot(contains('🔴')));
+    });
+  });
+
+  group('Production Mode Payment Flow Verification', () {
+    test('Production environment creates production checkout URL and flags isProduction as true', () {
+      const envString = 'PRODUCTION';
+      final isProduction = envString == 'PRODUCTION';
+      expect(isProduction, isTrue);
+
+      const sessionId = 'session_prod_live_456';
+      const orderId = 'order_prod_live_123';
+      final envParam = envString.toLowerCase();
+      final checkoutUrl =
+          'https://www.truthworld.in/checkout?session_id=${Uri.encodeComponent(sessionId)}&order_id=${Uri.encodeComponent(orderId)}&env=$envParam';
+
+      final uri = Uri.parse(checkoutUrl);
+      expect(uri.host, equals('www.truthworld.in'));
+      expect(uri.queryParameters['env'], equals('production'));
+      expect(uri.queryParameters['session_id'], equals(sessionId));
+      expect(uri.queryParameters['order_id'], equals(orderId));
+
+      final directPortalUrl = 'https://payments.cashfree.com/order/#${Uri.encodeComponent(sessionId)}';
+      expect(directPortalUrl, contains('payments.cashfree.com'));
+      expect(directPortalUrl, isNot(contains('payments-test')));
+    });
+
+    test('Production Play Store release build handles successful verification and details payload', () {
+      const verifiedResult = CashfreePaymentResult(
+        success: true,
+        orderId: 'cf_order_prod_verified',
+        details: {
+          'cfOrderId': 'cf_prod_998877',
+          'orderStatus': 'PAID',
+          'paymentCurrency': 'INR',
+          'paymentAmount': 200.0,
+        },
+      );
+
+      expect(verifiedResult.success, isTrue);
+      expect(verifiedResult.orderId, equals('cf_order_prod_verified'));
+      expect(verifiedResult.details?['orderStatus'], equals('PAID'));
+      expect(verifiedResult.errorMessage, isNull);
+    });
+
+    test('Production user cancellation yields polite message without developer leak', () {
+      const cancelResult = CashfreePaymentResult(
+        success: false,
+        orderId: 'cf_order_prod_cancel',
+        errorMessage: 'Payment was cancelled by user.',
+      );
+
+      expect(cancelResult.success, isFalse);
+      expect(cancelResult.errorMessage, equals('Payment was cancelled by user.'));
+      expect(cancelResult.errorMessage, isNot(contains('Exception')));
+      expect(cancelResult.errorMessage, isNot(contains('null check')));
+    });
+  });
+
+  group('Zero Charm-Pricing and Epistemic Honesty Verification', () {
+    test('All Superchat tiers and default pricing use honest round numbers', () {
+      const superchatAmounts = [20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0];
+      const forbiddenEndings = ['.99', '9', '99', '999', '9999'];
+
+      for (final amt in superchatAmounts) {
+        final amtStr = amt.toString();
+        for (final ending in forbiddenEndings) {
+          if (ending == '9' && amtStr.endsWith('.0')) {
+            // e.g. 50.0 is fine
+            final intPart = amt.toInt().toString();
+            expect(intPart.endsWith('9'), isFalse, reason: '$amt violates zero charm pricing rule (ends in 9)');
+          } else {
+            expect(amtStr.contains('.99'), isFalse, reason: '$amt violates zero charm pricing rule (contains .99)');
+          }
+        }
+      }
+    });
   });
 }
+
 

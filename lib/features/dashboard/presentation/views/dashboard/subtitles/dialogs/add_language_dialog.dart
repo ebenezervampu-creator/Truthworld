@@ -1,6 +1,7 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
@@ -231,6 +232,9 @@ class AddLanguageDialog {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: dialogTitleController,
+                    maxLength: 100,
+                    buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                    inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(100),
                     style: AppTextStyles.bodyMedium.copyWith(fontSize: 13),
                     decoration: InputDecoration(
                       labelText: 'Subtitle Track Title',

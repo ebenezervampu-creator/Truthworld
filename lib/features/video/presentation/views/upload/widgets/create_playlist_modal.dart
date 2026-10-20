@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_controller.dart';
@@ -132,6 +133,9 @@ void showCreatePlaylistBottomSheet(
                   ),
                   child: TextField(
                     controller: playListNameController,
+                    maxLength: 100,
+                    buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                    inputFormatters: TruthworldTextInputFormatters.withLimit(100),
                     style: AppTextStyles.inputText,
                     decoration: InputDecoration(
                       labelText: 'Playlist Name',
@@ -222,6 +226,19 @@ void showCreatePlaylistBottomSheet(
                         AppSnackbar.warning(
                           'Please enter a playlist name',
                           title: 'Missing Information',
+                        );
+                        return;
+                      }
+
+                      final nameVal = ContentValidator.validate(
+                        playlistName,
+                        fieldName: 'Playlist Name',
+                        maxLength: 100,
+                      );
+                      if (!nameVal.isValid) {
+                        AppSnackbar.warning(
+                          nameVal.message,
+                          title: 'Content Notice',
                         );
                         return;
                       }

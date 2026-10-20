@@ -24,7 +24,6 @@ class AudioTracksPage extends GetView<AudioTracksController> {
   final String channelId;
   final bool isDarkMode;
 
-  final TextEditingController _searchController = TextEditingController();
   final RxBool _showPreviewPlayer = false.obs;
 
   @override
@@ -152,7 +151,7 @@ class AudioTracksPage extends GetView<AudioTracksController> {
           width: 320,
           child: AudioTracksVideoSidebar(
             controller: controller,
-            searchController: _searchController,
+            searchController: controller.searchController,
             surfaceColor: surfaceColor,
             textColor: textColor,
             textSecondaryColor: textSecondaryColor,
@@ -190,7 +189,7 @@ class AudioTracksPage extends GetView<AudioTracksController> {
           width: 270,
           child: AudioTracksVideoSidebar(
             controller: controller,
-            searchController: _searchController,
+            searchController: controller.searchController,
             surfaceColor: surfaceColor,
             textColor: textColor,
             textSecondaryColor: textSecondaryColor,
@@ -290,7 +289,7 @@ class AudioTracksPage extends GetView<AudioTracksController> {
                 onPressed: () => AudioTracksDialogs.showMobileVideoPickerSheet(
                   context: context,
                   controller: controller,
-                  searchController: _searchController,
+                  searchController: controller.searchController,
                   surfaceColor: surfaceColor,
                   textColor: textColor,
                   textSecondaryColor: textSecondaryColor,

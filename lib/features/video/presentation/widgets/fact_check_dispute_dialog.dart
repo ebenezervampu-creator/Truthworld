@@ -232,7 +232,11 @@ class FactCheckDisputeDialog extends StatelessWidget {
             const SizedBox(height: 8),
             TextField(
               controller: ctrl.reasonController,
-              inputFormatters: TruthworldTextInputFormatters.standard,
+              maxLength: ContentValidator.defaultMaxDisputeReasonLength,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: TruthworldTextInputFormatters.withLimit(
+                ContentValidator.defaultMaxDisputeReasonLength,
+              ),
               maxLines: 4,
               style: const TextStyle(
                 color: AppColors.textPrimary,
@@ -275,6 +279,11 @@ class FactCheckDisputeDialog extends StatelessWidget {
                 Expanded(
                   child: TextField(
                     controller: ctrl.sourceController,
+                    maxLength: ContentValidator.defaultMaxUrlLength,
+                    buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                    inputFormatters: TruthworldTextInputFormatters.withLimit(
+                      ContentValidator.defaultMaxUrlLength,
+                    ),
                     style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 13,

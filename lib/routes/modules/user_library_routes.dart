@@ -82,6 +82,7 @@ class UserLibraryRoutes {
     GetPage(
       name: AppRoutes.onboarding,
       page: () => const OnboardingProfileScreen(),
+      middlewares: [ConsumerRouteGuard()],
       binding: OnboardingProfileBinding(),
     ),
     GetPage(

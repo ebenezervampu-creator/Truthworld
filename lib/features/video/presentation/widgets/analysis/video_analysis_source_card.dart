@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/services/source_avatar_service.dart';
 import 'package:truthworld/core/utils/source_url_sanitizer.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -20,36 +21,12 @@ import 'package:truthworld/theme/app_theme.dart';
     final yearPublished = cleanSource['yearPublished'];
     final title = cleanSource['title']?.toString();
     final domain = cleanSource['domain']?.toString();
+    final publisher = cleanSource['publisher']?.toString();
+    final avatarUrl = cleanSource['avatarUrl']?.toString();
     final trustLevel = cleanSource['trustLevel']?.toString();
     final snippet = cleanSource['snippet']?.toString();
     final directUrl = cleanSource['directUrl']?.toString();
     final url = cleanSource['url']?.toString();
-
-    IconData icon;
-    switch (sourceType) {
-      case 'book':
-        icon = Icons.menu_book_rounded;
-      case 'journal':
-        icon = Icons.science_rounded;
-      case 'newspaper':
-        icon = Icons.newspaper_rounded;
-      case 'website':
-        icon = Icons.language_rounded;
-      case 'government':
-        icon = Icons.account_balance_rounded;
-      case 'scripture':
-        icon = Icons.auto_stories_rounded;
-      case 'legal':
-        icon = Icons.gavel_rounded;
-      case 'encyclopedia':
-        icon = Icons.library_books_rounded;
-      case 'academic_press':
-        icon = Icons.school_rounded;
-      case 'archive':
-        icon = Icons.archive_rounded;
-      default:
-        icon = Icons.link_rounded;
-    }
 
     final citationParts = <String>[];
     var prefix = '';
@@ -76,7 +53,7 @@ import 'package:truthworld/theme/app_theme.dart';
       onTap: () async {
         await SourceUrlSanitizer.launchSourceUrl(
           url: directUrl ?? url,
-          title: author ?? title,
+          title: title ?? bookTitle ?? author,
           domain: domain,
           source: cleanSource,
         );
@@ -92,7 +69,13 @@ import 'package:truthworld/theme/app_theme.dart';
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: Colors.white, size: 22),
+            SourceAvatarService.buildAvatar(
+              domain: domain,
+              url: directUrl ?? url,
+              publisher: publisher ?? author,
+              avatarUrl: avatarUrl,
+              size: 38,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(

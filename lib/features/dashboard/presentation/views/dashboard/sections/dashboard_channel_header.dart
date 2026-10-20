@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class DashboardHeader extends StatelessWidget {
@@ -134,6 +135,9 @@ class DashboardMobileSearchField extends StatelessWidget {
       ),
       child: TextField(
         controller: searchController,
+        maxLength: 100,
+        buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+        inputFormatters: TruthworldTextInputFormatters.withLimit(100),
         style: const TextStyle(
           fontFamily: TWTypography.uiFamily,
           color: AppColors.textPrimary,

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/animated_interaction_buttons.dart';
+import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/data/models/channel.dart';
@@ -539,7 +540,7 @@ class ChannelHeaderWidget extends StatelessWidget {
               notificationOption: notificationOption,
               onNotificationTap: () => _showNotificationsDialog(context, channel),
               onPressed: !AuthService.to.isAuthenticated.value
-                  ? () => AuthService.to.signInWithGoogle()
+                  ? () => AuthBottomSheet.show(context)
                   : () async {
                       if (isSubscribed) {
                         _showNotificationsDialog(context, channel);

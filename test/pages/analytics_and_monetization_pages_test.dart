@@ -166,9 +166,11 @@ void main() {
           final ctrl = !Get.isRegistered<RevenueAnalyticsController>()
               ? Get.put(RevenueAnalyticsController())
               : Get.find<RevenueAnalyticsController>();
+          ctrl.channelId.value = 'creator_default';
           ctrl.rxIsLoading.value = false;
         },
       );
+      await tester.pump(const Duration(seconds: 3));
       expect(tester.takeException(), isNull);
       expect(find.byType(RevenueAnalyticsPage), findsOneWidget);
       expect(find.text('Cash Payout & Withdrawal'), findsOneWidget);
@@ -273,6 +275,7 @@ void main() {
               ? Get.put(RevenueAnalyticsController())
               : Get.find<RevenueAnalyticsController>();
 
+          ctrl.channelId.value = 'creator_default';
           ctrl.rxIsLoading.value = false;
           ctrl.channelName.value = 'Truth Channel';
           ctrl.superchatRevenue.value = 0.0;
@@ -287,6 +290,7 @@ void main() {
           ctrl.setCurrencyView('INR');
         },
       );
+      await tester.pump(const Duration(seconds: 3));
 
       expect(tester.takeException(), isNull);
       expect(find.text('₹ INR'), findsOneWidget);

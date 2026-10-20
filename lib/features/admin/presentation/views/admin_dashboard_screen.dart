@@ -19,6 +19,7 @@ class AdminDashboardScreen extends StatelessWidget {
   AdminDashboardScreen({super.key}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       AdminController.to.ensureSubscriptionsStarted();
+      AdminController.to.applyRouteTargetIfPresent();
     });
   }
 

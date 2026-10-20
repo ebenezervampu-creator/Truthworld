@@ -126,11 +126,55 @@ void main() {
       expect(video.trustIndex, video.trustScore);
     });
 
+    test('resolvedViewCount correctly resolves positive views when viewCount is 0', () {
+      final videoWithViews = Video.fromMap({
+        'id': 'v_views_1',
+        'title': 'Test Video',
+        'viewCount': 0,
+        'views': 1,
+        'channelId': 'ch1',
+        'ownerId': 'u1',
+      });
+      expect(videoWithViews.views, equals(1));
+      expect(videoWithViews.viewCount, equals(1));
+
+      final videoWithViewCount = Video.fromMap({
+        'id': 'v_views_2',
+        'title': 'Test Video 2',
+        'viewCount': 1,
+        'views': 0,
+        'channelId': 'ch1',
+        'ownerId': 'u1',
+      });
+      expect(videoWithViewCount.views, equals(1));
+      expect(videoWithViewCount.viewCount, equals(1));
+    });
+
     test('VideoStatus enum values are correct', () {
       expect(VideoStatus.values.length, greaterThanOrEqualTo(6));
       expect(VideoStatus.values, contains(VideoStatus.ready));
       expect(VideoStatus.values, contains(VideoStatus.processing));
       expect(VideoStatus.values, contains(VideoStatus.deleted));
+    });
+
+    test('Video.fromMap maps deletion_pending and trashed to VideoStatus.deleted', () {
+      final deletionPendingVideo = Video.fromMap({
+        'id': 'v_del_1',
+        'title': 'Soft Deleted Video',
+        'status': 'deletion_pending',
+        'channelId': 'ch1',
+        'ownerId': 'u1',
+      });
+      expect(deletionPendingVideo.status, equals(VideoStatus.deleted));
+
+      final trashedVideo = Video.fromMap({
+        'id': 'v_del_2',
+        'title': 'Trashed Video',
+        'status': 'trashed',
+        'channelId': 'ch1',
+        'ownerId': 'u1',
+      });
+      expect(trashedVideo.status, equals(VideoStatus.deleted));
     });
 
     test('VideoResolutionV2 fromMap/toMap round-trip', () {

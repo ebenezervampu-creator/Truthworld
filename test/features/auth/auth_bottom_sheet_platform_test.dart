@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
+import 'package:truthworld/components/ui/auth/auth_sheet_controller.dart';
 import 'package:truthworld/components/ui/auth/phone_verification_sheet.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import '../../test_helpers/mock_firebase.dart';
@@ -31,6 +32,7 @@ void main() {
     TargetPlatform? platformOverride,
     bool? isWebOverride,
     TargetPlatform? themePlatform,
+    AuthStep initialStep = AuthStep.options,
   }) {
     return GetMaterialApp(
       theme: ThemeData(
@@ -40,6 +42,7 @@ void main() {
         body: AuthBottomSheet(
           platformOverride: platformOverride,
           isWebOverride: isWebOverride,
+          initialStep: initialStep,
         ),
       ),
     );
@@ -171,6 +174,32 @@ void main() {
       );
       expect(find.byType(TextField), findsWidgets);
       expect(find.text('Send Verification Code'), findsOneWidget);
+    });
+
+    testWidgets('8. Default AuthBottomSheet displays language selection and progresses to Google on selecting English',
+        (tester) async {
+      await tester.pumpWidget(
+        buildTestableWidget(
+          platformOverride: TargetPlatform.android,
+          initialStep: AuthStep.languageSelection,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify language selection view is displayed
+      expect(find.text('Welcome to TruthWorld'), findsOneWidget);
+      expect(find.text('Please select your primary language to continue.'), findsOneWidget);
+      expect(find.text('English'), findsOneWidget);
+      expect(find.text('Available'), findsOneWidget);
+
+      // Tap English language tile
+      await tester.tap(find.text('English'));
+      await tester.pumpAndSettle();
+
+      // Verify transitioned to options with Google Sign-In
+      expect(find.byKey(const Key('auth_google_button')), findsOneWidget);
+      expect(find.text('Continue with Google'), findsOneWidget);
+      expect(find.text('Primary Language: English'), findsOneWidget);
     });
   });
 }

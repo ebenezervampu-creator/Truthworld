@@ -8,17 +8,29 @@ class PlayerToast extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          color: AppColors.bgPage.withValues(alpha: 0.75),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: PT.border),
-        ),
-        child: Text(
-          message,
-          style: TS.body.copyWith(fontSize: 14, fontWeight: FontWeight.w500),
+    final isZoomToast = message.contains('Zoom') ||
+        message.contains('Original') ||
+        RegExp(r'^\d+(\.\d+)?x$').hasMatch(message);
+
+    return Align(
+      alignment: isZoomToast ? Alignment.topCenter : Alignment.center,
+      child: Padding(
+        padding: EdgeInsets.only(top: isZoomToast ? 28.0 : 0.0),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.bgPage.withValues(alpha: 0.85),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: PT.border),
+          ),
+          child: Text(
+            message,
+            style: TS.body.copyWith(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
         ),
       ),
     );

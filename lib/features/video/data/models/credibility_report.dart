@@ -374,6 +374,9 @@ class UISource {
     this.citationCount = 0,
     this.snippet,
     this.retrievalProvider,
+    this.publisher,
+    this.publishedAt,
+    this.avatarUrl,
   });
 
   factory UISource.fromMap(Map<String, dynamic> map) {
@@ -387,7 +390,14 @@ class UISource {
     final rawUrl =
         (map['url'] ?? map['directUrl'] ?? map['link'])?.toString();
     final rawDomain = map['domain']?.toString();
-    final publisher = (map['publisher'] ?? map['author'])?.toString();
+    final publisher = (map['publisher'] ?? map['author'] ?? map['organization'])?.toString();
+    final publishedAt = (map['publishedAt'] ??
+            map['publishDate'] ??
+            map['date'] ??
+            map['lastPublished'] ??
+            map['timestamp'])
+        ?.toString();
+    final avatarUrl = (map['avatarUrl'] ?? map['logoUrl'] ?? map['iconUrl'])?.toString();
 
     final sanitizedUrl = rawUrl != null
         ? SourceUrlSanitizer.sanitizeUrl(
@@ -432,6 +442,9 @@ class UISource {
       snippet:
           (map['snippet'] ?? map['quote'] ?? map['provenance'])?.toString(),
       retrievalProvider: map['retrievalProvider']?.toString(),
+      publisher: publisher,
+      publishedAt: publishedAt,
+      avatarUrl: avatarUrl,
     );
   }
   final String title;
@@ -442,6 +455,9 @@ class UISource {
   final int citationCount;
   final String? snippet;
   final String? retrievalProvider;
+  final String? publisher;
+  final String? publishedAt;
+  final String? avatarUrl;
 
   Map<String, dynamic> toMap() => {
     'title': title,
@@ -452,6 +468,9 @@ class UISource {
     'citationCount': citationCount,
     'snippet': snippet,
     'retrievalProvider': retrievalProvider,
+    'publisher': publisher,
+    'publishedAt': publishedAt,
+    'avatarUrl': avatarUrl,
   };
 }
 
@@ -732,6 +751,7 @@ class UIReport {
     required this.negativeDrivers,
     required this.sources,
     required this.conclusion,
+    this.conclusionSources = const [],
     this.counterSignals = const [],
     this.reviewRequestEnabled = true,
     this.keyClaims = const [],
@@ -821,6 +841,35 @@ class UIReport {
       );
     }
 
+    final parsedSources = rawSources
+        .map((s) => UISource.fromMap(
+              Map<String, dynamic>.from(
+                s is Map ? s : {'title': s.toString()},
+              ),
+            ))
+        .toList();
+
+    final rawConclusion = map['conclusion'];
+    final conclusionText = rawConclusion is Map
+        ? (rawConclusion['text'] ?? rawConclusion['summary'] ?? '').toString()
+        : (rawConclusion ?? '').toString();
+
+    final rawConclusionSources = (rawConclusion is Map && rawConclusion['sources'] is List
+            ? rawConclusion['sources'] as List
+            : null) ??
+        (map['conclusionSources'] as List?) ??
+        (rawSources.isNotEmpty ? rawSources : null);
+
+    final parsedConclusionSources = (rawConclusionSources != null)
+        ? rawConclusionSources
+            .map((s) => UISource.fromMap(
+                  Map<String, dynamic>.from(
+                    s is Map ? s : {'title': s.toString()},
+                  ),
+                ))
+            .toList()
+        : <UISource>[];
+
     return UIReport(
       summary: UISummary.fromMap(summaryMap),
       quickVerdict: (map['quickVerdict'] ?? '').toString(),
@@ -832,14 +881,9 @@ class UIReport {
       negativeDrivers: (map['negativeDrivers'] as List? ?? [])
           .map((d) => UIDriver.fromMap(d))
           .toList(),
-      sources: rawSources
-          .map((s) => UISource.fromMap(
-                Map<String, dynamic>.from(
-                  s is Map ? s : {'title': s.toString()},
-                ),
-              ))
-          .toList(),
-      conclusion: (map['conclusion'] ?? '').toString(),
+      sources: parsedSources,
+      conclusion: conclusionText,
+      conclusionSources: parsedConclusionSources,
       counterSignals: List<String>.from(map['counterSignals'] ?? []),
       reviewRequestEnabled: map['reviewRequestEnabled'] ?? true,
       keyClaims: prioritizedKeyClaims,
@@ -854,6 +898,7 @@ class UIReport {
   final List<UIDriver> negativeDrivers;
   final List<UISource> sources;
   final String conclusion;
+  final List<UISource> conclusionSources;
   final List<String> counterSignals;
   final bool reviewRequestEnabled;
   final List<ClaimResult> keyClaims;
@@ -869,6 +914,7 @@ class UIReport {
       'negativeDrivers': negativeDrivers.map((d) => d.toMap()).toList(),
       'sources': sources.map((s) => s.toMap()).toList(),
       'conclusion': conclusion,
+      'conclusionSources': conclusionSources.map((s) => s.toMap()).toList(),
       'counterSignals': counterSignals,
       'reviewRequestEnabled': reviewRequestEnabled,
       'keyClaims': keyClaims.map((c) => c.toMap()).toList(),

@@ -11,8 +11,8 @@ import 'package:truthworld/domain/repositories/channel_repository.dart';
 
 class ChannelRepositoryImpl extends BaseRepository
     implements ChannelRepository {
-  final FirebaseFirestore _firestore;
-  final ChannelRemoteDataSource _remoteDataSource;
+  final FirebaseFirestore? _customFirestore;
+  final ChannelRemoteDataSource? _customRemoteDataSource;
   final AuthService? _authService;
   final void Function(Channel)? _onChannelCreated;
 
@@ -24,11 +24,17 @@ class ChannelRepositoryImpl extends BaseRepository
     AuthService? authService,
     void Function(Channel)? onChannelCreated,
     super.isTestMode,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _remoteDataSource = remoteDataSource ??
-            FirestoreChannelRemoteDataSource(firestore: firestore),
+  })  : _customFirestore = firestore,
+        _customRemoteDataSource = remoteDataSource,
         _authService = authService,
         _onChannelCreated = onChannelCreated;
+
+  FirebaseFirestore get _firestore =>
+      _customFirestore ?? FirebaseFirestore.instance;
+
+  ChannelRemoteDataSource get _remoteDataSource =>
+      _customRemoteDataSource ??
+      FirestoreChannelRemoteDataSource(firestore: _customFirestore);
 
   ChannelEntity _mapToEntity(Channel model) {
     return model.toEntity();

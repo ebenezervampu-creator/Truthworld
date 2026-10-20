@@ -691,7 +691,9 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
 
   String _formatCount(int count) {
     if (count < 0) count = 0;
-    if (count >= 1000000) {
+    if (count >= 1000000000) {
+      return '${(count / 1000000000).toStringAsFixed(1)}B';
+    } else if (count >= 1000000) {
       return '${(count / 1000000).toStringAsFixed(1)}M';
     } else if (count >= 1000) {
       return '${(count / 1000).toStringAsFixed(1)}K';

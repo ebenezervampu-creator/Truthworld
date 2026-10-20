@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -416,6 +418,12 @@ class ChannelWizardLinksCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: TextField(
                         controller: ctrl,
+                        maxLength: 500,
+                        buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                        inputFormatters: [
+                          LengthLimitingTextInputFormatter(500),
+                          FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                        ],
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 13,
@@ -562,6 +570,9 @@ class ChannelWizardLinksCard extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         child: TextFormField(
                           initialValue: linkMap['title'] ?? '',
+                          maxLength: 50,
+                          buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                          inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(50),
                           style: const TextStyle(color: Colors.white, fontSize: 13),
                           decoration: const InputDecoration(
                             hintText: 'Link Title (e.g. Store)',
@@ -590,6 +601,12 @@ class ChannelWizardLinksCard extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         child: TextFormField(
                           initialValue: linkMap['url'] ?? '',
+                          maxLength: 500,
+                          buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                          inputFormatters: [
+                            LengthLimitingTextInputFormatter(500),
+                            FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                          ],
                           style: const TextStyle(color: Colors.white, fontSize: 13),
                           decoration: const InputDecoration(
                             hintText: 'https://...',

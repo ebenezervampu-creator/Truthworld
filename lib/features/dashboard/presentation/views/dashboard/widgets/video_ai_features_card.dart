@@ -91,7 +91,7 @@ class VideoAIFeaturesOverviewCard extends StatelessWidget {
                     hasRealFactCheckReport);
             final effectiveTrustScore = cred.trustScore > 0
                 ? cred.trustScore
-                : video.trustScore;
+                : (cred.claims.isNotEmpty ? video.trustScore : 0.0);
 
             // Missing features calculation
             final missingFeatures = <String>[];
@@ -492,22 +492,30 @@ class VideoAIFeaturesOverviewCard extends StatelessWidget {
                     icon: Icons.fact_check_rounded,
                     title: 'AI Fact-Checking & Trust Score',
                     countText: isFactChecked
-                        ? '${effectiveTrustScore.toInt()}% Trust Score • ${cred.claims.length} Claims Evaluated'
+                        ? (cred.claims.isEmpty
+                            ? '0 Empirical Claims • Subjective Discourse'
+                            : (effectiveTrustScore > 0
+                                ? '${effectiveTrustScore.toInt()}% Trust Score • ${cred.claims.length} Claims Evaluated'
+                                : '${cred.claims.length} Claims Evaluated • Qualitative Analysis'))
                         : 'Not Fact-Checked',
                     statusBadge: _buildStatusBadge(
                       label: isFactChecked
-                          ? (effectiveTrustScore >= 75
-                              ? 'HIGH TRUST'
-                              : (effectiveTrustScore >= 50
-                                  ? 'CAUTION'
-                                  : 'FLAGGED'))
+                          ? (cred.claims.isEmpty
+                              ? 'UNASSESSED'
+                              : (effectiveTrustScore >= 75
+                                  ? 'HIGH TRUST'
+                                  : (effectiveTrustScore >= 50
+                                      ? 'CAUTION'
+                                      : 'FLAGGED')))
                           : 'NOT CHECKED',
                       color: isFactChecked
-                          ? (effectiveTrustScore >= 75
-                              ? AppColors.success
-                              : (effectiveTrustScore >= 50
-                                  ? AppColors.warning
-                                  : AppColors.error))
+                          ? (cred.claims.isEmpty
+                              ? AppColors.textTertiary
+                              : (effectiveTrustScore >= 75
+                                  ? AppColors.success
+                                  : (effectiveTrustScore >= 50
+                                      ? AppColors.warning
+                                      : AppColors.error)))
                           : AppColors.textTertiary,
                     ),
                     content: isFactChecked
@@ -515,11 +523,16 @@ class VideoAIFeaturesOverviewCard extends StatelessWidget {
                             spacing: 6,
                             runSpacing: 4,
                             children: [
-                              _buildChip('${effectiveTrustScore.toInt()}% Institutional Score'),
+                              if (effectiveTrustScore > 0 && cred.claims.isNotEmpty)
+                                _buildChip('${effectiveTrustScore.toInt()}% Institutional Score'),
                               if (cred.claims.isNotEmpty)
-                                _buildChip('${cred.claims.length} Spoken Claims'),
+                                _buildChip('${cred.claims.length} Spoken Claims')
+                              else
+                                _buildChip('0 Verifiable Assertions'),
                               if (cred.sources.isNotEmpty)
-                                _buildChip('${cred.sources.length} Grounded Sources'),
+                                _buildChip('${cred.sources.length} Grounded Sources')
+                              else if (cred.claims.isEmpty)
+                                _buildChip('Philosophical / Subjective Inquiry'),
                               _buildChip(
                                 video.canPublicViewFactCheck
                                     ? 'Publicly Visible'
@@ -540,8 +553,10 @@ class VideoAIFeaturesOverviewCard extends StatelessWidget {
                             label: Text('View Full Report', style: _actionButtonTextStyle()),
                             onPressed: () {
                               final data = cred.toMap();
-                              if (!data.containsKey('trustScore') ||
-                                  (data['trustScore'] as num? ?? 0) == 0) {
+                              if (cred.claims.isNotEmpty &&
+                                  (!data.containsKey('trustScore') ||
+                                      (data['trustScore'] as num? ?? 0) == 0) &&
+                                  effectiveTrustScore > 0) {
                                 data['trustScore'] = effectiveTrustScore;
                               }
                               Get.bottomSheet(

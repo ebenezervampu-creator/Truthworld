@@ -53,6 +53,44 @@ class DeepLinkService
   static String topicUrl(String slugOrHandle) =>
       DeepLinkUrlBuilderAndShare.topicUrl(slugOrHandle);
 
+  /// Generates a shareable community post URL.
+  static String postUrl(String postId) =>
+      DeepLinkUrlBuilderAndShare.postUrl(postId);
+
+  /// Generates a shareable clip URL.
+  static String clipUrl(
+    String videoId, {
+    required num startSeconds,
+    required num endSeconds,
+    String? clipTitle,
+  }) =>
+      DeepLinkUrlBuilderAndShare.clipUrl(
+        videoId,
+        startSeconds: startSeconds,
+        endSeconds: endSeconds,
+        clipTitle: clipTitle,
+      );
+
+  /// Generates a shareable video chapter URL.
+  static String chapterUrl(
+    String videoId, {
+    required int timestampSeconds,
+  }) =>
+      DeepLinkUrlBuilderAndShare.chapterUrl(
+        videoId,
+        timestampSeconds: timestampSeconds,
+      );
+
+  /// Generates a shareable claim verification URL.
+  static String claimUrl(
+    String videoId, {
+    required int claimIndex,
+  }) =>
+      DeepLinkUrlBuilderAndShare.claimUrl(
+        videoId,
+        claimIndex: claimIndex,
+      );
+
   /// Dispatches and navigates to the target screen parsed from the deep-link URL.
   Future<void> handleDeepLink(String url, {bool replace = false}) =>
       handleUrl(url, replace: replace);

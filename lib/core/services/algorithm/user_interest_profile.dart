@@ -177,18 +177,53 @@ class UserInterestProfile {
     this.userEmbedding,
   });
 
+  static Map<String, T> _cleanMap<T>(Map<String, T> map) {
+    final result = <String, T>{};
+    for (final entry in map.entries) {
+      final key = entry.key.trim();
+      if (key.isNotEmpty) {
+        result[key] = entry.value;
+      }
+    }
+    return result;
+  }
+
+  static Map<String, double> _cleanDoubleMap(dynamic raw) {
+    if (raw is! Map) return {};
+    final result = <String, double>{};
+    for (final entry in raw.entries) {
+      final key = entry.key?.toString().trim() ?? '';
+      if (key.isNotEmpty && entry.value is num) {
+        result[key] = (entry.value as num).toDouble();
+      }
+    }
+    return result;
+  }
+
+  static Map<String, int> _cleanIntMap(dynamic raw) {
+    if (raw is! Map) return {};
+    final result = <String, int>{};
+    for (final entry in raw.entries) {
+      final key = entry.key?.toString().trim() ?? '';
+      if (key.isNotEmpty && entry.value is num) {
+        result[key] = (entry.value as num).toInt();
+      }
+    }
+    return result;
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'userId': userId,
-      'categoryAffinities': categoryAffinities,
-      'topicAffinities': topicAffinities,
-      'interestGraph': interestGraph,
+      'categoryAffinities': _cleanMap(categoryAffinities),
+      'topicAffinities': _cleanMap(topicAffinities),
+      'interestGraph': _cleanMap(interestGraph),
       'followedTopicSlugs': followedTopicSlugs.toList(),
       'subscribedChannelIds': subscribedChannelIds.toList(),
       'recentlyWatchedVideoIds': recentlyWatchedVideoIds.toList(),
-      'watchProgress': watchProgress,
-      'categoryWatchCounts': categoryWatchCounts,
-      'topicWatchCounts': topicWatchCounts,
+      'watchProgress': _cleanMap(watchProgress),
+      'categoryWatchCounts': _cleanMap(categoryWatchCounts),
+      'topicWatchCounts': _cleanMap(topicWatchCounts),
       'totalWatchDurationSec': totalWatchDurationSec,
       'avgWatchCompletion': avgWatchCompletion,
       'factCheckedWatchCount': factCheckedWatchCount,
@@ -197,18 +232,18 @@ class UserInterestProfile {
       'recentlyDislikedVideoIds': recentlyDislikedVideoIds.toList(),
       'notInterestedVideoIds': notInterestedVideoIds.toList(),
       'blockedChannelIds': blockedChannelIds.toList(),
-      'skippedCategoryCounts': skippedCategoryCounts,
-      'earlyExitCategoryCounts': earlyExitCategoryCounts,
+      'skippedCategoryCounts': _cleanMap(skippedCategoryCounts),
+      'earlyExitCategoryCounts': _cleanMap(earlyExitCategoryCounts),
       'recentSearchQueries': recentSearchQueries,
-      'searchTopicCounts': searchTopicCounts,
+      'searchTopicCounts': _cleanMap(searchTopicCounts),
       'exploredTopicSlugs': exploredTopicSlugs.toList(),
-      'topicExploreCounts': topicExploreCounts,
+      'topicExploreCounts': _cleanMap(topicExploreCounts),
       'discoveredChannelIds': discoveredChannelIds.toList(),
-      'channelExploreCounts': channelExploreCounts,
-      'channelExposureCounts': channelExposureCounts,
+      'channelExploreCounts': _cleanMap(channelExploreCounts),
+      'channelExposureCounts': _cleanMap(channelExposureCounts),
       'recentSignals': recentSignals.map((s) => s.toMap()).toList(),
       'dislikedCategories': dislikedCategories.toList(),
-      'channelAffinities': channelAffinities,
+      'channelAffinities': _cleanMap(channelAffinities),
       'flipCoinCount': flipCoinCount,
       'oppositeWatchesCount': oppositeWatchesCount,
       if (userEmbedding != null) 'userEmbedding': userEmbedding,
@@ -229,24 +264,9 @@ class UserInterestProfile {
   factory UserInterestProfile.fromFirestore(Map<String, dynamic> data) {
     return UserInterestProfile(
       userId: data['userId']?.toString() ?? '',
-      categoryAffinities: Map<String, double>.from(
-        (data['categoryAffinities'] as Map?)?.map(
-              (k, v) => MapEntry(k.toString(), (v as num).toDouble()),
-            ) ??
-            {},
-      ),
-      topicAffinities: Map<String, double>.from(
-        (data['topicAffinities'] as Map?)?.map(
-              (k, v) => MapEntry(k.toString(), (v as num).toDouble()),
-            ) ??
-            {},
-      ),
-      interestGraph: Map<String, double>.from(
-        (data['interestGraph'] as Map?)?.map(
-              (k, v) => MapEntry(k.toString(), (v as num).toDouble()),
-            ) ??
-            {},
-      ),
+      categoryAffinities: _cleanDoubleMap(data['categoryAffinities']),
+      topicAffinities: _cleanDoubleMap(data['topicAffinities']),
+      interestGraph: _cleanDoubleMap(data['interestGraph']),
       followedTopicSlugs: Set<String>.from(data['followedTopicSlugs'] ?? []),
       subscribedChannelIds: Set<String>.from(
         data['subscribedChannelIds'] ?? [],
@@ -254,24 +274,9 @@ class UserInterestProfile {
       recentlyWatchedVideoIds: Set<String>.from(
         data['recentlyWatchedVideoIds'] ?? [],
       ),
-      watchProgress: Map<String, double>.from(
-        (data['watchProgress'] as Map?)?.map(
-              (k, v) => MapEntry(k.toString(), (v as num).toDouble()),
-            ) ??
-            {},
-      ),
-      categoryWatchCounts: Map<String, int>.from(
-        (data['categoryWatchCounts'] as Map?)?.map(
-              (k, v) => MapEntry(k.toString(), (v as num).toInt()),
-            ) ??
-            {},
-      ),
-      topicWatchCounts: Map<String, int>.from(
-        (data['topicWatchCounts'] as Map?)?.map(
-              (k, v) => MapEntry(k.toString(), (v as num).toInt()),
-            ) ??
-            {},
-      ),
+      watchProgress: _cleanDoubleMap(data['watchProgress']),
+      categoryWatchCounts: _cleanIntMap(data['categoryWatchCounts']),
+      topicWatchCounts: _cleanIntMap(data['topicWatchCounts']),
       totalWatchDurationSec:
           (data['totalWatchDurationSec'] as num?)?.toInt() ?? 0,
       avgWatchCompletion:
@@ -290,58 +295,23 @@ class UserInterestProfile {
         data['notInterestedVideoIds'] ?? [],
       ),
       blockedChannelIds: Set<String>.from(data['blockedChannelIds'] ?? []),
-      skippedCategoryCounts: Map<String, int>.from(
-        (data['skippedCategoryCounts'] as Map?)?.map(
-              (k, v) => MapEntry(k.toString(), (v as num).toInt()),
-            ) ??
-            {},
-      ),
-      earlyExitCategoryCounts: Map<String, int>.from(
-        (data['earlyExitCategoryCounts'] as Map?)?.map(
-              (k, v) => MapEntry(k.toString(), (v as num).toInt()),
-            ) ??
-            {},
-      ),
+      skippedCategoryCounts: _cleanIntMap(data['skippedCategoryCounts']),
+      earlyExitCategoryCounts: _cleanIntMap(data['earlyExitCategoryCounts']),
       recentSearchQueries: List<String>.from(data['recentSearchQueries'] ?? []),
-      searchTopicCounts: Map<String, int>.from(
-        (data['searchTopicCounts'] as Map?)?.map(
-              (k, v) => MapEntry(k.toString(), (v as num).toInt()),
-            ) ??
-            {},
-      ),
+      searchTopicCounts: _cleanIntMap(data['searchTopicCounts']),
       exploredTopicSlugs: Set<String>.from(data['exploredTopicSlugs'] ?? []),
-      topicExploreCounts: Map<String, int>.from(
-        (data['topicExploreCounts'] as Map?)?.map(
-              (k, v) => MapEntry(k.toString(), (v as num).toInt()),
-            ) ??
-            {},
-      ),
+      topicExploreCounts: _cleanIntMap(data['topicExploreCounts']),
       discoveredChannelIds:
           Set<String>.from(data['discoveredChannelIds'] ?? []),
-      channelExploreCounts: Map<String, int>.from(
-        (data['channelExploreCounts'] as Map?)?.map(
-              (k, v) => MapEntry(k.toString(), (v as num).toInt()),
-            ) ??
-            {},
-      ),
-      channelExposureCounts: Map<String, int>.from(
-        (data['channelExposureCounts'] as Map?)?.map(
-              (k, v) => MapEntry(k.toString(), (v as num).toInt()),
-            ) ??
-            {},
-      ),
+      channelExploreCounts: _cleanIntMap(data['channelExploreCounts']),
+      channelExposureCounts: _cleanIntMap(data['channelExposureCounts']),
       recentSignals:
           (data['recentSignals'] as List<dynamic>?)
               ?.map((e) => UserSignal.fromMap(Map<String, dynamic>.from(e)))
               .toList() ??
           [],
       dislikedCategories: Set<String>.from(data['dislikedCategories'] ?? []),
-      channelAffinities: Map<String, double>.from(
-        (data['channelAffinities'] as Map?)?.map(
-              (k, v) => MapEntry(k.toString(), (v as num).toDouble()),
-            ) ??
-            {},
-      ),
+      channelAffinities: _cleanDoubleMap(data['channelAffinities']),
       flipCoinCount: (data['flipCoinCount'] as num?)?.toInt() ?? 0,
       oppositeWatchesCount:
           (data['oppositeWatchesCount'] as num?)?.toInt() ?? 0,

@@ -99,7 +99,8 @@ class AuthChannelManager {
           .collection(FirestoreCollections.channels)
           .where('ownerId', isEqualTo: u.uid)
           .limit(1)
-          .get();
+          .get()
+          .timeout(const Duration(seconds: 2));
 
       if (snap.docs.isEmpty) {
         // 2. Direct check by userId
@@ -107,7 +108,8 @@ class AuthChannelManager {
             .collection(FirestoreCollections.channels)
             .where('userId', isEqualTo: u.uid)
             .limit(1)
-            .get();
+            .get()
+            .timeout(const Duration(seconds: 2));
       }
 
       if (snap.docs.isNotEmpty) {
@@ -133,13 +135,15 @@ class AuthChannelManager {
       final userDoc = await FirebaseFirestore.instance
           .collection(FirestoreCollections.users)
           .doc(u.uid)
-          .get();
+          .get()
+          .timeout(const Duration(seconds: 2));
       final chId = userDoc.data()?['channelId'] as String?;
       if (chId != null && chId.isNotEmpty) {
         final chDoc = await FirebaseFirestore.instance
             .collection(FirestoreCollections.channels)
             .doc(chId)
-            .get();
+            .get()
+            .timeout(const Duration(seconds: 2));
         if (chDoc.exists && chDoc.data() != null) {
           final ch = Channel.fromDocumentSnapshot(chDoc);
           if (ch.status != ChannelStatus.deleted) {
@@ -157,7 +161,8 @@ class AuthChannelManager {
             .collection(FirestoreCollections.channels)
             .where('email', isEqualTo: u.email)
             .limit(1)
-            .get();
+            .get()
+            .timeout(const Duration(seconds: 2));
         final emailChannels = emailSnap.docs
             .map(Channel.fromDocumentSnapshot)
             .where((c) => c.status != ChannelStatus.deleted)
@@ -243,7 +248,8 @@ class AuthChannelManager {
                   .collection(FirestoreCollections.channels)
                   .where('userId', isEqualTo: user.uid)
                   .limit(1)
-                  .get();
+                  .get()
+                  .timeout(const Duration(seconds: 3));
               final userChannels = userSnap.docs
                   .map(Channel.fromDocumentSnapshot)
                   .where((c) => c.status != ChannelStatus.deleted)
@@ -273,13 +279,15 @@ class AuthChannelManager {
               final userDoc = await FirebaseFirestore.instance
                   .collection(FirestoreCollections.users)
                   .doc(user.uid)
-                  .get();
+                  .get()
+                  .timeout(const Duration(seconds: 3));
               final chId = userDoc.data()?['channelId'] as String?;
               if (chId != null && chId.isNotEmpty) {
                 final chDoc = await FirebaseFirestore.instance
                     .collection(FirestoreCollections.channels)
                     .doc(chId)
-                    .get();
+                    .get()
+                    .timeout(const Duration(seconds: 3));
                 if (chDoc.exists && chDoc.data() != null) {
                   final ch = Channel.fromDocumentSnapshot(chDoc);
                   if (ch.status != ChannelStatus.deleted) {
@@ -309,7 +317,8 @@ class AuthChannelManager {
                     .collection(FirestoreCollections.channels)
                     .where('email', isEqualTo: user.email)
                     .limit(1)
-                    .get();
+                    .get()
+                    .timeout(const Duration(seconds: 3));
                 final emailChannels = emailSnap.docs
                     .map(Channel.fromDocumentSnapshot)
                     .where((c) => c.status != ChannelStatus.deleted)

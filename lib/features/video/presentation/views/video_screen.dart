@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/layout/global_app_bar.dart';
+import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
-import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
@@ -55,6 +55,7 @@ class VideoScreen extends GetView<VideoController> {
     return PopScope(
       onPopInvokedWithResult: (didPop, result) {},
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         backgroundColor: background,
         appBar: ResponsiveVideoAppBar(
           controller: ctrl,
@@ -106,7 +107,7 @@ class VideoScreen extends GetView<VideoController> {
       'Please sign in to proceed.',
       title: 'Sign In Required',
       actionLabel: 'SIGN IN',
-      onAction: () => AuthService.to.signInWithGoogle(),
+      onAction: AuthBottomSheet.prompt,
     );
   }
 }

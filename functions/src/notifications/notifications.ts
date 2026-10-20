@@ -6,6 +6,144 @@ import { UserNotification, NotificationType, NotificationSeverity } from "./type
 const db = admin.firestore();
 const COL_NOTIFICATIONS = "user_notifications";
 
+export type AppFlavorTarget = "app" | "studio" | "admin" | "advertiser" | "all";
+
+/**
+ * 🧭 RESOLVE TARGET APP
+ * Determines with strict accuracy which of the 4 Truthworld applications
+ * ('app' | 'studio' | 'admin' | 'advertiser') a notification is meant for.
+ */
+export function resolveTargetApp(params: {
+  type: string;
+  category?: string;
+  actionUrl?: string;
+  metadata?: Record<string, any>;
+  targetApp?: AppFlavorTarget;
+  title?: string;
+  message?: string;
+}): AppFlavorTarget {
+  // 1. Explicit targetApp parameter or metadata override
+  if (params.targetApp && ["app", "studio", "admin", "advertiser", "all"].includes(params.targetApp)) {
+    return params.targetApp;
+  }
+  if (params.metadata?.targetApp && ["app", "studio", "admin", "advertiser", "all"].includes(params.metadata.targetApp)) {
+    return params.metadata.targetApp as AppFlavorTarget;
+  }
+  if (params.metadata?.app && ["app", "studio", "admin", "advertiser", "all"].includes(params.metadata.app)) {
+    return params.metadata.app as AppFlavorTarget;
+  }
+
+  const actionUrl = (params.actionUrl || "").trim().toLowerCase();
+  // 2. Action URL matching
+  if (actionUrl.startsWith("/studio") || actionUrl.includes("studio")) {
+    return "studio";
+  }
+  if (actionUrl.startsWith("/admin") || actionUrl.includes("admin")) {
+    return "admin";
+  }
+  if (actionUrl.startsWith("/advertiser") || actionUrl.startsWith("/ads") || actionUrl.includes("advertiser")) {
+    return "advertiser";
+  }
+
+  const type = (params.type || "").trim().toLowerCase();
+  const category = (params.category || (params.metadata?.category as string) || "").trim().toLowerCase();
+
+  // 3. Studio-specific event types and categories
+  const studioTypes = [
+    "fact_check_pending",
+    "fact_check_ready",
+    "fact_check_completed",
+    "verification_result",
+    "batch_verification_result",
+    "copyright_claim",
+    "claim_dispute",
+    "creator_coach_insight",
+    "creator_motivation",
+    "coach_growth_tip",
+    "coach_growth_tip_v1",
+    "analytics_alert",
+    "monetization",
+    "monetization_revenue",
+    "monetization_payout",
+    "membership_milestone",
+    "sub_milestone",
+    "subscribers_milestone",
+    "subscribers_milestone_v1",
+    "new_subscriber",
+    "subscriber",
+    "subscription",
+    "view_milestone",
+    "performance_insight",
+    "retention_spike",
+    "ranking_change",
+    "trust_score_change",
+    "tier_promotion",
+    "tier_downgrade",
+    "inactivity_warning",
+    "performance_warning",
+    "milestone_achieved",
+    "new_follower", // In Studio: creator getting subscriber alert
+    "weekly_digest",
+    "channel_notifications",
+    "studio_notifications",
+  ];
+
+  const title = (params.title || (params.metadata?.title as string) || "").trim().toLowerCase();
+  const message = (params.message || (params.metadata?.message as string) || "").trim().toLowerCase();
+
+  const isStudioContent =
+    title.includes("truth verification") ||
+    title.includes("fact-checking") ||
+    title.includes("fact check") ||
+    title.includes("video moderation") ||
+    title.includes("thumbnail verification") ||
+    title.includes("video not accepted") ||
+    title.includes("video under manual review") ||
+    title.includes("video processing") ||
+    title.includes("video approved & published") ||
+    title.includes("new subscriber") ||
+    title.includes("creator studio") ||
+    title.includes("channel policy") ||
+    title.includes("copyright claim") ||
+    title.includes("claim dispute") ||
+    message.includes("studio notifications") ||
+    message.includes("creator studio") ||
+    message.includes("fact-checking for") ||
+    message.includes("held in studio") ||
+    message.includes("subscribed to your channel");
+
+  if (
+    studioTypes.includes(type) ||
+    type.includes("studio") ||
+    type.includes("fact_check") ||
+    type.includes("verification") ||
+    type.includes("milestone") ||
+    type.includes("monetization") ||
+    type.includes("coach") ||
+    category === "verification" ||
+    category === "monetization" ||
+    category === "analytics" ||
+    category === "growth" ||
+    category === "education" ||
+    isStudioContent
+  ) {
+    return "studio";
+  }
+
+  // 4. Admin-specific types
+  if (type.startsWith("admin_") || category === "security" || category === "policy_enforcement") {
+    return "admin";
+  }
+
+  // 5. Advertiser-specific types
+  if (type.startsWith("campaign_") || category === "sponsorship" || type.includes("advertiser")) {
+    return "advertiser";
+  }
+
+  // 6. Default to Consumer App ("app")
+  return "app";
+}
+
 /**
  * 📣 NOTIFY USER
  * Internal utility to send a notification.
@@ -18,6 +156,7 @@ export async function notifyUser(params: {
   message: string;
   actionUrl?: string;
   metadata?: Record<string, any>;
+  targetApp?: AppFlavorTarget;
 }) {
   if (!params.userId || typeof params.userId !== "string" || !params.userId.trim()) {
     logger.warn("[notifyUser] Skipped notification with missing or invalid userId", { title: params.title });
@@ -30,6 +169,8 @@ export async function notifyUser(params: {
     const priority = params.metadata?.priority || (params.severity === "priority" ? "critical" : (params.severity === "warning" ? "high" : "low"));
     const category = params.metadata?.category || (params.type.includes("verification") || params.type.includes("fact_check") ? "verification" : "system");
     const thumbnailUrl = params.metadata?.thumbnailUrl || "";
+    const targetApp = resolveTargetApp(params);
+
     const notification: any = {
       id: notificationId,
       userId: params.userId,
@@ -38,11 +179,15 @@ export async function notifyUser(params: {
       severity: params.severity,
       priority,
       category,
+      targetApp,
       ...(thumbnailUrl ? { thumbnailUrl } : {}),
       title: params.title,
       message: params.message,
       actionUrl: params.actionUrl,
-      metadata: params.metadata,
+      metadata: {
+        ...(params.metadata || {}),
+        targetApp,
+      },
       read: false,
       createdAt: Date.now(),
       pushSent: true,
@@ -60,7 +205,7 @@ export async function notifyUser(params: {
     // The Firestore write above is the critical path; FCM delivery can
     // happen asynchronously without delaying the caller. This is critical
     // during fan-out where hundreds of notifyUser() calls run in parallel.
-    sendPushNotificationForUser(params, notificationId).catch(pushErr => {
+    sendPushNotificationForUser({ ...params, targetApp }, notificationId).catch(pushErr => {
       logger.warn("[notifyUser] FCM push failed (non-critical):", { userId: params.userId, err: String(pushErr) });
     });
     
@@ -84,6 +229,7 @@ export async function sendPushNotificationForUser(
     message: string;
     actionUrl?: string;
     metadata?: Record<string, any>;
+    targetApp?: AppFlavorTarget;
   },
   notificationId: string
 ): Promise<void> {
@@ -94,6 +240,8 @@ export async function sendPushNotificationForUser(
   const fcmTokensMap = userData?.fcmTokens as Record<string, any> | undefined;
   if (!fcmTokensMap) return;
 
+  const targetApp = resolveTargetApp(params);
+
   // Extract and deduplicate tokens safely (plain string or object format)
   // Maps unique token string -> primary deviceId to prevent duplicate push deliveries
   const tokenToDeviceMap = new Map<string, string>();
@@ -101,18 +249,58 @@ export async function sendPushNotificationForUser(
 
   for (const [deviceId, val] of Object.entries(fcmTokensMap)) {
     let tokenStr = "";
+    let tokenApp = "";
+
     if (typeof val === "string") {
       tokenStr = val.trim();
-    } else if (val && typeof val === "object" && typeof val.token === "string") {
-      tokenStr = val.token.trim();
-    }
-    if (tokenStr.length > 0) {
-      if (tokenToDeviceMap.has(tokenStr)) {
-        // Redundant entry holding the identical token - mark for background cleanup
-        duplicateDeviceIdsToRemove.push(deviceId);
-      } else {
-        tokenToDeviceMap.set(tokenStr, deviceId);
+    } else if (val && typeof val === "object") {
+      if (typeof val.token === "string") {
+        tokenStr = val.token.trim();
       }
+      if (typeof val.app === "string") {
+        tokenApp = val.app.trim().toLowerCase();
+      } else if (typeof val.appFlavor === "string") {
+        tokenApp = val.appFlavor.trim().toLowerCase();
+      }
+    }
+
+    if (!tokenApp) {
+      if (deviceId.startsWith("studio_")) tokenApp = "studio";
+      else if (deviceId.startsWith("admin_")) tokenApp = "admin";
+      else if (deviceId.startsWith("advertiser_")) tokenApp = "advertiser";
+      else if (deviceId.startsWith("app_")) tokenApp = "app";
+    }
+
+    if (tokenStr.length === 0) continue;
+
+    // ── FLAVOR ISOLATION GATE ──
+    // Strictly separate push notifications between all four Truthworld apps:
+    // - Consumer App: 'app'
+    // - Creator Studio: 'studio'
+    // - Admin & Moderation: 'admin'
+    // - Advertiser Portal: 'advertiser'
+    if (targetApp !== "all") {
+      if (tokenApp) {
+        if (tokenApp !== targetApp) {
+          logger.info(`[FCM] Filtered out device '${deviceId}' (app: '${tokenApp}') because targetApp is '${targetApp}'`);
+          continue;
+        }
+      } else {
+        // Untagged legacy tokens:
+        // Studio, Admin, and Advertiser notifications MUST NOT be pushed to untagged tokens
+        // to strictly prevent Studio notifications from bleeding into the Consumer app.
+        if (targetApp !== "app") {
+          logger.info(`[FCM] Suppressed untagged device '${deviceId}' for '${targetApp}' notification to prevent Consumer app leakage`);
+          continue;
+        }
+      }
+    }
+
+    if (tokenToDeviceMap.has(tokenStr)) {
+      // Redundant entry holding the identical token - mark for background cleanup
+      duplicateDeviceIdsToRemove.push(deviceId);
+    } else {
+      tokenToDeviceMap.set(tokenStr, deviceId);
     }
   }
 
@@ -128,7 +316,10 @@ export async function sendPushNotificationForUser(
   }
 
   const tokens = Array.from(tokenToDeviceMap.keys());
-  if (tokens.length === 0) return;
+  if (tokens.length === 0) {
+    logger.info(`[FCM] No registered devices matching targetApp '${targetApp}' for user ${params.userId}. Push skipped.`);
+    return;
+  }
 
   const dataPayload: Record<string, string> = {
     click_action: "FLUTTER_NOTIFICATION_CLICK",
@@ -136,6 +327,7 @@ export async function sendPushNotificationForUser(
     type: String(params.type),
     severity: String(params.severity),
     notificationId: String(notificationId),
+    targetApp: String(targetApp),
   };
 
   // Forward metadata fields (e.g. videoId, commentId, replyId, channelId)
@@ -147,19 +339,32 @@ export async function sendPushNotificationForUser(
     }
   }
 
-  const fallbackIconUrl = "https://www.truthworld.in/icons/Icon-512.png";
-  const notificationImageUrl = (params.metadata?.thumbnailUrl ||
+  // Rich media image handling:
+  // Only attach an image attachment URL if an authentic content thumbnail or avatar exists.
+  // Never pass the app logo / icon URL as imageUrl, which forces Android OS into BigPictureStyle
+  // displaying a large square photo card instead of the clean native system notification.
+  const rawImageUrl = (
+    params.metadata?.thumbnailUrl ||
     params.metadata?.imageUrl ||
     params.metadata?.userAvatar ||
     params.metadata?.avatarUrl ||
-    fallbackIconUrl) as string;
+    ""
+  );
+  const mediaImageUrl = (
+    typeof rawImageUrl === "string" &&
+    rawImageUrl.trim().startsWith("http") &&
+    !rawImageUrl.includes("Icon-512.png") &&
+    !rawImageUrl.includes("Icon-192.png") &&
+    !rawImageUrl.includes("app_logo") &&
+    !rawImageUrl.includes("play_icon")
+  ) ? rawImageUrl.trim() : undefined;
 
-  const payload = {
+  const payload: admin.messaging.MulticastMessage = {
     tokens,
     notification: {
       title: params.title,
       body: params.message,
-      imageUrl: notificationImageUrl,
+      ...(mediaImageUrl ? { imageUrl: mediaImageUrl } : {}),
     },
     data: dataPayload,
     android: {
@@ -170,12 +375,11 @@ export async function sendPushNotificationForUser(
         channelId: "truthworld_notifications",
         clickAction: "FLUTTER_NOTIFICATION_CLICK",
         priority: "max" as const, // MAX system priority for heads-up alert
-        notificationPriority: "PRIORITY_MAX" as const,
         visibility: "public" as const,
         tag: String(notificationId), // OS-level collapse/deduplication tag
         icon: "ic_notification",
         color: "#14EAB2",
-        imageUrl: notificationImageUrl,
+        ...(mediaImageUrl ? { imageUrl: mediaImageUrl } : {}),
       },
     },
     apns: {
@@ -191,9 +395,7 @@ export async function sendPushNotificationForUser(
           "mutable-content": 1, // iOS notification service extension trigger
         },
       },
-      fcmOptions: {
-        imageUrl: notificationImageUrl,
-      },
+      ...(mediaImageUrl ? { fcmOptions: { imageUrl: mediaImageUrl } } : {}),
     },
     webpush: {
       headers: {
@@ -202,7 +404,7 @@ export async function sendPushNotificationForUser(
       notification: {
         icon: "https://www.truthworld.in/icons/Icon-192.png",
         badge: "https://www.truthworld.in/icons/Icon-192.png",
-        image: notificationImageUrl,
+        ...(mediaImageUrl ? { image: mediaImageUrl } : {}),
       },
       fcmOptions: {
         link: params.actionUrl || "https://www.truthworld.in",

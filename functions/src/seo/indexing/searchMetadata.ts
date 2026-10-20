@@ -42,6 +42,14 @@ export async function updateVideoSearchMetadata(db: admin.firestore.Firestore, v
 
 export async function updateChannelSearchMetadata(db: admin.firestore.Firestore, channelId: string, data: any) {
   if (!channelId) return;
+
+  const vis = (data.visibility || "").toLowerCase();
+  const isPrivateOrUnlisted = vis === "private" || vis === "unlisted" || data.isPublic === false;
+  if (isPrivateOrUnlisted) {
+    await db.collection("channel_search").doc(channelId).delete().catch(() => {});
+    return;
+  }
+
   const searchDoc = {
     id: channelId,
     name: data.displayName || data.name || "",
@@ -51,6 +59,7 @@ export async function updateChannelSearchMetadata(db: admin.firestore.Firestore,
     avatarUrl: data.profile?.photoUrl || data.avatarUrl || data.avatar || "",
     subscriberCount: data.stats?.subscriberCount || data.subscriberCount || 0,
     status: data.status || "active",
+    visibility: data.visibility || "Public",
     updatedAt: admin.firestore.FieldValue.serverTimestamp()
   };
 

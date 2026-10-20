@@ -230,7 +230,11 @@ class TermsAndConditionsPage extends StatelessWidget {
                           WebPlatformUtils.pushUrlHistory('/');
                         }
                       } else {
-                        Get.back();
+                        if (Navigator.of(context).canPop()) {
+                          Get.back();
+                        } else {
+                          Get.offAllNamed('/');
+                        }
                       }
                     },
                   )
@@ -391,8 +395,8 @@ class TermsAndConditionsPage extends StatelessWidget {
   static const String _termsText = """
 TERMS AND CONDITIONS
 
-Last Updated: April 04, 2026
-Effective Date: April 04, 2026
+Last Updated: October 12, 2026
+Effective Date: October 12, 2026
 
 1. INTRODUCTION AND ACCEPTANCE OF TERMS
 

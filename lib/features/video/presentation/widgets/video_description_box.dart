@@ -6,7 +6,10 @@ import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/core/widgets/clickable_url_text.dart';
+import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/channel/data/services/channel_memory_cache.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
@@ -27,6 +30,7 @@ class VideoDescriptionBox extends StatelessWidget {
   final MainController mainController;
 
   static String _formatViews(int views) {
+    if (views >= 1000000000) return '${(views / 1000000000).toStringAsFixed(1)}B';
     if (views >= 1000000) return '${(views / 1000000).toStringAsFixed(1)}M';
     if (views >= 1000) return '${(views / 1000).toStringAsFixed(1)}K';
     return views.toString();
@@ -40,6 +44,21 @@ class VideoDescriptionBox extends StatelessWidget {
     return Obx(() {
       final expanded = controller.isExpanded.value;
       final showTranscript = controller.isTranscriptVisible.value;
+      final video = controller.rxVideo.value;
+      final videoId = video.id;
+      final channelId = video.channelId.isNotEmpty
+          ? video.channelId
+          : video.ownerId;
+      final channel = ChannelMemoryCache.getReactive(channelId);
+
+      final effectiveShowLike = video.showLikeCount &&
+          (channel == null || channel.showLikeCount);
+      final effectiveShowDislike = video.showDislikeCount &&
+          (channel == null || channel.showDislikeCount);
+
+      final likesCount = mainController.videoLikes[videoId] ?? video.likeCount;
+      final dislikesCount = mainController.videoDislikes[videoId] ?? video.dislikeCount;
+      final viewsCount = mainController.videoViews[videoId] ?? video.views;
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(12),
@@ -59,8 +78,26 @@ class VideoDescriptionBox extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 4,
                     children: [
+                      if (effectiveShowLike)
+                        Text(
+                          '${FormatUtils.formatCount(likesCount)} ${likesCount == 1 ? 'like' : 'likes'}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      if (effectiveShowDislike)
+                        Text(
+                          '${FormatUtils.formatCount(dislikesCount)} ${dislikesCount == 1 ? 'dislike' : 'dislikes'}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       Text(
-                        '${FormatUtils.formatCount(mainController.videoLikes[controller.video.id] ?? controller.video.likeCount)} likes',
+                        '${_formatViews(viewsCount)} ${viewsCount == 1 ? 'view' : 'views'}',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 13,
@@ -68,23 +105,7 @@ class VideoDescriptionBox extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        '${FormatUtils.formatCount(mainController.videoDislikes[controller.video.id] ?? controller.video.dislikeCount)} dislikes',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        '${_formatViews(controller.video.views)} views',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        timeago.format(controller.video.uploadedAt.toDate()),
+                        timeago.format(video.uploadedAt.toDate()),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 13,
@@ -95,7 +116,7 @@ class VideoDescriptionBox extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   ClickableUrlText(
-                    text: controller.video.description,
+                    text: video.description,
                     maxLines: expanded ? null : 2,
                     overflow: expanded
                         ? TextOverflow.visible
@@ -106,7 +127,7 @@ class VideoDescriptionBox extends StatelessWidget {
                       height: 1.5,
                     ),
                   ),
-                  if (!expanded && controller.video.description.length > 60)
+                  if (!expanded && video.description.length > 60)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
@@ -118,6 +139,7 @@ class VideoDescriptionBox extends StatelessWidget {
                         ),
                       ),
                     ),
+                  if (expanded) _buildChannelLinksSection(channel, video),
                 ],
               ),
             ),
@@ -195,7 +217,7 @@ class VideoDescriptionBox extends StatelessWidget {
                       playerCtrl?.startSubtitleSyncTimer();
                       final currentPos = playerCtrl?.videoPlayerController.value.position ??
                           controller.currentPosition;
-                      controller.transcriptController.autoScrollEnabled.value = true;
+                      controller.transcriptController.resumeAutoScroll();
                       controller.transcriptController.syncToCurrentPosition(
                         currentPos,
                         forceScroll: true,
@@ -314,11 +336,21 @@ class VideoDescriptionBox extends StatelessWidget {
       }
 
       var summary = '';
-      if (UserFeedbackSanitizer.isValidVideoSummary(controller.moderationSummary.value)) {
+      final segs = controller.transcriptController.transcriptSegments;
+      if (UserFeedbackSanitizer.isValidVideoSummary(
+        controller.moderationSummary.value,
+        transcriptSegments: segs,
+      )) {
         summary = controller.moderationSummary.value;
-      } else if (UserFeedbackSanitizer.isValidVideoSummary(controller.video.moderationSummary)) {
+      } else if (UserFeedbackSanitizer.isValidVideoSummary(
+        controller.video.moderationSummary,
+        transcriptSegments: segs,
+      )) {
         summary = controller.video.moderationSummary;
-      } else if (UserFeedbackSanitizer.isValidVideoSummary(VideoMediaService.credibilityCache[controller.video.id]?.summary)) {
+      } else if (UserFeedbackSanitizer.isValidVideoSummary(
+        VideoMediaService.credibilityCache[controller.video.id]?.summary,
+        transcriptSegments: segs,
+      )) {
         summary = VideoMediaService.credibilityCache[controller.video.id]!.summary;
       }
 
@@ -496,6 +528,7 @@ class VideoDescriptionBox extends StatelessWidget {
       // Ensure list jumps to active position after layout
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (controller.isTranscriptVisible.value &&
+            controller.transcriptController.autoScrollEnabled.value &&
             controller.transcriptController.activeSegmentIndex.value != -1) {
           controller.transcriptController.scrollToSegmentIndex(
             controller.transcriptController.activeSegmentIndex.value,
@@ -523,10 +556,7 @@ class VideoDescriptionBox extends StatelessWidget {
                 if (isAuto) return const SizedBox.shrink();
                 return InkWell(
                   onTap: () {
-                    controller.transcriptController.autoScrollEnabled.value = true;
-                    final pos = playerCtrl?.videoPlayerController.value.position ??
-                        controller.currentPosition;
-                    controller.transcriptController.syncToCurrentPosition(pos, forceScroll: true);
+                    controller.transcriptController.resumeAutoScroll();
                   },
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
@@ -566,10 +596,13 @@ class VideoDescriptionBox extends StatelessWidget {
                 color: Colors.white.withValues(alpha: 0.08),
               ),
             ),
-            child: NotificationListener<UserScrollNotification>(
+            child: NotificationListener<ScrollNotification>(
               onNotification: (notification) {
-                if (notification.direction != ScrollDirection.idle) {
-                  controller.transcriptController.autoScrollEnabled.value = false;
+                if (notification is UserScrollNotification &&
+                    notification.direction != ScrollDirection.idle) {
+                  controller.transcriptController.onUserScrolled();
+                } else if (notification is ScrollEndNotification) {
+                  controller.transcriptController.onUserScrollEnded();
                 }
                 return false;
               },
@@ -580,6 +613,7 @@ class VideoDescriptionBox extends StatelessWidget {
                 itemBuilder: (context, index) {
                   final seg = segments[index];
                   return TranscriptSegmentTile(
+                    key: controller.transcriptController.getSegmentKey(index),
                     seg: seg,
                     playerCtrl: playerCtrl,
                     videoId: controller.video.id,
@@ -593,6 +627,188 @@ class VideoDescriptionBox extends StatelessWidget {
         ],
       );
     });
+  }
+
+  Widget _buildChannelLinksSection(Channel? channel, Video video) {
+    final links = <Map<String, dynamic>>[];
+
+    if (channel != null) {
+      if (channel.websiteUrl.isNotEmpty) {
+        final uri = Uri.tryParse(channel.websiteUrl);
+        final domain = uri?.host.replaceAll('www.', '') ?? channel.websiteUrl;
+        links.add({
+          'title': 'Website',
+          'display': domain,
+          'url': channel.websiteUrl,
+          'icon': Icons.language_rounded,
+        });
+      }
+
+      for (final item in channel.customLinks) {
+        final title = (item['title'] ?? '').toString().trim();
+        final url = (item['url'] ?? '').toString().trim();
+        if (url.isNotEmpty) {
+          final uri = Uri.tryParse(url);
+          final domain = uri?.host.replaceAll('www.', '') ?? url;
+          links.add({
+            'title': title.isNotEmpty ? title : 'Link',
+            'display': domain,
+            'url': url,
+            'icon': Icons.link_rounded,
+          });
+        }
+      }
+
+      if (channel.socialLinks != null) {
+        final platformIcons = <String, IconData>{
+          'twitter': Icons.alternate_email,
+          'x': Icons.alternate_email,
+          'instagram': Icons.camera_alt_outlined,
+          'facebook': Icons.facebook,
+          'linkedin': Icons.business,
+          'tiktok': Icons.music_note,
+          'youtube': Icons.play_circle_outline,
+          'whatsapp': Icons.chat_outlined,
+          'telegram': Icons.send_outlined,
+          'discord': Icons.forum_outlined,
+          'github': Icons.code,
+          'twitch': Icons.live_tv,
+          'reddit': Icons.chat_bubble_outline,
+          'patreon': Icons.monetization_on_outlined,
+          'threads': Icons.alternate_email_outlined,
+        };
+
+        for (final entry in channel.socialLinks!.entries) {
+          if (entry.key == 'website' || entry.key == 'customLinks') continue;
+          if (entry.value is String && (entry.value as String).trim().isNotEmpty) {
+            final url = (entry.value as String).trim();
+            final uri = Uri.tryParse(url);
+            final domain = uri?.host.replaceAll('www.', '') ?? url;
+            final key = entry.key.toLowerCase();
+            links.add({
+              'title': key.isNotEmpty ? (key[0].toUpperCase() + key.substring(1)) : 'Social',
+              'display': domain,
+              'url': url,
+              'icon': platformIcons[key] ?? Icons.share_rounded,
+            });
+          }
+        }
+      }
+    }
+
+    final sources = video.sourceLinks ?? const [];
+
+    if (links.isEmpty && sources.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 12),
+        const Divider(color: Colors.white12, height: 1),
+        const SizedBox(height: 10),
+        if (links.isNotEmpty) ...[
+          Text(
+            'LINKS',
+            style: GoogleFonts.roboto(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: Colors.white70,
+              letterSpacing: 0.8,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: links.map((link) {
+              return InkWell(
+                onTap: () => ClickableUrlText.launchUrlString(link['url'] as String),
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(link['icon'] as IconData, size: 14, color: AppColors.brand),
+                      const SizedBox(width: 5),
+                      Text(
+                        link['title'] as String,
+                        style: GoogleFonts.roboto(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '(${link['display']})',
+                        style: GoogleFonts.roboto(
+                          color: Colors.white54,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+        if (sources.isNotEmpty) ...[
+          if (links.isNotEmpty) const SizedBox(height: 10),
+          Text(
+            'SOURCE REFERENCES',
+            style: GoogleFonts.roboto(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: Colors.white70,
+              letterSpacing: 0.8,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: sources.map((src) {
+              final uri = Uri.tryParse(src);
+              final host = uri?.host.replaceAll('www.', '') ?? src;
+              return InkWell(
+                onTap: () => ClickableUrlText.launchUrlString(src),
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: AppColors.brand.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.brand.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.verified_outlined, size: 13, color: AppColors.brand),
+                      const SizedBox(width: 5),
+                      Text(
+                        host,
+                        style: GoogleFonts.roboto(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ],
+    );
   }
 }
 

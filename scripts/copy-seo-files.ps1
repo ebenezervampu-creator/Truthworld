@@ -40,7 +40,11 @@ $filesToCopy = @(
     "flutter_service_worker.js",
     "flutter.js.map",
     "llms.txt",
-    "llms-full.txt"
+    "llms-full.txt",
+    "favicon.ico",
+    "favicon.png",
+    "favicon-48x48.png",
+    "manifest.json"
 )
 
 foreach ($buildWebDir in $activeDirs) {
@@ -54,6 +58,16 @@ foreach ($buildWebDir in $activeDirs) {
         }
     }
 
+    $iconsDir = Join-Path $webDir "icons"
+    if (Test-Path $iconsDir) {
+        $destIcons = Join-Path $buildWebDir "icons"
+        if (-not (Test-Path $destIcons)) {
+            New-Item -ItemType Directory -Path $destIcons -Force | Out-Null
+        }
+        Copy-Item -Path (Join-Path $iconsDir "*") -Destination $destIcons -Recurse -Force
+        Write-Host "  [+] Copied icons folder" -ForegroundColor Green
+    }
+
     $wellKnownDir = Join-Path $webDir ".well-known"
     if (Test-Path $wellKnownDir) {
         $destWellKnown = Join-Path $buildWebDir ".well-known"
@@ -62,5 +76,5 @@ foreach ($buildWebDir in $activeDirs) {
     }
 }
 
-Write-Host "`nSEO and Agentic files synchronized successfully!" -ForegroundColor Green
+Write-Host "`nSEO and Web assets synchronized successfully!" -ForegroundColor Green
 

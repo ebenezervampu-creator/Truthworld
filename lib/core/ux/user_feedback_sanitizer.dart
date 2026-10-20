@@ -70,16 +70,27 @@ class UserFeedbackSanitizer {
     RegExp('retry_exhausted_passthrough', caseSensitive: false),
     RegExp('summary unavailable', caseSensitive: false),
     RegExp('synthesis unavailable', caseSensitive: false),
+    RegExp('synthesis was unavailable', caseSensitive: false),
     RegExp('analysis unavailable', caseSensitive: false),
     RegExp('peak load', caseSensitive: false),
     RegExp('scheduled for verification review', caseSensitive: false),
     RegExp('moderation system error', caseSensitive: false),
     RegExp('strategic analysis unavailable', caseSensitive: false),
     RegExp('infrastructure timeout', caseSensitive: false),
+    RegExp('claim verdicts are still valid', caseSensitive: false),
+    RegExp(r'\btimeout\b', caseSensitive: false),
+    RegExp('timed out', caseSensitive: false),
+    RegExp('capacity spikes', caseSensitive: false),
+    RegExp('processing error due to', caseSensitive: false),
+    RegExp('ai provider.*capacity', caseSensitive: false),
   ];
 
-  /// Checks if a string is a genuine content summary and not a moderation/system message.
-  static bool isValidVideoSummary(String? summary) {
+  /// Checks if a string is a genuine content summary and not a moderation/system message or verbatim transcript slice.
+  static bool isValidVideoSummary(
+    String? summary, {
+    String? transcript,
+    List<dynamic>? transcriptSegments,
+  }) {
     if (summary == null) return false;
     final trimmed = summary.trim();
     if (trimmed.isEmpty) return false;
@@ -89,15 +100,60 @@ class UserFeedbackSanitizer {
         return false;
       }
     }
+
+    // A genuine AI summary is a complete synthesis, not a truncated transcript cut off with '...'
+    if (trimmed.endsWith('...') && trimmed.length >= 150) {
+      if (trimmed.startsWith('Welcome to') ||
+          trimmed.startsWith('Hey guys') ||
+          trimmed.startsWith('Hey everyone') ||
+          trimmed.startsWith('In this video') ||
+          trimmed.startsWith('Today we') ||
+          trimmed.startsWith('Today I')) {
+        return false;
+      }
+    }
+
+    final cleanSummary = trimmed.replaceAll(RegExp(r'\.{3}$'), '').trim();
+    if (cleanSummary.length > 20) {
+      if (transcript != null && transcript.trim().isNotEmpty) {
+        if (transcript.trim().startsWith(cleanSummary)) {
+          return false;
+        }
+      }
+      if (transcriptSegments != null && transcriptSegments.isNotEmpty) {
+        final segmentsText = transcriptSegments
+            .take(6)
+            .map((s) => s is String ? s : (s.text as String? ?? ''))
+            .join(' ')
+            .trim();
+        if (segmentsText.isNotEmpty && segmentsText.startsWith(cleanSummary)) {
+          return false;
+        }
+      }
+    }
+
     return true;
   }
 
   /// Returns a clean video summary if valid, or an empty string if invalid or a moderation message.
-  static String sanitizeVideoSummary(String? summary) {
-    if (!isValidVideoSummary(summary)) {
+  static String sanitizeVideoSummary(
+    String? summary, {
+    String? transcript,
+    List<dynamic>? transcriptSegments,
+  }) {
+    if (!isValidVideoSummary(summary, transcript: transcript, transcriptSegments: transcriptSegments)) {
       return '';
     }
     return summary!.trim();
+  }
+
+  /// Sanitizes viewer notes / advisories. If technical, timeout, or error messages are present, returns empty string.
+  static String sanitizeViewerNote(String? note) {
+    if (note == null) return '';
+    final trimmed = note.trim();
+    if (trimmed.isEmpty) return '';
+    if (!isValidVideoSummary(trimmed)) return '';
+    return trimmed;
   }
 
   /// Generic or harsh titles that must be sanitized or removed.

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
@@ -47,6 +48,12 @@ class DistributedCounterService extends GetxService {
   }) async {
     if (videoId.trim().isEmpty) return;
 
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null || currentUser.isAnonymous) {
+      // Unsigned / guest viewers are strictly excluded from video and channel view counts
+      return;
+    }
+
     try {
       final shardId = _random.nextInt(numShards).toString();
       final shardRef = _firestore
@@ -63,23 +70,37 @@ class DistributedCounterService extends GetxService {
 
       await shardRef.set(shardPayload, SetOptions(merge: true)).timeout(timeout);
 
-      // Best-effort update on parent video document for immediate O(1) UI reads.
+      // Best-effort update on parent video document for immediate O(1) UI reads (authenticated only).
       // Without this, viewCount stays 0 until the nightly midnight rollup.
       // Matches the same pattern already used by incrementVideoComments.
-      _firestore
-          .collection(FirestoreCollections.videos)
-          .doc(videoId)
-          .update({
-            'viewCount': FieldValue.increment(1),
-            if (isQualified) 'qualifiedViewCount': FieldValue.increment(1),
-          })
-          .catchError((e, s) {
-            ErrorHandler.log(
-              e,
-              stackTrace: s,
-              tag: 'DistributedCounterService.videoParentViewCount',
-            );
-          });
+      if (FirebaseAuth.instance.currentUser != null) {
+        _firestore
+            .collection(FirestoreCollections.videos)
+            .doc(videoId)
+            .update({
+              'viewCount': FieldValue.increment(1),
+              'views': FieldValue.increment(1),
+            })
+            .catchError((e, s) {
+              // Fallback: If document schema has only one of the view keys, try single-field updates
+              _firestore
+                  .collection(FirestoreCollections.videos)
+                  .doc(videoId)
+                  .update({'viewCount': FieldValue.increment(1)})
+                  .catchError((_, __) {
+                    _firestore
+                        .collection(FirestoreCollections.videos)
+                        .doc(videoId)
+                        .update({'views': FieldValue.increment(1)})
+                        .catchError((_, __) {});
+                  });
+              ErrorHandler.log(
+                e,
+                stackTrace: s,
+                tag: 'DistributedCounterService.videoParentViewCount',
+              );
+            });
+      }
 
       // Distribute channel view increment across channel shards if provided
       if (channelId != null && channelId.trim().isNotEmpty) {
@@ -104,18 +125,20 @@ class DistributedCounterService extends GetxService {
               );
             });
 
-        // Best-effort update on parent channel document for immediate viewCount reads
-        _firestore
-            .collection(FirestoreCollections.channels)
-            .doc(channelId)
-            .update({'viewCount': FieldValue.increment(1)})
-            .catchError((e, s) {
-              ErrorHandler.log(
-                e,
-                stackTrace: s,
-                tag: 'DistributedCounterService.channelParentViewCount',
-              );
-            });
+        // Best-effort update on parent channel document for immediate viewCount reads (authenticated only)
+        if (FirebaseAuth.instance.currentUser != null) {
+          _firestore
+              .collection(FirestoreCollections.channels)
+              .doc(channelId)
+              .update({'viewCount': FieldValue.increment(1)})
+              .catchError((e, s) {
+                ErrorHandler.log(
+                  e,
+                  stackTrace: s,
+                  tag: 'DistributedCounterService.channelParentViewCount',
+                );
+              });
+        }
       }
     } catch (e, stackTrace) {
       ErrorHandler.log(
@@ -150,21 +173,23 @@ class DistributedCounterService extends GetxService {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true)).timeout(timeout);
 
-      // Best-effort update on parent video document for immediate UI reads
-      _firestore
-          .collection(FirestoreCollections.videos)
-          .doc(videoId)
-          .update({
-            'totalWatchTimeSeconds': FieldValue.increment(secondsDelta),
-            'updatedAt': FieldValue.serverTimestamp(),
-          })
-          .catchError((e, s) {
-            ErrorHandler.log(
-              e,
-              stackTrace: s,
-              tag: 'DistributedCounterService.videoParentWatchTime',
-            );
-          });
+      // Best-effort update on parent video document for immediate UI reads (authenticated only)
+      if (FirebaseAuth.instance.currentUser != null) {
+        _firestore
+            .collection(FirestoreCollections.videos)
+            .doc(videoId)
+            .update({
+              'totalWatchTimeSeconds': FieldValue.increment(secondsDelta),
+              'updatedAt': FieldValue.serverTimestamp(),
+            })
+            .catchError((e, s) {
+              ErrorHandler.log(
+                e,
+                stackTrace: s,
+                tag: 'DistributedCounterService.videoParentWatchTime',
+              );
+            });
+      }
 
       if (channelId != null && channelId.trim().isNotEmpty) {
         final channelShardId = _random.nextInt(numShards).toString();
@@ -188,20 +213,22 @@ class DistributedCounterService extends GetxService {
               );
             });
 
-        _firestore
-            .collection(FirestoreCollections.channels)
-            .doc(channelId)
-            .update({
-              'totalWatchTimeSeconds': FieldValue.increment(secondsDelta),
-              'metrics.totalWatchTimeMinutes': FieldValue.increment(secondsDelta / 60),
-            })
-            .catchError((e, s) {
-              ErrorHandler.log(
-                e,
-                stackTrace: s,
-                tag: 'DistributedCounterService.channelParentWatchTime',
-              );
-            });
+        if (FirebaseAuth.instance.currentUser != null) {
+          _firestore
+              .collection(FirestoreCollections.channels)
+              .doc(channelId)
+              .update({
+                'totalWatchTimeSeconds': FieldValue.increment(secondsDelta),
+                'metrics.totalWatchTimeMinutes': FieldValue.increment(secondsDelta / 60),
+              })
+              .catchError((e, s) {
+                ErrorHandler.log(
+                  e,
+                  stackTrace: s,
+                  tag: 'DistributedCounterService.channelParentWatchTime',
+                );
+              });
+        }
       }
     } catch (e, stackTrace) {
       ErrorHandler.log(
@@ -236,6 +263,31 @@ class DistributedCounterService extends GetxService {
         tag: 'DistributedCounterService.getRealtimeVideoViews',
       );
       return 0;
+    }
+  }
+
+  /// Attempts to heal parent video document if its viewCount is 0 but shards have counts.
+  Future<void> healParentVideoViews(String videoId, int currentShardViews) async {
+    if (videoId.trim().isEmpty || currentShardViews <= 0) return;
+    if (FirebaseAuth.instance.currentUser == null) return;
+
+    try {
+      final docRef = _firestore.collection(FirestoreCollections.videos).doc(videoId);
+      final snap = await docRef.get();
+      if (!snap.exists) return;
+      final data = snap.data() ?? {};
+      final rawVCount = (data['viewCount'] as num?)?.toInt() ?? 0;
+      final rawViews = (data['views'] as num?)?.toInt() ?? 0;
+      if (rawVCount == 0 && rawViews == 0) {
+        await docRef.update({
+          'viewCount': FieldValue.increment(1),
+          'views': FieldValue.increment(1),
+        }).catchError((_) {
+          docRef.update({'viewCount': FieldValue.increment(1)}).catchError((_) {});
+        });
+      }
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'DistributedCounterService.healParentVideoViews');
     }
   }
 

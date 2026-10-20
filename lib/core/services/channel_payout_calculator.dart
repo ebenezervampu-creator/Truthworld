@@ -58,6 +58,20 @@ class ChannelPayoutCalculator {
   /// Channel video withdrawal threshold: 1,000 views per video (Standard & Custom)
   static const int channelWithdrawalViewsThreshold = 1000; // 1k Views
 
+  /// Minimum cash withdrawal threshold for Indian channels: ₹100 (100 Rupees)
+  static const double minWithdrawalAmountINR = 100.0;
+
+  /// Minimum cash withdrawal threshold for other countries: $10 (10 Dollars)
+  static const double minWithdrawalAmountUSD = 10.0;
+
+  /// Resolves the minimum cash withdrawal threshold based on whether the channel is in India.
+  static double getMinimumWithdrawalThreshold({bool isIndian = true}) =>
+      isIndian ? minWithdrawalAmountINR : minWithdrawalAmountUSD;
+
+  /// Formatted minimum withdrawal string (e.g., '₹100' or '$10')
+  static String getMinimumWithdrawalFormatted({bool isIndian = true}) =>
+      isIndian ? '₹100' : r'$10';
+
   /// Evaluates whether a channel meets the qualification criteria to turn monetization ON:
   /// 1. Any video of the channel has crossed 1,000 views AND 10 hours (600 mins) watch time.
   /// 2. Creator KYC verification is completed.

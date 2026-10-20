@@ -29,13 +29,14 @@ export async function generateStaticSitemap(): Promise<string> {
   const pages = [
     { path: "", priority: "1.0" },
     { path: "/home", priority: "1.0" },
-    { path: "/studio", priority: "0.9" },
     { path: "/advertisements", priority: "0.9" },
     { path: "/browse", priority: "0.8" },
     { path: "/trending", priority: "0.8" },
     { path: "/about", priority: "0.6" },
     { path: "/privacy", priority: "0.5" },
     { path: "/terms", priority: "0.5" },
+    { path: "/community-guidelines", priority: "0.5" },
+    { path: "/copyright-complaint", priority: "0.4" },
     { path: "/help", priority: "0.6" },
     { path: "/feedback", priority: "0.6" },
     { path: "/premium", priority: "0.6" }
@@ -213,6 +214,11 @@ export async function generateChannelsSitemapShard(db: admin.firestore.Firestore
       const data = doc.data();
       const status = (data.status || "").toLowerCase();
       if (status === "suspended" || status === "banned" || status === "deleted") {
+        return;
+      }
+
+      const vis = (data.visibility || "").toLowerCase();
+      if (vis === "private" || vis === "unlisted" || data.isPublic === false) {
         return;
       }
 

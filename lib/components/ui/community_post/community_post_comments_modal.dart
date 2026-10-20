@@ -21,11 +21,7 @@ void showCommunityCommentsModal(
 ) {
   final isSortNewest = false.obs;
   final textController = TextEditingController();
-  final commentsStream = FirebaseFirestore.instance
-      .collection(FirestoreCollections.community)
-      .doc(post.id)
-      .collection('comments')
-      .snapshots();
+  final commentsStream = controller.commentsStream;
 
   showModalBottomSheet<void>(
     context: context,
@@ -301,6 +297,9 @@ void showCommunityCommentsModal(
                             Expanded(
                               child: TextField(
                                 controller: textController,
+                                maxLength: defaultMaxCommentLength,
+                                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                                inputFormatters: TruthworldTextInputFormatters.withLimit(defaultMaxCommentLength),
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 14,
@@ -337,6 +336,7 @@ void showCommunityCommentsModal(
                                 final validation = ContentValidator.validate(
                                   text,
                                   fieldName: 'Comment',
+                                  maxLength: defaultMaxCommentLength,
                                 );
                                 if (!validation.isValid) {
                                   AppSnackbar.warning(

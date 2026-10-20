@@ -1,8 +1,10 @@
 import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/analytics/data/models/creator_kyc_verification.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/revenue_analytics_controller.dart';
@@ -240,6 +242,11 @@ class CreatorKycDialog extends StatelessWidget {
                 controller: idNumberController,
                 hint: 'Enter document number',
                 icon: Icons.pin_rounded,
+                maxLength: 30,
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(30),
+                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9\s-]')),
+                ],
               ),
               const SizedBox(height: 12),
 
@@ -381,9 +388,23 @@ class CreatorKycDialog extends StatelessWidget {
     required String hint,
     required IconData icon,
     bool isPan = false,
+    int? maxLength,
+    List<TextInputFormatter>? inputFormatters,
   }) {
+    final effectiveLimit = maxLength ?? (isPan ? 10 : 70);
+    final effectiveFormatters = inputFormatters ??
+        (isPan
+            ? [
+                LengthLimitingTextInputFormatter(10),
+                FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+              ]
+            : TruthworldTextInputFormatters.internationalWithLimit(effectiveLimit));
+
     return TextField(
       controller: controller,
+      maxLength: effectiveLimit,
+      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+      inputFormatters: effectiveFormatters,
       textCapitalization: isPan ? TextCapitalization.characters : TextCapitalization.words,
       style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
       decoration: InputDecoration(

@@ -64,8 +64,8 @@ class TopicCardWidget extends StatelessWidget {
         cat.contains('sing')) {
       return Icons.music_note_rounded;
     }
-    if (cat.contains('gaming') || cat.contains('game') || cat.contains('play')) {
-      return Icons.sports_esports_rounded;
+    if (cat.contains('short film') || cat.contains('shortfilm')) {
+      return Icons.movie_creation_rounded;
     }
     if (cat.contains('news') ||
         cat.contains('politics') ||
@@ -128,15 +128,19 @@ class TopicCardWidget extends StatelessWidget {
         ? Get.find<ExploreTopicsController>()
         : null;
 
-    final isOwner =
-        showEditOption &&
-        Get.isRegistered<AuthService>() &&
+    final isOwner = Get.isRegistered<AuthService>() &&
         ((currentTopic.channelId != null &&
                 currentTopic.channelId!.isNotEmpty &&
                 AuthService.to.userChannel?.id == currentTopic.channelId) ||
             (currentTopic.creatorId != null &&
                 currentTopic.creatorId!.isNotEmpty &&
                 AuthService.to.uid == currentTopic.creatorId));
+
+    final isOwnerContext = isDashboard || (isOwner && showEditOption);
+    final isRejected = currentTopic.status.toLowerCase() == 'verificationrejected' ||
+        currentTopic.status.toLowerCase() == 'rejected';
+    final isUnderReview = currentTopic.status.toLowerCase() == 'underreview' ||
+        currentTopic.status.toLowerCase() == 'pending';
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -160,40 +164,108 @@ class TopicCardWidget extends StatelessWidget {
               Positioned(
                 top: 8,
                 left: 8,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3.5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.7),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.18),
-                      width: 0.8,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        _getCategoryIcon(currentTopic.category),
-                        color: Colors.white,
-                        size: 11,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3.5,
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        currentTopic.category.isNotEmpty
-                            ? currentTopic.category
-                            : 'Topic',
-                        style: GoogleFonts.roboto(
-                          color: Colors.white,
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w600,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.7),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _getCategoryIcon(currentTopic.category),
+                            color: Colors.white,
+                            size: 11,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            currentTopic.category.isNotEmpty
+                                ? currentTopic.category
+                                : 'Topic',
+                            style: GoogleFonts.roboto(
+                              color: Colors.white,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (isOwnerContext && isRejected) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 3.5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDC2626),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              color: Colors.white,
+                              size: 11,
+                            ),
+                            SizedBox(width: 3),
+                            Text(
+                              'Action Required',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else if (isOwnerContext && isUnderReview) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 3.5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2563EB),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.hourglass_empty_rounded,
+                              color: Colors.white,
+                              size: 11,
+                            ),
+                            SizedBox(width: 3),
+                            Text(
+                              'Under Review',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
-                  ),
+                  ],
                 ),
               ),
               // Trailing / Video Count Pill (Top-Right)
@@ -360,6 +432,46 @@ class TopicCardWidget extends StatelessWidget {
                           ],
                         ),
 
+                        if (isOwnerContext && isRejected) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.all(7),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2C1515),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: const Color(0xFFEF4444).withValues(alpha: 0.5),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(
+                                  Icons.error_outline_rounded,
+                                  color: Color(0xFFEF4444),
+                                  size: 13,
+                                ),
+                                const SizedBox(width: 5),
+                                Expanded(
+                                  child: Text(
+                                    currentTopic.moderationReason?.isNotEmpty == true
+                                        ? currentTopic.moderationReason!
+                                        : 'Topic rejected by AI moderation. Edit to fix and resubmit.',
+                                    style: const TextStyle(
+                                      color: Color(0xFFFCA5A5),
+                                      fontSize: 10.5,
+                                      height: 1.25,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
                         const SizedBox(height: 10),
 
                         // Action Buttons Row (Follow Button & Share Button)
@@ -367,8 +479,12 @@ class TopicCardWidget extends StatelessWidget {
                           children: [
                             // Follow / Following / Edit Button
                             Expanded(
-                              child: isOwner && showEditOption
-                                  ? _buildEditButton(context, currentTopic)
+                              child: isOwnerContext
+                                  ? _buildEditButton(
+                                      context,
+                                      currentTopic,
+                                      isRejected: isRejected,
+                                    )
                                   : _buildFollowButton(currentTopic),
                             ),
 
@@ -469,7 +585,11 @@ class TopicCardWidget extends StatelessWidget {
   }
 
   /// Edit Action Button (for topic creator / owner)
-  Widget _buildEditButton(BuildContext context, Topic currentTopic) {
+  Widget _buildEditButton(
+    BuildContext context,
+    Topic currentTopic, {
+    bool isRejected = false,
+  }) {
     return ElevatedButton.icon(
       onPressed: () {
         final topicManagementController = Get.isRegistered<TopicManagementController>()
@@ -484,26 +604,34 @@ class TopicCardWidget extends StatelessWidget {
           controller: topicManagementController,
         );
       },
-      icon: const Icon(Icons.edit_rounded, size: 14, color: Colors.white),
-      label: const Text(
-        'Edit',
+      icon: Icon(
+        isRejected ? Icons.refresh_rounded : Icons.edit_rounded,
+        size: 14,
+        color: isRejected ? Colors.black : Colors.white,
+      ),
+      label: Text(
+        isRejected ? 'Edit & Resubmit' : 'Edit',
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.bold,
-          color: Colors.white,
+          color: isRejected ? Colors.black : Colors.white,
         ),
       ),
       style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white.withValues(alpha: 0.15),
-        foregroundColor: Colors.white,
+        backgroundColor: isRejected
+            ? const Color(0xFFFBBF24)
+            : Colors.white.withValues(alpha: 0.15),
+        foregroundColor: isRejected ? Colors.black : Colors.white,
         elevation: 0,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: BorderSide(
-            color: Colors.white.withValues(alpha: 0.25),
-            width: 0.8,
-          ),
+          side: isRejected
+              ? BorderSide.none
+              : BorderSide(
+                  color: Colors.white.withValues(alpha: 0.25),
+                  width: 0.8,
+                ),
         ),
       ),
     );

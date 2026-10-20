@@ -25,6 +25,7 @@ class AppToast {
     String? title,
     VoidCallback? onAction,
     String? actionLabel,
+    Widget? action,
     Duration? duration,
   }) {
     _show(
@@ -33,6 +34,7 @@ class AppToast {
       type: _ToastType.success,
       onAction: onAction,
       actionLabel: actionLabel,
+      action: action,
       duration: duration,
     );
   }
@@ -43,6 +45,7 @@ class AppToast {
     String? title,
     VoidCallback? onAction,
     String? actionLabel,
+    Widget? action,
     Duration? duration,
   }) {
     _show(
@@ -51,6 +54,7 @@ class AppToast {
       type: _ToastType.error,
       onAction: onAction,
       actionLabel: actionLabel ?? (onAction != null ? 'Retry' : null),
+      action: action,
       duration: duration,
     );
   }
@@ -61,6 +65,7 @@ class AppToast {
     String? title,
     VoidCallback? onAction,
     String? actionLabel,
+    Widget? action,
     Duration? duration,
   }) {
     _show(
@@ -69,6 +74,7 @@ class AppToast {
       type: _ToastType.info,
       onAction: onAction,
       actionLabel: actionLabel,
+      action: action,
       duration: duration,
     );
   }
@@ -79,6 +85,7 @@ class AppToast {
     String? title,
     VoidCallback? onAction,
     String? actionLabel,
+    Widget? action,
     Duration? duration,
   }) {
     _show(
@@ -87,6 +94,7 @@ class AppToast {
       type: _ToastType.warning,
       onAction: onAction,
       actionLabel: actionLabel,
+      action: action,
       duration: duration,
     );
   }
@@ -99,6 +107,7 @@ class AppToast {
     String? title,
     VoidCallback? onAction,
     String? actionLabel,
+    Widget? action,
     Duration? duration,
   }) {
     if (Get.testMode || Get.context == null || Get.overlayContext == null) {
@@ -111,9 +120,7 @@ class AppToast {
     final config = _toastConfig(type);
 
     // Dismiss any active snackbars to prevent overlap/stacking
-    if (Get.isSnackbarOpen) {
-      Get.closeAllSnackbars();
-    }
+    _safeCloseAllSnackbars();
 
     final sanitizedTitle = UserFeedbackSanitizer.sanitizeTitle(title);
     var sanitizedMessage = UserFeedbackSanitizer.sanitizeMessage(message);
@@ -184,33 +191,40 @@ class AppToast {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          if (onAction != null && actionLabel != null) ...[
+          if (action != null) ...[
+            const SizedBox(width: 12),
+            action,
+          ] else if (onAction != null && actionLabel != null) ...[
             const SizedBox(width: 12),
             TextButton(
               onPressed: () {
-                if (Get.isSnackbarOpen) Get.closeAllSnackbars();
+                _safeCloseAllSnackbars();
                 onAction();
               },
               style: TextButton.styleFrom(
                 foregroundColor: config.color,
+                backgroundColor: config.color.withValues(alpha: 0.15),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
+                  horizontal: 16,
+                  vertical: 8,
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: radius?.md ?? BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(20),
                   side: BorderSide(
-                    color: config.color.withValues(alpha: 0.3),
+                    color: config.color.withValues(alpha: 0.4),
+                    width: 1.2,
                   ),
                 ),
-                minimumSize: Size.zero,
+                minimumSize: const Size(68, 38),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               child: Text(
                 actionLabel,
+                maxLines: 1,
                 style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.3,
                 ),
               ),
             ),
@@ -234,6 +248,18 @@ class AppToast {
       snackStyle: SnackStyle.FLOATING,
       maxWidth: 420,
     );
+  }
+
+  static void _safeCloseAllSnackbars() {
+    try {
+      if (Get.isSnackbarOpen) {
+        Get.closeAllSnackbars();
+      }
+    } catch (_) {
+      // In GetX, closeAllSnackbars() can throw LateInitializationError
+      // if an internal SnackbarController._controller is uninitialized
+      // during rapid transitions. Gracefully intercept.
+    }
   }
 
   static _ToastConfig _toastConfig(_ToastType type) {

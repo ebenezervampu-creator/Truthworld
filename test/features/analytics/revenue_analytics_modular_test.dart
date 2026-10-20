@@ -306,7 +306,7 @@ void main() {
           home: const RevenueAnalyticsPage(),
         ),
       );
-      await tester.pump();
+      await tester.pump(const Duration(seconds: 3));
 
       expect(find.byType(RevenueAnalyticsPage), findsOneWidget);
       expect(find.text('Revenue Analytics'), findsOneWidget);

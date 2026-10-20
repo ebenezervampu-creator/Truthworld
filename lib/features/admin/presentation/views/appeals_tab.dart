@@ -357,7 +357,9 @@ class AppealsTab extends StatelessWidget {
             const SizedBox(height: 8),
             TextField(
               controller: _reasonController,
-              inputFormatters: TruthworldTextInputFormatters.standard,
+              maxLength: 500,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: TruthworldTextInputFormatters.withLimit(500),
               style: const TextStyle(
                 fontFamily: TWTypography.uiFamily,
                 color: AppColors.textPrimary,

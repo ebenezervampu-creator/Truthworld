@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/cashfree/cashfree_country_support.dart';
@@ -366,6 +367,12 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
                                   child: TextField(
                                     controller: customAmountController,
                                     keyboardType: TextInputType.number,
+                                    maxLength: 8,
+                                    buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly,
+                                      LengthLimitingTextInputFormatter(8),
+                                    ],
                                     style: const TextStyle(
                                       fontFamily: TWTypography.brandFamily,
                                       color: Colors.white,

@@ -149,9 +149,10 @@ class TowerPlayerController extends BaseController
       );
 
 
-  // ── Core Controllers ──────────────────────────────────────
   @override
   VideoPlayerController videoPlayerController;
+  late final Rx<VideoPlayerController> rxVideoPlayerController =
+      videoPlayerController.obs;
   @override
   ChewieController? chewieController;
   @override
@@ -310,6 +311,7 @@ class TowerPlayerController extends BaseController
       isFullScreen: isFullScreen,
       getVideoController: () => videoController,
       onInteraction: onInteraction,
+      onExitFullscreen: resetZoom,
     );
 
     if (!Get.isRegistered<TowerPlayerController>(tag: tag)) {
@@ -565,6 +567,7 @@ class TowerPlayerController extends BaseController
       onVpcUpdate: _onVpcUpdate,
     );
     videoPlayerController = vpc;
+    rxVideoPlayerController.value = vpc;
     videoPlaybackSource = source;
     sleepTimerService.setActivePlayback(activePlayback);
     if (Get.isRegistered<AudioOnlyService>()) {

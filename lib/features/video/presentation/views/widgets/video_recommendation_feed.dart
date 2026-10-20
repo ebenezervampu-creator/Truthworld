@@ -2,16 +2,21 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
-import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/core/widgets/ad_widgets.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
+import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/widgets/topic_card_widget.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
+import 'package:truthworld/features/video/presentation/views/widgets/video_interactive_avatars.dart';
+import 'package:truthworld/features/video/presentation/views/widgets/video_recommendation_card.dart';
+import 'package:truthworld/theme/app_theme.dart';
+
+export 'package:truthworld/features/video/presentation/views/widgets/video_recommendation_card.dart';
 
 class RecommendationFeed extends StatelessWidget {
   const RecommendationFeed({
@@ -45,6 +50,20 @@ class RecommendationFeed extends StatelessWidget {
       final displayVideos = videos ?? controller.filteredRecommendedVideos;
       final filters = controller.recommendationFilters;
       final selectedFilter = controller.selectedRecommendationFilter.value;
+      final currentPlaylist = controller.currentPlaylist.value;
+      final isPlaylistTab = currentPlaylist != null &&
+          (selectedFilter == currentPlaylist.playlistName.trim() ||
+           selectedFilter == 'Playlist: ${currentPlaylist.playlistName.trim()}');
+
+      final currentTopic = controller.currentTopic.value;
+      final isTopicTab = (controller.navigatedFromTopic.value || currentTopic != null) &&
+          ((currentTopic != null &&
+                  (selectedFilter == currentTopic.title.trim() ||
+                      selectedFilter == 'Topic: ${currentTopic.title.trim()}')) ||
+              (currentTopic == null &&
+                  controller.videoTopicsList.any((t) =>
+                      selectedFilter == t.title.trim() ||
+                      selectedFilter == 'Topic: ${t.title.trim()}')));
 
       final Widget pillsBar = Container(
         height: 50,
@@ -79,6 +98,7 @@ class RecommendationFeed extends StatelessWidget {
                       }
                     }
                     controller.selectedRecommendationFilter.value = filter;
+                    controller.ensureFilterVideosLoaded(filter);
                   }
                 },
                 child: Container(
@@ -115,10 +135,198 @@ class RecommendationFeed extends StatelessWidget {
         ),
       );
 
+      final Widget playlistHeader = isPlaylistTab
+          ? Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${currentPlaylist.playlistName} • ${controller.calculatedPlaylistIndex + 1} / ${controller.playlistVideos.isNotEmpty ? controller.playlistVideos.length : (currentPlaylist.videoIds.isNotEmpty ? currentPlaylist.videoIds.length : 1)}',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Obx(
+                    () => IconButton(
+                      icon: Icon(
+                        Icons.repeat,
+                        size: 20,
+                        color: controller.isPlaylistLooping.value
+                            ? Colors.white
+                            : Colors.white38,
+                      ),
+                      onPressed: () => controller.isPlaylistLooping.value =
+                          !controller.isPlaylistLooping.value,
+                      tooltip: 'Loop playlist',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Obx(
+                    () => IconButton(
+                      icon: Icon(
+                        Icons.shuffle,
+                        size: 20,
+                        color: controller.isPlaylistShuffled.value
+                            ? Colors.white
+                            : Colors.white38,
+                      ),
+                      onPressed: () => controller.isPlaylistShuffled.value =
+                          !controller.isPlaylistShuffled.value,
+                      tooltip: 'Shuffle playlist',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : const SizedBox.shrink();
+
+      final resolvedTopicTitle = currentTopic?.title ??
+          controller.videoTopicsList
+              .firstWhereOrNull((t) =>
+                  t.title.trim() == selectedFilter ||
+                  'Topic: ${t.title.trim()}' == selectedFilter)
+              ?.title ??
+          selectedFilter;
+
+      final Widget topicHeader = isTopicTab
+          ? Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '$resolvedTopicTitle • ${displayVideos.length} ${displayVideos.length == 1 ? 'video' : 'videos'}',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : const SizedBox.shrink();
+
       final isAllTab =
           (selectedFilter == 'All' || selectedFilter == 'Flip Coin') &&
               videos == null;
       final displayItems = isAllTab ? controller.recommendedItems : displayVideos;
+
+      Widget buildVideoItem(Video item, {required bool isGridItem}) {
+        final isCurrentVideo = item.id == controller.video.id;
+
+        void onVideoTap() {
+          if (isPlaylistTab) {
+            if (isCurrentVideo) return;
+            MiniplayerNavigationHelper.navigateToVideoScreen(
+              video: item,
+              routeArguments: {
+                'video': item,
+                'playlist': currentPlaylist,
+                'fromPlaylist': true,
+              },
+            );
+          } else if (isTopicTab) {
+            if (isCurrentVideo) return;
+            final activeTopic = currentTopic ??
+                controller.videoTopicsList.firstWhereOrNull((t) =>
+                    t.title.trim() == selectedFilter ||
+                    'Topic: ${t.title.trim()}' == selectedFilter);
+            MiniplayerNavigationHelper.navigateToVideoScreen(
+              video: item,
+              routeArguments: {
+                'video': item,
+                'topic': activeTopic,
+                'fromTopic': true,
+                'topicVideos': displayVideos,
+              },
+            );
+          } else {
+            MiniplayerNavigationHelper.navigateToVideoScreen(
+              video: item,
+            );
+          }
+        }
+
+        final card = RecommendationVideoCard(
+          video: item,
+          heroPrefix: isGridItem
+              ? 'rec_grid_${videoTag ?? 'global'}'
+              : 'rec_list_${videoTag ?? 'global'}',
+          onTap: onVideoTap,
+        );
+
+        if ((isPlaylistTab || isTopicTab) && isCurrentVideo) {
+          if (isGridItem) {
+            return Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: AppColors.brand.withValues(alpha: 0.6),
+                  width: 2,
+                ),
+              ),
+              child: card,
+            );
+          } else {
+            return Container(
+              margin: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: AppColors.brand.withValues(alpha: 0.6),
+                  width: 1.5,
+                ),
+                color: AppColors.brand.withValues(alpha: 0.08),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                    child: Row(
+                      children: [
+                        Obx(
+                          () => PlayingAudioWaveAnimation(
+                            isPlaying: controller.isPlayingRx.value,
+                            height: 12,
+                            barWidth: 2,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'NOW PLAYING',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  card,
+                ],
+              ),
+            );
+          }
+        }
+        return card;
+      }
 
       final videoList = isGrid
           ? LayoutBuilder(
@@ -130,15 +338,18 @@ class RecommendationFeed extends StatelessWidget {
                 var aspectRatio = 1.2;
 
                 if (!isMobileDevice && width >= 1000) {
-                  if (width >= 2100) {
+                  if (width >= 2400) {
+                    crossAxisCount = 5;
+                    aspectRatio = 1.15;
+                  } else if (width >= 1700) {
                     crossAxisCount = 4;
-                    aspectRatio = 1.25;
-                  } else if (width >= 1600) {
+                    aspectRatio = 1.15;
+                  } else if (width >= 1100) {
                     crossAxisCount = 3;
-                    aspectRatio = 1.25;
+                    aspectRatio = 1.15;
                   } else {
                     crossAxisCount = 2;
-                    aspectRatio = 1.25;
+                    aspectRatio = 1.15;
                   }
                 } else {
                   if (width > 1200) {
@@ -177,11 +388,7 @@ class RecommendationFeed extends StatelessWidget {
                       );
                     }
                     if (item is Video) {
-                      return VideoCard(
-                        video: item,
-                        isGrid: true,
-                        heroPrefix: 'rec_grid_${videoTag ?? 'global'}',
-                      );
+                      return buildVideoItem(item, isGridItem: true);
                     }
                     if (item is AdItem) {
                       if (item.adType == 'homepage') {
@@ -199,13 +406,13 @@ class RecommendationFeed extends StatelessWidget {
           : ListView.builder(
               shrinkWrap: shrinkWrap,
               physics: physics,
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.zero,
               itemCount: displayItems.length,
               itemBuilder: (context, index) {
                 final item = displayItems[index];
                 if (item is Topic) {
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                     child: TopicCardWidget(
                       topic: item,
                     ),
@@ -213,24 +420,21 @@ class RecommendationFeed extends StatelessWidget {
                 }
                 if (item is CommunityPostModel) {
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                     child: CommunityPostCard(
                       post: item,
                     ),
                   );
                 }
                 if (item is Video) {
-                  return VideoCard(
-                    video: item,
-                    heroPrefix: 'rec_list_${videoTag ?? 'global'}',
-                  );
+                  return buildVideoItem(item, isGridItem: false);
                 }
                 if (item is AdItem) {
                   if (item.adType == 'homepage') {
                     return const SizedBox.shrink();
                   }
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                     child: ScrollAdCard(
                       ad: item,
                       contextChannelId: video.channelId,
@@ -246,6 +450,10 @@ class RecommendationFeed extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           pillsBar,
+          if (isPlaylistTab)
+            playlistHeader,
+          if (isTopicTab)
+            topicHeader,
           // Render Scroll Ad before recommended videos
           if (Get.isRegistered<AdService>() && AdService.to.showAds.value)
             Obx(() {
@@ -261,13 +469,19 @@ class RecommendationFeed extends StatelessWidget {
                 ),
               );
             }),
-          if (displayItems.isEmpty)
-            const Center(
+          if (controller.isTabLoading.value)
+            isGrid
+                ? buildShimmerVideoGrid(count: 4)
+                : buildShimmerVideoList(count: 4)
+          else if (displayItems.isEmpty)
+            Center(
               child: Padding(
-                padding: EdgeInsets.all(32),
+                padding: const EdgeInsets.all(32),
                 child: Text(
-                  'No recommendations found',
-                  style: TextStyle(color: Colors.white24),
+                  selectedFilter.startsWith('From ')
+                      ? 'No other videos from this channel'
+                      : 'No recommendations found',
+                  style: const TextStyle(color: Colors.white24),
                 ),
               ),
             )

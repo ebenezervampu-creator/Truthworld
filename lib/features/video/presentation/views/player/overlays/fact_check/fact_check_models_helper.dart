@@ -229,7 +229,7 @@ Future<void> openSourceUrl(String? url, {String? title, String? domain}) async {
             claim['note'] ??
             '')
         .toString();
-    rawResponse = ClaimVerdictHelper.cleanResponseText(rawResponse);
+    rawResponse = ClaimVerdictHelper.cleanResponseText(rawResponse, claimText: rawText);
 
     final lowerClaim = rawText.toLowerCase();
     if (rawResponse.isEmpty ||
@@ -240,19 +240,23 @@ Future<void> openSourceUrl(String? url, {String? title, String? domain}) async {
           lowerClaim.contains('mobile data') ||
           (lowerClaim.contains('2012') && lowerClaim.contains('network'))) {
         rawResponse =
-            'Historical Fact: In 2012, India was primarily on 2G networks (GPRS/EDGE) with patchy 3G coverage and high data tariffs. 4G LTE launched later with Reliance Jio in late 2016.';
+            'In 2012, phone internet in India was mostly slow 2G with patchy 3G and expensive data plans. Fast 4G didn\'t arrive until Reliance Jio launched in late 2016.';
       } else if (lowerClaim.contains('internet access') ||
           (lowerClaim.contains('2012') && lowerClaim.contains('internet'))) {
         rawResponse =
-            'Factual Corroboration: According to TRAI and IAMAI records, India had ~137 million internet users in 2012 (~11% penetration), contrasting with current 850M+ broadband users.';
+            'Back in 2012, only about 11 out of every 100 people in India had internet access (around 137 million users). Today, over 850 million people use the internet in India!';
       } else if (lowerClaim.contains('privacy') ||
           lowerClaim.contains('parents') ||
           lowerClaim.contains('zero privacy')) {
         rawResponse =
-            'Product Market Need: The lack of individual device ownership created high demand for privacy-focused features like secret passcode-locked chats in early mobile apps.';
+            'Back then, many people shared family phones with no individual privacy. This created huge demand for privacy features like secret passcode-locked chats.';
       } else {
-        rawResponse =
-            'Factual Evaluation: Statement verified against historical documentation, industry records, and contemporary reporting.';
+        final verdictInfo = ClaimVerdictHelper.resolveVerdict(claim);
+        if (verdictInfo.isOpinion) {
+          rawResponse = ClaimVerdictHelper.formatOpinionExplanation(rawText);
+        } else {
+          rawResponse = verdictInfo.summaryTakeaway;
+        }
       }
     }
 

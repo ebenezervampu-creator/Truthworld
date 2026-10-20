@@ -25,6 +25,10 @@ class RevenueAnalyticsController extends RevenueAnalyticsStateBase
   // ---------------------------------------------------------------------------
   static const double minimumWithdrawalAmount =
       RevenueAnalyticsStateBase.minimumWithdrawalAmount;
+  static const double minimumWithdrawalAmountINR =
+      RevenueAnalyticsStateBase.minimumWithdrawalAmountINR;
+  static const double minimumWithdrawalAmountUSD =
+      RevenueAnalyticsStateBase.minimumWithdrawalAmountUSD;
   static const String currencySymbol = RevenueAnalyticsStateBase.currencySymbol;
   static const String currencyCode = RevenueAnalyticsStateBase.currencyCode;
   static const String minWithdrawalText =

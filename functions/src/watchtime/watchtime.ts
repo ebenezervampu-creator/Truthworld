@@ -6,6 +6,7 @@ import axios from "axios";
 import { applySecurityHeaders } from "../utils/securityHeaders";
 import { createHash } from "crypto";
 import { costEngine, CostEngine, CDN_RATE_CARDS } from "../pipeline/services/cost-engine";
+import { getGuestWatchUsage, recordGuestWatchDelta, getClientIp } from "./guestWatchLimit";
 
 // â”€â”€â”€ Init â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const db = admin.firestore();
@@ -267,7 +268,7 @@ async function checkConcurrentSessions(userId: string): Promise<{ exceeded: bool
 // ─── Bot Farm Defense: App Check Verification ──────────────────────────────────
 // Verifies Firebase App Check token. Returns true if valid or if check is unavailable.
 // Uses grace period: logs warnings but doesn't block if enforcement is disabled.
-const APP_CHECK_ENFORCEMENT_ENABLED = true; // Feature flag for gradual rollout
+const APP_CHECK_ENFORCEMENT_ENABLED = process.env.APP_CHECK_ENFORCEMENT === "true"; // Feature flag for gradual rollout
 
 async function verifyAppCheck(appCheckToken: string | undefined): Promise<{ valid: boolean; reason?: string }> {
   // Test environment bypass when no token is explicitly sent
@@ -306,7 +307,7 @@ export const trackWatchEvent = onRequest(
     region: REGION,
     timeoutSeconds: 10,
     minInstances: 0,
-    maxInstances: 100,
+    maxInstances: 10,
     cors: true,
     memory: "256MiB",
   },
@@ -354,12 +355,14 @@ export const trackWatchEvent = onRequest(
 
       // L-33: Override client-supplied userId with verified auth token
       // Prevents view count inflation by spoofing another user's ID
+      let isVerifiedAuthUser = false;
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith("Bearer ")) {
         try {
           const token = authHeader.split("Bearer ")[1];
           const decoded = await admin.auth().verifyIdToken(token);
           body.userId = decoded.uid; // Trust server-verified UID only
+          isVerifiedAuthUser = true;
         } catch {
           // Invalid token — treat as anonymous
           body.userId = "anonymous";
@@ -386,17 +389,41 @@ export const trackWatchEvent = onRequest(
       const appCheckToken = req.headers["x-firebase-appcheck"] as string | undefined;
       const appCheckResult = await verifyAppCheck(appCheckToken);
       if (!appCheckResult.valid) {
-        logger.warn(`[FraudDefense] Rejected: ${appCheckResult.reason} userId=${body.userId} videoId=${body.videoId}`);
-        res.status(403).send({ error: "Request validation failed" });
-        return;
+        // Authenticated users with cryptographically verified Firebase Auth ID tokens
+        // are trusted callers and allowed through even if App Check token is
+        // in local debug mode, unregistered on web, or in grace period rollout.
+        if (isVerifiedAuthUser) {
+          logger.info(`[FraudDefense] App Check ${appCheckResult.reason} but request is from verified Firebase Auth user (uid=${body.userId}); allowing.`);
+        } else {
+          logger.warn(`[FraudDefense] Rejected: ${appCheckResult.reason} userId=${body.userId} videoId=${body.videoId}`);
+          res.status(403).send({ error: "Request validation failed" });
+          return;
+        }
+      }
+
+      const clientIP = getClientIp(req);
+      const ipHash = (clientIP && clientIP !== "::1" && !clientIP.startsWith("127."))
+        ? hashIP(clientIP) : "unknown";
+
+      // ─── Guest Preview Quota: 10-Minute Maximum Limit by IP ───────────────
+      if (!isVerifiedAuthUser && ipHash !== "unknown") {
+        const guestUsage = await getGuestWatchUsage(ipHash);
+        if (guestUsage.isLimitExceeded) {
+          logger.warn(`[GuestLimit] Restricting playback for unsigned IP ${ipHash}: 10-minute limit exceeded (${guestUsage.totalWatchSeconds}s)`);
+          res.status(200).send({
+            success: false,
+            limitExceeded: true,
+            requireSignIn: true,
+            remainingSeconds: 0,
+            reason: "guest_limit_reached",
+            message: "You have reached the 10-minute preview limit for guest viewers. Please sign in to continue enjoying unlimited content on Truthworld.",
+          });
+          return;
+        }
       }
 
       // LAYER 2: IP fraud detection — only run expensive IP tracking on video_start or 10% sample
       if (body.eventType === "video_start" || Math.random() < 0.1) {
-        const clientIP = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim()
-          ?? req.socket.remoteAddress ?? "";
-        const ipHash = (clientIP && clientIP !== "::1" && !clientIP.startsWith("127."))
-          ? hashIP(clientIP) : "unknown";
         const isAnonymous = body.userId === "anonymous";
         const ipCheck = await trackAndCheckIP(ipHash, body.videoId!, isAnonymous);
         if (ipCheck.blocked) {
@@ -417,14 +444,12 @@ export const trackWatchEvent = onRequest(
       }
 
       // ── Geo ──
-      const rawIp =
-        (req.headers["x-forwarded-for"] as string) ??
-        req.socket.remoteAddress ??
-        "";
+      const rawIp = getClientIp(req);
       const state = await resolveState(rawIp);
 
       // ── Write raw log only on milestones / start / completion (skips routine heartbeats to cut writes) ──
-      if (body.eventType !== "watch_ping") {
+      // Epistemic honesty: Unsigned / anonymous playback must NEVER be written to watch_events (views/stats are for authenticated users only)
+      if (isVerifiedAuthUser && body.userId !== "anonymous" && body.eventType !== "watch_ping") {
         await db.collection("watch_events").add({
           videoId: body.videoId,
           userId: body.userId,
@@ -570,7 +595,9 @@ export const trackWatchEvent = onRequest(
       let isDuplicate = false;
 
       // Credit channel and video watch time based strictly on valid, capped true watch delta
-      if (creditedDelta > 0 && targetChannelId) {
+      // Epistemic honesty: ONLY authenticated users with verified tokens contribute to creator watch time & channel analytics.
+      // Unsigned/guest users NEVER inflate creator watch time or trigger shard increments.
+      if (isVerifiedAuthUser && body.userId !== "anonymous" && creditedDelta > 0 && targetChannelId) {
         // Atomic Idempotency via create() without acquiring cross-document transaction locks
         try {
           await eventRef.create({
@@ -626,6 +653,10 @@ export const trackWatchEvent = onRequest(
             )
             .catch((err) => logger.warn("[WatchTime] Channel shard write warning:", err));
         }
+      }
+
+      if (!isVerifiedAuthUser && creditedDelta > 0 && ipHash !== "unknown") {
+        await recordGuestWatchDelta(ipHash, creditedDelta, body.videoId);
       }
 
       if (isDuplicate) {
@@ -803,8 +834,13 @@ export const aggregateWatchStats = onSchedule(
     const userWatchTimeMap = new Map<string, number>();
 
     for (const s of sessions.values()) {
+      // Epistemic honesty: DO NOT count views or watch time for unsigned/guest/anonymous viewers
+      if (!s.userId || s.userId === "anonymous") {
+        continue;
+      }
+
       // Transparent watch time deduplication: a user can only contribute up to the video's duration
-      if (s.userId && s.userId !== "anonymous" && s.duration > 0) {
+      if (s.duration > 0) {
         const userVidKey = `${s.videoId}__${s.userId}`;
         const previousUserSeconds = userWatchTimeMap.get(userVidKey) || 0;
         if (previousUserSeconds >= s.duration * 0.90) {
@@ -1081,7 +1117,7 @@ export const getCreatorStats = onRequest(
   {
     region: REGION,
     timeoutSeconds: 15,
-    maxInstances: 50,
+    maxInstances: 10,
     cors: true,
     memory: "256MiB",
   },

@@ -90,7 +90,9 @@ class CreatePlaylistDialog extends StatelessWidget {
                     children: [
                       TextField(
                         controller: titleController,
-                        inputFormatters: TruthworldTextInputFormatters.standard,
+                        maxLength: 80,
+                        buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                        inputFormatters: TruthworldTextInputFormatters.withLimit(80),
                         style: const TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 14,
@@ -132,7 +134,9 @@ class CreatePlaylistDialog extends StatelessWidget {
                       const SizedBox(height: 16),
                       TextField(
                         controller: descController,
-                        inputFormatters: TruthworldTextInputFormatters.standard,
+                        maxLength: 500,
+                        buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                        inputFormatters: TruthworldTextInputFormatters.withLimit(500),
                         maxLines: 3,
                         style: const TextStyle(
                           color: AppColors.textPrimary,

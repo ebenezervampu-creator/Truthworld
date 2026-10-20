@@ -15,6 +15,7 @@ mixin CommentInteractionsMixin on CommentServiceBase {
     String? creatorName,
   }) async {
     try {
+      await ensureAuthFreshness();
       final callable = functions.httpsCallable('toggleCommentInteraction');
       await callable.call({
         'videoId': videoId,
@@ -93,6 +94,7 @@ mixin CommentInteractionsMixin on CommentServiceBase {
     bool isVideoCreator = false,
   }) async {
     try {
+      await ensureAuthFreshness();
       final callable = functions.httpsCallable('toggleCommentInteraction');
       await callable.call({
         'videoId': videoId,
@@ -168,6 +170,7 @@ mixin CommentInteractionsMixin on CommentServiceBase {
     bool isVideoCreator = false,
   }) async {
     try {
+      await ensureAuthFreshness();
       final callable = functions.httpsCallable('toggleCommentInteraction');
       await callable.call({
         'videoId': videoId,

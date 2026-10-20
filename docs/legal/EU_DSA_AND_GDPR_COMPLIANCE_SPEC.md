@@ -1,5 +1,6 @@
 # TruthWorld EU Digital Services Act (DSA) & GDPR Compliance Specification
-**(Regulation (EU) 2022/2065 & Regulation (EU) 2016/679)**
+**(Regulation (EU) 2022/2065 & Regulation (EU) 2016/679)**  
+**Last Updated: October 12, 2026 | Effective Date: October 12, 2026**
 
 ---
 

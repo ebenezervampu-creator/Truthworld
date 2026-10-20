@@ -132,7 +132,7 @@ class EnhancedPlaylistItem extends StatelessWidget {
               Positioned.fill(
                 child: StackedThumbnail(
                   thumbnailUrl: playlist.thumbnailUrl,
-                  videoCount: playlist.videoCount,
+                  videoCount: playlist.effectiveVideoCount,
                   isPodcast: isPodcast,
                 ),
               ),
@@ -257,7 +257,7 @@ class EnhancedPlaylistItem extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${playlist.videoCount}',
+                      '${playlist.effectiveVideoCount}',
                       style: GoogleFonts.roboto(
                         color: Colors.white,
                         fontSize: 12,
@@ -310,7 +310,10 @@ class EnhancedPlaylistItem extends StatelessWidget {
               Row(
                 children: [
                   Text(
-                    '${playlist.videoCount} videos',
+                    () {
+                      final count = playlist.effectiveVideoCount;
+                      return '$count ${count == 1 ? "video" : "videos"}';
+                    }(),
                     style: GoogleFonts.roboto(
                       fontSize: 14,
                       color: Colors.white.withValues(alpha: 0.6),

@@ -21,6 +21,7 @@ class PlaylistWatchLaterManager {
   final RxBool _rxIsLoading;
 
   final RxList<String> watchLaterVideoIds = <String>[].obs;
+  final RxString firstVideoThumbnail = ''.obs;
   StreamSubscription<QuerySnapshot>? _watchLaterSub;
 
   void listenToWatchLater() {
@@ -28,6 +29,7 @@ class PlaylistWatchLaterManager {
     final user = getUserId();
     if (user.isEmpty) {
       watchLaterVideoIds.clear();
+      firstVideoThumbnail.value = '';
       return;
     }
 
@@ -40,6 +42,11 @@ class PlaylistWatchLaterManager {
           (snapshot) {
             watchLaterVideoIds.value =
                 snapshot.docs.map((doc) => doc.id).toList();
+            if (watchLaterVideoIds.isNotEmpty) {
+              _fetchFirstThumbnail(watchLaterVideoIds.first);
+            } else {
+              firstVideoThumbnail.value = '';
+            }
           },
           onError: (error, stackTrace) {
             ErrorHandler.log(
@@ -51,23 +58,53 @@ class PlaylistWatchLaterManager {
         );
   }
 
+  Future<void> _fetchFirstThumbnail(String videoId) async {
+    try {
+      final doc = await _firestore
+          .collection(FirestoreCollections.videos)
+          .doc(videoId)
+          .get();
+      if (doc.exists) {
+        firstVideoThumbnail.value = doc.data()?['thumbnailUrl'] ?? '';
+      }
+    } catch (_) {}
+  }
+
   PlaylistModel? getWatchLaterPlaylist() {
     return PlaylistModel(
       id: 'watchlater',
       playlistName: 'Watch Later',
-      videoIds: watchLaterVideoIds,
+      videoIds: List<String>.from(watchLaterVideoIds),
+      videoCount: watchLaterVideoIds.length,
+      thumbnailUrl: firstVideoThumbnail.value,
       isPublic: false,
       ownerId: getUserId(),
       channelId: '',
       createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
     );
   }
 
-  Future<void> toggleWatchLater(String videoId) async {
+  Future<bool> toggleWatchLater(
+    String videoId, {
+    bool showFeedback = true,
+  }) async {
     final user = getUserId();
     if (user.isEmpty) {
-      AppSnackbar.warning('Please sign in to update Watch Later.');
-      return;
+      if (showFeedback) {
+        AppSnackbar.warning('Please sign in to update Watch Later.');
+      }
+      return false;
+    }
+
+    final isAlreadyIn = watchLaterVideoIds.contains(videoId);
+    // Optimistic UI update so button state and counts react immediately
+    if (isAlreadyIn) {
+      watchLaterVideoIds.remove(videoId);
+    } else {
+      if (!watchLaterVideoIds.contains(videoId)) {
+        watchLaterVideoIds.add(videoId);
+      }
     }
 
     try {
@@ -78,19 +115,39 @@ class PlaylistWatchLaterManager {
           .collection('watch_later')
           .doc(videoId);
 
-      final isAlreadyIn = watchLaterVideoIds.contains(videoId);
       if (isAlreadyIn) {
-        await ref.delete();
-        AppSnackbar.success('Removed from Watch Later');
+        await ref.delete().timeout(const Duration(seconds: 8));
+        if (showFeedback) {
+          AppSnackbar.success('Removed from Watch Later');
+        }
       } else {
+        final now = FieldValue.serverTimestamp();
         await ref.set({
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-        AppSnackbar.success('Added to Watch Later');
+          'id': videoId,
+          'videoId': videoId,
+          'userId': user,
+          'addedAt': now,
+          'createdAt': now,
+        }).timeout(const Duration(seconds: 8));
+        if (showFeedback) {
+          AppSnackbar.success('Saved to Watch Later');
+        }
       }
+      return true;
     } catch (e) {
+      // Rollback optimistic update on error
+      if (isAlreadyIn) {
+        if (!watchLaterVideoIds.contains(videoId)) {
+          watchLaterVideoIds.add(videoId);
+        }
+      } else {
+        watchLaterVideoIds.remove(videoId);
+      }
       ErrorHandler.log(e, context: 'PlaylistWatchLaterManager.toggleWatchLater');
-      AppSnackbar.error('Unable to update Watch Later. Please try again.');
+      if (showFeedback) {
+        AppSnackbar.error('Unable to update Watch Later. Please try again.');
+      }
+      return false;
     } finally {
       _rxIsLoading.value = false;
     }

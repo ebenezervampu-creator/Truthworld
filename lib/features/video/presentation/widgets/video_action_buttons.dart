@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/features/channel/data/services/channel_memory_cache.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
@@ -167,29 +168,13 @@ class VideoActionButtons {
                       _buildModernCapsuleButton(
                         icon: Icons.verified_rounded,
                         label: '',
-                        tooltip: 'AI Credibility Check',
+                        tooltip: 'Truth & Credibility Check',
                         onTap: () => _showAnalysisBottomSheet(context, controller),
                       ),
                       const SizedBox(width: 8),
                     ],
                   );
                 }),
-
-                // Super Thanks
-                _buildModernCapsuleButton(
-                  icon: Icons.favorite_outline,
-                  label: 'Thanks',
-                  onTap: () {
-                    if (!isUserSignedIn) return onSignInPrompt();
-                    PremiumCommentInput.showSuperThanksModal(
-                      context,
-                      videoId: controller.video.id,
-                      channelId: controller.video.channelId,
-                      videoTitle: controller.video.title,
-                    );
-                  },
-                ),
-                const SizedBox(width: 8),
 
                 // Share
                 _buildModernCapsuleButton(
@@ -244,7 +229,7 @@ class VideoActionButtons {
                 }),
                 const SizedBox(width: 8),
 
-                // Save
+                // Save (Download)
                 Obx(() {
                   if (controller.isDownloading.value) {
                     final progress = (controller.downloadProgress.value * 100)
@@ -289,6 +274,22 @@ class VideoActionButtons {
                         VideoPlayerSettingsSheet.showDownloadQualityDialog(context: context, controller: controller, isUserSignedIn: isUserSignedIn, onSignInPrompt: onSignInPrompt),
                   );
                 }),
+                const SizedBox(width: 8),
+
+                // Super Thanks
+                _buildModernCapsuleButton(
+                  icon: Icons.favorite_outline,
+                  label: 'Thanks',
+                  onTap: () {
+                    if (!isUserSignedIn) return onSignInPrompt();
+                    PremiumCommentInput.showSuperThanksModal(
+                      context,
+                      videoId: controller.video.id,
+                      channelId: controller.video.channelId,
+                      videoTitle: controller.video.title,
+                    );
+                  },
+                ),
                 const SizedBox(width: 8),
 
                 // Membership / Join
@@ -452,29 +453,13 @@ class VideoActionButtons {
                                 _buildModernCapsuleButton(
                                   icon: Icons.verified_rounded,
                                   label: '',
-                                  tooltip: 'AI Credibility Check',
+                                  tooltip: 'Truth & Credibility Check',
                                   onTap: () => _showAnalysisBottomSheet(context, controller),
                                 ),
                                 const SizedBox(width: 8),
                               ],
                             );
                           }),
-
-                          // Super Thanks
-                          _buildModernCapsuleButton(
-                            icon: Icons.favorite_outline,
-                            label: 'Thanks',
-                            onTap: () {
-                              if (!isUserSignedIn) return onSignInPrompt();
-                              PremiumCommentInput.showSuperThanksModal(
-                                context,
-                                videoId: controller.video.id,
-                                channelId: controller.video.channelId,
-                                videoTitle: controller.video.title,
-                              );
-                            },
-                          ),
-                          const SizedBox(width: 8),
 
                           // Share
                           _buildModernCapsuleButton(
@@ -530,7 +515,7 @@ class VideoActionButtons {
                           }),
                           const SizedBox(width: 8),
 
-                          // Save
+                          // Save (Download)
                           Obx(() {
                             if (controller.isDownloading.value) {
                               final progress =
@@ -582,6 +567,22 @@ class VideoActionButtons {
                           }),
                           const SizedBox(width: 8),
 
+                          // Super Thanks
+                          _buildModernCapsuleButton(
+                            icon: Icons.favorite_outline,
+                            label: 'Thanks',
+                            onTap: () {
+                              if (!isUserSignedIn) return onSignInPrompt();
+                              PremiumCommentInput.showSuperThanksModal(
+                                context,
+                                videoId: controller.video.id,
+                                channelId: controller.video.channelId,
+                                videoTitle: controller.video.title,
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 8),
+
                           // Membership / Join
                           _buildModernCapsuleButton(
                             icon: Icons.workspace_premium_outlined,
@@ -631,8 +632,14 @@ class VideoActionButtons {
           // Like Button
           Obx(() {
             final isLiked = controller.isLiked.value;
-            final showLikeCount = controller.video.showLikeCount;
-            final countStr = showLikeCount && controller.likeCount > 0
+            final video = controller.rxVideo.value;
+            final channelId = video.channelId.isNotEmpty
+                ? video.channelId
+                : video.ownerId;
+            final channel = ChannelMemoryCache.getReactive(channelId);
+            final effectiveShowLike = video.showLikeCount &&
+                (channel == null || channel.showLikeCount);
+            final countStr = effectiveShowLike && controller.likeCount > 0
                 ? FormatUtils.formatCount(controller.likeCount)
                 : '';
             return AnimatedReactionButton(
@@ -660,8 +667,14 @@ class VideoActionButtons {
           // Dislike Button
           Obx(() {
             final isDisliked = controller.isDisliked.value;
-            final showDislikeCount = controller.video.showDislikeCount;
-            final countStr = showDislikeCount && controller.dislikeCount > 0
+            final video = controller.rxVideo.value;
+            final channelId = video.channelId.isNotEmpty
+                ? video.channelId
+                : video.ownerId;
+            final channel = ChannelMemoryCache.getReactive(channelId);
+            final effectiveShowDislike = video.showDislikeCount &&
+                (channel == null || channel.showDislikeCount);
+            final countStr = effectiveShowDislike && controller.dislikeCount > 0
                 ? FormatUtils.formatCount(controller.dislikeCount)
                 : '';
             return AnimatedReactionButton(
@@ -736,14 +749,11 @@ class VideoActionButtons {
     VideoController controller, {
     int initialTabIndex = 0,
   }) {
-    Get.bottomSheet(
-      VideoAnalysisBottomSheet(
-        video: controller.video,
-        controller: controller,
-        initialTabIndex: initialTabIndex,
-      ),
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    VideoAnalysisScreen.open(
+      context,
+      video: controller.video,
+      controller: controller,
+      initialTabIndex: initialTabIndex,
     );
   }
 

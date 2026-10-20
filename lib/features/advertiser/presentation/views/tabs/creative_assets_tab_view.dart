@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/core/utils/content_validator.dart';
-import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -186,6 +185,9 @@ class CreativeAssetsTabView extends StatelessWidget {
         SizedBox(
           width: 240,
           child: TextField(
+            maxLength: defaultMaxSearchLength,
+            buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+            inputFormatters: TruthworldTextInputFormatters.withLimit(defaultMaxSearchLength),
             onChanged: (val) => searchQuery.value = val.toLowerCase(),
             style: const TextStyle(color: Colors.white, fontSize: 13),
             decoration: const InputDecoration(
@@ -421,7 +423,9 @@ class CreativeAssetsTabView extends StatelessWidget {
             children: [
               TextField(
                 controller: titleController,
-                inputFormatters: TruthworldTextInputFormatters.standard,
+                maxLength: 100,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: TruthworldTextInputFormatters.withLimit(100),
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Asset Name / Title',
@@ -470,6 +474,9 @@ class CreativeAssetsTabView extends StatelessWidget {
                   Expanded(
                     child: TextField(
                       controller: resController,
+                      maxLength: 30,
+                      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                      inputFormatters: [LengthLimitingTextInputFormatter(30)],
                       style: const TextStyle(color: Colors.white),
                       decoration: const InputDecoration(
                         labelText: 'Resolution',
@@ -484,6 +491,9 @@ class CreativeAssetsTabView extends StatelessWidget {
                   Expanded(
                     child: TextField(
                       controller: durationController,
+                      maxLength: 30,
+                      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                      inputFormatters: [LengthLimitingTextInputFormatter(30)],
                       style: const TextStyle(color: Colors.white),
                       decoration: const InputDecoration(
                         labelText: 'Duration',
@@ -499,6 +509,12 @@ class CreativeAssetsTabView extends StatelessWidget {
               const SizedBox(height: 12),
               TextField(
                 controller: urlController,
+                maxLength: 500,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(500),
+                  FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                ],
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Asset CDN / Source URL',

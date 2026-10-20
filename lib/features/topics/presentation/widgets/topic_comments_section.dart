@@ -249,7 +249,11 @@ class _TopicCommentInputBar extends StatelessWidget {
                         color: Colors.white,
                         fontSize: 14,
                       ),
-                      inputFormatters: TruthworldTextInputFormatters.standard,
+                      maxLength: ContentValidator.defaultMaxCommentLength,
+                      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                      inputFormatters: TruthworldTextInputFormatters.withLimit(
+                        ContentValidator.defaultMaxCommentLength,
+                      ),
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => handleSubmit(),
                       decoration: const InputDecoration(

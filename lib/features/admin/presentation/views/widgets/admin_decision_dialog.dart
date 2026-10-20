@@ -48,7 +48,9 @@ void showAdminDecisionDialog(
             const SizedBox(height: 20),
             TextField(
               controller: textCtrl,
-              inputFormatters: TruthworldTextInputFormatters.standard,
+              maxLength: 500,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: TruthworldTextInputFormatters.withLimit(500),
               maxLines: 3,
               style: const TextStyle(
                 fontFamily: TWTypography.uiFamily,

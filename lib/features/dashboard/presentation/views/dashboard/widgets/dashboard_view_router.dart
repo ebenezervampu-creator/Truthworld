@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_view_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_screen.dart';
@@ -10,7 +9,7 @@ import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/chapters_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/content_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/copyright_screen.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/creator_intelligence_page.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/channel_notifications_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/customization_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_comments_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships_screen.dart';
@@ -50,15 +49,6 @@ class DashboardViewRouter extends StatelessWidget {
     final currentChannel = viewController.channel;
     final channelId = viewController.getChannelId(currentChannel);
     if (channelId.isEmpty) {
-      if (viewController.isSelectingDefault.value) {
-        return _buildRouterSkeleton();
-      }
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!AuthService.to.hasChannel.value &&
-            AuthService.to.userChannel == null) {
-          Get.offAllNamed<dynamic>('/channelscreen');
-        }
-      });
       return _buildRouterSkeleton();
     }
 
@@ -180,7 +170,7 @@ class DashboardViewRouter extends StatelessWidget {
         );
       case 16:
         final ownerId = viewController.getOwnerId(currentChannel);
-        return CreatorIntelligencePage(
+        return ChannelNotificationsPage(
           channelId: channelId,
           creatorId: ownerId,
         );

@@ -37,16 +37,20 @@ class AudioOnlyOverlay extends StatelessWidget {
           // ── Active Music Theme Stage ─────────────────────────────────────
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 300),
+            layoutBuilder: (currentChild, previousChildren) => Stack(
+              fit: StackFit.expand,
+              children: [
+                ...previousChildren,
+                ?currentChild,
+              ],
+            ),
             child: KeyedSubtree(
               key: ValueKey<AudioPlayerTheme>(activeTheme),
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: _buildThemeStage(
-                  activeTheme: activeTheme,
-                  isPlaying: isPlaying,
-                  video: video,
-                  currentSubtitle: currentSub,
-                ),
+              child: _buildThemeStage(
+                activeTheme: activeTheme,
+                isPlaying: isPlaying,
+                video: video,
+                currentSubtitle: currentSub,
               ),
             ),
           ),

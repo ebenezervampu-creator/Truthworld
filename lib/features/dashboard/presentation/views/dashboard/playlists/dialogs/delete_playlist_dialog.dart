@@ -34,7 +34,7 @@ class DeletePlaylistConfirmationDialog extends StatelessWidget {
         side: const BorderSide(color: AppColors.bgDivider),
       ),
       title: const Text(
-        'Delete Playlist?',
+        'Move to Trash?',
         style: TextStyle(
           color: AppColors.textPrimary,
           fontWeight: FontWeight.bold,
@@ -42,7 +42,7 @@ class DeletePlaylistConfirmationDialog extends StatelessWidget {
         ),
       ),
       content: Text(
-        'Are you sure you want to permanently delete "${playlist.name}"? This action cannot be undone.',
+        'Are you sure you want to move "${playlist.name}" to Trash? Deleted items are retained for 30 days before permanent deletion.',
         style: const TextStyle(
           color: AppColors.textSecondary,
           fontSize: 13,
@@ -73,7 +73,7 @@ class DeletePlaylistConfirmationDialog extends StatelessWidget {
             ),
           ),
           child: const Text(
-            'Delete',
+            'Move to Trash',
             style: TextStyle(
               fontWeight: FontWeight.bold,
               fontFamily: TWTypography.uiFamily,

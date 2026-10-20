@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
@@ -42,6 +43,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
   RxList<Video> get filteredVideos => _contextManager.filteredVideos;
   RxString get searchQuery => _contextManager.searchQuery;
   Rxn<Video> get selectedVideo => _contextManager.selectedVideo;
+  late final TextEditingController searchController = trackTextController(TextEditingController());
 
   // Language & Tab delegation
   RxString get activeTab => _languageManager.activeTab;

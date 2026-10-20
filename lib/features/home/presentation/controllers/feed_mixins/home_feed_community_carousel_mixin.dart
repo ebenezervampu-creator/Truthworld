@@ -8,6 +8,7 @@ import 'package:truthworld/core/services/algorithm/diversity_config.dart';
 import 'package:truthworld/core/services/algorithm/scored_video.dart';
 import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
 import 'package:truthworld/core/services/video_sanitizer.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/feed_mixins/home_feed_controller_base.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -45,8 +46,8 @@ mixin HomeFeedCommunityCarouselMixin on HomeFeedControllerBase {
   }
 
   Future<List<Video>> fetchPublicVideos({int limit = 10}) async {
-    final results =
-        await VideoQueryBuilder.publicVideos(firestore, limit: limit).get();
+    final results = await VideoQueryBuilder.publicVideos(firestore, limit: limit)
+        .getCacheFirst();
     final rawList = results.docs.map(Video.fromDocumentSnapshot).toList();
     return rawList.sanitizeForRecommendation();
   }
@@ -56,7 +57,7 @@ mixin HomeFeedCommunityCarouselMixin on HomeFeedControllerBase {
       firestore,
       category: category,
       limit: limit,
-    ).get();
+    ).getCacheFirst();
     final rawList = results.docs.map(Video.fromDocumentSnapshot).toList();
     return rawList.sanitizeForRecommendation();
   }
@@ -66,7 +67,7 @@ mixin HomeFeedCommunityCarouselMixin on HomeFeedControllerBase {
       firestore,
       orderByField: 'views',
       limit: limit,
-    ).get();
+    ).getCacheFirst();
     final rawList = results.docs.map(Video.fromDocumentSnapshot).toList();
     if (Get.isRegistered<TruthworldAlgorithm>()) {
       final algorithm = Get.find<TruthworldAlgorithm>();
@@ -91,7 +92,7 @@ mixin HomeFeedCommunityCarouselMixin on HomeFeedControllerBase {
             .collection(FirestoreCollections.community)
             .orderBy('uploadedAt', descending: true)
             .limit(HomeFeedControllerBase.pageSize)
-            .get();
+            .getCacheFirst();
         if (snapshot.docs.isNotEmpty) {
           docs = snapshot.docs;
         }
@@ -110,7 +111,7 @@ mixin HomeFeedCommunityCarouselMixin on HomeFeedControllerBase {
               .collection(FirestoreCollections.community)
               .orderBy('timestamp', descending: true)
               .limit(HomeFeedControllerBase.pageSize)
-              .get();
+              .getCacheFirst();
           if (snapshot.docs.isNotEmpty) {
             docs = snapshot.docs;
           }
@@ -129,7 +130,7 @@ mixin HomeFeedCommunityCarouselMixin on HomeFeedControllerBase {
           final snapshot = await firestore
               .collection(FirestoreCollections.community)
               .limit(HomeFeedControllerBase.pageSize)
-              .get();
+              .getCacheFirst();
           if (snapshot.docs.isNotEmpty) {
             docs = snapshot.docs;
           }
@@ -148,7 +149,7 @@ mixin HomeFeedCommunityCarouselMixin on HomeFeedControllerBase {
           final snapshot = await firestore
               .collection('community')
               .limit(HomeFeedControllerBase.pageSize)
-              .get();
+              .getCacheFirst();
           if (snapshot.docs.isNotEmpty) {
             docs = snapshot.docs;
           }
@@ -167,7 +168,7 @@ mixin HomeFeedCommunityCarouselMixin on HomeFeedControllerBase {
           final snapshot = await firestore
               .collection('community_posts')
               .limit(HomeFeedControllerBase.pageSize)
-              .get();
+              .getCacheFirst();
           if (snapshot.docs.isNotEmpty) {
             docs = snapshot.docs;
           }
@@ -291,10 +292,11 @@ mixin HomeFeedCommunityCarouselMixin on HomeFeedControllerBase {
     try {
       var snapshot = await firestore
           .collection(FirestoreCollections.community)
-          .limit(50)
-          .get();
+          .limit(20)
+          .getCacheFirst();
       if (snapshot.docs.isEmpty) {
-        snapshot = await firestore.collection('community').limit(50).get();
+        snapshot =
+            await firestore.collection('community').limit(20).getCacheFirst();
       }
       final posts = <CommunityPostModel>[];
       for (final doc in snapshot.docs) {

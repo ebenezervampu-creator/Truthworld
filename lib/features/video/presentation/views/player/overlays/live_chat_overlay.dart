@@ -1,6 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/cashfree/cashfree_country_support.dart';
@@ -435,7 +437,7 @@ class LiveChatOverlay extends StatelessWidget {
           ),
           child: Center(
             child: TextButton.icon(
-              onPressed: AuthService.to.signInWithGoogle,
+              onPressed: () => AuthBottomSheet.show(context),
               icon: const Icon(Icons.login_rounded, size: 16, color: Colors.white),
               label: const Text(
                 'Sign in to chat',
@@ -480,7 +482,11 @@ class LiveChatOverlay extends StatelessWidget {
                 ),
                 child: TextField(
                   controller: controller.textController,
-                  inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+                  maxLength: ContentValidator.defaultMaxLiveChatLength,
+                  buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                  inputFormatters: TruthworldTextInputFormatters.withLimit(
+                    ContentValidator.defaultMaxLiveChatLength,
+                  ),
                   style: const TextStyle(color: Colors.white, fontSize: 13),
                   decoration: const InputDecoration(
                     hintText: 'Chat publicly as...',
@@ -545,7 +551,7 @@ class LiveChatOverlay extends StatelessWidget {
         'Please sign in to send a Superchat.',
         title: 'Sign In Required',
         actionLabel: 'SIGN IN',
-        onAction: AuthService.to.signInWithGoogle,
+        onAction: () => AuthBottomSheet.show(context),
       );
       return;
     }
@@ -588,6 +594,10 @@ class LiveChatOverlay extends StatelessWidget {
             TextField(
               controller: amountController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                LengthLimitingTextInputFormatter(6),
+              ],
               style: const TextStyle(color: Colors.white, fontSize: 16),
               decoration: InputDecoration(
                 prefixText: '$currencySymbol ',
@@ -606,7 +616,11 @@ class LiveChatOverlay extends StatelessWidget {
             const SizedBox(height: 12),
             TextField(
               controller: messageController,
-              inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+              maxLength: ContentValidator.defaultMaxLiveChatLength,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: TruthworldTextInputFormatters.withLimit(
+                ContentValidator.defaultMaxLiveChatLength,
+              ),
               style: const TextStyle(color: Colors.white, fontSize: 14),
               decoration: const InputDecoration(
                 labelText: 'Message (Optional)',

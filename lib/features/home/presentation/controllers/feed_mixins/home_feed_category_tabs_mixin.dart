@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/algorithm/diversity_config.dart';
@@ -63,35 +62,65 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
     }
   }
 
+  FeedAlgorithmService? get feedAlgorithmService =>
+      Get.isRegistered<FeedAlgorithmService>()
+          ? Get.find<FeedAlgorithmService>()
+          : null;
+
   @override
   Future<void> fetchMainFeedVideos({bool forceNetwork = false}) async {
     final currentUid = currentUserId;
     final userProfile = Get.isRegistered<UserInterestProfileService>()
         ? Get.find<UserInterestProfileService>().profile.value
         : null;
-    final feedAlgorithmService = Get.isRegistered<FeedAlgorithmService>()
-        ? Get.find<FeedAlgorithmService>()
-        : null;
 
-    if (feedAlgorithmService != null &&
-        feedAlgorithmService.isServerAvailable &&
+    final algorithmService = feedAlgorithmService;
+    if (algorithmService != null &&
+        algorithmService.isServerAvailable &&
         currentUid != null &&
         currentUid.isNotEmpty) {
       try {
-        final serverVideos = await feedAlgorithmService.getPersonalizedFeed(
+        final serverVideos = await algorithmService.getPersonalizedFeed(
           userId: currentUid,
         );
 
-        final adjusted = feedAlgorithmService.applyLocalAdjustments(
+        final adjusted = algorithmService.applyLocalAdjustments(
           serverVideos,
           notInterestedVideoIds: userProfile?.notInterestedVideoIds,
           blockedChannelIds: userProfile?.blockedChannelIds,
           recentlyWatchedVideoIds: userProfile?.recentlyWatchedVideoIds,
         );
 
-        final candidates = adjusted.isNotEmpty ? adjusted : serverVideos;
+        var candidates = adjusted.isNotEmpty ? adjusted : serverVideos;
+
+        // Ensure Personalized Feed never returns 0 videos: if candidates is empty, retrieve any other fallback videos
+        if (candidates.isEmpty) {
+          candidates =
+              await algorithmService.getPersonalizedFeedFallback();
+        }
 
         if (candidates.isNotEmpty) {
+          // YouTube-style backfill:
+          // First prefer personalized videos (candidates).
+          // If candidates count is lower than HomeFeedControllerBase.pageSize (low video count or content crisis),
+          // query remaining available public videos from TruthWorld catalog in Firestore and append them.
+          if (candidates.length < HomeFeedControllerBase.pageSize) {
+            final existingIds = candidates.map((v) => v.id).toSet();
+            final remainingNeeded =
+                HomeFeedControllerBase.pageSize - candidates.length;
+            final backfillVideos =
+                await algorithmService.getAnyFallbackVideos(
+              limit: remainingNeeded + existingIds.length,
+            );
+            for (final v in backfillVideos) {
+              if (!existingIds.contains(v.id)) {
+                candidates.add(v);
+                existingIds.add(v.id);
+                if (candidates.length >= HomeFeedControllerBase.pageSize) break;
+              }
+            }
+          }
+
           final isFlipped = Get.isRegistered<FlipCoinService>() &&
               Get.find<FlipCoinService>().isHomeFlipped.value;
 
@@ -107,14 +136,8 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
           }
 
           saveVideosToCache('All');
-          if (serverVideos.length < HomeFeedControllerBase.pageSize) {
-            rxHasMore.value = false;
-          }
+          rxHasMore.value = candidates.length >= HomeFeedControllerBase.pageSize;
           return;
-        } else {
-          debugPrint(
-            '[HomeFeedController] Personalized feed returned 0 videos, falling back to Firestore.',
-          );
         }
       } catch (e, stackTrace) {
         ErrorHandler.log(
@@ -125,15 +148,18 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
       }
     }
 
-    QuerySnapshot? results;
+    final docMap = <String, DocumentSnapshot>{};
 
-    // Tier 1: Query ordered by uploadedAt with server-side visibility & status filter
+    // YouTube-style SWR: Revalidate fresh videos from network across uploadedAt & createdAt
+    // Pass 1: Query ordered by uploadedAt DESC
     try {
-      final query = VideoQueryBuilder.publicVideos(
-        firestore,
-        limit: HomeFeedControllerBase.pageSize,
-      );
-      results = forceNetwork ? await query.get() : await query.getCacheFirst();
+      final query = VideoQueryBuilder.publicVideos(firestore);
+      final results = forceNetwork
+          ? await query.get(const GetOptions(source: Source.server))
+          : await query.getCacheFirst();
+      for (final doc in results.docs) {
+        docMap[doc.id] = doc;
+      }
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,
@@ -142,15 +168,19 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
       );
     }
 
-    // Tier 2: Query ordered by createdAt if uploadedAt query threw or returned 0 docs
-    if (results == null || results.docs.isEmpty) {
+    // Pass 2: Query ordered by createdAt DESC to discover videos lacking uploadedAt
+    if (docMap.length < HomeFeedControllerBase.pageSize) {
       try {
         final query = VideoQueryBuilder.publicVideos(
           firestore,
           orderByField: 'createdAt',
-          limit: HomeFeedControllerBase.pageSize,
         );
-        results = forceNetwork ? await query.get() : await query.getCacheFirst();
+        final results = forceNetwork
+            ? await query.get(const GetOptions(source: Source.server))
+            : await query.getCacheFirst();
+        for (final doc in results.docs) {
+          docMap.putIfAbsent(doc.id, () => doc);
+        }
       } catch (e2, stackTrace2) {
         ErrorHandler.log(
           e2,
@@ -160,13 +190,18 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
       }
     }
 
-    // Tier 3: Unconstrained query if createdAt query threw or returned 0 docs
-    if (results == null || results.docs.isEmpty) {
+    // Pass 3: Unconstrained collection query fallback if both ordered queries were empty/errored
+    if (docMap.isEmpty) {
       try {
         final query = firestore
             .collection('videos')
             .limit(HomeFeedControllerBase.pageSize);
-        results = forceNetwork ? await query.get() : await query.getCacheFirst();
+        final results = forceNetwork
+            ? await query.get(const GetOptions(source: Source.server))
+            : await query.getCacheFirst();
+        for (final doc in results.docs) {
+          docMap.putIfAbsent(doc.id, () => doc);
+        }
       } catch (e3, stackTrace3) {
         ErrorHandler.log(
           e3,
@@ -176,13 +211,14 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
       }
     }
 
-    if (results != null && results.docs.isNotEmpty) {
-      lastDocument = results.docs.last;
+    if (docMap.isNotEmpty) {
+      final docsList = docMap.values.toList();
+      lastDocument = docsList.last;
 
       // Self-heal: Asynchronously verify 'processing' items without blocking the video presentation
       if (authService.isAuthenticated.value) {
         unawaited(Future(() {
-          for (final doc in results!.docs) {
+          for (final doc in docsList) {
             final data = doc.data() as Map<String, dynamic>?;
             if (data != null && data['status'] == 'processing') {
               final pStage = data['aiFeatures'] is Map
@@ -208,17 +244,33 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
         }));
       }
 
-      final allParsed = results.docs.map(Video.fromDocumentSnapshot).toList();
+      final allParsed = docsList.map(Video.fromDocumentSnapshot).toList();
+      // Sort newest first based on uploadedAt or createdAt
+      allParsed.sort((a, b) {
+        final timeA = a.uploadedAt.toDate();
+        final timeB = b.uploadedAt.toDate();
+        return timeB.compareTo(timeA);
+      });
+
       final rawVideos = allParsed.sanitizeForFeed();
 
       if (rawVideos.isNotEmpty) {
+        final isFlipped = Get.isRegistered<FlipCoinService>() &&
+            Get.find<FlipCoinService>().isHomeFlipped.value;
+
         if (Get.isRegistered<TruthworldAlgorithm>()) {
           final algorithm = Get.find<TruthworldAlgorithm>();
-          final ranked = algorithm.rankVideos(
-            rawVideos,
-            RecommendationSurface.homeFeedAll,
-            diversityConfig: DiversityConfig.homeFeed,
-          );
+          final ranked = isFlipped
+              ? algorithm.rankVideosOpposite(
+                  rawVideos,
+                  RecommendationSurface.homeFeedAll,
+                  diversityConfig: DiversityConfig.homeFeed,
+                )
+              : algorithm.rankVideos(
+                  rawVideos,
+                  RecommendationSurface.homeFeedAll,
+                  diversityConfig: DiversityConfig.homeFeed,
+                );
           final rankedVideos = ranked.map((s) => s.video).toList();
           videos.assignAll(rankedVideos.isNotEmpty ? rankedVideos : rawVideos);
         } else {
@@ -231,7 +283,7 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
         }
       } else {
         // Fallback: If strict sanitizeForFeed filtered out every doc, ensure playable public videos are displayed
-        final playableVideos = results.docs
+        final playableVideos = docsList
             .map(Video.fromDocumentSnapshot)
             .where((v) =>
                 v.id.isNotEmpty &&
@@ -248,15 +300,21 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
             rxHasMore.value = false;
           }
         } else {
-          videos.clear();
-          rxHasMore.value = false;
-          feedCacheManager.invalidateCategory('All', userId: currentUserId);
+          // If we had cached videos, preserve them gracefully (YouTube offline behavior)
+          if (videos.isEmpty) {
+            videos.clear();
+            rxHasMore.value = false;
+            feedCacheManager.invalidateCategory('All', userId: currentUserId);
+          }
         }
       }
     } else {
-      videos.clear();
-      rxHasMore.value = false;
-      feedCacheManager.invalidateCategory('All', userId: currentUserId);
+      // If network returned 0 docs but cached videos were already loaded, keep them (YouTube offline resilience)
+      if (videos.isEmpty) {
+        videos.clear();
+        rxHasMore.value = false;
+        feedCacheManager.invalidateCategory('All', userId: currentUserId);
+      }
     }
   }
 
@@ -272,7 +330,7 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
           .where('category', isEqualTo: cat)
           .orderBy('uploadedAt', descending: true)
           .limit(HomeFeedControllerBase.pageSize)
-          .get();
+          .getCacheFirst();
       if (snap.docs.isNotEmpty) {
         candidateDocs.addAll(snap.docs);
         lastDocument = snap.docs.last;
@@ -292,7 +350,7 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
             .collection('videos')
             .where('category', isEqualTo: cat)
             .limit(HomeFeedControllerBase.pageSize)
-            .get();
+            .getCacheFirst();
         if (snap.docs.isNotEmpty) {
           candidateDocs.addAll(snap.docs);
           lastDocument = snap.docs.last;
@@ -313,7 +371,7 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
             .collection('videos')
             .where('category', isEqualTo: cat.toLowerCase())
             .limit(HomeFeedControllerBase.pageSize)
-            .get();
+            .getCacheFirst();
         if (snap.docs.isNotEmpty) {
           candidateDocs.addAll(snap.docs);
           lastDocument = snap.docs.last;
@@ -334,7 +392,7 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
             .collection('videos')
             .where('tags', arrayContains: cat.toLowerCase())
             .limit(HomeFeedControllerBase.pageSize)
-            .get();
+            .getCacheFirst();
         if (snap.docs.isNotEmpty) {
           candidateDocs.addAll(snap.docs);
           lastDocument = snap.docs.last;
@@ -355,7 +413,7 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
             .collection('videos')
             .where('topics', arrayContains: cat.toLowerCase())
             .limit(HomeFeedControllerBase.pageSize)
-            .get();
+            .getCacheFirst();
         if (snap.docs.isNotEmpty) {
           candidateDocs.addAll(snap.docs);
           lastDocument = snap.docs.last;
@@ -372,7 +430,8 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
     // 6. Broader scan across recent videos if direct indexed queries didn't yield results
     if (candidateDocs.isEmpty) {
       try {
-        final snap = await firestore.collection('videos').limit(120).get();
+        final snap =
+            await firestore.collection('videos').limit(120).getCacheFirst();
         candidateDocs.addAll(snap.docs);
       } catch (e, stackTrace) {
         ErrorHandler.log(
@@ -400,28 +459,88 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
     }
 
     final catVideos = uniqueVideos.values.toList();
+    var finalVideos = catVideos;
 
-    if (catVideos.isNotEmpty) {
-      catVideos.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    // Fallback: If no videos matched this particular category/topics/tags,
+    // never return 0 videos: fall back to any other available public videos
+    if (finalVideos.isEmpty && candidateDocs.isNotEmpty) {
+      final fallbackList = <Video>[];
+      for (final doc in candidateDocs) {
+        try {
+          final v = Video.fromDocumentSnapshot(doc);
+          if (VideoVisibilityPolicy.isVisibleForFeed(v)) {
+            fallbackList.add(v);
+          }
+        } catch (_) {}
+      }
+      if (fallbackList.isNotEmpty) {
+        finalVideos = fallbackList;
+      }
+    }
+
+    // YouTube-style backfill for category tabs:
+    // First prefer category-specific videos (finalVideos).
+    // If count is lower than HomeFeedControllerBase.pageSize, backfill remaining slots from TruthWorld catalog
+    // so category tabs never face a low video count or content crisis.
+    if (finalVideos.length < HomeFeedControllerBase.pageSize) {
+      final existingIds = finalVideos.map((v) => v.id).toSet();
+      for (final doc in candidateDocs) {
+        if (finalVideos.length >= HomeFeedControllerBase.pageSize) break;
+        if (!existingIds.contains(doc.id)) {
+          try {
+            final v = Video.fromDocumentSnapshot(doc);
+            if (VideoVisibilityPolicy.isVisibleForFeed(v)) {
+              finalVideos.add(v);
+              existingIds.add(v.id);
+            }
+          } catch (_) {}
+        }
+      }
+      final feedAlgorithmService = Get.isRegistered<FeedAlgorithmService>()
+          ? Get.find<FeedAlgorithmService>()
+          : null;
+      if (finalVideos.length < HomeFeedControllerBase.pageSize &&
+          feedAlgorithmService != null) {
+        try {
+          final remainingNeeded =
+              HomeFeedControllerBase.pageSize - finalVideos.length;
+          final moreVideos = await feedAlgorithmService.getAnyFallbackVideos(
+            limit: remainingNeeded + existingIds.length,
+          );
+          for (final v in moreVideos) {
+            if (!existingIds.contains(v.id)) {
+              finalVideos.add(v);
+              existingIds.add(v.id);
+              if (finalVideos.length >= HomeFeedControllerBase.pageSize) break;
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    if (finalVideos.isNotEmpty) {
+      finalVideos.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
       if (Get.isRegistered<TruthworldAlgorithm>()) {
         final algorithm = Get.find<TruthworldAlgorithm>();
         final ranked = algorithm.rankVideos(
-          catVideos,
+          finalVideos,
           RecommendationSurface.homeFeedCategory,
         );
         final rankedList = ranked.map((s) => s.video).toList();
-        videos.assignAll(rankedList.isNotEmpty ? rankedList : catVideos);
+        videos.assignAll(rankedList.isNotEmpty ? rankedList : finalVideos);
       } else {
-        videos.assignAll(catVideos);
+        videos.assignAll(finalVideos);
       }
 
       saveVideosToCache(cat);
-      rxHasMore.value = catVideos.length >= HomeFeedControllerBase.pageSize;
+      rxHasMore.value = finalVideos.length >= HomeFeedControllerBase.pageSize;
     } else {
-      videos.clear();
-      rxHasMore.value = false;
-      feedCacheManager.invalidateCategory(cat, userId: currentUserId);
+      if (videos.isEmpty) {
+        videos.clear();
+        rxHasMore.value = false;
+        feedCacheManager.invalidateCategory(cat, userId: currentUserId);
+      }
     }
 
     try {
@@ -430,7 +549,7 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
           .where('status', isEqualTo: 'active')
           .where('category', isEqualTo: cat)
           .limit(10)
-          .get();
+          .getCacheFirst();
       if (Get.isRegistered<HomeDiscoveryController>()) {
         final discoveryCtrl = Get.find<HomeDiscoveryController>();
         if (topicDocs.docs.isNotEmpty) {

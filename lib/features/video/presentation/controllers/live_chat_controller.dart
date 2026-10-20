@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
@@ -139,7 +140,11 @@ class LiveChatController extends BaseController {
     final text = textController.text.trim();
     if (text.isEmpty || isSending.value) return;
 
-    final validation = ContentValidator.validate(text, fieldName: 'Chat message');
+    final validation = ContentValidator.validate(
+      text,
+      fieldName: 'Chat message',
+      maxLength: ContentValidator.defaultMaxLiveChatLength,
+    );
     if (!validation.isValid) {
       AppSnackbar.warning(validation.message);
       return;
@@ -150,7 +155,7 @@ class LiveChatController extends BaseController {
         'Please sign in to participate in live chat.',
         title: 'Sign In Required',
         actionLabel: 'SIGN IN',
-        onAction: AuthService.to.signInWithGoogle,
+        onAction: AuthBottomSheet.prompt,
       );
       return;
     }
@@ -220,13 +225,17 @@ class LiveChatController extends BaseController {
         'Please sign in to send a Superchat.',
         title: 'Sign In Required',
         actionLabel: 'SIGN IN',
-        onAction: AuthService.to.signInWithGoogle,
+        onAction: AuthBottomSheet.prompt,
       );
       return false;
     }
 
     if (text.isNotEmpty) {
-      final validation = ContentValidator.validate(text, fieldName: 'Superchat message');
+      final validation = ContentValidator.validate(
+        text,
+        fieldName: 'Superchat message',
+        maxLength: ContentValidator.defaultMaxLiveChatLength,
+      );
       if (!validation.isValid) {
         AppSnackbar.warning(validation.message);
         return false;
@@ -272,7 +281,7 @@ class LiveChatController extends BaseController {
         'Please sign in to send a Superchat.',
         title: 'Sign In Required',
         actionLabel: 'SIGN IN',
-        onAction: AuthService.to.signInWithGoogle,
+        onAction: AuthBottomSheet.prompt,
       );
       return false;
     }
@@ -302,9 +311,27 @@ class LiveChatController extends BaseController {
 
     try {
       final cleanText = ContentValidator.cleanProfanity(text);
+      final cleanTitle = video!.title.replaceAll(RegExp(r'[^\w\s.,\-_]'), '').trim();
+      final safeTitle = cleanTitle.isNotEmpty ? cleanTitle : 'Live Video';
       final orderNote = chargeCurrency == 'USD'
-          ? 'Superchat on ${video!.title} (\$$chargeAmount USD)'
-          : 'Superchat on ${video!.title}';
+          ? 'Superchat on $safeTitle (\$$chargeAmount USD)'
+          : 'Superchat on $safeTitle';
+
+      String tierColor = '#1E88E5';
+      if (amountINR >= 2000) {
+        tierColor = '#D50000';
+      } else if (amountINR >= 1000) {
+        tierColor = '#E040FB';
+      } else if (amountINR >= 500) {
+        tierColor = '#FF9100';
+      } else if (amountINR >= 200) {
+        tierColor = '#FFD600';
+      } else if (amountINR >= 100) {
+        tierColor = '#00E676';
+      } else if (amountINR >= 50) {
+        tierColor = '#00B0FF';
+      }
+
       final paymentResult = await CashfreePaymentService.to.startPayment(
         amount: chargeAmount,
         currency: chargeCurrency,
@@ -316,6 +343,7 @@ class LiveChatController extends BaseController {
           'text': cleanText,
           'userName': currentUserName,
           'userProfilePicUrl': currentUserPhoto,
+          'tierColor': tierColor,
           'chargeAmount': chargeAmount,
           'currency': chargeCurrency,
           if (isUsd) 'originalAmount': originalAmount,

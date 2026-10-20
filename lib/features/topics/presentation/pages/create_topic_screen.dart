@@ -23,22 +23,48 @@ class CreateTopicScreen extends StatelessWidget {
   Future<List<Map<String, dynamic>>> _fetchVideos(String channelId) async {
     try {
       final uid = AuthService.to.uid;
+      final results = <Map<String, dynamic>>[];
+      final seenIds = <String>{};
+
+      void addDocs(List<QueryDocumentSnapshot> docs) {
+        for (final d in docs) {
+          if (!seenIds.contains(d.id)) {
+            seenIds.add(d.id);
+            final data = d.data() as Map<String, dynamic>?;
+            if (data != null) {
+              results.add({'id': d.id, ...data});
+            }
+          }
+        }
+      }
+
       if (channelId.isNotEmpty) {
         final snap = await FirebaseFirestore.instance
             .collection(FirestoreCollections.videos)
             .where('channelId', isEqualTo: channelId)
             .get();
-        if (snap.docs.isNotEmpty) {
-          return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
-        }
+        addDocs(snap.docs);
       }
       if (uid.isNotEmpty) {
-        final snap = await FirebaseFirestore.instance
+        final snapOwner = await FirebaseFirestore.instance
+            .collection(FirestoreCollections.videos)
+            .where('ownerId', isEqualTo: uid)
+            .get();
+        addDocs(snapOwner.docs);
+
+        final snapUser = await FirebaseFirestore.instance
+            .collection(FirestoreCollections.videos)
+            .where('userId', isEqualTo: uid)
+            .get();
+        addDocs(snapUser.docs);
+
+        final snapCreator = await FirebaseFirestore.instance
             .collection(FirestoreCollections.videos)
             .where('creatorId', isEqualTo: uid)
             .get();
-        return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+        addDocs(snapCreator.docs);
       }
+      return results;
     } catch (e, s) {
       ErrorHandler.log(
         e,
@@ -74,17 +100,19 @@ class CreateTopicScreen extends StatelessWidget {
           finalThumbnailUrl = createCtrl.chosenVideoThumbnailUrl.value;
         }
 
+        final effectiveChannelId = channelId.isNotEmpty
+            ? channelId
+            : (AuthService.to.userChannel?.id ?? '');
+
         await topicManagementCtrl.createTopic(
-          channelId: channelId.isNotEmpty
-              ? channelId
-              : (AuthService.to.userChannel?.id ?? ''),
-          title: createCtrl.titleController.text,
-          handle: createCtrl.handleController.text,
-          description: createCtrl.descriptionController.text,
-          category: createCtrl.categoryController.text.isEmpty
+          channelId: effectiveChannelId,
+          title: createCtrl.titleController.text.trim(),
+          handle: createCtrl.handleController.text.trim(),
+          description: createCtrl.descriptionController.text.trim(),
+          category: createCtrl.categoryController.text.trim().isEmpty
               ? 'General'
-              : createCtrl.categoryController.text,
-          selectedVideoIds: createCtrl.selectedVideoIds,
+              : createCtrl.categoryController.text.trim(),
+          selectedVideoIds: createCtrl.selectedVideoIds.toList(),
           visibilityType: createCtrl.selectedVisibility.value,
           accessCode:
               createCtrl.selectedVisibility.value == TopicVisibilityType.private

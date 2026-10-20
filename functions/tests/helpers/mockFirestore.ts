@@ -67,9 +67,9 @@ export class MemoryDocumentRef {
   }
 
   async set(data: TestDocData, options?: { merge?: boolean }): Promise<void> {
-    const resolvedData = this.resolveFieldValues(data);
+    const existing = options?.merge ? (this.store.get(this.path) || {}) : undefined;
+    const resolvedData = this.resolveFieldValues(data, existing);
     if (options?.merge) {
-      const existing = this.store.get(this.path) || {};
       this.store.set(this.path, { ...existing, ...resolvedData });
     } else {
       this.store.set(this.path, { ...resolvedData });

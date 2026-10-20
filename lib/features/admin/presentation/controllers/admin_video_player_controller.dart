@@ -82,10 +82,7 @@ class AdminVideoPlayerController extends BaseController {
                 )
               : VideoPlayerController.networkUrl(
                   Uri.parse(targetUrl),
-                  httpHeaders: const {
-                    'Connection': 'keep-alive',
-                    'Accept': '*/*',
-                  },
+                  httpHeaders: StorageUtils.getSyncMediaHeaders(),
                   videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
                 );
           await ctrl.initialize();

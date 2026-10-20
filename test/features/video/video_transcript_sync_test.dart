@@ -131,5 +131,24 @@ void main() {
       expect(transcriptCtrl.activeSegmentIndex.value, equals(3));
       expect(transcriptCtrl.isTranscriptVisible.value, isTrue);
     });
+
+    test('getSegmentKey returns stable GlobalKey for given index', () {
+      final key0 = transcriptCtrl.getSegmentKey(0);
+      final key0Again = transcriptCtrl.getSegmentKey(0);
+      final key1 = transcriptCtrl.getSegmentKey(1);
+
+      expect(key0, equals(key0Again));
+      expect(key0, isNot(equals(key1)));
+    });
+
+    test('onUserScrolled pauses auto-scroll and resumes after timeout or resumeAutoScroll', () {
+      expect(transcriptCtrl.autoScrollEnabled.value, isTrue);
+
+      transcriptCtrl.onUserScrolled();
+      expect(transcriptCtrl.autoScrollEnabled.value, isFalse);
+
+      transcriptCtrl.resumeAutoScroll();
+      expect(transcriptCtrl.autoScrollEnabled.value, isTrue);
+    });
   });
 }

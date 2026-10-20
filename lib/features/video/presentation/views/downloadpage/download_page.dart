@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
@@ -104,6 +105,11 @@ class DownloadsPage extends GetView<DownloadsController> {
                               ),
                             ),
                             child: TextField(
+                              maxLength: ContentValidator.defaultMaxSearchLength,
+                              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                              inputFormatters: TruthworldTextInputFormatters.withLimit(
+                                ContentValidator.defaultMaxSearchLength,
+                              ),
                               onChanged: (value) =>
                                   controller.searchQuery.value = value,
                               style: const TextStyle(
@@ -639,7 +645,7 @@ class _DownloadVideoListCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${video.channelName} • ${video.views} views',
+                    '${video.channelName} • ${video.views} ${video.views == '1' ? 'view' : 'views'}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -896,7 +902,7 @@ class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${widget.video.channelName} • ${FormatUtils.formatCount(widget.video.views)} views',
+                    '${widget.video.channelName} • ${FormatUtils.formatCount(widget.video.views)} ${widget.video.views == 1 ? 'view' : 'views'}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(

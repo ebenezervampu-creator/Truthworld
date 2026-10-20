@@ -28,6 +28,7 @@ class FollowingTopicVideoCard extends StatelessWidget {
     this.isGrid = true,
     this.cardWidth,
     this.onTopicDetailsTap,
+    this.topicVideos,
     super.key,
   });
 
@@ -39,6 +40,7 @@ class FollowingTopicVideoCard extends StatelessWidget {
   final bool isGrid;
   final double? cardWidth;
   final void Function(Topic topic)? onTopicDetailsTap;
+  final List<Video>? topicVideos;
 
   void _handleVideoTap() {
     MiniplayerNavigationHelper.navigateToVideoScreen(
@@ -46,6 +48,10 @@ class FollowingTopicVideoCard extends StatelessWidget {
       routeArguments: {
         'video': video,
         'heroTag': 'topic_${topic.id}_video_${video.id}_$index',
+        'fromTopic': true,
+        'topic': topic,
+        if (topicVideos != null && topicVideos!.isNotEmpty)
+          'topicVideos': topicVideos,
       },
     );
   }
@@ -345,39 +351,6 @@ class FollowingTopicVideoCard extends StatelessWidget {
             ),
           ),
 
-          // Fact-Checked Badge (if verified)
-          if (video.isFactChecked)
-            Positioned(
-              top: 36,
-              left: 8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF10B981),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.verified_rounded,
-                      color: Colors.white,
-                      size: 11,
-                    ),
-                    SizedBox(width: 3),
-                    Text(
-                      'Fact Checked',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
           // Bottom Right Duration Badge ("07:35")
           Positioned(
             bottom: 8,
@@ -388,13 +361,26 @@ class FollowingTopicVideoCard extends StatelessWidget {
                 color: Colors.black.withValues(alpha: 0.85),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(
-                video.duration.isNotEmpty ? video.duration : '07:35',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (video.isFactChecked) ...[
+                    const Icon(
+                      Icons.verified_rounded,
+                      color: Color(0xFF00E676),
+                      size: 12,
+                    ),
+                    const SizedBox(width: 3),
+                  ],
+                  Text(
+                    video.duration.isNotEmpty ? video.duration : '07:35',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
@@ -27,6 +29,13 @@ class AuthAppleSignInProvider {
       appleProvider.addScope('name');
 
       if (kIsWeb) {
+        if (Firebase.apps.isNotEmpty) {
+          try {
+            await FirebaseAppCheck.instance
+                .getToken()
+                .timeout(const Duration(seconds: 3));
+          } catch (_) {}
+        }
         if (kIsWasm) {
           debugPrint('AuthAppleSignInProvider: WebAssembly detected. Initiating signInWithRedirect.');
           await auth.signInWithRedirect(appleProvider);

@@ -111,11 +111,20 @@ function ensureAbsoluteImageUrl(url?: string): string | undefined {
 }
 
 async function resolveVideoImage(db: admin.firestore.Firestore, data: any): Promise<string | undefined> {
+  let variantUrl: string | undefined;
+  if (Array.isArray(data.thumbnailVariants) && data.thumbnailVariants.length > 0) {
+    const first = data.thumbnailVariants[0];
+    variantUrl = typeof first === "string" ? first : (first?.url || first?.thumbnailUrl);
+  }
+  const ytThumb = data.thumbnails?.maxres?.url || data.thumbnails?.standard?.url || data.thumbnails?.high?.url || data.thumbnails?.medium?.url || data.thumbnails?.default?.url;
+
   let img = ensureAbsoluteImageUrl(
     data.thumbnailUrl ||
     data.thumbnail ||
     data.thumbnail_url ||
     data.posterUrl ||
+    variantUrl ||
+    ytThumb ||
     data.coverUrl ||
     data.imageUrl ||
     data.previewUrl ||
@@ -260,7 +269,25 @@ async function resolvePlaylistImage(db: admin.firestore.Firestore, playlistId: s
     }
   } catch (_) {}
 
-  return undefined;
+  // 5. Fallback to creator channel avatar or banner
+  if (data.channelId) {
+    try {
+      const cDoc = await db.collection("channels").doc(data.channelId).get();
+      if (cDoc.exists) {
+        const cData = cDoc.data()!;
+        img = ensureAbsoluteImageUrl(
+          cData.avatarUrl ||
+          cData.avatarImage ||
+          cData.channelAvatarUrl ||
+          cData.bannerUrl ||
+          cData.photoUrl
+        );
+        if (img) return img;
+      }
+    } catch (_) {}
+  }
+
+  return `${DOMAIN}/icons/og-image.png`;
 }
 
 export const seoServer = onRequest(
@@ -274,6 +301,11 @@ export const seoServer = onRequest(
     try {
       const path = req.path;
       const lowerPath = path.toLowerCase();
+      let decodedPath = path;
+      try {
+        decodedPath = decodeURIComponent(path);
+      } catch (_) {}
+      const decodedLowerPath = decodedPath.toLowerCase();
       const host = (req.hostname || req.headers.host || "").toLowerCase();
       const canonicalUrl = normalizeUrl(host, path, req.query);
 
@@ -579,24 +611,62 @@ export const seoServer = onRequest(
         }
       }
 
-      // WATCH / V / SHORTS ROUTE & DYNAMIC VIDEO CARD IMAGE
-      if (lowerPath.startsWith("/watch") || lowerPath.startsWith("/v/") || lowerPath.startsWith("/shorts/") || lowerPath.startsWith("/api/og/video")) {
+      // WATCH / V / SHORTS / CLIP / CHAPTER ROUTE & DYNAMIC VIDEO CARD IMAGE
+      if (
+        lowerPath.startsWith("/watch") ||
+        decodedLowerPath.startsWith("/watch") ||
+        lowerPath.startsWith("/v/") ||
+        decodedLowerPath.startsWith("/v/") ||
+        lowerPath.startsWith("/shorts/") ||
+        decodedLowerPath.startsWith("/shorts/") ||
+        lowerPath.startsWith("/clip/") ||
+        decodedLowerPath.startsWith("/clip/") ||
+        lowerPath.startsWith("/clips/") ||
+        decodedLowerPath.startsWith("/clips/") ||
+        lowerPath.startsWith("/chapter/") ||
+        decodedLowerPath.startsWith("/chapter/") ||
+        lowerPath.startsWith("/chapters/") ||
+        decodedLowerPath.startsWith("/chapters/") ||
+        lowerPath.startsWith("/api/og/video")
+      ) {
         const isVideoCardImageRequest = lowerPath.endsWith("/og.png") || lowerPath.endsWith("/card.png") || lowerPath.startsWith("/api/og/video");
-        let videoId = (req.query.v || req.query.id) as string;
+        let videoId = (req.query.v || req.query.id || req.query.videoId) as string;
         if (!videoId) {
           if (lowerPath.startsWith("/api/og/video")) {
             const parts = path.split("/").filter(p => p.length > 0);
             videoId = parts[3] || "";
           } else {
-            const parts = path.split("/").filter(p => p.length > 0);
+            const parts = decodedPath.split("/").filter(p => p.length > 0);
             const p0 = parts.length > 0 ? parts[0].toLowerCase() : "";
-            if (parts.length >= 2 && (p0 === "watch" || p0 === "v" || p0 === "shorts")) {
-              videoId = parts[1].replace(/\.(png|jpe?g)$/i, "").replace(/\/(og|card)\.png$/i, "");
+            if (
+              parts.length >= 2 &&
+              (p0 === "watch" || p0 === "v" || p0 === "shorts" || p0 === "clip" || p0 === "clips" || p0 === "chapter" || p0 === "chapters")
+            ) {
+              videoId = parts[1].replace(/\.(png|jpe?g)$/i, "").replace(/\/(og|card)\.png$/i, "").trim().replace(/\/+$/, "");
             }
           }
         }
         if (videoId) {
-          const cacheKey = `watch_v2_${videoId}`;
+          videoId = decodeURIComponent(videoId).trim().replace(/\/+$/, "");
+          const rawClipTitle = (req.query.clipTitle || req.query.title) as string;
+          const clipTitle = rawClipTitle ? decodeURIComponent(rawClipTitle).trim() : "";
+          const clipStartParam = (req.query.start || req.query.clipStart) as string;
+          const clipEndParam = (req.query.end || req.query.clipEnd) as string;
+          const timeParam = (req.query.t || req.query.time) as string;
+
+          const isClip = Boolean(clipTitle || (clipStartParam && clipEndParam) || lowerPath.startsWith("/clip") || decodedLowerPath.startsWith("/clip"));
+          const isChapter = Boolean(timeParam || lowerPath.startsWith("/chapter") || decodedLowerPath.startsWith("/chapter"));
+
+          let cacheKey = `watch_v3_${videoId}`;
+          if (isClip) {
+            const sSec = clipStartParam ? parseInt(clipStartParam, 10) : 0;
+            const eSec = clipEndParam ? parseInt(clipEndParam, 10) : 0;
+            const cleanTitleSlug = clipTitle ? clipTitle.substring(0, 24).toLowerCase().replace(/\W+/g, "_") : "clip";
+            cacheKey = `clip_v3_${videoId}_${sSec}_${eSec}_${cleanTitleSlug}`;
+          } else if (isChapter && timeParam) {
+            cacheKey = `chapter_v3_${videoId}_${timeParam.replace(/\W+/g, "_")}`;
+          }
+
           if (!isVideoCardImageRequest) {
             const cached = await getCachedSnapshot(cacheKey);
             if (cached) {
@@ -645,17 +715,29 @@ export const seoServer = onRequest(
               return;
             }
 
+            // Concurrently query channel doc & related videos to eliminate latency
+            const channelDocPromise = docData.channelId
+              ? db.collection("channels").doc(docData.channelId).get().catch(() => null)
+              : Promise.resolve(null);
+
+            let rQuery = db.collection("videos").limit(8);
+            if (docData.category) {
+              rQuery = db.collection("videos").where("category", "==", docData.category).limit(8);
+            } else if (docData.channelId) {
+              rQuery = db.collection("videos").where("channelId", "==", docData.channelId).limit(8);
+            }
+            const relatedVideosPromise = rQuery.get().catch(() => null);
+
+            const [cDoc, rSnap] = await Promise.all([channelDocPromise, relatedVideosPromise]);
+
             let channelName = docData.channelName || "Channel";
             let channelHandle = "";
             let channelIsBrand = false;
-            if (docData.channelId) {
-              const cDoc = await db.collection("channels").doc(docData.channelId).get();
-              if (cDoc.exists) {
-                const cData = cDoc.data()!;
-                channelName = cData.displayName || cData.name || channelName;
-                channelHandle = cData.handle || "";
-                channelIsBrand = cData.isBrand === true || cData.creatorType === "Organization" || cData.type === "custom";
-              }
+            if (cDoc && cDoc.exists) {
+              const cData = cDoc.data()!;
+              channelName = cData.displayName || cData.name || channelName;
+              channelHandle = cData.handle || "";
+              channelIsBrand = cData.isBrand === true || cData.creatorType === "Organization" || cData.type === "custom";
             }
             const authorUrl = channelHandle 
               ? `${DOMAIN}/${channelHandle.startsWith("@") ? channelHandle : `@${channelHandle}`}`
@@ -674,7 +756,7 @@ export const seoServer = onRequest(
               ? `${Math.floor(videoDurationSec / 60)}:${(videoDurationSec % 60).toString().padStart(2, "0")}`
               : "";
 
-            // Format Video Title cleanly
+            // Format Video, Clip, or Chapter Title & Description cleanly
             let pageTitle = `${rawTitle} - Truthworld`;
             if (channelName && channelName !== "Channel" && !rawTitle.toLowerCase().includes(channelName.toLowerCase())) {
               pageTitle = `${rawTitle} - ${channelName} | Truthworld`;
@@ -689,9 +771,52 @@ export const seoServer = onRequest(
               pageDescription = `Watch "${rawTitle}" by ${channelName} on Truthworld. • ${viewCountStr}${durationFormatted ? ` • ${durationFormatted}` : ""} • Family-safe verified video platform.`;
             }
 
-            const videoImage = await resolveVideoImage(db, docData);
+            if (isClip) {
+              const displayClipTitle = clipTitle || `Clip from ${rawTitle}`;
+              let segmentStr = "";
+              if (clipStartParam && clipEndParam) {
+                const sSec = parseInt(clipStartParam, 10) || 0;
+                const eSec = parseInt(clipEndParam, 10) || 0;
+                const sMin = `${Math.floor(sSec / 60)}:${(sSec % 60).toString().padStart(2, "0")}`;
+                const eMin = `${Math.floor(eSec / 60)}:${(eSec % 60).toString().padStart(2, "0")}`;
+                segmentStr = ` (${sMin} - ${eMin})`;
+              }
+              pageTitle = `"${displayClipTitle}"${segmentStr} - ${rawTitle} | Truthworld`;
+              pageDescription = `Watch this verified video clip "${displayClipTitle}" from "${rawTitle}" by ${channelName} on Truthworld. Stream family-safe video.`;
+            } else if (isChapter && timeParam) {
+              let chapterTitle = "";
+              let startSec = 0;
+              if (timeParam.includes("m") || timeParam.includes("s")) {
+                const mMatch = timeParam.match(/(\d+)m/);
+                const sMatch = timeParam.match(/(\d+)s/);
+                startSec = (mMatch ? parseInt(mMatch[1], 10) * 60 : 0) + (sMatch ? parseInt(sMatch[1], 10) : 0);
+              } else {
+                startSec = parseInt(timeParam, 10) || 0;
+              }
 
-            // Dynamic Video Card Image for Social Sharing & Open Graph
+              if (Array.isArray(docData.chapters) && docData.chapters.length > 0) {
+                for (let ci = 0; ci < docData.chapters.length; ci++) {
+                  const ch = docData.chapters[ci];
+                  const chStart = Math.floor((ch.startMs || 0) / 1000);
+                  const nextCh = docData.chapters[ci + 1];
+                  const chEnd = nextCh ? Math.floor((nextCh.startMs || 0) / 1000) : videoDurationSec;
+                  if (startSec >= chStart && (startSec < chEnd || !nextCh)) {
+                    chapterTitle = ch.title;
+                    break;
+                  }
+                }
+              }
+
+              if (chapterTitle) {
+                pageTitle = `"${chapterTitle}" - ${rawTitle} | Truthworld`;
+                pageDescription = `Watch "${chapterTitle}" from "${rawTitle}" by ${channelName} on Truthworld (Chapter at ${Math.floor(startSec / 60)}:${(startSec % 60).toString().padStart(2, "0")}).`;
+              }
+            }
+
+            const videoImage = await resolveVideoImage(db, docData);
+            const finalVideoThumbnail = videoImage || `${DOMAIN}/icons/og-image.png`;
+
+            // Dynamic Video Card Image for explicit card image endpoints
             if (isVideoCardImageRequest) {
               try {
                 const cardBuffer = await renderVideoCardImage({
@@ -712,23 +837,15 @@ export const seoServer = onRequest(
               }
             }
 
-            const ogCardImageUrl = `${DOMAIN}/v/${docId}/og.png`;
             const videoSchema = generateVideoSchema({ ...docData, id: docId } as any, authorUrl, channelName, channelIsBrand);
             const breadcrumbs = generateBreadcrumbData([
               { name: channelName, url: authorUrl },
               { name: rawTitle, url: canonicalUrl }
             ]);
 
-            // Query related videos for continuous crawl graph
+            // Populate related videos for continuous crawl graph
             let relatedVideosList: Array<{ title: string; url: string }> = [];
-            try {
-              let rQuery = db.collection("videos").limit(8);
-              if (docData.category) {
-                rQuery = db.collection("videos").where("category", "==", docData.category).limit(8);
-              } else if (docData.channelId) {
-                rQuery = db.collection("videos").where("channelId", "==", docData.channelId).limit(8);
-              }
-              const rSnap = await rQuery.get();
+            if (rSnap && !rSnap.empty) {
               rSnap.forEach(rd => {
                 if (rd.id !== docId) {
                   const rData = rd.data();
@@ -740,7 +857,7 @@ export const seoServer = onRequest(
                   }
                 }
               });
-            } catch (_) {}
+            }
 
             // Topic items for this video
             const videoTopicItems: Array<{ title: string; url: string }> = [];
@@ -776,9 +893,9 @@ export const seoServer = onRequest(
               title: pageTitle,
               description: pageDescription,
               url: canonicalUrl,
-              image: ogCardImageUrl,
-              imageWidth: 1024,
-              imageHeight: 780,
+              image: finalVideoThumbnail,
+              imageWidth: 1280,
+              imageHeight: 720,
               type: "video.other",
               videoUrl: docData.hlsUrl || docData.originalUrl || docData.videoUrl,
               embedUrl: `${DOMAIN}/embed/${docId}`,
@@ -819,20 +936,44 @@ export const seoServer = onRequest(
       }
 
       // CHANNEL / HANDLE ROUTE
-      if (lowerPath.startsWith("/channel/") || path.startsWith("/@") || lowerPath.startsWith("/c/") || lowerPath.startsWith("/user/") || lowerPath.startsWith("/api/og/channel")) {
+      if (
+        lowerPath.startsWith("/channel/") ||
+        decodedLowerPath.startsWith("/channel/") ||
+        path.startsWith("/@") ||
+        decodedPath.startsWith("/@") ||
+        lowerPath.startsWith("/c/") ||
+        decodedLowerPath.startsWith("/c/") ||
+        lowerPath.startsWith("/user/") ||
+        decodedLowerPath.startsWith("/user/") ||
+        lowerPath.startsWith("/api/og/channel")
+      ) {
         const isChannelCardImageRequest = lowerPath.endsWith("/og.png") || lowerPath.endsWith("/card.png") || lowerPath.startsWith("/api/og/channel");
-        let handleOrId = "";
-        if (path.startsWith("/@")) {
-          handleOrId = path.substring(2).replace(/\/(og|card)\.png$/i, "");
+        let rawTarget = "";
+        if (decodedPath.startsWith("/@")) {
+          rawTarget = decodedPath.substring(2);
+        } else if (path.startsWith("/@")) {
+          rawTarget = path.substring(2);
         } else if (lowerPath.startsWith("/api/og/channel")) {
           const parts = path.split("/").filter(p => p.length > 0);
-          handleOrId = parts[3] || (req.query.id as string) || (req.query.handle as string) || "";
+          rawTarget = parts[3] || (req.query.id as string) || (req.query.handle as string) || "";
         } else {
-          handleOrId = path.split("/")[2]?.replace(/\.(png|jpe?g)$/i, "").replace(/\/(og|card)\.png$/i, "") || "";
+          const parts = decodedPath.split("/").filter(p => p.length > 0);
+          rawTarget = parts[1] || "";
         }
 
+        const handleOrId = rawTarget
+          .replace(/\/(og|card)\.png$/i, "")
+          .replace(/\.(png|jpe?g|webp)$/i, "")
+          .trim()
+          .replace(/\/+$/, "");
+
         if (handleOrId) {
-          const cacheKey = `channel_v2_${handleOrId.toLowerCase().replace(/^@/, "")}`;
+          const cleanHandle = handleOrId.replace(/^@+/, "").trim();
+          const cleanHandleLower = cleanHandle.toLowerCase();
+          const handleWithAt = cleanHandle ? `@${cleanHandle}` : "";
+          const handleWithAtLower = cleanHandleLower ? `@${cleanHandleLower}` : "";
+
+          const cacheKey = `channel_v3_${cleanHandleLower || handleOrId.toLowerCase()}`;
           if (!isChannelCardImageRequest) {
             const cached = await getCachedSnapshot(cacheKey);
             if (cached) {
@@ -848,33 +989,121 @@ export const seoServer = onRequest(
           const docDirect = await db.collection("channels").doc(handleOrId).get();
           if (docDirect.exists) {
             docData = { id: docDirect.id, ...(docDirect.data() as any) };
+          } else if (cleanHandle && cleanHandle !== handleOrId) {
+            const docDirectClean = await db.collection("channels").doc(cleanHandle).get();
+            if (docDirectClean.exists) {
+              docData = { id: docDirectClean.id, ...(docDirectClean.data() as any) };
+            }
           }
 
-          // 2. Query by handleLowercase
-          if (!docData) {
-            const cleanHandle = handleOrId.toLowerCase().replace(/^@/, "");
-            const qs = await db.collection("channels").where("handleLowercase", "==", cleanHandle).limit(1).get();
+          // 2. Query channels by handleLowercase (both with and without @)
+          if (!docData && cleanHandleLower) {
+            const handleLowerCandidates = Array.from(new Set([cleanHandleLower, handleWithAtLower, cleanHandle, handleWithAt]));
+            const qs = await db.collection("channels").where("handleLowercase", "in", handleLowerCandidates).limit(1).get();
             if (!qs.empty) docData = { id: qs.docs[0].id, ...(qs.docs[0].data() as any) };
           }
 
-          // 3. Query by handle exact
-          if (!docData) {
-            const cleanHandle = handleOrId.replace(/^@/, "");
-            const qs = await db.collection("channels").where("handle", "==", cleanHandle).limit(1).get();
+          // 3. Query channels by handle exact (both with and without @)
+          if (!docData && cleanHandle) {
+            const handleCandidates = Array.from(new Set([cleanHandle, handleWithAt, cleanHandleLower, handleWithAtLower]));
+            const qs = await db.collection("channels").where("handle", "in", handleCandidates).limit(1).get();
             if (!qs.empty) docData = { id: qs.docs[0].id, ...(qs.docs[0].data() as any) };
           }
 
-          // 4. Query by id field
-          if (!docData) {
-            const qs = await db.collection("channels").where("id", "==", handleOrId).limit(1).get();
+          // 4. Query channels by customUrlLowercase
+          if (!docData && cleanHandleLower) {
+            const customUrlCandidates = Array.from(new Set([cleanHandleLower, handleWithAtLower]));
+            const qs = await db.collection("channels").where("customUrlLowercase", "in", customUrlCandidates).limit(1).get();
             if (!qs.empty) docData = { id: qs.docs[0].id, ...(qs.docs[0].data() as any) };
           }
 
-          // 5. Query by customUrlLowercase
-          if (!docData) {
-            const cleanHandle = handleOrId.toLowerCase().replace(/^@/, "");
-            const qs = await db.collection("channels").where("customUrlLowercase", "==", cleanHandle).limit(1).get();
+          // 5. Query channels by nameLowercase
+          if (!docData && cleanHandleLower) {
+            const qs = await db.collection("channels").where("nameLowercase", "==", cleanHandleLower).limit(1).get();
             if (!qs.empty) docData = { id: qs.docs[0].id, ...(qs.docs[0].data() as any) };
+          }
+
+          // 6. Query channels by id field
+          if (!docData) {
+            const idCandidates = Array.from(new Set([handleOrId, cleanHandle]));
+            const qs = await db.collection("channels").where("id", "in", idCandidates).limit(1).get();
+            if (!qs.empty) docData = { id: qs.docs[0].id, ...(qs.docs[0].data() as any) };
+          }
+
+          // 7. Query channels by ownerId or userId
+          if (!docData) {
+            const ownerCandidates = Array.from(new Set([handleOrId, cleanHandle]));
+            const qsOwner = await db.collection("channels").where("ownerId", "in", ownerCandidates).limit(1).get();
+            if (!qsOwner.empty) {
+              docData = { id: qsOwner.docs[0].id, ...(qsOwner.docs[0].data() as any) };
+            } else {
+              const qsUser = await db.collection("channels").where("userId", "in", ownerCandidates).limit(1).get();
+              if (!qsUser.empty) docData = { id: qsUser.docs[0].id, ...(qsUser.docs[0].data() as any) };
+            }
+          }
+
+          // 8. Fallback: Search users collection and link to channel
+          if (!docData) {
+            let userSnap = await db.collection("users").doc(handleOrId).get();
+            if (!userSnap.exists && cleanHandle && cleanHandle !== handleOrId) {
+              userSnap = await db.collection("users").doc(cleanHandle).get();
+            }
+
+            let userData: any = userSnap.exists ? { id: userSnap.id, ...(userSnap.data() as any) } : null;
+            if (!userData && cleanHandleLower) {
+              const userHandleCandidates = Array.from(new Set([cleanHandleLower, handleWithAtLower, cleanHandle, handleWithAt]));
+              const uq1 = await db.collection("users").where("handleLowercase", "in", userHandleCandidates).limit(1).get();
+              if (!uq1.empty) {
+                userData = { id: uq1.docs[0].id, ...(uq1.docs[0].data() as any) };
+              } else {
+                const uq2 = await db.collection("users").where("username", "in", userHandleCandidates).limit(1).get();
+                if (!uq2.empty) {
+                  userData = { id: uq2.docs[0].id, ...(uq2.docs[0].data() as any) };
+                } else {
+                  const uq3 = await db.collection("users").where("handle", "in", userHandleCandidates).limit(1).get();
+                  if (!uq3.empty) {
+                    userData = { id: uq3.docs[0].id, ...(uq3.docs[0].data() as any) };
+                  }
+                }
+              }
+            }
+
+            if (userData) {
+              if (userData.channelId) {
+                const chSnap = await db.collection("channels").doc(userData.channelId).get();
+                if (chSnap.exists) {
+                  docData = { id: chSnap.id, ...(chSnap.data() as any) };
+                }
+              }
+
+              if (!docData) {
+                const chByOwner = await db.collection("channels").where("ownerId", "==", userData.id).limit(1).get();
+                if (!chByOwner.empty) {
+                  docData = { id: chByOwner.docs[0].id, ...(chByOwner.docs[0].data() as any) };
+                } else {
+                  const chByUser = await db.collection("channels").where("userId", "==", userData.id).limit(1).get();
+                  if (!chByUser.empty) {
+                    docData = { id: chByUser.docs[0].id, ...(chByUser.docs[0].data() as any) };
+                  }
+                }
+              }
+
+              if (!docData) {
+                docData = {
+                  id: userData.id,
+                  displayName: userData.displayName || userData.name || cleanHandle,
+                  name: userData.displayName || userData.name || cleanHandle,
+                  handle: userData.handle || handleWithAt || `@${cleanHandle}`,
+                  handleLowercase: (userData.handle || handleWithAt || `@${cleanHandle}`).toLowerCase(),
+                  avatarUrl: userData.photoURL || userData.photoUrl || userData.avatarUrl || userData.avatar || "",
+                  photoUrl: userData.photoURL || userData.photoUrl || userData.avatarUrl || "",
+                  about: userData.bio || userData.description || userData.about || "",
+                  subscriberCount: userData.subscriberCount || 0,
+                  videoCount: userData.videoCount || 0,
+                  status: userData.status || "active",
+                };
+              }
+            }
           }
 
           if (docData && docData.status !== "deleted" && docData.status !== "suspended") {
@@ -883,7 +1112,7 @@ export const seoServer = onRequest(
               ? "Truthworld Channel"
               : rawChannelName;
             
-            const handle = (docData.handle || "").replace(/^@/, "").trim();
+            const handle = (docData.handle || cleanHandle || "").replace(/^@/, "").trim();
             const handleWithAt = handle ? `@${handle}` : "";
             const canonicalChannelUrl = handle ? `${DOMAIN}/@${handle}` : canonicalUrl;
 
@@ -899,12 +1128,30 @@ export const seoServer = onRequest(
 
             const rawBio = (docData.about || docData.description || "").trim();
 
-            const bannerUrl = ensureAbsoluteImageUrl(
-              docData.bannerUrl || docData.bannerImage || docData.coverUrl || docData.banner || docData.coverImage
-            );
-            const avatarUrl = ensureAbsoluteImageUrl(
-              docData.avatarUrl || docData.avatarImage || docData.photoUrl || docData.profile?.photoUrl || docData.profilePicture || docData.imageUrl || docData.iconUrl
-            );
+            const rawBanner = docData.bannerUrl ||
+              docData.bannerImageUrl ||
+              docData.bannerImage ||
+              docData.coverUrl ||
+              docData.banner ||
+              docData.coverImage ||
+              docData.bannerPicUrl ||
+              docData.headerUrl;
+            const bannerUrl = ensureAbsoluteImageUrl(rawBanner);
+
+            const rawAvatar = docData.avatarUrl ||
+              docData.avatarImage ||
+              docData.channelAvatarUrl ||
+              docData.channelImage ||
+              docData.photoUrl ||
+              docData.photoURL ||
+              docData.profileImageUrl ||
+              docData.profile?.photoUrl ||
+              docData.profilePicture ||
+              docData.avatar ||
+              docData.imageUrl ||
+              docData.iconUrl ||
+              (Array.isArray(docData.avatarVariants) && docData.avatarVariants.length > 0 ? docData.avatarVariants[docData.avatarVariants.length - 1] : undefined);
+            const avatarUrl = ensureAbsoluteImageUrl(rawAvatar);
 
             // Handle Dynamic Image Generation for Open Graph and Twitter Card
             if (isChannelCardImageRequest) {
@@ -926,6 +1173,12 @@ export const seoServer = onRequest(
                 console.error("Failed to generate dynamic channel card image, falling back", cardErr);
               }
             }
+
+            // Prefer authentic creator avatar as the primary social share preview image
+            const finalChannelImage = avatarUrl || bannerUrl || `${DOMAIN}/icons/og-image.png`;
+            const isAvatarOnly = Boolean(avatarUrl);
+            const channelImageWidth = isAvatarOnly ? 800 : 1200;
+            const channelImageHeight = isAvatarOnly ? 800 : 630;
 
             // Format Title cleanly avoiding redundant "Truthworld - Truthworld"
             let pageTitle: string;
@@ -985,12 +1238,7 @@ export const seoServer = onRequest(
               }
             } catch (_) {}
 
-            // Dynamic Social Share Card Image URL
-            const ogCardImageUrl = handle
-              ? `${DOMAIN}/@${handle}/og.png`
-              : `${DOMAIN}/channel/${docData.id}/og.png`;
-
-            const channelSchema = generateChannelSchema(docData, canonicalChannelUrl, ogCardImageUrl);
+            const channelSchema = generateChannelSchema(docData, canonicalChannelUrl, finalChannelImage);
             const breadcrumbs = generateBreadcrumbData([
               { name: channelName, url: canonicalChannelUrl }
             ]);
@@ -1023,15 +1271,22 @@ export const seoServer = onRequest(
     </div>
   </section>`;
 
+            const channelVis = (docData.visibility || "").toLowerCase();
+            const channelRobots = channelVis === "private"
+              ? "noindex, nofollow"
+              : channelVis === "unlisted"
+                ? "noindex, follow"
+                : (docData.isPublic === false ? "noindex, nofollow" : "index, follow");
+
             const finalHtml = buildSemanticSsrHtml({
               title: pageTitle,
               description: pageDescription,
               url: canonicalChannelUrl,
-              image: ogCardImageUrl,
-              imageWidth: 850,
-              imageHeight: 1024,
+              image: finalChannelImage,
+              imageWidth: channelImageWidth,
+              imageHeight: channelImageHeight,
               type: "profile",
-              robots: "index, follow",
+              robots: channelRobots,
               jsonLd: [channelSchema, breadcrumbs.jsonLd],
               breadcrumbHtml: breadcrumbs.html,
               contentHeading: `${channelName}${handleWithAt ? ` (${handleWithAt})` : ""}`,
@@ -1060,9 +1315,9 @@ export const seoServer = onRequest(
       }
 
       // TOPIC ROUTE & DYNAMIC TOPIC CARD IMAGE
-      if (lowerPath.startsWith("/topic") || lowerPath.startsWith("/topics") || lowerPath.startsWith("/t/") || lowerPath.startsWith("/api/og/topic")) {
+      if (lowerPath.startsWith("/topic") || lowerPath.startsWith("/topics") || lowerPath.startsWith("/t/") || lowerPath === "/t" || lowerPath.startsWith("/api/og/topic")) {
         const isTopicCardImageRequest = lowerPath.endsWith("/og.png") || lowerPath.endsWith("/card.png") || lowerPath.startsWith("/api/og/topic");
-        let slug = (req.query.id || req.query.slug) as string;
+        let slug = (req.query.id || req.query.slug || req.query.topic || req.query.tag) as string;
         if (!slug) {
           if (lowerPath.startsWith("/api/og/topic")) {
             const parts = path.split("/").filter(p => p.length > 0);
@@ -1078,8 +1333,9 @@ export const seoServer = onRequest(
         }
 
         if (slug) {
-          const cleanSlug = slug.replace(/^(T\/|t\/)/i, "").trim();
-          const cacheKey = `topic_v3_${cleanSlug.toLowerCase()}`;
+          slug = decodeURIComponent(slug).trim().replace(/^[\/#]+/, "");
+          const cleanSlug = slug.replace(/^(T\/|t\/)/i, "").trim().replace(/^#/, "");
+          const cacheKey = `topic_v4_${cleanSlug.toLowerCase()}`;
           if (!isTopicCardImageRequest) {
             const cached = await getCachedSnapshot(cacheKey);
             if (cached) {
@@ -1091,42 +1347,71 @@ export const seoServer = onRequest(
 
           let docData: any = null;
 
-          // 1. Direct doc lookup by ID
+          // 1. Direct doc lookup by ID (exact)
           const docDirect = await db.collection("topics").doc(cleanSlug).get();
           if (docDirect.exists) {
             docData = { id: docDirect.id, ...(docDirect.data() as any) };
           }
 
-          // 2. Query by slug exact
+          // 2. Direct doc lookup by ID (lowercase)
+          if (!docData && cleanSlug !== cleanSlug.toLowerCase()) {
+            const docDirectLower = await db.collection("topics").doc(cleanSlug.toLowerCase()).get();
+            if (docDirectLower.exists) {
+              docData = { id: docDirectLower.id, ...(docDirectLower.data() as any) };
+            }
+          }
+
+          // 3. Query by slug exact
           if (!docData) {
             const qs = await db.collection("topics").where("slug", "==", cleanSlug).limit(1).get();
             if (!qs.empty) docData = { id: qs.docs[0].id, ...(qs.docs[0].data() as any) };
           }
 
-          // 3. Query by slug lowercase
+          // 4. Query by slug lowercase
           if (!docData) {
             const qsLower = await db.collection("topics").where("slug", "==", cleanSlug.toLowerCase()).limit(1).get();
             if (!qsLower.empty) docData = { id: qsLower.docs[0].id, ...(qsLower.docs[0].data() as any) };
           }
 
-          // 4. Query by handle or handleLowercase
+          // 5. Query by handle or handleLowercase
           if (!docData) {
             const qsHandle = await db.collection("topics").where("handleLowercase", "==", `t/${cleanSlug.toLowerCase()}`).limit(1).get();
             if (!qsHandle.empty) docData = { id: qsHandle.docs[0].id, ...(qsHandle.docs[0].data() as any) };
+          }
+
+          // 6. Query by title or name lowercase
+          if (!docData) {
+            const qsTitle = await db.collection("topics").where("titleLowercase", "==", cleanSlug.toLowerCase()).limit(1).get();
+            if (!qsTitle.empty) docData = { id: qsTitle.docs[0].id, ...(qsTitle.docs[0].data() as any) };
+          }
+          if (!docData) {
+            const qsName = await db.collection("topics").where("nameLowercase", "==", cleanSlug.toLowerCase()).limit(1).get();
+            if (!qsName.empty) docData = { id: qsName.docs[0].id, ...(qsName.docs[0].data() as any) };
+          }
+          if (!docData) {
+            const qsTitleExact = await db.collection("topics").where("title", "==", cleanSlug).limit(1).get();
+            if (!qsTitleExact.empty) docData = { id: qsTitleExact.docs[0].id, ...(qsTitleExact.docs[0].data() as any) };
           }
 
           if (docData && docData.status !== "deleted" && docData.status !== "inactive" && docData.status !== "archived" && docData.status !== "verificationRejected") {
             const rawTitle = (docData.title || docData.name || "Topic").trim();
             const cleanTitle = rawTitle.replace(/^[#Tt]\//, "").trim();
             const topVideos: any[] = [];
-            const topicKeys = [docData.slug, cleanSlug, docData.id].filter(Boolean);
+            const topicKeys = [docData.slug, cleanSlug, cleanSlug.toLowerCase(), docData.id, docData.title].filter(Boolean);
+            const seenKeys = new Set<string>();
+            const uniqueKeys = topicKeys.filter(k => {
+              const lower = String(k).toLowerCase();
+              if (seenKeys.has(lower)) return false;
+              seenKeys.add(lower);
+              return true;
+            });
 
-            for (const key of topicKeys) {
+            for (const key of uniqueKeys) {
               if (topVideos.length >= 10) break;
               try {
+                // Do not use orderBy with array-contains because missing composite indexes throw and cause high latency
                 const vSnap = await db.collection("videos")
                   .where("topics", "array-contains", key)
-                  .orderBy("uploadedAt", "desc")
                   .limit(15).get();
                 vSnap.forEach((d) => {
                   const data = d.data();
@@ -1137,37 +1422,16 @@ export const seoServer = onRequest(
                   }
                 });
               } catch (err) {
-                try {
-                  const fallbackSnap = await db.collection("videos")
-                    .where("topics", "array-contains", key)
-                    .limit(15).get();
-                  fallbackSnap.forEach((d) => {
-                    const data = d.data();
-                    const vis = (data.visibility || "public").toLowerCase();
-                    const st = (data.status || "").toLowerCase();
-                    if (vis === "public" && st !== "deleted" && st !== "draft" && !topVideos.some(tv => tv.id === d.id)) {
-                      topVideos.push({ id: d.id, ...data });
-                    }
-                  });
-                } catch (fallbackErr) {
-                  console.error("Error fetching topic videos fallback", fallbackErr);
-                }
+                console.warn(`Error fetching topic videos for key ${key}:`, err);
               }
             }
 
-            // Zero-video topic guard: Do not index or serve empty topic SEO pages
-            if (topVideos.length === 0 && (Number(docData.videoCount) || 0) <= 0) {
-              const notFoundHtml = buildSemanticSsrHtml({
-                title: "Topic Not Found - Truthworld",
-                description: "The requested topic could not be found or has been removed from Truthworld.",
-                url: canonicalUrl,
-                type: "website",
-                robots: "noindex, follow",
-                jsonLd: orgSchemas
-              });
-              res.status(404).send(notFoundHtml);
-              return;
-            }
+            // In-memory sort by upload time
+            topVideos.sort((a, b) => {
+              const tA = a.uploadedAt?._seconds || a.createdAt?._seconds || (a.uploadedAt ? new Date(a.uploadedAt).getTime() : 0);
+              const tB = b.uploadedAt?._seconds || b.createdAt?._seconds || (b.uploadedAt ? new Date(b.uploadedAt).getTime() : 0);
+              return tB - tA;
+            });
 
             const rawTopicImg = docData.thumbnailUrl ||
               docData.coverImage ||
@@ -1177,6 +1441,7 @@ export const seoServer = onRequest(
               (topVideos.length > 0 ? (topVideos[0].thumbnailUrl || topVideos[0].thumbnail || topVideos[0].coverUrl) : undefined);
 
             const topicImage = ensureAbsoluteImageUrl(rawTopicImg);
+            const finalTopicImage = topicImage || `${DOMAIN}/icons/og-image.png`;
             const videoCount = docData.videoCount || topVideos.length || 0;
             const followerCount = docData.followerCount || 0;
             const vidStr = `${videoCount} Video${videoCount === 1 ? "" : "s"}`;
@@ -1192,7 +1457,7 @@ export const seoServer = onRequest(
               topicDescription = `Explore top videos and discussions in #${cleanTitle} on Truthworld. • ${folStr} • ${vidStr} • Verified family-safe content.`;
             }
 
-            // Dynamic Topic Card Image for Social Previews (WhatsApp, Telegram, X, etc.)
+            // Dynamic Topic Card Image for Explicit Image Requests (/og.png, /card.png)
             if (isTopicCardImageRequest) {
               try {
                 const cardBuffer = await renderTopicCardImage({
@@ -1201,7 +1466,7 @@ export const seoServer = onRequest(
                   followerCount,
                   videoCount,
                   description: rawDesc,
-                  thumbnailUrl: topicImage,
+                  thumbnailUrl: finalTopicImage,
                   url: canonicalUrl,
                 });
 
@@ -1214,7 +1479,6 @@ export const seoServer = onRequest(
               }
             }
 
-            const ogCardImageUrl = `${DOMAIN}/T/${cleanSlug}/og.png`;
             const topicSchema = generateTopicSchema(docData, canonicalUrl, topVideos);
             const breadcrumbs = generateBreadcrumbData([
               { name: `#${cleanTitle}`, url: canonicalUrl }
@@ -1254,11 +1518,11 @@ export const seoServer = onRequest(
               title: `#${cleanTitle} - Topic | Truthworld`,
               description: topicDescription,
               url: canonicalUrl,
-              image: ogCardImageUrl,
-              imageWidth: 1024,
-              imageHeight: 682,
+              image: finalTopicImage,
+              imageWidth: 1200,
+              imageHeight: 630,
               type: "website",
-              robots: "index, follow",
+              robots: (topVideos.length === 0 && (Number(docData.videoCount) || 0) <= 0) ? "noindex, follow" : "index, follow",
               jsonLd: [topicSchema, breadcrumbs.jsonLd],
               breadcrumbHtml: breadcrumbs.html,
               contentHeading: `#${cleanTitle} Topic`,
@@ -1286,12 +1550,16 @@ export const seoServer = onRequest(
 
       // PLAYLIST ROUTE
       if (lowerPath.startsWith("/playlist")) {
-        let playlistId = req.query.list as string;
-        if (!playlistId && path.split("/").length > 2) {
-          playlistId = path.split("/")[2];
+        let playlistId = (req.query.list || req.query.playlistId || req.query.id) as string;
+        if (!playlistId) {
+          const parts = path.split("/").filter(p => p.length > 0);
+          if (parts.length >= 2 && parts[0].toLowerCase() === "playlist") {
+            playlistId = parts[1];
+          }
         }
         if (playlistId) {
-          const cacheKey = `playlist_v3_${playlistId}`;
+          playlistId = decodeURIComponent(playlistId).trim().replace(/\/$/, "");
+          const cacheKey = `playlist_v4_${playlistId}`;
           const cached = await getCachedSnapshot(cacheKey);
           if (cached) {
             logSeoEvent({ eventType: "cache_hit", path: canonicalUrl, durationMs: Date.now() - startTime });
@@ -1362,6 +1630,7 @@ export const seoServer = onRequest(
 
             const playlistName = (docData.playlistName || docData.name || docData.title || "Playlist").trim();
             const playlistImage = await resolvePlaylistImage(db, docData.id, docData);
+            const finalPlaylistImage = ensureAbsoluteImageUrl(playlistImage) || `${DOMAIN}/icons/og-image.png`;
             const playlistSchema = generatePlaylistSchema({ id: docData.id, ...docData, videos: videoItems }, canonicalUrl);
             const breadcrumbs = generateBreadcrumbData([
               { name: playlistName, url: canonicalUrl }
@@ -1389,7 +1658,7 @@ export const seoServer = onRequest(
               title: pageTitle,
               description: pageDescription,
               url: canonicalUrl,
-              image: playlistImage,
+              image: finalPlaylistImage,
               imageWidth: 1280,
               imageHeight: 720,
               type: "website",
@@ -1419,13 +1688,18 @@ export const seoServer = onRequest(
       }
 
       // COMMUNITY POST ROUTE
-      if (lowerPath.startsWith("/post") || lowerPath.startsWith("/community")) {
-        let postId = req.query.id as string;
-        if (!postId && path.split("/").length > 2) {
-          postId = path.split("/")[2];
+      const isCommunityGuideline = lowerPath.startsWith("/community-guidelines") || lowerPath.startsWith("/community_guidelines");
+      if (!isCommunityGuideline && (lowerPath.startsWith("/post") || lowerPath.startsWith("/community/") || lowerPath.startsWith("/p/"))) {
+        let postId = (req.query.id || req.query.postId || req.query.p) as string;
+        if (!postId) {
+          const parts = path.split("/").filter(p => p.length > 0);
+          if (parts.length >= 2) {
+            postId = parts[1];
+          }
         }
         if (postId) {
-          const cacheKey = `post_${postId}`;
+          postId = decodeURIComponent(postId).trim().replace(/\/$/, "");
+          const cacheKey = `post_v3_${postId}`;
           const cached = await getCachedSnapshot(cacheKey);
           if (cached) {
             logSeoEvent({ eventType: "cache_hit", path: canonicalUrl, durationMs: Date.now() - startTime });
@@ -1433,15 +1707,35 @@ export const seoServer = onRequest(
             return;
           }
 
-          let doc = await db.collection("Community").doc(postId).get();
-          if (!doc.exists) {
-            doc = await db.collection("community_posts").doc(postId).get();
+          let postData: any = null;
+
+          // 1. Check Community collection (TruthWorld standard collection)
+          const docCommunity = await db.collection("Community").doc(postId).get();
+          if (docCommunity.exists) {
+            postData = { id: docCommunity.id, ...docCommunity.data() };
           }
 
-          if (doc.exists) {
-            const data = doc.data()!;
-            const status = (data.status || "").toLowerCase();
-            const isPrivate = (data.visibility || "").toLowerCase() === "private";
+          // 2. Check community_posts collection
+          if (!postData) {
+            const docPosts = await db.collection("community_posts").doc(postId).get();
+            if (docPosts.exists) postData = { id: docPosts.id, ...docPosts.data() };
+          }
+
+          // 3. Check posts collection
+          if (!postData) {
+            const docGeneral = await db.collection("posts").doc(postId).get();
+            if (docGeneral.exists) postData = { id: docGeneral.id, ...docGeneral.data() };
+          }
+
+          // 4. Check lowercase community collection
+          if (!postData) {
+            const docLower = await db.collection("community").doc(postId).get();
+            if (docLower.exists) postData = { id: docLower.id, ...docLower.data() };
+          }
+
+          if (postData) {
+            const status = (postData.status || "").toLowerCase();
+            const isPrivate = (postData.visibility || "").toLowerCase() === "private";
 
             if (status === "deleted" || status === "rejected") {
               const notFoundHtml = buildSemanticSsrHtml({
@@ -1456,22 +1750,48 @@ export const seoServer = onRequest(
               return;
             }
 
-            const postTitle = data.title || (data.description ? data.description.substring(0, 80) : "Community Post");
-            const authorName = data.channelName || "Channel";
-            const authorUrl = data.channelId ? `${DOMAIN}/channel/${data.channelId}` : DOMAIN;
-            const postSchema = generateCommunityPostSchema({ id: doc.id, ...data }, canonicalUrl);
+            const rawContent = (postData.content || postData.text || postData.description || postData.title || "").trim();
+            const cleanText = rawContent.replace(/\s+/g, " ");
+            const postTitle = postData.title || (cleanText.length > 0 ? (cleanText.length > 70 ? cleanText.substring(0, 70) + "..." : cleanText) : "Community Post");
+            const authorName = postData.channelName || postData.creatorName || postData.authorName || "Creator";
+            const authorUrl = postData.channelId ? `${DOMAIN}/channel/${postData.channelId}` : DOMAIN;
+            const postSchema = generateCommunityPostSchema({ id: postData.id, ...postData }, canonicalUrl);
             const breadcrumbs = generateBreadcrumbData([
               { name: authorName, url: authorUrl },
               { name: postTitle, url: canonicalUrl }
             ]);
 
-            const image = (data.images && data.images.length > 0) ? data.images[0] : (data.image || data.channelImage);
+            // Extract authentic post image or fallback to creator's channel avatar
+            let rawPostImg = (Array.isArray(postData.images) && postData.images.length > 0 ? postData.images[0] : undefined) ||
+              (Array.isArray(postData.media) && postData.media.length > 0 ? postData.media[0] : undefined) ||
+              postData.imageUrl ||
+              postData.image ||
+              postData.mediaUrl ||
+              postData.thumbnailUrl ||
+              postData.channelImage ||
+              postData.channelAvatarUrl;
+
+            if (!rawPostImg && postData.channelId) {
+              try {
+                const chDoc = await db.collection("channels").doc(postData.channelId).get();
+                if (chDoc.exists) {
+                  const chData = chDoc.data()!;
+                  rawPostImg = chData.avatarUrl || chData.photoUrl || chData.imageUrl || chData.bannerUrl;
+                }
+              } catch (e) {
+                console.warn(`Error resolving creator avatar for post ${postId}:`, e);
+              }
+            }
+
+            const finalPostImage = ensureAbsoluteImageUrl(rawPostImg) || `${DOMAIN}/icons/og-image.png`;
 
             const finalHtml = buildSemanticSsrHtml({
               title: `${postTitle} - Post by ${authorName} | Truthworld`,
-              description: data.description || `Community post by ${authorName} on Truthworld.`,
+              description: cleanText.length > 0 ? cleanText.substring(0, 200) : `Community post by ${authorName} on Truthworld.`,
               url: canonicalUrl,
-              image: image,
+              image: finalPostImage,
+              imageWidth: 1200,
+              imageHeight: 630,
               type: "article",
               robots: isPrivate ? "noindex, nofollow" : "index, follow",
               jsonLd: [postSchema, breadcrumbs.jsonLd],
@@ -1499,51 +1819,16 @@ export const seoServer = onRequest(
         }
       }
 
-      // SETTINGS ROUTE (Private Page - Exclude from Search Engines)
-      if (lowerPath === "/settings" || lowerPath.startsWith("/settings/")) {
+      // SETTINGS & STUDIO ROUTES (Private Pages - Direct App Loading, Exclude from Search Engines)
+      if (
+        lowerPath === "/settings" ||
+        lowerPath.startsWith("/settings/") ||
+        lowerPath === "/studio" ||
+        lowerPath.startsWith("/studio/")
+      ) {
         res.set("X-Robots-Tag", "noindex, nofollow");
         const baseHtml = await fetchIndexHtml();
         res.status(200).send(baseHtml.replace("</head>", '<meta name="robots" content="noindex, nofollow" /></head>'));
-        return;
-      }
-
-      // STUDIO ROUTE
-      if (lowerPath === "/studio" || lowerPath.startsWith("/studio/")) {
-        const cacheKey = `studio_page`;
-        const cached = await getCachedSnapshot(cacheKey);
-        if (cached) {
-          logSeoEvent({ eventType: "cache_hit", path: canonicalUrl, durationMs: Date.now() - startTime });
-          sendHtmlResponse(req, res, cached.html, cached.etag, cached.lastModified);
-          return;
-        }
-
-        const studioBreadcrumbs = generateBreadcrumbData([
-          { name: "Truthworld Studio", url: canonicalUrl }
-        ]);
-
-        const studioSchema = {
-          "@context": "https://schema.org",
-          "@type": "WebApplication",
-          "name": "Truthworld Studio",
-          "url": canonicalUrl,
-          "applicationCategory": "MultimediaApplication",
-          "operatingSystem": "All",
-          "description": "Truthworld Studio gives creators full control over video uploads, channel analytics, monetization, and audience engagement."
-        };
-
-        const finalHtml = buildSemanticSsrHtml({
-          title: "Truthworld Studio - Creator Dashboard & Analytics",
-          description: "Manage your creator channel, upload content, track performance analytics, and engage with viewers on Truthworld Studio.",
-          url: canonicalUrl,
-          type: "website",
-          robots: "index, follow",
-          jsonLd: [studioSchema, studioBreadcrumbs.jsonLd, ...orgSchemas],
-          breadcrumbHtml: studioBreadcrumbs.html,
-          contentHeading: "Truthworld Studio - Creator Dashboard"
-        });
-
-        const saved = await saveSnapshot(cacheKey, finalHtml);
-        sendHtmlResponse(req, res, finalHtml, saved.etag, saved.lastModified);
         return;
       }
 

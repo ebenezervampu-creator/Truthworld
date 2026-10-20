@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/source_avatar_service.dart';
 import 'package:truthworld/core/widgets/truth_lottie_animation.dart';
 import 'package:truthworld/features/video/data/models/fact_check_data_parser.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
@@ -226,7 +227,7 @@ class VideoFactCheckCard extends StatelessWidget {
                 ? 'SHORT FACT-CHECK • OVERVIEW'
                 : (isFullGround
                     ? 'FULL GROUND FACT-CHECK • VERIFIED'
-                    : 'AI CREDIBILITY CHECK')));
+                    : 'TRUTH CREDIBILITY CHECK')));
     const headerColor = Colors.white70;
 
     final isNotScored = trustScore == null || trustScore <= 0 || trustLabel.toLowerCase().contains('not scored');
@@ -513,57 +514,78 @@ class VideoFactCheckCard extends StatelessWidget {
 
   // ── Source Chips ──
   Widget _buildSourceChips(List<dynamic> sources) {
-    final sourceNames = <String>[];
+    final validSources = <Map<dynamic, dynamic>>[];
+    final seen = <String>{};
     for (final s in sources) {
       if (s is! Map) continue;
       final name = (s['domain'] ?? s['title'] ?? s['author'] ?? '')
           .toString()
           .replaceAll('www.', '')
           .trim();
-      if (name.isNotEmpty && !sourceNames.contains(name)) {
-        sourceNames.add(name);
+      if (name.isNotEmpty && !seen.contains(name.toLowerCase())) {
+        seen.add(name.toLowerCase());
+        validSources.add(s);
       }
     }
 
-    if (sourceNames.isEmpty) return const SizedBox.shrink();
+    if (validSources.isEmpty) return const SizedBox.shrink();
 
     const maxVisible = 3;
-    final visible = sourceNames.take(maxVisible).toList();
-    final overflow = math.max(0, sourceNames.length - maxVisible);
+    final visible = validSources.take(maxVisible).toList();
+    final overflow = math.max(0, validSources.length - maxVisible);
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
       child: Row(
         children: [
-          const Icon(
-            Icons.article_outlined,
-            size: 14,
-            color: AppColors.textTertiary,
-          ),
-          const SizedBox(width: 6),
-          ...visible.map((name) => Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.1),
-                    ),
-                  ),
-                  child: Text(
-                    name.length > 20 ? '${name.substring(0, 18)}…' : name,
-                    style: GoogleFonts.roboto(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w500,
-                    ),
+          ...visible.map((s) {
+            final name = (s['domain'] ?? s['title'] ?? s['author'] ?? '')
+                .toString()
+                .replaceAll('www.', '')
+                .trim();
+            final domain = s['domain']?.toString();
+            final publisher = s['publisher']?.toString() ?? s['author']?.toString();
+            final url = s['url']?.toString();
+            final avatarUrl = s['avatarUrl']?.toString();
+
+            return Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.1),
                   ),
                 ),
-              )),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SourceAvatarService.buildAvatar(
+                      domain: domain,
+                      publisher: publisher,
+                      url: url,
+                      avatarUrl: avatarUrl,
+                      fallbackIcon: Icons.article_outlined,
+                      size: 15,
+                      padding: const EdgeInsets.all(1.5),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      name.length > 20 ? '${name.substring(0, 18)}…' : name,
+                      style: GoogleFonts.roboto(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
           if (overflow > 0)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -708,12 +730,10 @@ class VideoFactCheckCard extends StatelessWidget {
   }
 
   void _openFullAnalysis(BuildContext context) {
-    Get.bottomSheet(
-      VideoAnalysisBottomSheet(
-        video: controller.video,
-      ),
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    VideoAnalysisScreen.open(
+      context,
+      video: controller.video,
+      controller: controller,
     );
   }
 }

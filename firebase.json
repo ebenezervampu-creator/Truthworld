@@ -85,20 +85,6 @@
           }
         },
         {
-          "source": "/studio",
-          "function": {
-            "functionId": "seoServer",
-            "region": "asia-south1"
-          }
-        },
-        {
-          "source": "/studio/**",
-          "function": {
-            "functionId": "seoServer",
-            "region": "asia-south1"
-          }
-        },
-        {
           "source": "/.well-known/**",
           "function": {
             "functionId": "seoServer",

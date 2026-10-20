@@ -35,23 +35,27 @@ import 'package:truthworld/theme/app_theme.dart';
   @override
   Widget build(BuildContext context) {
     final trustScore = this.trustScore;
-    final hasScore = scoreAvailable && trustScore != null && trustScore > 0;
-    final isNotScored = !hasScore || trustLabel.toLowerCase().contains('not scored');
+    final hasScore = totalClaims > 0 && scoreAvailable && trustScore != null && trustScore > 0;
+    final isNotScored = !hasScore || trustLabel.toLowerCase().contains('not scored') || totalClaims == 0;
 
     String badgeText;
-    if (!isNotScored) {
+    if (totalClaims == 0) {
+      badgeText = 'UNASSESSED';
+    } else if (!isNotScored) {
       badgeText = analysisState.toUpperCase();
     } else if (falseCount > 0 && falseCount >= verifiedCount) {
       badgeText = 'DISPUTED CONTENT';
     } else if (cautionCount > 0 && cautionCount > verifiedCount) {
       badgeText = 'CAUTION ADVISED';
     } else {
-      badgeText = totalClaims > 0 ? 'FACT-CHECK COMPLETE' : 'VERIFIED';
+      badgeText = 'FACT-CHECK COMPLETE';
     }
 
-    final headlineTitle = isNotScored
-        ? (totalClaims > 0 ? '$totalClaims Claims Evaluated' : 'Qualitative Fact-Check')
-        : trustLabel;
+    final headlineTitle = totalClaims == 0
+        ? 'No Claims Assessed'
+        : (isNotScored
+            ? '$totalClaims Claims Evaluated'
+            : trustLabel);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -106,7 +110,7 @@ import 'package:truthworld/theme/app_theme.dart';
                             vertical: 3,
                           ),
                         ),
-                        if (tierBadgeLabel != null && tierBadgeLabel!.isNotEmpty)
+                        if (tierBadgeLabel != null && tierBadgeLabel!.isNotEmpty && totalClaims > 0)
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 6,

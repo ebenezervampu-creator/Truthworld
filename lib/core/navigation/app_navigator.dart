@@ -348,6 +348,11 @@ class AppNavigator {
     return _service.toNamed(AppRoutes.feedback);
   }
 
+  /// Navigate to about page.
+  static Future<void>? toAbout() {
+    return _service.toNamed(AppRoutes.about);
+  }
+
   /// Navigate to terms of service.
   static Future<void>? toTerms() {
     return _service.toNamed(AppRoutes.terms);

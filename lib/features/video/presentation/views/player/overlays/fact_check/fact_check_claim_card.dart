@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/source_avatar_service.dart';
 import 'package:truthworld/core/utils/source_url_sanitizer.dart';
 import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -243,7 +244,7 @@ import 'package:url_launcher/url_launcher.dart';
                             SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                'AI VERIFICATION & EVIDENCE ANALYSIS',
+                                'WHAT YOU NEED TO KNOW',
                                 style: TextStyle(
                                   fontSize: 9,
                                   fontWeight: FontWeight.bold,
@@ -404,6 +405,8 @@ import 'package:url_launcher/url_launcher.dart';
     final url = cleanSource['url']?.toString();
     final domain = (cleanSource['domain'] ?? '').toString();
     final snippet = cleanSource['snippet']?.toString();
+    final publisher = cleanSource['publisher']?.toString();
+    final avatarUrl = cleanSource['avatarUrl']?.toString();
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 5),
@@ -427,12 +430,16 @@ import 'package:url_launcher/url_launcher.dart';
           ),
           child: Row(
             children: [
-              const Icon(
-                Icons.language_rounded,
-                size: 14,
-                color: Colors.white,
+              SourceAvatarService.buildAvatar(
+                domain: domain,
+                publisher: publisher,
+                url: url,
+                avatarUrl: avatarUrl,
+                fallbackIcon: Icons.language_rounded,
+                size: 20,
+                padding: const EdgeInsets.all(2),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

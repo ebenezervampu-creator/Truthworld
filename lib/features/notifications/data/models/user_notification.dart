@@ -183,6 +183,7 @@ class UserNotification {
     this.analyticsSnapshot,
     this.metadata,
     this.expiresAt,
+    this.targetApp = 'app',
   });
 
   factory UserNotification.fromDocumentSnapshot(DocumentSnapshot doc) {
@@ -245,6 +246,10 @@ class UserNotification {
         'system';
     final rawThumb = json['thumbnailUrl'] as String? ??
         (meta?['thumbnailUrl'] as String?);
+    final rawTargetApp = (json['targetApp'] as String?) ??
+        (meta?['targetApp'] as String?) ??
+        (meta?['app'] as String?) ??
+        'app';
 
     return UserNotification(
       id: docId.isNotEmpty ? docId : (json['id'] as String? ?? ''),
@@ -266,6 +271,7 @@ class UserNotification {
       read: isRead,
       createdAt: parsedTime,
       expiresAt: expTime,
+      targetApp: rawTargetApp,
     );
   }
   final String id;
@@ -287,8 +293,133 @@ class UserNotification {
   bool read;
   final DateTime createdAt;
   final DateTime? expiresAt;
+  final String targetApp;
+
+  /// Returns true if this notification is intended for Truthworld Creator Studio
+  bool get isStudioNotification {
+    final app = targetApp.toLowerCase().trim();
+    final metaApp = (metadata?['targetApp'] as String? ?? metadata?['app'] as String? ?? '').toLowerCase().trim();
+    if (app == 'studio' || metaApp == 'studio') return true;
+    if (app == 'admin' || app == 'advertiser' || metaApp == 'admin' || metaApp == 'advertiser') return false;
+
+    final t = type.toLowerCase().trim();
+    if (t == 'fact_check_pending' ||
+        t == 'fact_check_ready' ||
+        t == 'fact_check_completed' ||
+        t == 'verification_result' ||
+        t == 'batch_verification_result' ||
+        t == 'copyright_claim' ||
+        t == 'claim_dispute' ||
+        t == 'sub_milestone' ||
+        t == 'subscribers_milestone' ||
+        t == 'subscribers_milestone_v1' ||
+        t == 'new_subscriber' ||
+        t == 'new_follower' ||
+        t == 'subscriber' ||
+        t == 'subscription' ||
+        t == 'view_milestone' ||
+        t == 'membership_milestone' ||
+        t == 'milestone_achieved' ||
+        t == 'performance_insight' ||
+        t == 'retention_spike' ||
+        t == 'ranking_change' ||
+        t == 'trust_score_change' ||
+        t == 'tier_promotion' ||
+        t == 'tier_downgrade' ||
+        t == 'inactivity_warning' ||
+        t == 'performance_warning' ||
+        t == 'weekly_digest' ||
+        t == 'creator_coach_insight' ||
+        t == 'creator_motivation' ||
+        t == 'coach_growth_tip' ||
+        t == 'coach_growth_tip_v1' ||
+        t == 'analytics_alert' ||
+        t == 'monetization' ||
+        t == 'monetization_revenue' ||
+        t == 'monetization_payout' ||
+        t == 'channel_notifications' ||
+        t == 'studio_notifications' ||
+        t.contains('studio') ||
+        t.contains('fact_check') ||
+        t.contains('verification') ||
+        t.contains('milestone') ||
+        t.contains('monetization') ||
+        t.contains('coach')) {
+      return true;
+    }
+
+    final cat = (category.isNotEmpty ? category : (metadata?['category'] as String? ?? '')).toLowerCase().trim();
+    if (cat == 'verification' ||
+        cat == 'monetization' ||
+        cat == 'analytics' ||
+        cat == 'growth' ||
+        cat == 'education') {
+      return true;
+    }
+
+    final action = (actionUrl ?? '').toLowerCase().trim();
+    if (action.contains('studio') ||
+        action.startsWith('/subscribers') ||
+        action.startsWith('/views') ||
+        action.startsWith('/watchtime') ||
+        action.startsWith('/analytics') ||
+        action.startsWith('/copyright') ||
+        action.startsWith('/monetization') ||
+        action.startsWith('/revenue') ||
+        action.startsWith('/payout') ||
+        action.startsWith('/saved-community-posts')) {
+      return true;
+    }
+
+    final titleLower = title.toLowerCase().trim();
+    final messageLower = message.toLowerCase().trim();
+
+    final isStudioTitle = titleLower.contains('truth verification') ||
+        titleLower.contains('fact-checking') ||
+        titleLower.contains('fact check') ||
+        titleLower.contains('video moderation') ||
+        titleLower.contains('thumbnail verification') ||
+        titleLower.contains('video not accepted') ||
+        titleLower.contains('video under manual review') ||
+        titleLower.contains('video processing') ||
+        titleLower.contains('video approved & published') ||
+        titleLower.contains('new subscriber') ||
+        titleLower.contains('creator studio') ||
+        titleLower.contains('channel policy') ||
+        titleLower.contains('copyright claim') ||
+        titleLower.contains('claim dispute');
+
+    final isStudioMessage = messageLower.contains('studio notifications') ||
+        messageLower.contains('creator studio') ||
+        messageLower.contains('fact-checking for') ||
+        messageLower.contains('held in studio') ||
+        messageLower.contains('subscribed to your channel');
+
+    return isStudioTitle || isStudioMessage;
+  }
+
+  /// Returns true if this notification is intended for the Consumer App
+  bool get isConsumerNotification {
+    final app = targetApp.toLowerCase().trim();
+    final metaApp = (metadata?['targetApp'] as String? ?? metadata?['app'] as String? ?? '').toLowerCase().trim();
+    if (app == 'studio' || app == 'admin' || app == 'advertiser' ||
+        metaApp == 'studio' || metaApp == 'admin' || metaApp == 'advertiser') {
+      return false;
+    }
+    if (isStudioNotification) return false;
+    final action = (actionUrl ?? '').toLowerCase().trim();
+    if (action.contains('studio') ||
+        action.startsWith('/admin') ||
+        action.startsWith('/advertiser') ||
+        action.startsWith('/ads')) {
+      return false;
+    }
+    return true;
+  }
 
   String get typeCategory => category;
+
+  String get channelId => (metadata?['channelId'] as String?) ?? '';
 
   Map<String, dynamic> toJson() {
     return {
@@ -311,6 +442,7 @@ class UserNotification {
       'read': read,
       'createdAt': createdAt.millisecondsSinceEpoch,
       'expiresAt': expiresAt?.millisecondsSinceEpoch,
+      'targetApp': targetApp,
     };
   }
 
@@ -334,6 +466,7 @@ class UserNotification {
     bool? read,
     DateTime? createdAt,
     DateTime? expiresAt,
+    String? targetApp,
   }) {
     return UserNotification(
       id: id ?? this.id,
@@ -355,6 +488,7 @@ class UserNotification {
       read: read ?? this.read,
       createdAt: createdAt ?? this.createdAt,
       expiresAt: expiresAt ?? this.expiresAt,
+      targetApp: targetApp ?? this.targetApp,
     );
   }
 

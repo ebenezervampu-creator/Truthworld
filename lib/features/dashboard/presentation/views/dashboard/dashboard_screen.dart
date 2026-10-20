@@ -5,6 +5,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/features/channel/presentation/views/channel/channel_screen_wizard.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_view_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/sections/sections.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/dashboard_screen_barrel.dart';
@@ -31,11 +32,6 @@ class DashboardScreen extends StatelessWidget {
             init: Get.isRegistered<DashboardViewController>()
                 ? Get.find<DashboardViewController>()
                 : DashboardViewController(),
-            dispose: (_) {
-              if (Get.isRegistered<DashboardViewController>()) {
-                Get.delete<DashboardViewController>();
-              }
-            },
             builder: (viewController) {
               final dashboardController = viewController.dashboardController;
 
@@ -63,6 +59,14 @@ class DashboardScreen extends StatelessWidget {
                     onCancelDeletion: viewController.cancelChannelDeletion,
                     onSignOut: viewController.handleSignOut,
                   );
+                }
+
+                final currentChannel = viewController.channel;
+                final channelId = viewController.getChannelId(currentChannel);
+                if (channelId.isEmpty &&
+                    !AuthService.to.hasChannel.value &&
+                    AuthService.to.userChannel == null) {
+                  return const ChannelScreen();
                 }
 
                 final mediaQuery = MediaQuery.of(context);
@@ -121,7 +125,6 @@ class DashboardScreen extends StatelessWidget {
                     child: Focus(
                       autofocus: true,
                       child: Scaffold(
-                        key: viewController.scaffoldKey,
                         backgroundColor: AppColors.bgPage,
                         appBar: DashboardCreatorAppBar(
                           viewController: viewController,

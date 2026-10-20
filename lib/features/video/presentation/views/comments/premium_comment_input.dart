@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
@@ -95,7 +96,7 @@ class PremiumCommentInput extends StatelessWidget {
             'Please sign in to post a comment',
             title: 'Sign In Required',
             actionLabel: 'SIGN IN',
-            onAction: authService.signInWithGoogle,
+            onAction: AuthBottomSheet.prompt,
           );
           return;
         }
@@ -103,7 +104,11 @@ class PremiumCommentInput extends StatelessWidget {
         final text = controller.commentController.text.trim();
         if (text.isEmpty || controller.isSubmitting.value) return;
 
-        final validation = ContentValidator.validate(text, fieldName: 'Comment');
+        final validation = ContentValidator.validate(
+          text,
+          fieldName: 'Comment',
+          maxLength: ContentValidator.defaultMaxCommentLength,
+        );
         if (!validation.isValid) {
           AppSnackbar.warning(
             validation.message,
@@ -155,7 +160,11 @@ class PremiumCommentInput extends StatelessWidget {
                   focusNode: controller.focusNode,
                   maxLines: null,
                   minLines: 1,
-                  inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+                  maxLength: ContentValidator.defaultMaxCommentLength,
+                  buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                  inputFormatters: TruthworldTextInputFormatters.withLimit(
+                    ContentValidator.defaultMaxCommentLength,
+                  ),
                   textInputAction: TextInputAction.send,
                   onSubmitted: (_) => submitComment(),
                   style: const TextStyle(
@@ -331,7 +340,7 @@ class PremiumCommentInput extends StatelessWidget {
           ElevatedButton(
             onPressed: () async {
               HapticFeedback.lightImpact();
-              await AuthService.to.signInWithGoogle();
+              await AuthBottomSheet.show(context);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
@@ -367,7 +376,7 @@ class PremiumCommentInput extends StatelessWidget {
         'Please sign in to send Super Thanks.',
         title: 'Authentication Required',
         actionLabel: 'SIGN IN',
-        onAction: () => AuthService.to.signInWithGoogle(),
+        onAction: () => AuthBottomSheet.show(context),
       );
       return;
     }
@@ -633,8 +642,12 @@ class PremiumCommentInput extends StatelessWidget {
                               controller: messageController,
                               maxLines: 3,
                               minLines: 2,
+                              maxLength: ContentValidator.defaultMaxCommentLength,
+                              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                               inputFormatters:
-                                  TruthworldTextInputFormatters.standard,
+                                  TruthworldTextInputFormatters.withLimit(
+                                ContentValidator.defaultMaxCommentLength,
+                              ),
                               style: const TextStyle(
                                 color: AppColors.textPrimary,
                                 fontSize: 14,

@@ -39,6 +39,7 @@ const TOPICS: Record<EventType, string> = {
   "resolution-requested":   "resolution.requested",
   "copyright-processing":   "copyright.requested",
   "copyright-complete":     "copyright.completed",
+  "credibility-synthesis":  "credibility.synthesis.requested",
 };
 
 const DLQ_TOPIC = "pipeline.dead-letter";

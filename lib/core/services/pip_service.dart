@@ -44,8 +44,110 @@ class PipService extends GetxService {
       if (call.method == 'onPipModeChanged') {
         final inPip = call.arguments as bool? ?? false;
         setPipMode(inPip);
+      } else if (call.method == 'onPipActionPlayPause') {
+        handleActionPlayPause();
+      } else if (call.method == 'onPipActionNext') {
+        handleActionNext();
+      } else if (call.method == 'onPipActionPrevious') {
+        handleActionPrevious();
       }
     });
+  }
+
+  /// Handles Play/Pause action triggered from the native Android PiP window.
+  void handleActionPlayPause() {
+    if (Get.isRegistered<MiniplayerController>(tag: 'miniplayer') ||
+        Get.isRegistered<MiniplayerController>()) {
+      try {
+        final miniplayer = MiniplayerController.to;
+        if (miniplayer.isVisible) {
+          miniplayer.togglePlayPause();
+          return;
+        }
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'PipService.handleActionPlayPause.miniplayer',
+        );
+      }
+    }
+
+    if (TowerPlayerRegistry.activePlayers.isNotEmpty) {
+      try {
+        TowerPlayerRegistry.activePlayers.last.togglePlayPause();
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'PipService.handleActionPlayPause.tower',
+        );
+      }
+    }
+  }
+
+  /// Handles Next video action triggered from the native Android PiP window.
+  void handleActionNext() {
+    if (Get.isRegistered<MiniplayerController>(tag: 'miniplayer') ||
+        Get.isRegistered<MiniplayerController>()) {
+      try {
+        final miniplayer = MiniplayerController.to;
+        if (miniplayer.isVisible) {
+          miniplayer.playNext();
+          return;
+        }
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'PipService.handleActionNext.miniplayer',
+        );
+      }
+    }
+
+    if (TowerPlayerRegistry.activePlayers.isNotEmpty) {
+      try {
+        TowerPlayerRegistry.activePlayers.last.playNext();
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'PipService.handleActionNext.tower',
+        );
+      }
+    }
+  }
+
+  /// Handles Previous video action triggered from the native Android PiP window.
+  void handleActionPrevious() {
+    if (Get.isRegistered<MiniplayerController>(tag: 'miniplayer') ||
+        Get.isRegistered<MiniplayerController>()) {
+      try {
+        final miniplayer = MiniplayerController.to;
+        if (miniplayer.isVisible) {
+          miniplayer.playPrevious();
+          return;
+        }
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'PipService.handleActionPrevious.miniplayer',
+        );
+      }
+    }
+
+    if (TowerPlayerRegistry.activePlayers.isNotEmpty) {
+      try {
+        TowerPlayerRegistry.activePlayers.last.playPrevious();
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'PipService.handleActionPrevious.tower',
+        );
+      }
+    }
   }
 
   /// Update PiP mode status and notify active player controllers.
@@ -79,7 +181,12 @@ class PipService extends GetxService {
   }
 
   /// Trigger immediate transition into Picture-in-Picture mode.
-  Future<bool> enterPip({double? aspectRatio}) async {
+  Future<bool> enterPip({
+    double? aspectRatio,
+    bool isPlaying = true,
+    bool hasPrevious = false,
+    bool hasNext = true,
+  }) async {
     final ratio = (aspectRatio ?? currentAspectRatio.value).clamp(0.418, 2.39);
     currentAspectRatio.value = ratio;
 
@@ -90,6 +197,9 @@ class PipService extends GetxService {
     try {
       await _pipChannel.invokeMethod('enterPip', {
         'aspectRatio': ratio,
+        'isPlaying': isPlaying,
+        'hasPrevious': hasPrevious,
+        'hasNext': hasNext,
       });
       return true;
     } catch (e, s) {
@@ -110,17 +220,33 @@ class PipService extends GetxService {
   }
 
   /// Toggle Picture-in-Picture mode.
-  Future<bool> togglePip({double? aspectRatio}) async {
+  Future<bool> togglePip({
+    double? aspectRatio,
+    bool isPlaying = true,
+    bool hasPrevious = false,
+    bool hasNext = true,
+  }) async {
     if (isPiP.value) {
       return exitPip();
     }
-    return enterPip(aspectRatio: aspectRatio);
+    return enterPip(
+      aspectRatio: aspectRatio,
+      isPlaying: isPlaying,
+      hasPrevious: hasPrevious,
+      hasNext: hasNext,
+    );
   }
 
   /// Updates system auto-enter PiP settings.
   /// When [enabled] is true and the user navigates Home or switches apps,
   /// the system will automatically transition playback into a floating PiP window.
-  void updateAutoPip({required bool enabled, double? aspectRatio}) {
+  void updateAutoPip({
+    required bool enabled,
+    double? aspectRatio,
+    bool isPlaying = true,
+    bool hasPrevious = false,
+    bool hasNext = true,
+  }) {
     final ratio = (aspectRatio ?? currentAspectRatio.value).clamp(0.418, 2.39);
     currentAspectRatio.value = ratio;
     isAutoPipEnabled.value = enabled;
@@ -130,9 +256,31 @@ class PipService extends GetxService {
     _pipChannel.invokeMethod('setAutoEnterPip', {
       'enabled': enabled,
       'aspectRatio': ratio,
+      'isPlaying': isPlaying,
+      'hasPrevious': hasPrevious,
+      'hasNext': hasNext,
     }).catchError((dynamic e, StackTrace s) {
       if (e is MissingPluginException) return null;
       ErrorHandler.log(e, stackTrace: s, tag: 'PipService.updateAutoPip');
+      return null;
+    });
+  }
+
+  /// Dynamically updates the action buttons (Play/Pause, Prev, Next) on the floating PiP window.
+  void updatePipActions({
+    required bool isPlaying,
+    bool hasPrevious = false,
+    bool hasNext = true,
+  }) {
+    if (kIsWeb) return;
+
+    _pipChannel.invokeMethod('updatePipActions', {
+      'isPlaying': isPlaying,
+      'hasPrevious': hasPrevious,
+      'hasNext': hasNext,
+    }).catchError((dynamic e, StackTrace s) {
+      if (e is MissingPluginException) return null;
+      ErrorHandler.log(e, stackTrace: s, tag: 'PipService.updatePipActions');
       return null;
     });
   }

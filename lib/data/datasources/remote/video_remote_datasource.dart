@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
+import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Abstract remote data source contract for Video data handling.
@@ -28,8 +29,6 @@ class FirestoreVideoRemoteDataSource implements VideoRemoteDataSource {
   Future<List<Video>> getHomeFeed({int limit = 10, dynamic startAfter}) async {
     var query = _firestore
         .collection(FirestoreCollections.videos)
-        .where('status', isEqualTo: 'published')
-        .where('visibility', isEqualTo: 'public')
         .orderBy('createdAt', descending: true)
         .limit(limit);
 
@@ -38,7 +37,10 @@ class FirestoreVideoRemoteDataSource implements VideoRemoteDataSource {
     }
 
     final snapshot = await query.get();
-    return snapshot.docs.map(Video.fromDocumentSnapshot).toList();
+    return snapshot.docs
+        .map(Video.fromDocumentSnapshot)
+        .where(VideoVisibilityPolicy.isVisibleForFeed)
+        .toList();
   }
 
   @override

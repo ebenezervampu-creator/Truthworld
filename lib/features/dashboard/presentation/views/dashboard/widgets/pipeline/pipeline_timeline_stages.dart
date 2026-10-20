@@ -58,8 +58,9 @@ class PipelineTimelineStages extends StatelessWidget {
     final transcriptionData = _getStageData('transcription', stages);
     final rawTranscriptionStatus =
         (transcriptionData?['status'] as String?)?.toLowerCase() ?? 'pending';
-    final hasValidTranscript =
-        video.transcriptionUrl.isNotEmpty && !video.transcriptionUrl.contains('placeholder');
+    final hasValidTranscript = (video.transcriptionUrl.isNotEmpty &&
+            !video.transcriptionUrl.contains('placeholder')) ||
+        video.mediaSubtitles.isNotEmpty;
     final isTranscriptionFailed = rawTranscriptionStatus == 'failed';
     final isTranscriptionDone =
         rawTranscriptionStatus == 'completed' ||

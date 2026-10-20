@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/core/utils/content_validator.dart';
-import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -598,7 +598,9 @@ class AudienceTabView extends StatelessWidget {
             children: [
               TextField(
                 controller: nameController,
-                inputFormatters: TruthworldTextInputFormatters.standard,
+                maxLength: 100,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: TruthworldTextInputFormatters.withLimit(100),
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Preset Name (e.g. AI & Tech Founders)',
@@ -615,6 +617,12 @@ class AudienceTabView extends StatelessWidget {
                     child: TextField(
                       controller: minAgeController,
                       keyboardType: TextInputType.number,
+                      maxLength: 3,
+                      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(3),
+                      ],
                       style: const TextStyle(color: Colors.white),
                       decoration: const InputDecoration(
                         labelText: 'Min Age',
@@ -630,6 +638,12 @@ class AudienceTabView extends StatelessWidget {
                     child: TextField(
                       controller: maxAgeController,
                       keyboardType: TextInputType.number,
+                      maxLength: 3,
+                      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(3),
+                      ],
                       style: const TextStyle(color: Colors.white),
                       decoration: const InputDecoration(
                         labelText: 'Max Age',
@@ -645,7 +659,9 @@ class AudienceTabView extends StatelessWidget {
               const SizedBox(height: 12),
               TextField(
                 controller: locationsController,
-                inputFormatters: TruthworldTextInputFormatters.standard,
+                maxLength: 200,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: TruthworldTextInputFormatters.withLimit(200),
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Target Locations (comma separated)',
@@ -658,7 +674,9 @@ class AudienceTabView extends StatelessWidget {
               const SizedBox(height: 12),
               TextField(
                 controller: interestsController,
-                inputFormatters: TruthworldTextInputFormatters.standard,
+                maxLength: 200,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: TruthworldTextInputFormatters.withLimit(200),
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Target Interests / Topics (comma separated)',

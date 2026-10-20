@@ -12,6 +12,7 @@ import * as admin from 'firebase-admin';
 import request from 'supertest';
 import { createTestApp } from '../helpers/testServer';
 import { testFirestore } from '../helpers/mockFirestore';
+import { authHeader } from '../helpers/authHelper';
 import { trackWatchEvent } from '../../src/watchtime/watchtime';
 
 describe('Unit: Watch Time Telemetry & Distributed Sharding', () => {
@@ -36,6 +37,7 @@ describe('Unit: Watch Time Telemetry & Distributed Sharding', () => {
 
       const res = await request(app)
         .post('/')
+        .set(authHeader({ uid: payload.userId }))
         .send(payload);
 
       expect(res.status).toBe(200);
@@ -64,6 +66,7 @@ describe('Unit: Watch Time Telemetry & Distributed Sharding', () => {
 
       const res = await request(app)
         .post('/')
+        .set(authHeader({ uid: payload.userId }))
         .send(payload);
 
       expect(res.status).toBe(200);
@@ -92,6 +95,7 @@ describe('Unit: Watch Time Telemetry & Distributed Sharding', () => {
 
       const res = await request(app)
         .post('/')
+        .set(authHeader({ uid: payload.userId }))
         .send(payload);
 
       expect(res.status).toBe(200);
@@ -128,12 +132,18 @@ describe('Unit: Watch Time Telemetry & Distributed Sharding', () => {
       };
 
       // First delivery
-      const res1 = await request(app).post('/').send(payload);
+      const res1 = await request(app)
+        .post('/')
+        .set(authHeader({ uid: payload.userId }))
+        .send(payload);
       expect(res1.status).toBe(200);
       expect(res1.body.processed).toBe(true);
 
       // Duplicate delivery (network retry / replay)
-      const res2 = await request(app).post('/').send(payload);
+      const res2 = await request(app)
+        .post('/')
+        .set(authHeader({ uid: payload.userId }))
+        .send(payload);
       expect(res2.status).toBe(200);
       expect(res2.body.processed).toBe(false);
       expect(res2.body.reason).toBe('duplicate_event');
@@ -169,6 +179,37 @@ describe('Unit: Watch Time Telemetry & Distributed Sharding', () => {
 
       expect(blockedRes.status).toBe(429);
       expect(blockedRes.body.error).toBe('Rate limit');
+    });
+  });
+
+  describe('Guest / Anonymous User Isolation', () => {
+    it('strictly isolates unsigned playback (zero watch_events, zero video/channel shard increments)', async () => {
+      const payload = {
+        videoId: 'vid_unsigned_test',
+        userId: 'anonymous',
+        sessionId: 'session_unsigned_99',
+        eventType: 'video_start',
+        position: 15,
+        duration: 300,
+        watchTimeSecondsDelta: 15,
+        channelId: 'chan_creator_unsigned',
+      };
+
+      const res = await request(app).post('/').send(payload);
+
+      expect(res.status).toBe(200);
+
+      // Verify ZERO watch_events were written for anonymous/unsigned users
+      const watchEvents = await admin.firestore().collection('watch_events').get();
+      expect(watchEvents.empty).toBe(true);
+
+      // Verify ZERO video shard increments
+      const videoShards = await admin.firestore().collection('videos').doc('vid_unsigned_test').collection('shards').get();
+      expect(videoShards.empty).toBe(true);
+
+      // Verify ZERO channel shard increments
+      const channelShards = await admin.firestore().collection('channels').doc('chan_creator_unsigned').collection('shards').get();
+      expect(channelShards.empty).toBe(true);
     });
   });
 });

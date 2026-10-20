@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/user_clips_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -34,6 +35,9 @@ class ClipsHeader extends StatelessWidget {
                         ),
                       ),
                       child: TextField(
+                        maxLength: defaultMaxSearchLength,
+                        buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                        inputFormatters: TruthworldTextInputFormatters.withLimit(defaultMaxSearchLength),
                         onChanged: (value) =>
                             controller.searchQuery.value = value,
                         style: const TextStyle(

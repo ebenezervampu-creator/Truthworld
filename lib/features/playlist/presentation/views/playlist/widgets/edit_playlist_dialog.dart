@@ -31,7 +31,9 @@ void showEditPlaylistDialogModal({
         ),
         content: TextField(
           controller: editController,
-          inputFormatters: TruthworldTextInputFormatters.standard,
+          maxLength: 100,
+          buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+          inputFormatters: TruthworldTextInputFormatters.withLimit(100),
           style: GoogleFonts.roboto(color: Colors.white),
           decoration: InputDecoration(
             labelText: 'Playlist Name',

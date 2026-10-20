@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Reusable input field tailored for advertiser forms and checkout dialogs
@@ -8,12 +8,14 @@ class AdvertiserInputField extends StatelessWidget {
   final String label;
   final TextEditingController controller;
   final String hint;
+  final int? maxLength;
   final List<TextInputFormatter>? inputFormatters;
 
   const AdvertiserInputField({
     required this.label,
     required this.controller,
     required this.hint,
+    this.maxLength,
     this.inputFormatters,
     super.key,
   });
@@ -26,8 +28,11 @@ class AdvertiserInputField extends StatelessWidget {
         label.toLowerCase().contains('destination') ||
         label.toLowerCase().contains('link') ||
         label.toLowerCase().contains('url');
+    final effectiveLimit = maxLength ?? (isTechnical ? 500 : 200);
     final effectiveFormatters = inputFormatters ??
-        (isTechnical ? null : TruthworldTextInputFormatters.standard);
+        (isTechnical
+            ? [LengthLimitingTextInputFormatter(effectiveLimit)]
+            : TruthworldTextInputFormatters.withLimit(effectiveLimit));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -46,6 +51,8 @@ class AdvertiserInputField extends StatelessWidget {
         ],
         TextField(
           controller: controller,
+          maxLength: effectiveLimit,
+          buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
           inputFormatters: effectiveFormatters,
           style: const TextStyle(
             fontFamily: TWTypography.uiFamily,

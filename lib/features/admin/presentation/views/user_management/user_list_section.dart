@@ -83,7 +83,9 @@ class UserListSection extends StatelessWidget {
                 Expanded(
                   child: TextField(
                     controller: _searchController,
-                    inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+                    maxLength: defaultMaxSearchLength,
+                    buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                    inputFormatters: TruthworldTextInputFormatters.withLimit(defaultMaxSearchLength),
                     onChanged: controller.searchUsers,
                     style: const TextStyle(
                       fontFamily: TWTypography.uiFamily,

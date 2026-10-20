@@ -101,5 +101,21 @@ describe('Unit: Cashfree Payment Gateway Service', () => {
       const fallback = CashfreeService.cleanCustomerId('');
       expect(fallback).toBe('cust_user');
     });
+
+    it('sanitizes customer names stripping emojis and invalid characters', () => {
+      const emojiName = CashfreeService.cleanCustomerName('John Doe 🔥🚀 (Admin)');
+      expect(emojiName).toBe('John Doe Admin');
+
+      const emptyName = CashfreeService.cleanCustomerName('');
+      expect(emptyName).toBe('TruthWorld User');
+    });
+
+    it('sanitizes order notes stripping emojis and keeping length within bounds', () => {
+      const emojiNote = CashfreeService.cleanOrderNote('Superchat on Live Stream 🔴 with $10 USD!');
+      expect(emojiNote).toBe('Superchat on Live Stream with 10 USD');
+
+      const emptyNote = CashfreeService.cleanOrderNote('');
+      expect(emptyNote).toBe('TruthWorld Payment');
+    });
   });
 });

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/security/biometric_security_service.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/analytics/data/models/creator_bank_account.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/revenue_analytics_controller.dart';
@@ -47,11 +49,18 @@ class RevenueWithdrawalDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final available = controller.totalRevenue.value;
-    final isIndian = !Get.isRegistered<CurrencyLocalizationService>() || CurrencyLocalizationService.to.isIndianUser;
-    amountController.text = available >= RevenueAnalyticsController.minimumWithdrawalAmount
+    final isIndian = Get.isRegistered<CurrencyLocalizationService>()
+        ? CurrencyLocalizationService.to.isIndianUser
+        : controller.isViewingINR;
+    final minAmount = isIndian
+        ? RevenueAnalyticsController.minimumWithdrawalAmountINR
+        : RevenueAnalyticsController.minimumWithdrawalAmountUSD;
+    final available = isIndian
+        ? controller.totalRevenue.value
+        : controller.totalRevenueUSD.value;
+    amountController.text = available >= minAmount
         ? available.toStringAsFixed(2)
-        : '100.00';
+        : (isIndian ? '100.00' : '10.00');
 
     return Dialog(
       backgroundColor: const Color(0xFF18181B),
@@ -172,9 +181,9 @@ class RevenueWithdrawalDialog extends StatelessWidget {
                               color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: const Text(
-                              '₹100 (100 Rupees Minimum)',
-                              style: TextStyle(
+                            child: Text(
+                              isIndian ? '₹100 (100 Rupees Minimum)' : r'$10 (10 Dollars Minimum)',
+                              style: const TextStyle(
                                 color: Color(0xFFF59E0B),
                                 fontWeight: FontWeight.bold,
                                 fontSize: 12,
@@ -239,6 +248,12 @@ class RevenueWithdrawalDialog extends StatelessWidget {
               const SizedBox(height: 6),
               TextField(
                 controller: amountController,
+                maxLength: 8,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                  LengthLimitingTextInputFormatter(8),
+                ],
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 style: const TextStyle(
                   color: AppColors.textPrimary,
@@ -246,13 +261,13 @@ class RevenueWithdrawalDialog extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
                 decoration: InputDecoration(
-                  prefixText: '₹ ',
+                  prefixText: isIndian ? '₹ ' : r'$ ',
                   prefixStyle: const TextStyle(
                     color: Color(0xFF10B981),
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
-                  hintText: '100.00',
+                  hintText: isIndian ? '100.00' : '10.00',
                   hintStyle: const TextStyle(color: Color(0xFF71717A)),
                   filled: true,
                   fillColor: const Color(0xFF09090B),
@@ -288,15 +303,25 @@ class RevenueWithdrawalDialog extends StatelessWidget {
 
               // Quick amount pills
               Row(
-                children: [
-                  _buildQuickPill('₹100', 100),
-                  const SizedBox(width: 8),
-                  _buildQuickPill('₹500', 500),
-                  const SizedBox(width: 8),
-                  _buildQuickPill('₹1,000', 1000),
-                  const SizedBox(width: 8),
-                  _buildQuickPill('₹5,000', 5000),
-                ],
+                children: isIndian
+                    ? [
+                        _buildQuickPill('₹100', 100),
+                        const SizedBox(width: 8),
+                        _buildQuickPill('₹500', 500),
+                        const SizedBox(width: 8),
+                        _buildQuickPill('₹1,000', 1000),
+                        const SizedBox(width: 8),
+                        _buildQuickPill('₹5,000', 5000),
+                      ]
+                    : [
+                        _buildQuickPill(r'$10', 10),
+                        const SizedBox(width: 8),
+                        _buildQuickPill(r'$50', 50),
+                        const SizedBox(width: 8),
+                        _buildQuickPill(r'$100', 100),
+                        const SizedBox(width: 8),
+                        _buildQuickPill(r'$500', 500),
+                      ],
               ),
               const SizedBox(height: 18),
 
@@ -698,6 +723,7 @@ class RevenueWithdrawalDialog extends StatelessWidget {
           controller: holderController,
           hint: 'Account Holder Name (As per Bank)',
           icon: Icons.person_outline_rounded,
+          maxLength: 70,
         ),
         const SizedBox(height: 10),
 
@@ -726,6 +752,11 @@ class RevenueWithdrawalDialog extends StatelessWidget {
               ? 'IFSC Code (e.g. SBIN0001234)'
               : 'SWIFT / BIC or Routing Code (e.g. CHASUS33)',
           icon: Icons.account_balance_outlined,
+          maxLength: isIndian ? 11 : 20,
+          inputFormatters: [
+            LengthLimitingTextInputFormatter(isIndian ? 11 : 20),
+            FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+          ],
           onChanged: (val) {
             if (isIndian) {
               final inferred = CreatorBankAccount.inferBankName(val);
@@ -789,6 +820,11 @@ class RevenueWithdrawalDialog extends StatelessWidget {
               ? 'Enter UPI ID (e.g. yourname@upi, gpay, phonepe)'
               : 'Enter registered PayPal email (e.g. yourname@example.com)',
           icon: isIndian ? Icons.qr_code_rounded : Icons.email_outlined,
+          maxLength: 100,
+          inputFormatters: [
+            LengthLimitingTextInputFormatter(100),
+            FilteringTextInputFormatter.deny(RegExp(r'\s')),
+          ],
         ),
       ],
     );
@@ -800,9 +836,23 @@ class RevenueWithdrawalDialog extends StatelessWidget {
     required IconData icon,
     bool isNumeric = false,
     ValueChanged<String>? onChanged,
+    int? maxLength,
+    List<TextInputFormatter>? inputFormatters,
   }) {
+    final effectiveLimit = maxLength ?? (isNumeric ? 34 : 100);
+    final effectiveFormatters = inputFormatters ??
+        (isNumeric
+            ? [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(effectiveLimit),
+              ]
+            : TruthworldTextInputFormatters.internationalWithLimit(effectiveLimit));
+
     return TextField(
       controller: controller,
+      maxLength: effectiveLimit,
+      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+      inputFormatters: effectiveFormatters,
       keyboardType: isNumeric ? TextInputType.number : TextInputType.text,
       onChanged: onChanged,
       style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
@@ -892,17 +942,29 @@ class RevenueWithdrawalDialog extends StatelessWidget {
     }
 
     final parsedAmount = double.tryParse(amountController.text.trim()) ?? 0.0;
+    final isIndian = Get.isRegistered<CurrencyLocalizationService>()
+        ? CurrencyLocalizationService.to.isIndianUser
+        : controller.isViewingINR;
+    final minRequired = isIndian
+        ? RevenueAnalyticsController.minimumWithdrawalAmountINR
+        : RevenueAnalyticsController.minimumWithdrawalAmountUSD;
+    final currentBal = isIndian
+        ? controller.totalRevenue.value
+        : controller.totalRevenueUSD.value;
+    final currSymbol = isIndian ? '₹' : r'$';
 
-    if (parsedAmount < RevenueAnalyticsController.minimumWithdrawalAmount) {
+    if (parsedAmount < minRequired) {
       AppSnackbar.warning(
-        'Minimum withdrawal amount is ₹100 (100 Rupees).',
+        isIndian
+            ? 'Minimum withdrawal amount is ₹100 (100 Rupees).'
+            : r'Minimum withdrawal amount is $10 (10 Dollars).',
       );
       return;
     }
 
-    if (parsedAmount > controller.totalRevenue.value) {
+    if (parsedAmount > currentBal) {
       AppSnackbar.warning(
-        'Requested amount exceeds your available balance of ₹${controller.totalRevenue.value.toStringAsFixed(2)}.',
+        'Requested amount exceeds your available balance of $currSymbol${currentBal.toStringAsFixed(2)}.',
       );
       return;
     }

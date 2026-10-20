@@ -143,9 +143,12 @@ class GoogleOnboardingSheet extends StatelessWidget {
                 final errorText = controller.usernameError.value;
                 return TextField(
                   controller: controller.usernameController,
+                  maxLength: 30,
+                  buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp('[a-zA-Z0-9_.]')),
                     LengthLimitingTextInputFormatter(30),
+                    TruthworldTextInputFormatters.profanityFilter,
                   ],
                   style: GoogleFonts.roboto(
                     fontSize: 15,
@@ -476,7 +479,9 @@ class GoogleOnboardingSheet extends StatelessWidget {
                     const SizedBox(height: 14),
                     TextField(
                       controller: controller.selfDescribeController,
-                      inputFormatters: [...TruthworldTextInputFormatters.standard],
+                      maxLength: 50,
+                      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                      inputFormatters: TruthworldTextInputFormatters.withLimit(50),
                       style: GoogleFonts.roboto(
                         fontSize: 14,
                         color: AppColors.textPrimary,

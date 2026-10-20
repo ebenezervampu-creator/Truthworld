@@ -141,6 +141,8 @@ export const onChannelSeoWritten = onDocumentWritten(
       beforeData.handle !== afterData.handle ||
       beforeData.about !== afterData.about ||
       beforeData.description !== afterData.description ||
+      beforeData.visibility !== afterData.visibility ||
+      beforeData.isPublic !== afterData.isPublic ||
       (beforeData.profile?.photoUrl || beforeData.avatarUrl) !== (afterData.profile?.photoUrl || afterData.avatarUrl);
 
     const channelStatusChanged = !beforeData ||
@@ -158,7 +160,10 @@ export const onChannelSeoWritten = onDocumentWritten(
       await updateChannelSearchMetadata(db, channelId, afterData);
     }
 
-    if (status === "active") {
+    const vis = (afterData.visibility || "").toLowerCase();
+    const isChannelPublic = vis !== "private" && vis !== "unlisted" && afterData.isPublic !== false;
+
+    if (status === "active" && isChannelPublic) {
       await db.collection("dirty_shards").doc("channels-001").set({
         shardId: "channels-001",
         updatedAt: admin.firestore.FieldValue.serverTimestamp()

@@ -33,18 +33,37 @@ class FactCheckReportWidget extends StatelessWidget {
     // 🧠 Extract multi-dimensional credibility data
     final trustScore = parsed.trustScore ?? 0.0;
     final truthScore = ((data['truthScore'] ?? trustScore) as num).toDouble();
-    final honestyScore = ((data['honestyScore'] ?? 0.0) as num).toDouble();
-    final rationalityScore =
-        ((data['rationalityScore'] ?? 0.0) as num).toDouble();
+    final honestyScore = ((data['honestyScore'] ??
+            (data.containsKey('truthScore') || trustScore > 0 ? truthScore : 0.0)) as num)
+        .toDouble();
+    final rationalityScore = ((data['rationalityScore'] ??
+            (data.containsKey('truthScore') || trustScore > 0 ? truthScore : 0.0)) as num)
+        .toDouble();
 
     final stats = data['factCheckStats'] as Map? ?? {};
     final claims = parsed.claims.isNotEmpty ? parsed.claims : (data['claims'] as List? ?? []);
     final diagnostics = data['diagnostics'] as List? ?? [];
+    final hasClaims = claims.isNotEmpty;
 
     final narrative = parsed.viewerNote;
     final sources = parsed.sources;
     final uiReport = data['uiReport'] as Map? ?? {};
-    final conclusion = uiReport['conclusion'] as String? ?? '';
+    final rawUiConclusion = uiReport['conclusion'];
+    final uiConclusionStr = rawUiConclusion is Map
+        ? (rawUiConclusion['text'] ?? rawUiConclusion['summary'] ?? '').toString()
+        : (rawUiConclusion is String ? rawUiConclusion : (rawUiConclusion ?? '').toString());
+    final conclusion = parsed.conclusion.isNotEmpty
+        ? parsed.conclusion
+        : (uiConclusionStr.isNotEmpty
+            ? uiConclusionStr
+            : (video.uiReport?.conclusion ?? ''));
+    final conclusionSources = parsed.conclusionSources.isNotEmpty
+        ? parsed.conclusionSources.map((s) => s.toMap()).toList()
+        : (uiReport['conclusionSources'] as List? ??
+            (rawUiConclusion is Map ? (rawUiConclusion['sources'] as List?) : null) ??
+            (video.uiReport?.conclusionSources.isNotEmpty == true
+                ? video.uiReport!.conclusionSources.map((s) => s.toMap()).toList()
+                : const []));
     final confidence = parsed.confidenceVal;
 
     return Container(
@@ -77,14 +96,66 @@ class FactCheckReportWidget extends StatelessWidget {
                   physics: const BouncingScrollPhysics(),
                   children: [
                     const SizedBox(height: 24),
-                    FactCheckMetricsRow(
-                      truth: truthScore,
-                      honesty: honestyScore,
-                      rationality: rationalityScore,
-                    ),
-                    const SizedBox(height: 24),
-                    FactCheckConfidenceBar(confidence: confidence),
-                    const SizedBox(height: 32),
+                    if (hasClaims || (data.containsKey('honestyScore') && data.containsKey('rationalityScore'))) ...[
+                      FactCheckMetricsRow(
+                        truth: truthScore,
+                        honesty: honestyScore,
+                        rationality: rationalityScore,
+                      ),
+                      const SizedBox(height: 24),
+                      FactCheckConfidenceBar(confidence: confidence),
+                      const SizedBox(height: 32),
+                    ] else ...[
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.bgSurface,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.bgDivider),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: AppColors.info.withValues(alpha: 0.15),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.psychology_alt_outlined,
+                                color: AppColors.info,
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Subjective Discourse & Inquiry',
+                                    style: AppTextStyles.titleMedium.copyWith(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'No empirical factual assertions were extracted from this content. Factual truth, honesty, and logic scoring apply exclusively to verifiable propositions.',
+                                    style: AppTextStyles.bodySmall.copyWith(
+                                      color: AppColors.textSecondary,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                    ],
                     FactCheckStatsRow(stats: stats),
                     const SizedBox(height: 32),
                     if (narrative.isNotEmpty) ...[
@@ -98,7 +169,10 @@ class FactCheckReportWidget extends StatelessWidget {
                       const SizedBox(height: 32),
                     ],
                     if (conclusion.isNotEmpty) ...[
-                      FactCheckConclusionSection(conclusion: conclusion),
+                      FactCheckConclusionSection(
+                        conclusion: conclusion,
+                        sources: conclusionSources,
+                      ),
                       const SizedBox(height: 32),
                     ],
                     FactCheckDiagnosticsSection(diagnostics: diagnostics),

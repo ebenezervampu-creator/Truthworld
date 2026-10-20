@@ -180,7 +180,7 @@ class VideoAnalysisEmptyFallback extends StatelessWidget {
                     });
                   }
                   AppSnackbar.success(
-                    'AI Fact-Checking initiated! Epistemic analysis and claim verification is in progress for this video.',
+                    'Truth Intelligence Check initiated! Epistemic analysis and claim verification is in progress for this video.',
                     title: 'Fact-Check Initiated',
                   );
                 } catch (e, s) {

@@ -4,6 +4,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/network/result.dart';
 import 'package:truthworld/core/services/distributed_counter_service.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/domain/entities/video_entity.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/domain/repositories/video_repository.dart';
@@ -18,7 +19,7 @@ class FirestoreVideoRepository implements VideoRepository {
   @override
   Future<Result<VideoEntity>> getVideoById(String id) async {
     try {
-      final doc = await _firestore.collection('videos').doc(id).get();
+      final doc = await _firestore.collection('videos').doc(id).getCacheFirst();
       if (!doc.exists || doc.data() == null) {
         return Result.failure(NotFoundException(message: 'Video not found with ID: $id'));
       }
@@ -39,7 +40,7 @@ class FirestoreVideoRepository implements VideoRepository {
           .where('status', isEqualTo: 'published')
           .orderBy('createdAt', descending: true)
           .limit(limit)
-          .get();
+          .getCacheFirst();
 
       final videos = snap.docs.map((doc) {
         final data = doc.data();
@@ -100,7 +101,7 @@ class FirestoreVideoRepository implements VideoRepository {
       final snap = await _firestore
           .collection('videos')
           .where('channelId', isEqualTo: channelId)
-          .get();
+          .getCacheFirst();
 
       final videos = snap.docs.map((doc) {
         final data = doc.data();

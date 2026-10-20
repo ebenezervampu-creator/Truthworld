@@ -96,6 +96,27 @@ class MediaCryptoService {
     return true;
   }
 
+  /// Safely writes a 64-bit big-endian unsigned integer across both native VM and
+  /// web runtimes (dart2js / DDC / Wasm) without triggering
+  /// "Unsupported operation: Int64 accessor not supported by dart2js".
+  static void writeUint64BigEndian(ByteData byteData, int offset, int value) {
+    const twoPow32 = 4294967296; // 2^32
+    final high = value ~/ twoPow32;
+    final low = value % twoPow32;
+    byteData.setUint32(offset, high);
+    byteData.setUint32(offset + 4, low);
+  }
+
+  /// Safely reads a 64-bit big-endian unsigned integer across both native VM and
+  /// web runtimes (dart2js / DDC / Wasm) without triggering
+  /// "Unsupported operation: Int64 accessor not supported by dart2js".
+  static int readUint64BigEndian(ByteData byteData, int offset) {
+    const twoPow32 = 4294967296; // 2^32
+    final high = byteData.getUint32(offset);
+    final low = byteData.getUint32(offset + 4);
+    return (high * twoPow32) + low;
+  }
+
   /// Parses header information from an encrypted media file or byte buffer.
   EncryptedMediaHeader parseHeader(List<int> bytes) {
     if (bytes.length < headerSize) {
@@ -109,7 +130,7 @@ class MediaCryptoService {
     final iv = Uint8List.fromList(bytes.sublist(7, 23));
 
     final byteData = ByteData.sublistView(Uint8List.fromList(bytes.sublist(23, 31)));
-    final originalLength = byteData.getInt64(0);
+    final originalLength = readUint64BigEndian(byteData, 0);
 
     final sha256Digest = Uint8List.fromList(bytes.sublist(31, 63));
 
@@ -141,7 +162,7 @@ class MediaCryptoService {
     header.setRange(7, 23, iv);
 
     final byteData = ByteData.sublistView(header, 23, 31);
-    byteData.setInt64(0, originalLength);
+    writeUint64BigEndian(byteData, 0, originalLength);
 
     header.setRange(31, 63, sha256Digest);
     // bytes 63-64 are 0x00 reserved
@@ -245,7 +266,7 @@ class MediaCryptoService {
     for (var i = 15; i >= 0 && carry > 0; i--) {
       final sum = counter[i] + (carry & 0xFF);
       counter[i] = sum & 0xFF;
-      carry = (carry >> 8) + (sum >> 8);
+      carry = (carry ~/ 256) + (sum >> 8);
     }
     return counter;
   }

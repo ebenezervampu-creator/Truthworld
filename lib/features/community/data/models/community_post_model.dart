@@ -15,6 +15,8 @@ class CommunityPostModel {
     required this.uploadedAt,
     this.selectedCategory = 'General',
     this.visibility = 'Public',
+    this.status = 'published',
+    this.deletionRequestedAt,
     this.images = const [],
     this.tags = const [],
     this.poll,
@@ -102,6 +104,8 @@ class CommunityPostModel {
       channelImage: (map['channelImage'] ?? map['channelAvatarUrl'] ?? map['avatarUrl'] ?? '').toString(),
       selectedCategory: (map['selectedCategory'] ?? map['category'] ?? 'General').toString(),
       visibility: (map['visibility'] ?? 'Public').toString(),
+      status: (map['status'] ?? 'published').toString(),
+      deletionRequestedAt: map['deletionRequestedAt'] != null ? parseDate(map['deletionRequestedAt']) : null,
       images: imageList,
       tags: parseStringList(map['tags']),
       poll: map['poll'] != null
@@ -136,6 +140,8 @@ class CommunityPostModel {
   final String channelImage;
   final String selectedCategory;
   final String visibility;
+  final String status;
+  final DateTime? deletionRequestedAt;
   final List<String> images;
   final List<String> tags;
   final PollModel? poll;
@@ -158,17 +164,23 @@ class CommunityPostModel {
   final bool showDislikeCount;
   final bool isCommentsEnabled;
 
+  bool get isDeleted =>
+      status == 'deleted' ||
+      status == 'deletion_pending' ||
+      status == 'trashed';
+
   bool get isDraft {
     final vis = visibility.trim().toLowerCase();
     final cat = selectedCategory.trim().toLowerCase();
     final t = title.trim().toLowerCase();
-    if (vis == 'draft' || cat == 'draft' || t == 'uploading...') {
+    final s = status.trim().toLowerCase();
+    if (s == 'draft' || vis == 'draft' || cat == 'draft' || t == 'uploading...') {
       return true;
     }
     return false;
   }
 
-  bool get isValid => id.isNotEmpty && !isDraft;
+  bool get isValid => id.isNotEmpty && !isDraft && !isDeleted;
 
   Map<String, dynamic> toMap() => {
     'id': id,
@@ -180,6 +192,9 @@ class CommunityPostModel {
     'channelImage': channelImage,
     'selectedCategory': selectedCategory,
     'visibility': visibility,
+    'status': status,
+    if (deletionRequestedAt != null)
+      'deletionRequestedAt': Timestamp.fromDate(deletionRequestedAt!),
     'images': images,
     // Keep backward-compatible 'image' field (first image or empty)
     'image': images.isNotEmpty ? images.first : '',

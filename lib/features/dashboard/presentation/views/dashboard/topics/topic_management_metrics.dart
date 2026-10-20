@@ -96,41 +96,101 @@ class TopicMetricsBar extends StatelessWidget {
       builder: (context, constraints) {
         final isMobile = constraints.maxWidth < 600;
         return Obx(() {
-          return GridView.count(
-            crossAxisCount: isMobile ? 2 : 4,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            shrinkWrap: true,
-            childAspectRatio: isMobile ? 1.8 : 2.4,
-            physics: const NeverScrollableScrollPhysics(),
+          final hasRejected = controller.rejectedTopicsCount > 0;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              TopicMetricSummaryCard(
-                title: 'Total Topics',
-                value: '${controller.totalTopicsCount}',
-                icon: Icons.topic_rounded,
-                onTap: () => controller.setFilterMode('all'),
-                isSelected: controller.activeFilterMode.value == 'all',
+              GridView.count(
+                crossAxisCount: isMobile ? 2 : 4,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                shrinkWrap: true,
+                childAspectRatio: isMobile ? 1.8 : 2.4,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  TopicMetricSummaryCard(
+                    title: 'Total Topics',
+                    value: '${controller.totalTopicsCount}',
+                    icon: Icons.topic_rounded,
+                    onTap: () => controller.setFilterMode('all'),
+                    isSelected: controller.activeFilterMode.value == 'all',
+                  ),
+                  TopicMetricSummaryCard(
+                    title: 'Linked Videos',
+                    value: '${controller.totalVideosCount}',
+                    icon: Icons.video_library_rounded,
+                    onTap: () => controller.setFilterMode('all'),
+                  ),
+                  TopicMetricSummaryCard(
+                    title: 'Public Topics',
+                    value: '${controller.publicTopicsCount}',
+                    icon: Icons.public_rounded,
+                    onTap: () => controller.setFilterMode('public'),
+                    isSelected: controller.activeFilterMode.value == 'public',
+                  ),
+                  TopicMetricSummaryCard(
+                    title: 'Private Topics',
+                    value: '${controller.privateTopicsCount}',
+                    icon: Icons.lock_rounded,
+                    onTap: () => controller.setFilterMode('private'),
+                    isSelected: controller.activeFilterMode.value == 'private',
+                  ),
+                ],
               ),
-              TopicMetricSummaryCard(
-                title: 'Linked Videos',
-                value: '${controller.totalVideosCount}',
-                icon: Icons.video_library_rounded,
-                onTap: () => controller.setFilterMode('all'),
-              ),
-              TopicMetricSummaryCard(
-                title: 'Public Topics',
-                value: '${controller.publicTopicsCount}',
-                icon: Icons.public_rounded,
-                onTap: () => controller.setFilterMode('public'),
-                isSelected: controller.activeFilterMode.value == 'public',
-              ),
-              TopicMetricSummaryCard(
-                title: 'Private Topics',
-                value: '${controller.privateTopicsCount}',
-                icon: Icons.lock_rounded,
-                onTap: () => controller.setFilterMode('private'),
-                isSelected: controller.activeFilterMode.value == 'private',
-              ),
+              if (hasRejected) ...[
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () => controller.setFilterMode('rejected'),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2C1515),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.6),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.warning_amber_rounded,
+                          color: Color(0xFFEF4444),
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            '${controller.rejectedTopicsCount} ${controller.rejectedTopicsCount == 1 ? 'topic requires' : 'topics require'} action: Gemini AI rejected your details per Community Guidelines. Tap to view and edit to resubmit.',
+                            style: const TextStyle(
+                              color: Color(0xFFFCA5A5),
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'Fix Now',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
           );
         });

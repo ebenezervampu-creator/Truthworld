@@ -43,7 +43,7 @@ void main() {
           home: Scaffold(
             body: TopicCardWidget(
               topic: testTopic,
-              isDashboard: true,
+              isDashboard: false,
             ),
           ),
         ),
@@ -95,7 +95,7 @@ void main() {
           home: Scaffold(
             body: TopicCardWidget(
               topic: testTopic,
-              isDashboard: true,
+              isDashboard: false,
               onFollowToggle: () => followToggled = true,
             ),
           ),

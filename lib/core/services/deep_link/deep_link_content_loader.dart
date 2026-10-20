@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/deep_link/deep_link_cache_manager.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -29,7 +30,7 @@ mixin DeepLinkContentLoader on DeepLinkCacheManager {
       final doc = await firestore
           .collection(FirestoreCollections.videos)
           .doc(videoId)
-          .get()
+          .getCacheFirst()
           .timeout(_loadTimeout);
 
       if (!doc.exists) return null;
@@ -54,7 +55,7 @@ mixin DeepLinkContentLoader on DeepLinkCacheManager {
       final doc = await firestore
           .collection(FirestoreCollections.channels)
           .doc(channelIdOrHandle)
-          .get()
+          .getCacheFirst()
           .timeout(_loadTimeout);
 
       if (doc.exists) {
@@ -68,7 +69,7 @@ mixin DeepLinkContentLoader on DeepLinkCacheManager {
           .collection(FirestoreCollections.channels)
           .where('handleLowercase', isEqualTo: clean.toLowerCase())
           .limit(1)
-          .get()
+          .getCacheFirst()
           .timeout(_loadTimeout);
 
       if (queryByHandle.docs.isNotEmpty) {
@@ -82,7 +83,7 @@ mixin DeepLinkContentLoader on DeepLinkCacheManager {
           .collection(FirestoreCollections.channels)
           .where('customUrlLowercase', isEqualTo: clean.toLowerCase())
           .limit(1)
-          .get()
+          .getCacheFirst()
           .timeout(_loadTimeout);
 
       if (querySnap.docs.isNotEmpty) {
@@ -100,6 +101,50 @@ mixin DeepLinkContentLoader on DeepLinkCacheManager {
     final cached = getPlaylistFromCache(playlistId);
     if (cached != null) return cached;
 
+    if (playlistId == 'watchlater' || playlistId == 'watch_later') {
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null || userId.isEmpty) return null;
+
+      return _withRetry<PlaylistModel?>(() async {
+        final snap = await firestore
+            .collection(FirestoreCollections.users)
+            .doc(userId)
+            .collection('watch_later')
+            .getCacheFirst()
+            .timeout(_loadTimeout);
+
+        final videoIds = snap.docs.map((d) => d.id).toList();
+        var thumb = '';
+        if (videoIds.isNotEmpty) {
+          try {
+            final firstVid = await firestore
+                .collection(FirestoreCollections.videos)
+                .doc(videoIds.first)
+                .getCacheFirst()
+                .timeout(_loadTimeout);
+            if (firstVid.exists) {
+              thumb = firstVid.data()?['thumbnailUrl'] ?? '';
+            }
+          } catch (_) {}
+        }
+
+        final wl = PlaylistModel(
+          id: 'watchlater',
+          playlistName: 'Watch Later',
+          videoIds: videoIds,
+          videoCount: videoIds.length,
+          thumbnailUrl: thumb,
+          isPublic: false,
+          ownerId: userId,
+          channelId: '',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+        cachePlaylist(wl);
+        return wl;
+      });
+    }
+
     return _withRetry<PlaylistModel?>(() async {
       final userId = FirebaseAuth.instance.currentUser?.uid;
 
@@ -107,7 +152,7 @@ mixin DeepLinkContentLoader on DeepLinkCacheManager {
         firestore
             .collection('public_playlists')
             .doc(playlistId)
-            .get()
+            .getCacheFirst()
             .timeout(_loadTimeout),
       ];
 
@@ -118,7 +163,7 @@ mixin DeepLinkContentLoader on DeepLinkCacheManager {
               .doc(userId)
               .collection(FirestoreCollections.playlists)
               .doc(playlistId)
-              .get()
+              .getCacheFirst()
               .timeout(_loadTimeout),
         );
       }

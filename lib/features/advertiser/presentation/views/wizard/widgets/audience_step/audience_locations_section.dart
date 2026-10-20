@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/location_search_service.dart';
+import 'package:truthworld/core/utils/content_validator.dart';
 import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/location_autocomplete_controller.dart';
 import 'package:truthworld/features/advertiser/presentation/views/wizard/widgets/campaign_wizard_targeting_widgets.dart';
@@ -131,8 +132,9 @@ class AudienceLocationsSection extends StatelessWidget {
 
                           return TextField(
                             controller: customLocationController,
-                            inputFormatters:
-                                TruthworldTextInputFormatters.standard,
+                            maxLength: ContentValidator.defaultMaxLocationLength,
+                            buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                            inputFormatters: TruthworldTextInputFormatters.withLimit(ContentValidator.defaultMaxLocationLength),
                             style: const TextStyle(
                               fontFamily: TWTypography.uiFamily,
                               color: Colors.white,

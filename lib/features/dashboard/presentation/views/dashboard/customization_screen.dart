@@ -501,6 +501,11 @@ class _CustomizationView extends StatelessWidget {
             controller: controller.customUrlController,
             label: 'Custom URL / Handle',
             hint: 'yourchannel',
+            maxLength: 30,
+            inputFormatters: [
+              LengthLimitingTextInputFormatter(30),
+              FilteringTextInputFormatter.allow(RegExp('[a-zA-Z0-9._-]')),
+            ],
             prefix: const Text(
               '@',
               style: TextStyle(
@@ -558,7 +563,7 @@ class _CustomizationView extends StatelessWidget {
           _buildTextField(
             controller: controller.categoryController,
             label: 'Channel Category',
-            hint: 'e.g., Gaming, Education, Entertainment',
+            hint: 'e.g., Short Films, Education, Entertainment',
           ),
           const SizedBox(height: 32),
           _buildSectionTitle('Social Links'),
@@ -776,6 +781,7 @@ class _CustomizationView extends StatelessWidget {
                         controller: item.titleController,
                         label: 'Link Title',
                         hint: 'e.g., My Store, Portfolio, Discord',
+                        maxLength: 50,
                         prefixIcon: Icons.title_rounded,
                       ),
                       const SizedBox(height: 12),
@@ -783,6 +789,11 @@ class _CustomizationView extends StatelessWidget {
                         controller: item.urlController,
                         label: 'Link URL',
                         hint: 'https://example.com',
+                        maxLength: 500,
+                        inputFormatters: [
+                          LengthLimitingTextInputFormatter(500),
+                          FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                        ],
                         prefixIcon: Icons.link_rounded,
                       ),
                     ],
@@ -828,13 +839,23 @@ class _CustomizationView extends StatelessWidget {
         children: [
           _buildSectionTitle('Visibility'),
           const SizedBox(height: 12),
-          Obx(
-            () => _buildSwitchTile(
-              title: 'Public Channel',
-              subtitle: 'Allow anyone to view your channel and videos',
-              value: controller.isPublic.value,
-              onChanged: (val) => controller.isPublic.value = val,
-            ),
+          _buildVisibilityOptionCard(
+            value: 'Public',
+            title: 'Public',
+            subtitle: 'Anyone can search for and view your channel and its videos',
+            icon: Icons.public_rounded,
+          ),
+          _buildVisibilityOptionCard(
+            value: 'Unlisted',
+            title: 'Unlisted',
+            subtitle: "Anyone with the link can view your channel and its videos, but it won't appear in search results",
+            icon: Icons.link_rounded,
+          ),
+          _buildVisibilityOptionCard(
+            value: 'Private',
+            title: 'Private',
+            subtitle: 'Only you and approved viewers can view your channel and its videos',
+            icon: Icons.lock_outline_rounded,
           ),
           const SizedBox(height: 24),
           _buildSectionTitle('Interaction Settings'),
@@ -863,9 +884,101 @@ class _CustomizationView extends StatelessWidget {
               onChanged: (val) => controller.showSubscriberCount.value = val,
             ),
           ),
+          Obx(
+            () => _buildSwitchTile(
+              title: 'Show Like Count',
+              subtitle: 'Display like count on your videos publicly',
+              value: controller.showLikeCount.value,
+              onChanged: (val) => controller.showLikeCount.value = val,
+            ),
+          ),
+          Obx(
+            () => _buildSwitchTile(
+              title: 'Show Dislike Count',
+              subtitle: 'Display dislike count on your videos publicly',
+              value: controller.showDislikeCount.value,
+              onChanged: (val) => controller.showDislikeCount.value = val,
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  Widget _buildVisibilityOptionCard({
+    required String value,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+  }) {
+    return Obx(() {
+      final isSelected = controller.visibility.value.toLowerCase() == value.toLowerCase();
+      return Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Colors.white.withValues(alpha: 0.06)
+              : AppColors.bgSurface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? AppColors.brand : AppColors.bgDivider,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () => controller.setVisibility(value),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  size: 22,
+                  color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          fontFamilyFallback: TWTypography.fallbackFamilies,
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          fontFamilyFallback: TWTypography.fallbackFamilies,
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Icon(
+                  isSelected
+                      ? Icons.radio_button_checked_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                  color: isSelected ? AppColors.brand : AppColors.textSecondary,
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    });
   }
 
   Widget _buildSectionTitle(String title) {
@@ -905,12 +1018,19 @@ class _CustomizationView extends StatelessWidget {
     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
+    int? maxLength,
   }) {
+    final effectiveLimit = maxLength ?? (maxLines > 1 ? 5000 : 100);
+    final effectiveFormatters = inputFormatters ??
+        TruthworldTextInputFormatters.internationalWithLimit(effectiveLimit);
+
     return TextFormField(
       controller: controller,
       maxLines: maxLines,
+      maxLength: effectiveLimit,
+      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
       keyboardType: keyboardType,
-      inputFormatters: inputFormatters ?? TruthworldTextInputFormatters.standard,
+      inputFormatters: effectiveFormatters,
       validator: validator,
       style: const TextStyle(
         fontFamily: TWTypography.uiFamily,

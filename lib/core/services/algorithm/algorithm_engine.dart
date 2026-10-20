@@ -86,6 +86,33 @@ List<ScoredVideo> rankVideosWorker(AlgorithmRankingTask task) {
     }
   }
 
+  // Prevent catalog starvation: if all candidates were gated out by strict penalties or zero floors,
+  // provide baseline scored entries so the feed never drops to 0 videos.
+  if (scored.isEmpty && task.candidates.isNotEmpty) {
+    for (final video in task.candidates) {
+      final credibilityMultiplier =
+          AlgorithmEngine.computeCredibilityGate(video);
+      if (credibilityMultiplier > 0.0) {
+        scored.add(ScoredVideo(
+          video: video,
+          score: 1.0,
+          signalBreakdown: const {'baseline': 1.0},
+          surface: task.surface,
+        ));
+      }
+    }
+    if (scored.isEmpty) {
+      for (final video in task.candidates) {
+        scored.add(ScoredVideo(
+          video: video,
+          score: 0.5,
+          signalBreakdown: const {'fallback': 0.5},
+          surface: task.surface,
+        ));
+      }
+    }
+  }
+
   scored.sort((a, b) => b.score.compareTo(a.score));
 
   if (task.diversityConfig != null) {

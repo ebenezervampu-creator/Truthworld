@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -261,7 +262,7 @@ mixin VideoPlaylistNavigationMixin on GetxController {
             .collection('public_playlists')
             .where('videoIds', arrayContains: video.id)
             .limit(1)
-            .get();
+            .getCacheFirst();
         if (snap.docs.isNotEmpty) {
           currentPlaylist.value = PlaylistModel.fromDocumentSnapshot(
             snap.docs.first,
@@ -286,7 +287,7 @@ mixin VideoPlaylistNavigationMixin on GetxController {
       final doc = await FirebaseFirestore.instance
           .collection(FirestoreCollections.videos)
           .doc(videoId)
-          .get();
+          .getCacheFirst();
       if (doc.exists) {
         rxVideo.value = Video.fromDocumentSnapshot(doc);
         continueInitialization();

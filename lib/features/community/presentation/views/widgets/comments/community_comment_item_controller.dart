@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
@@ -96,7 +97,7 @@ class CommunityCommentItemController extends BaseController
     AppSnackbar.warning(
       'Please sign in to $action.',
       actionLabel: 'SIGN IN',
-      onAction: AuthService.to.signInWithGoogle,
+      onAction: AuthBottomSheet.prompt,
     );
   }
 
@@ -185,7 +186,11 @@ class CommunityCommentItemController extends BaseController
     }
     final uid = AuthService.to.uid;
     if (uid.isEmpty) return;
-    final validation = await validateContent(text, fieldName: 'Reply');
+    final validation = await validateContent(
+      text,
+      fieldName: 'Reply',
+      maxLength: ContentValidator.defaultMaxReplyLength,
+    );
     if (!validation.isValid) {
       AppSnackbar.warning(
         validation.message,

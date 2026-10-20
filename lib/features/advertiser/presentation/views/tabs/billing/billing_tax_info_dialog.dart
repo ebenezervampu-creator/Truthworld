@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -41,6 +43,9 @@ class BillingTaxInfoDialog extends StatelessWidget {
           children: [
             TextField(
               controller: companyController,
+              maxLength: 100,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(100),
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 labelText: 'Registered Business Name',
@@ -53,6 +58,12 @@ class BillingTaxInfoDialog extends StatelessWidget {
             const SizedBox(height: 12),
             TextField(
               controller: gstinController,
+              maxLength: 25,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(25),
+                FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+              ],
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 labelText: 'GSTIN / VAT Number',
@@ -65,6 +76,12 @@ class BillingTaxInfoDialog extends StatelessWidget {
             const SizedBox(height: 12),
             TextField(
               controller: emailController,
+              maxLength: 254,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(254),
+                FilteringTextInputFormatter.deny(RegExp(r'\s')),
+              ],
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 labelText: 'Invoice Delivery Email',
@@ -78,6 +95,9 @@ class BillingTaxInfoDialog extends StatelessWidget {
             TextField(
               controller: addressController,
               maxLines: 2,
+              maxLength: 300,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(300),
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 labelText: 'Registered Address',

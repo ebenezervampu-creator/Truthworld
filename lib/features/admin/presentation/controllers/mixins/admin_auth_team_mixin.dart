@@ -44,6 +44,7 @@ mixin AdminAuthTeamMixin on BaseController {
       'ADMIN_OWNER_EMAIL',
       defaultValue: 'hello@truthworld.in',
     ),
+    'ebenezervampu4@gmail.com',
   ];
 
   // Email & Password login controllers

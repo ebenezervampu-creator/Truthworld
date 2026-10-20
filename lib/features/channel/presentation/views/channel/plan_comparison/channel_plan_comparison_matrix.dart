@@ -33,34 +33,34 @@ class PlanComparisonMatrixWidget extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Detailed Feature Comparison',
-                  style: TextStyle(
-                    fontSize: isDesktop ? 22 : 18,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Detailed Feature Comparison',
+                    style: TextStyle(
+                      fontSize: isDesktop ? 22 : 18,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Every metric compared side-by-side across both plans',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isDark ? AppColors.textSecondary : const Color(0xFF64748B),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Every metric compared side-by-side across both plans',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? AppColors.textSecondary : const Color(0xFF64748B),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
         const SizedBox(height: 20),
         // Section Blocks
-        ...ChannelPlanComparisonData.sections.map((section) {
-          return _buildSectionCard(section);
-        }),
+        ...ChannelPlanComparisonData.sections.map(_buildSectionCard),
       ],
     );
   }
@@ -112,9 +112,7 @@ class PlanComparisonMatrixWidget extends StatelessWidget {
           ),
           const Divider(height: 1, color: AppColors.bgDivider),
           // Features
-          ...section.features.map((feature) {
-            return _buildFeatureRow(feature);
-          }),
+          ...section.features.map(_buildFeatureRow),
         ],
       ),
     );

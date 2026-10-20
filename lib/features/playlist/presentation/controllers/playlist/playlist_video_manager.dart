@@ -3,6 +3,7 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
@@ -61,13 +62,13 @@ class PlaylistVideoManager {
             .collection('items')
             .orderBy('addedAt')
             .limit(100)
-            .get();
+            .getCacheFirst();
       } catch (_) {
-        snapshot = await ref.collection('items').limit(100).get();
+        snapshot = await ref.collection('items').limit(100).getCacheFirst();
       }
 
       if (snapshot.docs.isEmpty) {
-        final doc = await ref.get();
+        final doc = await ref.getCacheFirst();
         if (doc.exists && doc.data() != null) {
           final rawIds = doc.data()?['videoIds'];
           if (rawIds is List) {
@@ -268,40 +269,28 @@ class PlaylistVideoManager {
 
   Future<void> deleteVideoFromAllPlaylists(String videoId) async {
     final user = getUserId();
+    if (user.isEmpty) return;
     try {
       final userPlaylists = await _firestore
           .collection(FirestoreCollections.users)
           .doc(user)
           .collection(FirestoreCollections.playlists)
-          .get();
+          .getCacheFirst();
 
       final publicPlaylists = await _firestore
           .collection('public_playlists')
-          .limit(50)
-          .get();
+          .where('ownerId', isEqualTo: user)
+          .getCacheFirst();
 
       final allDocs = [...userPlaylists.docs, ...publicPlaylists.docs];
       if (allDocs.isEmpty) return;
 
-      final checkFutures = allDocs.map((doc) async {
-        try {
-          final itemDoc = await doc.reference
-              .collection('items')
-              .doc(videoId)
-              .get();
-          if (itemDoc.exists) {
-            return doc;
-          }
-        } catch (e) {
-          logger.debug('Error checking item in playlist ${doc.id}: $e');
-        }
-        return null;
+      final affectedDocs = allDocs.where((doc) {
+        final videoIds = List<String>.from(
+          doc.data()['videoIds'] as List? ?? [],
+        );
+        return videoIds.contains(videoId);
       }).toList();
-
-      final matchedResults = await Future.wait(checkFutures);
-      final affectedDocs = matchedResults
-          .whereType<QueryDocumentSnapshot<Map<String, dynamic>>>()
-          .toList();
 
       if (affectedDocs.isEmpty) {
         AppSnackbar.success('Video removed from all playlists!');
@@ -328,6 +317,15 @@ class PlaylistVideoManager {
       }
 
       await batch.commit();
+
+      for (final doc in affectedDocs) {
+        final currentVideoIds = List<String>.from(
+          doc.data()['videoIds'] as List? ?? [],
+        );
+        currentVideoIds.remove(videoId);
+        await updateThumbnail(doc.reference, currentVideoIds);
+      }
+
       AppSnackbar.success('Video removed from all playlists!');
     } catch (e) {
       ErrorHandler.log(e);
@@ -340,14 +338,23 @@ class PlaylistVideoManager {
   Future<List<Video>> fetchVideos(List<String> videoIds) async {
     if (videoIds.isEmpty) return [];
     const batchSize = 10;
-    final videos = <Video>[];
+    final batches = <List<String>>[];
 
     for (var i = 0; i < videoIds.length; i += batchSize) {
-      final batchIds = videoIds.skip(i).take(batchSize).toList();
-      final snapshot = await _firestore
-          .collection(FirestoreCollections.videos)
-          .where(FieldPath.documentId, whereIn: batchIds)
-          .get();
+      batches.add(videoIds.skip(i).take(batchSize).toList());
+    }
+
+    final snapshots = await Future.wait(
+      batches.map(
+        (batch) => _firestore
+            .collection(FirestoreCollections.videos)
+            .where(FieldPath.documentId, whereIn: batch)
+            .getCacheFirst(),
+      ),
+    );
+
+    final videos = <Video>[];
+    for (final snapshot in snapshots) {
       videos.addAll(snapshot.docs.map(Video.fromDocumentSnapshot));
     }
 

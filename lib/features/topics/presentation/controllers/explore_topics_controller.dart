@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/ai/ai_search_service.dart';
@@ -206,7 +207,7 @@ class ExploreTopicsController extends BaseController {
           final snapshot = await FirebaseFirestore.instance
               .collection(FirestoreCollections.topics)
               .limit(100)
-              .get();
+              .getCacheFirst();
           for (final doc in snapshot.docs) {
             final t = Topic.fromDocumentSnapshot(doc);
             if (t.isValidTopic) {
@@ -286,7 +287,7 @@ class ExploreTopicsController extends BaseController {
           final rawSnapshot = await FirebaseFirestore.instance
               .collection(FirestoreCollections.topics)
               .doc(newTopics.last.id)
-              .get();
+              .getCacheFirst();
           if (rawSnapshot.exists) {
             _lastDoc = rawSnapshot;
           }
@@ -432,7 +433,7 @@ class ExploreTopicsController extends BaseController {
         final videoSnapshot = await FirebaseFirestore.instance
             .collection(FirestoreCollections.videos)
             .limit(500)
-            .get();
+            .getCacheFirst();
 
         for (final doc in videoSnapshot.docs) {
           final data = doc.data();
@@ -457,7 +458,7 @@ class ExploreTopicsController extends BaseController {
         final topicSnapshot = await FirebaseFirestore.instance
             .collection(FirestoreCollections.topics)
             .limit(300)
-            .get();
+            .getCacheFirst();
 
         final categoryTopicSets = <String, Set<String>>{};
         final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';

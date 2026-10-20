@@ -6,6 +6,7 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/distributed_counter_service.dart';
+import 'package:truthworld/core/utils/content_validator.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/topics/presentation/controllers/interaction/topic_interaction_state_base.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
@@ -147,7 +148,11 @@ mixin TopicCommentsCrudMixin on TopicInteractionStateBase {
       return;
     }
 
-    final validation = await validateContent(text, fieldName: 'Comment');
+    final validation = await validateContent(
+      text,
+      fieldName: 'Comment',
+      maxLength: ContentValidator.defaultMaxCommentLength,
+    );
     if (!validation.isValid) {
       AppSnackbar.warning(validation.message);
       return;

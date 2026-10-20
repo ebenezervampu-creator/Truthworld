@@ -45,7 +45,9 @@ mixin AdminAnalyticsMixin on GetxController {
       'tech',
       'entertainment',
       'music',
-      'gaming',
+      'short films',
+      'shortfilms',
+      'short film',
       'education',
       'news',
       'sports',
@@ -79,7 +81,10 @@ mixin AdminAnalyticsMixin on GetxController {
   }
 
   String _normalizeViolationCategory(String raw) {
-    final lower = raw.trim().toLowerCase().replaceAll('_', ' ').replaceAll('-', ' ');
+    final lower = raw.toLowerCase().trim();
+    if (lower.contains('gaming') || lower.contains('gameplay') || lower.contains('esports')) return 'Prohibited Gaming Content';
+    if (lower.contains('romance') || lower.contains('romantic')) return 'Prohibited Romance Content';
+    if (lower.contains('fashion') || lower.contains('glamour modeling')) return 'Prohibited Fashion Content';
     if (lower.contains('hate')) return 'Hate Speech & Harassment';
     if (lower.contains('harass') || lower.contains('bully')) return 'Harassment & Bullying';
     if (lower.contains('copyright') || lower.contains('dmca') || lower.contains('ip ')) return 'Copyright Infringement';

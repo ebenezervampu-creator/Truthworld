@@ -11,6 +11,8 @@ import 'package:truthworld/features/trending/presentation/views/trending/trendin
 import 'package:truthworld/features/video/presentation/views/clips/clips_page.dart';
 import 'package:truthworld/features/video/presentation/views/downloadpage/download_page.dart'
     deferred as downloads;
+import 'package:truthworld/features/video/presentation/views/claim_detail_screen.dart';
+import 'package:truthworld/features/video/presentation/views/video_analysis_screen.dart';
 import 'package:truthworld/features/video/presentation/views/video_screen.dart'
     deferred as video_screen;
 import 'package:truthworld/routes/app_routes.dart';
@@ -114,6 +116,36 @@ class VideoRoutes {
         builder: () => downloads.DownloadsPage(),
       ),
       middlewares: [ConsumerRouteGuard()],
+    ),
+    GetPage(
+      name: AppRoutes.videoAnalysis,
+      page: VideoAnalysisScreen.new,
+      middlewares: [ConsumerRouteGuard()],
+      binding: VideoBinding(),
+    ),
+    GetPage(
+      name: AppRoutes.analysis,
+      page: VideoAnalysisScreen.new,
+      middlewares: [ConsumerRouteGuard()],
+      binding: VideoBinding(),
+    ),
+    GetPage(
+      name: AppRoutes.claimDetail,
+      page: ClaimDetailScreen.new,
+      middlewares: [ConsumerRouteGuard()],
+      binding: VideoBinding(),
+    ),
+    GetPage(
+      name: AppRoutes.claim,
+      page: ClaimDetailScreen.new,
+      middlewares: [ConsumerRouteGuard()],
+      binding: VideoBinding(),
+    ),
+    GetPage(
+      name: AppRoutes.claimDetailScreen,
+      page: ClaimDetailScreen.new,
+      middlewares: [ConsumerRouteGuard()],
+      binding: VideoBinding(),
     ),
   ];
 }

@@ -179,12 +179,12 @@ class TopicRedirectMiddleware extends GetMiddleware {
 
   @override
   RouteSettings? redirect(String? route) {
-    // Prevent infinite redirect loop if we are already on a '/T/' route
-    if (route != null) {
-      final cleanRoute = route.split('?').first;
-      if (cleanRoute.startsWith('/T/')) {
-        return null;
-      }
+    if (route == null) return null;
+    final normalizedRoute = route.split('?').first.replaceAll(RegExp(r'/+'), '/');
+
+    // Prevent infinite redirect loop if we are already on a canonical '/T/' route
+    if (normalizedRoute.startsWith('/T/') && !route.startsWith('//')) {
+      return null;
     }
 
     final args = Get.arguments;
@@ -193,7 +193,7 @@ class TopicRedirectMiddleware extends GetMiddleware {
       try {
         final topicRoute = topic.topicRoute as String?;
         if (topicRoute != null && topicRoute.isNotEmpty) {
-          if (route == topicRoute) return null;
+          if (normalizedRoute == topicRoute && !route.startsWith('//')) return null;
           return RouteSettings(name: topicRoute, arguments: args);
         }
       } catch (e, stackTrace) {
@@ -206,21 +206,25 @@ class TopicRedirectMiddleware extends GetMiddleware {
     }
 
     // Fallback: parse route path parameter
-    final uri = Uri.tryParse(route ?? '');
+    final uri = Uri.tryParse(normalizedRoute);
     if (uri != null) {
       final pathSegments = uri.pathSegments;
       if (pathSegments.length >= 2 &&
-          (pathSegments[0] == 'topic' || pathSegments[0] == 'T')) {
+          (pathSegments[0] == 'topic' || pathSegments[0] == 'T' || pathSegments[0] == 'topics' || pathSegments[0] == 't')) {
         final slug = pathSegments[1];
         // Clean handle prefix if present
         var clean = slug.trim();
-        if (clean.startsWith('T/')) {
-          clean = clean.substring(2);
-        } else if (clean.startsWith('t/')) {
-          clean = clean.substring(2);
+        while (clean.startsWith('@')) {
+          clean = clean.substring(1).trim();
+        }
+        if (clean.toLowerCase().startsWith('t/')) {
+          clean = clean.substring(2).trim();
+        }
+        while (clean.startsWith('/')) {
+          clean = clean.substring(1).trim();
         }
         final targetRoute = '/T/$clean';
-        if (route == targetRoute || route == '/T/$slug') {
+        if (normalizedRoute == targetRoute && !route.startsWith('//')) {
           return null;
         }
         return RouteSettings(name: targetRoute, arguments: args);

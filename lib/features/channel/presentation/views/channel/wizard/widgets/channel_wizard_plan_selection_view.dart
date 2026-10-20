@@ -37,30 +37,33 @@ class ChannelWizardPlanSelectionView extends StatelessWidget {
       return Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Select Channel Plan',
-                style: TextStyle(
-                  fontFamily: TWTypography.brandFamily,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                  letterSpacing: -0.3,
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Select Channel Plan',
+                  style: TextStyle(
+                    fontFamily: TWTypography.brandFamily,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                    letterSpacing: -0.3,
+                  ),
                 ),
-              ),
-              SizedBox(height: 2),
-              Text(
-                'Choose your monetization & features plan before creating your channel.',
-                style: TextStyle(
-                  fontFamily: TWTypography.uiFamily,
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
+                SizedBox(height: 2),
+                Text(
+                  'Choose your monetization & features plan before creating your channel.',
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
+          const SizedBox(width: 16),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [

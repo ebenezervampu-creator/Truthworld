@@ -20,7 +20,7 @@ class PlanRecommendationGuideCard extends StatelessWidget {
       badgeColor: const Color(0xFF3B82F6),
       icon: Icons.check_circle_outline_rounded,
       points: const [
-        'You want \$0 upfront commitment and zero monthly hosting fees.',
+        r'You want $0 upfront commitment and zero monthly hosting fees.',
         'You upload short or medium videos within the 10 min/day daily quota.',
         'You are comfortable with 70% rev-share on ads and premium views.',
         'You want TruthWorld to handle all storage, CDN bandwidth, and transcoding.',
@@ -62,26 +62,28 @@ class PlanRecommendationGuideCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Which Channel Type is Right for You?',
-                  style: TextStyle(
-                    fontSize: isDesktop ? 22 : 18,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Which Channel Type is Right for You?',
+                    style: TextStyle(
+                      fontSize: isDesktop ? 22 : 18,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Quick decision checklist based on your content strategy',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isDark ? AppColors.textSecondary : const Color(0xFF64748B),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Quick decision checklist based on your content strategy',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? AppColors.textSecondary : const Color(0xFF64748B),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
@@ -224,7 +226,7 @@ class PlanComparisonFaqWidget extends StatelessWidget {
       {
         'q': 'How does cash withdrawal work for each plan?',
         'a':
-            'Standard channels can cash out once overall account earnings reach the \$100 threshold. Custom channels unlock cash withdrawals on a per-video basis once each video reaches 1,000 views and 10 hours watch time, with 100% creator retention.',
+            'Cash-out and payout rules are identical for both Standard and Custom channels. Per-video earnings unlock for cash withdrawal once that specific video reaches 1,000 views and 10 hours of watch time. The minimum withdrawal threshold is ₹100 for Indian channels and \$10 for other countries in their local currencies. Locked or unwithdrawn earnings can also be spent immediately anytime on AI Subtitles and Dubbing without waiting!',
       },
     ];
 
@@ -248,12 +250,14 @@ class PlanComparisonFaqWidget extends StatelessWidget {
                 size: 20,
               ),
               const SizedBox(width: 10),
-              Text(
-                'Frequently Asked Questions',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
+              Expanded(
+                child: Text(
+                  'Frequently Asked Questions',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
+                  ),
                 ),
               ),
             ],

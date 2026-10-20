@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/ai_languages.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
@@ -291,6 +292,9 @@ void showGenerateAIFeaturesQuickModal(
                         border: Border.all(color: AppColors.bgDivider),
                       ),
                       child: TextField(
+                        maxLength: 100,
+                        buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                        inputFormatters: TruthworldTextInputFormatters.withLimit(100),
                         style: AppTextStyles.bodySmall.copyWith(color: AppColors.textPrimary),
                         decoration: InputDecoration(
                           hintText: 'Search 135+ languages (e.g. Telugu, Spanish, Japanese)...',

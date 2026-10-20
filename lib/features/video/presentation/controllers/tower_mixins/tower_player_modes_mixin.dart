@@ -9,6 +9,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/pip_service.dart';
 import 'package:truthworld/core/utils/web_platform_utils.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/storyboard_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/audio_only_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/playback_source.dart';
@@ -65,6 +66,7 @@ mixin TowerPlayerModesMixin on GetxController {
 
   final Rx<PlaybackMode> playbackMode = PlaybackMode.video.obs;
   final RxBool isAudioOnly = false.obs;
+  VideoResolutionV2? _savedResolutionBeforeAudioOnly;
   bool isSwitchingModes = false;
   final RxString activePanel = ''.obs;
   final RxBool isPiP = false.obs;
@@ -91,20 +93,17 @@ mixin TowerPlayerModesMixin on GetxController {
 
     try {
       if (playbackMode.value == PlaybackMode.audio || isAudioOnly.value) {
-        playbackMode.value = PlaybackMode.switchingToVideo;
-
-        if (!videoPlayerController.value.isPlaying) {
-          try {
-            await videoPlayerController.play();
-          } catch (_) {}
-        }
-
         playbackMode.value = PlaybackMode.video;
         isAudioOnly.value = false;
         TowerPlayerController.globalAudioOnly = false;
         if (Get.arguments is Map) {
           try {
             (Get.arguments as Map)['isAudioOnly'] = false;
+          } catch (_) {}
+        }
+        if (!videoPlayerController.value.isPlaying) {
+          try {
+            await videoPlayerController.play();
           } catch (_) {}
         }
         if (Get.isRegistered<AudioOnlyService>()) {
@@ -125,6 +124,12 @@ mixin TowerPlayerModesMixin on GetxController {
                       : null));
           if (vc != null) {
             vc.isAudioOnly.value = false;
+            // Restore user's previous resolution if it was saved before switching to audio-only
+            if (_savedResolutionBeforeAudioOnly != null) {
+              final restoreRes = _savedResolutionBeforeAudioOnly!;
+              _savedResolutionBeforeAudioOnly = null;
+              await vc.setResolution(restoreRes, isManual: false);
+            }
           }
         } catch (e, s) {
           ErrorHandler.log(
@@ -135,20 +140,17 @@ mixin TowerPlayerModesMixin on GetxController {
         }
         trackAnalytics(PlayerEvent('audio_only_off'));
       } else {
-        playbackMode.value = PlaybackMode.switchingToAudio;
-
-        if (!videoPlayerController.value.isPlaying) {
-          try {
-            await videoPlayerController.play();
-          } catch (_) {}
-        }
-
         playbackMode.value = PlaybackMode.audio;
         isAudioOnly.value = true;
         TowerPlayerController.globalAudioOnly = true;
         if (Get.arguments is Map) {
           try {
             (Get.arguments as Map)['isAudioOnly'] = true;
+          } catch (_) {}
+        }
+        if (!videoPlayerController.value.isPlaying) {
+          try {
+            await videoPlayerController.play();
           } catch (_) {}
         }
         try {
@@ -161,6 +163,16 @@ mixin TowerPlayerModesMixin on GetxController {
                       : null));
           if (vc != null) {
             vc.isAudioOnly.value = true;
+            _savedResolutionBeforeAudioOnly = vc.currentResolution.value;
+
+            // Low-bandwidth optimization: Immediately downscale the stream to 144p or the lowest
+            // available resolution tier so network bandwidth is minimized (< 150 kbps) and video decoding stops
+            final lowestRes = vc.availableResolutions.firstWhereOrNull((r) => r.label.toLowerCase() == '144p')
+                ?? (vc.availableResolutions.isNotEmpty ? vc.availableResolutions.last : null)
+                ?? vc.video.adaptiveResolutions.firstWhereOrNull((r) => r.label.toLowerCase() == '144p');
+            if (lowestRes != null && vc.currentResolution.value?.url != lowestRes.url) {
+              await vc.setResolution(lowestRes, isManual: false);
+            }
           }
         } catch (e, s) {
           ErrorHandler.log(
@@ -249,6 +261,9 @@ mixin TowerPlayerModesMixin on GetxController {
       showTranscriptPopup.value = false;
       showFactCheckPopup.value = false;
       showLiveChat.value = false;
+      try {
+        (this as dynamic).resetZoom();
+      } catch (_) {}
     }
 
     try {
@@ -314,8 +329,23 @@ mixin TowerPlayerModesMixin on GetxController {
   void onOuterChewieChanged() {}
 
   Future<void> togglePiP() async {
-    final success =
-        await PipService.to.togglePip(aspectRatio: aspectRatio.value);
+    bool hasNext = true;
+    bool hasPrev = false;
+    try {
+      final dyn = this as dynamic;
+      hasNext = dyn.hasNextVideo as bool? ?? true;
+      hasPrev = dyn.hasPreviousVideo as bool? ?? false;
+    } catch (_) {}
+
+    final isCurrentlyPlaying = videoPlayerController.value.isInitialized &&
+        videoPlayerController.value.isPlaying;
+
+    final success = await PipService.to.togglePip(
+      aspectRatio: aspectRatio.value,
+      isPlaying: isCurrentlyPlaying,
+      hasPrevious: hasPrev,
+      hasNext: hasNext,
+    );
     if (!success) {
       final vid = videoController?.video;
       if (vid != null) {
@@ -327,9 +357,20 @@ mixin TowerPlayerModesMixin on GetxController {
   }
 
   void updateAutoPip(bool isPlaying) {
+    bool hasNext = true;
+    bool hasPrev = false;
+    try {
+      final dyn = this as dynamic;
+      hasNext = dyn.hasNextVideo as bool? ?? true;
+      hasPrev = dyn.hasPreviousVideo as bool? ?? false;
+    } catch (_) {}
+
     PipService.to.updateAutoPip(
       enabled: isPlaying,
       aspectRatio: aspectRatio.value,
+      isPlaying: isPlaying,
+      hasPrevious: hasPrev,
+      hasNext: hasNext,
     );
   }
 

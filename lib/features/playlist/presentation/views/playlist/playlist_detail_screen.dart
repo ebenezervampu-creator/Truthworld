@@ -178,7 +178,9 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
     bool isDesktop = false,
     bool isTablet = false,
   }) {
-    if (playlist.videoCount == 0 && playlist.videoIds.isEmpty) {
+    if (playlist.effectiveVideoCount == 0 &&
+        playlist.videoIds.isEmpty &&
+        playlist.id != 'watchlater') {
       return const PlaylistDetailEmptyState();
     }
 

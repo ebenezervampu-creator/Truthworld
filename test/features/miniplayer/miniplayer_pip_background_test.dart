@@ -1,12 +1,16 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/pip_service.dart';
 import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/miniplayer/presentation/widgets/components/miniplayer_components.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../test_helpers/mock_firebase.dart';
 
@@ -14,6 +18,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(() async {
+    VisibilityDetectorController.instance.updateInterval = Duration.zero;
     await setupMockFirebase();
   });
 
@@ -81,6 +86,18 @@ void main() {
       pipService.setPipMode(false);
       expect(pipService.isPiP.value, isFalse);
       expect(controller.isPiP.value, isFalse);
+    });
+
+    test('PipService action handlers invoke MiniplayerController actions', () {
+      controller.isPlaying.value = true;
+      pipService.handleActionPlayPause();
+      expect(controller.isPlaying.value, isFalse);
+
+      pipService.handleActionPlayPause();
+      expect(controller.isPlaying.value, isTrue);
+
+      expect(() => pipService.handleActionNext(), returnsNormally);
+      expect(() => pipService.handleActionPrevious(), returnsNormally);
     });
 
     test('MiniplayerController handleEnterBackgroundState respects PiP mode', () {
@@ -179,6 +196,112 @@ void main() {
 
       // Should display cleanly without errors
       expect(find.byType(PipDedicatedView), findsOneWidget);
+    });
+
+    testWidgets('App root builder isolates background Navigator from compact PiP window constraints (133.3px)', (tester) async {
+      pipService.isPiP.value = true;
+      tester.view.physicalSize = const Size(310, 310);
+      tester.view.devicePixelRatio = 2.325; // 310 / 2.325 = 133.333 logical pixels
+
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) {
+            final mediaQueryData = MediaQuery.of(context);
+            return Obx(() {
+              final isInPip = pipService.isPiP.value;
+              final isCompactPipWindow =
+                  mediaQueryData.size.width < 280 &&
+                  mediaQueryData.size.height < 280;
+              final isPipActive = isInPip || isCompactPipWindow;
+              final safeChild = child ?? const SizedBox.shrink();
+
+              return Stack(
+                children: [
+                  Offstage(
+                    offstage: isPipActive,
+                    child: TickerMode(
+                      enabled: !isPipActive,
+                      child: isPipActive
+                          ? OverflowBox(
+                              minWidth: 360,
+                              maxWidth: 360,
+                              minHeight: 640,
+                              maxHeight: 640,
+                              alignment: Alignment.topLeft,
+                              child: safeChild,
+                            )
+                          : safeChild,
+                    ),
+                  ),
+                  if (!isPipActive) const SizedBox(key: Key('overlay')),
+                  if (isPipActive) const SizedBox(key: Key('pip_view')),
+                ],
+              );
+            });
+          },
+          home: Scaffold(
+            body: Row(
+              children: [
+                Container(width: 250, height: 50, color: Colors.blue),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      // Verify pip view is active
+      expect(find.byKey(const Key('pip_view')), findsOneWidget);
+
+      // Transition PiP to false while window size is still compact (310x310)
+      pipService.setPipMode(false);
+      await tester.pump();
+
+      // Window is still < 280, isCompactPipWindow holds and no overflow occurs on the 250px Row child!
+      expect(find.byKey(const Key('pip_view')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      // Now simulate window expanding back to full screen
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.625; // 411.4 logical width
+      await tester.pump();
+
+      expect(find.byKey(const Key('overlay')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('VideoCard list layout fits in ultra-compact 133.3px container without RenderFlex overflow', (tester) async {
+      final video = Video.fromMap({
+        'title': 'Long video title that should wrap or ellipsize cleanly',
+        'channelName': 'TruthWorld Channel',
+        'channelAvatarUrl': 'https://example.com/avatar.jpg',
+        'videoUrl': 'https://example.com/video.mp4',
+        'thumbnailUrl': 'https://example.com/thumb.jpg',
+        'duration': '05:30',
+        'views': 1200,
+        'uploadedAt': Timestamp.now(),
+      }, 'test_vid_narrow');
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 133.3,
+              child: VideoCard(
+                video: video,
+                disableHoverPreview: true,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
     });
   });
 }

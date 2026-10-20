@@ -170,16 +170,6 @@ class LibraryNavList extends StatelessWidget {
               items.add(const Divider());
             }
 
-            if (hasChannel) {
-              items.add(
-                const LibraryListTile(
-                  icon: Icons.account_balance_wallet_outlined,
-                  title: 'Channel Wallet',
-                  onTap: AppNavigator.toDashboard,
-                ),
-              );
-            }
-
             // Always display the Text and icon for every Tab
             items.addAll([
               const LibraryListTile(

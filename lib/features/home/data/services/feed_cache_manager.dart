@@ -248,4 +248,78 @@ class FeedCacheManager {
     final key = cacheKeyForCategory(category, userId: userId);
     _storage.remove(key);
   }
+
+  /// Update an existing video's view count and metadata across all cached feeds.
+  void updateCachedVideo(Video updatedVideo) {
+    if (updatedVideo.id.isEmpty) return;
+
+    final targetKeys = <String>{
+      keyHomeFeed,
+      keyUnexploredFeed,
+      keyTrendingFeed,
+      keyPopularFeed,
+      keyNewFeed,
+      keyFlipCoinFeed,
+      keyMusicFeed,
+    };
+
+    try {
+      final allKeys = _storage.getKeys();
+      for (final k in allKeys) {
+        if (k is String && k.startsWith('feed_')) {
+          targetKeys.add(k);
+        }
+      }
+    } catch (_) {
+      // In case getKeys throws or is unsupported in test/mock environment
+    }
+
+    for (final cacheKey in targetKeys) {
+      _updateVideoInCacheKey(cacheKey, updatedVideo);
+    }
+  }
+
+  void _updateVideoInCacheKey(String cacheKey, Video updatedVideo) {
+    try {
+      final rawData = _storage.read<Map>(cacheKey);
+      if (rawData == null) return;
+
+      final cacheMap = Map<String, dynamic>.from(rawData);
+      final videosListRaw = cacheMap['videos'];
+      if (videosListRaw is! List) return;
+
+      var updated = false;
+      final newVideosList = <Map<String, dynamic>>[];
+      for (final item in videosListRaw) {
+        if (item is Map) {
+          final itemMap = Map<String, dynamic>.from(item);
+          if (itemMap['id'] == updatedVideo.id) {
+            final oldViews = (itemMap['views'] as num?)?.toInt() ??
+                (itemMap['viewCount'] as num?)?.toInt() ??
+                0;
+            final targetViews =
+                updatedVideo.views > oldViews ? updatedVideo.views : oldViews;
+            itemMap['views'] = targetViews;
+            itemMap['viewCount'] = targetViews;
+            newVideosList.add(itemMap);
+            updated = true;
+          } else {
+            newVideosList.add(itemMap);
+          }
+        }
+      }
+
+      if (updated) {
+        cacheMap['videos'] = newVideosList;
+        _storage.write(cacheKey, cacheMap);
+      }
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'FeedCacheManager.updateCachedVideo',
+      );
+    }
+  }
 }
+

@@ -193,7 +193,9 @@ void showAdCommentsBottomSheetModal({
                 Expanded(
                   child: TextField(
                     controller: textController,
-                    inputFormatters: TruthworldTextInputFormatters.standard,
+                    maxLength: defaultMaxCommentLength,
+                    buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                    inputFormatters: TruthworldTextInputFormatters.withLimit(defaultMaxCommentLength),
                     style: const TextStyle(color: AppColors.textPrimary),
                     decoration: const InputDecoration(
                       hintText: 'Add a comment...',

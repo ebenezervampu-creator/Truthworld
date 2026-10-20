@@ -1295,10 +1295,10 @@ class VideoController extends BaseController
 
 
   @override
-
-
-
   final RxBool navigatedFromTopic = false.obs;
+
+  @override
+  final Rx<Topic?> currentTopic = Rx<Topic?>(null);
 
 
 
@@ -1582,7 +1582,13 @@ class VideoController extends BaseController
         getVideo: () => video,
         getCurrentPlaylist: () => currentPlaylist.value,
         getPlaylistVideos: () => playlistVideos,
+        getCurrentTopic: () => currentTopic.value,
+        getTopicVideos: () => currentTopic.value != null
+            ? (recommendationsController.topicVideosCache[currentTopic.value!.id] ??
+                <Video>[])
+            : <Video>[],
         getNavigatedFromTopic: () => navigatedFromTopic.value,
+        getNavigatedFromPlaylist: () => navigatedFromPlaylist.value,
       ),
       tag: effectiveTag,
     );
@@ -1611,6 +1617,9 @@ class VideoController extends BaseController
 
 
   RxBool get isLoadingRecommendations => recommendationsController.isLoadingRecommendations;
+  RxBool get isTabLoading => recommendationsController.isTabLoading;
+  Future<void> ensureFilterVideosLoaded(String filter) =>
+      recommendationsController.ensureFilterVideosLoaded(filter);
 
 
 
@@ -1635,6 +1644,17 @@ class VideoController extends BaseController
 
 
   RxMap<String, List<Video>> get playlistVideosCache => recommendationsController.playlistVideosCache;
+
+  RxMap<String, List<Video>> get tagVideosCache => recommendationsController.tagVideosCache;
+
+  Future<List<Video>> fetchChannelVideos({
+    bool setTabLoading = false,
+    bool forceRefresh = false,
+  }) =>
+      recommendationsController.fetchChannelVideos(
+        setTabLoading: setTabLoading,
+        forceRefresh: forceRefresh,
+      );
 
 
 
@@ -1906,21 +1926,15 @@ class VideoController extends BaseController
 
 
               getVideo: () => video,
-
-
-
               getCurrentPlaylist: () => currentPlaylist.value,
-
-
-
               getPlaylistVideos: () => playlistVideos,
-
-
-
+              getCurrentTopic: () => currentTopic.value,
+              getTopicVideos: () => currentTopic.value != null
+                  ? (recommendationsController.topicVideosCache[currentTopic.value!.id] ??
+                      <Video>[])
+                  : <Video>[],
               getNavigatedFromTopic: () => navigatedFromTopic.value,
-
-
-
+              getNavigatedFromPlaylist: () => navigatedFromPlaylist.value,
             ),
 
 

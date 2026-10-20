@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
+import 'package:truthworld/features/channel/presentation/views/channel/wizard/widgets/channel_wizard_view_controller.dart';
 import 'package:truthworld/features/feedback/presentation/views/feedback/feedbacks.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
@@ -74,13 +75,18 @@ class SearchBinding extends Bindings {
   }
 }
 
-/// Channel detail feature binding (Disposable lifecycle: fenix = false)
+/// Channel detail feature binding (Session lifecycle: fenix = true)
 class ChannelBinding extends Bindings {
   @override
   void dependencies() {
-    Get.lazyPut<ChannelController>(ChannelController.new);
+    Get.lazyPut<ChannelController>(ChannelController.new, fenix: true);
     Get.lazyPut<ChannelSubscriptionController>(
       ChannelSubscriptionController.new,
+      fenix: true,
+    );
+    Get.lazyPut<ChannelWizardViewController>(
+      ChannelWizardViewController.new,
+      fenix: true,
     );
   }
 }

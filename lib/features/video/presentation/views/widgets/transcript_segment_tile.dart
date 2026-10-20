@@ -70,7 +70,7 @@ class TranscriptSegmentTile extends StatelessWidget {
           activeCtrl?.seekTo(seg.start);
           if (segmentIndex != null && transcriptCtrl != null) {
             transcriptCtrl!.activeSegmentIndex.value = segmentIndex!;
-            transcriptCtrl!.autoScrollEnabled.value = true;
+            transcriptCtrl!.resumeAutoScroll();
           }
         },
         child: Padding(

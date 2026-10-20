@@ -28,8 +28,11 @@ class TowerPlayerPreferences {
   static set globalPlaybackSpeed(double value) =>
       _box.write('pref_global_playback_speed', value);
 
-  static String? get globalQualityPreference =>
-      _box.read('pref_global_quality_preference') ?? 'Auto';
+  static String? get globalQualityPreference {
+    final val = _box.read('pref_global_quality_preference');
+    if (val == null || val == '144p') return 'Auto';
+    return val as String;
+  }
   static set globalQualityPreference(String? value) =>
       _box.write('pref_global_quality_preference', value);
 

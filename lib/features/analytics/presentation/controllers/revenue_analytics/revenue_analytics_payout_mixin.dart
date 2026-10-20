@@ -33,16 +33,25 @@ mixin RevenueAnalyticsPayoutMixin on RevenueAnalyticsStateBase {
       return false;
     }
 
-    if (amount < RevenueAnalyticsStateBase.minimumWithdrawalAmount) {
+    final isIndian = isViewingINR;
+    final minRequired = isIndian
+        ? RevenueAnalyticsStateBase.minimumWithdrawalAmountINR
+        : RevenueAnalyticsStateBase.minimumWithdrawalAmountUSD;
+    final currBalance = isIndian ? totalRevenue.value : totalRevenueUSD.value;
+    final currSymbol = isIndian ? '₹' : r'$';
+
+    if (amount < minRequired) {
       AppSnackbar.warning(
-        'Minimum withdrawal amount is ₹${RevenueAnalyticsStateBase.minimumWithdrawalAmount.toInt()} (100 Rupees).',
+        isIndian
+            ? 'Minimum withdrawal amount is ₹${minRequired.toInt()} (100 Rupees).'
+            : r'Minimum withdrawal amount is $10 (10 Dollars).',
       );
       return false;
     }
 
-    if (amount > totalRevenue.value) {
+    if (amount > currBalance) {
       AppSnackbar.warning(
-        'Requested amount exceeds your available balance of ₹${totalRevenue.value.toStringAsFixed(2)}.',
+        'Requested amount exceeds your available balance of $currSymbol${currBalance.toStringAsFixed(2)}.',
       );
       return false;
     }

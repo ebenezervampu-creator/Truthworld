@@ -519,41 +519,36 @@ mixin VideoTrackManagementMixin on GetxController {
             ...loc.subtitles.keys,
             ...availableSubtitles.map((s) => s.langCode),
             ...video.languages,
-            'te',
-            'be',
-            'hi',
-            'es',
-            'fr',
-            'de',
-            'ta',
           }.where((l) => l.isNotEmpty && l != video.language).toSet();
 
-          await Future.wait(
-            candidateLangs.map((langCode) async {
-              if (isClosed) return;
-              if (audioTracksMap.containsKey(langCode)) return;
-              try {
-                debugPrint('[AudioDiscovery] Scanning Storage for audio/$detectedJobId/$langCode');
-                final storageRef = FirebaseStorage.instance.ref('audio/$detectedJobId/$langCode');
-                final listResult = await storageRef.list(const ListOptions(maxResults: 10));
+          if (candidateLangs.isNotEmpty) {
+            await Future.wait(
+              candidateLangs.map((langCode) async {
                 if (isClosed) return;
-                debugPrint('[AudioDiscovery] Items found in audio/$detectedJobId/$langCode: ${listResult.items.length}');
-                if (listResult.items.isNotEmpty) {
-                  final bestItem = listResult.items.firstWhereOrNull(
-                    (item) => item.name == 'stitched.mp3' || item.name == 'full.mp3',
-                  ) ?? listResult.items.firstWhereOrNull(
-                    (item) => item.name.endsWith('.mp3') || item.name.endsWith('.wav') || item.name.endsWith('.m4a'),
-                  ) ?? listResult.items.first;
-                  final downloadUrl = await bestItem.getDownloadURL();
+                if (audioTracksMap.containsKey(langCode)) return;
+                try {
+                  debugPrint('[AudioDiscovery] Scanning Storage for audio/$detectedJobId/$langCode');
+                  final storageRef = FirebaseStorage.instance.ref('audio/$detectedJobId/$langCode');
+                  final listResult = await storageRef.list(const ListOptions(maxResults: 10));
                   if (isClosed) return;
-                  debugPrint('[AudioDiscovery] ✅ Resolved track for $langCode: $downloadUrl');
-                  audioTracksMap[langCode] = downloadUrl;
+                  debugPrint('[AudioDiscovery] Items found in audio/$detectedJobId/$langCode: ${listResult.items.length}');
+                  if (listResult.items.isNotEmpty) {
+                    final bestItem = listResult.items.firstWhereOrNull(
+                      (item) => item.name == 'stitched.mp3' || item.name == 'full.mp3',
+                    ) ?? listResult.items.firstWhereOrNull(
+                      (item) => item.name.endsWith('.mp3') || item.name.endsWith('.wav') || item.name.endsWith('.m4a'),
+                    ) ?? listResult.items.first;
+                    final downloadUrl = await bestItem.getDownloadURL();
+                    if (isClosed) return;
+                    debugPrint('[AudioDiscovery] ✅ Resolved track for $langCode: $downloadUrl');
+                    audioTracksMap[langCode] = downloadUrl;
+                  }
+                } catch (storageErr) {
+                  debugPrint('[AudioDiscovery] ⚠️ Storage check for $langCode failed: $storageErr');
                 }
-              } catch (storageErr) {
-                debugPrint('[AudioDiscovery] ⚠️ Storage check for $langCode failed: $storageErr');
-              }
-            }),
-          );
+              }),
+            );
+          }
 
           if (isClosed) return;
 
@@ -804,7 +799,8 @@ mixin VideoTrackManagementMixin on GetxController {
     if (isClosed) return;
     if (isSwitchingResolution.value) return;
     if (currentResolution.value?.url == res.url &&
-        currentResolution.value?.label == res.label) {
+        currentResolution.value?.label == res.label &&
+        currentResolution.value?.height == res.height) {
       return;
     }
 
@@ -812,6 +808,11 @@ mixin VideoTrackManagementMixin on GetxController {
         isVpcInitialized &&
         videoPlayerController!.dataSource == res.url) {
       currentResolution.value = res;
+      final towerCtrl = TowerPlayerController.getForTagOrActive(video.id);
+      final qualityText = isManual
+          ? 'Quality: ${res.label}'
+          : 'Quality: ${res.label} (Auto)';
+      towerCtrl?.showToast(qualityText);
       return;
     }
 

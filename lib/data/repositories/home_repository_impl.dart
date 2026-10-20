@@ -3,6 +3,7 @@ import 'package:truthworld/core/base/base_repository.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/network/result.dart';
+import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/domain/entities/topic_entity.dart';
 import 'package:truthworld/domain/entities/video_entity.dart';
 import 'package:truthworld/domain/repositories/home_repository.dart';
@@ -26,12 +27,10 @@ class HomeRepositoryImpl extends BaseRepository implements HomeRepository {
     return safeFetch(() async {
       var query = _firestore
           .collection(FirestoreCollections.videos)
-          .where('status', isEqualTo: 'published')
-          .where('visibility', isEqualTo: 'public')
           .orderBy('createdAt', descending: true)
           .limit(limit);
 
-      if (category != null && category.isNotEmpty) {
+      if (category != null && category.isNotEmpty && category != 'All') {
         query = query.where('category', isEqualTo: category);
       }
 
@@ -42,7 +41,9 @@ class HomeRepositoryImpl extends BaseRepository implements HomeRepository {
       final snapshot = await query.get();
 
       return snapshot.docs
-          .map((doc) => Video.fromDocumentSnapshot(doc).toEntity())
+          .map(Video.fromDocumentSnapshot)
+          .where(VideoVisibilityPolicy.isVisibleForFeed)
+          .map((v) => v.toEntity())
           .toList();
     });
   }
@@ -57,10 +58,7 @@ class HomeRepositoryImpl extends BaseRepository implements HomeRepository {
     return safeFetch(() async {
       var query = _firestore
           .collection(FirestoreCollections.videos)
-          .where('status', isEqualTo: 'published')
-          .where('visibility', isEqualTo: 'public')
           .where('category', isEqualTo: category)
-          .orderBy('createdAt', descending: true)
           .limit(limit);
 
       if (startAfter is DocumentSnapshot) {
@@ -70,7 +68,9 @@ class HomeRepositoryImpl extends BaseRepository implements HomeRepository {
       final snapshot = await query.get();
 
       return snapshot.docs
-          .map((doc) => Video.fromDocumentSnapshot(doc).toEntity())
+          .map(Video.fromDocumentSnapshot)
+          .where(VideoVisibilityPolicy.isVisibleForFeed)
+          .map((v) => v.toEntity())
           .toList();
     });
   }

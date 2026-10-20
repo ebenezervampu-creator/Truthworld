@@ -19,13 +19,13 @@ class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform => forFlavor(AppFlavor.active);
 
   /// Canonical Truthworld authentication domain for OAuth redirects and popups.
-  /// Uses verified truthworld-1.firebaseapp.com to ensure cross-origin compatibility
-  /// and reliable OAuth handler routing across localhost and production domains.
-  static const String defaultAuthDomain = 'truthworld-1.firebaseapp.com';
+  /// Uses custom domain www.truthworld.in to ensure Truthworld branding
+  /// and avoid third-party firebaseapp.com auth handlers.
+  static const String defaultAuthDomain = 'www.truthworld.in';
 
   /// Resolves the active Truthworld auth domain dynamically on Web.
-  /// Uses canonical 'truthworld-1.firebaseapp.com' to guarantee verified OAuth handler
-  /// availability and cross-origin compatibility across localhost and custom domains.
+  /// Uses canonical 'www.truthworld.in' (or current Truthworld domain)
+  /// to ensure verified Truthworld auth handlers are used.
   static String get resolvedWebAuthDomain {
     if (kIsWeb) {
       try {
@@ -35,12 +35,15 @@ class DefaultFirebaseOptions {
             host == '0.0.0.0' ||
             host == '[::1]' ||
             host.endsWith('.local') ||
+            host.startsWith('192.168.') ||
+            host.startsWith('10.') ||
+            host.startsWith('172.') ||
             host.endsWith('.firebaseapp.com') ||
             host.endsWith('.web.app')) {
           return 'truthworld-1.firebaseapp.com';
         }
-        if (host == 'truthworld.in' || host == 'www.truthworld.in') {
-          return defaultAuthDomain;
+        if (host == 'truthworld.in' || host.endsWith('.truthworld.in')) {
+          return host;
         }
       } catch (_) {}
     }

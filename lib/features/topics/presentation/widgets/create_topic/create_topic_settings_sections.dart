@@ -183,7 +183,9 @@ Widget buildSection6TopicType(
                 TextFormField(
                   controller: controller.accessCodeController,
                   obscureText: controller.obscureAccessCode.value,
-                  inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+                  maxLength: 20,
+                  buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                  inputFormatters: TruthworldTextInputFormatters.withLimit(20),
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: buildCreateTopicInputDecoration(
                     hintText: 'Enter Private Passcode',

@@ -12,6 +12,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/navigation/app_navigator.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -61,7 +62,7 @@ class MyVideosController extends BaseController {
     }
 
     try {
-      final snapshot = await query.limit(50).get();
+      final snapshot = await query.limit(50).getCacheFirst();
       videos.value = snapshot.docs.map(Video.fromDocumentSnapshot).toList();
       rxIsLoading.value = false;
     } catch (error, stackTrace) {
@@ -182,25 +183,35 @@ class MyVideosController extends BaseController {
     }
   }
 
-  /// Deletes a video from Firestore with safe storage cleanup.
+  /// Moves a video to Trash (soft delete with 30-day retention grace period).
   Future<void> deleteVideo(Video video) async {
     try {
       await FirebaseFirestore.instance
           .collection(FirestoreCollections.videos)
           .doc(video.id)
-          .delete();
+          .update({
+        'status': 'deletion_pending',
+        'visibility': 'private',
+        'deletionRequestedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
 
       if (video.isShort) {
         try {
           await FirebaseFirestore.instance
               .collection('shorts')
               .doc(video.id)
-              .delete();
+              .update({
+            'status': 'deletion_pending',
+            'visibility': 'private',
+            'deletionRequestedAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
         } catch (e, stackTrace) {
           ErrorHandler.log(
             e,
             stackTrace: stackTrace,
-            tag: 'MyVideosController.deleteShortDoc',
+            tag: 'MyVideosController.updateShortDeletionPending',
           );
         }
       }
@@ -208,17 +219,10 @@ class MyVideosController extends BaseController {
       // Immediately remove from local list for snappy UI
       videos.removeWhere((v) => v.id == video.id);
 
-      // Safe storage cleanup (errors ignored, handled by cascade trigger on backend)
-      await _safeDeleteStorageUrl(video.videoUrl);
-      await _safeDeleteStorageUrl(video.thumbnailUrl);
-      if (video.originalUrl.isNotEmpty && video.originalUrl != video.videoUrl) {
-        await _safeDeleteStorageUrl(video.originalUrl);
-      }
-
-      AppSnackbar.success('"${video.title}" was successfully deleted.');
+      AppSnackbar.success('"${video.title}" moved to Trash. It will be retained for 30 days.');
     } catch (e) {
       ErrorHandler.log(e);
-      AppSnackbar.error('Unable to delete video. Please try again.');
+      AppSnackbar.error('Unable to move video to Trash. Please try again.');
     }
   }
 
@@ -265,7 +269,9 @@ class MyVideosController extends BaseController {
   }
 
   String formatViews(int views) {
-    if (views >= 1000000) {
+    if (views >= 1000000000) {
+      return '${(views / 1000000000).toStringAsFixed(1)}B';
+    } else if (views >= 1000000) {
       return '${(views / 1000000).toStringAsFixed(1)}M';
     } else if (views >= 1000) {
       return '${(views / 1000).toStringAsFixed(1)}K';

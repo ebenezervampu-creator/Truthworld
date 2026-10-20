@@ -5,12 +5,12 @@ import 'package:get/get.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
-import 'package:truthworld/features/search/presentation/widgets/voice_search_dialog.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/data/models/topic_categories.dart';
 import 'package:truthworld/features/topics/presentation/controllers/explore_topics_controller.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
 import 'package:truthworld/features/topics/presentation/pages/explore/explore_topics_constants.dart';
+import 'package:truthworld/features/topics/presentation/pages/explore/explore_topics_search_bar.dart';
 import 'package:truthworld/features/topics/presentation/widgets/topic_notification_options_sheet.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
@@ -307,76 +307,12 @@ class ExploreCategoryDetailView extends StatelessWidget {
     ExploreTopicsController controller,
     TopicCategory category,
   ) {
-    final hintExamples = category.searchHintExamples.isNotEmpty
-        ? category.searchHintExamples
-        : '"worship", "gospel", "piano"';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: buttonBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.textPrimary.withValues(alpha: 0.12),
-        ),
-      ),
-      child: TextField(
-        controller: controller.searchController,
-        style: const TextStyle(color: primaryText, fontSize: 14),
-        decoration: InputDecoration(
-          icon: const Icon(
-            Icons.search_rounded,
-            color: secondaryText,
-            size: 20,
-          ),
-          hintText: isMobile
-              ? 'Search topics in ${category.title}...'
-              : 'Search topics in ${category.title} (e.g. $hintExamples)...',
-          hintStyle: const TextStyle(
-            color: secondaryText,
-            fontSize: 14,
-          ),
-          border: InputBorder.none,
-          suffixIcon: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: const Icon(
-                  Icons.mic_none_rounded,
-                  color: primaryText,
-                  size: 20,
-                ),
-                tooltip: 'Voice Search',
-                onPressed: () {
-                  HapticFeedback.lightImpact();
-                  Get.dialog(
-                    VoiceSearchDialog(
-                      onSearch: (query) {
-                        controller.searchController.text = query;
-                        controller.updateSearchQuery(query);
-                      },
-                    ),
-                  );
-                },
-              ),
-              Obx(
-                () => controller.searchQuery.value.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(
-                          Icons.close_rounded,
-                          color: primaryText,
-                          size: 20,
-                        ),
-                        tooltip: 'Clear',
-                        onPressed: controller.clearSearch,
-                      )
-                    : const SizedBox.shrink(),
-              ),
-            ],
-          ),
-          contentPadding: const EdgeInsets.symmetric(vertical: 12),
-        ),
-      ),
+    return ExploreTopicsSearchBar(
+      isMobile: isMobile,
+      isTablet: isTablet,
+      isDesktop: isDesktop,
+      isCategoryView: true,
+      category: category,
     );
   }
 

@@ -451,6 +451,16 @@ export interface MultiModelConsensusMetadata {
   secondaryVerdict?: string;
   adjudicationRationale?: string;
   crossExaminedAt: number;
+  steelManDefense?: string;
+  inquisitorChallenge?: string;
+  evidentiaryBalance?: string;
+  epistemicConfidence?: number;
+  detectedFallacies?: string[];
+  isNormativeValueJudgment?: boolean;
+  isMultilateralWarObservation?: boolean;
+  blindReviewApplied?: boolean;
+  bayesFactor?: number;
+  priorProbability?: number;
 }
 
 export interface ClaimLedgerSummary {
@@ -533,6 +543,7 @@ export interface UIReport {
   negativeDrivers: UIDriver[];
   sources: UISource[];
   conclusion: string;
+  conclusionSources?: UISource[];
   recommendation?: string; // v8.5
   disclaimer?: string;     // v8.5
   counterSignals?: string[]; // v8.5
@@ -566,6 +577,14 @@ export interface SynthesisResult {
     label: string;
     text: string;
     confidence: number;
+    sources?: Array<{
+      title: string;
+      url?: string;
+      domain?: string;
+      trustLevel?: string;
+      type?: string;
+      snippet?: string;
+    }>;
   };
   hallucinationIsolation: {
     verifiedFacts: string[];
@@ -855,7 +874,7 @@ export interface InstitutionalTrustFactors {
   honesty: number;      // v8.0: Framing transparency (belief as belief, opinion as opinion)
   rationality?: number;  // v8.5: Internal logic and manipulation resistance
   reputation?: number;   // v8.8: Historical reliability score
-  intentToMislead?: number; // v8.1: Gaming/manipulation detection (0-100)
+  intentToMislead?: number; // v8.1: System exploitation/manipulation detection (0-100)
 }
 
 export type TrustVertical = 'general' | 'finance' | 'health' | 'religion' | 'history' | 'politics';
@@ -967,7 +986,15 @@ export const GeminiIntelligenceSchema = z.object({
   conclusion: z.object({
     label: z.string(),
     text: z.string(),
-    confidence: z.number()
+    confidence: z.number(),
+    sources: z.array(z.object({
+      title: z.string(),
+      url: z.string().optional(),
+      domain: z.string().optional(),
+      trustLevel: z.string().optional(),
+      type: z.string().optional(),
+      snippet: z.string().optional()
+    })).optional()
   }),
   knowledgeDensity: z.number().optional(),
   keyThemes: z.array(z.string()),
@@ -1218,7 +1245,8 @@ export type EventType =
   | 'aggregation-ready'
   | 'resolution-requested'
   | 'copyright-processing'
-  | 'copyright-complete';
+  | 'copyright-complete'
+  | 'credibility-synthesis';
 
 export type GatewayDecisionStatus = 'APPROVED' | 'REJECTED' | 'MANUAL_REVIEW';
 
@@ -1513,6 +1541,7 @@ export interface CredibilityResult {
     label: string;
     text: string;
     confidence: number;
+    sources?: any[];
   };
   
   keyThemes?: string[];
@@ -1708,6 +1737,7 @@ export interface AggregatedOutput {
     label: string;
     text: string;
     confidence: number;
+    sources?: any[];
   };
   keyThemes?: string[];
   viewerNote?: string;

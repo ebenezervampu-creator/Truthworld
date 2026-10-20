@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -9,10 +10,18 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
+import 'package:truthworld/core/services/distributed_counter_service.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
+import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/features/channel/data/models/channel_trust_score.dart';
+import 'package:truthworld/features/channel/data/services/channel_memory_cache.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_feed_controller.dart';
+import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/datasources/local/database_helpers.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
@@ -46,6 +55,7 @@ mixin VideoHydrationFlowMixin on GetxController {
   RxBool get navigatedFromTopic;
   RxBool get navigatedFromPlaylist;
   Rx<PlaylistModel?> get currentPlaylist;
+  Rx<Topic?> get currentTopic;
   RxBool get isPlaylistShuffled;
 
   VideoEngagementController get engagementController;
@@ -95,12 +105,31 @@ mixin VideoHydrationFlowMixin on GetxController {
       return _channelStream!;
     }
     _lastChannelStreamId = channelId;
+    final cached = ChannelMemoryCache.get(channelId);
+    final targetDocId = (cached != null && cached.id.isNotEmpty) ? cached.id : channelId;
+
     _channelStream = FirebaseFirestore.instance
         .collection(FirestoreCollections.channels)
-        .doc(channelId)
+        .doc(targetDocId)
         .snapshots()
+        .handleError((e, s) {
+          if (e is FirebaseException && e.code == 'permission-denied') {
+            debugPrint('[VideoController] Channel $targetDocId access restricted.');
+          } else {
+            ErrorHandler.log(e, stackTrace: s, tag: 'VideoHydrationFlowMixin.channelStream');
+          }
+        })
         .asyncExpand((snapshot) async* {
           if (snapshot.exists) {
+            ChannelMemoryCache.set(channelId, Channel.fromDocumentSnapshot(snapshot));
+            final rawTrust = snapshot.data()?['trustScore'] ??
+                snapshot.data()?['channelTrustScore'];
+            if (rawTrust is Map<String, dynamic>) {
+              ChannelMemoryCache.setTrustScore(
+                channelId,
+                ChannelTrustScore.fromMap(rawTrust),
+              );
+            }
             yield snapshot;
           } else {
             try {
@@ -108,9 +137,19 @@ mixin VideoHydrationFlowMixin on GetxController {
                   .collection(FirestoreCollections.channels)
                   .where('ownerId', isEqualTo: channelId)
                   .limit(1)
-                  .get();
+                  .getCacheFirst();
               if (querySnap.docs.isNotEmpty) {
-                yield querySnap.docs.first;
+                final resolvedSnap = querySnap.docs.first;
+                ChannelMemoryCache.set(channelId, Channel.fromDocumentSnapshot(resolvedSnap));
+                final rawTrust = resolvedSnap.data()['trustScore'] ??
+                    resolvedSnap.data()['channelTrustScore'];
+                if (rawTrust is Map<String, dynamic>) {
+                  ChannelMemoryCache.setTrustScore(
+                    channelId,
+                    ChannelTrustScore.fromMap(rawTrust),
+                  );
+                }
+                yield resolvedSnap;
               } else {
                 yield snapshot;
               }
@@ -170,6 +209,7 @@ mixin VideoHydrationFlowMixin on GetxController {
   }
 
   void _listenToVideoUpdates() {
+    if (video.id.trim().isEmpty) return;
     videoSubscription?.cancel();
     videoSubscription = FirebaseFirestore.instance
         .collection(FirestoreCollections.videos)
@@ -193,7 +233,14 @@ mixin VideoHydrationFlowMixin on GetxController {
         }
       }
     }, onError: (e, s) {
-      ErrorHandler.log(e, stackTrace: s, tag: 'VideoController.videoUpdates');
+      if (e is FirebaseException && e.code == 'permission-denied') {
+        debugPrint(
+          '[VideoController] Video ${video.id} has restricted access or is private.',
+        );
+      } else {
+        ErrorHandler.log(e, stackTrace: s, tag: 'VideoController.videoUpdates');
+      }
+      videoSubscription?.cancel();
     });
     if (Get.isRegistered<TowerPlayerController>(tag: video.id)) {
       Get.find<TowerPlayerController>(tag: video.id).update();
@@ -237,9 +284,20 @@ mixin VideoHydrationFlowMixin on GetxController {
       navigatedFromPlaylist.value = false;
       currentPlaylist.value =
           null; // Rule: "dont need playlist when From Topics a video played"
+      if (args?['topic'] != null && args!['topic'] is Topic) {
+        currentTopic.value = args['topic'] as Topic;
+      }
+      if (args?['topicVideos'] != null && args!['topicVideos'] is List<Video>) {
+        final tVids = args['topicVideos'] as List<Video>;
+        if (currentTopic.value != null && tVids.isNotEmpty) {
+          recommendationsController.topicVideosCache[currentTopic.value!.id] =
+              tVids;
+        }
+      }
     } else if (isPlaylistOrigin) {
       navigatedFromPlaylist.value = true;
       navigatedFromTopic.value = false;
+      currentTopic.value = null;
       isPlaylistShuffled.value = (args?['isShuffled'] == true);
       if (args?['playlist'] != null) {
         currentPlaylist.value = args!['playlist'] as PlaylistModel;
@@ -256,6 +314,7 @@ mixin VideoHydrationFlowMixin on GetxController {
     } else {
       navigatedFromPlaylist.value = false;
       navigatedFromTopic.value = false;
+      currentTopic.value = null;
     }
 
     final hasClipEnd = (args?['clipEndTime'] != null) ||
@@ -332,11 +391,9 @@ mixin VideoHydrationFlowMixin on GetxController {
         final isDeviceOffline = Get.isRegistered<ConnectivityService>() &&
             !ConnectivityService.to.isConnected;
 
-        // If offline download is audio-only, NEVER hijack normal online video playback!
-        if (isExplicitOffline || isDeviceOffline || (!offlineMeta.isAudioOnly && !isExplicitAudio)) {
-          if (isExplicitOffline || isDeviceOffline) {
-            rxIsOffline.value = true;
-          }
+        // Offline video model is ONLY used when device is genuinely offline or user explicitly tapped an offline item from Downloads
+        if (isExplicitOffline || isDeviceOffline) {
+          rxIsOffline.value = true;
           if (offlineMeta.isAudioOnly && (isExplicitAudio || isDeviceOffline)) {
             isAudioOnly.value = true;
           } else {
@@ -580,6 +637,38 @@ mixin VideoHydrationFlowMixin on GetxController {
       listenToLanguageRequests();
       if (video.factCheckUrl.isNotEmpty) {
         unawaited(loadFactCheckData());
+      }
+      if (video.id.trim().isNotEmpty) {
+        final counterService = Get.isRegistered<DistributedCounterService>()
+            ? DistributedCounterService.to
+            : Get.put(DistributedCounterService());
+        counterService.getRealtimeVideoViews(video.id).then((realtimeViews) {
+          final currentKnown = Get.isRegistered<MainController>()
+              ? (MainController.to.videoViews[video.id] ?? video.views)
+              : video.views;
+          final maxViews = math.max(currentKnown, realtimeViews);
+          if (maxViews > video.views ||
+              (Get.isRegistered<MainController>() &&
+                  (MainController.to.videoViews[video.id] ?? 0) < maxViews)) {
+            if (Get.isRegistered<MainController>()) {
+              MainController.to.videoViews[video.id] = maxViews;
+            }
+            final updated = video.copyWith(viewCount: maxViews);
+            video = updated;
+            rxVideo.value = updated;
+            DeepLinkService.instance.cacheVideo(updated);
+
+            if (Get.isRegistered<HomeFeedController>()) {
+              Get.find<HomeFeedController>().updateVideo(updated);
+            }
+          }
+        }).catchError((e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'VideoHydrationFlowMixin.syncRealtimeViews',
+          );
+        });
       }
     }
   }

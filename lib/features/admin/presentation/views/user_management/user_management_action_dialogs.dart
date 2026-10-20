@@ -46,7 +46,9 @@ void showUserActionDialog({
           const SizedBox(height: 12),
           TextField(
             controller: reasonController,
-            inputFormatters: TruthworldTextInputFormatters.standard,
+            maxLength: 500,
+            buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+            inputFormatters: TruthworldTextInputFormatters.withLimit(500),
             style: const TextStyle(
               fontFamily: TWTypography.uiFamily,
               color: AppColors.textPrimary,

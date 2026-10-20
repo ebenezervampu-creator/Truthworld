@@ -101,7 +101,9 @@ class UserNotificationController extends BaseController {
           .getNotificationsStream(uid, limit: 100)
           .listen(
             (list) {
-              notifications.value = list;
+              notifications.value = list
+                  .where((n) => n.isConsumerNotification && !n.isStudioNotification)
+                  .toList();
               rxIsLoading.value = false;
             },
             onError: (e, stackTrace) {
@@ -122,7 +124,9 @@ class UserNotificationController extends BaseController {
   Future<void> _fetchFromCloudFunction() async {
     try {
       final list = await _service.fetchNotificationsViaCallable(limit: 100);
-      notifications.value = list;
+      notifications.value = list
+          .where((n) => n.isConsumerNotification && !n.isStudioNotification)
+          .toList();
     } catch (e, s) {
       ErrorHandler.log(
         e,
@@ -185,7 +189,9 @@ class UserNotificationController extends BaseController {
   }
 
   List<UserNotification> get filteredNotifications {
-    var filtered = notifications.toList();
+    var filtered = notifications
+        .where((n) => n.isConsumerNotification && !n.isStudioNotification)
+        .toList();
 
     // Search filter
     if (searchQuery.isNotEmpty) {
@@ -217,5 +223,7 @@ class UserNotificationController extends BaseController {
     return filtered;
   }
 
-  int get unreadCount => notifications.where((n) => !n.read).length;
+  int get unreadCount => notifications
+      .where((n) => !n.read && n.isConsumerNotification && !n.isStudioNotification)
+      .length;
 }

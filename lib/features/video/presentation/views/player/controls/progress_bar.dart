@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -89,10 +88,17 @@ class ProgressBar extends StatelessWidget {
                       : Duration(milliseconds: targetMs.toInt());
 
                   ctrl.seekTo(seekTarget);
+                  ctrl.hideSeekPreview();
                   Future.delayed(const Duration(milliseconds: 200), () {
                     ctrl.isDragging.value = false;
                   });
+                } else {
+                  ctrl.hideSeekPreview();
                 }
+              },
+              onPointerCancel: (_) {
+                ctrl.isDragging.value = false;
+                ctrl.hideSeekPreview();
               },
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
@@ -233,58 +239,6 @@ class ProgressBar extends StatelessWidget {
                               ),
                             ],
 
-                            // Claims markers (always shown on top)
-                            if ((ctrl
-                                        .videoController
-                                        ?.video
-                                        .uiReport
-                                        ?.keyClaims
-                                        .isNotEmpty ??
-                                    false) &&
-                                dur.inMilliseconds > 0)
-                              ...ctrl.videoController!.video.uiReport!.keyClaims
-                                  .where((c) => c.start != null)
-                                  .map((claim) {
-                                    final frac =
-                                        (claim.start! /
-                                                (dur.inMilliseconds / 1000.0))
-                                            .clamp(0.0, 1.0);
-                                    final verdictColor = _getVerdictColor(
-                                      claim.verdict,
-                                    );
-                                    return Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: FractionallySizedBox(
-                                        widthFactor: frac,
-                                        child: Align(
-                                          alignment: Alignment.centerRight,
-                                          child: Container(
-                                            width: 6,
-                                            height: 6,
-                                            decoration: BoxDecoration(
-                                              color: verdictColor,
-                                              shape: BoxShape.circle,
-                                              border: Border.all(
-                                                color: AppColors.bgPage
-                                                    .withValues(
-                                                      alpha: 0.6,
-                                                    ),
-                                              ),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: verdictColor
-                                                      .withValues(
-                                                        alpha: 0.4,
-                                                      ),
-                                                  blurRadius: 2,
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  }),
 
                             // Thumb — scales on drag/hover
                             Align(
@@ -331,10 +285,6 @@ class ProgressBar extends StatelessWidget {
         },
       );
     });
-  }
-
-  Color _getVerdictColor(String verdict) {
-    return ClaimVerdictHelper.resolveVerdictString(verdict).color;
   }
 }
 

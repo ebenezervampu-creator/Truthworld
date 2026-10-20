@@ -49,9 +49,11 @@ class FollowingTopicsPage extends GetView<FollowingTopicsController> {
         ? 1
         : (isTablet || isMobileDevice
             ? 2
-            : (screenWidth >= 2100
-                ? 4
-                : (screenWidth >= 1600 ? 3 : 2)));
+            : (screenWidth >= 2400
+                ? 5
+                : (screenWidth >= 1700
+                    ? 4
+                    : (screenWidth >= 1100 ? 3 : 2))));
 
     // Child aspect ratio ensuring no overflow
     final childAspectRatio = isMobile

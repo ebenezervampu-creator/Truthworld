@@ -6,6 +6,7 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -39,13 +40,14 @@ class WatchHistoryController extends BaseController {
     setViewState(ViewState.loading);
 
     try {
-      final snapshot = await FirebaseFirestore.instance
+      final query = FirebaseFirestore.instance
           .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('watch_history')
           .orderBy('watchedAt', descending: true)
-          .limit(100)
-          .get();
+          .limit(100);
+      final snapshot =
+          refresh ? await query.get() : await query.getCacheFirst();
 
       final parsed = snapshot.docs.map((doc) {
         final data = doc.data();

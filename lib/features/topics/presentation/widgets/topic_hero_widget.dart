@@ -67,80 +67,139 @@ class TopicHeroWidget extends StatelessWidget {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(isMobile ? 18 : 24),
             child: Container(
+              width: double.infinity,
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: const Color(0xFF141418),
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF1E1E24),
+                    Color(0xFF121215),
+                  ],
+                ),
                 borderRadius: BorderRadius.circular(isMobile ? 18 : 24),
                 border: Border.all(
                   color: Colors.white.withValues(alpha: 0.12),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.4),
-                    blurRadius: 24,
+                    color: Colors.black.withValues(alpha: 0.45),
+                    blurRadius: 28,
                     offset: const Offset(0, 10),
                   ),
                 ],
               ),
               child: Stack(
                 children: [
-                  // 1. Background image
-                  Positioned.fill(
-                    child: _buildBackgroundImage(currentTopic),
-                  ),
+                  // 1. Subtle ambient backdrop (only if wide coverImage exists)
+                  if (currentTopic.coverImage != null &&
+                      currentTopic.coverImage!.isNotEmpty)
+                    Positioned.fill(
+                      child: _buildBackgroundImage(currentTopic),
+                    ),
 
-                  // 2. Multi-stop directional gradient overlays
-                  Positioned.fill(
-                    child: _buildGradientOverlay(isMobile),
-                  ),
+                  // 2. Multi-stop directional gradient overlays (if coverImage exists)
+                  if (currentTopic.coverImage != null &&
+                      currentTopic.coverImage!.isNotEmpty)
+                    Positioned.fill(
+                      child: _buildGradientOverlay(isMobile),
+                    ),
 
                   // 3. Foreground content
                   Padding(
-                    padding: EdgeInsets.all(isDesktop ? 36.0 : (isTablet ? 26.0 : 18.0)),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxWidth: isDesktop ? 680 : (isTablet ? 540 : double.infinity),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Category Tag Pill
-                          _buildCategoryBadge(currentTopic),
-
-                          const SizedBox(height: 14),
-
-                          // Topic Title
-                          Text(
-                            currentTopic.title,
-                            style: TextStyle(
-                              fontSize: isDesktop ? 36 : (isTablet ? 28 : 22),
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                              height: 1.18,
-                              letterSpacing: -0.4,
-                            ),
-                          ),
-
-                          // Subtitle / Tagline
-                          _buildSubtitle(currentTopic),
-
-                          const SizedBox(height: 10),
-
-                          // Expandable Description
-                          _buildDescription(currentTopic),
-
-                          const SizedBox(height: 18),
-
-                          // Stats Row (Videos, Followers, Comments)
-                          _buildStatsRow(context, currentTopic),
-
-                          const SizedBox(height: 20),
-
-                          // Action Buttons Row (Following, Bell, Share, More)
-                          _buildActionsRow(context, currentTopic),
-                        ],
-                      ),
+                    padding: EdgeInsets.all(
+                      isDesktop ? 36.0 : (isTablet ? 26.0 : 18.0),
                     ),
+                    child: isMobile
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  _buildArtworkCard(
+                                    currentTopic,
+                                    isDesktop,
+                                    isTablet,
+                                    isMobile,
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        _buildCategoryBadge(currentTopic),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          currentTopic.title,
+                                          style: const TextStyle(
+                                            fontSize: 22,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.white,
+                                            height: 1.2,
+                                            letterSpacing: -0.3,
+                                          ),
+                                        ),
+                                        _buildSubtitle(currentTopic),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+                              _buildDescription(currentTopic),
+                              const SizedBox(height: 16),
+                              _buildStatsRow(context, currentTopic),
+                              const SizedBox(height: 18),
+                              _buildActionsRow(context, currentTopic),
+                            ],
+                          )
+                        : Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Dedicated Topic Artwork on left
+                              _buildArtworkCard(
+                                currentTopic,
+                                isDesktop,
+                                isTablet,
+                                isMobile,
+                              ),
+                              SizedBox(width: isDesktop ? 32 : 24),
+                              // Topic details column on right
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _buildCategoryBadge(currentTopic),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      currentTopic.title,
+                                      style: TextStyle(
+                                        fontSize: isDesktop ? 34 : 26,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white,
+                                        height: 1.18,
+                                        letterSpacing: -0.4,
+                                      ),
+                                    ),
+                                    _buildSubtitle(currentTopic),
+                                    const SizedBox(height: 10),
+                                    _buildDescription(currentTopic),
+                                    const SizedBox(height: 18),
+                                    _buildStatsRow(context, currentTopic),
+                                    const SizedBox(height: 20),
+                                    _buildActionsRow(context, currentTopic),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                   ),
                 ],
               ),
@@ -151,15 +210,78 @@ class TopicHeroWidget extends StatelessWidget {
     );
   }
 
+  /// Dedicated Topic Artwork Card (Rounded thumbnail with border & shadow)
+  Widget _buildArtworkCard(
+    Topic topic,
+    bool isDesktop,
+    bool isTablet,
+    bool isMobile,
+  ) {
+    final size = isDesktop ? 150.0 : (isTablet ? 120.0 : 88.0);
+    final imgUrl = (topic.thumbnailUrl != null && topic.thumbnailUrl!.isNotEmpty)
+        ? topic.thumbnailUrl!
+        : ((topic.coverImage != null && topic.coverImage!.isNotEmpty)
+            ? topic.coverImage!
+            : null);
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E24),
+        borderRadius: BorderRadius.circular(isMobile ? 14 : 18),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.16),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.5),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(isMobile ? 12.5 : 16.5),
+        child: imgUrl != null
+            ? CachedNetworkImage(
+                imageUrl: imgUrl,
+                fit: BoxFit.cover,
+                placeholder: (context, url) => _buildArtworkFallback(size, topic),
+                errorWidget: (context, url, error) => _buildArtworkFallback(size, topic),
+              )
+            : _buildArtworkFallback(size, topic),
+      ),
+    );
+  }
+
+  Widget _buildArtworkFallback(double size, Topic topic) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF2C2C36),
+            Color(0xFF1A1A22),
+          ],
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          Icons.tag_rounded,
+          size: size * 0.44,
+          color: Colors.white.withValues(alpha: 0.8),
+        ),
+      ),
+    );
+  }
+
   /// Background artwork
   Widget _buildBackgroundImage(Topic topic) {
-    final bgUrl = (topic.coverImage != null && topic.coverImage!.isNotEmpty)
-        ? topic.coverImage
-        : (topic.thumbnailUrl != null && topic.thumbnailUrl!.isNotEmpty)
-            ? topic.thumbnailUrl
-            : null;
-
-    if (bgUrl != null) {
+    final bgUrl = topic.coverImage;
+    if (bgUrl != null && bgUrl.isNotEmpty) {
       return CachedNetworkImage(
         imageUrl: bgUrl,
         fit: BoxFit.cover,
@@ -366,8 +488,8 @@ class TopicHeroWidget extends StatelessWidget {
           // 1. Videos
           _buildStatItem(
             icon: Icons.ondemand_video_rounded,
-            count: '${topic.videoCount}',
-            label: topic.videoCount == 1 ? 'Video' : 'Videos',
+            count: '${topic.effectiveVideoCount}',
+            label: topic.effectiveVideoCount == 1 ? 'Video' : 'Videos',
           ),
 
           // 2. Followers

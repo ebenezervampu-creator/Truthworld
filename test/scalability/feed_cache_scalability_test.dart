@@ -62,7 +62,7 @@ void main() {
         'Science & Nature',
         'Travel & Lifestyle',
         'Food & Cooking',
-        'Gaming',
+        'Short Films',
         'News & Politics',
         'Comedy',
         'Documentary',

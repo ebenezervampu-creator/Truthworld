@@ -86,7 +86,11 @@ class WatchLaterScreen extends GetView<WatchLaterController> {
                           if (_controller.isSearching.value) {
                             return TextField(
                               controller: _controller.searchController,
-                              inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+                              maxLength: ContentValidator.defaultMaxSearchLength,
+                              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                              inputFormatters: TruthworldTextInputFormatters.withLimit(
+                                ContentValidator.defaultMaxSearchLength,
+                              ),
                               autofocus: true,
                               style: const TextStyle(
                                 color: primaryText,
@@ -537,7 +541,7 @@ class _WatchLaterListCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${video.channelName} • ${video.views} views',
+                    '${video.channelName} • ${video.views} ${video.views == 1 ? 'view' : 'views'}',
                     style: const TextStyle(
                       fontSize: 13,
                       color: secondaryText,

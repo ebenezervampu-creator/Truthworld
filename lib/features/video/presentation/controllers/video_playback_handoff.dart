@@ -13,6 +13,7 @@ import 'package:video_player/video_player.dart';
 class VideoPlaybackHandoff {
   static VideoPlayerController? _activeController;
   static String? _activeVideoId;
+  static final Set<String> _inFlightPrewarm = <String>{};
 
   /// Pre-warm/pre-buffer a video stream from Google CDN as soon as user taps a card
   /// or initiates navigation to achieve zero-latency instant playback.
@@ -25,62 +26,57 @@ class VideoPlaybackHandoff {
     if (kIsWeb) return;
 
     // Skip if already pre-warming or active for this video
-    if (_activeVideoId == video.id &&
-        _activeController != null &&
-        !_activeController!.value.hasError) {
+    if (_inFlightPrewarm.contains(video.id) ||
+        (_activeVideoId == video.id &&
+            _activeController != null &&
+            !_activeController!.value.hasError)) {
       return;
     }
 
-    // Determine the optimal Google CDN stream for instant pre-warming
-    String? targetUrl;
-    if (video.hlsUrl.isNotEmpty && !video.hlsUrl.startsWith('gs://')) {
-      targetUrl = video.hlsUrl;
-    } else if (video.adaptiveResolutions.isNotEmpty) {
-      final mp4Res = video.adaptiveResolutions.firstWhereOrNull(
-        (r) =>
-            r.url.isNotEmpty &&
-            !r.url.contains('.m3u8') &&
-            !r.url.endsWith('original.mp4') &&
-            !r.url.contains('/original/'),
-      ) ?? video.adaptiveResolutions.firstOrNull;
-      if (mp4Res != null && mp4Res.url.isNotEmpty) {
-        targetUrl = mp4Res.url;
-      }
-    }
-
-    if (targetUrl == null || targetUrl.isEmpty) {
-      if (video.videoUrl.isNotEmpty) {
-        targetUrl = video.videoUrl;
-      } else if (video.originalUrl.isNotEmpty) {
-        targetUrl = video.originalUrl;
-      } else if (video.hlsUrl.isNotEmpty) {
-        targetUrl = video.hlsUrl;
-      }
-    }
-
-    if (targetUrl == null || targetUrl.isEmpty) return;
-
-    // Fast 0ms conversion for gs:// or storage paths
-    targetUrl = StorageUtils.getFastDownloadUrl(targetUrl);
-    if (targetUrl.isEmpty) return;
+    _inFlightPrewarm.add(video.id);
 
     try {
+      // Determine the optimal Google CDN stream for instant pre-warming
+      String? targetUrl;
+      if (video.hlsUrl.isNotEmpty && !video.hlsUrl.startsWith('gs://')) {
+        targetUrl = video.hlsUrl;
+      } else if (video.adaptiveResolutions.isNotEmpty) {
+        final mp4Res = video.adaptiveResolutions.firstWhereOrNull(
+          (r) =>
+              r.url.isNotEmpty &&
+              !r.url.contains('.m3u8') &&
+              !r.url.endsWith('original.mp4') &&
+              !r.url.contains('/original/'),
+        ) ?? video.adaptiveResolutions.firstOrNull;
+        if (mp4Res != null && mp4Res.url.isNotEmpty) {
+          targetUrl = mp4Res.url;
+        }
+      }
+
+      if (targetUrl == null || targetUrl.isEmpty) {
+        if (video.videoUrl.isNotEmpty) {
+          targetUrl = video.videoUrl;
+        } else if (video.originalUrl.isNotEmpty) {
+          targetUrl = video.originalUrl;
+        } else if (video.hlsUrl.isNotEmpty) {
+          targetUrl = video.hlsUrl;
+        }
+      }
+
+      if (targetUrl == null || targetUrl.isEmpty) return;
+
+      // Fast 0ms conversion for gs:// or storage paths
+      targetUrl = StorageUtils.getFastDownloadUrl(targetUrl);
+      if (targetUrl.isEmpty) return;
+
       debugPrint(
         '[VideoPlaybackHandoff] 🚀 Pre-warming Google CDN stream for video: ${video.id}',
       );
       final isHlsOrCmaf =
           targetUrl.contains('.m3u8') || targetUrl.contains('/cmaf/');
-      final networkHeaders = isHlsOrCmaf
-          ? const {
-              'Connection': 'keep-alive',
-              'Accept':
-                  'application/vnd.apple.mpegurl, application/x-mpegURL, video/mp4;q=0.9, */*;q=0.8',
-              'Cache-Control': 'no-cache',
-            }
-          : const {
-              'Connection': 'keep-alive',
-              'Accept': '*/*',
-            };
+      final networkHeaders = await StorageUtils.getMediaHeaders(
+        isHlsOrCmaf: isHlsOrCmaf,
+      );
 
       final controller = VideoPlayerController.networkUrl(
         Uri.parse(targetUrl),
@@ -118,6 +114,8 @@ class VideoPlaybackHandoff {
         stackTrace: stackTrace,
         tag: 'VideoPlaybackHandoff.prewarmVideo',
       );
+    } finally {
+      _inFlightPrewarm.remove(video.id);
     }
   }
 
@@ -268,6 +266,7 @@ class VideoPlaybackHandoff {
 
   /// Clear/dispose the active controller for a video ID if it hasn't been claimed yet.
   static void clear(String videoId) {
+    _inFlightPrewarm.remove(videoId);
     _activePositions.remove(videoId);
     _claimedHandoffs.remove(videoId);
     _inFlightInit.remove(videoId);

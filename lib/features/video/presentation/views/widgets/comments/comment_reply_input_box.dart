@@ -27,7 +27,11 @@ class CommentReplyInputBox extends StatelessWidget {
             child: TextField(
               controller: controller.replyController,
               focusNode: controller.replyFocusNode,
-              inputFormatters: TruthworldTextInputFormatters.standard,
+              maxLength: ContentValidator.defaultMaxReplyLength,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: TruthworldTextInputFormatters.withLimit(
+                ContentValidator.defaultMaxReplyLength,
+              ),
               decoration: InputDecoration(
                 hintText: 'Add a reply...',
                 hintStyle: TextStyle(

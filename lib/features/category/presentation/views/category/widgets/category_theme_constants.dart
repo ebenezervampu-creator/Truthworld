@@ -10,7 +10,7 @@ const Color entertainmentColor = Color(0xFF8B5CF6);
 final Color educationColor = AppTokens.colors.info;
 const Color sportsColor = Color(0xFFF59E0B);
 const Color newsColor = AppColors.textTertiary;
-final Color gamingColor = AppTokens.colors.success;
+final Color shortFilmsColor = AppTokens.colors.success;
 
 // ==========================================================================
 // RESPONSIVE BREAKPOINTS
@@ -39,8 +39,9 @@ class CategoryThemeHelper {
         return sportsColor;
       case 'news':
         return newsColor;
-      case 'gaming':
-        return gamingColor;
+      case 'short films':
+      case 'shortfilms':
+        return shortFilmsColor;
       default:
         return Theme.of(context).colorScheme.primary;
     }
@@ -58,8 +59,9 @@ class CategoryThemeHelper {
         return Icons.newspaper;
       case 'sports':
         return Icons.sports_soccer;
-      case 'gaming':
-        return Icons.videogame_asset;
+      case 'short films':
+      case 'shortfilms':
+        return Icons.flip_camera_ios;
       case 'technology':
         return Icons.computer;
       case 'science':
@@ -82,16 +84,12 @@ class CategoryThemeHelper {
         return Icons.build;
       case 'health & fitness':
         return Icons.fitness_center;
-      case 'fashion & beauty':
-        return Icons.brush;
       case 'food & cooking':
         return Icons.restaurant;
       case 'business & finance':
         return Icons.business;
       case 'animation':
         return Icons.animation;
-      case 'short films':
-        return Icons.flip_camera_ios;
       case 'motivation':
         return Icons.psychology;
       case 'history':
@@ -114,7 +112,9 @@ class CategoryThemeHelper {
   }
 
   static String formatViews(int views) {
-    if (views >= 1000000) {
+    if (views >= 1000000000) {
+      return '${(views / 1000000000).toStringAsFixed(1)}B';
+    } else if (views >= 1000000) {
       return '${(views / 1000000).toStringAsFixed(1)}M';
     } else if (views >= 1000) {
       return '${(views / 1000).toStringAsFixed(1)}K';

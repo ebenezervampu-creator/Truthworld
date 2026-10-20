@@ -9,8 +9,11 @@ import 'package:truthworld/components/ui/video_card/video_card_controller_regist
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
+import 'package:truthworld/core/services/distributed_counter_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_feed_controller.dart';
+import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
@@ -66,6 +69,7 @@ class VideoCardController extends GetxController implements HoverPreviewClient {
     }
     realChannelName.value = video.channelName;
     loadRealChannelData();
+    syncRealtimeViewsIfNeeded();
 
     _muteWorker = ever(HoverPreviewCoordinator.globalMute, (isMuted) {
       if (_videoPlayerController.value != null &&
@@ -120,7 +124,7 @@ class VideoCardController extends GetxController implements HoverPreviewClient {
             .collection(FirestoreCollections.channels)
             .where('ownerId', isEqualTo: effectiveChannelId)
             .limit(1)
-            .get();
+            .getCacheFirst();
         if (querySnap.docs.isNotEmpty) {
           data = querySnap.docs.first.data();
         } else {
@@ -177,6 +181,41 @@ class VideoCardController extends GetxController implements HoverPreviewClient {
         stackTrace: s,
         tag: 'VideoCardController.loadRealChannelData',
       );
+    }
+  }
+
+  Future<void> syncRealtimeViewsIfNeeded() async {
+    final videoId = video.id.trim();
+    if (videoId.isEmpty) return;
+
+    if (Get.isRegistered<MainController>()) {
+      final live = MainController.to.videoViews[videoId];
+      if (live != null && live > 0) return;
+    }
+
+    if (video.views == 0) {
+      try {
+        final counterService = Get.isRegistered<DistributedCounterService>()
+            ? DistributedCounterService.to
+            : Get.put(DistributedCounterService());
+        final realtimeViews = await counterService.getRealtimeVideoViews(videoId);
+        if (realtimeViews > 0) {
+          if (Get.isRegistered<MainController>()) {
+            MainController.to.videoViews[videoId] = realtimeViews;
+          }
+          unawaited(counterService.healParentVideoViews(videoId, realtimeViews));
+          if (Get.isRegistered<HomeFeedController>()) {
+            final updatedVideo = video.copyWith(viewCount: realtimeViews);
+            Get.find<HomeFeedController>().updateVideo(updatedVideo);
+          }
+        }
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'VideoCardController.syncRealtimeViewsIfNeeded',
+        );
+      }
     }
   }
 

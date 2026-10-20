@@ -1,6 +1,6 @@
 import { DOMAIN, SCHEMA_VERSION, escapeHtml, cleanJsonLd } from "../schema/schemaConfig";
 
-export const SNAPSHOT_VERSION = 6;
+export const SNAPSHOT_VERSION = 7;
 
 export interface HtmlRenderOptions {
   title: string;
@@ -76,11 +76,15 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
     hreflangTags += `<link rel="alternate" hreflang="${lang}" href="${escapeHtml(canonicalUrl)}" />\n  `;
   }
 
-  // Determine image MIME type
-  const cleanImagePath = image.split("?")[0].toLowerCase();
+  // Determine image MIME type reliably
+  let cleanImagePath = image.split("?")[0].toLowerCase();
+  try {
+    cleanImagePath = decodeURIComponent(cleanImagePath);
+  } catch (_) {}
   const isPng = cleanImagePath.endsWith(".png");
   const isWebp = cleanImagePath.endsWith(".webp");
-  const mimeType = isPng ? "image/png" : (isWebp ? "image/webp" : "image/jpeg");
+  const isGif = cleanImagePath.endsWith(".gif");
+  const mimeType = isPng ? "image/png" : (isWebp ? "image/webp" : (isGif ? "image/gif" : "image/jpeg"));
 
   // Standard 16:9 widescreen dimensions (1280x720 for large social cards)
   const isVideo = options.type === "video.other" || !!options.videoUrl || !!options.embedUrl;
@@ -91,8 +95,6 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
   let videoMetaTags = "";
   if (isVideo) {
     const embed = options.embedUrl || canonicalUrl;
-    const isHls = options.videoUrl ? (options.videoUrl.includes(".m3u8") || options.videoUrl.includes("hls")) : false;
-    const streamMime = isHls ? "application/x-mpegURL" : "video/mp4";
     videoMetaTags = `
   <meta property="og:video" content="${escapeHtml(embed)}" />
   <meta property="og:video:url" content="${escapeHtml(embed)}" />
@@ -100,7 +102,6 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
   <meta property="og:video:type" content="text/html" />
   <meta property="og:video:width" content="1280" />
   <meta property="og:video:height" content="720" />
-  ${options.videoUrl ? `<meta property="og:video:stream" content="${escapeHtml(options.videoUrl)}" />\n  <meta property="og:video:stream:type" content="${streamMime}" />` : ""}
   ${safeDurationSeconds ? `<meta property="video:duration" content="${safeDurationSeconds}" />` : ""}
   ${options.uploadDate ? `<meta property="video:release_date" content="${escapeHtml(options.uploadDate)}" />` : ""}
   <meta name="twitter:player" content="${escapeHtml(embed)}" />
@@ -127,8 +128,9 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
   <meta property="og:image:type" content="${mimeType}" />
   <meta property="og:image:width" content="${width}" />
   <meta property="og:image:height" content="${height}" />
-  <meta property="og:image:alt" content="${escapeHtml(options.title)}" />${videoMetaTags}
-  <meta name="twitter:card" content="${isVideo ? "player" : "summary_large_image"}" />
+  <meta property="og:image:alt" content="${escapeHtml(options.title)}" />
+  <link rel="image_src" href="${escapeHtml(image)}" />${videoMetaTags}
+  <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:site" content="@truthworld" />
   <meta name="twitter:title" content="${escapeHtml(options.title)}" />
   <meta name="twitter:description" content="${escapeHtml(options.description)}" />

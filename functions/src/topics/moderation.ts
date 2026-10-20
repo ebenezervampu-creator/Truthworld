@@ -210,7 +210,7 @@ export const onTopicWritten = onDocumentWritten(
       try {
         const genAI = getVertexAI();
         const model = genAI.getGenerativeModel({
-          model: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-3.1-flash-lite",
+          model: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-2.5-flash",
           systemInstruction: TOPIC_MODERATION_SYSTEM_PROMPT,
           generationConfig: {
             responseMimeType: "application/json",

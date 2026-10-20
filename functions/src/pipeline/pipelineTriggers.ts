@@ -1,5 +1,5 @@
 import * as admin from "firebase-admin";
-import { onRequest } from "firebase-functions/v2/https";
+import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
@@ -25,7 +25,7 @@ export const triggerVideoAIFeatures = onRequest(
     cors: true,
     region: "asia-south1",
     minInstances: 0,
-    maxInstances: 20,
+    maxInstances: 5,
     timeoutSeconds: 300,
     memory: "512MiB",
     secrets: ["GEMINI_API_KEY", "ASSEMBLYAI_KEY"],
@@ -60,17 +60,37 @@ export const triggerVideoAIFeatures = onRequest(
 
       const videoData = videoSnap.data() || {};
 
-      // Verify authorization: must be video owner (ownerId, userId, or uploaderId) or admin
+      // Verify authorization: must be video owner (ownerId, userId, or uploaderId), channel owner, or admin
       const videoOwnerId = videoData.ownerId || videoData.userId || videoData.uploaderId;
-      const isOwner = videoOwnerId === userId;
+      let isOwner = videoOwnerId === userId;
       const isAdmin = authUser.isAdmin === true;
+
+      if (!isOwner && !isAdmin && videoData.channelId) {
+        try {
+          const channelSnap = await admin.firestore().collection("channels").doc(videoData.channelId).get();
+          if (channelSnap.exists) {
+            const chData = channelSnap.data() || {};
+            if (chData.ownerId === userId || chData.userId === userId) {
+              isOwner = true;
+            }
+          }
+        } catch (e) {
+          logger.warn("[triggerVideoAIFeatures] Error checking channel ownership:", e);
+        }
+      }
 
       if (!isOwner && !isAdmin) {
         res.status(403).json({ error: "Unauthorized: You do not own this video" });
         return;
       }
 
-      const videoUrl = videoData.videoUrl || videoData.originalUrl || "";
+      const videoUrl = videoData.videoUrl ||
+        videoData.originalUrl ||
+        videoData.media?.videoUrl ||
+        videoData.media?.originalUrl ||
+        videoData.url ||
+        videoData.hlsUrl ||
+        "";
       if (!videoUrl) {
         res.status(400).json({ error: "Video source URL is empty" });
         return;
@@ -164,54 +184,58 @@ export const triggerVideoAIFeatures = onRequest(
       }
       const transcriptionCompleted = transcriptSnap.exists;
 
-      const { DistributionLayer } = require("./layers/04-distribution");
-      const distribution = new DistributionLayer();
+      try {
+        const { DistributionLayer } = require("./layers/04-distribution");
+        const distribution = new DistributionLayer();
 
-      if (!transcriptionCompleted) {
-        await distribution.publish("video-uploaded", {
-          eventId,
-          eventType: "video-uploaded",
-          jobId: videoId,
-          userId,
-          timestamp: now,
-          data: { videoUrl, executionPlan },
-          retryCount: 0,
-          source: "triggerVideoAIFeatures",
-        });
-      } else {
-        const publishTasks: Promise<any>[] = [];
+        if (!transcriptionCompleted) {
+          await distribution.publish("video-uploaded", {
+            eventId,
+            eventType: "video-uploaded",
+            jobId: videoId,
+            userId,
+            timestamp: now,
+            data: { videoUrl, executionPlan },
+            retryCount: 0,
+            source: "triggerVideoAIFeatures",
+          });
+        } else {
+          const publishTasks: Promise<any>[] = [];
 
-        if (wantFactCheck || wantSummary) {
-          publishTasks.push(
-            distribution.publish("fact-processing", {
-              eventId: `fact_${eventId}`,
-              eventType: "fact-processing",
-              jobId: videoId,
-              userId,
-              timestamp: now,
-              data: { videoUrl, executionPlan },
-              retryCount: 0,
-              source: "triggerVideoAIFeatures",
-            })
-          );
+          if (wantFactCheck || wantSummary) {
+            publishTasks.push(
+              distribution.publish("fact-processing", {
+                eventId: `fact_${eventId}`,
+                eventType: "fact-processing",
+                jobId: videoId,
+                userId,
+                timestamp: now,
+                data: { videoUrl, executionPlan },
+                retryCount: 0,
+                source: "triggerVideoAIFeatures",
+              })
+            );
+          }
+
+          if (wantDubbing || wantSubtitles) {
+            publishTasks.push(
+              distribution.publish("dubbing-processing", {
+                eventId: `dub_${eventId}`,
+                eventType: "dubbing-processing",
+                jobId: videoId,
+                userId,
+                timestamp: now,
+                data: { videoUrl, executionPlan },
+                retryCount: 0,
+                source: "triggerVideoAIFeatures",
+              })
+            );
+          }
+
+          await Promise.all(publishTasks);
         }
-
-        if (wantDubbing || wantSubtitles) {
-          publishTasks.push(
-            distribution.publish("dubbing-processing", {
-              eventId: `dub_${eventId}`,
-              eventType: "dubbing-processing",
-              jobId: videoId,
-              userId,
-              timestamp: now,
-              data: { videoUrl, executionPlan },
-              retryCount: 0,
-              source: "triggerVideoAIFeatures",
-            })
-          );
-        }
-
-        await Promise.all(publishTasks);
+      } catch (pubSubError) {
+        logger.warn("[triggerVideoAIFeatures] Pub/Sub dispatch warning (falling back to Firestore job queue):", pubSubError);
       }
 
       await jobDocRef.update({
@@ -284,7 +308,7 @@ export const handleTranscription = onMessagePublished(
     timeoutSeconds: 540,
     memory: "1GiB",
     minInstances: 0,
-    maxInstances: 20,
+    maxInstances: 3,
     retry: true,
     secrets: ["ASSEMBLYAI_KEY", "GEMINI_API_KEY"],
   },
@@ -324,7 +348,7 @@ export const handleCredibility = onMessagePublished(
     timeoutSeconds: 540,
     memory: "2GiB",
     minInstances: 0,
-    maxInstances: 15,
+    maxInstances: 2,
     retry: true,
     secrets: ["GEMINI_API_KEY"],
   },
@@ -354,6 +378,40 @@ export const handleCredibility = onMessagePublished(
 );
 
 /**
+ * 🧪 Handle credibility synthesis — runs after verification completes
+ * Separated from main verification to prevent 540s timeout starvation
+ *
+ * CONFIG: minInstances=0, maxInstances=10, 2GiB, 540s timeout
+ */
+export const handleCredibilitySynthesis = onMessagePublished(
+  {
+    topic: "credibility.synthesis.requested",
+    region: "asia-south1",
+    timeoutSeconds: 540,
+    memory: "2GiB",
+    minInstances: 0,
+    maxInstances: 10,
+    retry: true,
+    secrets: ["GEMINI_API_KEY"],
+  },
+  async (event) => {
+    try {
+      const { DistributionLayer } = require("./layers/04-distribution");
+      const parsedEvent = DistributionLayer.parseMessage(event.data.message);
+      logger.info("[handleCredibilitySynthesis] Start", { jobId: parsedEvent.jobId, eventId: parsedEvent.eventId });
+
+      const geminiKey = PIPELINE_CONFIG.GEMINI_API_KEY;
+      const { CredibilityEngine } = require("./layers/06-credibility");
+      const engine = new CredibilityEngine(geminiKey);
+      await engine.runSynthesisPass(parsedEvent.jobId, parsedEvent.userId, parsedEvent.eventId);
+    } catch (error) {
+      logger.error("[handleCredibilitySynthesis] Critical failure", { error: String(error) });
+      throw error;
+    }
+  }
+);
+
+/**
  * 🌍 Handle dubbing processing (Path 2)
  *
  * CONFIG: minInstances=0, maxInstances=5, 1GiB, 540s timeout
@@ -365,7 +423,7 @@ export const handleDubbing = onMessagePublished(
     timeoutSeconds: 540,
     memory: "2GiB",
     minInstances: 0,
-    maxInstances: 20,
+    maxInstances: 2,
     retry: true,
     secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY"],
   },
@@ -410,7 +468,7 @@ export const handleFactComplete = onMessagePublished(
     region: "asia-south1",
     timeoutSeconds: 60,
     minInstances: 0,
-    maxInstances: 20,
+    maxInstances: 2,
     retry: true,
     memory: "256MiB",
   },
@@ -453,7 +511,7 @@ export const handleDubbingComplete = onMessagePublished(
     region: "asia-south1",
     timeoutSeconds: 60,
     minInstances: 0,
-    maxInstances: 20,
+    maxInstances: 2,
     retry: true,
     memory: "256MiB",
   },
@@ -612,4 +670,195 @@ export const onDubbingResultWritten = onDocumentWritten(
     }
   }
 );
+
+/**
+ * 📝 Fetch or Synthesize Genuine AI Summary for a Video (onCall)
+ *
+ * Ensures videos never show raw verbatim transcript slices or developer errors as the AI summary.
+ * If the existing video document has a valid AI summary, returns it.
+ * If the summary is missing, invalid, or a verbatim transcript snippet, generates a concise,
+ * engaging 2-3 sentence AI summary using Vertex AI Gemini 2.5 Flash and persists it.
+ */
+export const getVideoAiSummary = onCall(
+  {
+    region: "asia-south1",
+    minInstances: 0,
+    maxInstances: 5,
+    timeoutSeconds: 60,
+    memory: "512MiB",
+    secrets: ["GEMINI_API_KEY"],
+  },
+  async (request) => {
+    const videoId = request.data?.videoId;
+    if (!videoId || typeof videoId !== "string") {
+      throw new HttpsError("invalid-argument", "videoId is required.");
+    }
+
+    const videoDoc = await admin.firestore().collection("videos").doc(videoId).get();
+    if (!videoDoc.exists) {
+      throw new HttpsError("not-found", "Video not found.");
+    }
+
+    const vData = videoDoc.data() || {};
+    let jobData: any = null;
+    if (vData.jobId) {
+      try {
+        const jSnap = await admin.firestore().collection("video_jobs").doc(vData.jobId).get();
+        if (jSnap.exists) jobData = jSnap.data();
+      } catch (e) {
+        logger.warn("[getVideoAiSummary] Could not fetch video_jobs doc:", e);
+      }
+    }
+
+    let currentSummary = (
+      vData.moderation?.summary ||
+      vData.moderationSummary ||
+      jobData?.stages?.moderation?.summary ||
+      jobData?.gatewayDecision?.summary ||
+      vData.summary ||
+      ""
+    ) as string;
+
+    // Load transcript to check for verbatim matches and for generation
+    let transcriptText = "";
+    const tDoc = await admin.firestore().collection("transcripts").doc(videoId).get();
+    if (tDoc.exists && tDoc.data()?.text) {
+      transcriptText = tDoc.data()!.text;
+    }
+    if (!transcriptText && vData.jobId) {
+      const jobTDoc = await admin.firestore().collection("transcripts").doc(vData.jobId).get();
+      if (jobTDoc.exists && jobTDoc.data()?.text) {
+        transcriptText = jobTDoc.data()!.text;
+      }
+    }
+
+    if (!transcriptText) {
+      try {
+        const bucket = admin.storage().bucket();
+        const candidatePaths = [
+          `transcripts/${videoId}/full.json`,
+          vData.jobId ? `transcripts/${vData.jobId}/full.json` : null,
+        ].filter(Boolean) as string[];
+
+        for (const p of candidatePaths) {
+          const file = bucket.file(p);
+          const [exists] = await file.exists();
+          if (exists) {
+            const [data] = await file.download();
+            const parsed = JSON.parse(data.toString("utf8"));
+            transcriptText = parsed.text || parsed.transcript || (Array.isArray(parsed.words) ? parsed.words.map((w: any) => w.text || w.word).join(" ") : "");
+            if (transcriptText) break;
+          }
+        }
+      } catch (e) {
+        logger.warn("[getVideoAiSummary] Storage transcript probe error:", e);
+      }
+    }
+
+    const isTranscriptSnippet = (s?: string) => {
+      if (!s) return true;
+      const clean = s.replace(/\.{3}$/, "").trim();
+      if (clean.length > 20 && transcriptText && transcriptText.trim().startsWith(clean)) {
+        return true;
+      }
+      if (s.endsWith("...") && s.length >= 150 && (
+        s.startsWith("Welcome to") ||
+        s.startsWith("Hey guys") ||
+        s.startsWith("Hey everyone") ||
+        s.startsWith("In this video") ||
+        s.startsWith("Today we")
+      )) {
+        return true;
+      }
+      return false;
+    };
+
+    const isInvalid = (s?: string) =>
+      !s ||
+      s.trim().length < 15 ||
+      /moderation timed out|video approved pending|async review|moderation could not complete|verification in progress|summary unavailable/i.test(s) ||
+      isTranscriptSnippet(s);
+
+    if (!isInvalid(currentSummary)) {
+      if (vData.summary !== currentSummary || vData.moderationSummary !== currentSummary || vData.moderation?.summary !== currentSummary) {
+        await admin.firestore().collection("videos").doc(videoId).update({
+          summary: currentSummary,
+          moderationSummary: currentSummary,
+          "moderation.summary": currentSummary,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }).catch((err) => logger.warn("[getVideoAiSummary] Sync write failed:", err));
+      }
+      return { summary: currentSummary };
+    }
+
+    // Fallback transcript to description if still missing
+    if (!transcriptText && vData.description && vData.description.length > 30) {
+      transcriptText = vData.description;
+    }
+
+    if (!transcriptText || transcriptText.trim().length < 20) {
+      return { summary: "" };
+    }
+
+    try {
+      const { getVertexAI } = require("./utils/ai-client");
+      const { extractCandidateText } = require("./utils/ai-utils");
+      const vertex = getVertexAI();
+      const model = vertex.getGenerativeModel({
+        model: "gemini-2.5-flash",
+        generationConfig: { maxOutputTokens: 150, temperature: 0.2 } as any,
+      });
+      const prompt = `Provide a concise, engaging 2-3 sentence AI summary of this video based on the transcript. Focus on the core topic, insights, and key takeaways. Do NOT quote or repeat the transcript text verbatim:\n\n${transcriptText.substring(0, 6000)}`;
+      const res = await model.generateContent(prompt);
+      const generated = extractCandidateText(res.response?.candidates?.[0])?.trim() || "";
+
+      if (generated && generated.length > 20 && !isTranscriptSnippet(generated)) {
+        await admin.firestore().collection("videos").doc(videoId).update({
+          summary: generated,
+          moderationSummary: generated,
+          "moderation.summary": generated,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return { summary: generated };
+      }
+    } catch (err) {
+      logger.error("[getVideoAiSummary] Generation failed", { videoId, err });
+    }
+
+    return { summary: "" };
+  }
+);
+
+/**
+ * 🏛 Collect Authentic Source Avatars (onCall)
+ *
+ * Resolves high-resolution logos/emblems for domains, URLs, and publishers
+ * supporting fact-checking citations and source verification.
+ */
+export const getSourceAvatars = onCall(
+  {
+    cors: true,
+    region: "asia-south1",
+    minInstances: 0,
+    maxInstances: 5,
+    memory: "256MiB",
+    timeoutSeconds: 30,
+  },
+  async (request) => {
+    const { SourceAvatarService } = require("./services/sourceAvatarService");
+    const data = request.data || {};
+    const domains: string[] = Array.isArray(data.domains) ? data.domains : [];
+    const sources: Array<{ domain?: string; publisher?: string; url?: string }> =
+      Array.isArray(data.sources) ? data.sources : [];
+
+    const queryItems = [
+      ...domains.map((d: string) => ({ domain: d })),
+      ...sources,
+    ];
+
+    const avatars = await SourceAvatarService.resolveBatch(queryItems);
+    return { avatars };
+  }
+);
+
 

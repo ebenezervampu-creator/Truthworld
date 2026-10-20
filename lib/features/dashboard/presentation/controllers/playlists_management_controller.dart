@@ -554,22 +554,27 @@ class PlaylistsManagementController extends BaseController
     }
   }
 
-  /// Delete a playlist
+  /// Delete a playlist (moves to Trash for 30 days)
   Future<bool> deletePlaylist(String playlistId) async {
     try {
       await _firestore
           .collection(FirestoreCollections.playlists)
           .doc(playlistId)
-          .delete();
+          .update({
+        'status': 'deletion_pending',
+        'deletionRequestedAt': FieldValue.serverTimestamp(),
+      });
+
+      playlistsList.removeWhere((p) => p.id == playlistId);
 
       AppSnackbar.success(
-        'Playlist deleted successfully.',
+        'Playlist moved to Trash. It will be retained for 30 days.',
       );
       return true;
     } catch (e) {
       ErrorHandler.log(e);
       AppSnackbar.error(
-        'Unable to delete playlist. Please try again.',
+        'Unable to move playlist to Trash. Please try again.',
       );
       return false;
     }

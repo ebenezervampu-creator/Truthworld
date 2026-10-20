@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/image_verification_service.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/data/models/channel_availability_status.dart';
@@ -202,6 +203,8 @@ class ChannelController extends ChannelControllerBase
     'allowComments': true,
     'moderationLevel': 'standard',
     'showSubscriberCount': true,
+    'showLikeCount': true,
+    'showDislikeCount': true,
     'enableWatermark': false,
   }.obs;
   @override
@@ -222,6 +225,10 @@ class ChannelController extends ChannelControllerBase
   final Rx<AvailabilityStatus> channelNameAvailability = Rx<AvailabilityStatus>(AvailabilityStatus.unknown);
   @override
   final Rx<AvailabilityStatus> customUrlAvailability = Rx<AvailabilityStatus>(AvailabilityStatus.unknown);
+  @override
+  final RxString channelNameAvailabilityMessage = ''.obs;
+  @override
+  final RxString customUrlAvailabilityMessage = ''.obs;
   @override
   String lastAutoSlug = '';
 
@@ -277,44 +284,47 @@ class ChannelController extends ChannelControllerBase
 
     initializeContentFilters();
     _initializeAnimations();
+    setupTextFieldListeners();
+    setupFormValidationListeners();
 
     final user = auth.currentUser;
     if (user != null) {
-      // Auto-populate channel name from user's display name if empty
-      if (channelName.text.isEmpty) {
-        final name = user.displayName ?? '';
-        if (name.isNotEmpty) {
-          channelName.text = name;
-          checkChannelNameAvailability(name);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (isClosed) return;
+        // Auto-populate channel name from user's display name if empty
+        if (channelName.text.isEmpty) {
+          final name = user.displayName ?? '';
+          if (name.isNotEmpty) {
+            channelName.text = name;
+            checkChannelNameAvailability(name);
+          }
         }
-      }
 
-      setupTextFieldListeners();
-      setupFormValidationListeners();
-      loadDraft();
-      startAnimations();
+        loadDraft();
+        startAnimations();
 
-      // Keep channels RxList in sync with Firestore
-      rxIsLoading.value = true;
-      final sub = firestore
-          .collection(ChannelControllerBase.channelsCol)
-          .where('ownerId', isEqualTo: user.uid)
-          .snapshots()
-          .listen(
-            (snapshot) {
-              final results = snapshot.docs
-                  .map(Channel.fromDocumentSnapshot)
-                  .where((channel) => !channel.isArchived)
-                  .toList();
-              channels.assignAll(results);
-              rxIsLoading.value = false;
-            },
-            onError: (error) {
-              debugPrint('Error fetching channels: $error');
-              rxIsLoading.value = false;
-            },
-          );
-      trackSubscription(sub);
+        // Keep channels RxList in sync with Firestore
+        rxIsLoading.value = true;
+        final sub = firestore
+            .collection(ChannelControllerBase.channelsCol)
+            .where('ownerId', isEqualTo: user.uid)
+            .snapshots()
+            .listen(
+              (snapshot) {
+                final results = snapshot.docs
+                    .map(Channel.fromDocumentSnapshot)
+                    .where((channel) => !channel.isArchived)
+                    .toList();
+                channels.assignAll(results);
+                rxIsLoading.value = false;
+              },
+              onError: (error) {
+                debugPrint('Error fetching channels: $error');
+                rxIsLoading.value = false;
+              },
+            );
+        trackSubscription(sub);
+      });
     }
   }
 
@@ -330,7 +340,7 @@ class ChannelController extends ChannelControllerBase
       final snapshot = await firestore
           .collection(ChannelControllerBase.channelsCol)
           .where('ownerId', isEqualTo: user.uid)
-          .get();
+          .getCacheFirst();
 
       final results = snapshot.docs
           .map(Channel.fromDocumentSnapshot)
@@ -535,6 +545,8 @@ class ChannelController extends ChannelControllerBase
     moderationListeners.clear();
     detailsAvatarSub?.cancel();
     detailsBannerSub?.cancel();
+
+    disposeAvailabilityTimers();
 
     // Call clear state to ensure all listeners/subscriptions are removed
     clearChannelDetailsState();

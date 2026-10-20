@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/core/utils/content_validator.dart';
-import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
+import 'package:truthworld/core/constants/app_categories.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -240,11 +241,7 @@ class SponsorshipsTabView extends StatelessWidget {
   Widget _buildCategoryAndSearchBar(RxString searchQuery) {
     final categories = [
       'All',
-      'Technology',
-      'Education',
-      'Gaming',
-      'News & Media',
-      'Lifestyle',
+      ...AppCategories.allCategories,
     ];
 
     return Row(
@@ -289,6 +286,9 @@ class SponsorshipsTabView extends StatelessWidget {
         SizedBox(
           width: 240,
           child: TextField(
+            maxLength: defaultMaxSearchLength,
+            buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+            inputFormatters: TruthworldTextInputFormatters.withLimit(defaultMaxSearchLength),
             onChanged: (val) => searchQuery.value = val.toLowerCase(),
             style: const TextStyle(color: Colors.white, fontSize: 13),
             decoration: const InputDecoration(
@@ -316,7 +316,11 @@ class SponsorshipsTabView extends StatelessWidget {
       final query = searchQuery.value;
 
       final filtered = controller.creatorsList.where((creator) {
-        final matchesCat = selectedCategory == 'All' || creator['category'] == selectedCategory;
+        final rawCat = creator['category'] as String? ?? '';
+        final creatorCat = AppCategories.normalizeCategory(rawCat).toLowerCase();
+        final matchesCat = selectedCategory == 'All' ||
+            creatorCat == selectedCategory.toLowerCase() ||
+            rawCat.toLowerCase() == selectedCategory.toLowerCase();
         final name = (creator['name'] as String? ?? '').toLowerCase();
         final handle = (creator['handle'] as String? ?? '').toLowerCase();
         final matchesQuery = query.isEmpty || name.contains(query) || handle.contains(query);
@@ -594,7 +598,9 @@ class SponsorshipsTabView extends StatelessWidget {
             children: [
               TextField(
                 controller: campaignController,
-                inputFormatters: TruthworldTextInputFormatters.standard,
+                maxLength: 100,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: TruthworldTextInputFormatters.withLimit(100),
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Campaign / Product Name',
@@ -646,6 +652,12 @@ class SponsorshipsTabView extends StatelessWidget {
               TextField(
                 controller: amountController,
                 keyboardType: TextInputType.number,
+                maxLength: 10,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(10),
+                ],
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Offer Amount (₹)',
@@ -660,7 +672,9 @@ class SponsorshipsTabView extends StatelessWidget {
               const SizedBox(height: 12),
               TextField(
                 controller: noteController,
-                inputFormatters: TruthworldTextInputFormatters.standard,
+                maxLength: 500,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: TruthworldTextInputFormatters.withLimit(500),
                 maxLines: 2,
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(

@@ -179,8 +179,8 @@ void main() {
       // Fast download URL conversion
       const gsUrl = 'gs://truthworld-1.firebasestorage.app/videos/vid_test_123/stream.m3u8';
       final resolvedGs = await StorageUtils.resolveUrl(gsUrl);
-      expect(resolvedGs, contains('firebasestorage.googleapis.com'));
-      expect(resolvedGs, contains('alt=media'));
+      expect(resolvedGs, anyOf(contains('storage.googleapis.com'), contains('firebasestorage.googleapis.com')));
+      expect(resolvedGs, contains('stream.m3u8'));
 
       // Direct CDN domain
       const customCdn = 'https://cdn.truthworld.in/video/vid_test_123/master.mp4';

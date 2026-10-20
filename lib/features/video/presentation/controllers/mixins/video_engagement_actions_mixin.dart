@@ -5,8 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
+import 'package:truthworld/core/services/guest_playback_limit_service.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_feed_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
@@ -18,6 +21,7 @@ import 'package:video_player/video_player.dart';
 /// Mixin managing playback telemetry loop, watch time heartbeat, clip bounds enforcement, chapters, and optimistic user reactions.
 mixin VideoEngagementActionsMixin on GetxController {
   Video get video;
+  set video(Video v);
   VideoPlayerController? get videoPlayerController;
   Rx<VideoClip?> get activeClip;
   RxBool get isPlayingRx;
@@ -119,6 +123,14 @@ mixin VideoEngagementActionsMixin on GetxController {
 
     // Manage stopwatch and analytics presence based on playback state
     if (value.isPlaying) {
+      if (Get.isRegistered<GuestPlaybackLimitService>()) {
+        if (!GuestPlaybackLimitService.to.isPlaybackAllowed()) {
+          videoPlayerController?.pause();
+          GuestPlaybackLimitService.to.promptGuestSignIn();
+          return;
+        }
+        GuestPlaybackLimitService.to.onPlaybackActive(videoId: video.id);
+      }
       if (!watchStopwatch.isRunning) {
         watchStopwatch.start();
         analyticsController.startTimer(
@@ -133,6 +145,10 @@ mixin VideoEngagementActionsMixin on GetxController {
         );
       }
     } else {
+      if (Get.isRegistered<GuestPlaybackLimitService>()) {
+        GuestPlaybackLimitService.to.onPlaybackPaused();
+      }
+
       // Industry standard: Do not stop stopwatch or tear down presence while actively switching resolution
       if (isSwitchingResolution.value) {
         return;
@@ -152,13 +168,16 @@ mixin VideoEngagementActionsMixin on GetxController {
 
     final currentWatchSeconds = watchStopwatch.elapsed.inSeconds;
     final totalDuration = value.duration.inSeconds;
+    final isAuth = AuthService.to.isAuthenticated.value && AuthService.to.uid.isNotEmpty;
 
     // 1. Qualified View: 20s for standard videos, or min(20, duration * 0.8) for short videos (Industry Standard)
+    // CRITICAL: Unsigned / guest viewers NEVER increment views or trigger qualified views.
     final effectiveWatchThreshold = totalDuration > 0
         ? math.min(20, (totalDuration >= 5 ? (totalDuration * 0.8).round() : totalDuration))
         : 20;
 
-    if (!hasCountedQualifiedView &&
+    if (isAuth &&
+        !hasCountedQualifiedView &&
         !isAlreadyWatchedVideo &&
         currentWatchSeconds >= effectiveWatchThreshold &&
         effectiveWatchThreshold > 0) {
@@ -167,12 +186,21 @@ mixin VideoEngagementActionsMixin on GetxController {
         mainController.incrementViews(
           videoId: video.id,
           channelId: video.channelId,
-          userId: (AuthService.to.isAuthenticated.value &&
-                  AuthService.to.uid.isNotEmpty)
-              ? AuthService.to.uid
-              : (viewerHash.isNotEmpty ? viewerHash : 'anonymous'),
+          userId: AuthService.to.uid,
           isQualified: true,
         );
+
+        // Update local reactive view state immediately for instantaneous 0ms UI reactivity
+        final currentViews = mainController.videoViews[video.id] ?? video.views;
+        final updatedViews = currentViews + 1;
+        mainController.videoViews[video.id] = updatedViews;
+        final updatedVideo = video.copyWith(viewCount: updatedViews);
+        video = updatedVideo;
+        DeepLinkService.instance.cacheVideo(updatedVideo);
+
+        if (Get.isRegistered<HomeFeedController>()) {
+          Get.find<HomeFeedController>().updateVideo(updatedVideo);
+        }
 
         // Fire qualified_view milestone event
         fireMilestoneEvent(
@@ -188,8 +216,8 @@ mixin VideoEngagementActionsMixin on GetxController {
       }
     }
 
-    // 2. Completion milestones (25%, 50%, 75%, 100%) — fire once each
-    if (totalDuration > 0 && !isAlreadyWatchedVideo) {
+    // 2. Completion milestones (25%, 50%, 75%, 100%) — fire once each (authenticated users only)
+    if (isAuth && totalDuration > 0 && !isAlreadyWatchedVideo) {
       final currentPct = (currentWatchSeconds / totalDuration) * 100;
       for (final threshold in _milestoneThresholds) {
         final key = 'milestone_$threshold';
@@ -202,12 +230,15 @@ mixin VideoEngagementActionsMixin on GetxController {
     }
 
     // 3. Cost-Effective Watch Time Heartbeat (every 20s) with auto-flush on pause/exit
-    final unpingedSeconds = currentWatchSeconds - lastPingWatchSeconds;
-    if (unpingedSeconds >= _watchPingIntervalSeconds) {
-      if (!isAlreadyWatchedVideo) {
-        pingWatchEvent('watch_ping', currentWatchSeconds, totalDuration, unpingedSeconds);
+    // Unsigned users do not credit watch time to channels (handled for preview limits only by GuestPlaybackLimitService)
+    if (isAuth) {
+      final unpingedSeconds = currentWatchSeconds - lastPingWatchSeconds;
+      if (unpingedSeconds >= _watchPingIntervalSeconds) {
+        if (!isAlreadyWatchedVideo) {
+          pingWatchEvent('watch_ping', currentWatchSeconds, totalDuration, unpingedSeconds);
+        }
+        lastPingWatchSeconds = currentWatchSeconds;
       }
-      lastPingWatchSeconds = currentWatchSeconds;
     }
 
     // 4. Multi-tiered resume tracking (Local GetStorage every tick + RTDB cross-device sync every 45s)

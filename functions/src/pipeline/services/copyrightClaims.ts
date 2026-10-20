@@ -33,7 +33,7 @@ const db = () => admin.firestore();
 // Detector Versioning metadata constants
 const DETECTOR_VERSION = 2;
 const EMBEDDING_MODEL = "text-embedding-005";
-const GEMINI_MODEL = PIPELINE_CONFIG.GEMINI_MODELS?.moderation || PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-3.1-flash-lite";
+const GEMINI_MODEL = PIPELINE_CONFIG.GEMINI_MODELS?.moderation || PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-2.5-flash";
 const PIPELINE_VERSION = "2026-07";
 
 export class CopyrightClaimsService {

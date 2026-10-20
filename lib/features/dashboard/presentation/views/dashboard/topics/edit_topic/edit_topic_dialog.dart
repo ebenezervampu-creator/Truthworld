@@ -128,6 +128,57 @@ class EditTopicDialog extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            if (topic.status.toLowerCase() == 'verificationrejected' ||
+                                topic.status.toLowerCase() == 'rejected') ...[
+                              Container(
+                                margin: const EdgeInsets.only(bottom: 16),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF2C1515),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: const Color(0xFFEF4444).withValues(alpha: 0.6),
+                                  ),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(
+                                      Icons.warning_amber_rounded,
+                                      color: Color(0xFFEF4444),
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'Moderation Notice — Action Required',
+                                            style: TextStyle(
+                                              color: Color(0xFFEF4444),
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            topic.moderationReason?.isNotEmpty == true
+                                                ? topic.moderationReason!
+                                                : 'This topic was rejected during automated moderation. Please update the title, description, or thumbnail to comply with our Community Guidelines, then save changes to resubmit for verification.',
+                                            style: const TextStyle(
+                                              color: Color(0xFFE2E8F0),
+                                              fontSize: 12,
+                                              height: 1.35,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                             const EditTopicFieldLabel(label: 'Topic Title', isRequired: true),
                             const SizedBox(height: 8),
                             EditTopicInputField(
@@ -235,9 +286,12 @@ class EditTopicDialog extends StatelessWidget {
                                   valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
                                 ),
                               )
-                            : const Text(
-                                'Save Changes',
-                                style: TextStyle(
+                            : Text(
+                                topic.status.toLowerCase() == 'verificationrejected' ||
+                                        topic.status.toLowerCase() == 'rejected'
+                                    ? 'Resubmit for Verification'
+                                    : 'Save Changes',
+                                style: const TextStyle(
                                   color: Colors.black,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13,

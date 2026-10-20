@@ -215,6 +215,11 @@ class SubtitlesCuesToolbar extends StatelessWidget {
             child: SizedBox(
               height: 36,
               child: TextField(
+                maxLength: ContentValidator.defaultMaxSearchLength,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: TruthworldTextInputFormatters.withLimit(
+                  ContentValidator.defaultMaxSearchLength,
+                ),
                 style: TextStyle(fontSize: 13, color: textColor),
                 decoration: InputDecoration(
                   hintText: 'Search within subtitles...',
@@ -360,6 +365,8 @@ class SubtitlesCueCardItem extends StatelessWidget {
                   '${controller.selectedLanguage.value}_${cue.id}_$index',
                 ),
                 initialValue: cue.text,
+                maxLength: 1000,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                 maxLines: null,
                 inputFormatters: controller.selectedLanguage.value == 'en'
                     ? TruthworldTextInputFormatters.standard

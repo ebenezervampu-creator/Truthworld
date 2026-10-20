@@ -174,6 +174,50 @@ class DeepLinkUrlParser {
     // Playlist ID
     final playlistIdParam = queryParams['list'] ?? queryParams['playlistId'];
 
+    // Claim Index / Number parsing
+    int? claimIndex;
+    final claimIndexParam = queryParams['claimIndex'] ?? queryParams['index'];
+    if (claimIndexParam != null && int.tryParse(claimIndexParam) != null) {
+      claimIndex = int.parse(claimIndexParam);
+    } else if (queryParams['claim'] != null && int.tryParse(queryParams['claim']!) != null) {
+      final cNum = int.parse(queryParams['claim']!);
+      claimIndex = (cNum > 0) ? cNum - 1 : 0;
+    }
+
+    // 0. CLAIM PATTERNS:
+    // /claim-detail?videoId=...&claimIndex=... or /claim?videoId=...&claimIndex=...
+    // /claim-detail/VIDEO_ID/CLAIM_INDEX or /claim/VIDEO_ID/CLAIM_INDEX
+    // /ClaimDetailScreen?videoId=...&claimIndex=...
+    if (firstSegment == 'claim-detail' ||
+        firstSegment == 'claim' ||
+        firstSegment == 'claims' ||
+        firstSegment == 'claimdetailscreen') {
+      String? videoId;
+      final vParam = queryParams['videoId'] ?? queryParams['v'] ?? queryParams['id'];
+      if (vParam != null && vParam.isNotEmpty) {
+        videoId = vParam;
+      } else if (pathSegments.length >= 2 && pathSegments[1].isNotEmpty) {
+        videoId = pathSegments[1];
+      }
+
+      var pathClaimIdx = claimIndex;
+      if (pathClaimIdx == null &&
+          pathSegments.length >= 3 &&
+          int.tryParse(pathSegments[2]) != null) {
+        pathClaimIdx = int.parse(pathSegments[2]);
+      }
+
+      if (videoId != null && videoId.isNotEmpty) {
+        return ParsedTruthworldUrl(
+          type: TruthworldUrlType.claim,
+          id: videoId,
+          claimIndex: pathClaimIdx,
+          rawUrl: rawUrl,
+          queryParameters: queryParams,
+        );
+      }
+    }
+
     // 1. VIDEO PATTERNS:
     // /watch?v=VIDEO_ID or /watch/VIDEO_ID or /v/VIDEO_ID or /shorts/VIDEO_ID
     // /clip/VIDEO_ID or /clips/VIDEO_ID or /chapter/VIDEO_ID or /chapters/VIDEO_ID
@@ -185,7 +229,7 @@ class DeepLinkUrlParser {
         firstSegment == 'chapter' ||
         firstSegment == 'chapters') {
       String? videoId;
-      final vParam = queryParams['v'];
+      final vParam = queryParams['v'] ?? queryParams['videoId'];
       if (vParam != null && vParam.isNotEmpty) {
         videoId = vParam;
       } else if (pathSegments.length >= 2 && pathSegments[1].isNotEmpty) {
@@ -193,6 +237,17 @@ class DeepLinkUrlParser {
       }
 
       if (videoId != null && videoId.isNotEmpty) {
+        if (claimIndex != null) {
+          return ParsedTruthworldUrl(
+            type: TruthworldUrlType.claim,
+            id: videoId,
+            claimIndex: claimIndex,
+            timestamp: timestamp,
+            playlistId: playlistIdParam,
+            rawUrl: rawUrl,
+            queryParameters: queryParams,
+          );
+        }
         return ParsedTruthworldUrl(
           type: TruthworldUrlType.video,
           id: videoId,
@@ -273,8 +328,10 @@ class DeepLinkUrlParser {
     }
 
     // 5. POST / COMMUNITY PATTERNS:
-    // /community/POST_ID or /post/POST_ID
-    if (firstSegment == 'community' || firstSegment == 'post') {
+    // /community/POST_ID or /post/POST_ID or /p/POST_ID
+    if (firstSegment == 'community' ||
+        firstSegment == 'post' ||
+        firstSegment == 'p') {
       if (pathSegments.length >= 2 && pathSegments[1].isNotEmpty) {
         return ParsedTruthworldUrl(
           type: TruthworldUrlType.post,
@@ -391,6 +448,12 @@ class DeepLinkUrlParser {
       'playlists',
       'playlistscreen',
       'clips',
+      'claim',
+      'claims',
+      'claim-detail',
+      'claimdetailscreen',
+      'video-analysis',
+      'analysis',
       'premium',
       'checkout',
       'payment-result',

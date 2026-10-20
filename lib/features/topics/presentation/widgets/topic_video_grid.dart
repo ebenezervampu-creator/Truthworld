@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/components/ui/video_card.dart';
+import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -27,6 +29,7 @@ class TopicVideoGrid extends StatelessWidget {
     this.isGrid = true,
     this.emptyTitle,
     this.emptySubtitle,
+    this.topic,
   });
   final List<Video> videos;
   final bool isLoadingMore;
@@ -39,6 +42,7 @@ class TopicVideoGrid extends StatelessWidget {
 
   final String? emptyTitle;
   final String? emptySubtitle;
+  final Topic? topic;
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +64,19 @@ class TopicVideoGrid extends StatelessWidget {
     );
   }
 
+  void _onVideoTap(Video video) {
+    MiniplayerNavigationHelper.navigateToVideoScreen(
+      video: video,
+      routeArguments: {
+        'video': video,
+        'heroTag': '${heroPrefix}_${video.id}',
+        'fromTopic': true,
+        if (topic != null) 'topic': topic,
+        'topicVideos': videos,
+      },
+    );
+  }
+
   Widget _buildList() {
     return ListView.separated(
       shrinkWrap: true,
@@ -74,6 +91,7 @@ class TopicVideoGrid extends StatelessWidget {
             video: video,
             isGrid: true,
             heroPrefix: heroPrefix,
+            onTap: () => _onVideoTap(video),
           ),
         );
       },
@@ -144,6 +162,7 @@ class TopicVideoGrid extends StatelessWidget {
               video: video,
               isGrid: true,
               heroPrefix: heroPrefix,
+              onTap: () => _onVideoTap(video),
             ),
           );
         },
@@ -172,6 +191,7 @@ class TopicVideoGrid extends StatelessWidget {
             video: video,
             isGrid: true,
             heroPrefix: heroPrefix,
+            onTap: () => _onVideoTap(video),
           ),
         );
       },

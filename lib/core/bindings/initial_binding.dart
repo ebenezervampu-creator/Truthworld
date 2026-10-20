@@ -11,6 +11,7 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/services/digital_wellbeing_service.dart';
 import 'package:truthworld/core/services/distributed_counter_service.dart';
+import 'package:truthworld/core/services/guest_playback_limit_service.dart';
 import 'package:truthworld/core/services/pip_service.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/data/datasources/remote/channel_remote_datasource.dart';
@@ -96,11 +97,19 @@ import 'package:truthworld/features/watchhistory/presentation/controllers/watch_
 class InitialBinding extends Bindings {
   @override
   void dependencies() {
-    // Global Core App Controllers
-    Get.lazyPut(AppStateController.new, fenix: true);
-    Get.lazyPut(UserSessionController.new, fenix: true);
-    Get.lazyPut(AppNavigationController.new, fenix: true);
-    Get.lazyPut(MainController.new, fenix: true);
+    // Global Core App Controllers (permanent to prevent lifecycle disposal during route transitions)
+    if (!Get.isRegistered<AppStateController>()) {
+      Get.put(AppStateController(), permanent: true);
+    }
+    if (!Get.isRegistered<UserSessionController>()) {
+      Get.put(UserSessionController(), permanent: true);
+    }
+    if (!Get.isRegistered<AppNavigationController>()) {
+      Get.put(AppNavigationController(), permanent: true);
+    }
+    if (!Get.isRegistered<MainController>()) {
+      Get.put(MainController(), permanent: true);
+    }
 
     // Fallback registration if AuthService was not initialized prior to route resolution
     if (!Get.isRegistered<AuthService>()) {
@@ -130,6 +139,9 @@ class InitialBinding extends Bindings {
     Get.lazyPut(ImpressionTrackingService.new, fenix: true);
     Get.lazyPut(WatchHistoryService.new, fenix: true);
     Get.lazyPut(DistributedCounterService.new, fenix: true);
+    if (!Get.isRegistered<GuestPlaybackLimitService>()) {
+      Get.put(GuestPlaybackLimitService(), permanent: true);
+    }
 
     // Truthworld Personalization Engine Services
     Get.lazyPut(FlipCoinService.new, fenix: true);

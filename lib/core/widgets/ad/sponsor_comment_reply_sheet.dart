@@ -292,8 +292,9 @@ void showSponsorDiscussionModal({
                           Expanded(
                             child: TextField(
                               controller: replyController,
-                              inputFormatters:
-                                  TruthworldTextInputFormatters.standard,
+                              maxLength: defaultMaxReplyLength,
+                              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                              inputFormatters: TruthworldTextInputFormatters.withLimit(defaultMaxReplyLength),
                               style: GoogleFonts.roboto(
                                 color: Colors.white,
                                 fontSize: 14,

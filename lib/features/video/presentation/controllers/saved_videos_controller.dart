@@ -7,6 +7,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/domain/repositories/library_repository.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
@@ -241,21 +242,38 @@ class SavedVideosController extends BaseController {
   Future<List<Video>> _fetchVideosByIds(List<String> ids) async {
     if (ids.isEmpty) return [];
     final results = <Video>[];
+    final chunks = <List<String>>[];
     for (var i = 0; i < ids.length; i += 10) {
-      final chunk = ids.sublist(i, i + 10 > ids.length ? ids.length : i + 10);
-      try {
-        final snap = await _firestore
-            .collection(FirestoreCollections.videos)
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get();
+      chunks.add(ids.sublist(i, i + 10 > ids.length ? ids.length : i + 10));
+    }
+
+    try {
+      final snapshots = await Future.wait(
+        chunks.map(
+          (chunk) => _firestore
+              .collection(FirestoreCollections.videos)
+              .where(FieldPath.documentId, whereIn: chunk)
+              .getCacheFirst()
+              .catchError((e, stackTrace) {
+                ErrorHandler.log(
+                  e,
+                  stackTrace: stackTrace,
+                  tag: 'SavedVideosController.fetchVideosChunk',
+                );
+                return _firestore.collection(FirestoreCollections.videos).limit(0).get();
+              }),
+        ),
+      );
+
+      for (final snap in snapshots) {
         results.addAll(snap.docs.map(Video.fromDocumentSnapshot));
-      } catch (e, stackTrace) {
-        ErrorHandler.log(
-          e,
-          stackTrace: stackTrace,
-          tag: 'SavedVideosController.fetchVideosChunk',
-        );
       }
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'SavedVideosController.fetchVideosByIds',
+      );
     }
     return results;
   }

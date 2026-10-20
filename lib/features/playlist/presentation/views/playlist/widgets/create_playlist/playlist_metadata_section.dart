@@ -44,7 +44,7 @@ class PlaylistNameSection extends StatelessWidget {
               TextField(
                 controller: controller.nameController,
                 maxLength: 100,
-                inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+                inputFormatters: TruthworldTextInputFormatters.withLimit(100),
                 style: const TextStyle(color: Colors.white, fontSize: 14),
                 decoration: InputDecoration(
                   hintText: 'Enter playlist name',
@@ -116,7 +116,7 @@ class PlaylistDescriptionSection extends StatelessWidget {
           minLines: 5,
           maxLength: 500,
           textAlignVertical: TextAlignVertical.top,
-          inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+          inputFormatters: TruthworldTextInputFormatters.withLimit(500),
           style: const TextStyle(color: Colors.white, fontSize: 14),
           decoration: InputDecoration(
             hintText: 'Describe your playlist',

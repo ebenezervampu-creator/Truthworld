@@ -25,10 +25,10 @@ abstract class ChannelControllerBase extends BaseController
     with GetTickerProviderStateMixin, ContentValidationMixin {
   static const String channelsCol = 'channels';
   static const int minChannelNameLength = 3;
-  static const int maxChannelNameLength = 30;
+  static const int maxChannelNameLength = 100;
   static const int minCustomUrlLength = 3;
   static const int maxCustomUrlLength = 30;
-  static const int debounceDurationMs = 500;
+  static const int debounceDurationMs = 300;
   static const int maxChannelsPerUser = 10;
   static const int maxDescriptionLength = 1000;
   static const int maxTags = 5;
@@ -167,8 +167,12 @@ abstract class ChannelControllerBase extends BaseController
   RxList<String> get handleSuggestions;
   Rx<AvailabilityStatus> get channelNameAvailability;
   Rx<AvailabilityStatus> get customUrlAvailability;
+  RxString get channelNameAvailabilityMessage;
+  RxString get customUrlAvailabilityMessage;
   String get lastAutoSlug;
   set lastAutoSlug(String val);
+  void applyHandleSuggestion(String handle);
+  void disposeAvailabilityTimers();
 
   // Details state
   Rx<Channel?> get activeChannel;

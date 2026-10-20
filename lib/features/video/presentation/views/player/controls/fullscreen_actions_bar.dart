@@ -24,6 +24,8 @@ class FullscreenFloatingActionDock extends StatelessWidget {
     final videoCtrl = vc ?? ctrl.videoController;
     if (videoCtrl == null) return const SizedBox.shrink();
 
+    final isCompact = MediaQuery.of(context).size.width < 500;
+
     return Container(
       height: 34,
       padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -69,32 +71,53 @@ class FullscreenFloatingActionDock extends StatelessWidget {
               tooltip: 'Comments',
             );
           }),
-          // Share
-          _DockBtn(
-            icon: Icons.share_outlined,
-            onTap: () {
-              final url = 'https://truthworld.app/video/${videoCtrl.video.id}';
-              Clipboard.setData(ClipboardData(text: url));
-              AppSnackbar.info('Video link copied to clipboard');
-              ctrl.startHideTimer();
-            },
-            tooltip: 'Share',
-          ),
-          // More videos
+          // Claims
           Obx(() {
-            final isMoreVideosOpen = ctrl.showMoreVideos.value;
+            final isFactCheckOpen = ctrl.overlayManager.isFactCheckOpen || ctrl.showFactCheckPopup.value;
             return _DockBtn(
-              icon: isMoreVideosOpen
-                  ? Icons.video_collection_rounded
-                  : Icons.video_collection_outlined,
-              isActive: isMoreVideosOpen,
+              icon: isFactCheckOpen
+                  ? Icons.fact_check_rounded
+                  : Icons.fact_check_outlined,
+              isActive: isFactCheckOpen,
               onTap: () {
-                ctrl.toggleMoreVideos();
+                ctrl.overlayManager.toggle(TowerPlayerOverlay.factCheck);
+                ctrl.showFactCheckPopup.value = ctrl.overlayManager.isFactCheckOpen;
+                ctrl.showCommentsPopup.value = false;
+                ctrl.showTranscriptPopup.value = false;
+                ctrl.showLiveChat.value = false;
                 ctrl.startHideTimer();
               },
-              tooltip: 'More videos',
+              tooltip: 'Claims & Fact-Check',
             );
           }),
+          // Share (hidden on compact screens, accessible via More menu)
+          if (!isCompact)
+            _DockBtn(
+              icon: Icons.share_outlined,
+              onTap: () {
+                final url = 'https://truthworld.app/video/${videoCtrl.video.id}';
+                Clipboard.setData(ClipboardData(text: url));
+                AppSnackbar.info('Video link copied to clipboard');
+                ctrl.startHideTimer();
+              },
+              tooltip: 'Share',
+            ),
+          // More videos (hidden on compact screens, accessible via More menu)
+          if (!isCompact)
+            Obx(() {
+              final isMoreVideosOpen = ctrl.showMoreVideos.value;
+              return _DockBtn(
+                icon: isMoreVideosOpen
+                    ? Icons.video_collection_rounded
+                    : Icons.video_collection_outlined,
+                isActive: isMoreVideosOpen,
+                onTap: () {
+                  ctrl.toggleMoreVideos();
+                  ctrl.startHideTimer();
+                },
+                tooltip: 'More videos',
+              );
+            }),
           // More (⋯)
           Theme(
             data: Theme.of(context).copyWith(
@@ -120,6 +143,18 @@ class FullscreenFloatingActionDock extends StatelessWidget {
               onSelected: (val) {
                 ctrl.startHideTimer();
                 switch (val) {
+                  case 'share':
+                    final url = 'https://truthworld.app/video/${videoCtrl.video.id}';
+                    Clipboard.setData(ClipboardData(text: url));
+                    AppSnackbar.info('Video link copied to clipboard');
+                  case 'more_videos':
+                    ctrl.toggleMoreVideos();
+                  case 'claims':
+                    ctrl.overlayManager.toggle(TowerPlayerOverlay.factCheck);
+                    ctrl.showFactCheckPopup.value = ctrl.overlayManager.isFactCheckOpen;
+                    ctrl.showCommentsPopup.value = false;
+                    ctrl.showTranscriptPopup.value = false;
+                    ctrl.showLiveChat.value = false;
                   case 'save':
                     showModernizedPlaylistDialog(
                       context: context,
@@ -146,6 +181,59 @@ class FullscreenFloatingActionDock extends StatelessWidget {
                 }
               },
               itemBuilder: (context) => [
+                if (isCompact) ...[
+                  const PopupMenuItem(
+                    value: 'share',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.share_outlined,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                        SizedBox(width: 10),
+                        Text(
+                          'Share',
+                          style: TextStyle(color: Colors.white, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'more_videos',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.video_collection_outlined,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                        SizedBox(width: 10),
+                        Text(
+                          'More Videos',
+                          style: TextStyle(color: Colors.white, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const PopupMenuItem(
+                  value: 'claims',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.fact_check_outlined,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                      SizedBox(width: 10),
+                      Text(
+                        'Claims & Fact-Check',
+                        style: TextStyle(color: Colors.white, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
                 const PopupMenuItem(
                   value: 'save',
                   child: Row(

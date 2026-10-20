@@ -17,7 +17,11 @@ import 'package:truthworld/theme/app_theme.dart';
     final isGraceDay = controller.isTodayGraceDay;
     final remaining = controller.remainingToWithdraw;
     final progress = controller.withdrawalProgress;
-    final isIndian = !Get.isRegistered<CurrencyLocalizationService>() || CurrencyLocalizationService.to.isIndianUser;
+    final isIndian = Get.isRegistered<CurrencyLocalizationService>()
+        ? CurrencyLocalizationService.to.isIndianUser
+        : controller.isViewingINR;
+    final minBadgeText = isIndian ? 'Min ₹100' : r'Min $10';
+    final minFullText = isIndian ? '₹100 (100 Rupees)' : r'$10 (10 Dollars)';
     final nextPayoutFormatted = RevenueAnalyticsStateBase.upcomingFirstOfMonthFormatted;
     final nextPayoutShort = RevenueAnalyticsStateBase.nextPayoutShortMonth;
 
@@ -34,7 +38,7 @@ import 'package:truthworld/theme/app_theme.dart';
       badgeText = 'Opens 1st $nextPayoutShort';
     } else {
       statusColor = const Color(0xFFF59E0B);
-      badgeText = 'Min ₹100';
+      badgeText = minBadgeText;
     }
 
     String subtitleText;
@@ -53,7 +57,7 @@ import 'package:truthworld/theme/app_theme.dart';
     } else if (isAwaitingFirstOfMonth) {
       subtitleText = 'YouTube-style cycle: Cash withdrawals open 1st of every month (Next: $nextPayoutFormatted)';
     } else {
-      subtitleText = 'Withdrawals open on 1st of month (Min ₹100 threshold • Missed funds roll over)';
+      subtitleText = 'Withdrawals open on 1st of month ($minBadgeText threshold • Missed funds roll over)';
     }
 
     String progressText;
@@ -61,12 +65,14 @@ import 'package:truthworld/theme/app_theme.dart';
       if (isGraceDay) {
         progressText = 'Missed Day 1? 1-Day grace period is active today (Day 2)! Cash withdrawals are unlocked.';
       } else {
-        progressText = 'Your channel balance has reached ₹100 and withdrawal window is open today (1st of the month)!';
+        progressText = 'Your channel balance has reached $minBadgeText and withdrawal window is open today (1st of the month)!';
       }
     } else if (isAwaitingFirstOfMonth) {
-      progressText = '₹100 threshold reached! Cash withdrawals open on the 1st day of every month (Next: $nextPayoutFormatted).';
+      progressText = '$minBadgeText threshold reached! Cash withdrawals open on the 1st day of every month (Next: $nextPayoutFormatted).';
     } else {
-      progressText = '₹${remaining.toStringAsFixed(2)} more needed to reach ₹100. Withdrawals open on the 1st of every month.';
+      progressText = isIndian
+          ? '₹${remaining.toStringAsFixed(2)} more needed to reach ₹100. Withdrawals open on the 1st of every month.'
+          : '\$${remaining.toStringAsFixed(2)} more needed to reach \$10. Withdrawals open on the 1st of every month.';
     }
 
     VoidCallback onButtonPressed;
@@ -106,7 +112,7 @@ import 'package:truthworld/theme/app_theme.dart';
       };
     } else {
       buttonIcon = Icons.lock_outline_rounded;
-      buttonLabel = 'Withdraw Earnings (Minimum ₹100)';
+      buttonLabel = 'Withdraw Earnings (${isIndian ? 'Minimum ₹100' : 'Minimum \$10'})';
       buttonBgColor = const Color(0xFF27272A);
       buttonBorderColor = const Color(0xFF3F3F46);
       onButtonPressed = () {
@@ -199,18 +205,20 @@ import 'package:truthworld/theme/app_theme.dart';
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                controller.originalUsdMemberships.value > 0
-                    ? 'Available: ₹${available.toStringAsFixed(2)} (≈ \$${controller.totalRevenueUSD.value.toStringAsFixed(2)} USD)'
-                    : 'Available: ₹${available.toStringAsFixed(2)}',
+                isIndian
+                    ? (controller.originalUsdMemberships.value > 0
+                        ? 'Available: ₹${available.toStringAsFixed(2)} (≈ \$${controller.totalRevenueUSD.value.toStringAsFixed(2)} USD)'
+                        : 'Available: ₹${available.toStringAsFixed(2)}')
+                    : 'Available: \$${controller.totalRevenueUSD.value.toStringAsFixed(2)}',
                 style: const TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const Text(
-                'Threshold: ₹100 (100 Rupees)',
-                style: TextStyle(
+              Text(
+                'Threshold: $minFullText',
+                style: const TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 13,
                 ),
@@ -403,8 +411,17 @@ import 'package:truthworld/theme/app_theme.dart';
     BuildContext context,
     RevenueAnalyticsController controller,
   ) {
+    final isIndian = controller.isViewingINR;
+    final minFullText = isIndian ? '₹100 (100 Rupees)' : r'$10 (10 Dollars)';
+    final currentBal = isIndian
+        ? '₹${controller.totalRevenue.value.toStringAsFixed(2)}'
+        : '\$${controller.totalRevenueUSD.value.toStringAsFixed(2)}';
+    final remainingBal = isIndian
+        ? '₹${controller.remainingToWithdraw.toStringAsFixed(2)}'
+        : '\$${controller.remainingToWithdraw.toStringAsFixed(2)}';
+
     Get.defaultDialog(
-      title: 'Withdrawal Threshold: ₹100 (100 Rupees)',
+      title: 'Withdrawal Threshold: $minFullText',
       backgroundColor: const Color(0xFF18181B),
       titleStyle: const TextStyle(
         color: AppColors.textPrimary,
@@ -429,10 +446,10 @@ import 'package:truthworld/theme/app_theme.dart';
             ),
             const SizedBox(height: 16),
             Text(
-              'The minimum cash withdrawal threshold is ₹100 (100 Rupees), and cash withdrawals process on the 1st day of every month (with a 1-day grace period on Day 2).'
+              'The minimum cash withdrawal threshold is $minFullText, and cash withdrawals process on the 1st day of every month (with a 1-day grace period on Day 2).'
               '\n\n'
-              'Your current accumulated earnings are ₹${controller.totalRevenue.value.toStringAsFixed(2)}. '
-              'You need ₹${controller.remainingToWithdraw.toStringAsFixed(2)} more in creator revenue to reach the threshold.'
+              'Your current accumulated earnings are $currentBal. '
+              'You need $remainingBal more in creator revenue to reach the threshold.'
               '\n\n'
               'Next Payout Window: ${RevenueAnalyticsStateBase.upcomingFirstOfMonthFormatted}.'
               '\n\n'

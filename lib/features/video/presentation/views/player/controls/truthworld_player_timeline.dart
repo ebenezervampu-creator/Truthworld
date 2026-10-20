@@ -81,7 +81,7 @@ class TimelineClaimHelper {
 /// Features:
 ///   - High-contrast white brand track (`AppColors.playerTimelinePlayed`) with soft glow.
 ///   - Dynamic height: 3.5px idle, expanding smoothly to 5.5px on hover or scrub.
-///   - Three marker types: Chapter markers (ticks), Claim markers (semantic shapes/colors), and Ad markers.
+///   - Clean chapter markers: YouTube-style 2px segment dividers flush with track.
 ///   - Intelligence-aware hover preview displaying thumbnail, time, chapter, and claim verdict.
 ///   - Continuous scrub-locking: prevents controls auto-hide while scrubbing is active.
 class TruthWorldPlayerTimeline extends StatelessWidget {
@@ -168,6 +168,13 @@ class TruthWorldPlayerTimeline extends StatelessWidget {
               },
               onPanEnd: (_) {
                 ctrl.onScrubEnd();
+                ctrl.hideTimelineHover();
+                ctrl.hideSeekPreview();
+              },
+              onPanCancel: () {
+                ctrl.onScrubCancel();
+                ctrl.hideTimelineHover();
+                ctrl.hideSeekPreview();
               },
               onTapDown: (d) {
                 ctrl.onInteraction();
@@ -175,6 +182,16 @@ class TruthWorldPlayerTimeline extends StatelessWidget {
                   final frac = (d.localPosition.dx / barWidth).clamp(0.0, 1.0);
                   ctrl.seekTo(Duration(milliseconds: (dur.inMilliseconds * frac).toInt()));
                 }
+                ctrl.hideTimelineHover();
+                ctrl.hideSeekPreview();
+              },
+              onTapUp: (_) {
+                ctrl.hideTimelineHover();
+                ctrl.hideSeekPreview();
+              },
+              onTapCancel: () {
+                ctrl.hideTimelineHover();
+                ctrl.hideSeekPreview();
               },
               child: Container(
                 height: 24, // Generous hit-test zone
@@ -224,7 +241,7 @@ class TruthWorldPlayerTimeline extends StatelessWidget {
                       ),
                     ),
 
-                    // 4. Subtle Chapter Markers (Vertical Ticks)
+                    // 4. Clean Chapter Segment Markers (Signature Chapter Accent)
                     if (dur.inMilliseconds > 0 && chapters.length > 1)
                       ...chapters.skip(1).map((chapter) {
                         final chapterFrac = (chapter.startTime.inMilliseconds / dur.inMilliseconds).clamp(0.0, 1.0);
@@ -232,10 +249,16 @@ class TruthWorldPlayerTimeline extends StatelessWidget {
                           left: chapterFrac * barWidth - 1,
                           child: Container(
                             width: 2,
-                            height: barHeight + 4,
+                            height: barHeight,
                             decoration: BoxDecoration(
                               color: AppColors.playerChapterMarker,
                               borderRadius: BorderRadius.circular(1),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.playerChapterMarker.withValues(alpha: 0.45),
+                                  blurRadius: 2,
+                                ),
+                              ],
                             ),
                           ),
                         );
@@ -249,42 +272,10 @@ class TruthWorldPlayerTimeline extends StatelessWidget {
                           left: adFrac * barWidth - 1,
                           child: Container(
                             width: 2,
-                            height: barHeight + 4,
+                            height: barHeight,
                             decoration: BoxDecoration(
                               color: AppColors.playerAdMarker,
                               borderRadius: BorderRadius.circular(1),
-                            ),
-                          ),
-                        );
-                      }),
-
-                    // 6. Semantic Claim Markers (Shapes + Colors + Accessibility)
-                    if (dur.inMilliseconds > 0 && claims.isNotEmpty)
-                      ...claims.where((c) => c.start != null).map((claim) {
-                        final claimFrac = ((claim.start! * 1000) / dur.inMilliseconds).clamp(0.0, 1.0);
-                        final state = TimelineClaimHelper.resolve(claim.verdict);
-                        final markerColor = TimelineClaimHelper.getColor(state);
-
-                        return Positioned(
-                          left: claimFrac * barWidth - 4,
-                          top: -3,
-                          child: Tooltip(
-                            message: '${TimelineClaimHelper.getLabel(state)}: ${claim.text}',
-                            child: Container(
-                              width: 8,
-                              height: 8,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: markerColor,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.black54),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: markerColor.withValues(alpha: 0.5),
-                                    blurRadius: 3,
-                                  ),
-                                ],
-                              ),
                             ),
                           ),
                         );

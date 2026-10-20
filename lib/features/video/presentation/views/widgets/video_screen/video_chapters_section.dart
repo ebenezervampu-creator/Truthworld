@@ -47,57 +47,65 @@ class VideoChaptersSection extends StatelessWidget {
               video: controller.video,
               videoTag: videoTag,
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.bookmarks_rounded,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Chapters',
-                  style: GoogleFonts.roboto(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF162A45),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    chapters.length.toString(),
-                    style: const TextStyle(
-                      color: Color(0xFF3EA6FF),
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.bookmarks_rounded,
+                      color: Colors.white,
+                      size: 20,
                     ),
-                  ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Chapters',
+                      style: GoogleFonts.roboto(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF162A45),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        chapters.length.toString(),
+                        style: const TextStyle(
+                          color: Color(0xFF3EA6FF),
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
+                if (playerCtrl != null)
+                  Obx(() {
+                    final current = playerCtrl.currentChapter.value;
+                    if (current == null) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        'Current: ${current.title}',
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 13,
+                        ),
+                      ),
+                    );
+                  }),
               ],
             ),
           ),
-          subtitle: playerCtrl == null
-              ? null
-              : Obx(() {
-                  final current = playerCtrl.currentChapter.value;
-                  if (current == null) return const SizedBox.shrink();
-                  return Text(
-                    'Current: ${current.title}',
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 13,
-                    ),
-                  );
-                }),
           shape: const RoundedRectangleBorder(),
           collapsedShape: const RoundedRectangleBorder(),
           childrenPadding: EdgeInsets.zero,

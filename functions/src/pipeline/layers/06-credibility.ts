@@ -43,6 +43,8 @@ import { tier0KnowledgeService } from "../services/tier0Knowledge";
 import { getAnalysisRepository, AnalysisRepository } from "../services/analysisRepository";
 import { costEngine } from "../services/cost-engine";
 import { JobTokenTracker } from "../utils/ai-utils";
+import { formatOpinionReasoning } from "../utils/opinion-formatting";
+import { SourceAvatarService } from "../services/sourceAvatarService";
 
 const db = () => admin.firestore();
 
@@ -248,11 +250,11 @@ export class CredibilityEngine {
 
       // v19.0 & v20.0: Scale extraction timeout with video duration.
       // Cloud Function has 540s — give extraction generous time so claims are NEVER lost.
-      const extractionBudgetMs = deepResearchActive ? 180_000       // Deep research: 3 min
-        : videoDurationSec >= 1200 ? 210_000  // 20+ minutes: 3.5 min
-        : videoDurationSec >= 600 ? 150_000   // 10-20 minutes: 2.5 min
-        : videoDurationSec >= 180 ? 100_000   // 3-10 minutes: 1.6 min
-        : 60_000;                             // < 3 minutes: 1 min
+      const extractionBudgetMs = deepResearchActive ? 280_000       // Deep research
+        : videoDurationSec >= 1200 ? 300_000  // 20+ minutes: 5 min
+        : videoDurationSec >= 600 ? 240_000   // 10-20 minutes: 4 min
+        : videoDurationSec >= 180 ? 160_000   // 3-10 minutes: 2.6 min
+        : 120_000;                            // < 3 minutes: 2 min
 
       let extractionPartial = false;
       const [domainInfo, rawClaimsResult, speakerIdentities] = await Promise.all([
@@ -441,7 +443,7 @@ export class CredibilityEngine {
                  claim.nature === ClaimNature.ESTIMATION ? 'opinion_claim' : 'opinion_claim') as any,
         nature: claim.nature,
         verificationConfidence: 1.0,
-        reasoning: "Classified as subjective content — not subject to factual verification.",
+        reasoning: formatOpinionReasoning(claim.text),
         sources: [],
         richSources: [],
         isGrounded: false,
@@ -706,66 +708,103 @@ export class CredibilityEngine {
         jobId, speakerCount, expectedCount, pipelineMode, synthesisTier 
       });
 
-      // 9.6 NEW: Orchestrate Synthesis, Consistency, and Reputation in Parallel (v8.5 Performance Boost)
+      // 9.6 NEW: Non-blocking synthesis architecture
+      // After verification completes, save intermediate draft and delegate synthesis to background Cloud Function
       await EdgeLayer.updateStage(jobId, "credibility", { progress: 70 });
-      logger.info("[Credibility] Stage 6: Parallelizing consistency check and adaptive synthesis", { jobId, traceId });
-      
-      const tConsistencyStart = Date.now();
-      // v14.0: Consistency check + synthesis are now crash-proof.
-      // If either LLM call fails, we return safe defaults instead of crashing the pipeline.
-      const [consistencyResult, synthesis] = await Promise.all([
-        this.extractionService.detectInternalContradictions(allVerified).catch((err: any) => {
-          logger.error("[Credibility] Consistency check failed, using empty result", { jobId, error: err?.message });
-          return { contradictions: [], overallConsistency: "unknown" };
-        }),
-        this.extractionService.generateTieredIntelligence(
-          transcript.utterances ?? [],
-          allVerified,
-          synthesisTier,
-          [], 
-          { pipelineMode, speakerCount, speakerIdentities, speakerPriors: {}, evaluationHealth }
-        ).catch((err: any) => {
-          logger.error("[Credibility] Synthesis generation failed, using fallback", { jobId, error: err?.message });
-          return {
-            summary: `Analysis of ${allVerified.length} claims completed. Synthesis unavailable due to infrastructure timeout.`,
-            conclusion: { label: "Analysis Complete", text: `${allVerified.filter(c => c.status === 'verified_true').length} of ${allVerified.length} claims verified.`, confidence: 0.5 },
-            hallucinationIsolation: { verifiedFacts: [], modelInterpretations: [], uncertainInferences: [] },
-            traceabilityMap: {},
-            knowledgeDensity: 0,
-            keyThemes: [],
-            viewerNote: "Synthesis was unavailable due to infrastructure timeout. Claim verdicts are still valid.",
-            manipulationScore: 0.15,
-            manipulationSignals: [],
-            chapters: [],
-            speakers: [],
-            speakerRoles: {},
-          } as unknown as SynthesisResult;
-        })
-      ]) as [any, SynthesisResult];
-      const tConsistencyEnd = Date.now();
+      logger.info("[Credibility] Stage 6: Persisting verified claims draft and triggering async synthesis", { jobId, traceId });
 
-      // Resolve priors and re-run synthesis with context if needed (or just use the parallel result)
-      const speakerPriors = await this.fetchSpeakerPriors(Object.values(speakerIdentities).map((id: any) => id.id)).catch(() => ({}));
-      
-      // Update synthesis with consistency and speaker context if they were critical
-      if (consistencyResult.hasContradiction) {
-          synthesis.summary += `\n\n### Consistency Warning:\n${consistencyResult.details}`;
-      }
-      
-      // Integrate speaker priors into synthesis telemetry (v7.2)
-      (synthesis as any).speakerPriors = speakerPriors;
-
-      // 10. Build explainability
+      // Build explainability
       const explainableResults = this.buildExplainability(allVerified);
 
-      // v12.0: User reputation no longer used for scoring but kept for future use
-      // const userRep = await reputationService.getReputation(userId);
-      void userId; // Suppress unused warning
+      // Save draft to credibility_drafts/{jobId}
+      await db().collection("credibility_drafts").doc(jobId).set({
+        verifiedClaims: allVerified,
+        synthesisPending: true,
+        synthesisTier,
+        domainInfo,
+        contentIntent,
+        evaluationHealth,
+        factCheckStats: {
+          totalClaims: rawClaims.length,
+          extractedClaims: rawClaims.length,
+          filtered: filteredCount,
+          checkedClaimsRatio: rawClaims.length > 0 ? allVerified.length / rawClaims.length : 0,
+        },
+        speakerBreakdowns: [],
+        speakerIdentities,
+        executionPlanRef: executionPlan,
+        userId,
+        pipelineStartMs: t0,
+        savedAt: Date.now(),
+      });
+
+      // Publish credibility-synthesis event for async background completion
+      await this.distribution.publish("credibility-synthesis", {
+        eventId: uuidv4(),
+        eventType: "credibility-synthesis",
+        jobId,
+        userId,
+        timestamp: Date.now(),
+        data: {
+          jobId,
+          userId,
+          eventId,
+        },
+        retryCount: 0,
+        source: "credibility-engine",
+      });
+      logger.info("[Credibility] Async synthesis event published", { jobId });
+
+      // Safe fallback synthesis so claims and verifications show immediately
+      const hasVerifiedClaims = allVerified.length > 0;
+      const initialSources: any[] = [];
+      const seenInitSourceKeys = new Set<string>();
+      for (const c of allVerified) {
+        const sList = (c as any).sources || (c as any).richSources || (c as any).effectiveSources || [];
+        for (const s of sList) {
+          const k = (s.url || s.domain || s.title || "").toLowerCase();
+          if (k && !seenInitSourceKeys.has(k)) {
+            seenInitSourceKeys.add(k);
+            initialSources.push({
+              title: s.title || s.domain || "Authoritative Source",
+              url: s.url || "",
+              domain: s.domain || "",
+              trustLevel: s.tier === 'A' || s.tier === 'B' ? 'High' : 'Medium',
+              type: s.type || 'Supporting',
+              snippet: s.snippet || "",
+            });
+          }
+        }
+      }
+      const synthesis: SynthesisResult = {
+        summary: "",
+        conclusion: {
+          label: hasVerifiedClaims ? "Checking Facts" : "No Claims Detected",
+          text: hasVerifiedClaims
+            ? "We're checking the facts in this video right now! Individual claim verdicts are already ready for you below."
+            : "We checked this video and didn't find any specific facts that need checking — it's mostly personal opinions, music, or casual conversation!",
+          confidence: hasVerifiedClaims ? 0.8 : 1.0,
+          sources: initialSources,
+        },
+        viewerNote: hasVerifiedClaims
+          ? "Claim verdicts are verified and ready. Overview synthesis is finalizing in the background."
+          : "",
+        chapters: [],
+        keyThemes: [],
+        manipulationScore: undefined as any,
+        hallucinationIsolation: { verifiedFacts: [], modelInterpretations: [], uncertainInferences: [] },
+        traceabilityMap: {},
+        knowledgeDensity: hasVerifiedClaims ? 0.5 : 0.0,
+        manipulationSignals: [],
+        speakerRoles: {},
+      };
 
       // 11.6 v5.0: Compute Speaker Trust Metrics
       const speakerBreakdowns = speakerTrustEngine.computeSpeakerMetrics(allVerified, synthesis.speakerRoles);
       logger.info("[Credibility] Speaker metrics computed", { jobId, speakerCount: speakerBreakdowns.length });
 
+      const tConsistencyStart = Date.now();
+      const tConsistencyEnd = Date.now();
       const tFinal = Date.now();
 
       // v12.0: Scoring engine removed — no Trust Index calculation
@@ -1127,9 +1166,9 @@ export class CredibilityEngine {
       claims: [],
       chapters: [],
       speakers: [],
-      summary: "Strategic analysis unavailable due to AI provider capacity spikes.",
-      conclusion: { label: "Unverified – Insufficient Data", text: "Processing error due to AI capacity limit. Please try again later.", confidence: 0.1 },
-      viewerNote: "The AI provider is currently at capacity. Analysis is incomplete.",
+      summary: "",
+      conclusion: { label: "Unverified", text: "We couldn't check the facts for this video right now. Please check your connection and try again soon!", confidence: 0.1 },
+      viewerNote: "",
       latencyMs: { extraction: 0, verification: 0, consistency: 0, synthesis: 0, total: 0 },
       telemetry: { transcriptLoaded: true, claimsExtracted: 0, verificationCompleted: false, summaryGenerated: false },
       factCheckStats: { totalClaims: 0, extractedClaims: 0, evaluatedClaims: 0, correct: 0, mostly_correct: 0, incorrect: 0, unsupported: 0, unverifiable: 0, filtered: 0, religious_belief: 0, opinion_claim: 0, satire_claim: 0, verification_timeout: 0 },
@@ -1305,24 +1344,35 @@ export class CredibilityEngine {
           ? `Correction: ${claim.reasoning}`
           : (claim.reasoning || undefined),
         sources:        claim.richSources && claim.richSources.length > 0
-          ? claim.richSources.map(rs => ({
-              title:          rs.title,
-              url:            rs.url,
-              snippet:        rs.snippet || "",
-              relevanceScore: 0.9,
-              tier:           rs.tier,       // v5.0
-              provenance:     rs.snippet     // v5.0: Source snippet used as provenance
-            }))
+          ? claim.richSources.map(rs => {
+              const dom = rs.domain || SourceAvatarService.cleanDomain(rs.url);
+              const avatar = SourceAvatarService.resolveAvatar(dom, rs.publisher || rs.author);
+              return {
+                title:          rs.title,
+                url:            rs.url,
+                domain:         dom,
+                publisher:      rs.publisher || rs.author,
+                publishedAt:    rs.publishedAt || rs.lastPublished || (rs.yearPublished ? `${rs.yearPublished}` : undefined),
+                avatarUrl:      avatar,
+                snippet:        rs.snippet || "",
+                relevanceScore: 0.9,
+                tier:           rs.tier,       // v5.0
+                provenance:     rs.snippet     // v5.0: Source snippet used as provenance
+              };
+            })
           : (claim.sources ?? []).map((s: string) => {
-              const dom = sourceTrustService.resolvePublisherDomain(s);
+              const dom = sourceTrustService.resolvePublisherDomain(s) || SourceAvatarService.cleanDomain(s);
               const url = s.startsWith("http")
                 ? s
                 : (dom
                     ? `https://${dom}`
                     : (s.trim().length > 0 ? `https://www.google.com/search?q=${encodeURIComponent(s.trim())}` : undefined));
+              const avatar = SourceAvatarService.resolveAvatar(dom, s);
               return {
                 title:          s,
                 url:            url,
+                domain:         dom,
+                avatarUrl:      avatar,
                 snippet:        "",
                 relevanceScore: 0.8,
               };
@@ -1382,6 +1432,141 @@ export class CredibilityEngine {
        factors: result.factors,
        updatedAt: Date.now()
     }, { merge: true });
+  }
+
+  public async runSynthesisPass(jobId: string, userId: string, eventId: string): Promise<void> {
+    logger.info("[CredibilityEngine.runSynthesisPass] Starting async synthesis pass", { jobId, userId, eventId });
+
+    const draftDoc = await db().collection("credibility_drafts").doc(jobId).get();
+    if (!draftDoc.exists) {
+      logger.warn("[CredibilityEngine.runSynthesisPass] Draft document does not exist, aborting", { jobId });
+      return;
+    }
+
+    const draft = draftDoc.data();
+    if (!draft || draft.synthesisPending !== true) {
+      logger.info("[CredibilityEngine.runSynthesisPass] Draft is not marked pending, skipping", { jobId });
+      return;
+    }
+
+    const {
+      verifiedClaims,
+      synthesisTier = "standard",
+      speakerIdentities = {},
+      evaluationHealth = {},
+      executionPlanRef,
+    } = draft;
+    void executionPlanRef;
+
+    const transcript = await this.loadTranscript(jobId);
+    if (!transcript) {
+      logger.error("[CredibilityEngine.runSynthesisPass] Transcript not found", { jobId });
+      return;
+    }
+
+    const existingResult = await this.loadExistingResult(jobId);
+    if (!existingResult) {
+      logger.error("[CredibilityEngine.runSynthesisPass] Existing CredibilityResult not found", { jobId });
+      return;
+    }
+
+    const speakerCount = Object.keys(speakerIdentities).length;
+    const pipelineMode = speakerCount > 1 ? "multi" : "standard";
+    const speakerPriors = await this.fetchSpeakerPriors(Object.values(speakerIdentities).map((id: any) => id.id)).catch(() => ({}));
+
+    let synthesis: SynthesisResult;
+    try {
+      synthesis = await this.extractionService.generateTieredIntelligence(
+        transcript.utterances ?? [],
+        verifiedClaims,
+        synthesisTier,
+        [],
+        {
+          pipelineMode,
+          speakerCount,
+          speakerIdentities,
+          speakerPriors,
+          evaluationHealth,
+        }
+      );
+    } catch (err: any) {
+      logger.error("[CredibilityEngine.runSynthesisPass] Synthesis generation failed in background", { jobId, error: err?.message });
+      const isZeroClaims = verifiedClaims.length === 0;
+      const fallbackSources: any[] = [];
+      const seenFallbackKeys = new Set<string>();
+      for (const c of verifiedClaims) {
+        const sList = (c as any).sources || (c as any).richSources || (c as any).effectiveSources || [];
+        for (const s of sList) {
+          const k = (s.url || s.domain || s.title || "").toLowerCase();
+          if (k && !seenFallbackKeys.has(k)) {
+            seenFallbackKeys.add(k);
+            fallbackSources.push({
+              title: s.title || s.domain || "Authoritative Source",
+              url: s.url || "",
+              domain: s.domain || "",
+              trustLevel: s.tier === 'A' || s.tier === 'B' ? 'High' : 'Medium',
+              type: s.type || 'Supporting',
+              snippet: s.snippet || "",
+            });
+          }
+        }
+      }
+      synthesis = {
+        summary: isZeroClaims
+          ? ""
+          : `Analysis of ${verifiedClaims.length} claim(s) completed. Individual claim verdicts and sources are available.`,
+        conclusion: {
+          label: isZeroClaims ? "No Claims Found" : "Review Complete",
+          text: isZeroClaims
+            ? "We checked this video and didn't find any specific facts that need checking — it's mostly personal opinions, music, or casual conversation!"
+            : `${verifiedClaims.filter((c: any) => c.status === 'verified_true' || c.status === 'mostly_true').length} of ${verifiedClaims.length} claims were backed up by reliable proof. You can check the details for each claim below!`,
+          confidence: isZeroClaims ? 1.0 : 0.8,
+          sources: fallbackSources,
+        },
+        hallucinationIsolation: { verifiedFacts: [], modelInterpretations: [], uncertainInferences: [] },
+        traceabilityMap: {},
+        knowledgeDensity: isZeroClaims ? 0.0 : 0.5,
+        keyThemes: [],
+        viewerNote: "",
+        manipulationScore: 0.15,
+        manipulationSignals: [],
+        chapters: [],
+        speakers: [],
+        speakerRoles: {},
+      } as unknown as SynthesisResult;
+    }
+
+    // Patch existingResult with synthesized fields
+    existingResult.summary = synthesis.summary;
+    existingResult.conclusion = synthesis.conclusion;
+    existingResult.viewerNote = synthesis.viewerNote;
+    existingResult.chapters = synthesis.chapters || existingResult.chapters || [];
+    existingResult.keyThemes = synthesis.keyThemes || existingResult.keyThemes || [];
+    existingResult.manipulationScore = synthesis.manipulationScore;
+
+    // Save updated result to GCS analysis repository and full.json
+    await this.analysisRepository.saveAnalysis(jobId, "factChecks", existingResult);
+    const bucket = admin.storage().bucket();
+    await bucket.file(`factChecks/${jobId}/full.json`).save(JSON.stringify(existingResult), {
+      metadata: { contentType: "application/json" }
+    });
+
+    // Update videos/{jobId} document in Firestore
+    try {
+      await db().collection("videos").doc(jobId).set({
+        summary: synthesis.summary,
+        viewerNote: synthesis.viewerNote,
+        conclusion: synthesis.conclusion,
+        "aiFeatures.factCheckSummary": synthesis.summary,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    } catch (videoUpdateErr: any) {
+      logger.warn("[CredibilityEngine.runSynthesisPass] Could not patch videos document directly", { jobId, error: videoUpdateErr?.message });
+    }
+
+    // Clean up draft
+    await db().collection("credibility_drafts").doc(jobId).delete();
+    logger.info("[CredibilityEngine.runSynthesisPass] Successfully completed async synthesis pass and deleted draft", { jobId });
   }
 
   private async loadExistingResult(jobId: string): Promise<CredibilityResult> {
@@ -1651,3 +1836,6 @@ export class CredibilityEngine {
     }
   }
 }
+
+export { formatOpinionReasoning } from "../utils/opinion-formatting";
+

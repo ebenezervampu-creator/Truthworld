@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-  class VideoAnalysisViewerNoteCard extends StatelessWidget {
+class VideoAnalysisViewerNoteCard extends StatelessWidget {
   final String note;
 
   const VideoAnalysisViewerNoteCard({required this.note, super.key});
 
   @override
   Widget build(BuildContext context) {
+    final cleanNote = UserFeedbackSanitizer.sanitizeViewerNote(note);
+    if (cleanNote.isEmpty) return const SizedBox.shrink();
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -26,21 +30,23 @@ import 'package:truthworld/theme/app_theme.dart';
                 color: Colors.white,
               ),
               const SizedBox(width: 8),
-              Text(
-                'AI VIEWER ADVISORY & SUMMARY',
-                style: context.twTypography.overline.copyWith(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.brand,
-                  letterSpacing: 1.0,
-                  fontFamily: TWTypography.uiFamily,
+              Expanded(
+                child: Text(
+                  'TRUTH INTELLIGENCE ADVISORY',
+                  style: context.twTypography.overline.copyWith(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.brand,
+                    letterSpacing: 1.0,
+                    fontFamily: TWTypography.uiFamily,
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
           Text(
-            note,
+            cleanNote,
             style: context.twTypography.body.copyWith(
               color: AppColors.textPrimary,
               fontSize: 13,

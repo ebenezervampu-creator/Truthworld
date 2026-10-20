@@ -7,7 +7,6 @@ import 'package:truthworld/features/video/presentation/views/widgets/video_recom
 import 'package:truthworld/features/video/presentation/views/widgets/video_screen/video_chapters_section.dart';
 import 'package:truthworld/features/video/presentation/views/widgets/video_screen/video_info_section.dart';
 import 'package:truthworld/features/video/presentation/views/widgets/video_screen/video_player_stage.dart';
-import 'package:truthworld/features/video/presentation/views/widgets/video_screen/video_playlist_drawer.dart';
 import 'package:truthworld/features/video/presentation/widgets/video_comments_sheet.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -45,11 +44,14 @@ class VideoScreenRecommendationHeader extends StatelessWidget {
               ),
               const SizedBox(width: 4),
               Obx(
-                () => Switch(
-                  value: controller.isAutoplay.value,
-                  onChanged: (v) => controller.isAutoplay.value = v,
-                  activeThumbColor: AppColors.brand,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                () => Transform.scale(
+                  scale: 0.8,
+                  child: Switch(
+                    value: controller.isAutoplay.value,
+                    onChanged: (v) => controller.isAutoplay.value = v,
+                    activeThumbColor: AppColors.brand,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                 ),
               ),
             ],
@@ -90,6 +92,15 @@ class VideoScreenMobileLayout extends StatelessWidget {
           channelController: channelController,
           onSignInPrompt: onSignInPrompt,
           videoTag: videoTag,
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: VideoChaptersSection(
+              controller: controller,
+              videoTag: videoTag,
+            ),
+          ),
         ),
         SliverPadding(
           padding: const EdgeInsets.only(bottom: 24),
@@ -167,17 +178,6 @@ class VideoScreenDesktopLayout extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                   child: Column(
                     children: [
-                      Obx(() {
-                        if (controller.currentPlaylist.value != null &&
-                            controller.playlistVideos.isNotEmpty &&
-                            controller.showPlaylistDrawer.value) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: VideoPlaylistDrawer(controller: controller),
-                          );
-                        }
-                        return const SizedBox.shrink();
-                      }),
                       VideoChaptersSection(
                         controller: controller,
                         videoTag: videoTag,

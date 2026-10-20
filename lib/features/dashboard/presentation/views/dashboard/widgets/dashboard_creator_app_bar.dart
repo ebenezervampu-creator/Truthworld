@@ -51,14 +51,15 @@ class DashboardCreatorAppBar extends StatelessWidget
         titleSpacing: isMobile ? 4 : null,
         leading: isDesktop
             ? null
-            : IconButton(
-                icon: const Icon(
-                  Icons.menu_rounded,
-                  color: Colors.white,
+            : Builder(
+                builder: (ctx) => IconButton(
+                  icon: const Icon(
+                    Icons.menu_rounded,
+                    color: Colors.white,
+                  ),
+                  onPressed: () => Scaffold.of(ctx).openDrawer(),
+                  tooltip: 'Menu',
                 ),
-                onPressed: () =>
-                    viewController.scaffoldKey.currentState?.openDrawer(),
-                tooltip: 'Menu',
               ),
         title: Row(
           children: [

@@ -21,6 +21,7 @@ mixin TowerPlayerUIStateMixin on GetxController {
   bool get isPlayingValue;
   bool get isScrubbingValue;
   TowerPlayerOverlayManager get overlayManager;
+  void hideSeekPreview();
 
   /// Default timeout for controls auto-hide.
   /// 2.2s on desktop, 2.6s on mobile.
@@ -49,6 +50,7 @@ mixin TowerPlayerUIStateMixin on GetxController {
     timers.set('hide', duration, () {
       if (!shouldLockControls) {
         controlsVisible.value = false;
+        hideSeekPreview();
       }
     });
   }

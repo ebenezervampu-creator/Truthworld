@@ -329,7 +329,11 @@ class OnboardingProfileScreen extends StatelessWidget {
                       final err = controller.displayNameError.value;
                       return TextField(
                         controller: controller.displayNameController,
-                        inputFormatters: [...TruthworldTextInputFormatters.standard],
+                        maxLength: ContentValidator.defaultMaxDisplayNameLength,
+                        buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                        inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(
+                          ContentValidator.defaultMaxDisplayNameLength,
+                        ),
                         style: GoogleFonts.roboto(
                           fontSize: 15,
                           color: AppColors.textPrimary,
@@ -400,9 +404,12 @@ class OnboardingProfileScreen extends StatelessWidget {
                       final err = controller.usernameError.value;
                       return TextField(
                         controller: controller.usernameController,
+                        maxLength: ContentValidator.defaultMaxHandleLength,
+                        buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                         inputFormatters: [
                           FilteringTextInputFormatter.allow(RegExp('[a-zA-Z0-9_.]')),
-                          LengthLimitingTextInputFormatter(30),
+                          TruthworldTextInputFormatters.profanityFilter,
+                          LengthLimitingTextInputFormatter(ContentValidator.defaultMaxHandleLength),
                         ],
                         style: GoogleFonts.roboto(
                           fontSize: 15,
@@ -759,7 +766,9 @@ class OnboardingProfileScreen extends StatelessWidget {
                             const SizedBox(height: 14),
                             TextField(
                               controller: controller.selfDescribeController,
-                              inputFormatters: [...TruthworldTextInputFormatters.standard],
+                              maxLength: 100,
+                              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                              inputFormatters: TruthworldTextInputFormatters.withLimit(100),
                               style: GoogleFonts.roboto(
                                 fontSize: 14,
                                 color: AppColors.textPrimary,

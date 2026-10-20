@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/base/base_controller.dart';
@@ -279,6 +280,12 @@ class EmailVerificationSheet extends StatelessWidget {
         TextField(
           controller: controller.emailController,
           keyboardType: TextInputType.emailAddress,
+          maxLength: 254,
+          buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+          inputFormatters: [
+            LengthLimitingTextInputFormatter(254),
+            FilteringTextInputFormatter.deny(RegExp(r'\s')),
+          ],
           style: GoogleFonts.roboto(
             color: Colors.white,
             fontSize: 15,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/cashfree/cashfree_country_support.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
@@ -107,6 +108,12 @@ class BillingTopUpDialog extends StatelessWidget {
             TextField(
               controller: customAmountController,
               keyboardType: TextInputType.number,
+              maxLength: 8,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(8),
+              ],
               style: const TextStyle(color: Colors.white, fontFamily: TWTypography.uiFamily),
               onChanged: (val) {
                 final parsed = double.tryParse(val);

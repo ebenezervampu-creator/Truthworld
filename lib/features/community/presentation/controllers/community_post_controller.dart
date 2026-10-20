@@ -8,6 +8,7 @@ import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
+import 'package:truthworld/features/community/presentation/controllers/community_interaction_cache.dart';
 
 class CommunityPostReactionState {
   const CommunityPostReactionState({
@@ -154,37 +155,16 @@ class CommunityPostController extends BaseController with ContentValidationMixin
           .collection(FirestoreCollections.community)
           .doc(post.id)
           .collection('comments')
+          .orderBy('createdAt', descending: true)
+          .limit(30)
           .snapshots();
 
   Future<void> _checkHiddenStatus() async {
     final uid = currentUid;
     if (uid == null) return;
     try {
-      final hiddenDocFuture = FirebaseFirestore.instance
-          .collection(FirestoreCollections.users)
-          .doc(uid)
-          .collection('hiddenCommunityPosts')
-          .doc(post.id)
-          .get();
-      final mutedChannelFuture = FirebaseFirestore.instance
-          .collection(FirestoreCollections.users)
-          .doc(uid)
-          .collection('mutedCommunityChannels')
-          .doc(post.channelId)
-          .get();
-      final reportedDocFuture = FirebaseFirestore.instance
-          .collection(FirestoreCollections.users)
-          .doc(uid)
-          .collection('reportedCommunityPosts')
-          .doc(post.id)
-          .get();
-
-      final results = await Future.wait([
-        hiddenDocFuture,
-        mutedChannelFuture,
-        reportedDocFuture,
-      ]);
-      if (results[0].exists || results[1].exists || results[2].exists) {
+      await CommunityInteractionCache.ensureInitialized(uid);
+      if (CommunityInteractionCache.isHidden(post.id, post.channelId)) {
         isHidden.value = true;
       }
     } catch (e, s) {
@@ -196,13 +176,8 @@ class CommunityPostController extends BaseController with ContentValidationMixin
     final uid = currentUid;
     if (uid == null) return;
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection(FirestoreCollections.users)
-          .doc(uid)
-          .collection('savedCommunityPosts')
-          .doc(post.id)
-          .get();
-      isSaved.value = doc.exists;
+      await CommunityInteractionCache.ensureInitialized(uid);
+      isSaved.value = CommunityInteractionCache.isSaved(post.id);
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'CommunityPostController._checkSavedStatus');
     }
@@ -373,10 +348,12 @@ class CommunityPostController extends BaseController with ContentValidationMixin
     try {
       if (isSaved.value) {
         isSaved.value = false;
+        CommunityInteractionCache.setSaved(post.id, false);
         await docRef.delete();
         showSuccess('Post removed from Saved Posts');
       } else {
         isSaved.value = true;
+        CommunityInteractionCache.setSaved(post.id, true);
         final data = post.toMap();
         data['savedAt'] = FieldValue.serverTimestamp();
         await docRef.set(data);
@@ -384,6 +361,7 @@ class CommunityPostController extends BaseController with ContentValidationMixin
       }
     } catch (e) {
       isSaved.value = !isSaved.value;
+      CommunityInteractionCache.setSaved(post.id, isSaved.value);
       ErrorHandler.log(e, tag: 'CommunityPostController');
       showError('Unable to save post. Please try again.');
     }
@@ -391,6 +369,7 @@ class CommunityPostController extends BaseController with ContentValidationMixin
 
   Future<void> hidePost() async {
     isHidden.value = true;
+    CommunityInteractionCache.markHidden(post.id);
     final uid = currentUid;
     if (uid != null) {
       try {
@@ -412,6 +391,7 @@ class CommunityPostController extends BaseController with ContentValidationMixin
 
   Future<void> turnOffChannelPosts() async {
     isHidden.value = true;
+    CommunityInteractionCache.markChannelMuted(post.channelId);
     final uid = currentUid;
     if (uid != null) {
       try {
@@ -483,6 +463,7 @@ class CommunityPostController extends BaseController with ContentValidationMixin
     }
 
     isHidden.value = true;
+    CommunityInteractionCache.markReported(post.id);
 
     try {
       await FirebaseFirestore.instance
@@ -530,6 +511,30 @@ class CommunityPostController extends BaseController with ContentValidationMixin
     } catch (e) {
       ErrorHandler.log(e, tag: 'CommunityPostController');
       showError('Unable to update settings. Please try again.');
+    }
+  }
+
+  Future<void> moveToTrash() async {
+    final uid = currentUid;
+    if (uid == null) {
+      showWarning('Please sign in to delete posts.');
+      return;
+    }
+    try {
+      await FirebaseFirestore.instance
+          .collection(FirestoreCollections.community)
+          .doc(post.id)
+          .update({
+        'status': 'deletion_pending',
+        'visibility': 'private',
+        'deletionRequestedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      isHidden.value = true;
+      showSuccess('Post moved to Trash. It will be retained for 30 days.');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'CommunityPostController.moveToTrash');
+      showError('Unable to move post to Trash. Please try again.');
     }
   }
 

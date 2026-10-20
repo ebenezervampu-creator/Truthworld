@@ -221,5 +221,66 @@ void main() {
       expect(find.byType(PlaylistDetailHeader), findsOneWidget);
       expect(find.byType(PlaylistFilterTabs), findsOneWidget);
     });
+
+    test('10. PlaylistModel effectively resolves video count from videoIds if videoCount is 0 or omitted', () {
+      final p1 = PlaylistModel(
+        id: 'p_empty',
+        ownerId: 'u1',
+        channelId: '',
+        name: 'Empty Playlist',
+        videoIds: const [],
+      );
+      expect(p1.videoCount, equals(0));
+      expect(p1.effectiveVideoCount, equals(0));
+
+      final p2 = PlaylistModel(
+        id: 'p_two',
+        ownerId: 'u1',
+        channelId: '',
+        name: 'Two Videos',
+        videoIds: ['vid_1', 'vid_2'],
+      );
+      expect(p2.videoCount, equals(2));
+      expect(p2.effectiveVideoCount, equals(2));
+
+      final p3 = PlaylistModel(
+        id: 'p_zero_explicit',
+        ownerId: 'u1',
+        channelId: '',
+        name: 'Zero Explicit',
+        videoCount: 0,
+        videoIds: ['vid_1'],
+      );
+      expect(p3.videoCount, equals(1));
+      expect(p3.effectiveVideoCount, equals(1));
+
+      final pCopied = p2.copyWith(videoIds: ['vid_1', 'vid_2', 'vid_3']);
+      expect(pCopied.videoCount, equals(3));
+      expect(pCopied.effectiveVideoCount, equals(3));
+    });
+
+    testWidgets('11. PlaylistStatsWidget renders accurate singular/plural video text',
+        (tester) async {
+      final singleVideoPlaylist = PlaylistModel(
+        id: 'pl_single',
+        ownerId: 'u1',
+        channelId: '',
+        name: 'Single Video Playlist',
+        videoIds: ['vid_1'],
+        updatedAt: Timestamp.now(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PlaylistStatsWidget(playlist: singleVideoPlaylist),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Before or without async snapshot resolution, it immediately renders effective count
+      expect(find.textContaining('1 video •'), findsOneWidget);
+    });
   });
 }

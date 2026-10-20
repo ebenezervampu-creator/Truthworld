@@ -96,11 +96,11 @@ class SendFeedbackController extends BaseController with ContentValidationMixin 
       text,
       fieldName: 'Feedback',
       minLength: 5,
+      maxLength: ContentValidator.defaultMaxFeedbackLength,
     );
     if (!validation.isValid) {
       AppSnackbar.warning(
         validation.message,
-        title: 'Inappropriate Content',
       );
       return;
     }
@@ -475,6 +475,8 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
         TextFormField(
           controller: controller.emailController,
           enabled: false,
+          maxLength: 254,
+          buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
           style: TextStyle(color: context.colors.textPrimary),
           decoration: InputDecoration(
             hintText: user?.email ?? 'Sign in required to submit feedback',
@@ -519,7 +521,11 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
         TextFormField(
           controller: controller.feedbackController,
           maxLines: 6,
-          inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+          maxLength: ContentValidator.defaultMaxFeedbackLength,
+          buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+          inputFormatters: TruthworldTextInputFormatters.withLimit(
+            ContentValidator.defaultMaxFeedbackLength,
+          ),
           style: TextStyle(color: context.colors.textPrimary),
           decoration: InputDecoration(
             hintText: 'Share your thoughts, suggestions or bug details...',
@@ -552,6 +558,7 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
           validator: ContentValidator.formValidator(
             'Feedback',
             minLength: 5,
+            maxLength: ContentValidator.defaultMaxFeedbackLength,
           ),
         ),
       ],

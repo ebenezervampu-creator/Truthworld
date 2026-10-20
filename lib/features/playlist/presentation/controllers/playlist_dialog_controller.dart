@@ -68,6 +68,7 @@ class PlaylistDialogController extends BaseController
 
   @override
   void onClose() {
+    resetForm();
     scaleController.dispose();
     listController.dispose();
     super.onClose();
@@ -127,10 +128,9 @@ class PlaylistDialogController extends BaseController
           : Get.put(PlaylistController());
 
       if (playlist.id == 'watchlater') {
-        final wasIn = playlistController.isInWatchLater(videoId);
-        await playlistController.toggleWatchLater(videoId);
-        AppSnackbar.success(
-          wasIn ? 'Removed from Watch Later' : 'Saved to Watch Later',
+        await playlistController.toggleWatchLater(
+          videoId,
+          showFeedback: true,
         );
       } else {
         final isIn = playlist.videoIds.contains(videoId);
@@ -140,14 +140,12 @@ class PlaylistDialogController extends BaseController
             videoId,
             playlist.isPublic,
           );
-          AppSnackbar.success('Removed from ${playlist.playlistName}');
         } else {
           await playlistController.addVideoToPlaylist(
             playlist.id,
             videoId,
             playlist.isPublic,
           );
-          AppSnackbar.success('Saved to ${playlist.playlistName}');
         }
       }
     } catch (e, s) {
@@ -166,7 +164,11 @@ class PlaylistDialogController extends BaseController
     final name = newPlaylistCtrl.text.trim();
     if (name.isEmpty || isCreatingPlaylist.value) return false;
 
-    final nameVal = ContentValidator.validate(name, fieldName: 'Playlist Name');
+    final nameVal = ContentValidator.validate(
+      name,
+      fieldName: 'Playlist Name',
+      maxLength: 100,
+    );
     if (!nameVal.isValid) {
       AppSnackbar.warning(
         nameVal.message,
@@ -220,12 +222,10 @@ class PlaylistDialogController extends BaseController
           : Get.put(PlaylistController());
 
       if (selectedId == 'watchlater') {
-        final wasIn = playlistController.isInWatchLater(videoId);
-        await playlistController.toggleWatchLater(videoId);
-        AppSnackbar.success(
-          wasIn ? 'Removed from Watch Later' : 'Added to Watch Later',
+        return await playlistController.toggleWatchLater(
+          videoId,
+          showFeedback: true,
         );
-        return true;
       } else {
         final isPublic = selectedPlaylist?.isPublic ?? false;
         final isAlreadyIn =
@@ -237,7 +237,6 @@ class PlaylistDialogController extends BaseController
             videoId,
             isPublic,
           );
-          AppSnackbar.success('Removed from playlist successfully');
           return true;
         } else {
           await playlistController.addVideoToPlaylist(
@@ -245,7 +244,6 @@ class PlaylistDialogController extends BaseController
             videoId,
             isPublic,
           );
-          AppSnackbar.success('Video added to playlist successfully');
           return true;
         }
       }

@@ -118,8 +118,14 @@ class PlaylistController extends BaseController with ContentValidationMixin {
   void listenToWatchLater() => _watchLaterManager.listenToWatchLater();
   PlaylistModel? getWatchLaterPlaylist() =>
       _watchLaterManager.getWatchLaterPlaylist();
-  Future<void> toggleWatchLater(String videoId) =>
-      _watchLaterManager.toggleWatchLater(videoId);
+  Future<bool> toggleWatchLater(
+    String videoId, {
+    bool showFeedback = true,
+  }) =>
+      _watchLaterManager.toggleWatchLater(
+        videoId,
+        showFeedback: showFeedback,
+      );
   bool isInWatchLater(String videoId) =>
       _watchLaterManager.isInWatchLater(videoId);
 

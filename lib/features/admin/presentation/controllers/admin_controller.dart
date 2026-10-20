@@ -186,7 +186,21 @@ class AdminController extends BaseController
     if (_authSub != null) trackSubscription(_authSub!);
 
     if (isAdmin.value) {
+      applyRouteTargetIfPresent();
       _navigateToDashboardIfOnLogin();
+    }
+  }
+
+  /// Applies incoming route parameters/arguments to select the target moderation queue or tab.
+  void applyRouteTargetIfPresent() {
+    final tabArg = Get.arguments is Map ? Get.arguments['tab'] as String? : null;
+    final tabParam = Get.parameters['tab'];
+    final tab = tabArg ?? tabParam;
+    if (tab != null && tab.isNotEmpty) {
+      final cleanTab = tab.toLowerCase().trim();
+      if (isTabAllowed(cleanTab)) {
+        currentTab.value = cleanTab;
+      }
     }
   }
 

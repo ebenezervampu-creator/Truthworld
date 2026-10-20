@@ -1,19 +1,26 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
-import 'package:truthworld/core/utils/source_url_sanitizer.dart';
-import 'package:truthworld/core/widgets/truth_credibility_badge.dart';
 import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
+import 'package:truthworld/features/video/presentation/views/claim_detail_screen.dart';
 import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_controller.dart';
 import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_helpers.dart';
-import 'package:truthworld/features/video/presentation/widgets/claim_source_submission_dialog.dart';
+import 'package:truthworld/features/video/presentation/widgets/claim_share_card.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-  class VideoAnalysisClaimCard extends StatelessWidget {
+/// 🏛 VideoAnalysisClaimCard
+///
+/// Clean, high-fidelity claim list item matching the updated UI design:
+/// - Left: Circular badge with 1-based claim index (`1`, `2`, `3`...)
+/// - Top meta row: Verdict pill (`[ ✓ Verified ]`, `[ ⚠️ Partially Verified ]`, `[ ✕ False ]`) + Timestamp (`00:52`)
+/// - Prominent claim statement text
+/// - Source attribution line with direct external launch action
+/// - Trailing chevron navigation arrow to dedicated [ClaimDetailScreen]
+class VideoAnalysisClaimCard extends StatelessWidget {
   final Map<dynamic, dynamic> claim;
   final int index;
   final List<dynamic> allClaims;
@@ -33,510 +40,366 @@ import 'package:url_launcher/url_launcher.dart';
     super.key,
   });
 
+  Future<void> _launchUrl(String? urlStr) async {
+    if (urlStr == null || urlStr.trim().isEmpty) return;
+    try {
+      final uri = Uri.parse(urlStr.startsWith('http') ? urlStr : 'https://$urlStr');
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'VideoAnalysisClaimCard._launchUrl');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final verdict = ClaimVerdictHelper.resolveVerdict(claim);
-    final isVerified = verdict.isVerified;
-    final isDisputed = verdict.isCaution;
-    final isFalse = verdict.isFalse;
-    final statusBadgeText = verdict.label;
-    final statusIcon = verdict.icon;
-
     final resolved = VideoAnalysisHelpers.resolveRealClaimDetails(claim, index, allSources);
     final cleanClaimText = resolved.cleanText;
-    final responseText = resolved.response;
-    final effectiveSources = resolved.sources;
 
-    return Obx(() {
-      final isExpanded = analysisCtrl.expandedClaimIndices.contains(index);
-      return InkWell(
-        onTap: () {
-          if (analysisCtrl.expandedClaimIndices.contains(index)) {
-            analysisCtrl.expandedClaimIndices.remove(index);
-          } else {
-            analysisCtrl.expandedClaimIndices.add(index);
-          }
-        },
-        borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: isExpanded
-              ? Colors.white.withValues(alpha: 0.05)
-              : AppColors.bgSurface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isExpanded
-                ? Colors.white.withValues(alpha: 0.3)
-                : AppColors.bgDivider.withValues(alpha: 0.7),
-          ),
-          boxShadow: isExpanded
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.35),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : const [],
-        ),
-        child: Column(
+    // 1. Resolve timestamp
+    final rawClaimStart = claim['start'] ??
+        claim['startMs'] ??
+        claim['startTime'] ??
+        claim['startTimeMs'] ??
+        claim['timestampStart'];
+    final claimStartMs = VideoAnalysisHelpers.normalizeTimestampToMs(rawClaimStart);
+    final timestampText = claimStartMs > 0
+        ? FormatUtils.formatDuration(Duration(milliseconds: claimStartMs))
+        : '00:00';
+
+    // 2. Resolve top source attribution text & direct URL
+    var sourceAttribution = '';
+    String? sourceUrl;
+
+    if (resolved.sources.isNotEmpty) {
+      final firstSource = resolved.sources.first;
+      sourceUrl = firstSource['url']?.toString() ?? firstSource['directUrl']?.toString();
+      final pub = firstSource['publisher']?.toString() ??
+          firstSource['domain']?.toString() ??
+          firstSource['author']?.toString() ??
+          '';
+      final title = firstSource['title']?.toString() ?? firstSource['name']?.toString() ?? '';
+      sourceAttribution = pub.isNotEmpty && title.isNotEmpty && pub != title
+          ? '$pub – $title'
+          : (pub.isNotEmpty ? pub : title);
+    }
+
+    if (sourceAttribution.isEmpty) {
+      final rawSource = claim['source'] ?? claim['citation'] ?? claim['sourceName'];
+      if (rawSource != null && rawSource.toString().isNotEmpty) {
+        sourceAttribution = rawSource.toString();
+      }
+    }
+
+    return InkWell(
+      onTap: () {
+        ClaimDetailScreen.open(
+          context,
+          claim: claim,
+          claimIndex: index,
+          video: video,
+          controller: videoCtrl,
+          allSources: allSources,
+          allClaims: allClaims,
+        );
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top Row: Number, Clean Claim Text, Status Badge, Expand Icon
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      '${index + 1}',
-                      style: context.twTypography.caption.copyWith(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        fontFamily: TWTypography.uiFamily,
-                      ),
-                    ),
+            // 1. Circular Number Badge
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: const Color(0xFF222634),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  width: 0.8,
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  '${index + 1}',
+                  style: GoogleFonts.roboto(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+              ),
+            ),
+            const SizedBox(width: 12),
+
+            // 2. Center Content Column
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Meta Row: Verdict Pill & Timestamp & Share button
+                  Row(
                     children: [
-                      Row(
+                      _buildVerdictPill(verdict),
+                      const SizedBox(width: 10),
+
+                      // Timestamp Text (Tappable to seek)
+                      InkWell(
+                        onTap: () {
+                          if (claimStartMs > 0 &&
+                              videoCtrl.videoPlayerController != null &&
+                              videoCtrl.videoPlayerController!.value.isInitialized) {
+                            videoCtrl.videoPlayerController!.seekTo(
+                              Duration(milliseconds: claimStartMs),
+                            );
+                            videoCtrl.videoPlayerController!.play();
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(4),
+                        child: Text(
+                          timestampText,
+                          style: GoogleFonts.roboto(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+
+                      // Share Button for this specific claim
+                      IconButton(
+                        icon: const Icon(
+                          Icons.share_outlined,
+                          size: 16.5,
+                          color: AppColors.textSecondary,
+                        ),
+                        tooltip: 'Share Claim',
+                        padding: const EdgeInsets.all(4),
+                        constraints: const BoxConstraints(),
+                        onPressed: () {
+                          final domain = resolved.sources.isNotEmpty
+                              ? resolved.sources.first['domain']?.toString()
+                              : null;
+                          ClaimShareService.shareClaim(
+                            context: context,
+                            video: video,
+                            claimText: cleanClaimText,
+                            verdict: verdict,
+                            primarySourceDomain: domain,
+                            claimIndex: index,
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 7),
+
+                  // Claim Statement
+                  Text(
+                    cleanClaimText,
+                    style: GoogleFonts.roboto(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                      height: 1.35,
+                    ),
+                  ),
+
+                  // Source Attribution Row (if present)
+                  if (sourceAttribution.isNotEmpty) ...[
+                    const SizedBox(height: 5),
+                    InkWell(
+                      onTap: sourceUrl != null && sourceUrl.isNotEmpty
+                          ? () => _launchUrl(sourceUrl)
+                          : null,
+                      borderRadius: BorderRadius.circular(4),
+                      child: Row(
                         children: [
-                          TruthCredibilityBadge(
-                            label: statusBadgeText,
-                            color: Colors.white,
-                            icon: statusIcon,
-                            isVerified: isVerified,
-                            isDisputed: isDisputed,
-                            isFalse: isFalse,
-                            showGlow: isExpanded,
-                            fontSize: 9,
-                            iconSize: 11,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 7,
-                              vertical: 2.5,
+                          Flexible(
+                            child: Text(
+                              'Source: $sourceAttribution',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.roboto(
+                                fontSize: 11.5,
+                                color: AppColors.textTertiary,
+                              ),
                             ),
                           ),
-                          () {
-                            final rawClaimStart = claim['start'] ??
-                                claim['startMs'] ??
-                                claim['startTime'] ??
-                                claim['startTimeMs'] ??
-                                claim['timestampStart'];
-                            final claimStartMs = VideoAnalysisHelpers.normalizeTimestampToMs(rawClaimStart);
-                            if (claimStartMs > 0) {
-                              final claimDur = Duration(milliseconds: claimStartMs);
-                              return Padding(
-                                padding: const EdgeInsets.only(left: 6),
-                                child: InkWell(
-                                  onTap: () {
-                                    if (videoCtrl.videoPlayerController != null &&
-                                        videoCtrl.videoPlayerController!.value.isInitialized) {
-                                      videoCtrl.videoPlayerController!.seekTo(claimDur);
-                                      videoCtrl.videoPlayerController!.play();
-                                      Get.back();
-                                    }
-                                  },
-                                  borderRadius: BorderRadius.circular(4),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(
-                                          Icons.play_arrow_rounded,
-                                          size: 11,
-                                          color: Colors.white,
-                                        ),
-                                        const SizedBox(width: 2),
-                                        Text(
-                                          FormatUtils.formatDuration(claimDur),
-                                          style: context.twTypography.caption.copyWith(
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
-                                            fontFamily: TWTypography.uiFamily,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }
-                            return const SizedBox.shrink();
-                          }(),
+                          if (sourceUrl != null && sourceUrl.isNotEmpty) ...[
+                            const SizedBox(width: 4),
+                            const Icon(
+                              Icons.open_in_new_rounded,
+                              size: 12,
+                              color: AppColors.textTertiary,
+                            ),
+                          ],
                         ],
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        cleanClaimText,
-                        style: context.twTypography.title.copyWith(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                          color: AppColors.textPrimary,
-                          height: 1.35,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                AnimatedRotation(
-                  turns: isExpanded ? 0.5 : 0.0,
-                  duration: const Duration(milliseconds: 250),
-                  curve: Curves.easeInOutCubic,
-                  child: const Icon(
-                    Icons.expand_more_rounded,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ),
-              ],
-            ),
-
-            // Expanded Details: Real AI Response & Real Tapable Sources
-            if (isExpanded) ...[
-              const SizedBox(height: 14),
-              const Divider(color: Colors.white12, height: 1),
-              const SizedBox(height: 12),
-
-              () {
-                final isAppealed = claim['isAppealed'] == true;
-                final rawAppealStatus = (claim['appealStatus'] ?? '').toString().trim();
-
-                if (!isAppealed) return const SizedBox.shrink();
-
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.amber.withValues(alpha: 0.35)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.gavel_rounded, size: 14, color: Colors.amber),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          rawAppealStatus.isNotEmpty
-                              ? 'UNDER FORMAL APPEAL (${rawAppealStatus.toUpperCase()}) — NEUTRAL REVIEW'
-                              : 'UNDER FORMAL APPEAL — NEUTRAL EDITORIAL REVIEW',
-                          style: const TextStyle(
-                            color: Colors.amber,
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }(),
-
-              () {
-                final publicNote = (claim['publicNote'] ?? '').toString().trim();
-                if (publicNote.isEmpty) return const SizedBox.shrink();
-
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.blueGrey.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.info_outline_rounded, size: 14, color: Colors.white70),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          publicNote,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 11.5,
-                            height: 1.4,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }(),
-
-              // AI Verification Response
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(10),
-                  border:
-                      Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.auto_awesome,
-                          size: 14,
-                          color: Colors.white,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'AI VERIFICATION RESPONSE & EVIDENCE ANALYSIS',
-                          style: context.twTypography.overline.copyWith(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.brand,
-                            letterSpacing: 1.1,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      responseText,
-                      style: context.twTypography.body.copyWith(
-                        color: AppColors.textPrimary,
-                        fontSize: 12.5,
-                        height: 1.45,
-                      ),
                     ),
                   ],
-                ),
-              ),
-
-              // Tapable Sources & Citations
-              if (effectiveSources.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.link_rounded,
-                      size: 14,
-                      color: Colors.white,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'SUPPORTING CITATIONS & PROVENANCE (${effectiveSources.length})',
-                      style: context.twTypography.overline.copyWith(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textSecondary,
-                        letterSpacing: 1.0,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-
-                ...effectiveSources.map((s) => _buildTapableClaimSource(context, s)),
-              ],
-
-              // Action Buttons: Search on Web + Provide Evidence
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () async {
-                        final query = Uri.encodeComponent(cleanClaimText);
-                        final searchUrl =
-                            'https://www.google.com/search?q=$query';
-                        try {
-                          await launchUrl(
-                            Uri.parse(searchUrl),
-                            mode: LaunchMode.externalApplication,
-                          );
-                        } catch (e, stackTrace) {
-                          ErrorHandler.log(
-                            e,
-                            stackTrace: stackTrace,
-                            tag: 'VideoAnalysisClaimCard.searchWeb',
-                          );
-                        }
-                      },
-                      icon: const Icon(
-                        Icons.search_rounded,
-                        size: 14,
-                        color: Colors.white,
-                      ),
-                      label: Text(
-                        'Search Web',
-                        style: context.twTypography.button.copyWith(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        side: const BorderSide(color: Colors.white24),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => ClaimSourceSubmissionDialog.show(
-                        context: context,
-                        video: video,
-                        claims: allClaims,
-                        initialClaim: claim,
-                      ),
-                      icon: const Icon(
-                        Icons.add_link_rounded,
-                        size: 14,
-                        color: Colors.black,
-                      ),
-                      label: Text(
-                        'Provide Source',
-                        style: context.twTypography.button.copyWith(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.brand,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
-            ],
+            ),
+            const SizedBox(width: 8),
+
+            // 3. Trailing Chevron Action Arrow
+            const Padding(
+              padding: EdgeInsets.only(top: 4),
+              child: Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: AppColors.textTertiary,
+              ),
+            ),
           ],
         ),
       ),
     );
-    });
   }
 
+  Widget _buildVerdictPill(ClaimVerdictInfo verdict) {
+    final Color bgColor;
+    final Color borderColor;
+    final Color textColor;
+    final IconData iconData;
+    final String label;
 
-  Widget _buildTapableClaimSource(BuildContext context, Map<dynamic, dynamic> source) {
-    final cleanSource = SourceUrlSanitizer.sanitizeSourceMap(source);
-    final title = (cleanSource['title'] ??
-            cleanSource['author'] ??
-            cleanSource['domain'] ??
-            'Source Citation')
-        .toString();
-    final url = cleanSource['url']?.toString();
-    final domain = (cleanSource['domain'] ?? '').toString();
-    final snippet = cleanSource['snippet']?.toString();
+    final rawStatus = (claim['status'] ??
+            claim['verificationStatus'] ??
+            claim['verdict'] ??
+            claim['label'] ??
+            '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    final verdictLabelLower = verdict.label.toLowerCase();
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: InkWell(
-        onTap: () async {
-          await SourceUrlSanitizer.launchSourceUrl(
-            url: url,
-            title: title,
-            domain: domain,
-            source: cleanSource,
-          );
-        },
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+    final isMostly = rawStatus.contains('mostly') ||
+        verdictLabelLower.contains('mostly') ||
+        verdict.type == ClaimVerdictType.mostlyTrue;
+
+    final isPartially = rawStatus.contains('partial') ||
+        verdictLabelLower.contains('partial') ||
+        rawStatus.contains('half');
+
+    if (isMostly) {
+      // 🌿 Mostly Verified (Clean modern mint / teal)
+      label = 'Mostly Verified';
+      bgColor = const Color(0xFF14B8A6).withValues(alpha: 0.14);
+      borderColor = const Color(0xFF2DD4BF).withValues(alpha: 0.35);
+      textColor = const Color(0xFF2DD4BF);
+      iconData = Icons.check_circle_outline_rounded;
+    } else if (isPartially) {
+      // ⚡ Partially Verified (Warm luminous amber / gold - zero murky brown)
+      label = 'Partially Verified';
+      bgColor = const Color(0xFFF59E0B).withValues(alpha: 0.14);
+      borderColor = const Color(0xFFFBBF24).withValues(alpha: 0.35);
+      textColor = const Color(0xFFFBBF24);
+      iconData = Icons.warning_amber_rounded;
+    } else if (verdict.isVerified) {
+      // 🛡️ Fully Verified (Vibrant emerald)
+      label = 'Verified';
+      bgColor = const Color(0xFF10B981).withValues(alpha: 0.14);
+      borderColor = const Color(0xFF10B981).withValues(alpha: 0.35);
+      textColor = const Color(0xFF34D399);
+      iconData = Icons.check_rounded;
+    } else if (verdict.isFalse || rawStatus.contains('false') || rawStatus.contains('misleading')) {
+      // 🛑 False / Misleading (Crisp coral red - zero muddy maroon)
+      label = (verdict.type == ClaimVerdictType.misleading || rawStatus.contains('misleading'))
+          ? 'Misleading'
+          : 'False';
+      bgColor = const Color(0xFFEF4444).withValues(alpha: 0.14);
+      borderColor = const Color(0xFFF87171).withValues(alpha: 0.35);
+      textColor = const Color(0xFFF87171);
+      iconData = Icons.close_rounded;
+    } else if (verdict.isCaution ||
+        rawStatus.contains('caution') ||
+        rawStatus.contains('disputed') ||
+        rawStatus.contains('context') ||
+        verdictLabelLower.contains('caution') ||
+        verdictLabelLower.contains('disputed') ||
+        verdictLabelLower.contains('context')) {
+      // ⚠️ Caution / Disputed (Refined warm orange)
+      label = (rawStatus.contains('disputed') || verdictLabelLower.contains('disputed'))
+          ? 'Disputed'
+          : ((rawStatus.contains('context') || verdictLabelLower.contains('context'))
+              ? 'Needs Context'
+              : 'Caution');
+      bgColor = const Color(0xFFF97316).withValues(alpha: 0.14);
+      borderColor = const Color(0xFFFB923C).withValues(alpha: 0.35);
+      textColor = const Color(0xFFFB923C);
+      iconData = Icons.warning_rounded;
+    } else if (verdict.isContextual) {
+      final isFaith = rawStatus.contains('faith') ||
+          rawStatus.contains('religion') ||
+          rawStatus.contains('tradition') ||
+          verdictLabelLower.contains('faith') ||
+          verdictLabelLower.contains('tradition');
+      final isSatire = rawStatus.contains('satire') ||
+          rawStatus.contains('humor') ||
+          rawStatus.contains('parody') ||
+          verdictLabelLower.contains('satire');
+
+      if (isFaith) {
+        // 📖 Faith / Spiritual Tradition (Luminous soft purple)
+        label = verdict.label.isNotEmpty ? verdict.label : 'Faith / Tradition';
+        bgColor = const Color(0xFF8B5CF6).withValues(alpha: 0.14);
+        borderColor = const Color(0xFFA78BFA).withValues(alpha: 0.35);
+        textColor = const Color(0xFFA78BFA);
+        iconData = Icons.auto_stories_rounded;
+      } else if (isSatire) {
+        // 😄 Satire / Hyperbole (Soft rose / pink)
+        label = verdict.label.isNotEmpty ? verdict.label : 'Satire / Hyperbole';
+        bgColor = const Color(0xFFEC4899).withValues(alpha: 0.14);
+        borderColor = const Color(0xFFF472B6).withValues(alpha: 0.35);
+        textColor = const Color(0xFFF472B6);
+        iconData = Icons.sentiment_very_satisfied_rounded;
+      } else {
+        // 🧠 Opinion / Value Judgment (Sky blue)
+        label = verdict.label.isNotEmpty ? verdict.label : 'Opinion';
+        bgColor = const Color(0xFF0284C7).withValues(alpha: 0.14);
+        borderColor = const Color(0xFF38BDF8).withValues(alpha: 0.35);
+        textColor = const Color(0xFF38BDF8);
+        iconData = Icons.psychology_rounded;
+      }
+    } else {
+      // ℹ️ Default / Inconclusive
+      label = verdict.label.isNotEmpty ? verdict.label : 'Caution';
+      bgColor = const Color(0xFFF59E0B).withValues(alpha: 0.14);
+      borderColor = const Color(0xFFFBBF24).withValues(alpha: 0.35);
+      textColor = const Color(0xFFFBBF24);
+      iconData = Icons.warning_amber_rounded;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor, width: 0.8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(iconData, size: 12.5, color: textColor),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: GoogleFonts.roboto(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: textColor,
+              letterSpacing: 0.2,
+            ),
           ),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.language_rounded,
-                size: 16,
-                color: Colors.white,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: context.twTypography.title.copyWith(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    if (domain.isNotEmpty) ...[
-                      Text(
-                        domain,
-                        style: context.twTypography.caption.copyWith(
-                          fontSize: 10,
-                          color: AppColors.textLink,
-                          decoration: TextDecoration.underline,
-                        ),
-                      ),
-                    ],
-                    if (snippet != null && snippet.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        '"$snippet"',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: context.twTypography.caption.copyWith(
-                          fontSize: 10,
-                          fontStyle: FontStyle.italic,
-                          color: AppColors.textTertiary,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: 6),
-              const Icon(
-                Icons.open_in_new_rounded,
-                size: 14,
-                color: Colors.white,
-              ),
-            ],
-          ),
-        ),
+        ],
       ),
     );
   }
-
 }

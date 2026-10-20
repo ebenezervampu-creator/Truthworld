@@ -14,6 +14,7 @@ mixin ReplyInteractionsMixin on CommentServiceBase {
     required bool asChannel,
   }) async {
     try {
+      await ensureAuthFreshness();
       final callable = functions.httpsCallable('toggleReplyInteraction');
       await callable.call({
         'videoId': videoId,
@@ -81,6 +82,7 @@ mixin ReplyInteractionsMixin on CommentServiceBase {
     required bool asChannel,
   }) async {
     try {
+      await ensureAuthFreshness();
       final callable = functions.httpsCallable('toggleReplyInteraction');
       await callable.call({
         'videoId': videoId,
@@ -147,6 +149,7 @@ mixin ReplyInteractionsMixin on CommentServiceBase {
     required String userId,
   }) async {
     try {
+      await ensureAuthFreshness();
       final callable = functions.httpsCallable('toggleReplyInteraction');
       await callable.call({
         'videoId': videoId,

@@ -441,5 +441,51 @@ void main() {
       expect(SourceUrlSanitizer.resolveCanonicalDomain('Bloomberg'), equals('bloomberg.com'));
       expect(SourceUrlSanitizer.resolveCanonicalDomain('CERN'), equals('cern.ch'));
     });
+
+    test('isStaticHomepageUrl accurately identifies static root homepages vs direct article links', () {
+      // Static root homepages (must be detected)
+      expect(SourceUrlSanitizer.isStaticHomepageUrl('https://en.wikipedia.org'), isTrue);
+      expect(SourceUrlSanitizer.isStaticHomepageUrl('https://en.wikipedia.org/'), isTrue);
+      expect(SourceUrlSanitizer.isStaticHomepageUrl('https://bbc.com'), isTrue);
+      expect(SourceUrlSanitizer.isStaticHomepageUrl('https://www.thehindu.com/'), isTrue);
+      expect(SourceUrlSanitizer.isStaticHomepageUrl('https://who.int/index.html'), isTrue);
+      expect(SourceUrlSanitizer.isStaticHomepageUrl('https://cdc.gov/home'), isTrue);
+      expect(SourceUrlSanitizer.isStaticHomepageUrl(null), isTrue);
+      expect(SourceUrlSanitizer.isStaticHomepageUrl(''), isTrue);
+
+      // Direct article / document links (must NOT be treated as static homepages)
+      expect(SourceUrlSanitizer.isStaticHomepageUrl('https://en.wikipedia.org/wiki/Apollo_11'), isFalse);
+      expect(SourceUrlSanitizer.isStaticHomepageUrl('https://www.thehindu.com/sci-tech/chandrayaan-3/article123.ece'), isFalse);
+      expect(SourceUrlSanitizer.isStaticHomepageUrl('https://doi.org/10.1038/s41586-020-2649-2'), isFalse);
+      expect(SourceUrlSanitizer.isStaticHomepageUrl('https://vertexaisearch.cloud.google.com/grounding-api-redirect/token123'), isFalse);
+      expect(SourceUrlSanitizer.isStaticHomepageUrl('https://www.google.com/search?q=Apollo+11'), isFalse);
+    });
+
+    test('resolveDirectNavigationUrl converts static homepages into direct article navigations', () {
+      // Wikipedia static root -> direct topic search
+      final wikiDirect = SourceUrlSanitizer.resolveDirectNavigationUrl(
+        url: 'https://en.wikipedia.org',
+        title: 'Theory of Relativity - Wikipedia',
+      );
+      expect(wikiDirect, equals('https://en.wikipedia.org/wiki/Special:Search?search=Theory%20of%20Relativity'));
+
+      // Bare news publisher -> targeted article search
+      final newsDirect = SourceUrlSanitizer.resolveDirectNavigationUrl(
+        url: 'https://thehindu.com',
+        title: 'Chandrayaan-3 lands on the Moon',
+        domain: 'thehindu.com',
+      );
+      expect(newsDirect, contains('google.com/search?q='));
+      expect(newsDirect, contains('Chandrayaan-3'));
+      expect(newsDirect, contains('thehindu.com'));
+
+      // Direct article URL -> preserved 100% as-is without modification
+      const directArticle = 'https://www.thehindu.com/sci-tech/chandrayaan-3/article123.ece';
+      final untouched = SourceUrlSanitizer.resolveDirectNavigationUrl(
+        url: directArticle,
+        title: 'Chandrayaan-3 lands on the Moon',
+      );
+      expect(untouched, equals(directArticle));
+    });
   });
 }

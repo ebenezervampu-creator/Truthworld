@@ -170,8 +170,11 @@ mixin MiniplayerPlaybackMixin on MiniplayerStateBase, MiniplayerSubtitlesMixin {
       if (isPlaying.value != val.isPlaying) {
         isPlaying.value = val.isPlaying;
         PipService.to.updateAutoPip(
-          enabled: val.isPlaying && mode.value != MiniplayerMode.dismissed,
+          enabled: mode.value != MiniplayerMode.dismissed,
           aspectRatio: currentAspectRatio,
+          isPlaying: val.isPlaying,
+          hasPrevious: hasPreviousVideo,
+          hasNext: hasNextVideo,
         );
       }
       isBuffering.value = val.isBuffering;
@@ -260,6 +263,11 @@ mixin MiniplayerPlaybackMixin on MiniplayerStateBase, MiniplayerSubtitlesMixin {
       );
     } finally {
       isNavigatingVideo.value = false;
+      PipService.to.updatePipActions(
+        isPlaying: isPlaying.value,
+        hasPrevious: hasPreviousVideo,
+        hasNext: hasNextVideo,
+      );
     }
   }
 
@@ -283,6 +291,11 @@ mixin MiniplayerPlaybackMixin on MiniplayerStateBase, MiniplayerSubtitlesMixin {
       );
     } finally {
       isNavigatingVideo.value = false;
+      PipService.to.updatePipActions(
+        isPlaying: isPlaying.value,
+        hasPrevious: hasPreviousVideo,
+        hasNext: hasNextVideo,
+      );
     }
   }
 
@@ -290,6 +303,11 @@ mixin MiniplayerPlaybackMixin on MiniplayerStateBase, MiniplayerSubtitlesMixin {
     final vpc = internalVpc;
     if (vpc == null) {
       isPlaying.value = !isPlaying.value;
+      PipService.to.updatePipActions(
+        isPlaying: isPlaying.value,
+        hasPrevious: hasPreviousVideo,
+        hasNext: hasNextVideo,
+      );
       return;
     }
     if (vpc.value.isPlaying) {
@@ -319,11 +337,21 @@ mixin MiniplayerPlaybackMixin on MiniplayerStateBase, MiniplayerSubtitlesMixin {
         }
       }
     }
+    PipService.to.updatePipActions(
+      isPlaying: isPlaying.value,
+      hasPrevious: hasPreviousVideo,
+      hasNext: hasNextVideo,
+    );
   }
 
   /// Triggers Picture-in-Picture mode for the active video.
   Future<bool> enterPip() async {
-    return PipService.to.enterPip(aspectRatio: currentAspectRatio);
+    return PipService.to.enterPip(
+      aspectRatio: currentAspectRatio,
+      isPlaying: isPlaying.value,
+      hasPrevious: hasPreviousVideo,
+      hasNext: hasNextVideo,
+    );
   }
 
   Future<void> seekForward({int seconds = 10}) async {

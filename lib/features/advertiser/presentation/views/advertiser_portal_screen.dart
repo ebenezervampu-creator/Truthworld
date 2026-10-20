@@ -49,6 +49,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
     final controller = Get.isRegistered<AdvertiserPortalController>()
         ? Get.find<AdvertiserPortalController>()
         : Get.put(AdvertiserPortalController());
+    controller.applyRouteTargetIfPresent();
 
     return Obx(() {
       final isLoggedIn = AuthService.to.isAuthenticated.value;

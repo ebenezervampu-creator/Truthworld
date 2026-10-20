@@ -85,8 +85,9 @@ class AudienceCategoriesSection extends StatelessWidget {
                       Expanded(
                         child: TextField(
                           controller: customAudienceController,
-                          inputFormatters:
-                              TruthworldTextInputFormatters.standard,
+                          maxLength: 50,
+                          buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                          inputFormatters: TruthworldTextInputFormatters.withLimit(50),
                           style: const TextStyle(
                             fontFamily: TWTypography.uiFamily,
                             color: Colors.white,

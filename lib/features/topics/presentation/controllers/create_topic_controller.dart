@@ -198,11 +198,25 @@ class CreateTopicController extends BaseController with ContentValidationMixin {
   Future<bool> validateProfanityRealtime() async {
     profanityError.value = '';
 
+    // Topic Name validation
+    if (nameController.text.trim().isNotEmpty) {
+      final nameResult = await validateContent(
+        nameController.text,
+        fieldName: 'Topic Name',
+        maxLength: 60,
+      );
+      if (!nameResult.isValid) {
+        profanityError.value = nameResult.message;
+        return false;
+      }
+    }
+
     // Title validation
     if (titleController.text.trim().isNotEmpty) {
       final titleResult = await validateContent(
         titleController.text,
         fieldName: 'Topic Title',
+        maxLength: 100,
       );
       if (!titleResult.isValid) {
         profanityError.value = titleResult.message;
@@ -215,6 +229,7 @@ class CreateTopicController extends BaseController with ContentValidationMixin {
       final handleResult = await validateContent(
         handleController.text,
         fieldName: 'Topic Handle',
+        maxLength: 30,
       );
       if (!handleResult.isValid) {
         profanityError.value = handleResult.message;
@@ -247,6 +262,7 @@ class CreateTopicController extends BaseController with ContentValidationMixin {
       final codeResult = await validateContent(
         accessCodeController.text,
         fieldName: 'Access Passcode',
+        maxLength: 20,
       );
       if (!codeResult.isValid) {
         profanityError.value = codeResult.message;

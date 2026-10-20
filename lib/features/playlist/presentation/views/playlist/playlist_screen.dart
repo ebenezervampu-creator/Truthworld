@@ -207,11 +207,18 @@ class PlaylistScreen extends StatelessWidget {
           : List<PlaylistModel>.from(controller.playlists);
 
       // Prepend Watch Later for private playlists if user has watch later items
-      if (!isPublic && controller.user.isNotEmpty && controller.watchLaterVideoIds.isNotEmpty) {
-        final hasWatchLater = sourcePlaylists.any((p) =>
+      if (!isPublic && controller.user.isNotEmpty) {
+        final wlIndex = sourcePlaylists.indexWhere((p) =>
             p.id == 'watchlater' ||
             p.playlistName.toLowerCase().trim() == 'watch later');
-        if (!hasWatchLater) {
+        if (wlIndex >= 0) {
+          final existing = sourcePlaylists[wlIndex];
+          final liveCount = controller.watchLaterVideoIds.length;
+          sourcePlaylists[wlIndex] = existing.copyWith(
+            videoIds: List<String>.from(controller.watchLaterVideoIds),
+            videoCount: liveCount > 0 ? liveCount : existing.effectiveVideoCount,
+          );
+        } else if (controller.watchLaterVideoIds.isNotEmpty) {
           final wl = controller.getWatchLaterPlaylist();
           if (wl != null) {
             sourcePlaylists.insert(0, wl);

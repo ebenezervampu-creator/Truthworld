@@ -51,7 +51,9 @@ Widget buildCreateTopicDesktopTopHeader(BuildContext context) {
               ),
             ),
             child: TextField(
-              inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+              maxLength: defaultMaxSearchLength,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: TruthworldTextInputFormatters.withLimit(defaultMaxSearchLength),
               style: const TextStyle(color: Colors.white, fontSize: 14),
               decoration: InputDecoration(
                 hintText: 'Search videos, channels, topics...',

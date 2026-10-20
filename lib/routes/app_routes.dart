@@ -23,6 +23,11 @@ abstract class AppRoutes {
   static const category = '/category';
   static const browse = '/browse';
   static const downloads = '/downloads';
+  static const videoAnalysis = '/video-analysis';
+  static const analysis = '/analysis';
+  static const claimDetail = '/claim-detail';
+  static const claim = '/claim';
+  static const claimDetailScreen = '/ClaimDetailScreen';
 
   // --- Creator Studio ---
   static const studio = '/studio';

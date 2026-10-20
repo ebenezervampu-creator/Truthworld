@@ -11,7 +11,6 @@ import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/theme/app_colors.dart';
 
 class CreatePlaylistController extends BaseController {
   final TextEditingController nameController = TextEditingController();
@@ -146,14 +145,13 @@ class CreatePlaylistController extends BaseController {
       return false;
     }
 
-    final nameVal = ContentValidator.validate(name, fieldName: 'Playlist Name');
+    final nameVal = ContentValidator.validate(
+      name,
+      fieldName: 'Playlist Name',
+      maxLength: 100,
+    );
     if (!nameVal.isValid) {
-      AppSnackbar.show(
-        'Inappropriate Content',
-        nameVal.message,
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-      );
+      AppSnackbar.warning(nameVal.message);
       return false;
     }
 
@@ -162,14 +160,10 @@ class CreatePlaylistController extends BaseController {
       final descVal = ContentValidator.validate(
         description,
         fieldName: 'Playlist Description',
+        maxLength: 500,
       );
       if (!descVal.isValid) {
-        AppSnackbar.show(
-          'Inappropriate Content',
-          descVal.message,
-          backgroundColor: AppColors.error,
-          colorText: AppColors.textPrimary,
-        );
+        AppSnackbar.warning(descVal.message);
         return false;
       }
     }

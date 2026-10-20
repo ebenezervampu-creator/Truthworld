@@ -178,7 +178,7 @@ class TopicMoreOptionsBottomSheet extends StatelessWidget {
                       url: url,
                       thumbnailUrl: topic.coverImage ?? topic.thumbnailUrl,
                       followerCount: count,
-                      videoCount: topic.videoCount,
+                      videoCount: topic.effectiveVideoCount,
                       handle: topic.slug,
                       type: 'topic',
                     );

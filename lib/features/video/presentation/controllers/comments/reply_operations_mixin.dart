@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/mentions_helper.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -25,7 +26,11 @@ mixin ReplyOperationsMixin on CommentsStateBase {
       throw Exception('User not authenticated');
     }
 
-    final validation = await validateContent(text, fieldName: 'Reply');
+    final validation = await validateContent(
+      text,
+      fieldName: 'Reply',
+      maxLength: ContentValidator.defaultMaxReplyLength,
+    );
     if (!validation.isValid) {
       commentError.value = validation.message;
       return;

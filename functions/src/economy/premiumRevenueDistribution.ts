@@ -552,6 +552,7 @@ export const distributePremiumRevenue = onSchedule(
     region: REGION,
     timeoutSeconds: 540,
     memory: "2GiB",
+    maxInstances: 1,
   },
   async () => {
     const billingMonth = getPreviousBillingMonth();

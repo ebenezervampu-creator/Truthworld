@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -633,6 +634,13 @@ class AlertsConfigTab extends StatelessWidget {
                     height: 32,
                     child: TextFormField(
                       initialValue: threshold,
+                      maxLength: 8,
+                      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(8),
+                      ],
                       onChanged: (val) {
                         final numVal = int.tryParse(val) ?? 0;
                         if (index < controller.alertRules.length) {

@@ -61,7 +61,7 @@ void main() {
       categoryAffinities: {
         'Technology': 0.9,
         'Science': 0.8,
-        'Gaming': 0.6,
+        'Short Films': 0.6,
       },
       topicAffinities: {
         'topic:ai': 0.85,

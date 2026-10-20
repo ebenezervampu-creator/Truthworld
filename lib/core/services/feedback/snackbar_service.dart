@@ -274,18 +274,26 @@ class SnackbarService {
                   vertical: 8,
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(20),
+                  side: BorderSide(
+                    color: (borderColor ?? AppColors.brand).withValues(alpha: 0.4),
+                    width: 1.2,
+                  ),
                 ),
                 backgroundColor: (borderColor ?? AppColors.brand).withValues(
                   alpha: 0.15,
                 ),
+                minimumSize: const Size(68, 38),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               child: Text(
                 actionLabel,
+                maxLines: 1,
                 style: TextStyle(
                   color: borderColor ?? AppColors.brand,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13.5,
+                  letterSpacing: 0.3,
                 ),
               ),
             )
@@ -383,18 +391,29 @@ class SnackbarContent extends StatelessWidget {
               child: TextButton(
                 onPressed: onAction,
                 style: TextButton.styleFrom(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: AppTokens.spacing.space8,
-                    vertical: AppTokens.spacing.space4,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
                   ),
-                  minimumSize: const Size(0, 0),
+                  minimumSize: const Size(68, 38),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  backgroundColor: AppColors.brand.withValues(alpha: 0.15),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: BorderSide(
+                      color: AppColors.brand.withValues(alpha: 0.4),
+                      width: 1.2,
+                    ),
+                  ),
                 ),
                 child: Text(
                   actionLabel!,
+                  maxLines: 1,
                   style: const TextStyle(
                     color: AppColors.brand,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13.5,
+                    letterSpacing: 0.3,
                   ),
                 ),
               ),

@@ -52,6 +52,9 @@ class ChannelWizardDetailsCard extends StatelessWidget {
             controller: controller.channelName,
             hintText: 'Enter channel name',
             maxLength: 100,
+            suffix: Obx(() => _buildAvailabilityStatusSuffix(
+              controller.channelNameAvailability.value,
+            )),
             validator: (val) {
               if (val == null || val.trim().isEmpty) {
                 return 'Channel name is required';
@@ -62,6 +65,11 @@ class ChannelWizardDetailsCard extends StatelessWidget {
               return null;
             },
           ),
+          Obx(() => _buildAvailabilityStatusMessage(
+            status: controller.channelNameAvailability.value,
+            message: controller.channelNameAvailabilityMessage.value,
+            fieldLabel: 'Channel name',
+          )),
           const SizedBox(height: 16),
           // Channel Handle
           const ChannelWizardFieldLabel('Channel Handle', isRequired: true),
@@ -70,10 +78,13 @@ class ChannelWizardDetailsCard extends StatelessWidget {
             controller: controller.customUrl,
             hintText: 'Enter handle',
             prefixText: '@',
-            maxLength: 50,
+            maxLength: 30,
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp('[a-zA-Z0-9_-]')),
             ],
+            suffix: Obx(() => _buildAvailabilityStatusSuffix(
+              controller.customUrlAvailability.value,
+            )),
             validator: (val) {
               if (val == null || val.trim().isEmpty) {
                 return 'Channel handle is required';
@@ -84,6 +95,18 @@ class ChannelWizardDetailsCard extends StatelessWidget {
               return null;
             },
           ),
+          Obx(() => _buildAvailabilityStatusMessage(
+            status: controller.customUrlAvailability.value,
+            message: controller.customUrlAvailabilityMessage.value,
+            fieldLabel: 'Handle',
+          )),
+          Obx(() {
+            if (controller.customUrlAvailability.value == AvailabilityStatus.taken &&
+                controller.handleSuggestions.isNotEmpty) {
+              return _buildHandleSuggestionsSection();
+            }
+            return const SizedBox.shrink();
+          }),
           const SizedBox(height: 16),
           // Description
           const ChannelWizardFieldLabel('Description', isRequired: true),
@@ -127,7 +150,9 @@ class ChannelWizardDetailsCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: TextField(
         controller: _wc.tagInputController,
-        inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+        maxLength: 30,
+        buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+        inputFormatters: TruthworldTextInputFormatters.withLimit(30),
         style: const TextStyle(color: Colors.white, fontSize: 14),
         onChanged: (val) {
           _wc.tagSearchQuery.value = val.trim();
@@ -522,7 +547,6 @@ class ChannelWizardDetailsCard extends StatelessWidget {
       'Baking',
       'Chef',
     ],
-    'Fashion': ['Style', 'Outfits', 'Beauty', 'Makeup', 'Trends', 'Hauls'],
     'Comedy': ['Standup', 'Skits', 'Parody', 'Memes', 'Satire', 'Humor'],
     'Art': [
       'Drawing',
@@ -569,14 +593,6 @@ class ChannelWizardDetailsCard extends StatelessWidget {
       'Wisdom',
       'Faith',
     ],
-    'People & Blogs': [
-      'Vlogs',
-      'Daily Life',
-      'Personal Stories',
-      'Q&A',
-      'Life Updates',
-      'Behind the Scenes',
-    ],
     'Kids & Family': [
       'Parenting',
       'Toys',
@@ -605,9 +621,20 @@ class ChannelWizardDetailsCard extends StatelessWidget {
       'Daily Vlogs',
       'Travel Vlogs',
       'Food Vlogs',
-      'Challenge Vlogs',
+      'Personal Stories',
       'Life Updates',
       'Day in My Life',
+      'Behind the Scenes',
+      'Q&A',
+    ],
+    'Short Films': [
+      'Indie Cinema',
+      'Short Film',
+      'Festival Winners',
+      'Drama',
+      'Cinematic',
+      'Narrative',
+      'Directing',
     ],
     'Other': ['General', 'Miscellaneous', 'Mixed Content', 'Community'],
   };
@@ -708,7 +735,167 @@ class ChannelWizardDetailsCard extends StatelessWidget {
     });
   }
 
-  // ========================================================================
-  // CARD 3: CHANNEL TYPE
-  // ========================================================================
+  Widget _buildAvailabilityStatusSuffix(AvailabilityStatus status) {
+    switch (status) {
+      case AvailabilityStatus.checking:
+        return const SizedBox(
+          width: 14,
+          height: 14,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Color(0xFFF59E0B),
+          ),
+        );
+      case AvailabilityStatus.available:
+        return const Icon(
+          Icons.check_circle_rounded,
+          color: AppColors.success,
+          size: 16,
+        );
+      case AvailabilityStatus.taken:
+        return const Icon(
+          Icons.cancel_rounded,
+          color: AppColors.error,
+          size: 16,
+        );
+      case AvailabilityStatus.invalid:
+        return const Icon(
+          Icons.info_outline_rounded,
+          color: Color(0xFFF59E0B),
+          size: 16,
+        );
+      case AvailabilityStatus.error:
+        return const Icon(
+          Icons.error_outline_rounded,
+          color: AppColors.error,
+          size: 16,
+        );
+      case AvailabilityStatus.unknown:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Widget _buildAvailabilityStatusMessage({
+    required AvailabilityStatus status,
+    required String message,
+    required String fieldLabel,
+  }) {
+    if (status == AvailabilityStatus.unknown || message.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final Color statusColor;
+    final IconData statusIcon;
+
+    switch (status) {
+      case AvailabilityStatus.checking:
+        statusColor = const Color(0xFFF59E0B);
+        statusIcon = Icons.hourglass_top_rounded;
+        break;
+      case AvailabilityStatus.available:
+        statusColor = AppColors.success;
+        statusIcon = Icons.check_circle_outline_rounded;
+        break;
+      case AvailabilityStatus.taken:
+        statusColor = AppColors.error;
+        statusIcon = Icons.cancel_outlined;
+        break;
+      case AvailabilityStatus.invalid:
+        statusColor = const Color(0xFFF59E0B);
+        statusIcon = Icons.info_outline_rounded;
+        break;
+      case AvailabilityStatus.error:
+        statusColor = AppColors.error;
+        statusIcon = Icons.error_outline_rounded;
+        break;
+      case AvailabilityStatus.unknown:
+        return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6, left: 2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(statusIcon, color: statusColor, size: 14),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: statusColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHandleSuggestionsSection() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Suggested handles:',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: controller.handleSuggestions.map((suggestion) {
+              return Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => controller.applyHandleSuggestion(suggestion),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E1E22),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFF3F3F46)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          '@',
+                          style: TextStyle(
+                            color: Color(0xFF60A5FA),
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          suggestion,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
 }

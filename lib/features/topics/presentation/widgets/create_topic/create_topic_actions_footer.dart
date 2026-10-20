@@ -45,9 +45,16 @@ Widget buildCreateTopicDesktopFooterActions(
                         Get.back();
                       }
                     }
-                  } catch (e) {
-                    ErrorHandler.log(e, context: 'CreateTopicDialog.submit');
-                    AppSnackbar.error('Unable to create topic. Please try again.');
+                  } catch (e, s) {
+                    ErrorHandler.log(e, stackTrace: s, context: 'CreateTopicDialog.submit');
+                    final msg = e.toString();
+                    if (!msg.contains('Video Required') &&
+                        !msg.contains('Description') &&
+                        !msg.contains('Handle') &&
+                        !msg.contains('Title') &&
+                        !msg.contains('Sign In')) {
+                      AppSnackbar.error('Unable to create topic. Please try again.');
+                    }
                   } finally {
                     controller.isSubmitting.value = false;
                   }
@@ -118,9 +125,16 @@ Widget buildCreateTopicMobileStickyFooter(
                         Get.back();
                       }
                     }
-                  } catch (e) {
-                    ErrorHandler.log(e, context: 'CreateTopicDialog.mobileSubmit');
-                    AppSnackbar.error('Unable to create topic. Please try again.');
+                  } catch (e, s) {
+                    ErrorHandler.log(e, stackTrace: s, context: 'CreateTopicDialog.mobileSubmit');
+                    final msg = e.toString();
+                    if (!msg.contains('Video Required') &&
+                        !msg.contains('Description') &&
+                        !msg.contains('Handle') &&
+                        !msg.contains('Title') &&
+                        !msg.contains('Sign In')) {
+                      AppSnackbar.error('Unable to create topic. Please try again.');
+                    }
                   } finally {
                     controller.isSubmitting.value = false;
                   }

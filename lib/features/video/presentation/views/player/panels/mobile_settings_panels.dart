@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/audio_theme_panel.dart';
+import 'package:truthworld/features/video/presentation/views/player/panels/chapters_panel.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/language_panel.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/quality_panel.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/settings_tiles.dart';
@@ -50,6 +51,11 @@ class MobileSettingsBottomSheet extends StatelessWidget {
                   content = SpeedPanel(ctrl: ctrl);
                 case 'quality':
                   content = QualityPanel(ctrl: ctrl);
+                case 'chapters':
+                  content = SizedBox(
+                    height: 480,
+                    child: ChaptersPanel(ctrl: ctrl),
+                  );
                 case 'subtitles':
                   content = SizedBox(
                     height: 450,
@@ -170,6 +176,17 @@ class MobileMainSettingsMenu extends StatelessWidget {
               value: ctrl.zoomLabel,
               onTap: () => ctrl.activePanel.value = 'zoom',
             ),
+          ),
+          Obx(
+            () => ctrl.chapters.isNotEmpty
+                ? MobileSettingsTile(
+                    icon: Icons.list_alt_rounded,
+                    title: 'Chapters',
+                    value: ctrl.currentChapter.value?.title ??
+                        '${ctrl.chapters.length} chapters',
+                    onTap: () => ctrl.activePanel.value = 'chapters',
+                  )
+                : const SizedBox.shrink(),
           ),
           MobileSettingsTile(
             icon: Icons.settings_outlined,

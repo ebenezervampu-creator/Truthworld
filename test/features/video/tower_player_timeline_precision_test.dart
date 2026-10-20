@@ -316,4 +316,90 @@ void main() {
       expect(find.text('Drag down to return to 1.0×'), findsOneWidget);
     });
   });
+
+  group('Chapter and Seek Preview Tooltip Dismissal Tests', () {
+    const totalDuration = Duration(minutes: 10);
+
+    test('onScrubEnd hides seek preview and hover state when chapter scrub concludes', () {
+      ctrl.onScrubStart(0.3, totalDuration, startX: 300.0);
+      ctrl.updateSeekPreview(0.3, 300.0, totalDuration);
+      ctrl.updateTimelineHover(0.3, 300.0, totalDuration);
+
+      expect(ctrl.seekPreviewVis.value, isTrue);
+      expect(ctrl.isTimelineHovered.value, isTrue);
+
+      ctrl.onScrubEnd();
+
+      expect(ctrl.seekPreviewVis.value, isFalse);
+      expect(ctrl.isTimelineHovered.value, isFalse);
+      expect(ctrl.isScrubbing.value, isFalse);
+    });
+
+    test('onScrubCancel hides seek preview and hover state', () {
+      ctrl.onScrubStart(0.4, totalDuration, startX: 400.0);
+      ctrl.updateSeekPreview(0.4, 400.0, totalDuration);
+      ctrl.updateTimelineHover(0.4, 400.0, totalDuration);
+
+      expect(ctrl.seekPreviewVis.value, isTrue);
+      expect(ctrl.isTimelineHovered.value, isTrue);
+
+      ctrl.onScrubCancel();
+
+      expect(ctrl.seekPreviewVis.value, isFalse);
+      expect(ctrl.isTimelineHovered.value, isFalse);
+      expect(ctrl.isScrubbing.value, isFalse);
+    });
+
+    test('seekTo automatically dismisses seek preview tooltip', () async {
+      ctrl.seekPreviewVis.value = true;
+      expect(ctrl.seekPreviewVis.value, isTrue);
+
+      await ctrl.seekTo(const Duration(minutes: 2, seconds: 47));
+
+      expect(ctrl.seekPreviewVis.value, isFalse);
+    });
+
+    testWidgets('TruthWorldPlayerTimeline gesture completion dismisses seek preview', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 800,
+              height: 50,
+              child: TruthWorldPlayerTimeline(ctrl: ctrl),
+            ),
+          ),
+        ),
+      );
+
+      // 1. Drag interaction (Scrubbing chapter)
+      final timelineFinder = find.byType(TruthWorldPlayerTimeline);
+      final gesture = await tester.startGesture(tester.getCenter(timelineFinder));
+      await tester.pump();
+      await gesture.moveBy(const Offset(50, 0));
+      await tester.pump();
+
+      expect(ctrl.isScrubbing.value, isTrue);
+      expect(ctrl.seekPreviewVis.value, isTrue);
+
+      // Release finger (Selecting chapter)
+      await gesture.up();
+      await tester.pump();
+
+      expect(ctrl.isScrubbing.value, isFalse);
+      expect(ctrl.seekPreviewVis.value, isFalse);
+      expect(ctrl.isTimelineHovered.value, isFalse);
+
+      // 2. Tap interaction (Direct chapter selection)
+      ctrl.updateSeekPreview(0.5, 400.0, totalDuration);
+      expect(ctrl.seekPreviewVis.value, isTrue);
+
+      await tester.tap(timelineFinder);
+      await tester.pump();
+
+      expect(ctrl.seekPreviewVis.value, isFalse);
+      expect(ctrl.isTimelineHovered.value, isFalse);
+    });
+  });
 }
+

@@ -263,6 +263,13 @@ export const createChannel = onCall(
             locale,
             defaultPlatform,
           },
+          visibility: (data.visibility || (data.isPublic === false ? "Private" : "Public")),
+          isPublic: data.visibility ? data.visibility.toLowerCase() === "public" : (data.isPublic ?? true),
+          showLikeCount: data.showLikeCount !== false,
+          showDislikeCount: data.showDislikeCount !== false,
+          allowComments: data.allowComments !== false,
+          allowSubscriptions: data.allowSubscriptions !== false,
+          showSubscriberCount: data.showSubscriberCount !== false,
           limits: {
             maxDurationSec: channelType === "custom" ? 86400 : 600,
             maxChannels: 1,

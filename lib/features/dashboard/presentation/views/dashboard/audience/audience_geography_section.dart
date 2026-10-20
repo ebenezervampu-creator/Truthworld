@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audience_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -17,6 +18,9 @@ Widget buildAudienceSearchBar({
       border: Border.all(color: borderColor),
     ),
     child: TextField(
+      maxLength: 100,
+      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+      inputFormatters: TruthworldTextInputFormatters.withLimit(100),
       style: TextStyle(
         fontFamily: TWTypography.uiFamily,
         color: textColor,

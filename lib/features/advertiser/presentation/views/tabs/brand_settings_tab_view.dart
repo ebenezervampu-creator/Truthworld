@@ -125,7 +125,9 @@ class BrandSettingsTabView extends StatelessWidget {
               Expanded(
                 child: TextField(
                   controller: nameCtrl,
-                  inputFormatters: TruthworldTextInputFormatters.standard,
+                  maxLength: 100,
+                  buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                  inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(100),
                   style: const TextStyle(color: Colors.white),
                   decoration: const InputDecoration(
                     labelText: 'Brand / Organization Name',
@@ -140,7 +142,9 @@ class BrandSettingsTabView extends StatelessWidget {
               Expanded(
                 child: TextField(
                   controller: catCtrl,
-                  inputFormatters: TruthworldTextInputFormatters.standard,
+                  maxLength: 50,
+                  buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                  inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(50),
                   style: const TextStyle(color: Colors.white),
                   decoration: const InputDecoration(
                     labelText: 'Industry Category',
@@ -156,7 +160,9 @@ class BrandSettingsTabView extends StatelessWidget {
           const SizedBox(height: 14),
           TextField(
             controller: tagCtrl,
-            inputFormatters: TruthworldTextInputFormatters.standard,
+            maxLength: 150,
+            buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+            inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(150),
             style: const TextStyle(color: Colors.white),
             decoration: const InputDecoration(
               labelText: 'Brand Motto / Tagline',
@@ -172,6 +178,12 @@ class BrandSettingsTabView extends StatelessWidget {
               Expanded(
                 child: TextField(
                   controller: webCtrl,
+                  maxLength: 500,
+                  buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                  inputFormatters: [
+                    LengthLimitingTextInputFormatter(500),
+                    FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                  ],
                   style: const TextStyle(color: Colors.white),
                   decoration: const InputDecoration(
                     labelText: 'Official Website URL',
@@ -186,6 +198,12 @@ class BrandSettingsTabView extends StatelessWidget {
               Expanded(
                 child: TextField(
                   controller: emailCtrl,
+                  maxLength: 254,
+                  buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                  inputFormatters: [
+                    LengthLimitingTextInputFormatter(254),
+                    FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                  ],
                   style: const TextStyle(color: Colors.white),
                   decoration: const InputDecoration(
                     labelText: 'Studio Support Contact Email',
@@ -630,7 +648,9 @@ class BrandSettingsTabView extends StatelessWidget {
             children: [
               TextField(
                 controller: nameCtrl,
-                inputFormatters: TruthworldTextInputFormatters.standard,
+                maxLength: defaultMaxDisplayNameLength,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(defaultMaxDisplayNameLength),
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Full Name',
@@ -643,6 +663,12 @@ class BrandSettingsTabView extends StatelessWidget {
               const SizedBox(height: 12),
               TextField(
                 controller: emailCtrl,
+                maxLength: 254,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(254),
+                  FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                ],
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Email Address',

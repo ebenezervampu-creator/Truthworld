@@ -528,7 +528,7 @@ class _WatchHistoryListCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${video.channelName} • ${video.views} views',
+                    '${video.channelName} • ${video.views} ${video.views == 1 ? 'view' : 'views'}',
                     style: const TextStyle(
                       fontSize: 13,
                       color: secondaryText,

@@ -190,6 +190,10 @@ class ChannelWizardViewController extends GetxController {
 
   String getTagUsageCountFormatted(String tag) {
     final count = realTagUsageMap[tag] ?? 1;
+    if (count >= 1000000000) {
+      final val = (count / 1000000000).toStringAsFixed(1);
+      return '${val.endsWith('.0') ? val.substring(0, val.length - 2) : val}B';
+    }
     if (count >= 1000000) {
       final val = (count / 1000000).toStringAsFixed(1);
       return '${val.endsWith('.0') ? val.substring(0, val.length - 2) : val}M';
@@ -217,7 +221,11 @@ class ChannelWizardViewController extends GetxController {
     if (channelController.channelName.text.trim().isEmpty &&
         channelController.description.text.trim().isEmpty &&
         channelController.selectedCategories.isEmpty) {
-      Get.back();
+      if (Navigator.of(context).canPop()) {
+        Get.back();
+      } else {
+        _showSignOutOrExitDialog(context);
+      }
       return;
     }
 
@@ -237,7 +245,11 @@ class ChannelWizardViewController extends GetxController {
             onPressed: () {
               isExiting.value = true;
               Get.back();
-              Get.back();
+              if (Navigator.of(context).canPop()) {
+                Get.back();
+              } else {
+                _showSignOutOrExitDialog(context);
+              }
             },
             child: const Text('Discard', style: TextStyle(color: AppColors.error)),
           ),
@@ -246,9 +258,42 @@ class ChannelWizardViewController extends GetxController {
               await channelController.saveDraft();
               isExiting.value = true;
               Get.back();
-              Get.back();
+              if (Navigator.of(context).canPop()) {
+                Get.back();
+              } else {
+                _showSignOutOrExitDialog(context);
+              }
             },
             child: const Text('Save Draft', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSignOutOrExitDialog(BuildContext context) {
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: const Color(0xFF18181B),
+        title: const Text(
+          'Sign Out of Studio?',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'A channel is required to use Creator Studio. Would you like to sign out or switch accounts?',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: Get.back,
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Get.back();
+              await AuthService.to.signOut();
+            },
+            child: const Text('Sign Out', style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),
@@ -367,9 +412,24 @@ class ChannelWizardViewController extends GetxController {
       return;
     }
 
+    if (channelController.channelNameAvailability.value == AvailabilityStatus.taken) {
+      AppSnackbar.warning('The chosen channel name is already taken. Please choose another.');
+      return;
+    }
+
     // 4. Channel Handle
     if (channelController.customUrl.text.trim().isEmpty) {
       AppSnackbar.warning('Please enter a Channel Handle.');
+      return;
+    }
+
+    if (channelController.customUrlAvailability.value == AvailabilityStatus.taken) {
+      AppSnackbar.warning('The chosen handle is already taken. Please select an available handle.');
+      return;
+    }
+
+    if (channelController.customUrlAvailability.value == AvailabilityStatus.checking) {
+      AppSnackbar.info('Verifying handle availability. Please wait a moment.');
       return;
     }
 

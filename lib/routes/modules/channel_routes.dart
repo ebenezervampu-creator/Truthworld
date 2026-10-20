@@ -14,7 +14,7 @@ import 'package:truthworld/features/myvideos/presentation/bindings/my_videos_bin
 import 'package:truthworld/features/myvideos/presentation/views/myvideos/my_videos.dart'
     deferred as my_videos;
 import 'package:truthworld/features/subscriptions/presentation/bindings/subscriptions_binding.dart';
-import 'package:truthworld/features/subscriptions/presentation/views/Subscriptions/subscriptions.dart'
+import 'package:truthworld/features/subscriptions/presentation/views/subscriptions/subscriptions.dart'
     deferred as subscriptions;
 import 'package:truthworld/routes/app_routes.dart';
 
@@ -95,18 +95,22 @@ class ChannelRoutes {
       middlewares: [ConsumerRouteGuard(), AuthGuard()],
       binding: MyVideosBinding(),
     ),
-    GetPage(
-      name: AppRoutes.handle,
-      page: () {
-        final channel = Get.arguments?['channel'];
-        return DeferredWidget(
-          loader: channel_details.loadLibrary,
-          builder: () => channel_details.ChannelDetailsPage(
-            channel: channel as Channel?,
-          ),
-        );
-      },
-      binding: ChannelBinding(),
-    ),
   ];
+
+  /// Catch-all creator handle route (`/:handle`). Must be mounted at the very end
+  /// of [AppPages.routes] to prevent hijacking specific single-segment routes
+  /// like `/onboarding`, `/library`, `/settings`, `/feedback`, etc.
+  static final GetPage handleRoute = GetPage(
+    name: AppRoutes.handle,
+    page: () {
+      final channel = Get.arguments?['channel'];
+      return DeferredWidget(
+        loader: channel_details.loadLibrary,
+        builder: () => channel_details.ChannelDetailsPage(
+          channel: channel as Channel?,
+        ),
+      );
+    },
+    binding: ChannelBinding(),
+  );
 }

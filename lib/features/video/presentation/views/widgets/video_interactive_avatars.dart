@@ -588,6 +588,7 @@ class TopicVideosBottomSheet extends StatelessWidget {
   }
 
   String _formatViews(int views) {
+    if (views >= 1000000000) return '${(views / 1000000000).toStringAsFixed(1)}B';
     if (views >= 1000000) return '${(views / 1000000).toStringAsFixed(1)}M';
     if (views >= 1000) return '${(views / 1000).toStringAsFixed(1)}K';
     return '$views';
@@ -883,7 +884,7 @@ class TopicVideosBottomSheet extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    '${video.channelName} • ${_formatViews(video.views)} views • ${_formatDate(video.createdAt)}',
+                                    '${video.channelName} • ${_formatViews(video.views)} ${video.views == 1 ? 'view' : 'views'} • ${_formatDate(video.createdAt)}',
                                     style: GoogleFonts.roboto(
                                       color: Colors.white60,
                                       fontSize: 11,

@@ -212,6 +212,11 @@ class HomeController extends BaseController {
   String? get userName => _authService.user?.displayName;
   
   Future<void> signInWithGoogle() async {
+    final ctx = Get.context;
+    if (ctx != null) {
+      await AuthBottomSheet.show(ctx);
+      return;
+    }
     try {
       isLoadingAuth.value = true;
       await _authService.signInWithGoogle();

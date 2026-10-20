@@ -80,10 +80,12 @@ class _VintageCassetteThemeState extends State<VintageCassetteTheme>
 
         // Center Stage Cassette Shell
         Center(
-          child: Container(
-            width: 330,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Container(
+              width: 330,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
               color: const Color(0xFF1C1917), // Charcoal cassette plastic
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
@@ -252,8 +254,9 @@ class _VintageCassetteThemeState extends State<VintageCassetteTheme>
             ),
           ),
         ),
-      ],
-    );
+      ),
+    ],
+  );
   }
 
   Widget _buildTapeSpool(AnimationController controller) {

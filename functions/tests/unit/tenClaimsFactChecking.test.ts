@@ -9,6 +9,7 @@ import {
   hashSemanticClaimText,
 } from '../../src/pipeline/utils/claim-normalization';
 import { ClaimNature, FramingStyle, VerifiedClaim, ClaimStatus, VerificationState } from '../../src/pipeline/types';
+import { formatOpinionReasoning } from '../../src/pipeline/utils/opinion-formatting';
 
 describe('Unit: 10-Claim End-to-End Fact-Checking & Credibility Pipeline Verification', () => {
   const verificationService = new ClaimVerificationService('test-api-key', 0.6);
@@ -149,7 +150,7 @@ describe('Unit: 10-Claim End-to-End Fact-Checking & Credibility Pipeline Verific
       if (isOpinionRouted) {
         status = 'opinion_claim';
         confidence = 1.0;
-        reasoning = 'Classified as subjective content — not subject to factual verification.';
+        reasoning = formatOpinionReasoning(item.text);
       } else if (regMatch) {
         status = regMatch.status === 'correct' ? 'verified_true' : ('false_claim' as ClaimStatus);
         confidence = 1.0;

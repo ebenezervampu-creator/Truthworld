@@ -2,8 +2,8 @@
 const String termsTextPart1 = """
 TERMS AND CONDITIONS
 
-Last Updated: April 04, 2026
-Effective Date: April 04, 2026
+Last Updated: October 12, 2026
+Effective Date: October 12, 2026
 
 1. INTRODUCTION AND ACCEPTANCE OF TERMS
 

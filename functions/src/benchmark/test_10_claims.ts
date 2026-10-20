@@ -9,6 +9,7 @@ import {
   hashSemanticClaimText,
 } from '../pipeline/utils/claim-normalization';
 import { ClaimNature, FramingStyle, VerifiedClaim, ClaimStatus } from '../pipeline/types';
+import { formatOpinionReasoning } from '../pipeline/utils/opinion-formatting';
 
 interface TestClaimInput {
   id: string;
@@ -159,7 +160,7 @@ async function runTenClaimsEvaluation() {
     if (isOpinionRouted) {
       status = 'opinion_claim';
       confidence = 1.0;
-      reasoning = 'Classified as subjective content — not subject to factual verification.';
+      reasoning = formatOpinionReasoning(item.text);
       verificationMethod = 'claim_router_opinion';
     } else if (regMatch) {
       status = regMatch.status === 'correct' ? 'verified_true' : ('false_claim' as ClaimStatus);

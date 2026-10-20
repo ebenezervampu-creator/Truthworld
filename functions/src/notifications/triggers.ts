@@ -366,7 +366,7 @@ export const onUserNotificationCreated = onDocumentCreated(
     // Skip if already sent directly by notifyUser
     if (data.pushSent === true) return;
 
-    const { userId, type, severity, title, message, actionUrl, metadata } = data;
+    const { userId, type, severity, title, message, actionUrl, metadata, targetApp } = data;
     if (!userId || userId === "guest_user" || !title) return;
 
     try {
@@ -379,6 +379,7 @@ export const onUserNotificationCreated = onDocumentCreated(
           message: message || "",
           actionUrl: actionUrl || "",
           metadata: metadata || undefined,
+          targetApp: targetApp || undefined,
         },
         event.params.notificationId
       );

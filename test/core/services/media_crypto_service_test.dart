@@ -39,6 +39,40 @@ void main() {
       expect(parsed.sha256Digest, digest);
     });
 
+    test('Cross-platform 64-bit integer encoding and decoding (dart2js compatible)', () {
+      final testLengths = [
+        0,
+        1,
+        1024,
+        65536,
+        123456789,
+        0xFFFFFFFF, // 4,294,967,295 (Max 32-bit unsigned)
+        0x100000000, // 4,294,967,296 (2^32)
+        5368709120, // ~5 GB
+        10737418240, // ~10 GB
+      ];
+
+      for (final length in testLengths) {
+        final buffer = Uint8List(8);
+        final bd = ByteData.sublistView(buffer);
+        MediaCryptoService.writeUint64BigEndian(bd, 0, length);
+        final readBack = MediaCryptoService.readUint64BigEndian(bd, 0);
+        expect(readBack, length, reason: 'Failed for length $length');
+      }
+
+      // Verify exact big-endian byte representation for 123456789 (0x075BCD15)
+      final sampleBuffer = Uint8List(8);
+      final sampleBd = ByteData.sublistView(sampleBuffer);
+      MediaCryptoService.writeUint64BigEndian(sampleBd, 0, 123456789);
+      expect(sampleBuffer, [0x00, 0x00, 0x00, 0x00, 0x07, 0x5B, 0xCD, 0x15]);
+
+      // Verify exact big-endian byte representation for 5GB (0x140000000)
+      final largeBuffer = Uint8List(8);
+      final largeBd = ByteData.sublistView(largeBuffer);
+      MediaCryptoService.writeUint64BigEndian(largeBd, 0, 5368709120);
+      expect(largeBuffer, [0x00, 0x00, 0x00, 0x01, 0x40, 0x00, 0x00, 0x00]);
+    });
+
     test('In-memory AES-256 CTR encrypt and decrypt round-trip', () async {
       final plaintext = Uint8List.fromList(
         List.generate(1024, (i) => (i * 13 + 7) % 256),

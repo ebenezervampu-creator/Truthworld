@@ -1,5 +1,6 @@
 # TruthWorld Worldwide Copyright & DMCA Policy Specification
-**(Compliance with 17 U.S.C. § 512, EU DSM Directive 2019/790, and Indian Copyright Act, 1957)**
+**(Compliance with 17 U.S.C. § 512, EU DSM Directive 2019/790, and Indian Copyright Act, 1957)**  
+**Last Updated: October 12, 2026 | Effective Date: October 12, 2026**
 
 ---
 

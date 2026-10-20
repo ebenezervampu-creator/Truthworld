@@ -24,22 +24,36 @@ class AboutModernAppBar extends StatelessWidget implements PreferredSizeWidget {
       backgroundColor: AppColors.bgPage.withValues(alpha: 0.95),
       elevation: 0,
       systemOverlayStyle: SystemUiOverlayStyle.light,
-      title: Row(
-        children: [
-          const AppLogo(
-            size: 28,
-            borderRadius: 6,
+      title: InkWell(
+        onTap: () {
+          if (Navigator.of(context).canPop()) {
+            Get.back();
+          } else {
+            Get.offAllNamed('/');
+          }
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const AppLogo(
+                size: 28,
+                borderRadius: 6,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'About Truthworld',
+                style: TextStyle(
+                  fontSize: isTablet ? 22 : 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Text(
-            'About Truthworld',
-            style: TextStyle(
-              fontSize: isTablet ? 22 : 18,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
-          ),
-        ],
+        ),
       ),
       actions: [
         TextButton(

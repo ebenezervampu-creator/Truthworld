@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/data/models/subscription_content.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
@@ -35,7 +36,7 @@ mixin SubscriptionContentIngestionMixin on SubscriptionStateBase {
               .collection('feed_inbox')
               .orderBy('uploadedAt', descending: true)
               .limit(30)
-              .get();
+              .getCacheFirst();
 
           for (final doc in inboxSnap.docs) {
             try {
@@ -53,66 +54,36 @@ mixin SubscriptionContentIngestionMixin on SubscriptionStateBase {
         }
       }
 
-      // 2. Multi-Channel Ingestion (if feed inbox has few or no items)
-      if (contentMap.length < 15) {
-        try {
-          final videos = await loadVideos(channelIds);
-          for (final v in videos) {
-            final content = SubscriptionContent.fromVideo(v);
-            contentMap[content.id] = content;
-          }
-        } on Object catch (e, stackTrace) {
-          ErrorHandler.log(
-            e,
-            stackTrace: stackTrace,
-            tag: 'SubscriptionController.loadAllContent.videos',
-          );
-        }
-      }
+      // 2. Parallel Multi-Content Ingestion
+      final loadVideoFuture = contentMap.length < 15
+          ? loadVideos(channelIds)
+          : Future.value(<Video>[]);
+      final loadPlaylistFuture = loadPlaylists(channelIds);
+      final loadCommunityFuture = loadCommunityPosts(channelIds);
+      final loadTopicFuture = loadTopics(channelIds);
 
-      // Load playlists
-      try {
-        final playlists = await loadPlaylists(channelIds);
-        for (final p in playlists) {
-          final content = SubscriptionContent.fromPlaylist(p);
-          contentMap[content.id] = content;
-        }
-      } on Object catch (e, stackTrace) {
-        ErrorHandler.log(
-          e,
-          stackTrace: stackTrace,
-          tag: 'SubscriptionController.loadAllContent.playlists',
-        );
-      }
+      final results = await Future.wait([
+        loadVideoFuture,
+        loadPlaylistFuture,
+        loadCommunityFuture,
+        loadTopicFuture,
+      ]);
 
-      // Load community posts
-      try {
-        final communityPosts = await loadCommunityPosts(channelIds);
-        for (final cp in communityPosts) {
-          final content = SubscriptionContent.fromCommunityPost(cp);
-          contentMap[content.id] = content;
-        }
-      } on Object catch (e, stackTrace) {
-        ErrorHandler.log(
-          e,
-          stackTrace: stackTrace,
-          tag: 'SubscriptionController.loadAllContent.communityPosts',
-        );
+      for (final v in results[0] as List<Video>) {
+        final content = SubscriptionContent.fromVideo(v);
+        contentMap[content.id] = content;
       }
-
-      // Load topics
-      try {
-        final topics = await loadTopics(channelIds);
-        for (final t in topics) {
-          final content = SubscriptionContent.fromTopic(t);
-          contentMap[content.id] = content;
-        }
-      } on Object catch (e, stackTrace) {
-        ErrorHandler.log(
-          e,
-          stackTrace: stackTrace,
-          tag: 'SubscriptionController.loadAllContent.topics',
-        );
+      for (final p in results[1] as List<PlaylistModel>) {
+        final content = SubscriptionContent.fromPlaylist(p);
+        contentMap[content.id] = content;
+      }
+      for (final cp in results[2] as List<CommunityPostModel>) {
+        final content = SubscriptionContent.fromCommunityPost(cp);
+        contentMap[content.id] = content;
+      }
+      for (final t in results[3] as List<Topic>) {
+        final content = SubscriptionContent.fromTopic(t);
+        contentMap[content.id] = content;
       }
 
       final contentList = contentMap.values.toList()
@@ -130,57 +101,70 @@ mixin SubscriptionContentIngestionMixin on SubscriptionStateBase {
     }
   }
 
-  /// Industry Standard Feed Aggregation: Index-resilient query + in-memory VideoVisibilityPolicy
+  /// Industry Standard Feed Aggregation: Parallel batching + getCacheFirst + in-memory VideoVisibilityPolicy
   Future<List<Video>> loadVideos(List<String> channelIds) async {
     final videos = <Video>[];
     if (channelIds.isEmpty) return videos;
 
-    // Cap to top 30 subscribed channels to bound network queries to max 3 batches
     final targetChannels =
         channelIds.length > 30 ? channelIds.sublist(0, 30) : channelIds;
     const batchSize = 10;
+    final batches = <List<String>>[];
     for (var i = 0; i < targetChannels.length; i += batchSize) {
-      final batch = targetChannels.sublist(
-        i,
-        i + batchSize > targetChannels.length
-            ? targetChannels.length
-            : i + batchSize,
+      batches.add(
+        targetChannels.sublist(
+          i,
+          i + batchSize > targetChannels.length
+              ? targetChannels.length
+              : i + batchSize,
+        ),
       );
+    }
 
-      final docs = <DocumentSnapshot>[];
-
-      // Attempt 1: Fetch channel batch without fragile multi-field composite index constraints
-      try {
-        final snapshot = await firestore
-            .collection(FirestoreCollections.videos)
-            .where('channelId', whereIn: batch)
-            .limit(50)
-            .get();
-        docs.addAll(snapshot.docs);
-      } on Object catch (e, stackTrace) {
-        ErrorHandler.log(
-          e,
-          stackTrace: stackTrace,
-          tag: 'SubscriptionController._loadVideos.batch',
-        );
-        for (final cid in batch) {
-          try {
-            final snap = await firestore
-                .collection(FirestoreCollections.videos)
-                .where('channelId', isEqualTo: cid)
-                .limit(20)
-                .get();
-            docs.addAll(snap.docs);
-          } on Object catch (err, stackTrace) {
-            ErrorHandler.log(
-              err,
-              stackTrace: stackTrace,
-              tag: 'SubscriptionController._loadVideos.perChannel',
-            );
+    final batchResults = await Future.wait(
+      batches.map((batch) async {
+        final docs = <DocumentSnapshot>[];
+        try {
+          final snapshot = await firestore
+              .collection(FirestoreCollections.videos)
+              .where('channelId', whereIn: batch)
+              .limit(50)
+              .getCacheFirst();
+          docs.addAll(snapshot.docs);
+        } on Object catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'SubscriptionController._loadVideos.batch',
+          );
+          final perChannelResults = await Future.wait(
+            batch.map((cid) async {
+              try {
+                final snap = await firestore
+                    .collection(FirestoreCollections.videos)
+                    .where('channelId', isEqualTo: cid)
+                    .limit(20)
+                    .getCacheFirst();
+                return snap.docs;
+              } on Object catch (err, stackTrace) {
+                ErrorHandler.log(
+                  err,
+                  stackTrace: stackTrace,
+                  tag: 'SubscriptionController._loadVideos.perChannel',
+                );
+                return <DocumentSnapshot>[];
+              }
+            }),
+          );
+          for (final perChannelDocs in perChannelResults) {
+            docs.addAll(perChannelDocs);
           }
         }
-      }
+        return docs;
+      }),
+    );
 
+    for (final docs in batchResults) {
       for (final doc in docs) {
         try {
           final video = Video.fromDocumentSnapshot(doc);
@@ -204,53 +188,67 @@ mixin SubscriptionContentIngestionMixin on SubscriptionStateBase {
     final playlists = <PlaylistModel>[];
     if (channelIds.isEmpty) return playlists;
 
-    // Cap to top 30 channels to avoid cascading reads
     final targetChannels =
         channelIds.length > 30 ? channelIds.sublist(0, 30) : channelIds;
     const batchSize = 10;
+    final batches = <List<String>>[];
     for (var i = 0; i < targetChannels.length; i += batchSize) {
-      final batch = targetChannels.sublist(
-        i,
-        i + batchSize > targetChannels.length
-            ? targetChannels.length
-            : i + batchSize,
+      batches.add(
+        targetChannels.sublist(
+          i,
+          i + batchSize > targetChannels.length
+              ? targetChannels.length
+              : i + batchSize,
+        ),
       );
+    }
 
-      final docs = <DocumentSnapshot>[];
-
-      try {
-        final snapshot = await firestore
-            .collection(FirestoreCollections.playlists)
-            .where('channelId', whereIn: batch)
-            .where('isPublic', isEqualTo: true)
-            .limit(30)
-            .get();
-        docs.addAll(snapshot.docs);
-      } on Object catch (e, stackTrace) {
-        ErrorHandler.log(
-          e,
-          stackTrace: stackTrace,
-          tag: 'SubscriptionController._loadPlaylists.batch',
-        );
-        for (final cid in batch) {
-          try {
-            final snap = await firestore
-                .collection(FirestoreCollections.playlists)
-                .where('channelId', isEqualTo: cid)
-                .where('isPublic', isEqualTo: true)
-                .limit(10)
-                .get();
-            docs.addAll(snap.docs);
-          } on Object catch (e, stackTrace) {
-            ErrorHandler.log(
-              e,
-              stackTrace: stackTrace,
-              tag: 'SubscriptionController._loadPlaylists.perChannel',
-            );
+    final batchResults = await Future.wait(
+      batches.map((batch) async {
+        final docs = <DocumentSnapshot>[];
+        try {
+          final snapshot = await firestore
+              .collection(FirestoreCollections.playlists)
+              .where('channelId', whereIn: batch)
+              .where('isPublic', isEqualTo: true)
+              .limit(30)
+              .getCacheFirst();
+          docs.addAll(snapshot.docs);
+        } on Object catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'SubscriptionController._loadPlaylists.batch',
+          );
+          final perChannelResults = await Future.wait(
+            batch.map((cid) async {
+              try {
+                final snap = await firestore
+                    .collection(FirestoreCollections.playlists)
+                    .where('channelId', isEqualTo: cid)
+                    .where('isPublic', isEqualTo: true)
+                    .limit(10)
+                    .getCacheFirst();
+                return snap.docs;
+              } on Object catch (e, stackTrace) {
+                ErrorHandler.log(
+                  e,
+                  stackTrace: stackTrace,
+                  tag: 'SubscriptionController._loadPlaylists.perChannel',
+                );
+                return <DocumentSnapshot>[];
+              }
+            }),
+          );
+          for (final perChannelDocs in perChannelResults) {
+            docs.addAll(perChannelDocs);
           }
         }
-      }
+        return docs;
+      }),
+    );
 
+    for (final docs in batchResults) {
       for (final doc in docs) {
         try {
           final playlist = PlaylistModel.fromDocumentSnapshot(doc);
@@ -276,52 +274,66 @@ mixin SubscriptionContentIngestionMixin on SubscriptionStateBase {
     final posts = <CommunityPostModel>[];
     if (channelIds.isEmpty) return posts;
 
-    // Cap to top 30 channels to avoid cascading reads
     final targetChannels =
         channelIds.length > 30 ? channelIds.sublist(0, 30) : channelIds;
     const batchSize = 10;
+    final batches = <List<String>>[];
     for (var i = 0; i < targetChannels.length; i += batchSize) {
-      final batch = targetChannels.sublist(
-        i,
-        i + batchSize > targetChannels.length
-            ? targetChannels.length
-            : i + batchSize,
+      batches.add(
+        targetChannels.sublist(
+          i,
+          i + batchSize > targetChannels.length
+              ? targetChannels.length
+              : i + batchSize,
+        ),
       );
+    }
 
-      final docs = <DocumentSnapshot>[];
-
-      try {
-        final snapshot = await firestore
-            .collection(FirestoreCollections.community)
-            .where('channelId', whereIn: batch)
-            .limit(30)
-            .get();
-        docs.addAll(snapshot.docs);
-      } on Object catch (e, stackTrace) {
-        ErrorHandler.log(
-          e,
-          stackTrace: stackTrace,
-          tag: 'SubscriptionController._loadCommunityPosts.batch',
-        );
-        for (final cid in batch) {
-          try {
-            final snap = await firestore
-                .collection(FirestoreCollections.community)
-                .where('channelId', isEqualTo: cid)
-                .limit(10)
-                .get();
-            docs.addAll(snap.docs);
-          } on Object catch (e, stackTrace) {
-            ErrorHandler.log(
-              e,
-              stackTrace: stackTrace,
-              tag: 'SubscriptionController._loadCommunityPosts.perChannel',
-            );
+    final batchResults = await Future.wait(
+      batches.map((batch) async {
+        final docs = <DocumentSnapshot>[];
+        try {
+          final snapshot = await firestore
+              .collection(FirestoreCollections.community)
+              .where('channelId', whereIn: batch)
+              .limit(30)
+              .getCacheFirst();
+          docs.addAll(snapshot.docs);
+        } on Object catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'SubscriptionController._loadCommunityPosts.batch',
+          );
+          final perChannelResults = await Future.wait(
+            batch.map((cid) async {
+              try {
+                final snap = await firestore
+                    .collection(FirestoreCollections.community)
+                    .where('channelId', isEqualTo: cid)
+                    .limit(10)
+                    .getCacheFirst();
+                return snap.docs;
+              } on Object catch (e, stackTrace) {
+                ErrorHandler.log(
+                  e,
+                  stackTrace: stackTrace,
+                  tag: 'SubscriptionController._loadCommunityPosts.perChannel',
+                );
+                return <DocumentSnapshot>[];
+              }
+            }),
+          );
+          for (final perChannelDocs in perChannelResults) {
+            docs.addAll(perChannelDocs);
           }
         }
-      }
+        return docs;
+      }),
+    );
 
-      final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    for (final docs in batchResults) {
       for (final doc in docs) {
         try {
           final data = doc.data() as Map<String, dynamic>?;
@@ -352,53 +364,67 @@ mixin SubscriptionContentIngestionMixin on SubscriptionStateBase {
     final topics = <Topic>[];
     if (channelIds.isEmpty) return topics;
 
-    // Cap to top 30 channels to avoid cascading reads
     final targetChannels =
         channelIds.length > 30 ? channelIds.sublist(0, 30) : channelIds;
     const batchSize = 10;
+    final batches = <List<String>>[];
     for (var i = 0; i < targetChannels.length; i += batchSize) {
-      final batch = targetChannels.sublist(
-        i,
-        i + batchSize > targetChannels.length
-            ? targetChannels.length
-            : i + batchSize,
+      batches.add(
+        targetChannels.sublist(
+          i,
+          i + batchSize > targetChannels.length
+              ? targetChannels.length
+              : i + batchSize,
+        ),
       );
+    }
 
-      final docs = <DocumentSnapshot>[];
-
-      try {
-        final snapshot = await firestore
-            .collection(FirestoreCollections.topics)
-            .where('channelId', whereIn: batch)
-            .where('status', isEqualTo: 'active')
-            .limit(30)
-            .get();
-        docs.addAll(snapshot.docs);
-      } on Object catch (e, stackTrace) {
-        ErrorHandler.log(
-          e,
-          stackTrace: stackTrace,
-          tag: 'SubscriptionController._loadTopics.batch',
-        );
-        for (final cid in batch) {
-          try {
-            final snap = await firestore
-                .collection(FirestoreCollections.topics)
-                .where('channelId', isEqualTo: cid)
-                .where('status', isEqualTo: 'active')
-                .limit(10)
-                .get();
-            docs.addAll(snap.docs);
-          } on Object catch (e, stackTrace) {
-            ErrorHandler.log(
-              e,
-              stackTrace: stackTrace,
-              tag: 'SubscriptionController._loadTopics.perChannel',
-            );
+    final batchResults = await Future.wait(
+      batches.map((batch) async {
+        final docs = <DocumentSnapshot>[];
+        try {
+          final snapshot = await firestore
+              .collection(FirestoreCollections.topics)
+              .where('channelId', whereIn: batch)
+              .where('status', isEqualTo: 'active')
+              .limit(30)
+              .getCacheFirst();
+          docs.addAll(snapshot.docs);
+        } on Object catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'SubscriptionController._loadTopics.batch',
+          );
+          final perChannelResults = await Future.wait(
+            batch.map((cid) async {
+              try {
+                final snap = await firestore
+                    .collection(FirestoreCollections.topics)
+                    .where('channelId', isEqualTo: cid)
+                    .where('status', isEqualTo: 'active')
+                    .limit(10)
+                    .getCacheFirst();
+                return snap.docs;
+              } on Object catch (e, stackTrace) {
+                ErrorHandler.log(
+                  e,
+                  stackTrace: stackTrace,
+                  tag: 'SubscriptionController._loadTopics.perChannel',
+                );
+                return <DocumentSnapshot>[];
+              }
+            }),
+          );
+          for (final perChannelDocs in perChannelResults) {
+            docs.addAll(perChannelDocs);
           }
         }
-      }
+        return docs;
+      }),
+    );
 
+    for (final docs in batchResults) {
       for (final doc in docs) {
         try {
           final topic = Topic.fromDocumentSnapshot(doc);

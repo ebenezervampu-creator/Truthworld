@@ -22,17 +22,25 @@ service cloud.firestore {
       );
     }
 
+    // Helper function to safely check video document ownership from its data map
+    function isVideoDataOwner(data) {
+      return ('ownerId' in data && data.ownerId == request.auth.uid) ||
+             ('userId' in data && data.userId == request.auth.uid) ||
+             ('uploaderId' in data && data.uploaderId == request.auth.uid) ||
+             ('channelId' in data && data.channelId != null &&
+              exists(/databases/$(database)/documents/channels/$(data.channelId)) &&
+              (('ownerId' in get(/databases/$(database)/documents/channels/$(data.channelId)).data &&
+                get(/databases/$(database)/documents/channels/$(data.channelId)).data.ownerId == request.auth.uid) ||
+               ('userId' in get(/databases/$(database)/documents/channels/$(data.channelId)).data &&
+                get(/databases/$(database)/documents/channels/$(data.channelId)).data.userId == request.auth.uid)));
+    }
+
     // Helper function to check if user owns a video (or channel owning the video)
     function isVideoOwner(videoId) {
       return isAuthenticated() && (
+        isAdmin() ||
         (exists(/databases/$(database)/documents/videos/$(videoId)) &&
-         (get(/databases/$(database)/documents/videos/$(videoId)).data.ownerId == request.auth.uid ||
-          get(/databases/$(database)/documents/videos/$(videoId)).data.userId == request.auth.uid ||
-          get(/databases/$(database)/documents/videos/$(videoId)).data.uploaderId == request.auth.uid ||
-          (get(/databases/$(database)/documents/videos/$(videoId)).data.channelId != null &&
-           exists(/databases/$(database)/documents/channels/$(get(/databases/$(database)/documents/videos/$(videoId)).data.channelId)) &&
-           get(/databases/$(database)/documents/channels/$(get(/databases/$(database)/documents/videos/$(videoId)).data.channelId)).data.ownerId == request.auth.uid))) ||
-        isAdmin()
+         isVideoDataOwner(get(/databases/$(database)/documents/videos/$(videoId)).data))
       );
     }
     
@@ -110,6 +118,12 @@ service cloud.firestore {
                        (!('strikeCount' in request.resource.data) || request.resource.data.strikeCount == 0) &&
                        (!('isBanned' in request.resource.data) || request.resource.data.isBanned == false) &&
                        (!('channelType' in request.resource.data) || request.resource.data.channelType == 'standard' || request.resource.data.channelType == 'none') &&
+                       (!('infraConfig' in request.resource.data) || (!('rolloverCreditUSD' in request.resource.data.infraConfig) || request.resource.data.infraConfig.rolloverCreditUSD == 0)) &&
+                       (!('isMonetized' in request.resource.data) || request.resource.data.isMonetized == false) &&
+                       (!('monetizationEnabled' in request.resource.data) || request.resource.data.monetizationEnabled == false) &&
+                       (!('payoutsBlocked' in request.resource.data) || request.resource.data.payoutsBlocked == false) &&
+                       (!('fraudReviewFlag' in request.resource.data) || request.resource.data.fraudReviewFlag == false) &&
+                       (!('allowAnytimePayout' in request.resource.data) || request.resource.data.allowAnytimePayout == false) &&
                        (!('subscriberCount' in request.resource.data) || request.resource.data.subscriberCount == 0);
       
       // Allow owners or admins to update their channels, protecting verification, moderation, and financial fields
@@ -120,11 +134,14 @@ service cloud.firestore {
                           'isVerified', 'geminiApproved', 'status', 'monetizationTier', 'superchatRevenueTotal',
                           'adsRevenueTotal', 'membershipRevenueTotal', 'membershipsRevenueTotal', 'premiumSubsRevenueTotal',
                           'walletBalanceUSD', 'walletBalance', 'withdrawnRevenueTotal',
-                          'subscriberCount', 'videoCount', 'ownerId', 'userId', 'createdAt', 'penaltyStatus',
+                          'infraConfig', 'channelType', 'isMonetized', 'monetizationStatus', 'monetizationEnabled',
+                          'payoutsBlocked', 'fraudReviewFlag', 'viewFraudReviewFlag', 'botViewSuspected',
+                          'allowAnytimePayout', 'qualifiedViewCount', 'totalWatchTimeMinutes',
+                          'subscriberCount', 'ownerId', 'userId', 'createdAt', 'penaltyStatus',
                           'trustScore', 'reputationScore', 'moderationReason', 'metrics',
-                           'strikes', 'strikeCount', 'isBanned', 'suspendedAt', 'bannedAt'
+                          'strikes', 'strikeCount', 'isBanned', 'suspendedAt', 'bannedAt'
                         ])) ||
-                       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subscriberCount', 'lastActiveAt', 'videoCount']) &&
+                       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subscriberCount', 'lastActiveAt', 'videoCount', 'updatedAt']) &&
                         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['subscriberCount']) ||
                          ((!('subscriberCount' in resource.data) || resource.data.subscriberCount == null) && request.resource.data.subscriberCount == 1) ||
                          request.resource.data.subscriberCount == resource.data.subscriberCount + 1 ||
@@ -183,29 +200,41 @@ service cloud.firestore {
       // Distributed Counter Shards (20 shards for channel views, watch time & subscribers)
       match /shards/{shardId} {
         allow read: if true;
-        allow create: if isAuthenticated() && request.resource.data.keys().hasOnly(['views', 'watchTimeSeconds', 'subscriberDelta', 'updatedAt']);
-        allow update: if isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'watchTimeSeconds', 'subscriberDelta', 'updatedAt']);
+        allow create: if request.resource.data.keys().hasOnly(['views', 'watchTimeSeconds', 'updatedAt']) ||
+                         (isAuthenticated() && request.resource.data.keys().hasOnly(['views', 'watchTimeSeconds', 'subscriberDelta', 'updatedAt']));
+        allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'watchTimeSeconds', 'updatedAt']) ||
+                         (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'watchTimeSeconds', 'subscriberDelta', 'updatedAt']));
       }
 
       // Videos subcollection (alternate path)
       match /videos/{videoId} {
         allow list: if true;
-        allow get: if (!('visibility' in resource.data) ||
-                       (resource.data.visibility != 'Private' &&
-                        resource.data.visibility != 'private' &&
-                        resource.data.visibility != 'private_draft' &&
-                        resource.data.visibility != 'draft')) ||
+        allow get: if resource == null ||
+                      (!('visibility' in resource.data) ||
+                       resource.data.visibility == null ||
+                       resource.data.visibility == 'public' ||
+                       resource.data.visibility == 'Public' ||
+                       resource.data.visibility == 'unlisted' ||
+                       resource.data.visibility == 'Unlisted' ||
+                       !(resource.data.visibility in ['Private', 'private', 'draft', 'private_draft'])) ||
                       (isAuthenticated() && (
-                        resource.data.ownerId == request.auth.uid ||
-                        resource.data.userId == request.auth.uid ||
+                        isAdmin() ||
+                        isVideoDataOwner(resource.data) ||
                         request.auth.uid == channelId ||
                         (exists(/databases/$(database)/documents/channels/$(channelId)) &&
-                         get(/databases/$(database)/documents/channels/$(channelId)).data.ownerId == request.auth.uid) ||
-                        isAdmin()
+                         (('ownerId' in get(/databases/$(database)/documents/channels/$(channelId)).data &&
+                           get(/databases/$(database)/documents/channels/$(channelId)).data.ownerId == request.auth.uid) ||
+                          ('userId' in get(/databases/$(database)/documents/channels/$(channelId)).data &&
+                           get(/databases/$(database)/documents/channels/$(channelId)).data.userId == request.auth.uid)))
                       ));
         allow write: if isAuthenticated() && 
-                         (resource.data.ownerId == request.auth.uid ||
-                          request.resource.data.ownerId == request.auth.uid);
+                         (('ownerId' in resource.data && resource.data.ownerId == request.auth.uid) ||
+                          ('userId' in resource.data && resource.data.userId == request.auth.uid) ||
+                          ('uploaderId' in resource.data && resource.data.uploaderId == request.auth.uid) ||
+                          ('ownerId' in request.resource.data && request.resource.data.ownerId == request.auth.uid) ||
+                          ('userId' in request.resource.data && request.resource.data.userId == request.auth.uid) ||
+                          ('uploaderId' in request.resource.data && request.resource.data.uploaderId == request.auth.uid) ||
+                          isAdmin());
       }
 
       // Membership Tiers subcollection
@@ -307,12 +336,18 @@ service cloud.firestore {
     // Videos Collection
     match /videos/{videoId} {
       allow list: if true;
-      allow get: if (!('visibility' in resource.data) ||
-                     (resource.data.visibility != 'Private' &&
-                      resource.data.visibility != 'private' &&
-                      resource.data.visibility != 'private_draft' &&
-                      resource.data.visibility != 'draft')) ||
-                    isVideoOwner(videoId);
+      allow get: if resource == null ||
+                    (!('visibility' in resource.data) ||
+                     resource.data.visibility == null ||
+                     resource.data.visibility == 'public' ||
+                     resource.data.visibility == 'Public' ||
+                     resource.data.visibility == 'unlisted' ||
+                     resource.data.visibility == 'Unlisted' ||
+                     !(resource.data.visibility in ['Private', 'private', 'draft', 'private_draft'])) ||
+                    (isAuthenticated() && (
+                      isAdmin() ||
+                      isVideoDataOwner(resource.data)
+                    ));
       
       // Allow authenticated users to create videos — all identity fields must match the creator
       allow create: if isAuthenticated() && 
@@ -337,7 +372,7 @@ service cloud.firestore {
       // Allow owners or admins to update their videos, or authenticated users to update engagement / interaction counts
       allow update: if isAuthenticated() && (
         isAdmin() ||
-        (isVideoOwner(videoId) &&
+        ((isVideoDataOwner(resource.data) || isVideoOwner(videoId)) &&
          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
            'credibilityScore', 'factCheck', 'truthScore', 'pipelineStatus', 'moderation', 'moderationReason', 'gatewayDecision',
            'views', 'viewCount', 'playCount', 'credibilityVerified', 'isVerified'
@@ -354,15 +389,21 @@ service cloud.firestore {
          request.resource.data.dislikeCount == resource.data.dislikeCount - 1 ||
          request.resource.data.dislikeCount == resource.data.dislikeCount) &&
         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['viewCount']) ||
-         request.resource.data.viewCount == resource.data.viewCount + 1 ||
-         request.resource.data.viewCount == resource.data.viewCount) &&
+         (!('viewCount' in resource.data) && request.resource.data.viewCount == 1) ||
+         ('viewCount' in resource.data && (
+           request.resource.data.viewCount == resource.data.viewCount + 1 ||
+           request.resource.data.viewCount == resource.data.viewCount
+         ))) &&
         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['views']) ||
-         request.resource.data.views == resource.data.views + 1 ||
-         request.resource.data.views == resource.data.views))
+         (!('views' in resource.data) && request.resource.data.views == 1) ||
+         ('views' in resource.data && (
+           request.resource.data.views == resource.data.views + 1 ||
+           request.resource.data.views == resource.data.views
+         ))))
       );
       
       // Allow owners to delete their videos
-      allow delete: if isVideoOwner(videoId);
+      allow delete: if isAuthenticated() && (isAdmin() || isVideoDataOwner(resource.data) || isVideoOwner(videoId));
 
       // Media subcollection (localization, credibility, streaming)
       match /media/{docId} {
@@ -407,8 +448,8 @@ service cloud.firestore {
       // Distributed Counter Shards (20 shards for viral video views & watch time)
       match /shards/{shardId} {
         allow read: if true;
-        allow create: if isAuthenticated() && request.resource.data.keys().hasOnly(['count', 'qualifiedCount', 'watchTimeSeconds', 'updatedAt']);
-        allow update: if isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['count', 'qualifiedCount', 'watchTimeSeconds', 'updatedAt']);
+        allow create: if request.resource.data.keys().hasOnly(['count', 'qualifiedCount', 'watchTimeSeconds', 'updatedAt']);
+        allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['count', 'qualifiedCount', 'watchTimeSeconds', 'updatedAt']);
       }
 
       // Distributed Counter Shards (20 shards for viral video comments)
@@ -878,11 +919,32 @@ service cloud.firestore {
 
     // User Notifications Collection
     match /user_notifications/{notificationId} {
-      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
-      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
-      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid &&
-        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId']));
-      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.creatorId == request.auth.uid ||
+        resource.data.channelId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        ((!('userId' in request.resource.data) || request.resource.data.userId == request.auth.uid) &&
+         (!('creatorId' in request.resource.data) || request.resource.data.creatorId == request.auth.uid) &&
+         (request.resource.data.userId == request.auth.uid ||
+          request.resource.data.creatorId == request.auth.uid ||
+          request.resource.data.channelId == request.auth.uid))
+      );
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.creatorId == request.auth.uid ||
+        resource.data.channelId == request.auth.uid ||
+        isAdmin()
+      ) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'creatorId']));
+      allow delete: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.creatorId == request.auth.uid ||
+        resource.data.channelId == request.auth.uid ||
+        isAdmin()
+      );
     }
     
     // Ad Campaigns Collection
@@ -1382,15 +1444,41 @@ service cloud.firestore {
 
     // Copyright Claims Collection
     match /copyright_claims/{claimId} {
-      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || resource.data.claimantId == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || request.resource.data.claimantId == request.auth.uid);
+      allow read: if isAuthenticated() && (
+        resource.data.uploaderId == request.auth.uid ||
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.channelId == request.auth.uid ||
+        resource.data.ownerChannelId == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        resource.data.claimantId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        request.resource.data.uploaderId == request.auth.uid ||
+        request.resource.data.ownerId == request.auth.uid ||
+        request.resource.data.channelId == request.auth.uid ||
+        request.resource.data.ownerChannelId == request.auth.uid ||
+        request.resource.data.userId == request.auth.uid ||
+        request.resource.data.claimantId == request.auth.uid ||
+        isAdmin()
+      );
       allow update, delete: if false; // Only backend can update or delete claims
     }
 
     // Copyright Appeals Collection
     match /copyright_appeals/{appealId} {
-      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || resource.data.claimantId == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || request.resource.data.claimantId == request.auth.uid);
+      allow read: if isAuthenticated() && (
+        resource.data.appellantId == request.auth.uid ||
+        resource.data.claimantId == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        request.resource.data.appellantId == request.auth.uid ||
+        request.resource.data.claimantId == request.auth.uid ||
+        request.resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
       allow update, delete: if false; // Only backend can update or delete appeals
     }
 
@@ -1491,7 +1579,7 @@ service cloud.firestore {
       allow update: if isAuthenticated() && (
         resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid
       );
-      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // Notification Preferences Collection
@@ -1602,8 +1690,26 @@ service cloud.firestore {
     match /account_clusters/{doc=**} {
       allow read, write: if isAdmin();
     }
-    match /video_jobs/{doc=**} {
-      allow read, write: if isAdmin();
+    // Video Processing Pipeline Jobs Collection
+    match /video_jobs/{jobId} {
+      allow read: if isAuthenticated() && (
+        isAdmin() || 
+        resource.data.userId == request.auth.uid || 
+        isVideoOwner(jobId) || 
+        (resource.data.videoId != null && isVideoOwner(resource.data.videoId))
+      );
+      allow create: if isAuthenticated() && (
+        isAdmin() || 
+        (request.resource.data.userId == request.auth.uid && 
+         (isVideoOwner(jobId) || !exists(/databases/$(database)/documents/videos/$(jobId))))
+      );
+      allow update: if isAuthenticated() && (
+        isAdmin() || 
+        ((resource.data.userId == request.auth.uid || 
+          request.resource.data.userId == request.auth.uid || 
+          isVideoOwner(jobId)))
+      );
+      allow delete: if isAdmin();
     }
     match /pipeline_errors/{doc=**} {
       allow read, write: if isAdmin();

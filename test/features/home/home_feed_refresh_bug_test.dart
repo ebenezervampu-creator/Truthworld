@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/services/algorithm/feed_algorithm_service.dart';
+import 'package:truthworld/core/services/video_sanitizer.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/features/home/data/services/feed_cache_manager.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -233,9 +234,105 @@ void main() {
         'category': 'Spirituality',
         'status': 'uploading',
       };
-
       final video = Video.fromMap(uploadingVideo);
       expect(VideoVisibilityPolicy.isValidVideo(video), isFalse);
     });
+
+    test('VideoVisibilityPolicy and VideoMapParser both accept status published and status ready as public feed items', () {
+      final now = DateTime.now();
+
+      final videoPublished = Video.fromMap({
+        'id': 'vid_zomato_published',
+        'title': "Zomato's Big Transformation: From Food Delivery to a Con...",
+        'description': 'Description',
+        'thumbnailUrl': 'https://example.com/thumb_zomato.jpg',
+        'ownerId': 'owner_1',
+        'channelId': 'channel_1',
+        'channelName': 'Ebenezer Vampu',
+        'category': 'Business & Finance',
+        'tags': ['zomato', 'business'],
+        'status': 'published',
+        'visibility': 'Public',
+        'uploadedAt': Timestamp.fromDate(now.subtract(const Duration(hours: 6))),
+        'videoUrl': 'https://example.com/zomato.mp4',
+        'geminiApproved': true,
+        'isApproved': true,
+      });
+
+      final videoReady = Video.fromMap({
+        'id': 'vid_eggs_ready',
+        'title': 'Are Eggs Vegetarian or Non-Vegetarian? The Science & ...',
+        'description': 'Description',
+        'thumbnailUrl': 'https://example.com/thumb_eggs.jpg',
+        'ownerId': 'owner_1',
+        'channelId': 'channel_1',
+        'channelName': 'Ebenezer Vampu',
+        'category': 'Education',
+        'tags': ['science', 'food'],
+        'status': 'ready',
+        'visibility': 'public',
+        'uploadedAt': Timestamp.fromDate(now.subtract(const Duration(days: 1))),
+        'createdAt': Timestamp.fromDate(now.subtract(const Duration(days: 1))),
+        'videoUrl': 'https://example.com/eggs.mp4',
+        'geminiApproved': true,
+        'isApproved': true,
+      });
+
+      expect(videoPublished.status, equals(VideoStatus.ready));
+      expect(videoReady.status, equals(VideoStatus.ready));
+
+      expect(VideoVisibilityPolicy.isValidVideo(videoPublished), isTrue);
+      expect(VideoVisibilityPolicy.isValidVideo(videoReady), isTrue);
+
+      expect(VideoVisibilityPolicy.isVisibleForFeed(videoPublished), isTrue);
+      expect(VideoVisibilityPolicy.isVisibleForFeed(videoReady), isTrue);
+    });
+
+    test('VideoSanitizer preserves both newly uploaded and existing videos in the Home feed without dropping', () {
+      final now = DateTime.now();
+
+      final videoPublished = Video.fromMap({
+        'id': 'vid_zomato_published',
+        'title': "Zomato's Big Transformation: From Food Delivery to a Con...",
+        'description': 'Description',
+        'thumbnailUrl': 'https://example.com/thumb_zomato.jpg',
+        'ownerId': 'owner_1',
+        'channelId': 'channel_1',
+        'channelName': 'Ebenezer Vampu',
+        'category': 'Business & Finance',
+        'tags': ['zomato'],
+        'status': 'published',
+        'visibility': 'Public',
+        'uploadedAt': Timestamp.fromDate(now.subtract(const Duration(hours: 6))),
+        'videoUrl': 'https://example.com/zomato.mp4',
+        'geminiApproved': true,
+        'isApproved': true,
+      });
+
+      final videoReady = Video.fromMap({
+        'id': 'vid_eggs_ready',
+        'title': 'Are Eggs Vegetarian or Non-Vegetarian? The Science & ...',
+        'description': 'Description',
+        'thumbnailUrl': 'https://example.com/thumb_eggs.jpg',
+        'ownerId': 'owner_1',
+        'channelId': 'channel_1',
+        'channelName': 'Ebenezer Vampu',
+        'category': 'Education',
+        'tags': ['science'],
+        'status': 'ready',
+        'visibility': 'public',
+        'uploadedAt': Timestamp.fromDate(now.subtract(const Duration(days: 1))),
+        'videoUrl': 'https://example.com/eggs.mp4',
+        'geminiApproved': true,
+        'isApproved': true,
+      });
+
+      final feed = [videoPublished, videoReady];
+      final sanitized = feed.sanitizeForFeed();
+
+      expect(sanitized.length, equals(2));
+      expect(sanitized.map((v) => v.id), containsAll(['vid_zomato_published', 'vid_eggs_ready']));
+    });
   });
 }
+

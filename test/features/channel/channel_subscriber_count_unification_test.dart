@@ -1,9 +1,15 @@
+// ignore_for_file: must_call_super
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/data/models/channel.dart';
-import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
+import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
+import 'package:truthworld/features/channel/presentation/views/channel/channel_details_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/discover/presentation/controllers/discover_channels_controller.dart';
 import 'package:truthworld/features/discover/presentation/views/channels/widgets/discover_channels_constants.dart';
@@ -44,7 +50,6 @@ void main() {
         ownerId: 'owner_user_456',
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
-        subscriberCount: 0,
       );
     });
 
@@ -102,7 +107,7 @@ void main() {
       subCtrl.setSubscriberCount(testChannelId, 0);
 
       // Simulate subscribing: count transitions from 0 -> 1
-      final nextCount = 1;
+      const nextCount = 1;
       subCtrl.setSubscriberCount(testChannelId, nextCount);
 
       // Verify central registry
@@ -152,7 +157,7 @@ void main() {
       };
 
       // Unsubscribe: 1 -> 0
-      final zeroCount = 0;
+      const zeroCount = 0;
       subCtrl.setSubscriberCount(testChannelId, zeroCount);
       dashCtrl.channelStats['subscribers'] = zeroCount.toString();
       dashCtrl.channelStats['rawSubscribers'] = zeroCount;
@@ -197,6 +202,37 @@ void main() {
         expect(formatSubscriberCount(count), equals(expected),
             reason: 'Discover channels format mismatch for $count');
       }
+    });
+
+    testWidgets('5. ChannelDetailsPage does not throw markNeedsBuild during build when Obx listens to subscriber counts',
+        (tester) async {
+      Get.put<AuthService>(AuthService());
+      Get.put<ConnectivityService>(ConnectivityService());
+      Get.put(ChannelSubscriptionController());
+      Get.put(ChannelController());
+
+      // Simulate an Obx widget that observes channelSubscriberCounts while ChannelDetailsPage is building
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                Obx(() => Text('Subscribers: ${ChannelSubscriptionController.channelSubscriberCounts[testChannelId] ?? 0}')),
+                Expanded(
+                  child: ChannelDetailsPage(channel: testChannel),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      // Verify no assertion error occurred during build
+      expect(tester.takeException(), isNull);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(tester.takeException(), isNull);
+      expect(find.byType(ChannelDetailsPage), findsOneWidget);
     });
   });
 }

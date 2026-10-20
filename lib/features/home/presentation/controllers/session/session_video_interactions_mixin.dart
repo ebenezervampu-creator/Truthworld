@@ -18,6 +18,7 @@ mixin SessionVideoInteractionsMixin on BaseController {
 
   final RxMap<String, int> videoLikes = <String, int>{}.obs;
   final RxMap<String, int> videoDislikes = <String, int>{}.obs;
+  final RxMap<String, int> videoViews = <String, int>{}.obs;
 
   // Client-side guard for rapid tapping (race condition prevention)
   final Set<String> _pendingLikeOperations = <String>{};

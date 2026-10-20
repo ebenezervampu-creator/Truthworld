@@ -205,6 +205,16 @@
   <!-- ── Ultra-Low Latency Service Worker & Preloads ─── -->
   <script>
     if (!isLocalDevHost && 'serviceWorker' in navigator) {
+      // Proactively clean up any legacy Flutter service workers that may cause reload loops
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for (var i = 0; i < registrations.length; i++) {
+          var reg = registrations[i];
+          if (reg && reg.active && reg.active.scriptURL && reg.active.scriptURL.indexOf('flutter_service_worker') !== -1) {
+            reg.unregister();
+          }
+        }
+      }).catch(function() {});
+
       navigator.serviceWorker.register('/sw.js', { scope: '/' })
         .then(function(reg) {
           reg.onupdatefound = function() {
@@ -224,11 +234,8 @@
     }
   </script>
 
-  <!-- ── Performance Preload Hints (Wasm & Engine Chunks) ─ -->
+  <!-- ── Performance Preload Hints ─ -->
   <link rel="preload" href="flutter_bootstrap.js" as="script" />
-  <link rel="modulepreload" href="main.dart.mjs" />
-  <link rel="preload" href="main.dart.wasm" as="fetch" type="application/wasm" crossorigin="anonymous" />
-  <link rel="preload" href="https://www.gstatic.com/flutter-canvaskit/0cd610717bde95fd88343c64f81c11ba4e5c0010/chromium/canvaskit.wasm" as="fetch" type="application/wasm" crossorigin="anonymous" />
 
   <!-- ── PWA & Icons ───────────────────────────────────── -->
   <link rel="icon" type="image/png" sizes="192x192" href="icons/Icon-192.png?v=2" />
@@ -237,6 +244,9 @@
   <link rel="shortcut icon" href="favicon.ico?v=2" />
   <link rel="apple-touch-icon" href="icons/Icon-192.png?v=2" />
   <link rel="manifest" href="manifest.json" />
+
+  <!-- ── CanvasKit Preload (Cuts TTI for WebGL rendering) ── -->
+  <link rel="preload" href="canvaskit/canvaskit.wasm" as="fetch" type="application/wasm" crossorigin />
 
   <!-- ── Image Cropper (Web - Local First-Party with Resilient CDN Fallback) ── -->
   <link rel="stylesheet" href="assets/cropper/cropper.min.css" onerror="this.onerror=null;this.href='https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css';" />
@@ -383,7 +393,10 @@
                          window.location.hostname === '127.0.0.1' ||
                          window.location.hostname === '0.0.0.0' ||
                          window.location.hostname === '[::1]' ||
-                         window.location.hostname.endsWith('.local');
+                         window.location.hostname.endsWith('.local') ||
+                         /^192\.168\.\d+\.\d+$/.test(window.location.hostname) ||
+                         /^10\.\d+\.\d+\.\d+$/.test(window.location.hostname) ||
+                         /^172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+$/.test(window.location.hostname);
     if (isLocalDevHost) {
       self.FIREBASE_APPCHECK_DEBUG_TOKEN = 'aeb2d92a-1f8d-4014-819d-b24f3ffefec3';
     }
@@ -506,6 +519,8 @@
     //   3. On mismatch → show a gentle toast → wipe caches → reload
     // ══════════════════════════════════════════════════════════════════
     (function () {
+      if (isLocalDevHost) return; // Do not poll or trigger reloads during local development / flutter run
+
       var BOOT_SIGNATURE = null;          // set on first successful fetch
       var RELOADING      = false;         // guard against double-reload
       var POLL_MS        = 90000;         // 90-second background poll
@@ -541,6 +556,17 @@
       // ── Hard reload: purge every cache layer then reload ───────────
       function hardReload() {
         if (RELOADING) return;
+
+        // Anti-loop reload guard: throttle reloads to at most once every 30 seconds
+        try {
+          var lastReload = parseInt(sessionStorage.getItem('tw_last_reload') || '0', 10);
+          if (Date.now() - lastReload < 30000) {
+            console.warn('[Truthworld] Reload throttled to prevent loop.');
+            return;
+          }
+          sessionStorage.setItem('tw_last_reload', String(Date.now()));
+        } catch (_) {}
+
         RELOADING = true;
 
         function doReload() {
@@ -589,16 +615,14 @@
           if (BOOT_SIGNATURE === null) {
             // First fetch at this page load — store as baseline
             BOOT_SIGNATURE = sig;
-            // Also persist in sessionStorage: if user refreshes manually
-            // and gets a stale HTML (shouldn't happen with no-cache headers,
-            // but defense-in-depth), the next checkVersion will still detect
-            // the mismatch via the persisted cross-session localStorage copy.
             try { localStorage.setItem('tw_last_build', sig); } catch (_) {}
             return;
           }
 
           if (sig !== BOOT_SIGNATURE) {
             console.info('[Truthworld] 🚀 New version detected: ' + sig + ' (was: ' + BOOT_SIGNATURE + ')');
+            try { localStorage.setItem('tw_last_build', sig); } catch (_) {}
+            BOOT_SIGNATURE = sig;
             hardReload();
           }
         })
@@ -606,9 +630,6 @@
       }
 
       // ── Cross-session stale-tab detection ─────────────────────────
-      // Users who leave a tab open for days will be caught here:
-      // on their first interaction we compare the persisted build against
-      // the live version.json — even before the 90s poll fires.
       (function checkStaleSession() {
         try {
           var storedSig = localStorage.getItem('tw_last_build');
@@ -620,10 +641,13 @@
             var liveSig = (data.version || '') + '-' + (data.build_number || '');
             if (liveSig && liveSig !== '-' && liveSig !== storedSig) {
               console.info('[Truthworld] 🚀 Stale session detected (' + storedSig + ' → ' + liveSig + ')');
+              // Persist live signature immediately BEFORE hard reload so next load never loops
+              try { localStorage.setItem('tw_last_build', liveSig); } catch (_) {}
+              BOOT_SIGNATURE = liveSig;
               hardReload();
             } else if (liveSig) {
               BOOT_SIGNATURE = liveSig; // sync baseline immediately
-              localStorage.setItem('tw_last_build', liveSig);
+              try { localStorage.setItem('tw_last_build', liveSig); } catch (_) {}
             }
           })
           .catch(function () {});
@@ -706,6 +730,7 @@
           '/notifications', '/library', '/history', '/likedvideos',
           '/watchlater', '/subscriptions', '/advertisements', '/advertiser',
           '/ads', '/feedback', '/community-guidelines', '/copyright',
+          '/copyright-complaint', '/dmca',
           '/analytics', '/admin', '/explore', '/login', '/signup',
         ];
         var segs = pathname.split('/').filter(Boolean);
@@ -894,77 +919,6 @@
         }, 50);
         return;
       }
-    })();
-  </script>
-
-  <!-- ─────────────────────────────────────────────────────────────────────
-       Mobile Splash Screen (Android & iOS Only)
-       ─────────────────────────────────────────────────────────────────────
-       Removed splash screen and entire pre-rendered UI for Desktops.
-       Only mobile devices (Android & iOS) display a splash screen while
-       Flutter boots.
-       ───────────────────────────────────────────────────────────────────── -->
-  <script>
-    (function () {
-      'use strict';
-
-      // ── Platform check: Mobiles (Android, iOS) only ─────────────────────
-      var ua = navigator.userAgent || '';
-      var isAndroid = /Android/i.test(ua);
-      var isIOS     = /iPhone|iPad|iPod/i.test(ua);
-      var isMobileDevice = isAndroid || isIOS;
-
-      // Desktops: Do NOT show splash screen or entire UI
-      if (!isMobileDevice) return;
-
-      var preLoader = document.createElement('div');
-      preLoader.id = 'tw-pre-loader';
-      preLoader.style.cssText = 'position:fixed;inset:0;background:#0D0014;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999998;';
-      preLoader.innerHTML = '<img src="/icons/Icon-192.png" alt="Truthworld" style="width:72px;height:72px;border-radius:18px;margin-bottom:20px;box-shadow:0 8px 32px rgba(0,0,0,0.6);" onerror="this.style.display=\'none\'">' +
-        '<div style="width:28px;height:28px;border:2.5px solid rgba(255,255,255,0.15);border-top-color:#ffffff;border-radius:50%;animation:tw-loader-spin 0.8s linear infinite;"></div>' +
-        '<style>@keyframes tw-loader-spin{to{transform:rotate(360deg)}}</style>';
-      document.body.insertBefore(preLoader, document.body.firstChild);
-
-      function removePreElements() {
-        var loader = document.getElementById('tw-pre-loader');
-        if (loader) {
-          loader.style.transition = 'opacity 0.2s ease';
-          loader.style.opacity = '0';
-          setTimeout(function () {
-            var el = document.getElementById('tw-pre-loader');
-            if (el && el.parentNode) { el.parentNode.removeChild(el); }
-          }, 220);
-        }
-      }
-
-      var observer = new MutationObserver(function (mutations) {
-        for (var m = 0; m < mutations.length; m++) {
-          var nodes = mutations[m].addedNodes;
-          for (var n = 0; n < nodes.length; n++) {
-            var node = nodes[n];
-            if (node.nodeType === 1) {
-              var tag = (node.tagName || '').toLowerCase();
-              if (tag === 'flt-glass-pane' || tag === 'flutter-view' ||
-                  tag === 'canvas' || node.id === 'flutter_target') {
-                observer.disconnect();
-                removePreElements();
-                return;
-              }
-            }
-          }
-        }
-      });
-      observer.observe(document.body, { childList: true, subtree: true });
-
-      if (document.querySelector('flt-glass-pane, flutter-view, canvas, #flutter_target')) {
-        observer.disconnect();
-        removePreElements();
-      }
-
-      setTimeout(function () {
-        observer.disconnect();
-        removePreElements();
-      }, 12000);
     })();
   </script>
 

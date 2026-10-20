@@ -122,7 +122,11 @@ class ExploreTopicsPage extends StatelessWidget {
         ),
 
         // 2. Search Bar with AI Sparkle & Mic
-        ExploreTopicsSearchBar(isMobile: isMobile),
+        ExploreTopicsSearchBar(
+          isMobile: isMobile,
+          isTablet: isTablet,
+          isDesktop: isDesktop,
+        ),
 
         // Active AI Topic Query Banner (when AI semantic search is triggered)
         const Padding(

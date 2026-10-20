@@ -25,7 +25,7 @@ import 'package:truthworld/features/playlist/presentation/views/playlist/playlis
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/features/settings/presentation/views/settings/settings.dart';
 import 'package:truthworld/features/subscriptions/presentation/controllers/subscription_controller.dart';
-import 'package:truthworld/features/subscriptions/presentation/views/Subscriptions/subscriptions.dart';
+import 'package:truthworld/features/subscriptions/presentation/views/subscriptions/subscriptions.dart';
 import 'package:truthworld/features/watchhistory/presentation/controllers/watch_history_controller.dart';
 import 'package:truthworld/features/watchhistory/presentation/views/watchhistory/watchhistory.dart';
 import 'package:truthworld/features/watchlater/presentation/controllers/watchlater_controller.dart';

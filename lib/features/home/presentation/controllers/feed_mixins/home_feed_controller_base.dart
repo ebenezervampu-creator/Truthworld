@@ -57,6 +57,40 @@ abstract class HomeFeedControllerBase extends BaseController {
   @override
   bool get isItemsEmpty => homeFeedItems.isEmpty && videos.isEmpty;
 
+  /// Reactively update a video across all active feeds, carousels, and persistent cache
+  void updateVideo(Video updatedVideo) {
+    if (updatedVideo.id.isEmpty) return;
+
+    final idx = videos.indexWhere((v) => v.id == updatedVideo.id);
+    if (idx != -1) {
+      videos[idx] = updatedVideo;
+    }
+
+    final recIdx = recommendedVideos.indexWhere((v) => v.id == updatedVideo.id);
+    if (recIdx != -1) {
+      recommendedVideos[recIdx] = updatedVideo;
+    }
+
+    final musicIdx = musicVideos.indexWhere((v) => v.id == updatedVideo.id);
+    if (musicIdx != -1) {
+      musicVideos[musicIdx] = updatedVideo;
+    }
+
+    final trendIdx = trendingVideos.indexWhere((v) => v.id == updatedVideo.id);
+    if (trendIdx != -1) {
+      trendingVideos[trendIdx] = updatedVideo;
+    }
+
+    final feedIdx = homeFeedItems.indexWhere(
+      (item) => item is Video && item.id == updatedVideo.id,
+    );
+    if (feedIdx != -1) {
+      homeFeedItems[feedIdx] = updatedVideo;
+    }
+
+    feedCacheManager.updateCachedVideo(updatedVideo);
+  }
+
   // --- Abstract Cross-Mixin Coordination Hooks ---
   bool matchesCategory(Video v, String cat);
   Set<String> getWatchedVideoIds();

@@ -280,6 +280,60 @@ void main() {
       expect(find.text('bbc.com'), findsAtLeast(1));
     });
 
+    testWidgets('FactCheckConclusionSection renders conclusion text and supporting sources when present', (tester) async {
+      final conclusionSources = [
+        {
+          'sourceType': 'website',
+          'title': 'Intergovernmental Panel on Climate Change',
+          'domain': 'ipcc.ch',
+          'trustLevel': 'High',
+          'url': 'https://ipcc.ch/report/ar6',
+        },
+        {
+          'sourceType': 'journal',
+          'author': 'Science Research Group',
+          'journalName': 'Science Advances',
+          'yearPublished': 2024,
+          'trustLevel': 'High',
+        },
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: FactCheckConclusionSection(
+              conclusion: 'Human-induced climate change is confirmed with multi-observational data.',
+              sources: conclusionSources,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('CONCLUSION'), findsOneWidget);
+      expect(find.text('Human-induced climate change is confirmed with multi-observational data.'), findsOneWidget);
+      expect(find.text('SUPPORTING SOURCES & CITATIONS (2)'), findsOneWidget);
+      expect(find.text('Intergovernmental Panel on Climate Change'), findsOneWidget);
+      expect(find.text('ipcc.ch'), findsAtLeast(1));
+      expect(find.text('Science Research Group'), findsOneWidget);
+    });
+
+    testWidgets('FactCheckConclusionSection renders conclusion text without sources section when empty', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: FactCheckConclusionSection(
+              conclusion: 'Overall high credibility based on consensus analysis.',
+              sources: [],
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('CONCLUSION'), findsOneWidget);
+      expect(find.text('Overall high credibility based on consensus analysis.'), findsOneWidget);
+      expect(find.textContaining('SUPPORTING SOURCES & CITATIONS'), findsNothing);
+    });
+
     test('getFactCheckRatingLabel maps scores to correct labels', () {
       expect(getFactCheckRatingLabel(95), 'EXCEPTIONAL');
       expect(getFactCheckRatingLabel(80), 'HIGH INTEGRITY');

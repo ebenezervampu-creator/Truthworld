@@ -84,11 +84,12 @@ class ChannelPlanComparisonData {
         ),
         PlanComparisonFeature(
           title: 'Cash-Out / Payout Rule',
-          standardValue: r'$100 Minimum Account Balance',
-          customValue: '1,000 Views & 10h Watch Time',
+          standardValue: '1,000 Views & 10h Watch Time (Min ₹100 / \$10)',
+          customValue: '1,000 Views & 10h Watch Time (Min ₹100 / \$10)',
           details:
-              'Custom channel payouts unlock on a per-video basis once the view/watch gate is met.',
-          customWins: true,
+              'Payout rule is identical for Custom and Standard channels: earnings unlock per video once 1,000 views and 10 hours watch time are met. Minimum withdrawal is ₹100 for Indian channels and \$10 for other countries in their currencies.',
+          customWins: false,
+          standardWins: false,
           icon: Icons.account_balance_wallet_outlined,
         ),
       ],
@@ -195,7 +196,7 @@ class ChannelPlanComparisonData {
         PlanComparisonFeature(
           title: 'AI Dubbing & Translation',
           standardValue: r'At-Cost Pass-Through (from $0.10/lang)',
-          customValue: r'At-Cost + Vocal Identity Cloning',
+          customValue: 'At-Cost + Vocal Identity Cloning',
           details:
               'Zero platform markup on multilingual dubbing; Custom adds studio voice cloning.',
           customWins: true,

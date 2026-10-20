@@ -31,7 +31,9 @@ export const PIPELINE_CONFIG = {
     return requireEnv("ELEVENLABS_API_KEY");
   },
   get GEMINI_API_KEY(): string {
-    return requireEnv("GEMINI_API_KEY");
+    // Vertex AI runs on Google Cloud IAM (Application Default Credentials).
+    // GEMINI_API_KEY is only optional for legacy Google AI Studio fallbacks.
+    return process.env.GEMINI_API_KEY || "";
   },
   get GOOGLE_TRANSLATION_API_KEY(): string {
     return requireEnv("GOOGLE_TRANSLATION_API_KEY");
@@ -41,27 +43,40 @@ export const PIPELINE_CONFIG = {
   VIDEO_BUCKET: "truthworld-1.firebasestorage.app",
 
   /**
-   * 🧠 ROLE-BASED MODEL SELECTION (Vertex AI Gemini 3 Cost-Effective Architecture)
+   * 🧠 ROLE-BASED MODEL SELECTION (Vertex AI Hybrid Cost-Effective Architecture)
    *
    * Cost strategy:
-   * Workers (Flash-Lite: gemini-3.1-flash-lite)  → ultra-low-cost (~$0.25/1M in), high-throughput
-   * Truth Arbiter (3.5 Flash: gemini-3.5-flash)  → near-Pro reasoning with search grounding at Flash pricing
+   * Workers (Flash-Lite: gemini-2.0-flash-lite)  → ultra-low-cost (~$0.075/1M in), high-throughput
+   * Baseline Workhorse (Gemini 2.5 Flash)       → fast, reliable multimodal pipeline (~$0.15/1M in)
+   * Truth Arbiter / Reasoning (3.8 Flash / 4)   → deep verification for sensitive/disputed domains
    *
-   * Saves ~85% on bulk worker token spend while ensuring robust truth verification.
+   * Saves ~50% on worker spend while ensuring frontier truth verification on sensitive claims.
    */
   GEMINI_MODELS: {
-    extraction: "gemini-3.1-flash-lite",   // Ultra cost-effective claim extraction (worker)
-    verification: "gemini-3.5-flash",       // Cost-effective Truth arbiter (near-Pro intelligence at Flash price)
-    synthesis: "gemini-3.1-flash-lite",    // Ultra cost-effective intelligence summaries (worker)
-    consistency: "gemini-3.1-flash-lite",  // Ultra cost-effective contradiction detection (worker)
-    translation: "gemini-3.1-flash-lite",  // Cost-effective translation lane (worker)
-    profiling: "gemini-3.1-flash-lite",    // Speaker profiling (worker)
-    moderation: "gemini-2.5-flash",        // Multimodal video, channel, and topic moderation (Flash)
-    fastTier: "gemini-3.1-flash-lite",     // Instant lightweight verification
+    extraction: process.env.GEMINI_EXTRACTION_MODEL || "gemini-2.5-flash",   // Fast, cost-effective claim extraction (worker)
+    verification: process.env.GEMINI_VERIFICATION_MODEL || "gemini-2.5-flash", // Truth arbiter (Gemini 2.5 Flash)
+    reasoning: process.env.GEMINI_REASONING_MODEL || "gemini-4-argon",       // Vertex AI Frontier Reasoning Model (Gemini 4 Argon)
+    synthesis: process.env.GEMINI_SYNTHESIS_MODEL || "gemini-2.5-flash",    // Intelligence summaries & video metadata (worker)
+    consistency: process.env.GEMINI_CONSISTENCY_MODEL || "gemini-2.5-flash",  // Contradiction detection (worker)
+    translation: process.env.GEMINI_TRANSLATION_MODEL || "gemini-2.5-flash",  // Translation lane (worker)
+    profiling: process.env.GEMINI_PROFILING_MODEL || "gemini-2.0-flash-lite", // Speaker profiling (worker: Flash-Lite)
+    moderation: process.env.GEMINI_MODERATION_MODEL || "gemini-2.5-flash",   // Multimodal video, channel, and topic moderation (Flash)
+    fastTier: process.env.GEMINI_FAST_TIER_MODEL || "gemini-2.0-flash-lite",     // Instant lightweight verification (Flash-Lite)
+    queryDecomposition: process.env.GEMINI_QUERY_MODEL || "gemini-2.0-flash-lite", // Search query decomposition (Flash-Lite)
+  },
+
+  /**
+   * ⚡ VERTEX AI CONTEXT CACHING ARCHITECTURE
+   * Automatic and implicit context caching is supported on Vertex AI when prompt prefixes exceed 32k tokens.
+   */
+  CONTEXT_CACHING: {
+    ENABLED: process.env.ENABLE_CONTEXT_CACHING !== "false",
+    MIN_TOKEN_THRESHOLD: 32768,
+    PREFIX_STABILITY_ENFORCED: true,
   },
 
   /** @deprecated Use GEMINI_MODELS[role] instead. Kept for backward compat. */
-  GEMINI_MODEL: "gemini-3.1-flash-lite",
+  GEMINI_MODEL: "gemini-2.5-flash",
 
   GROUNDING_MODE: "auto", // 'auto' | 'always' | 'never'
   CONSTRAINT_BASED_VERIFICATION: true, // v10.0: Prohibit AI training data in fact checks

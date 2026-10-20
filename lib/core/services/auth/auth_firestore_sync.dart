@@ -138,7 +138,8 @@ class AuthFirestoreSync {
           final usersCountSnap = await FirebaseFirestore.instance
               .collection(FirestoreCollections.users)
               .count()
-              .get();
+              .get()
+              .timeout(const Duration(seconds: 2));
           final currentUsersCount = usersCountSnap.count ?? 0;
           if (currentUsersCount >= PlatformLimits.maxStandardUsers) {
             createMap['accountStatus'] = 'waitlisted';
@@ -598,7 +599,8 @@ class AuthFirestoreSync {
             .collection(FirestoreCollections.users)
             .where('email', isEqualTo: email)
             .limit(5)
-            .get();
+            .get()
+            .timeout(const Duration(seconds: 2));
         for (final doc in emailQuery.docs) {
           if (!seenDocIds.contains(doc.id)) {
             seenDocIds.add(doc.id);
@@ -623,7 +625,8 @@ class AuthFirestoreSync {
             .collection(FirestoreCollections.users)
             .where('phoneNumber', isEqualTo: phone)
             .limit(5)
-            .get();
+            .get()
+            .timeout(const Duration(seconds: 2));
         for (final doc in phoneQuery.docs) {
           if (!seenDocIds.contains(doc.id)) {
             seenDocIds.add(doc.id);
@@ -644,7 +647,8 @@ class AuthFirestoreSync {
             .collection(FirestoreCollections.users)
             .where('metadata.phoneNumber', isEqualTo: phone)
             .limit(5)
-            .get();
+            .get()
+            .timeout(const Duration(seconds: 2));
         for (final doc in metaPhoneQuery.docs) {
           if (!seenDocIds.contains(doc.id)) {
             seenDocIds.add(doc.id);

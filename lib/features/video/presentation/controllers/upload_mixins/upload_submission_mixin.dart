@@ -445,6 +445,7 @@ mixin UploadSubmissionMixin on
           'ownerId': userId,
           'userId': userId,
           'uploadedAt': Timestamp.now(),
+          'createdAt': Timestamp.now(),
           'likes': 0,
           'likeCount': 0,
           'dislikes': 0,
@@ -492,7 +493,9 @@ mixin UploadSubmissionMixin on
         }
       } else {
         try {
-          await firestore.collection('user_drafts').doc(videoId).delete();
+          if (resumedVideoDraft.value != null) {
+            await firestore.collection('user_drafts').doc(videoId).delete();
+          }
         } catch (_) {}
       }
 
@@ -596,6 +599,7 @@ mixin UploadSubmissionMixin on
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
             status: 'underReview',
+            geminiApproved: false,
           );
 
           await newTopicRef.set(newTopic.toMap());
@@ -654,6 +658,25 @@ mixin UploadSubmissionMixin on
 
       // IMPORTANT: Use update() not set() to preserve Cloud Function data
       await docRef.update(updateData);
+
+      // Increment channel videoCount if publishing
+      if (!isDraft && channelId.trim().isNotEmpty) {
+        try {
+          await firestore
+              .collection(FirestoreCollections.channels)
+              .doc(channelId.trim())
+              .update({
+            'videoCount': FieldValue.increment(1),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        } catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'UploadSubmissionMixin.incrementChannelVideoCount',
+          );
+        }
+      }
 
       // Scan for handle mentions and notify
       final fullMetadataText = '${title.trim()} ${description.trim()}';
@@ -778,6 +801,9 @@ mixin UploadSubmissionMixin on
             'channelId': channelId.trim(),
             'type': 'fact_check_pending',
             'severity': 'info',
+            'category': 'verification',
+            'targetApp': 'studio',
+            'actionUrl': '/studio',
             'title': isReviewFirst
                 ? 'Truth Verification Queued (Private Review)'
                 : 'Truth Verification Queued',
@@ -792,6 +818,9 @@ mixin UploadSubmissionMixin on
               'videoTitle': title.trim(),
               'factCheckReviewMode': aiFactCheckReviewMode.value,
               'isFactCheckApproved': !isReviewFirst,
+              'targetApp': 'studio',
+              'category': 'verification',
+              'actionUrl': '/studio',
             },
           };
           await Future.wait([

@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
@@ -22,9 +23,26 @@ import 'package:truthworld/features/topics/presentation/widgets/create_topic_dia
 /// channel resolution, and navigation routes for [DashboardScreen].
 class DashboardViewController extends BaseController
     with GetTickerProviderStateMixin {
-  final GlobalKey<ScaffoldState> scaffoldKey = GlobalKey<ScaffoldState>();
-  final TextEditingController searchController = TextEditingController();
-  final FocusNode searchFocusNode = FocusNode();
+  TextEditingController _searchController = TextEditingController();
+  FocusNode _searchFocusNode = FocusNode();
+  bool _isSearchControllerDisposed = false;
+  bool _isSearchFocusNodeDisposed = false;
+
+  TextEditingController get searchController {
+    if (_isSearchControllerDisposed) {
+      _searchController = TextEditingController();
+      _isSearchControllerDisposed = false;
+    }
+    return _searchController;
+  }
+
+  FocusNode get searchFocusNode {
+    if (_isSearchFocusNodeDisposed) {
+      _searchFocusNode = FocusNode();
+      _isSearchFocusNodeDisposed = false;
+    }
+    return _searchFocusNode;
+  }
 
   final RxBool isSelectingDefault = true.obs;
   final Rxn<Channel> channelPendingDeletion = Rxn<Channel>();
@@ -343,7 +361,6 @@ class DashboardViewController extends BaseController
           !authService.hasChannel.value &&
           authService.isAuthenticated.value) {
         isSelectingDefault.value = false;
-        await Get.offAllNamed<dynamic>('/channelscreen');
         return;
       }
 
@@ -383,11 +400,42 @@ class DashboardViewController extends BaseController
             tabParam == 'drafts' ||
             tabParam == '20') {
           ctrl.selectedIndex.value = 2;
+        } else if (tabParam == 'verification' ||
+            tabParam == 'fact_check' ||
+            tabParam == '15') {
+          ctrl.selectedIndex.value = 15;
+        } else if (tabParam == 'copyright' ||
+            tabParam == 'claims' ||
+            tabParam == '9') {
+          ctrl.selectedIndex.value = 9;
+        } else if (tabParam == 'intelligence' ||
+            tabParam == 'coach' ||
+            tabParam == '16') {
+          ctrl.selectedIndex.value = 16;
+        } else if (tabParam == 'monetization' ||
+            tabParam == 'wallet' ||
+            tabParam == '5') {
+          ctrl.selectedIndex.value = 5;
+        } else if (tabParam == 'audience' ||
+            tabParam == 'subscribers' ||
+            tabParam == '12') {
+          ctrl.selectedIndex.value = 12;
+        } else if (tabParam == 'comments' || tabParam == '4') {
+          ctrl.selectedIndex.value = 4;
+        } else if (tabParam == 'analytics' || tabParam == '3') {
+          ctrl.selectedIndex.value = 3;
+        } else if (tabParam == 'content' ||
+            tabParam == 'videos' ||
+            tabParam == '2') {
+          ctrl.selectedIndex.value = 2;
         }
       }
 
-      if (!Get.isRegistered<VideoManagementController>()) {
-        Get.put(VideoManagementController());
+      final vmCtrl = Get.isRegistered<VideoManagementController>()
+          ? Get.find<VideoManagementController>()
+          : Get.put(VideoManagementController());
+      if (channelId.isNotEmpty) {
+        vmCtrl.ensureInitialized(channelId);
       }
     } on Object catch (e, stackTrace) {
       ErrorHandler.log(
@@ -411,7 +459,12 @@ class DashboardViewController extends BaseController
 
   Future<void> handleGoogleSignIn() async {
     try {
-      await AuthService.to.signInWithGoogle();
+      final ctx = Get.context;
+      if (ctx != null) {
+        await AuthBottomSheet.show(ctx);
+      } else {
+        await AuthService.to.signInWithGoogle();
+      }
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         AppSnackbar.success('Signed in as ${user.email}');
@@ -513,7 +566,7 @@ class DashboardViewController extends BaseController
     if (!isControlOrMeta &&
         (event.logicalKey == LogicalKeyboardKey.question ||
             (isShift && event.logicalKey == LogicalKeyboardKey.slash))) {
-      final context = scaffoldKey.currentContext;
+      final context = Get.context;
       if (context != null) {
         StudioShortcutsModal.show(context);
         return true;
@@ -634,8 +687,14 @@ class DashboardViewController extends BaseController
     HardwareKeyboard.instance.removeHandler(_handleGlobalHardwareKeyEvent);
     _authWorker?.dispose();
     _channelWorker?.dispose();
-    searchController.dispose();
-    searchFocusNode.dispose();
+    if (!_isSearchControllerDisposed) {
+      _searchController.dispose();
+      _isSearchControllerDisposed = true;
+    }
+    if (!_isSearchFocusNodeDisposed) {
+      _searchFocusNode.dispose();
+      _isSearchFocusNodeDisposed = true;
+    }
     if (staggeredAnimationController.isAnimating) {
       staggeredAnimationController.stop();
     }

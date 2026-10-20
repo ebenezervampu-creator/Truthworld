@@ -82,6 +82,7 @@ void showCreateOrEditTierDialog({
       final pVal = ContentValidator.validate(
         t,
         checkEnglishOnly: false,
+        maxLength: ContentValidator.defaultMaxPerkLength,
         fieldName: 'Perk',
       );
       if (!pVal.isValid) {
@@ -252,9 +253,11 @@ void showCreateOrEditTierDialog({
                   Expanded(
                     child: TextField(
                       controller: sheetCustomPerkController,
-                      inputFormatters: [
-                        ...TruthworldTextInputFormatters.standard,
-                      ],
+                      maxLength: ContentValidator.defaultMaxPerkLength,
+                      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                      inputFormatters: TruthworldTextInputFormatters.withLimit(
+                        ContentValidator.defaultMaxPerkLength,
+                      ),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 13,
@@ -498,9 +501,11 @@ void showCreateOrEditTierDialog({
                       const SizedBox(height: 6),
                       TextField(
                         controller: nameController,
-                        inputFormatters: [
-                          ...TruthworldTextInputFormatters.standard,
-                        ],
+                        maxLength: ContentValidator.defaultMaxTierNameLength,
+                        buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                        inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(
+                          ContentValidator.defaultMaxTierNameLength,
+                        ),
                         style: TextStyle(
                           color: isDarkMode
                               ? AppColors.textPrimary
@@ -599,6 +604,8 @@ void showCreateOrEditTierDialog({
                       const SizedBox(height: 6),
                       Obx(() => TextField(
                         controller: priceController,
+                        maxLength: 6,
+                        buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
@@ -606,6 +613,7 @@ void showCreateOrEditTierDialog({
                           FilteringTextInputFormatter.allow(
                             RegExp(r'^\d*\.?\d{0,2}'),
                           ),
+                          LengthLimitingTextInputFormatter(6),
                         ],
                         style: TextStyle(
                           color: isDarkMode
@@ -849,9 +857,11 @@ void showCreateOrEditTierDialog({
                       const SizedBox(height: 6),
                       TextField(
                         controller: descController,
-                        inputFormatters: [
-                          ...TruthworldTextInputFormatters.standard,
-                        ],
+                        maxLength: ContentValidator.defaultMaxTierDescLength,
+                        buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                        inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(
+                          ContentValidator.defaultMaxTierDescLength,
+                        ),
                         maxLines: 2,
                         style: TextStyle(
                           color: isDarkMode
@@ -1457,9 +1467,11 @@ void showCreateOrEditTierDialog({
                           Expanded(
                             child: TextField(
                               controller: customPerkController,
-                              inputFormatters: [
-                                ...TruthworldTextInputFormatters.standard,
-                              ],
+                              maxLength: ContentValidator.defaultMaxPerkLength,
+                              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                              inputFormatters: TruthworldTextInputFormatters.withLimit(
+                                ContentValidator.defaultMaxPerkLength,
+                              ),
                               style: TextStyle(
                                 color: isDarkMode
                                     ? AppColors.textPrimary
@@ -1560,6 +1572,7 @@ void showCreateOrEditTierDialog({
                               final nameVal = ContentValidator.validate(
                                 name,
                                 checkEnglishOnly: false,
+                                maxLength: ContentValidator.defaultMaxTierNameLength,
                                 fieldName: 'Tier Name',
                               );
                               if (!nameVal.isValid) {
@@ -1570,6 +1583,7 @@ void showCreateOrEditTierDialog({
                                 final descVal = ContentValidator.validate(
                                   desc,
                                   checkEnglishOnly: false,
+                                  maxLength: ContentValidator.defaultMaxTierDescLength,
                                   fieldName: 'Description',
                                 );
                                 if (!descVal.isValid) {

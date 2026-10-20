@@ -245,7 +245,7 @@ class Topic {
       'accessCode': accessCode,
       'followerCount': followerCount,
       'status': status,
-      'geminiApproved': geminiApproved,
+      'geminiApproved': geminiApproved ?? false,
       'moderationReason': moderationReason,
     };
   }
@@ -328,6 +328,16 @@ class Topic {
     return id.toLowerCase();
   }
 
+  /// Whether the topic is archived, deleted, or in trash
+  bool get isArchivedOrDeleted {
+    final lowerStatus = status.trim().toLowerCase();
+    return lowerStatus == 'deleted' ||
+        lowerStatus == 'archived' ||
+        lowerStatus == 'trash' ||
+        lowerStatus == 'empty_archived' ||
+        lowerStatus == 'deletion_pending';
+  }
+
   /// Check if the topic has valid content and metadata to be displayed in feeds/discovery.
   bool get isValidTopic {
     if (slug.trim().isEmpty) return false;
@@ -342,25 +352,25 @@ class Topic {
         lowerSlug.startsWith('untitled')) {
       return false;
     }
-    final lowerStatus = status.trim().toLowerCase();
-    if (lowerStatus == 'deleted' ||
-        lowerStatus == 'archived' ||
-        lowerStatus == 'trash' ||
-        lowerStatus == 'empty_archived' ||
-        lowerStatus == 'deletion_pending') {
+    if (isArchivedOrDeleted) {
       return false;
     }
-    if (lowerStatus == 'rejected' || lowerStatus == 'verificationrejected') {
+    final lowerStatus = status.trim().toLowerCase();
+    if (lowerStatus == 'verificationrejected') {
+      return false;
+    }
+    if (lowerStatus == 'rejected') {
       // If falsely rejected due to asynchronous zero-video race condition or AI moderation timeout but has linked videos, allow recovery
-      final reason = moderationReason?.toLowerCase() ?? '';
-      final isRecoverableRejection = reason.contains('video') ||
-          reason.contains('at least 1') ||
-          reason.contains('0 video') ||
-          reason.contains('moderation check failed') ||
-          reason.contains('manual review') ||
-          reason.contains('invalid response format') ||
-          reason.isEmpty;
-      if (featuredVideoIds.isNotEmpty && isRecoverableRejection) {
+      final reason = moderationReason?.toLowerCase().trim() ?? '';
+      final isZeroVideoRace = reason.isNotEmpty &&
+          (reason.contains('video') ||
+              reason.contains('at least 1') ||
+              reason.contains('0 video') ||
+              reason.contains('moderation check failed') ||
+              reason.contains('timeout') ||
+              reason.contains('invalid response format'));
+      if (isZeroVideoRace &&
+          (featuredVideoIds.isNotEmpty || effectiveVideoCount > 0)) {
         return true;
       }
       return false;
@@ -371,16 +381,27 @@ class Topic {
 
   /// Returns the routing parameter (the handle without "T/" prefix, or slug as fallback)
   String get routePathParameter {
-    if (handle.isNotEmpty) {
-      final clean = handle.trim();
-      if (clean.startsWith('T/') || clean.startsWith('t/')) {
-        final sub = clean.substring(2).trim();
-        if (sub.isNotEmpty) return sub;
-      } else if (clean.isNotEmpty && clean != 'T' && clean != 't') {
-        return clean;
-      }
+    var raw = handle.trim();
+    while (raw.startsWith('/')) {
+      raw = raw.substring(1).trim();
     }
-    return slug.trim();
+    while (raw.startsWith('@')) {
+      raw = raw.substring(1).trim();
+    }
+    if (raw.toLowerCase().startsWith('t/')) {
+      raw = raw.substring(2).trim();
+    }
+    while (raw.startsWith('/')) {
+      raw = raw.substring(1).trim();
+    }
+    if (raw.isNotEmpty && raw.toLowerCase() != 't') {
+      return raw;
+    }
+    var s = slug.trim();
+    while (s.startsWith('/')) {
+      s = s.substring(1).trim();
+    }
+    return s;
   }
 
   String get topicRoute {

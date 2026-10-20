@@ -116,14 +116,18 @@ class PlaylistStatsWidget extends StatelessWidget {
     return FutureBuilder<List<Video>>(
       future: fetchPlaylistVideos(playlist),
       builder: (context, snapshot) {
-        final videoCount = playlist.videoCount;
+        final videoCount = snapshot.hasData
+            ? snapshot.data!.length
+            : (playlist.videoCount > 0
+                ? playlist.videoCount
+                : playlist.videoIds.length);
         final viewCount = snapshot.hasData
             ? snapshot.data!.fold<int>(0, (total, v) => total + v.views)
             : 0;
         final lastUpdated = timeago.format(playlist.updatedAt.toDate());
 
         return Text(
-          '$videoCount videos • ${formatPlaylistViews(viewCount)} views • Updated $lastUpdated',
+          '$videoCount ${videoCount == 1 ? "video" : "videos"} • ${formatPlaylistViews(viewCount)} views • Updated $lastUpdated',
           style: const TextStyle(
             fontSize: 12,
             color: ytTextTertiary,

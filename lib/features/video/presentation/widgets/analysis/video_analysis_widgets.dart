@@ -1,8 +1,12 @@
+export 'claim_sources_bottom_sheet.dart';
+export 'verification_summary_card.dart';
 export 'video_analysis_chapters_section.dart';
 export 'video_analysis_claim_card.dart';
 export 'video_analysis_claims_section.dart';
+export 'video_analysis_conclusion_card.dart';
 export 'video_analysis_confidence_bar.dart';
 export 'video_analysis_controller.dart';
+export 'video_analysis_desktop_layout.dart';
 export 'video_analysis_empty_fallback.dart';
 export 'video_analysis_factors_card.dart';
 export 'video_analysis_helpers.dart';
@@ -10,4 +14,5 @@ export 'video_analysis_hero_card.dart';
 export 'video_analysis_methodology_section.dart';
 export 'video_analysis_source_card.dart';
 export 'video_analysis_sources_section.dart';
+export 'video_analysis_view.dart';
 export 'video_analysis_viewer_note_card.dart';

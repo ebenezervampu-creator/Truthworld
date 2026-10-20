@@ -8,8 +8,10 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
+import 'package:truthworld/features/community/presentation/controllers/community_interaction_cache.dart';
 
 class SavedCommunityPostsController extends BaseController {
   final RxList<CommunityPostModel> posts = <CommunityPostModel>[].obs;
@@ -45,7 +47,7 @@ class SavedCommunityPostsController extends BaseController {
           .collection('savedCommunityPosts')
           .orderBy('savedAt', descending: true)
           .limit(50)
-          .get();
+          .getCacheFirst();
 
       final list = <CommunityPostModel>[];
       for (final doc in snapshot.docs) {
@@ -67,6 +69,7 @@ class SavedCommunityPostsController extends BaseController {
     if (currentUser == null) return;
 
     posts.removeWhere((p) => p.id == postId);
+    CommunityInteractionCache.setSaved(postId, false);
 
     try {
       await FirebaseFirestore.instance

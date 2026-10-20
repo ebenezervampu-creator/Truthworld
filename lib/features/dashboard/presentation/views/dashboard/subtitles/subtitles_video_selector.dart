@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -60,6 +61,9 @@ class SubtitlesSearchHeader extends StatelessWidget {
               border: Border.all(color: borderColor),
             ),
             child: TextField(
+              maxLength: 100,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: TruthworldTextInputFormatters.withLimit(100),
               style: AppTextStyles.bodyMedium.copyWith(
                 fontSize: 14,
                 color: textColor,

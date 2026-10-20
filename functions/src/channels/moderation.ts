@@ -82,7 +82,7 @@ export const onChannelWritten = onDocumentWritten(
       try {
         const genAI = getVertexAI();
         const model = genAI.getGenerativeModel({
-          model: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-3.1-flash-lite",
+          model: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-2.5-flash",
           systemInstruction: `You are an extremely strict, zero-tolerance content moderation system for Truthworld. Review the channel registration details (name, description, tags) for violations of the Community Guidelines.\n\n${COMMUNITY_GUIDELINES_TEXT}\n\nDECISION RUBRIC:\n- If a channel name or description looks like a scam, get-rich-quick program, suspicious financial advice, or phishing attempt, set "approved" to false.\n- If a channel name, description, or tags are extremely low-effort, gibberish, or placeholders like "test", "testing", "asdfasdf", set "approved" to false.`,
           generationConfig: {
             responseMimeType: "application/json",

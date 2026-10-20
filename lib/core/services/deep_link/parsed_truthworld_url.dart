@@ -13,6 +13,7 @@ enum TruthworldUrlType {
   policy,
   paymentResult,
   checkout,
+  claim,
   external,
   unknown,
 }
@@ -28,6 +29,7 @@ class ParsedTruthworldUrl {
   final double? clipEnd;
   final String? clipTitle;
   final String? clipId;
+  final int? claimIndex; // parsed from claimIndex=... or claim=...
   final String rawUrl;
   final Map<String, String> queryParameters;
 
@@ -42,6 +44,7 @@ class ParsedTruthworldUrl {
     this.clipEnd,
     this.clipTitle,
     this.clipId,
+    this.claimIndex,
     this.queryParameters = const {},
   });
 
@@ -50,5 +53,6 @@ class ParsedTruthworldUrl {
       type == TruthworldUrlType.channel ||
       type == TruthworldUrlType.playlist ||
       type == TruthworldUrlType.topic ||
-      type == TruthworldUrlType.post;
+      type == TruthworldUrlType.post ||
+      type == TruthworldUrlType.claim;
 }

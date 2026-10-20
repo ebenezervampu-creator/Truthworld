@@ -185,6 +185,23 @@ void main() {
       expect(playlist.playlistName, equals('Watch Later'));
       expect(playlist.ownerId, equals('user_123'));
       expect(playlist.videoIds, equals(['v1', 'v2']));
+      expect(playlist.videoCount, equals(2));
+      expect(playlist.effectiveVideoCount, equals(2));
+    });
+
+    test('toggleWatchLater unauthenticated returns false', () async {
+      final unauthManager = PlaylistWatchLaterManager(getUserId: () => '');
+      final res = await unauthManager.toggleWatchLater('vid_123', showFeedback: false);
+      expect(res, isFalse);
+      expect(unauthManager.watchLaterVideoIds, isEmpty);
+    });
+
+    test('toggleWatchLater rolls back optimistic updates on Firestore network failure', () async {
+      expect(watchLaterManager.watchLaterVideoIds.contains('v_opt'), isFalse);
+
+      final addResult = await watchLaterManager.toggleWatchLater('v_opt', showFeedback: false);
+      expect(addResult, isFalse);
+      expect(watchLaterManager.isInWatchLater('v_opt'), isFalse);
     });
 
     test('dispose cancels cleanly', () {

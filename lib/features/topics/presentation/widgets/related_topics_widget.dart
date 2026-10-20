@@ -157,7 +157,7 @@ class RelatedTopicsWidget extends StatelessWidget {
                       const SizedBox(height: 4),
                       // Video count
                       Text(
-                        '${topic.videoCount} videos',
+                        '${topic.effectiveVideoCount} ${topic.effectiveVideoCount == 1 ? "video" : "videos"}',
                         style: const TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,

@@ -7,8 +7,10 @@ import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/views/widgets/video_screen/video_screen_widgets.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../test_helpers/mock_firebase.dart';
 
@@ -172,6 +174,37 @@ void main() {
 
       expect(find.text('Chapters'), findsOneWidget);
       expect(find.text('2'), findsOneWidget);
+    });
+
+    testWidgets(
+        '4b. VideoChaptersSection renders active chapter with TowerPlayerController without performLayout errors',
+        (tester) async {
+      final controller = VideoController();
+      Get.put(controller);
+      controller.video = sampleVideo;
+
+      final vpc = VideoPlayerController.networkUrl(
+        Uri.parse('https://example.com/test.mp4'),
+      );
+      final towerCtrl = TowerPlayerController(
+        videoPlayerController: vpc,
+      );
+      Get.put(towerCtrl);
+      towerCtrl.currentChapter.value = sampleVideo.chapters.first;
+
+      await tester.pumpWidget(
+        wrapWithMaterial(
+          VideoChaptersSection(
+            controller: controller,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Chapters'), findsOneWidget);
+      expect(find.text('Current: Chapter 1: Intro'), findsOneWidget);
+
+      Get.delete<TowerPlayerController>();
     });
 
     testWidgets('5. VideoScreenRecommendationHeader toggles autoplay correctly',

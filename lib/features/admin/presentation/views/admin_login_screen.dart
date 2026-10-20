@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
@@ -202,6 +203,12 @@ class AdminLoginScreen extends GetView<AdminController> {
           // Email Input
           TextField(
             controller: controller.emailController,
+            maxLength: 254,
+            buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+            inputFormatters: [
+              LengthLimitingTextInputFormatter(254),
+              FilteringTextInputFormatter.deny(RegExp(r'\s')),
+            ],
             keyboardType: TextInputType.emailAddress,
             onChanged: (val) {
               controller.loginEmail.value = val.trim();
@@ -244,6 +251,11 @@ class AdminLoginScreen extends GetView<AdminController> {
           Obx(
             () => TextField(
               controller: controller.passwordController,
+              maxLength: 128,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(128),
+              ],
               obscureText: _obscurePassword.value,
               onChanged: (val) {
                 controller.loginPassword.value = val.trim();

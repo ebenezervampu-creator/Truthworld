@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/subscriptions.dart';
@@ -26,7 +27,7 @@ mixin SubscriptionActionsMixin on SubscriptionStateBase {
             .collection(FirestoreCollections.subscriptions)
             .where('userId', isEqualTo: uid)
             .limit(100)
-            .get();
+            .getCacheFirst();
 
         for (final doc in snapshot.docs) {
           final sub = Subscription.fromDocumentSnapshot(doc);
@@ -42,76 +43,83 @@ mixin SubscriptionActionsMixin on SubscriptionStateBase {
         );
       }
 
-      // 2. Alternative: Subscriptions doc subcollection (subscriptions/{uid}/list)
-      try {
-        final snapshot = await firestore
-            .collection(FirestoreCollections.subscriptions)
-            .doc(uid)
-            .collection('list')
-            .limit(100)
-            .get();
+      // If primary found subscriptions, skip unnecessary legacy fallback queries
+      if (subMap.isEmpty) {
+        // 2. Alternative: Subscriptions doc subcollection (subscriptions/{uid}/list)
+        try {
+          final snapshot = await firestore
+              .collection(FirestoreCollections.subscriptions)
+              .doc(uid)
+              .collection('list')
+              .limit(100)
+              .getCacheFirst();
 
-        for (final doc in snapshot.docs) {
-          final data = doc.data();
-          final chId = data['channelId'] as String? ?? doc.id;
-          if (chId.isNotEmpty && !subMap.containsKey(chId)) {
-            subMap[chId] = Subscription(userId: uid, channelId: chId);
+          for (final doc in snapshot.docs) {
+            final data = doc.data();
+            final chId = data['channelId'] as String? ?? doc.id;
+            if (chId.isNotEmpty && !subMap.containsKey(chId)) {
+              subMap[chId] = Subscription(userId: uid, channelId: chId);
+            }
+          }
+        } on Object catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'SubscriptionController.loadSubscriptions.alternativeList',
+          );
+        }
+
+        // 3. Alternative: userCache (userCache/{uid}/subscriptions)
+        if (subMap.isEmpty) {
+          try {
+            final snapshot = await firestore
+                .collection('userCache')
+                .doc(uid)
+                .collection(FirestoreCollections.subscriptions)
+                .limit(100)
+                .getCacheFirst();
+
+            for (final doc in snapshot.docs) {
+              final data = doc.data();
+              final chId = data['channelId'] as String? ?? doc.id;
+              if (chId.isNotEmpty && !subMap.containsKey(chId)) {
+                subMap[chId] = Subscription(userId: uid, channelId: chId);
+              }
+            }
+          } on Object catch (e, stackTrace) {
+            ErrorHandler.log(
+              e,
+              stackTrace: stackTrace,
+              tag: 'SubscriptionController.loadSubscriptions.alternativeUserCache',
+            );
           }
         }
-      } on Object catch (e, stackTrace) {
-        ErrorHandler.log(
-          e,
-          stackTrace: stackTrace,
-          tag: 'SubscriptionController.loadSubscriptions.alternativeList',
-        );
-      }
 
-      // 3. Alternative: userCache (userCache/{uid}/subscriptions)
-      try {
-        final snapshot = await firestore
-            .collection('userCache')
-            .doc(uid)
-            .collection(FirestoreCollections.subscriptions)
-            .limit(100)
-            .get();
+        // 4. Alternative: users subcollection (users/{uid}/subscriptions)
+        if (subMap.isEmpty) {
+          try {
+            final snapshot = await firestore
+                .collection(FirestoreCollections.users)
+                .doc(uid)
+                .collection(FirestoreCollections.subscriptions)
+                .limit(100)
+                .getCacheFirst();
 
-        for (final doc in snapshot.docs) {
-          final data = doc.data();
-          final chId = data['channelId'] as String? ?? doc.id;
-          if (chId.isNotEmpty && !subMap.containsKey(chId)) {
-            subMap[chId] = Subscription(userId: uid, channelId: chId);
+            for (final doc in snapshot.docs) {
+              final data = doc.data();
+              final chId = data['channelId'] as String? ?? doc.id;
+              if (chId.isNotEmpty && !subMap.containsKey(chId)) {
+                subMap[chId] = Subscription(userId: uid, channelId: chId);
+              }
+            }
+          } on Object catch (e, stackTrace) {
+            ErrorHandler.log(
+              e,
+              stackTrace: stackTrace,
+              tag: 'SubscriptionController.loadSubscriptions.alternativeUsersSubcollection',
+            );
           }
         }
-      } on Object catch (e, stackTrace) {
-        ErrorHandler.log(
-          e,
-          stackTrace: stackTrace,
-          tag: 'SubscriptionController.loadSubscriptions.alternativeUserCache',
-        );
-      }
-
-      // 4. Alternative: users subcollection (users/{uid}/subscriptions)
-      try {
-        final snapshot = await firestore
-            .collection(FirestoreCollections.users)
-            .doc(uid)
-            .collection(FirestoreCollections.subscriptions)
-            .limit(100)
-            .get();
-
-        for (final doc in snapshot.docs) {
-          final data = doc.data();
-          final chId = data['channelId'] as String? ?? doc.id;
-          if (chId.isNotEmpty && !subMap.containsKey(chId)) {
-            subMap[chId] = Subscription(userId: uid, channelId: chId);
-          }
-        }
-      } on Object catch (e, stackTrace) {
-        ErrorHandler.log(
-          e,
-          stackTrace: stackTrace,
-          tag: 'SubscriptionController.loadSubscriptions.alternativeUsersSubcollection',
-        );
       }
 
       subscriptions.value = subMap.values.toList();
@@ -145,7 +153,7 @@ mixin SubscriptionActionsMixin on SubscriptionStateBase {
             final snapshot = await firestore
                 .collection(FirestoreCollections.channels)
                 .where(FieldPath.documentId, whereIn: batch)
-                .get();
+                .getCacheFirst();
             return snapshot.docs.map(Channel.fromDocumentSnapshot).toList();
           } on Object catch (e, stackTrace) {
             ErrorHandler.log(

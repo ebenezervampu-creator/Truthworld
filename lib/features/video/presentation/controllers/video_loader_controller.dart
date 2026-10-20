@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
@@ -92,7 +93,7 @@ class VideoLoaderController extends BaseController
         final DocumentSnapshot doc = await FirebaseFirestore.instance
             .collection(FirestoreCollections.videos)
             .doc(videoId)
-            .get();
+            .getCacheFirst();
 
         if (!doc.exists) {
           _showErrorSnackbar('Video Unavailable', 'This video is currently unavailable.');

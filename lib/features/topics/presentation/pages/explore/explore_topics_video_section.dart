@@ -338,6 +338,8 @@ class HorizontalVideoCard extends StatelessWidget {
             routeArguments: {
               'video': video,
               'heroTag': 'explore_topic_${topic.id}_${video.id}',
+              'fromTopic': true,
+              'topic': topic,
             },
           );
         },
@@ -369,43 +371,6 @@ class HorizontalVideoCard extends StatelessWidget {
                   ),
                 ),
 
-                // Fact Checked Badge (if applicable)
-                if (video.isFactChecked)
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.successContainer,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: AppColors.success),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.verified_rounded,
-                            color: Colors.white,
-                            size: 11,
-                          ),
-                          SizedBox(width: 4),
-                          Text(
-                            'Fact Checked',
-                            style: TextStyle(
-                              color: AppColors.success,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
                 // Duration Badge
                 Positioned(
                   bottom: 8,
@@ -419,13 +384,26 @@ class HorizontalVideoCard extends StatelessWidget {
                       color: bgColor.withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Text(
-                      video.duration,
-                      style: const TextStyle(
-                        color: primaryText,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (video.isFactChecked) ...[
+                          const Icon(
+                            Icons.verified_rounded,
+                            color: Color(0xFF00E676),
+                            size: 12,
+                          ),
+                          const SizedBox(width: 3),
+                        ],
+                        Text(
+                          video.duration,
+                          style: const TextStyle(
+                            color: primaryText,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

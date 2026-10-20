@@ -6,8 +6,15 @@ import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class RealTimeFactOverlayWidget extends StatelessWidget {
-  const RealTimeFactOverlayWidget({required this.claim, super.key});
+  const RealTimeFactOverlayWidget({
+    required this.claim,
+    this.onClose,
+    this.onTap,
+    super.key,
+  });
   final ClaimResult claim;
+  final VoidCallback? onClose;
+  final VoidCallback? onTap;
 
   Color _getVerdictColor(String verdict) {
     return ClaimVerdictHelper.resolveVerdictString(verdict).color;
@@ -57,7 +64,7 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
     final verdictColor = _getVerdictColor(claim.verdict);
     final verdictLabel = _getVerdictLabel(claim.verdict);
 
-    return ClipRRect(
+    final card = ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
@@ -65,11 +72,18 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 500),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: AppColors.bgPage.withValues(alpha: 0.65),
+            color: AppColors.bgPage.withValues(alpha: 0.85),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: AppColors.textPrimary.withValues(alpha: 0.12),
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 16,
+                spreadRadius: 2,
+              ),
+            ],
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -160,6 +174,23 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
                             ),
                           ),
                         ],
+                        const Spacer(),
+                        if (onClose != null)
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: onClose,
+                              child: const Padding(
+                                padding: EdgeInsets.all(2),
+                                child: Icon(
+                                  Icons.close_rounded,
+                                  size: 16,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                     const SizedBox(height: 3),
@@ -508,5 +539,14 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
         ),
       ),
     );
+
+    if (onTap != null) {
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: card,
+      );
+    }
+    return card;
   }
 }

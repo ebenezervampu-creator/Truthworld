@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/components/ui/auth/country_dial_codes.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/auth_service.dart';
@@ -330,6 +332,12 @@ class PhoneVerificationSheet extends StatelessWidget {
               child: TextField(
                 controller: controller.phoneController,
                 keyboardType: TextInputType.phone,
+                maxLength: 15,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(15),
+                ],
                 style: GoogleFonts.roboto(
                   color: Colors.white,
                   fontSize: 16,
@@ -449,6 +457,10 @@ class PhoneVerificationSheet extends StatelessWidget {
           controller: controller.otpController,
           keyboardType: TextInputType.number,
           maxLength: 6,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(6),
+          ],
           textAlign: TextAlign.center,
           style: GoogleFonts.robotoMono(
             color: Colors.white,
@@ -604,6 +616,9 @@ class PhoneVerificationSheet extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: TextField(
                   controller: controller.countrySearchController,
+                  maxLength: defaultMaxSearchLength,
+                  buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                  inputFormatters: TruthworldTextInputFormatters.withLimit(defaultMaxSearchLength),
                   onChanged: controller.updateCountrySearch,
                   style: GoogleFonts.roboto(color: Colors.white, fontSize: 15),
                   decoration: InputDecoration(

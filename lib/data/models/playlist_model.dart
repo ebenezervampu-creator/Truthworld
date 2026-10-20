@@ -46,7 +46,7 @@ class PlaylistModel {
     String? playlistName,
     this.description = '',
     this.thumbnailUrl = '',
-    this.videoCount = 0,
+    int? videoCount,
     PlaylistVisibility? visibility,
     bool? isPublic,
     this.videoIds = const [],
@@ -57,6 +57,9 @@ class PlaylistModel {
     this.status = 'underReview',
     this.moderationReason,
   }) : name = name ?? playlistName ?? '',
+       videoCount = (videoCount != null && videoCount > 0)
+           ? videoCount
+           : videoIds.length,
        visibility =
            visibility ??
            (isPublic ?? false
@@ -71,6 +74,10 @@ class PlaylistModel {
       rawName = 'Truthworld Playlist';
     }
 
+    final parsedVideoIds = List<String>.from(data['videoIds'] ?? []);
+    final rawCount = (data['videoCount'] as num?)?.toInt() ?? 0;
+    final effectiveCount = rawCount > 0 ? rawCount : parsedVideoIds.length;
+
     return PlaylistModel(
       id: docId,
       name: rawName,
@@ -78,8 +85,8 @@ class PlaylistModel {
       ownerId: data['ownerId'] ?? data['userId'] ?? '',
       channelId: data['channelId'] ?? '',
       thumbnailUrl: data['thumbnailUrl'] ?? '',
-      videoCount: (data['videoCount'] as num?)?.toInt() ?? (data['videoIds'] as List?)?.length ?? 0,
-      videoIds: List<String>.from(data['videoIds'] ?? []),
+      videoCount: effectiveCount,
+      videoIds: parsedVideoIds,
       visibility: PlaylistVisibility.values.firstWhere(
         (e) => e.name == data['visibility'],
         orElse: () => data['isPublic'] == true
@@ -121,6 +128,46 @@ class PlaylistModel {
   // Compatibility Getters
   String get playlistName => name;
   bool get isPublic => visibility == PlaylistVisibility.public;
+  int get effectiveVideoCount => videoCount > 0 ? videoCount : videoIds.length;
+
+  PlaylistModel copyWith({
+    String? id,
+    String? ownerId,
+    String? channelId,
+    String? name,
+    String? playlistName,
+    String? description,
+    String? thumbnailUrl,
+    int? videoCount,
+    PlaylistVisibility? visibility,
+    bool? isPublic,
+    List<String>? videoIds,
+    dynamic createdAt,
+    dynamic updatedAt,
+    int? sortIndex,
+    bool? geminiApproved,
+    String? status,
+    String? moderationReason,
+  }) {
+    return PlaylistModel(
+      id: id ?? this.id,
+      ownerId: ownerId ?? this.ownerId,
+      channelId: channelId ?? this.channelId,
+      name: name ?? playlistName ?? this.name,
+      description: description ?? this.description,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      videoCount: videoCount ?? (videoIds != null ? videoIds.length : this.videoCount),
+      visibility: visibility ?? this.visibility,
+      isPublic: isPublic ?? this.isPublic,
+      videoIds: videoIds ?? this.videoIds,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      sortIndex: sortIndex ?? this.sortIndex,
+      geminiApproved: geminiApproved ?? this.geminiApproved,
+      status: status ?? this.status,
+      moderationReason: moderationReason ?? this.moderationReason,
+    );
+  }
 
   /// Check if the playlist has valid metadata and at least 1 video to be displayed in discovery feeds
   bool get isValidPlaylist {

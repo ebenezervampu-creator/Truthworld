@@ -26,13 +26,17 @@ class VideoAnalysisSourcesSection extends StatelessWidget {
               color: Colors.white,
             ),
             const SizedBox(width: 8),
-            Text(
-              'VERIFIED SOURCES & CITATIONS (${validSources.length})',
-              style: context.twTypography.overline.copyWith(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textTertiary,
-                letterSpacing: 1.1,
+            Expanded(
+              child: Text(
+                'VERIFIED SOURCES & CITATIONS (${validSources.length})',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: context.twTypography.overline.copyWith(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textTertiary,
+                  letterSpacing: 1.1,
+                ),
               ),
             ),
           ],

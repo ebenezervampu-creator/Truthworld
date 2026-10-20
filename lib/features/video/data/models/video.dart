@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/core/constants/app_categories.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
 import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/domain/entities/video_entity.dart';
+import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/data/models/video/video_barrel.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
@@ -112,7 +114,7 @@ class Video {
             : (channelImage != null && channelImage.isNotEmpty)
                 ? channelImage
                 : '',
-        viewCount = viewCount ??
+        _rawViewCount = viewCount ??
             (views is int
                 ? views
                 : (int.tryParse(views?.toString() ?? '0') ?? 0)),
@@ -236,7 +238,7 @@ class Video {
   final String channelAvatarUrl;
 
   // Engagement Counters
-  final int viewCount;
+  final int _rawViewCount;
   final int likeCount;
   final int dislikeCount;
   final int commentCount;
@@ -366,8 +368,19 @@ class Video {
     return '';
   }
 
-  // Compatibility Getters
+  // Compatibility & Reactive Getters
   int get likes => likeCount;
+
+  int get viewCount {
+    if (Get.isRegistered<MainController>()) {
+      final live = MainController.to.videoViews[id];
+      if (live != null && live > _rawViewCount) {
+        return live;
+      }
+    }
+    return _rawViewCount;
+  }
+
   int get views => viewCount;
   double get truthScore => trustScore;
   double get trustIndex => trustScore;

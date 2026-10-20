@@ -94,13 +94,15 @@ class VideoCardThumbnail extends StatelessWidget {
                         ),
                       ),
                     ),
-                  if ((video.isFactChecked || video.hasAiCredibility) &&
-                      video.canPublicViewFactCheck)
-                    const VideoCardFactCheckBadge(),
                   if (video.isPrivate)
                     const VideoCardPrivateBadge(),
                   if (!isInitialized)
-                    VideoCardDurationBadge(duration: video.duration),
+                    VideoCardDurationBadge(
+                      duration: video.duration,
+                      isFactChecked:
+                          (video.isFactChecked || video.hasAiCredibility) &&
+                              video.canPublicViewFactCheck,
+                    ),
                   if (isInitialized)
                     VideoCardAudioToggle(controller: controller),
                   if (hovered)

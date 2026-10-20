@@ -6,10 +6,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
+import 'package:truthworld/features/video/data/models/video_chapter.dart';
 import 'package:truthworld/features/video/presentation/controllers/adaptive_bitrate_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/services/sleep_timer_service.dart';
 import 'package:truthworld/features/video/presentation/views/player/controls/player_controls.dart';
+import 'package:truthworld/features/video/presentation/views/player/panels/mobile_settings_panels.dart';
+import 'package:truthworld/features/video/presentation/widgets/video_chapters_bottom_sheet.dart';
 import 'package:video_player/video_player.dart';
 import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 
@@ -263,6 +266,71 @@ void main() {
       expect(find.byType(TimeDisplay), findsOneWidget);
       expect(find.text('00:00 / 00:00'), findsOneWidget);
     });
+
+    testWidgets('TimeDisplay displays chapter title and opens VideoChaptersBottomSheet on mobile', (tester) async {
+      ctrl.chapters.value = [
+        VideoChapter(
+          title: 'Introduction: The Great Egg Debate',
+          startTime: Duration.zero,
+        ),
+      ];
+      ctrl.currentChapter.value = ctrl.chapters.first;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 300,
+              child: TimeDisplay(ctrl: ctrl),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byType(TimeDisplay), findsOneWidget);
+      expect(
+        find.textContaining('Introduction: The Great Egg Debate'),
+        findsOneWidget,
+      );
+      expect(find.byIcon(Icons.chevron_right_rounded), findsOneWidget);
+
+      await tester.tap(find.byType(TimeDisplay));
+      await tester.pumpAndSettle();
+      expect(find.byType(VideoChaptersBottomSheet), findsOneWidget);
+    });
+
+    testWidgets('TimeDisplay opens desktop settings panel when tapped on desktop', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      try {
+        ctrl.chapters.value = [
+          VideoChapter(
+            title: 'Introduction: The Great Egg Debate',
+            startTime: Duration.zero,
+          ),
+        ];
+        ctrl.currentChapter.value = ctrl.chapters.first;
+        ctrl.activePanel.value = '';
+        ctrl.settingsOpen.value = false;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 300,
+                child: TimeDisplay(ctrl: ctrl),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.byType(TimeDisplay));
+        await tester.pump();
+        expect(ctrl.activePanel.value, equals('chapters'));
+        expect(ctrl.settingsOpen.value, isTrue);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
   });
 
   group('Player CenterRow & BottomBar Widgets', () {
@@ -405,6 +473,68 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.byType(ControlRow), findsOneWidget);
+    });
+
+    testWidgets('ControlRow displays chapters on narrow mobile screens (360px) without overflow', (tester) async {
+      ctrl.chapters.value = [
+        VideoChapter(
+          title: 'Introduction: The Great Egg Debate',
+          startTime: Duration.zero,
+        ),
+      ];
+      ctrl.currentChapter.value = ctrl.chapters.first;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData.dark(),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 360,
+                child: ControlRow(
+                  ctrl: ctrl,
+                  isNarrow: true,
+                  isMedium: false,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(ControlRow), findsOneWidget);
+      expect(
+        find.textContaining('Introduction: The Great Egg Debate'),
+        findsOneWidget,
+      );
+      expect(find.byIcon(Icons.chevron_right_rounded), findsOneWidget);
+    });
+
+    testWidgets('MobileMainSettingsMenu displays Chapters option when chapters exist', (tester) async {
+      ctrl.chapters.value = [
+        VideoChapter(
+          title: 'Introduction: The Great Egg Debate',
+          startTime: Duration.zero,
+        ),
+      ];
+      ctrl.currentChapter.value = ctrl.chapters.first;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData.dark(),
+          home: Scaffold(
+            body: MobileMainSettingsMenu(ctrl: ctrl),
+          ),
+        ),
+      );
+
+      expect(find.text('Chapters'), findsOneWidget);
+      expect(find.text('Introduction: The Great Egg Debate'), findsOneWidget);
+
+      await tester.tap(find.text('Chapters'));
+      await tester.pump();
+      expect(ctrl.activePanel.value, equals('chapters'));
     });
   });
 }

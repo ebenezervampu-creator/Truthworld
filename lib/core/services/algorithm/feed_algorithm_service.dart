@@ -16,9 +16,10 @@ import 'package:truthworld/features/video/data/models/video.dart';
 /// Falls back to chronological feed on server failure.
 class FeedAlgorithmService extends GetxService {
   FeedAlgorithmService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+      : _customFirestore = firestore;
 
-  final FirebaseFirestore _firestore;
+  final FirebaseFirestore? _customFirestore;
+  FirebaseFirestore get _firestore => _customFirestore ?? FirebaseFirestore.instance;
 
   /// Server endpoint for personalized home feed.
   /// Resolves dynamically from AlgorithmRemoteConfig, compile-time environment, or empty fallback.
@@ -41,7 +42,7 @@ class FeedAlgorithmService extends GetxService {
   bool get isServerAvailable => FeedAlgorithmService.homeFeedEndpoint.isNotEmpty;
 
   /// Fetch personalized home feed from server
-  /// Throws on error to let caller fall back
+  /// Seamlessly falls back to any available videos from Firestore on server failure, empty response, or offline state.
   Future<List<Video>> getPersonalizedFeed({
     String? userId,
     String? category,
@@ -49,7 +50,7 @@ class FeedAlgorithmService extends GetxService {
     DateTime? startAfter,
   }) async {
     if (!isServerAvailable || userId == null || userId.isEmpty) {
-      throw Exception('Server not available or missing userId');
+      return getPersonalizedFeedFallback(category: category, limit: limit);
     }
 
     final uri = Uri.parse(FeedAlgorithmService.homeFeedEndpoint).replace(
@@ -73,7 +74,7 @@ class FeedAlgorithmService extends GetxService {
     try {
       response = await http
           .get(uri, headers: headers)
-          .timeout(const Duration(seconds: 3));
+          .timeout(const Duration(seconds: 6));
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,
@@ -83,54 +84,127 @@ class FeedAlgorithmService extends GetxService {
       try {
         response = await http
             .get(uri, headers: headers)
-            .timeout(const Duration(seconds: 5));
+            .timeout(const Duration(seconds: 8));
       } catch (retryError, retryStackTrace) {
         ErrorHandler.log(
           retryError,
           stackTrace: retryStackTrace,
           tag: 'FeedAlgorithmService.getPersonalizedFeed.retry',
         );
-        throw Exception('Failed to fetch from server after retry.');
+        return getPersonalizedFeedFallback(category: category, limit: limit);
       }
     }
 
     if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      final videosJson = (data['feed'] as List<dynamic>?) ??
-          (data['videos'] as List<dynamic>?) ??
-          [];
+      try {
+        final data = json.decode(response.body);
+        final videosJson = (data['feed'] as List<dynamic>?) ??
+            (data['videos'] as List<dynamic>?) ??
+            [];
 
-      if (videosJson.isEmpty) return const [];
+        if (videosJson.isNotEmpty) {
+          var videos = videosJson
+              .map((json) => Video.fromMap(Map<String, dynamic>.from(json)))
+              .toList();
 
-      var videos = videosJson
-          .map((json) => Video.fromMap(Map<String, dynamic>.from(json)))
-          .toList();
+          // If server returned videos that lack playable media (e.g. recommendation endpoints
+          // providing ranking metadata without playable streaming URLs, or unhydrated payloads),
+          // hydrate them from Firestore while strictly preserving the server's personalized ranking order.
+          if (videos.any((v) => !VideoVisibilityPolicy.hasPlayableMedia(v))) {
+            videos = await _hydrateVideosFromFirestore(videos);
+          }
 
-      // If server returned videos that lack playable media (e.g. recommendation endpoints
-      // providing ranking metadata without playable streaming URLs, or unhydrated payloads),
-      // hydrate them from Firestore while strictly preserving the server's personalized ranking order.
-      if (videos.any((v) => !VideoVisibilityPolicy.hasPlayableMedia(v))) {
-        videos = await _hydrateVideosFromFirestore(videos);
+          var sanitized = VideoSanitizer.sanitizeForFeed(videos);
+          if (sanitized.isEmpty && videos.isNotEmpty) {
+            videos = await _hydrateVideosFromFirestore(videos, forceAll: true);
+            sanitized = VideoSanitizer.sanitizeForFeed(videos);
+          }
+
+          final candidatePool = sanitized.isNotEmpty
+              ? sanitized
+              : videos
+                  .where((v) =>
+                      v.id.isNotEmpty &&
+                      !v.isDraft &&
+                      v.status != VideoStatus.deleted &&
+                      v.status != VideoStatus.rejected &&
+                      VideoVisibilityPolicy.hasPlayableMedia(v))
+                  .toList();
+
+          if (candidatePool.isNotEmpty) {
+            // YouTube-style backfill:
+            // First prefer personalized videos (candidatePool).
+            // If the personalized videos count is lower than limit,
+            // backfill remaining slots with other public videos from TruthWorld catalog in Firestore.
+            if (candidatePool.length < limit) {
+              final existingIds = candidatePool.map((v) => v.id).toSet();
+              final remainingNeeded = limit - candidatePool.length;
+              final backfillVideos = await _fallbackChronologicalFeed(
+                category: category,
+                limit: remainingNeeded + existingIds.length,
+              );
+              for (final v in backfillVideos) {
+                if (!existingIds.contains(v.id)) {
+                  candidatePool.add(v);
+                  existingIds.add(v.id);
+                  if (candidatePool.length >= limit) break;
+                }
+              }
+            }
+            return candidatePool;
+          }
+        }
+      } catch (parseError, parseStackTrace) {
+        ErrorHandler.log(
+          parseError,
+          stackTrace: parseStackTrace,
+          tag: 'FeedAlgorithmService.getPersonalizedFeed.parse',
+        );
       }
-
-      var sanitized = VideoSanitizer.sanitizeForFeed(videos);
-      if (sanitized.isEmpty && videos.isNotEmpty) {
-        videos = await _hydrateVideosFromFirestore(videos, forceAll: true);
-        sanitized = VideoSanitizer.sanitizeForFeed(videos);
-      }
-
-      if (sanitized.isNotEmpty) return sanitized;
-      return videos
-          .where((v) =>
-              v.id.isNotEmpty &&
-              !v.isDraft &&
-              v.status != VideoStatus.deleted &&
-              v.status != VideoStatus.rejected &&
-              VideoVisibilityPolicy.hasPlayableMedia(v))
-          .toList();
-    } else {
-      throw Exception('Server returned ${response.statusCode}');
     }
+
+    // Never return 0 videos from personalized feed:
+    // If the server returned 0 videos or failed, seamlessly fall back to any other available videos from Firestore.
+    return getPersonalizedFeedFallback(category: category, limit: limit);
+  }
+
+  /// Resilient fallback for personalized feed:
+  /// Attempts category-specific videos first, then falls back to any other available public videos from Firestore.
+  /// If category videos count is lower than limit, backfills remaining slots from global catalog.
+  Future<List<Video>> getPersonalizedFeedFallback({
+    String? category,
+    int limit = 24,
+  }) async {
+    final categoryVideos = await _fallbackChronologicalFeed(
+      category: category,
+      limit: limit,
+    );
+
+    // If category has some videos but fewer than limit, first prefer category videos,
+    // then backfill remaining slots from unconstrained TruthWorld catalog so feed never faces low count.
+    if (categoryVideos.length < limit &&
+        category != null &&
+        category.isNotEmpty &&
+        category != 'All') {
+      final existingIds = categoryVideos.map((v) => v.id).toSet();
+      final remainingNeeded = limit - categoryVideos.length;
+      final unconstrainedVideos = await _fallbackChronologicalFeed(
+        limit: remainingNeeded + existingIds.length,
+      );
+      for (final v in unconstrainedVideos) {
+        if (!existingIds.contains(v.id)) {
+          categoryVideos.add(v);
+          existingIds.add(v.id);
+          if (categoryVideos.length >= limit) break;
+        }
+      }
+    }
+
+    if (categoryVideos.isNotEmpty) {
+      return categoryVideos;
+    }
+
+    return _fallbackChronologicalFeed(limit: limit);
   }
 
   /// Hydrates full video documents from Firestore when the recommendation endpoint
@@ -265,7 +339,17 @@ class FeedAlgorithmService extends GetxService {
       return unadjusted;
     }
 
+    // If even unadjusted is empty, fall back to the original server videos rather than returning 0 items.
+    if (adjusted.isEmpty && serverRankedVideos.isNotEmpty) {
+      return serverRankedVideos;
+    }
+
     return adjusted;
+  }
+
+  /// Public convenience method to fetch any available videos from Firestore without constraints.
+  Future<List<Video>> getAnyFallbackVideos({int limit = 24}) {
+    return _fallbackChronologicalFeed(limit: limit);
   }
 
   /// Fetch discovery modules (Elite Spotlight, Verified Today, Rising Fast)

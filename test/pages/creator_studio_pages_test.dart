@@ -9,7 +9,7 @@ import 'package:truthworld/features/dashboard/presentation/controllers/subtitles
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audience_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/chapters_page.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/creator_intelligence_page.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/channel_notifications_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_comments_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/drafts_screen.dart';
@@ -152,18 +152,18 @@ void main() {
       expect(find.byType(AudiencePage), findsOneWidget);
     });
 
-    testWidgets('8. CreatorIntelligencePage renders AI safety and copyright insights',
+    testWidgets('8. ChannelNotificationsPage renders AI safety and copyright insights',
         (tester) async {
       addTearDown(() => tester.view.resetPhysicalSize());
       await pumpPageInHarness(
         tester,
-        const CreatorIntelligencePage(
+        const ChannelNotificationsPage(
           channelId: 'test_channel_123',
           creatorId: 'creator_123',
         ),
       );
       expect(tester.takeException(), isNull);
-      expect(find.byType(CreatorIntelligencePage), findsOneWidget);
+      expect(find.byType(ChannelNotificationsPage), findsOneWidget);
     });
 
     testWidgets('9. DashboardCommentsPage renders community response and moderation',

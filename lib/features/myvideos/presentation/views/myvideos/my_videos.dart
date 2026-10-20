@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/video_options_sheet.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/watch_time_formatter.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
@@ -78,6 +79,11 @@ class MyVideos extends GetView<MyVideosController> {
                               ),
                             ),
                             child: TextField(
+                              maxLength: ContentValidator.defaultMaxSearchLength,
+                              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                              inputFormatters: TruthworldTextInputFormatters.withLimit(
+                                ContentValidator.defaultMaxSearchLength,
+                              ),
                               onChanged: (value) =>
                                   _controller.searchQuery.value = value,
                               style: const TextStyle(
@@ -504,7 +510,7 @@ class _MyVideoListCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${video.views} views • ${WatchTimeFormatter.format(video.totalWatchTimeSeconds)} • ${controller.formatTimeAgo(video.uploadedAt.toDate())}',
+                    '${video.views} ${video.views == 1 ? 'view' : 'views'} • ${WatchTimeFormatter.format(video.totalWatchTimeSeconds)} • ${controller.formatTimeAgo(video.uploadedAt.toDate())}',
                     style: const TextStyle(
                       fontSize: 13,
                       color: secondaryText,

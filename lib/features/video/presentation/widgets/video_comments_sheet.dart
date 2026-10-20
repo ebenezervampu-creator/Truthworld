@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/components/ui/flip_coin_widget.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
@@ -9,6 +8,7 @@ import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/core/widgets/ad_widgets.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
+import 'package:truthworld/features/channel/data/services/channel_memory_cache.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
@@ -126,46 +126,83 @@ class VideoCommentsSheet {
                 ],
               ),
               const SizedBox(height: 16),
-              PremiumCommentInput(
-                key: ValueKey('main_comment_input_${controller.video.id}'),
-                videoId: controller.video.id,
-                channelId: controller.video.channelId,
-                videoTitle: controller.video.title,
-                onSubmit: (text, postAsChannel, channelId) async {
-                  try {
-                    final authService = AuthService.to;
-                    final hasChannel = authService.hasChannel.value;
-                    final channel = authService.userChannel;
+              Obx(() {
+                final channelId = controller.video.channelId.isNotEmpty
+                    ? controller.video.channelId
+                    : controller.video.ownerId;
+                final channel = ChannelMemoryCache.getReactive(channelId);
+                final allowComments = channel == null || channel.allowComments;
 
-                    final shouldPostAsChannel = postAsChannel || hasChannel;
-                    final targetChannelId = shouldPostAsChannel
-                        ? (channelId ?? channel?.id)
-                        : null;
-                    final targetChannelName = shouldPostAsChannel
-                        ? (channel?.handle.isNotEmpty ?? false
-                              ? channel?.handle
-                              : channel?.name)
-                        : null;
-                    final targetChannelAvatar = shouldPostAsChannel
-                        ? channel?.avatarUrl
-                        : null;
-                    final targetUserAvatar = AuthService.to.activePhotoUrl;
+                if (!allowComments) {
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.comments_disabled_outlined,
+                          color: Colors.white70,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Comments are turned off for this channel.',
+                          style: GoogleFonts.roboto(
+                            color: Colors.white70,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
 
-                    await commentsController.submitComment(
-                      text: text,
-                      channelId: targetChannelId,
-                      channelName: targetChannelName,
-                      channelProfilePicUrl: targetChannelAvatar,
-                      userProfilePicUrl: targetUserAvatar,
-                    );
-                    AppSnackbar.success('Comment posted');
-                  } catch (e) {
-                    ErrorHandler.log(e);
-                    AppSnackbar.error('Unable to post comment. Please try again.');
-                  }
-                },
-                onCancel: () {},
-              ),
+                return PremiumCommentInput(
+                  key: ValueKey('main_comment_input_${controller.video.id}'),
+                  videoId: controller.video.id,
+                  channelId: controller.video.channelId,
+                  videoTitle: controller.video.title,
+                  onSubmit: (text, postAsChannel, channelId) async {
+                    try {
+                      final authService = AuthService.to;
+                      final hasChannel = authService.hasChannel.value;
+                      final channel = authService.userChannel;
+
+                      final shouldPostAsChannel = postAsChannel || hasChannel;
+                      final targetChannelId = shouldPostAsChannel
+                          ? (channelId ?? channel?.id)
+                          : null;
+                      final targetChannelName = shouldPostAsChannel
+                          ? (channel?.handle.isNotEmpty ?? false
+                                ? channel?.handle
+                                : channel?.name)
+                          : null;
+                      final targetChannelAvatar = shouldPostAsChannel
+                          ? channel?.avatarUrl
+                          : null;
+                      final targetUserAvatar = AuthService.to.activePhotoUrl;
+
+                      await commentsController.submitComment(
+                        text: text,
+                        channelId: targetChannelId,
+                        channelName: targetChannelName,
+                        channelProfilePicUrl: targetChannelAvatar,
+                        userProfilePicUrl: targetUserAvatar,
+                      );
+                      AppSnackbar.success('Comment posted');
+                    } catch (e) {
+                      ErrorHandler.log(e);
+                      AppSnackbar.error('Unable to post comment. Please try again.');
+                    }
+                  },
+                  onCancel: () {},
+                );
+              }),
             ],
           ),
         ),
@@ -362,27 +399,15 @@ class VideoCommentsSheet {
                           final count = commentsController.comments.length;
                           final isFlipped =
                               commentsController.isCounterArgumentFlipped.value;
-                          return Row(
-                            children: [
-                              Text(
-                                isFlipped
-                                    ? 'Counter-Arguments ($count)'
-                                    : 'Comments ($count)',
-                                style: GoogleFonts.roboto(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              FlipCoinWidget(
-                                isFlipped: isFlipped,
-                                size: 28,
-                                tooltip:
-                                    'Flip to see Verified Counter-Arguments',
-                                onTap: commentsController.toggleCounterArgumentSort,
-                              ),
-                            ],
+                          return Text(
+                            isFlipped
+                                ? 'Counter-Arguments ($count)'
+                                : 'Comments ($count)',
+                            style: GoogleFonts.roboto(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
                           );
                         }),
                         IconButton(
@@ -531,50 +556,92 @@ class VideoCommentsSheet {
                   ),
                   SafeArea(
                     top: false,
-                    child: PremiumCommentInput(
-                      key: ValueKey(
-                        'popup_comment_input_${controller.video.id}',
-                      ),
-                      videoId: controller.video.id,
-                      onSubmit: (text, postAsChannel, channelId) async {
-                        try {
-                          final authService = AuthService.to;
-                          final hasChannel = authService.hasChannel.value;
-                          final channel = authService.userChannel;
+                    child: Obx(() {
+                      final channelId = controller.video.channelId.isNotEmpty
+                          ? controller.video.channelId
+                          : controller.video.ownerId;
+                      final channel = ChannelMemoryCache.getReactive(channelId);
+                      final allowComments = channel == null || channel.allowComments;
 
-                          final shouldPostAsChannel =
-                              postAsChannel || hasChannel;
-                          final targetChannelId = shouldPostAsChannel
-                              ? (channelId ?? channel?.id)
-                              : null;
-                          final targetChannelName = shouldPostAsChannel
-                              ? (channel?.handle.isNotEmpty ?? false
-                                    ? channel?.handle
-                                    : channel?.name)
-                              : null;
-                          final targetChannelAvatar = shouldPostAsChannel
-                              ? channel?.avatarUrl
-                              : null;
-                          final targetUserAvatar =
-                              AuthService.to.activePhotoUrl;
+                      if (!allowComments) {
+                        return Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.comments_disabled_outlined,
+                                  color: Colors.white70,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Comments are turned off for this channel.',
+                                    style: GoogleFonts.roboto(
+                                      color: Colors.white70,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
 
-                          await commentsController.submitComment(
-                            text: text,
-                            channelId: targetChannelId,
-                            channelName: targetChannelName,
-                            channelProfilePicUrl: targetChannelAvatar,
-                            userProfilePicUrl: targetUserAvatar,
-                          );
-                        } catch (e, s) {
-                          ErrorHandler.log(
-                            e,
-                            stackTrace: s,
-                            tag: 'VideoCommentsSheet.submitComment',
-                          );
-                        }
-                      },
-                      onCancel: () {},
-                    ),
+                      return PremiumCommentInput(
+                        key: ValueKey(
+                          'popup_comment_input_${controller.video.id}',
+                        ),
+                        videoId: controller.video.id,
+                        onSubmit: (text, postAsChannel, channelId) async {
+                          try {
+                            final authService = AuthService.to;
+                            final hasChannel = authService.hasChannel.value;
+                            final channel = authService.userChannel;
+
+                            final shouldPostAsChannel =
+                                postAsChannel || hasChannel;
+                            final targetChannelId = shouldPostAsChannel
+                                ? (channelId ?? channel?.id)
+                                : null;
+                            final targetChannelName = shouldPostAsChannel
+                                ? (channel?.handle.isNotEmpty ?? false
+                                      ? channel?.handle
+                                      : channel?.name)
+                                : null;
+                            final targetChannelAvatar = shouldPostAsChannel
+                                ? channel?.avatarUrl
+                                : null;
+                            final targetUserAvatar =
+                                AuthService.to.activePhotoUrl;
+
+                            await commentsController.submitComment(
+                              text: text,
+                              channelId: targetChannelId,
+                              channelName: targetChannelName,
+                              channelProfilePicUrl: targetChannelAvatar,
+                              userProfilePicUrl: targetUserAvatar,
+                            );
+                          } catch (e, s) {
+                            ErrorHandler.log(
+                              e,
+                              stackTrace: s,
+                              tag: 'VideoCommentsSheet.submitComment',
+                            );
+                          }
+                        },
+                        onCancel: () {},
+                      );
+                    }),
                   ),
                 ],
               ),

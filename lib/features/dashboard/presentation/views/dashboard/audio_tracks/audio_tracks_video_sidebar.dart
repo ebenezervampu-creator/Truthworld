@@ -82,7 +82,11 @@ class AudioTracksVideoSidebar extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: TextField(
               controller: searchController,
-              inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+              maxLength: ContentValidator.defaultMaxSearchLength,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: TruthworldTextInputFormatters.withLimit(
+                ContentValidator.defaultMaxSearchLength,
+              ),
               style: TextStyle(fontSize: 13, color: textColor),
               onChanged: controller.setSearchQuery,
               decoration: InputDecoration(

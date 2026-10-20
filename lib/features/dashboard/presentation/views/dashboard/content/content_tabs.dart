@@ -115,6 +115,10 @@ class VideosTab extends StatelessWidget {
                 !v.isUploadingOrProcessing &&
                 v.status != VideoStatus.draft &&
                 v.status != VideoStatus.scheduled &&
+                v.status != VideoStatus.deleted &&
+                v.status.name != 'deleted' &&
+                v.status.name != 'deletion_pending' &&
+                v.status.name != 'trashed' &&
                 v.visibility.toLowerCase() != 'draft' &&
                 v.visibility.toLowerCase() != 'scheduled',
           )
@@ -243,7 +247,15 @@ class PostsTab extends StatelessWidget {
         return const NoPostsYetWidget();
       }
 
-      var posts = controller.communityPosts.toList();
+      var posts = controller.communityPosts
+          .where(
+            (p) =>
+                !p.isDeleted &&
+                p.status != 'deletion_pending' &&
+                p.status != 'trashed' &&
+                p.status != 'deleted',
+          )
+          .toList();
 
       // Filter posts based on search query
       if (searchQuery.isNotEmpty) {
@@ -350,20 +362,28 @@ class DraftsTab extends StatelessWidget {
       final draftVideos = controller.channelVideos
           .where(
             (v) =>
-                v.isDraft ||
-                v.isUploadingOrProcessing ||
-                v.status == VideoStatus.draft ||
-                v.visibility.toLowerCase() == 'draft' ||
-                v.status.name.toLowerCase() == 'draft',
+                v.status != VideoStatus.deleted &&
+                v.status.name != 'deleted' &&
+                v.status.name != 'deletion_pending' &&
+                v.status.name != 'trashed' &&
+                (v.isDraft ||
+                    v.isUploadingOrProcessing ||
+                    v.status == VideoStatus.draft ||
+                    v.visibility.toLowerCase() == 'draft' ||
+                    v.status.name.toLowerCase() == 'draft'),
           )
           .toList();
 
       final draftPosts = controller.communityPosts
           .where(
             (p) =>
-                p.isDraft ||
-                p.visibility.toLowerCase() == 'draft' ||
-                p.selectedCategory.toLowerCase() == 'draft',
+                !p.isDeleted &&
+                p.status != 'deletion_pending' &&
+                p.status != 'trashed' &&
+                p.status != 'deleted' &&
+                (p.isDraft ||
+                    p.visibility.toLowerCase() == 'draft' ||
+                    p.selectedCategory.toLowerCase() == 'draft'),
           )
           .toList();
 
@@ -536,15 +556,26 @@ class ScheduledTab extends StatelessWidget {
       final scheduledVideos = controller.channelVideos
           .where(
             (v) =>
-                v.status == VideoStatus.scheduled ||
-                v.status.name == 'scheduled' ||
-                v.visibility == 'scheduled' ||
-                v.scheduledPublishAt != null,
+                v.status != VideoStatus.deleted &&
+                v.status.name != 'deleted' &&
+                v.status.name != 'deletion_pending' &&
+                v.status.name != 'trashed' &&
+                (v.status == VideoStatus.scheduled ||
+                    v.status.name == 'scheduled' ||
+                    v.visibility == 'scheduled' ||
+                    v.scheduledPublishAt != null),
           )
           .toList();
 
       final scheduledPosts = controller.communityPosts
-          .where((p) => p.scheduledTime != null)
+          .where(
+            (p) =>
+                !p.isDeleted &&
+                p.status != 'deletion_pending' &&
+                p.status != 'trashed' &&
+                p.status != 'deleted' &&
+                p.scheduledTime != null,
+          )
           .toList();
 
       if (scheduledVideos.isEmpty && scheduledPosts.isEmpty) {

@@ -1058,7 +1058,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Delete ${selectedVideos.length} Videos?',
+                'Move ${selectedVideos.length} Videos to Trash?',
                 style: AppTextStyles.titleLarge.copyWith(
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.bold,
@@ -1067,7 +1067,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
               ),
               const SizedBox(height: 12),
               Text(
-                'Are you sure you want to permanently delete ${selectedVideos.length} selected videos and their associated media? This action cannot be undone.',
+                'Are you sure you want to move ${selectedVideos.length} selected videos to Trash? Deleted items are retained for 30 days before permanent deletion.',
                 style: AppTextStyles.bodyMedium.copyWith(
                   color: AppColors.textSecondary,
                 ),
@@ -1101,7 +1101,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
                         _clearSelection();
                       }
                     },
-                    child: Text('Delete (${selectedVideos.length})'),
+                    child: Text('Move to Trash (${selectedVideos.length})'),
                   ),
                 ],
               ),

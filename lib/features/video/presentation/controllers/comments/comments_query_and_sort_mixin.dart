@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments/comments_state_base.dart';
 
@@ -67,13 +68,22 @@ mixin CommentsQueryAndSortMixin on CommentsStateBase {
     if (currentUserId.isEmpty || video == null) return;
 
     try {
-      final commentInteractSnap = await FirebaseFirestore.instance
-          .collection(FirestoreCollections.users)
-          .doc(currentUserId)
-          .collection('comment_interactions')
-          .where('videoId', isEqualTo: video!.id)
-          .get();
+      final results = await Future.wait([
+        FirebaseFirestore.instance
+            .collection(FirestoreCollections.users)
+            .doc(currentUserId)
+            .collection('comment_interactions')
+            .where('videoId', isEqualTo: video!.id)
+            .getCacheFirst(),
+        FirebaseFirestore.instance
+            .collection(FirestoreCollections.users)
+            .doc(currentUserId)
+            .collection('reply_interactions')
+            .where('videoId', isEqualTo: video!.id)
+            .getCacheFirst(),
+      ]);
 
+      final commentInteractSnap = results[0];
       for (final doc in commentInteractSnap.docs) {
         final data = doc.data();
         final type = data['type'];
@@ -84,13 +94,7 @@ mixin CommentsQueryAndSortMixin on CommentsStateBase {
         };
       }
 
-      final replyInteractSnap = await FirebaseFirestore.instance
-          .collection(FirestoreCollections.users)
-          .doc(currentUserId)
-          .collection('reply_interactions')
-          .where('videoId', isEqualTo: video!.id)
-          .get();
-
+      final replyInteractSnap = results[1];
       for (final doc in replyInteractSnap.docs) {
         final data = doc.data();
         final type = data['type'];

@@ -46,7 +46,8 @@ class ChannelScreen extends StatelessWidget {
         canPop: ctrl.isExiting.value ||
             (channelCtrl.channelName.text.trim().isEmpty &&
                 channelCtrl.description.text.trim().isEmpty &&
-                channelCtrl.selectedCategories.isEmpty),
+                channelCtrl.selectedCategories.isEmpty &&
+                Navigator.of(context).canPop()),
         onPopInvokedWithResult: (didPop, result) {
           if (didPop) return;
           ctrl.handleClose(context, isDarkMode);

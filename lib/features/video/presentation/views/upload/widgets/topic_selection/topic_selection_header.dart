@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Drag handle and top header bar with title, AI hub subtitle, refresh, and close controls.
@@ -127,6 +128,9 @@ class TopicSelectionSearchBar extends StatelessWidget {
               border: Border.all(color: borderColor),
             ),
             child: TextField(
+              maxLength: defaultMaxSearchLength,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: TruthworldTextInputFormatters.withLimit(defaultMaxSearchLength),
               onChanged: (val) {
                 if (controller?.topicSearchQuery != null) {
                   controller.topicSearchQuery.value = val;

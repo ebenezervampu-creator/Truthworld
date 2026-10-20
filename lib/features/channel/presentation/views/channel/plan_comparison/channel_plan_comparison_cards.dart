@@ -18,7 +18,6 @@ class StandardPlanOverviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const primaryColor = Color(0xFF3B82F6);
-    const gradientStart = Color(0xFF60A5FA);
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -350,8 +349,8 @@ class CustomPlanOverviewCard extends StatelessWidget {
             children: [
               Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
                     colors: [gradientStart, primaryColor],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,

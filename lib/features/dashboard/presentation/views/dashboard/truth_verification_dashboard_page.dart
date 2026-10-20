@@ -120,6 +120,37 @@ class VideoFactCheckItem {
 
   int get boostPercentage =>
       ((projectedTruthScore - truthScore) * 100).toInt().clamp(0, 100);
+
+  bool get hasClaims => claims.isNotEmpty;
+
+  /// Factual accuracy proportion (verified / total). Returns null if no empirical claims exist.
+  double? get factualAccuracyScore =>
+      claims.isEmpty ? null : (verifiedClaims.length / claims.length);
+
+  /// Human-readable factual accuracy label distinguishing from media authenticity.
+  String get factualAccuracyLabel => claims.isEmpty
+      ? 'Not Assessed (No empirical assertions)'
+      : '${((factualAccuracyScore ?? 0.0) * 100).toInt()}%';
+
+  /// Verification status code aligning with epistemic evidence standards
+  String get verificationState {
+    if (claims.isEmpty) return 'INSUFFICIENT_EVIDENCE';
+    if (hasConcerns) return 'CONCERNS_FLAGGED';
+    if (needsSourceClaims.isNotEmpty) return 'NEEDS_SOURCE';
+    if (disputedClaims.isNotEmpty) return 'DISPUTED';
+    return 'VERIFIED_MULTIMODAL_CONSENSUS';
+  }
+
+  /// Cryptographic & consensus status label
+  String get consensusValidationStatus {
+    if (claims.isEmpty) {
+      return 'INSUFFICIENT_EVIDENCE_FOR_FACTUAL_CONSENSUS (Media Provenance Verified)';
+    }
+    if (hasConcerns) {
+      return 'CONCERNS_FLAGGED_UNDER_REVIEW';
+    }
+    return 'VERIFIED_MULTIMODAL_CONSENSUS';
+  }
 }
 
 class TruthVerificationDashboardPage extends StatelessWidget {
@@ -850,6 +881,22 @@ class TruthVerificationDashboardPage extends StatelessWidget {
     BuildContext context,
     VideoFactCheckItem video,
   ) {
+    final String assertionsBlock;
+    if (video.claims.isEmpty) {
+      assertionsBlock =
+          '• No empirical factual assertions extracted from video transcript or audio stream.\n'
+          '• Content classified as philosophical inquiry, rhetorical argument, or subjective discourse.\n'
+          '• Factual accuracy cannot be assessed without empirical propositions.';
+    } else {
+      assertionsBlock = video.claims
+          .map((c) =>
+              '• [${c.timestamp}] [${c.tier.name.toUpperCase()}] "${c.text}" (Source: ${c.sourceCitation})')
+          .join('\n');
+    }
+
+    final mediaAuthenticityPercent =
+        video.truthScore > 0 ? (video.truthScore * 100).toInt() : 100;
+
     final dossierText = '''
 =====================================================
 TRUTHWORLD VERIFICATION AUDIT DOSSIER & CERTIFICATE
@@ -859,17 +906,21 @@ Video Title: ${video.title}
 Channel ID: $channelId
 Audit Timestamp: ${DateTime.now().toUtc().toIso8601String()}
 
-VERIFICATION SCORES:
-- Authenticity Index: ${(video.truthScore * 100).toInt()}%
+VERIFICATION & CREDIBILITY METRICS:
+- Media / Provenance Authenticity: $mediaAuthenticityPercent% (Tamper-evident asset integrity verified)
+- Factual Accuracy: ${video.factualAccuracyLabel}
+- Evidence Coverage: ${video.claims.length} assertion(s) analyzed
+- Verification State: ${video.verificationState}
+- Public Visibility: ${video.isFactCheckApproved ? 'Approved (Public)' : 'Held Private'}
 - Review Mode: ${video.factCheckReviewMode}
-- Approval Status: ${video.isFactCheckApproved ? 'Approved (Public)' : 'Held Private'}
 
 ASSERTIONS ANALYZED (${video.claims.length}):
-${video.claims.map((c) => '• [${c.timestamp}] [${c.tier.name.toUpperCase()}] "${c.text}" (Source: ${c.sourceCitation})').join('\n')}
+$assertionsBlock
 
 CRYPTOGRAPHIC VALIDATION:
 Digital Stamp: SHA256-${video.id.hashCode.toRadixString(16).padLeft(16, '0')}
-Status: VERIFIED_MULTIMODAL_CONSENSUS
+Validation Scope: Asset integrity hash & immutable provenance ledger entry
+Status: ${video.consensusValidationStatus}
 =====================================================
 ''';
 
@@ -1348,7 +1399,12 @@ Status: VERIFIED_MULTIMODAL_CONSENSUS
                   const SizedBox(height: 6),
                   TextField(
                     controller: urlController,
-                    inputFormatters: [...TruthworldTextInputFormatters.standard],
+                    maxLength: 500,
+                    buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                    inputFormatters: [
+                      LengthLimitingTextInputFormatter(500),
+                      FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                    ],
                     decoration: InputDecoration(
                       hintText: 'https://nature.com/articles/... or https://...',
                       border: OutlineInputBorder(
@@ -1383,7 +1439,9 @@ Status: VERIFIED_MULTIMODAL_CONSENSUS
                   const SizedBox(height: 6),
                   TextField(
                     controller: notesController,
-                    inputFormatters: [...TruthworldTextInputFormatters.standard],
+                    maxLength: 500,
+                    buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                    inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(500),
                     decoration: InputDecoration(
                       hintText: 'e.g. Table 4 of 2026 National Statistics release',
                       border: OutlineInputBorder(
@@ -1619,7 +1677,9 @@ Status: VERIFIED_MULTIMODAL_CONSENSUS
                   TextField(
                     controller: noteController,
                     maxLines: 3,
-                    inputFormatters: [...TruthworldTextInputFormatters.standard],
+                    maxLength: 500,
+                    buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                    inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(500),
                     decoration: InputDecoration(
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -2856,9 +2916,9 @@ Status: VERIFIED_MULTIMODAL_CONSENSUS
                       TextField(
                         controller: explanationController,
                         maxLines: 4,
-                        inputFormatters: [
-                          ...TruthworldTextInputFormatters.standard,
-                        ],
+                        maxLength: 2000,
+                        buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                        inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(2000),
                         decoration: InputDecoration(
                           hintText:
                               'Explain why the AI fact-check is inaccurate or missing vital context...',
@@ -2892,8 +2952,11 @@ Status: VERIFIED_MULTIMODAL_CONSENSUS
                       const SizedBox(height: 6),
                       TextField(
                         controller: urlController,
+                        maxLength: 500,
+                        buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                         inputFormatters: [
-                          ...TruthworldTextInputFormatters.standard,
+                          LengthLimitingTextInputFormatter(500),
+                          FilteringTextInputFormatter.deny(RegExp(r'\s')),
                         ],
                         decoration: InputDecoration(
                           hintText: 'https://official-source.gov/report.pdf',
@@ -3114,9 +3177,9 @@ Status: VERIFIED_MULTIMODAL_CONSENSUS
                       TextField(
                         controller: commentaryController,
                         maxLines: 4,
-                        inputFormatters: [
-                          ...TruthworldTextInputFormatters.standard,
-                        ],
+                        maxLength: 2000,
+                        buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                        inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(2000),
                         decoration: InputDecoration(
                           hintText:
                               'e.g. "At timestamp 02:15, note that the 2026 amendments reversed the prior statute. See the official gazette link below to re-verify."',
@@ -3222,8 +3285,11 @@ Status: VERIFIED_MULTIMODAL_CONSENSUS
                               const SizedBox(height: 6),
                               TextField(
                                 controller: controllers['url'],
+                                maxLength: 500,
+                                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                                 inputFormatters: [
-                                  ...TruthworldTextInputFormatters.standard,
+                                  LengthLimitingTextInputFormatter(500),
+                                  FilteringTextInputFormatter.deny(RegExp(r'\s')),
                                 ],
                                 decoration: InputDecoration(
                                   labelText: 'Source URL / DOI / Link',
@@ -3248,9 +3314,9 @@ Status: VERIFIED_MULTIMODAL_CONSENSUS
                               const SizedBox(height: 8),
                               TextField(
                                 controller: controllers['notes'],
-                                inputFormatters: [
-                                  ...TruthworldTextInputFormatters.standard,
-                                ],
+                                maxLength: 500,
+                                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                                inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(500),
                                 decoration: InputDecoration(
                                   labelText: 'Citation Description / Notes',
                                   hintText:
@@ -4479,22 +4545,28 @@ Status: VERIFIED_MULTIMODAL_CONSENSUS
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      'Truth Score: ${video.truthScore > 0 ? "${(video.truthScore * 100).toInt()}%" : "N/A"}',
+                      video.claims.isEmpty
+                          ? 'Factual Accuracy: Not Assessed (Media Authentic)'
+                          : 'Truth Score: ${video.truthScore > 0 ? "${(video.truthScore * 100).toInt()}%" : "N/A"}',
                       style: TextStyle(
                         fontFamily: TWTypography.uiFamily,
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
-                        color: video.truthScore >= 0.8
-                            ? AppColors.success
-                            : (video.truthScore >= 0.5
-                                ? AppColors.warning
-                                : AppColors.error),
+                        color: video.claims.isEmpty
+                            ? AppColors.info
+                            : (video.truthScore >= 0.8
+                                ? AppColors.success
+                                : (video.truthScore >= 0.5
+                                    ? AppColors.warning
+                                    : AppColors.error)),
                       ),
                     ),
                   ],
                 ),
                 Text(
-                  '${video.claims.length} Claims: ${video.verifiedClaims.length} verified, ${video.needsSourceClaims.length} need source, ${video.highConcernClaims.length} concern',
+                  video.claims.isEmpty
+                      ? '0 Assertions Analyzed • Philosophical / Rhetorical inquiry'
+                      : '${video.claims.length} Claims: ${video.verifiedClaims.length} verified, ${video.needsSourceClaims.length} need source, ${video.highConcernClaims.length} concern',
                   style: TextStyle(
                     fontFamily: TWTypography.uiFamily,
                     fontSize: 11,

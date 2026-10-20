@@ -237,16 +237,6 @@ class TopicCategoriesConfig {
       icon: Icons.restaurant_rounded,
     ),
     TopicCategory(
-      id: 'fashion',
-      title: 'Fashion',
-      imageUrl:
-          'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?auto=format&fit=crop&w=800&q=80',
-      description:
-          'Timeless style, modest apparel, sustainable textiles, and design trends.',
-      searchHintExamples: '"style", "lookbooks", "apparel"',
-      icon: Icons.checkroom_rounded,
-    ),
-    TopicCategory(
       id: 'comedy',
       title: 'Comedy',
       imageUrl:
@@ -330,16 +320,6 @@ class TopicCategoriesConfig {
       icon: Icons.self_improvement_rounded,
     ),
     TopicCategory(
-      id: 'people_blogs',
-      title: 'People & Blogs',
-      imageUrl:
-          'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=800&q=80',
-      description:
-          'Personal narratives, creator journeys, community diaries, and life stories.',
-      searchHintExamples: '"interviews", "life stories", "creator diaries"',
-      icon: Icons.people_alt_rounded,
-    ),
-    TopicCategory(
       id: 'kids_family',
       title: 'Kids & Family',
       imageUrl:
@@ -378,6 +358,16 @@ class TopicCategoriesConfig {
           'Creator day-in-the-life vlogs, unfiltered experiences, and live diaries.',
       searchHintExamples: '"daily vlogs", "day in the life", "travel vlogs"',
       icon: Icons.videocam_rounded,
+    ),
+    TopicCategory(
+      id: 'short_films',
+      title: 'Short Films',
+      imageUrl:
+          'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=800&q=80',
+      description:
+          'Creative indie cinema, narrative storytelling, festival entries, and cinematic shorts.',
+      searchHintExamples: '"drama", "sketches", "festival films"',
+      icon: Icons.movie_creation_rounded,
     ),
     TopicCategory(
       id: 'other',

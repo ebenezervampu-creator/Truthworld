@@ -6,10 +6,10 @@
         <color android:color="#0B0F1A" />
     </item>
 
-    <!-- Official Logo Centered -->
+    <!-- Official Logo Centered as clean bitmap -->
     <item>
         <bitmap
             android:gravity="center"
-            android:src="@mipmap/ic_launcher" />
+            android:src="@drawable/launch_logo" />
     </item>
 </layer-list>

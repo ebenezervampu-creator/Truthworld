@@ -20,6 +20,10 @@ class ChannelEntity {
     this.category = 'other',
     this.categories = const [],
     this.visibility = 'Public',
+    this.showLikeCount = true,
+    this.showDislikeCount = true,
+    this.showSubscriberCount = true,
+    this.allowComments = true,
     this.country = 'IN',
   });
   final String id;
@@ -43,6 +47,10 @@ class ChannelEntity {
   final String category;
   final List<String> categories;
   final String visibility;
+  final bool showLikeCount;
+  final bool showDislikeCount;
+  final bool showSubscriberCount;
+  final bool allowComments;
   final String country;
 
   @override

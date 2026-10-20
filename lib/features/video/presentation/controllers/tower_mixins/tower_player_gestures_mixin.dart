@@ -30,6 +30,9 @@ mixin TowerPlayerGesturesMixin on GetxController {
   TimerBag get timers;
   Future<void> seekRelative(int seconds, {bool showFeedbackToast = true});
   int get seekStepSeconds;
+  bool get isZoomedIn;
+  void resetZoom({bool animated = false});
+  void showToast(String msg);
 
   // Swipe HUD
   final RxDouble brightness = 1.0.obs;
@@ -62,6 +65,7 @@ mixin TowerPlayerGesturesMixin on GetxController {
   void startHideTimer([Duration? timeout]);
   void setVolume(double val);
   Future<void> seekTo(Duration position);
+  void hideSeekPreview();
 
   void cancelPendingTap() {
     singleTapTimer?.cancel();
@@ -123,6 +127,11 @@ mixin TowerPlayerGesturesMixin on GetxController {
       singleTapTimer?.cancel();
       singleTapTimer = null;
       lastTapTime = null;
+      if (isZoomedIn && tapX > playerWidth * 0.25 && tapX < playerWidth * 0.75) {
+        resetZoom(animated: true);
+        showToast('Original');
+        return;
+      }
       executeDoubleTapSeek(isLeft: isLeft, resetAccumulator: true);
     } else {
       lastTapTime = now;
@@ -141,6 +150,7 @@ mixin TowerPlayerGesturesMixin on GetxController {
     if (controlsVisible.value) {
       timers.cancel('hide');
       controlsVisible.value = false;
+      hideSeekPreview();
     } else {
       controlsVisible.value = true;
       startHideTimer();

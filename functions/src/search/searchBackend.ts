@@ -174,7 +174,7 @@ export const searchTruthWorld = onCall(
     cpu: 1,
     memory: "512MiB",
     concurrency: 40,
-    maxInstances: 50,
+    maxInstances: 10,
     timeoutSeconds: 15,
   },
   async (request): Promise<SearchResultItem[]> => {

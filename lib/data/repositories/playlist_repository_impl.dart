@@ -75,6 +75,16 @@ class PlaylistRepositoryImpl extends BaseRepository
 
   @override
   Future<Result<void>> deletePlaylist(String id) async {
+    return safeUpdate(
+      _firestore.collection(FirestoreCollections.playlists).doc(id),
+      {
+        'status': 'deletion_pending',
+        'deletionRequestedAt': FieldValue.serverTimestamp(),
+      },
+    );
+  }
+
+  Future<Result<void>> permanentlyDeletePlaylist(String id) async {
     return safeDelete(
       _firestore.collection(FirestoreCollections.playlists).doc(id),
     );

@@ -49,6 +49,8 @@ class ChannelWizardInputField extends StatelessWidget {
   final int? maxLength;
   final List<TextInputFormatter>? inputFormatters;
   final String? Function(String?)? validator;
+  final Widget? suffix;
+  final ValueChanged<String>? onChanged;
 
   const ChannelWizardInputField({
     required this.controller,
@@ -58,13 +60,16 @@ class ChannelWizardInputField extends StatelessWidget {
     this.maxLength,
     this.inputFormatters,
     this.validator,
+    this.suffix,
+    this.onChanged,
     super.key,
   });
 
   @override
   Widget build(BuildContext context) {
     final effectiveFormatters = <TextInputFormatter>[
-      TruthworldTextInputFormatters.englishOnly,
+      TruthworldTextInputFormatters.profanityFilter,
+      if (maxLength != null) LengthLimitingTextInputFormatter(maxLength),
       ...?inputFormatters,
     ];
 
@@ -98,8 +103,11 @@ class ChannelWizardInputField extends StatelessWidget {
                 child: TextFormField(
                   controller: controller,
                   maxLines: maxLines,
+                  maxLength: maxLength,
+                  buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                   inputFormatters: effectiveFormatters,
                   validator: validator,
+                  onChanged: onChanged,
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: hintText,
@@ -114,18 +122,26 @@ class ChannelWizardInputField extends StatelessWidget {
                   ),
                 ),
               ),
+              if (suffix != null)
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: suffix!,
+                ),
               if (maxLength != null && maxLines == 1)
-                ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: controller,
-                  builder: (context, value, child) {
-                    return Text(
-                      '${value.text.length}/$maxLength',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textTertiary,
-                      ),
-                    );
-                  },
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: controller,
+                    builder: (context, value, child) {
+                      return Text(
+                        '${value.text.length}/$maxLength',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textTertiary,
+                        ),
+                      );
+                    },
+                  ),
                 ),
             ],
           ),

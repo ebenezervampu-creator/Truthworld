@@ -370,4 +370,87 @@ void main() {
       expect(safeItem.downloadedAt, isNotNull);
     });
   });
+
+  group('Download Quality Premium Gating Tests', () {
+    test('11. isPremiumResolution correctly gates resolutions > 720p', () {
+      final res2160 = VideoResolutionV2(
+        label: '2160p',
+        url: 'https://example.com/2160.mp4',
+        width: 3840,
+        height: 2160,
+        bitrate: 15000000,
+      );
+      final res1440 = VideoResolutionV2(
+        label: '1440p',
+        url: 'https://example.com/1440.mp4',
+        width: 2560,
+        height: 1440,
+        bitrate: 10000000,
+      );
+      final res1080 = VideoResolutionV2(
+        label: '1080p',
+        url: 'https://example.com/1080.mp4',
+        width: 1920,
+        height: 1080,
+        bitrate: 4500000,
+      );
+      final res720 = VideoResolutionV2(
+        label: '720p',
+        url: 'https://example.com/720.mp4',
+        width: 1280,
+        height: 720,
+        bitrate: 2500000,
+      );
+      final res480 = VideoResolutionV2(
+        label: '480p',
+        url: 'https://example.com/480.mp4',
+        width: 854,
+        height: 480,
+        bitrate: 1200000,
+      );
+
+      // > 720p requires premium
+      expect(DownloadQualityDialog.isPremiumResolution(res2160), isTrue);
+      expect(DownloadQualityDialog.isPremiumResolution(res1440), isTrue);
+      expect(DownloadQualityDialog.isPremiumResolution(res1080), isTrue);
+
+      // <= 720p does not require premium
+      expect(DownloadQualityDialog.isPremiumResolution(res720), isFalse);
+      expect(DownloadQualityDialog.isPremiumResolution(res480), isFalse);
+    });
+
+    test('12. downloadVideoOffline rejects resolutions > 720p for non-premium users', () async {
+      final controller = TestDownloadsController();
+      final video = Video(
+        id: 'test_vid_premium',
+        ownerId: 'owner_free',
+        title: 'High Definition Test Video',
+        description: 'Test Description',
+        category: 'Education',
+        tags: const ['test'],
+        channelId: 'channel_free',
+        channelName: 'Free Channel',
+        videoUrl: 'https://example.com/base.mp4',
+        originalUrl: 'https://example.com/base.mp4',
+        thumbnailUrl: '',
+      );
+
+      final res1080 = VideoResolutionV2(
+        label: '1080p',
+        url: 'https://example.com/1080.mp4',
+        width: 1920,
+        height: 1080,
+        bitrate: 4500000,
+      );
+
+      final result = await controller.downloadVideoOffline(
+        video: video,
+        resolution: res1080,
+      );
+
+      expect(result, isFalse);
+      expect(controller.isVideoDownloading('test_vid_premium'), isFalse);
+    });
+  });
 }
+

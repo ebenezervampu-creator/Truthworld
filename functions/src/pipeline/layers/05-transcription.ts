@@ -33,6 +33,7 @@ import { videoGatewayService } from "../services/videoGatewayService";
 import { copyrightDetectionService } from "../services/copyrightDetection";
 import { copyrightClaimsService } from "../services/copyrightClaims";
 import { getVertexAI } from "../utils/ai-client";
+import { extractCandidateText } from "../utils/ai-utils";
 import { notifyUser } from "../../notifications/notifications";
 import { normalizeLanguageCode } from "../../shared/language-normalizer";
 
@@ -463,7 +464,7 @@ export class TranscriptionLayer {
             ? enhanced.chapters
             : (existingVideoData.autoChapters || existingVideoData.chapters || []));
 
-      // Sanitize summary candidates against leaked moderation strings
+      // Sanitize summary candidates against leaked moderation strings and transcript slices
       const isLeakedModeration = (s?: string) =>
         !s ||
         /moderation timed out/i.test(s) ||
@@ -471,18 +472,44 @@ export class TranscriptionLayer {
         /async review/i.test(s) ||
         /moderation could not complete/i.test(s);
 
-      let finalSummary = gatewayDecision.summary || "";
-      if (isLeakedModeration(finalSummary)) {
-        finalSummary = "";
-      }
-      if (!finalSummary && !isLeakedModeration(existingVideoData.summary)) {
+      const isTranscriptSnippet = (s?: string) => {
+        if (!s || !enhanced.text) return false;
+        const clean = s.replace(/\.{3}$/, "").trim();
+        return clean.length > 20 && enhanced.text.trim().startsWith(clean);
+      };
+
+      let finalSummary = "";
+      if (existingVideoData.moderation?.summary && !isLeakedModeration(existingVideoData.moderation.summary) && !isTranscriptSnippet(existingVideoData.moderation.summary)) {
+        finalSummary = existingVideoData.moderation.summary;
+      } else if (existingVideoData.moderationSummary && !isLeakedModeration(existingVideoData.moderationSummary) && !isTranscriptSnippet(existingVideoData.moderationSummary)) {
+        finalSummary = existingVideoData.moderationSummary;
+      } else if ((jobData as any)?.stages?.moderation?.summary && !isLeakedModeration((jobData as any).stages.moderation.summary) && !isTranscriptSnippet((jobData as any).stages.moderation.summary)) {
+        finalSummary = (jobData as any).stages.moderation.summary;
+      } else if (gatewayDecision.summary && !isLeakedModeration(gatewayDecision.summary) && !isTranscriptSnippet(gatewayDecision.summary)) {
+        finalSummary = gatewayDecision.summary;
+      } else if (existingVideoData.summary && !isLeakedModeration(existingVideoData.summary) && !isTranscriptSnippet(existingVideoData.summary)) {
         finalSummary = existingVideoData.summary;
       }
-      if (!finalSummary && !isLeakedModeration(existingVideoData.moderationSummary)) {
-        finalSummary = existingVideoData.moderationSummary;
-      }
-      if (isLeakedModeration(finalSummary)) {
-        finalSummary = "";
+
+      // If summary is missing or was a transcript snippet, synthesize a genuine AI summary
+      if (!finalSummary && enhanced.text && enhanced.text.trim().length > 30) {
+        try {
+          const vertex = getVertexAI();
+          const summaryModel = vertex.getGenerativeModel({
+            model: "gemini-2.5-flash",
+            generationConfig: { maxOutputTokens: 150, temperature: 0.2 } as any,
+          });
+          const sumRes = await summaryModel.generateContent(
+            `Provide a concise 2-3 sentence AI summary of this video based on the transcript. Focus on the core message, topic, and key takeaways. Do NOT repeat or quote the transcript verbatim:\n\n${enhanced.text.substring(0, 6000)}`
+          );
+          const genSummary = extractCandidateText(sumRes.response?.candidates?.[0])?.trim();
+          if (genSummary && genSummary.length > 20 && !isTranscriptSnippet(genSummary)) {
+            finalSummary = genSummary;
+            logger.info(`[Transcription] Successfully generated dedicated AI video summary for job ${jobId}`);
+          }
+        } catch (sumErr) {
+          logger.warn(`[Transcription] Dedicated AI summary generation failed for job ${jobId}`, { sumErr });
+        }
       }
 
       // Ensure complete resolution ladder down to 144p: merge existing with default tiers
@@ -549,9 +576,9 @@ export class TranscriptionLayer {
         gatewayDecision,
         gatewayStatus: "APPROVED",
         isFactChecked: isFactCheckingEnabled,
-        isVerified: isFactCheckingEnabled,
-        trustScore: isFactCheckingEnabled ? 100 : null,
-        trustLabel: isFactCheckingEnabled ? "Verified Content" : null,
+        isVerified: existingVideoData.isVerified || false,
+        trustScore: existingVideoData.trustScore ?? null,
+        trustLabel: isFactCheckingEnabled ? (existingVideoData.trustLabel || "Pending Verification") : null,
         status: "published",
         visibility: existingVideoData.visibility || (executionPlan as any).visibility || "public",
         isPublished: true,

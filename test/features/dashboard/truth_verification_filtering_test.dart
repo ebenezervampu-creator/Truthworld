@@ -142,4 +142,65 @@ void main() {
       );
     });
   });
+
+  group('VideoFactCheckItem epistemic accuracy & audit structure', () {
+    test('correctly handles zero assertions analyzed (opinion/philosophical discourse)', () {
+      final item = VideoFactCheckItem(
+        id: '014FDF6E-8648-47E0-B83A-D5815DC145A2',
+        title: 'If a language can be misinterpreted so easily, how can it be a great language? Isn\'t it useless?',
+        thumbnailUrl: '',
+        truthScore: 1.0,
+        factCheckReviewMode: 'open_to_users',
+        isFactCheckApproved: true,
+        claims: [],
+        summary: 'Philosophical inquiry on language semantics.',
+        domain: 'Linguistics',
+        createdAt: DateTime.now(),
+      );
+
+      expect(item.hasClaims, isFalse);
+      expect(item.factualAccuracyScore, isNull);
+      expect(item.factualAccuracyLabel, 'Not Assessed (No empirical assertions)');
+      expect(item.verificationState, 'INSUFFICIENT_EVIDENCE');
+      expect(
+        item.consensusValidationStatus,
+        'INSUFFICIENT_EVIDENCE_FOR_FACTUAL_CONSENSUS (Media Provenance Verified)',
+      );
+      expect(item.isPubliclyVisible, isTrue);
+    });
+
+    test('correctly computes factual accuracy when empirical claims are present', () {
+      final verifiedClaim = RealExtractedClaim(
+        id: 'c1',
+        videoId: 'v1',
+        videoTitle: 'Test Video',
+        text: 'Water boils at 100C at standard atmospheric pressure',
+        timestamp: '00:10',
+        timestampSeconds: 10.0,
+        category: 'Science',
+        confidenceScore: 0.99,
+        sourceCitation: 'IUPAC Database',
+        tier: ClaimEvidenceTier.verified,
+      );
+
+      final item = VideoFactCheckItem(
+        id: 'v1',
+        title: 'Test Video',
+        thumbnailUrl: '',
+        truthScore: 1.0,
+        factCheckReviewMode: 'open_to_users',
+        isFactCheckApproved: true,
+        claims: [verifiedClaim],
+        summary: 'Scientific analysis.',
+        domain: 'Physics',
+        createdAt: DateTime.now(),
+      );
+
+      expect(item.hasClaims, isTrue);
+      expect(item.factualAccuracyScore, 1.0);
+      expect(item.factualAccuracyLabel, '100%');
+      expect(item.verificationState, 'VERIFIED_MULTIMODAL_CONSENSUS');
+      expect(item.consensusValidationStatus, 'VERIFIED_MULTIMODAL_CONSENSUS');
+    });
+  });
 }

@@ -72,9 +72,11 @@ class ResponsiveVideoGrid extends StatelessWidget {
             context.screenWidth,
             maxColumns: maxColumns ?? 4,
           )
-        : (context.screenWidth >= 2100
-            ? 4
-            : (context.screenWidth >= 1600 ? 3 : 2));
+        : (context.screenWidth >= 2400
+            ? 5
+            : (context.screenWidth >= 1700
+                ? 4
+                : (context.screenWidth >= 1100 ? 3 : 2)));
 
     return Padding(
       padding: padding ?? context.contentPadding,

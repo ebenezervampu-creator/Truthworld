@@ -339,6 +339,7 @@ class EditProfileController extends BaseController {
       newName,
       fieldName: 'Display Name',
       checkEnglishOnly: false,
+      maxLength: ContentValidator.defaultMaxDisplayNameLength,
     );
     if (!nameRes.isValid) {
       _notifyWarning(nameRes.message);
@@ -346,7 +347,11 @@ class EditProfileController extends BaseController {
     }
 
     // 2. Handle validation
-    final handleRes = ContentValidator.validate(newHandle, fieldName: 'Handle');
+    final handleRes = ContentValidator.validate(
+      newHandle,
+      fieldName: 'Handle',
+      maxLength: ContentValidator.defaultMaxHandleLength,
+    );
     if (!handleRes.isValid) {
       _notifyWarning(handleRes.message);
       return;
@@ -354,7 +359,11 @@ class EditProfileController extends BaseController {
 
     // 3. Bio validation
     if (newBio.isNotEmpty) {
-      final bioRes = ContentValidator.validate(newBio, fieldName: 'Bio');
+      final bioRes = ContentValidator.validate(
+        newBio,
+        fieldName: 'Bio',
+        maxLength: ContentValidator.defaultMaxBioLength,
+      );
       if (!bioRes.isValid) {
         _notifyWarning(bioRes.message);
         return;
@@ -376,7 +385,11 @@ class EditProfileController extends BaseController {
 
     // 5. Location validation - Strictly enforce valid town, city, or village
     if (newLocation.isNotEmpty) {
-      final locRes = ContentValidator.validate(newLocation, fieldName: 'Location');
+      final locRes = ContentValidator.validate(
+        newLocation,
+        fieldName: 'Location',
+        maxLength: ContentValidator.defaultMaxLocationLength,
+      );
       if (!locRes.isValid) {
         _notifyWarning(locRes.message);
         return;

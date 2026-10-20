@@ -69,17 +69,19 @@ class _HolographicCdThemeState extends State<HolographicCdTheme>
         const ColoredBox(color: Color(0xFF0A0C10)),
 
         Center(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Spinning Holographic CD
-              RotationTransition(
-                turns: _cdSpinController,
-                child: Container(
-                  width: 130,
-                  height: 130,
-                  decoration: BoxDecoration(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Spinning Holographic CD
+                RotationTransition(
+                  turns: _cdSpinController,
+                  child: Container(
+                    width: 115,
+                    height: 115,
+                    decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: const SweepGradient(
                       colors: [
@@ -157,7 +159,7 @@ class _HolographicCdThemeState extends State<HolographicCdTheme>
                 ),
               ),
 
-              const SizedBox(width: 24),
+              const SizedBox(width: 16),
 
               // Jewel Case Metadata Card
               Flexible(
@@ -180,7 +182,9 @@ class _HolographicCdThemeState extends State<HolographicCdTheme>
                           ),
                         ),
                         child: const Text(
-                          'COMPACT DISC DIGITAL AUDIO',
+                          'CD DIGITAL AUDIO',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 8,
@@ -212,6 +216,7 @@ class _HolographicCdThemeState extends State<HolographicCdTheme>
                       ),
                       const SizedBox(height: 8),
                       Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Container(
                             width: 6,
@@ -222,13 +227,17 @@ class _HolographicCdThemeState extends State<HolographicCdTheme>
                             ),
                           ),
                           const SizedBox(width: 6),
-                          Text(
-                            widget.isPlaying ? 'PCM 44.1kHz • 16-Bit' : 'Laser Paused',
-                            style: const TextStyle(
-                              color: Color(0xFF94A3B8),
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.3,
+                          Flexible(
+                            child: Text(
+                              widget.isPlaying ? 'PCM 44.1kHz • 16-Bit' : 'Laser Paused',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xFF94A3B8),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.3,
+                              ),
                             ),
                           ),
                         ],
@@ -240,8 +249,9 @@ class _HolographicCdThemeState extends State<HolographicCdTheme>
             ],
           ),
         ),
-      ],
-    );
+      ),
+    ],
+  );
   }
 
   Widget _cdCenter() {

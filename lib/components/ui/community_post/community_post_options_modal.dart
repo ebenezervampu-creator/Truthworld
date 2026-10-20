@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/community/presentation/controllers/community_post_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Options Menu Bottom Sheet for Community Post
 void showCommunityPostOptionsMenu(
@@ -95,7 +97,8 @@ void showCommunityPostOptionsMenu(
                 controller.unsubscribeChannel();
               },
             ),
-            if (currentUid != null && currentUid == post.ownerId)
+            if (currentUid != null &&
+                (currentUid == post.ownerId || currentUid == post.channelId)) ...[
               ListTile(
                 leading: const Icon(
                   Icons.thumbs_up_down_outlined,
@@ -114,6 +117,21 @@ void showCommunityPostOptionsMenu(
                   );
                 },
               ),
+              ListTile(
+                leading: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.white, // Rule compliance: white icon
+                ),
+                title: const Text(
+                  'Move to Trash',
+                  style: TextStyle(color: Colors.white, fontSize: 15),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _confirmMovePostToTrash(context, post, controller);
+                },
+              ),
+            ],
             ListTile(
               leading: const Icon(
                 Icons.flag_outlined,
@@ -423,6 +441,9 @@ void showCommunityPostReportModal(
               TextField(
                 controller: detailsController,
                 maxLines: 4,
+                maxLength: 500,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: TruthworldTextInputFormatters.withLimit(500),
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   hintText: 'Explain why you are reporting this post (optional)',
@@ -463,5 +484,57 @@ void showCommunityPostReportModal(
       );
     }),
     isScrollControlled: true,
+  );
+}
+
+void _confirmMovePostToTrash(
+  BuildContext context,
+  CommunityPostModel post,
+  CommunityPostController controller,
+) {
+  showDialog<void>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        backgroundColor: AppColors.bgSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppColors.bgDivider),
+        ),
+        title: const Text(
+          'Move to Trash?',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontFamily: TWTypography.brandFamily,
+          ),
+        ),
+        content: const Text(
+          'Are you sure you want to move this post to Trash? Deleted items are retained for 30 days before permanent deletion.',
+          style: TextStyle(
+            color: Colors.white70,
+            fontSize: 14,
+            fontFamily: TWTypography.uiFamily,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              controller.moveToTrash();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Move to Trash'),
+          ),
+        ],
+      );
+    },
   );
 }

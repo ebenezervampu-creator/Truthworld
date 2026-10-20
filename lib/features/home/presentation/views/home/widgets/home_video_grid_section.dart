@@ -121,19 +121,31 @@ class HomeVideoGridSection extends StatelessWidget {
     );
   }
 
-  int _calculateCrossAxisCount(BuildContext context) {
+  static int calculateCrossAxisCountForWidth({
+    required double width,
+    required bool isMobile,
+    required bool isTablet,
+    required bool isDesktop,
+    bool isMobileDevice = false,
+  }) {
     if (isMobile) return 1;
-    if (isTablet) return 2;
-    final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
-        defaultTargetPlatform == TargetPlatform.iOS;
-    if (isMobileDevice) {
-      return 2;
-    }
-    final width = MediaQuery.of(context).size.width;
+    if (isTablet || isMobileDevice) return 2;
     if (width >= 2800) return 5;
     if (width >= 2100) return 4;
-    if (width >= 1600) return 3;
+    if (width >= 1100) return 3;
     return 2;
+  }
+
+  int _calculateCrossAxisCount(BuildContext context) {
+    final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    return calculateCrossAxisCountForWidth(
+      width: MediaQuery.sizeOf(context).width,
+      isMobile: isMobile,
+      isTablet: isTablet,
+      isDesktop: isDesktop,
+      isMobileDevice: isMobileDevice,
+    );
   }
 
   Widget _buildLoadingGrid(BuildContext context) {
@@ -145,7 +157,7 @@ class HomeVideoGridSection extends StatelessWidget {
           crossAxisCount: crossAxisCount,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
-          childAspectRatio: isMobile ? 1.2 : (isDesktop ? 1.25 : 0.85),
+          childAspectRatio: isMobile ? 1.2 : (isDesktop ? 1.15 : 0.85),
         ),
         delegate: SliverChildBuilderDelegate((context, index) {
           return Shimmer.fromColors(
@@ -166,7 +178,7 @@ class HomeVideoGridSection extends StatelessWidget {
               ),
             ),
           );
-        }, childCount: 6),
+        }, childCount: isDesktop ? crossAxisCount * 2 : 6),
       ),
     );
   }

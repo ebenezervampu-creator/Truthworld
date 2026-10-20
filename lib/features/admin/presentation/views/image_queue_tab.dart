@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/features/admin/presentation/views/widgets/admin_decision_dialog.dart';
 import 'package:truthworld/features/admin/presentation/views/widgets/admin_queue_helpers.dart';
@@ -45,6 +46,9 @@ class ImageQueueTab extends StatelessWidget {
                   child: SizedBox(
                     height: 36,
                     child: TextField(
+                      maxLength: 100,
+                      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                      inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(100),
                       onChanged: (v) => controller.searchQuery.value = v,
                       style: const TextStyle(
                         fontFamily: TWTypography.uiFamily,

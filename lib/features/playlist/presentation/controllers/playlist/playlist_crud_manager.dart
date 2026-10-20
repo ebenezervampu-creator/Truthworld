@@ -148,11 +148,22 @@ class PlaylistCrudManager with ContentValidationMixin {
                 .collection(FirestoreCollections.playlists)
                 .doc(playlistId);
 
-      await ref.delete();
-      AppSnackbar.success('Playlist deleted successfully!');
+      await ref.update({
+        'status': 'deletion_pending',
+        'deletionRequestedAt': FieldValue.serverTimestamp(),
+      });
+
+      try {
+        await _firestore.collection(FirestoreCollections.playlists).doc(playlistId).update({
+          'status': 'deletion_pending',
+          'deletionRequestedAt': FieldValue.serverTimestamp(),
+        });
+      } catch (_) {}
+
+      AppSnackbar.success('Playlist moved to Trash. It will be retained for 30 days.');
     } catch (e) {
       ErrorHandler.log(e);
-      AppSnackbar.error('Unable to delete playlist. Please try again.');
+      AppSnackbar.error('Unable to move playlist to Trash. Please try again.');
     }
   }
 

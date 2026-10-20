@@ -31,7 +31,7 @@ class AccessibleTap extends StatelessWidget {
     this.isToggled,
     this.excludeSemantics = false,
     this.enableFeedback = true,
-    this.minTapTargetSize = 44.0, // WCAG AAA minimum
+    this.minTapTargetSize = 48.0, // Android & WCAG standard 48x48dp minimum
     this.borderRadius,
     this.splashColor,
     this.highlightColor,
@@ -128,8 +128,8 @@ class AccessibleIconAction extends StatelessWidget {
       tooltip: tooltip ?? semanticLabel,
       padding: padding,
       constraints: const BoxConstraints(
-        minWidth: 44, // WCAG AAA
-        minHeight: 44,
+        minWidth: 48, // Android Material standard
+        minHeight: 48,
       ),
     );
   }

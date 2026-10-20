@@ -159,9 +159,11 @@ mixin HomeFeedAlgorithmTabsMixin on HomeFeedControllerBase {
       saveVideosToCache('Trending');
       if (rawVideos.length < limit) rxHasMore.value = false;
     } else {
-      videos.clear();
-      rxHasMore.value = false;
-      feedCacheManager.invalidateCategory('Trending', userId: currentUserId);
+      if (videos.isEmpty) {
+        videos.clear();
+        rxHasMore.value = false;
+        feedCacheManager.invalidateCategory('Trending', userId: currentUserId);
+      }
     }
   }
 
@@ -231,9 +233,11 @@ mixin HomeFeedAlgorithmTabsMixin on HomeFeedControllerBase {
       saveVideosToCache('Popular');
       if (rawVideos.length < limit) rxHasMore.value = false;
     } else {
-      videos.clear();
-      rxHasMore.value = false;
-      feedCacheManager.invalidateCategory('Popular', userId: currentUserId);
+      if (videos.isEmpty) {
+        videos.clear();
+        rxHasMore.value = false;
+        feedCacheManager.invalidateCategory('Popular', userId: currentUserId);
+      }
     }
   }
 
@@ -297,9 +301,11 @@ mixin HomeFeedAlgorithmTabsMixin on HomeFeedControllerBase {
       saveVideosToCache('New');
       if (rawVideos.length < limit) rxHasMore.value = false;
     } else {
-      videos.clear();
-      rxHasMore.value = false;
-      feedCacheManager.invalidateCategory('New', userId: currentUserId);
+      if (videos.isEmpty) {
+        videos.clear();
+        rxHasMore.value = false;
+        feedCacheManager.invalidateCategory('New', userId: currentUserId);
+      }
     }
   }
 
@@ -420,9 +426,11 @@ mixin HomeFeedAlgorithmTabsMixin on HomeFeedControllerBase {
       saveVideosToCache('Unexplored');
       if (rawVideos.length < limit) rxHasMore.value = false;
     } else {
-      videos.clear();
-      rxHasMore.value = false;
-      feedCacheManager.invalidateCategory('Unexplored', userId: currentUserId);
+      if (videos.isEmpty) {
+        videos.clear();
+        rxHasMore.value = false;
+        feedCacheManager.invalidateCategory('Unexplored', userId: currentUserId);
+      }
     }
   }
 
@@ -531,9 +539,11 @@ mixin HomeFeedAlgorithmTabsMixin on HomeFeedControllerBase {
       saveVideosToCache('Flip Coin');
       if (rawVideos.length < limit) rxHasMore.value = false;
     } else {
-      videos.clear();
-      rxHasMore.value = false;
-      feedCacheManager.invalidateCategory('Flip Coin', userId: currentUserId);
+      if (videos.isEmpty) {
+        videos.clear();
+        rxHasMore.value = false;
+        feedCacheManager.invalidateCategory('Flip Coin', userId: currentUserId);
+      }
     }
   }
 }

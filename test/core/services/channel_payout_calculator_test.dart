@@ -309,5 +309,30 @@ void main() {
         );
       });
     });
+
+    group('Minimum Withdrawal Threshold Tests', () {
+      test(r'correctly configures ₹100 for Indian channels and $10 for other countries', () {
+        expect(ChannelPayoutCalculator.minWithdrawalAmountINR, equals(100.0));
+        expect(ChannelPayoutCalculator.minWithdrawalAmountUSD, equals(10.0));
+
+        expect(
+          ChannelPayoutCalculator.getMinimumWithdrawalThreshold(isIndian: true),
+          equals(100.0),
+        );
+        expect(
+          ChannelPayoutCalculator.getMinimumWithdrawalThreshold(isIndian: false),
+          equals(10.0),
+        );
+
+        expect(
+          ChannelPayoutCalculator.getMinimumWithdrawalFormatted(isIndian: true),
+          equals('₹100'),
+        );
+        expect(
+          ChannelPayoutCalculator.getMinimumWithdrawalFormatted(isIndian: false),
+          equals(r'$10'),
+        );
+      });
+    });
   });
 }

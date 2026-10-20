@@ -692,7 +692,7 @@ export const handleResolution = onMessagePublished(
     memory: "4GiB",         // 4GiB RAM guarantees zero OOM on 1080p/4K transcode & tmpfs downloads
     timeoutSeconds: 540,    // 540s (9 minutes) max allowed timeout for Pub/Sub event triggers
     minInstances: 0,        // Scale-to-zero (0 idle cost)
-    maxInstances: 50,       // Scale up to 50 concurrent workers for high-volume bursts
+    maxInstances: 5,        // Scale up to 5 concurrent workers (20GiB max allocation)
     retry: true,            // Auto-retry transient worker failures
   },
   async (event) => {

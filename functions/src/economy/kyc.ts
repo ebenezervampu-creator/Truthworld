@@ -54,6 +54,8 @@ export const onKycDocumentCreatedOrUpdated = onDocumentWritten(
   {
     document: "creator_kyc/{channelId}",
     region: "asia-south1",
+    memory: "256MiB",
+    maxInstances: 2,
   },
   async (event) => {
     const after = event.data?.after;

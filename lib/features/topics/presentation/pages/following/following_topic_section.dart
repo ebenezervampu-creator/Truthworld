@@ -261,6 +261,7 @@ class FollowingTopicSection extends StatelessWidget {
                   isMobile: isMobile,
                   cardWidth: cardWidth,
                   onTopicDetailsTap: onTopicDetailsTap,
+                  topicVideos: videos,
                 );
               },
             ),

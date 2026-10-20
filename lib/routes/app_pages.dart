@@ -1,6 +1,4 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
-import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/routes/app_routes.dart';
 import 'package:truthworld/routes/modules/admin_routes.dart';
 import 'package:truthworld/routes/modules/advertiser_routes.dart';
@@ -38,22 +36,6 @@ class AppPages {
 
   /// Aggregated route table dynamically isolated by active platform and flavor.
   static List<GetPage> get routes {
-    // On native mobile builds (Android / iOS), isolate flavors so consumer apps
-    // exclude unneeded web admin and advertiser portal routes
-    if (!kIsWeb && AppFlavor.active == AppFlavor.app) {
-      return [
-        ...CoreRoutes.routes,
-        ...VideoRoutes.routes,
-        ...StudioRoutes.routes,
-        ...UploadRoutes.routes,
-        ...ChannelRoutes.routes,
-        ...CommunityRoutes.routes,
-        ...UserLibraryRoutes.routes,
-        ...EconomyRoutes.routes,
-        ...LegalRoutes.routes,
-      ];
-    }
-
     return [
       ...CoreRoutes.routes,
       ...VideoRoutes.routes,
@@ -66,6 +48,7 @@ class AppPages {
       ...AdvertiserRoutes.routes,
       ...EconomyRoutes.routes,
       ...LegalRoutes.routes,
+      ChannelRoutes.handleRoute,
     ];
   }
 }

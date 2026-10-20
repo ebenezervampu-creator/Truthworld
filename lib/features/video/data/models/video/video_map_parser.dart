@@ -127,15 +127,18 @@ class VideoMapParser {
         (data['isVerified'] == true ? true : null) ??
         (data['credibilityVerified'] == true ? true : null);
 
-    final topLevelSummary = (data['summary'] as String?)?.trim() ?? '';
     final modMap = data['moderation'] is Map ? data['moderation'] as Map : null;
     final modSummary = (modMap?['summary'] as String?)?.trim() ?? '';
+    final directModSummary = (data['moderationSummary'] as String?)?.trim() ?? '';
+    final topLevelSummary = (data['summary'] as String?)?.trim() ?? '';
 
     var parsedModerationSummary = '';
-    if (UserFeedbackSanitizer.isValidVideoSummary(topLevelSummary)) {
-      parsedModerationSummary = topLevelSummary;
-    } else if (UserFeedbackSanitizer.isValidVideoSummary(modSummary)) {
+    if (UserFeedbackSanitizer.isValidVideoSummary(modSummary)) {
       parsedModerationSummary = modSummary;
+    } else if (UserFeedbackSanitizer.isValidVideoSummary(directModSummary)) {
+      parsedModerationSummary = directModSummary;
+    } else if (UserFeedbackSanitizer.isValidVideoSummary(topLevelSummary)) {
+      parsedModerationSummary = topLevelSummary;
     }
 
     final aiFeatures = data['aiFeatures'] is Map
@@ -209,13 +212,14 @@ class VideoMapParser {
                           .toList()
                     : const <String>[]));
 
-    final resolvedViewCount =
-        (data['viewCount'] as num?)?.toInt() ??
-        (data['views'] as num?)?.toInt() ??
-        (data['stats'] is Map
+    final rawViewCount = (data['viewCount'] as num?)?.toInt() ?? 0;
+    final rawViews = (data['views'] as num?)?.toInt() ?? 0;
+    final rawStatsViews = (data['stats'] is Map
             ? (data['stats']['views'] as num?)?.toInt()
             : null) ??
         0;
+    final resolvedViewCount =
+        math.max(rawViewCount, math.max(rawViews, rawStatsViews));
 
     final rawWatchTime =
         (data['totalWatchTimeSeconds'] as num?)?.toInt() ??
@@ -307,7 +311,11 @@ class VideoMapParser {
             data['isPublished'] == true ||
             (data['publishedAt'] != null && data['publishedAt'] != 0);
 
-        if (rawStatus == 'deleted') return VideoStatus.deleted;
+        if (rawStatus == 'deleted' ||
+            rawStatus == 'deletion_pending' ||
+            rawStatus == 'trashed') {
+          return VideoStatus.deleted;
+        }
         if (rawStatus == 'rejected') return VideoStatus.rejected;
         if (rawStatus == 'private') return VideoStatus.private;
         if (rawStatus == 'scheduled') return VideoStatus.scheduled;

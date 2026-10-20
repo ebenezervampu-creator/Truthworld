@@ -12,12 +12,15 @@ abstract class RevenueAnalyticsStateBase extends BaseController {
   final FirebaseStorage storage = FirebaseStorage.instance;
 
   // ---------------------------------------------------------------------------
-  // Minimum Withdrawal Configuration (100 Rupees Minimum)
+  // Minimum Withdrawal Configuration (₹100 for India / $10 for Other Countries)
   // ---------------------------------------------------------------------------
-  static const double minimumWithdrawalAmount = 100.0;
+  static const double minimumWithdrawalAmountINR = 100.0;
+  static const double minimumWithdrawalAmountUSD = 10.0;
+  static const double minimumWithdrawalAmount = minimumWithdrawalAmountINR;
   static const String currencySymbol = '₹';
   static const String currencyCode = 'INR';
   static const String minWithdrawalText = '₹100 (100 Rupees)';
+  static const String minWithdrawalTextUSD = r'$10 (10 Dollars)';
 
   /// Live Real-Time USD to INR Exchange Rate
   static double get usdToInrRate =>
@@ -159,8 +162,22 @@ abstract class RevenueAnalyticsStateBase extends BaseController {
 
   bool get isTodayPayoutDay => RevenueAnalyticsStateBase.isPayoutDay;
   bool get isTodayGraceDay => RevenueAnalyticsStateBase.isGracePeriodDay;
+
+  bool get isIndianChannel {
+    if (!Get.isRegistered<CurrencyLocalizationService>()) return true;
+    return CurrencyLocalizationService.to.isIndianUser;
+  }
+
+  double get activeMinimumWithdrawalAmount =>
+      isViewingINR ? minimumWithdrawalAmountINR : minimumWithdrawalAmountUSD;
+
+  String get activeMinWithdrawalText =>
+      isViewingINR ? minWithdrawalText : minWithdrawalTextUSD;
+
   bool get hasReachedThreshold =>
-      totalRevenue.value >= minimumWithdrawalAmount;
+      isViewingINR
+          ? totalRevenue.value >= minimumWithdrawalAmountINR
+          : totalRevenueUSD.value >= minimumWithdrawalAmountUSD;
 
   /// True only when balance reaches minimum threshold, withdrawal is not held,
   /// and today is within the monthly payout window (1st or 2nd day of the month).
@@ -171,11 +188,17 @@ abstract class RevenueAnalyticsStateBase extends BaseController {
   bool get isThresholdMetButAwaitingFirstOfMonth =>
       hasReachedThreshold && !isWithdrawalHeld.value && !isTodayPayoutDay;
 
-  double get remainingToWithdraw =>
-      (minimumWithdrawalAmount - totalRevenue.value)
-          .clamp(0.0, minimumWithdrawalAmount);
-  double get withdrawalProgress =>
-      (totalRevenue.value / minimumWithdrawalAmount).clamp(0.0, 1.0);
+  double get remainingToWithdraw {
+    final target = activeMinimumWithdrawalAmount;
+    final balance = isViewingINR ? totalRevenue.value : totalRevenueUSD.value;
+    return (target - balance).clamp(0.0, target);
+  }
+
+  double get withdrawalProgress {
+    final target = activeMinimumWithdrawalAmount;
+    final balance = isViewingINR ? totalRevenue.value : totalRevenueUSD.value;
+    return target > 0 ? (balance / target).clamp(0.0, 1.0) : 1.0;
+  }
 
   // Auxiliary Metrics
   final RxInt activeMembersCount = 0.obs;

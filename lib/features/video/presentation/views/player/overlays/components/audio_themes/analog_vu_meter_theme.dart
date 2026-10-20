@@ -65,8 +65,10 @@ class _AnalogVuMeterThemeState extends State<AnalogVuMeterTheme>
         const ColoredBox(color: Color(0xFF0F0E0C)),
 
         Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
             children: [
               // Receiver Top Header
               Row(
@@ -83,15 +85,17 @@ class _AnalogVuMeterThemeState extends State<AnalogVuMeterTheme>
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFFD4AF37), // Metallic champagne gold
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
+                  Flexible(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFFD4AF37), // Metallic champagne gold
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ),
                 ],
@@ -155,8 +159,9 @@ class _AnalogVuMeterThemeState extends State<AnalogVuMeterTheme>
             ],
           ),
         ),
-      ],
-    );
+      ),
+    ],
+  );
   }
 
   Widget _singleMeter(String label, double needlePosition) {

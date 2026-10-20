@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/core/widgets/truth_lottie_animation.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/fact_check/fact_check_models_helper.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -32,28 +33,30 @@ import 'package:truthworld/theme/app_theme.dart';
   @override
   Widget build(BuildContext context) {
     final score = trustScore;
-    final hasScore = score != null && score > 0;
-    final isNotScored = !hasScore || trustLabel.toLowerCase().contains('not scored');
+    final hasScore = totalClaims > 0 && score != null && score > 0;
+    final isNotScored = !hasScore || trustLabel.toLowerCase().contains('not scored') || totalClaims == 0;
 
-    final displayScore = score != null
+    final displayScore = (score != null && totalClaims > 0)
         ? (score > 5.0 ? score.toInt() : (score * 20).toInt())
         : null;
 
     const stateColor = Colors.white;
     String badgeText;
-    if (!isNotScored && displayScore != null) {
+    if (!isNotScored && displayScore != null && totalClaims > 0) {
       badgeText = analysisState.toUpperCase();
     } else if (falseCount > 0 && falseCount >= verifiedCount) {
       badgeText = 'DISPUTED CONTENT';
     } else if (cautionCount > 0 && cautionCount > verifiedCount) {
       badgeText = 'CAUTION ADVISED';
+    } else if (totalClaims == 0) {
+      badgeText = 'MEDIA AUTHENTIC • UNASSESSED';
     } else {
-      badgeText = totalClaims > 0 ? 'FACT-CHECK COMPLETE' : 'VERIFIED';
+      badgeText = 'FACT-CHECK COMPLETE';
     }
 
     final headlineTitle = isNotScored
-        ? (totalClaims > 0 ? '$totalClaims Claims Evaluated' : 'Qualitative Fact-Check')
-        : trustLabel;
+        ? (totalClaims > 0 ? '$totalClaims Claims Evaluated' : '0 Empirical Claims Evaluated')
+        : (totalClaims == 0 ? 'Media Authentic (No Empirical Claims)' : trustLabel);
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -345,6 +348,9 @@ class ViewerNoteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cleanNote = UserFeedbackSanitizer.sanitizeViewerNote(note);
+    if (cleanNote.isEmpty) return const SizedBox.shrink();
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -376,7 +382,7 @@ class ViewerNoteCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            note,
+            cleanNote,
             style: const TextStyle(
               color: AppColors.textPrimary,
               fontSize: 12,

@@ -101,6 +101,7 @@ void main() {
     if (!Get.isRegistered<AuthService>()) {
       Get.put<AuthService>(AuthService(), permanent: true);
     }
+    AuthService.to.setAuthenticatedForTesting(isAuthenticated: true, uid: 'usr_test_auth_101');
     if (!Get.isRegistered<ConnectivityService>()) {
       Get.put<ConnectivityService>(ConnectivityService(), permanent: true);
     }
@@ -145,6 +146,7 @@ void main() {
     });
 
     test('2. VideoAnalyticsController does NOT trigger milestones or qualified views when dragging slider to end', () {
+      AuthService.to.setAuthenticatedForTesting(isAuthenticated: true, uid: 'usr_test_auth_101');
       final analyticsCtrl = Get.put(VideoAnalyticsController());
       const testVid = 'vid_scrub_test';
       const durationSeconds = 120.0;
@@ -174,6 +176,23 @@ void main() {
       expect(analyticsCtrl.firedMilestones.contains('${testVid}_50'), isFalse);
       expect(analyticsCtrl.firedMilestones.contains('${testVid}_75'), isFalse);
       expect(analyticsCtrl.firedMilestones.contains('${testVid}_100'), isFalse);
+    });
+
+    test('2b. VideoAnalyticsController strictly prevents qualified views and milestones for unsigned/guest users', () {
+      AuthService.to.setAuthenticatedForTesting(isAuthenticated: false, uid: '');
+      final analyticsCtrl = Get.put(VideoAnalyticsController());
+      const testVid = 'vid_guest_test';
+      const durationSeconds = 120.0;
+
+      // Simulate genuine 35 seconds playback as a guest
+      analyticsCtrl.testWatchTimeSeconds = 35;
+      analyticsCtrl.trackPlaybackPosition(testVid, 35.0, durationSeconds);
+
+      // Qualified view must strictly be FALSE for guest users
+      expect(analyticsCtrl.hasCountedQualifiedView, isFalse);
+
+      // Milestones must strictly NOT fire for guest users
+      expect(analyticsCtrl.firedMilestones, isEmpty);
     });
 
     test('3. Repeat view deduplication: already watched video suppresses watch pings and deltas', () async {

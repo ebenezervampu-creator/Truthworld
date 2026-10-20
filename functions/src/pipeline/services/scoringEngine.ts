@@ -1,6 +1,5 @@
 import { FactCheckResult, VerifiedClaim, TranscriptData, TrustVertical, VerificationState, UIReport, SynthesisResult, SynthesisOutput, TraceabilityMap } from "../types";
-// v12.0: getTrustLabelFromScore no longer used — scoring removed
-// import { getTrustLabelFromScore } from "./categoryWeights";
+import { SourceAvatarService } from "./sourceAvatarService";
 
 /**
  * 🏛 SCORING ENGINE (v11.0 — Path 1 Epistemic Framework)
@@ -249,10 +248,14 @@ export class ScoringEngine {
       c.richSources?.forEach((rs: any) => {
         const key = rs.url?.toLowerCase() || rs.title.toLowerCase();
         if (!uiSourcesMap.has(key)) {
+          const dom = rs.domain || SourceAvatarService.cleanDomain(rs.url);
+          const avatar = SourceAvatarService.resolveAvatar(dom, rs.publisher || rs.author);
           uiSourcesMap.set(key, {
             title: rs.title,
             url: rs.url,
-            domain: rs.domain,
+            domain: dom,
+            publisher: rs.publisher || rs.author,
+            avatarUrl: avatar,
             trustLevel: rs.tier === 'A' || rs.tier === 'B' ? 'High' : (rs.tier === 'C' ? 'Medium' : 'Low'),
             type: rs.type === 'primary' ? 'Primary' : 'Secondary',
             snippet: rs.snippet || "",
@@ -290,7 +293,10 @@ export class ScoringEngine {
       positiveDrivers: [],
       negativeDrivers: [],
       sources: sources,
-      conclusion: "Verification complete.",
+      conclusion: (data.conclusion?.text || (typeof data.conclusion === 'string' ? data.conclusion : "Verification complete.")),
+      conclusionSources: (data.conclusion?.sources && Array.isArray(data.conclusion.sources) && data.conclusion.sources.length > 0)
+        ? data.conclusion.sources
+        : sources,
       keyClaims: data.claims?.slice(0, 15).map((c: any) => {
         const intent = data.uiReport?.summary?.contentIntent?.primaryIntent;
         const isLowStakes = ["educational", "entertainment", "testimonial"].includes(intent);

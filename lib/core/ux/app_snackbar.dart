@@ -46,6 +46,8 @@ class AppSnackbar {
     dynamic onTap,
     dynamic snackbarStatus,
     EdgeInsets? padding,
+    VoidCallback? onAction,
+    String? actionLabel,
   }) {
     final titleLower = title.toLowerCase().trim();
     final messageLower = message.toLowerCase().trim();
@@ -94,14 +96,47 @@ class AppSnackbar {
                 backgroundColor == AppColors.warning ||
                 backgroundColor == AppColors.warning));
 
+    Widget? actionWidget;
+    if (mainButton is Widget) {
+      actionWidget = mainButton;
+    }
+
     if (isError) {
-      AppToast.error(message, title: title);
+      AppToast.error(
+        message,
+        title: title,
+        onAction: onAction,
+        actionLabel: actionLabel,
+        action: actionWidget,
+        duration: duration,
+      );
     } else if (isSuccess) {
-      AppToast.success(message, title: title);
+      AppToast.success(
+        message,
+        title: title,
+        onAction: onAction,
+        actionLabel: actionLabel,
+        action: actionWidget,
+        duration: duration,
+      );
     } else if (isWarning) {
-      AppToast.warning(message, title: title);
+      AppToast.warning(
+        message,
+        title: title,
+        onAction: onAction,
+        actionLabel: actionLabel,
+        action: actionWidget,
+        duration: duration,
+      );
     } else {
-      AppToast.info(message, title: title);
+      AppToast.info(
+        message,
+        title: title,
+        onAction: onAction,
+        actionLabel: actionLabel,
+        action: actionWidget,
+        duration: duration,
+      );
     }
   }
 
@@ -111,6 +146,7 @@ class AppSnackbar {
     String? title,
     VoidCallback? onAction,
     String? actionLabel,
+    Widget? action,
     Duration? duration,
   }) {
     AppToast.success(
@@ -118,6 +154,7 @@ class AppSnackbar {
       title: title,
       onAction: onAction,
       actionLabel: actionLabel,
+      action: action,
       duration: duration,
     );
   }
@@ -128,6 +165,7 @@ class AppSnackbar {
     String? title,
     VoidCallback? onAction,
     String? actionLabel,
+    Widget? action,
     Duration? duration,
   }) {
     AppToast.error(
@@ -135,6 +173,7 @@ class AppSnackbar {
       title: title,
       onAction: onAction,
       actionLabel: actionLabel,
+      action: action,
       duration: duration,
     );
   }
@@ -145,6 +184,7 @@ class AppSnackbar {
     String? title,
     VoidCallback? onAction,
     String? actionLabel,
+    Widget? action,
     Duration? duration,
   }) {
     AppToast.info(
@@ -152,6 +192,7 @@ class AppSnackbar {
       title: title,
       onAction: onAction,
       actionLabel: actionLabel,
+      action: action,
       duration: duration,
     );
   }
@@ -162,6 +203,7 @@ class AppSnackbar {
     String? title,
     VoidCallback? onAction,
     String? actionLabel,
+    Widget? action,
     Duration? duration,
   }) {
     AppToast.warning(
@@ -169,6 +211,7 @@ class AppSnackbar {
       title: title,
       onAction: onAction,
       actionLabel: actionLabel,
+      action: action,
       duration: duration,
     );
   }

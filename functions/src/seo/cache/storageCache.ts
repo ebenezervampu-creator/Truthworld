@@ -47,28 +47,33 @@ export async function getCachedSnapshot(
     const manifestPath = `seo/manifests/${cacheKey}.json`;
 
     const file = bucket.file(filePath);
-    const [exists] = await file.exists();
-    if (!exists) return null;
-
-    // Read manifest
     const manifestFile = bucket.file(manifestPath);
-    const [manifestExists] = await manifestFile.exists();
+
+    // Parallel download to eliminate sequential round-trip latency
+    const [htmlResult, manifestResult] = await Promise.allSettled([
+      file.download(),
+      manifestFile.download()
+    ]);
+
+    if (htmlResult.status !== "fulfilled") {
+      return null;
+    }
+
+    const html = htmlResult.value[0].toString("utf8");
     let etag = "";
     let lastModified = new Date().toUTCString();
 
-    if (manifestExists) {
-      const [manifestBuffer] = await manifestFile.download();
-      const manifest: SnapshotManifest = JSON.parse(manifestBuffer.toString("utf8"));
-      if (manifest.snapshotVersion !== SNAPSHOT_VERSION || manifest.schemaVersion !== SCHEMA_VERSION) {
-        // Version mismatch, invalidate snapshot
-        return null;
-      }
-      etag = manifest.etag;
-      lastModified = manifest.lastModified;
+    if (manifestResult.status === "fulfilled") {
+      try {
+        const manifest: SnapshotManifest = JSON.parse(manifestResult.value[0].toString("utf8"));
+        if (manifest.snapshotVersion !== SNAPSHOT_VERSION || manifest.schemaVersion !== SCHEMA_VERSION) {
+          // Version mismatch, invalidate snapshot
+          return null;
+        }
+        etag = manifest.etag;
+        lastModified = manifest.lastModified;
+      } catch (_) {}
     }
-
-    const [htmlBuffer] = await file.download();
-    const html = htmlBuffer.toString("utf8");
 
     if (!etag) {
       etag = computeEtag(html);
@@ -93,28 +98,17 @@ export async function saveSnapshot(
   const lastModified = (lastModifiedDate || new Date()).toUTCString();
   const generatedAt = new Date().toISOString();
 
+  // Populate L1 Memory Cache immediately to accelerate concurrent requests
+  setMemorySnapshot(cacheKey, html, etag, lastModified);
+
   const filePath = `seo/snapshots/${cacheKey}.html`;
   const manifestPath = `seo/manifests/${cacheKey}.json`;
 
   try {
     const bucket = getStorageBucket();
-
-    // 1. Save HTML Snapshot
     const file = bucket.file(filePath);
-    await file.save(html, {
-      contentType: "text/html; charset=utf-8",
-      metadata: {
-        cacheControl: "public, max-age=300, s-maxage=3600",
-        metadata: {
-          etag,
-          lastModified,
-          schemaVersion: String(SCHEMA_VERSION),
-          snapshotVersion: String(SNAPSHOT_VERSION)
-        }
-      }
-    });
+    const manifestFile = bucket.file(manifestPath);
 
-    // 2. Save Manifest JSON
     const manifest: SnapshotManifest = {
       snapshotVersion: SNAPSHOT_VERSION,
       schemaVersion: SCHEMA_VERSION,
@@ -125,16 +119,27 @@ export async function saveSnapshot(
       generatedAt
     };
 
-    const manifestFile = bucket.file(manifestPath);
-    await manifestFile.save(JSON.stringify(manifest, null, 2), {
-      contentType: "application/json",
-      metadata: {
-        cacheControl: "no-cache"
-      }
-    });
-
-    // Populate L1 Memory Cache
-    setMemorySnapshot(cacheKey, html, etag, lastModified);
+    // Parallel save to minimize I/O duration
+    await Promise.all([
+      file.save(html, {
+        contentType: "text/html; charset=utf-8",
+        metadata: {
+          cacheControl: "public, max-age=300, s-maxage=3600",
+          metadata: {
+            etag,
+            lastModified,
+            schemaVersion: String(SCHEMA_VERSION),
+            snapshotVersion: String(SNAPSHOT_VERSION)
+          }
+        }
+      }),
+      manifestFile.save(JSON.stringify(manifest, null, 2), {
+        contentType: "application/json",
+        metadata: {
+          cacheControl: "no-cache"
+        }
+      })
+    ]);
   } catch (err) {
     console.error("StorageCache write error for key:", cacheKey, err);
   }

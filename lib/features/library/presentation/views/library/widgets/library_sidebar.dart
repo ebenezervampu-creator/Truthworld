@@ -120,7 +120,11 @@ class LibrarySidebar extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: TextField(
-        inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+        maxLength: ContentValidator.defaultMaxSearchLength,
+        buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+        inputFormatters: TruthworldTextInputFormatters.withLimit(
+          ContentValidator.defaultMaxSearchLength,
+        ),
         style: const TextStyle(color: primaryText, fontSize: 14),
         decoration: const InputDecoration(
           hintText: 'Search in library...',

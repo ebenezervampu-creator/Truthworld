@@ -2,6 +2,33 @@ import { videoGatewayService, estimateEnglishPercentage } from '../../src/pipeli
 import { EdgeLayer } from '../../src/pipeline/layers/01-edge';
 import { ExecutionPlan } from '../../src/pipeline/types';
 
+jest.mock('../../src/pipeline/utils/ai-client', () => ({
+  getVertexAI: jest.fn(() => ({
+    getGenerativeModel: jest.fn(() => ({
+      generateContent: jest.fn().mockResolvedValue({
+        response: {
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    text: JSON.stringify({
+                      detectedLanguage: 'en',
+                      englishPercentage: 95,
+                      status: 'APPROVED',
+                      violatingPolicies: [],
+                    }),
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    })),
+  })),
+}));
+
 describe('Language Enforcement (Phase 1: 90% Primary English / 10% Secondary Allowance)', () => {
   const dummyExecutionPlan: ExecutionPlan = {
     jobId: 'job_test_lang_123',
@@ -130,6 +157,11 @@ describe('Language Enforcement (Phase 1: 90% Primary English / 10% Secondary All
 
   describe('EdgeLayer Video Submission Gate', () => {
     const edgeLayer = new EdgeLayer();
+
+    beforeAll(() => {
+      jest.spyOn(edgeLayer as any, 'persistJobAsync').mockImplementation(() => {});
+      jest.spyOn((edgeLayer as any).distribution, 'publish').mockResolvedValue('mock-msg-id');
+    });
 
     it('7. Strictly rejects video submission if primaryLanguage is Telugu ("te")', async () => {
       const res = await edgeLayer.submitVideo(

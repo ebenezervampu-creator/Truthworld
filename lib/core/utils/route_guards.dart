@@ -158,10 +158,21 @@ class StudioAccessGuard extends GetMiddleware {
 
   @override
   RouteSettings? redirect(String? route) {
-    // In Studio app flavor or domain, NEVER redirect to consumer home!
+    // In Studio app flavor, Studio domain, or web /studio route, NEVER redirect to consumer home!
     // Studio handles authentication natively via DashboardFallbackLogin on DashboardScreen.
     if (AppFlavor.isStudio) {
       return null;
+    }
+
+    if (kIsWeb) {
+      final host = Uri.base.host.toLowerCase();
+      final path = Uri.base.path.toLowerCase();
+      if (host.startsWith('studio') ||
+          host.contains('studio.truthworld.in') ||
+          path == '/studio' ||
+          path.startsWith('/studio/')) {
+        return null;
+      }
     }
 
     final auth = _authService;

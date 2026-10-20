@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:truthworld/features/video/data/services/comments/comment_service_barrel.dart';
 
 export 'package:truthworld/features/video/data/services/comments/comment_service_barrel.dart';
@@ -20,16 +21,19 @@ class CommentService extends CommentServiceBase
   CommentService._internal({
     super.firestore,
     super.functions,
+    super.auth,
   });
 
   /// Visible for testing constructor allowing custom firestore & functions injection
   factory CommentService.custom({
     FirebaseFirestore? firestore,
     FirebaseFunctions? functions,
+    FirebaseAuth? auth,
   }) {
     return CommentService._internal(
       firestore: firestore,
       functions: functions,
+      auth: auth,
     );
   }
 

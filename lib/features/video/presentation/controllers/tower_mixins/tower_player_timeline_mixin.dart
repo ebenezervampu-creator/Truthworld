@@ -34,6 +34,7 @@ mixin TowerPlayerTimelineMixin on GetxController {
   Future<void> seekTo(Duration position);
   void cancelHideTimer();
   void startHideTimer([Duration? timeout]);
+  void hideSeekPreview();
 
   // ── Scrubbing Lifecycle ───────────────────────────────────
 
@@ -142,6 +143,19 @@ mixin TowerPlayerTimelineMixin on GetxController {
     scrubRate.value = 1.0;
     isPrecisionScrubbing.value = false;
     precisionScrubLabel.value = '';
+    hideTimelineHover();
+    hideSeekPreview();
+    startHideTimer();
+  }
+
+  /// Cancels scrubbing and resets state without committing an explicit seek.
+  void onScrubCancel() {
+    isScrubbing.value = false;
+    scrubRate.value = 1.0;
+    isPrecisionScrubbing.value = false;
+    precisionScrubLabel.value = '';
+    hideTimelineHover();
+    hideSeekPreview();
     startHideTimer();
   }
 

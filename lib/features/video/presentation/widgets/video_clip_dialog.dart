@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -213,6 +214,7 @@ class _VideoClipDialogBody extends StatelessWidget {
         TextField(
           onChanged: clipController.onTitleChanged,
           maxLength: 100,
+          inputFormatters: TruthworldTextInputFormatters.withLimit(100),
           style: GoogleFonts.roboto(color: AppColors.textPrimary, fontSize: 14),
           decoration: InputDecoration(
             hintText: 'Add a title (3-100 characters)...',

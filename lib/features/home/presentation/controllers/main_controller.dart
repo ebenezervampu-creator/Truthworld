@@ -14,6 +14,8 @@ import 'package:truthworld/features/video/data/models/reply.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 class MainController extends BaseController {
+  static MainController get to => Get.find<MainController>();
+
   late final AppStateController _stateCtrl;
   late final UserSessionController _sessionCtrl;
   late final AppNavigationController _navCtrl;
@@ -49,6 +51,7 @@ class MainController extends BaseController {
   // INTERACTION STATE (from sessionCtrl)
   RxMap<String, int> get videoLikes => _sessionCtrl.videoLikes;
   RxMap<String, int> get videoDislikes => _sessionCtrl.videoDislikes;
+  RxMap<String, int> get videoViews => _sessionCtrl.videoViews;
   RxBool get isReporting => _sessionCtrl.isReporting;
 
   // VIDEO STREAM MANAGEMENT (from stateCtrl)

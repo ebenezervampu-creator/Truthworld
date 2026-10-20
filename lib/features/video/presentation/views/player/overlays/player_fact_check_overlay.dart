@@ -108,7 +108,7 @@ class FactCheckOverlay extends StatelessWidget {
                   isVideoFactChecked: video?.isFactChecked == true,
                 );
 
-                if (parsed.isEmpty) {
+                if (parsed.isEmpty || (parsed.claims.isEmpty && parsed.viewerNote.isEmpty)) {
                   return NoFactCheckFallback(video: video, vc: vc);
                 }
 

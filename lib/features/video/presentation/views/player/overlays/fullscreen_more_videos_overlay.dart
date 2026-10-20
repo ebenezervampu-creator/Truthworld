@@ -5,7 +5,6 @@ import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/components/ui/video_card/video_card_avatar.dart';
 import 'package:truthworld/components/ui/video_card/video_card_formatters.dart';
-import 'package:truthworld/components/ui/video_card/video_card_thumbnail_overlays.dart';
 import 'package:truthworld/components/ui/video_options_sheet.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -455,22 +454,31 @@ class _MoreVideoCard extends StatelessWidget {
                                     color: Colors.black.withValues(alpha: 0.8),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
-                                  child: Text(
-                                    video.duration,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 0.2,
-                                    ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if ((video.isFactChecked || video.hasAiCredibility) &&
+                                          video.canPublicViewFactCheck) ...[
+                                        const Icon(
+                                          Icons.verified_rounded,
+                                          color: Color(0xFF00E676),
+                                          size: 12,
+                                        ),
+                                        const SizedBox(width: 3),
+                                      ],
+                                      Text(
+                                        video.duration,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          letterSpacing: 0.2,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
-
-                            // Fact Checked Badge (top-left)
-                            if ((video.isFactChecked || video.hasAiCredibility) &&
-                                video.canPublicViewFactCheck)
-                              const VideoCardFactCheckBadge(),
                           ],
                         ),
                       ),

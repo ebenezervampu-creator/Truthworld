@@ -109,11 +109,13 @@ class VideoCardListInfo extends StatelessWidget {
   const VideoCardListInfo({
     required this.video,
     required this.controller,
+    this.isCompact = false,
     super.key,
   });
 
   final Video video;
   final VideoCardController controller;
+  final bool isCompact;
 
   @override
   Widget build(BuildContext context) {
@@ -134,23 +136,23 @@ class VideoCardListInfo extends StatelessWidget {
                 children: [
                   Text(
                     video.title,
-                    maxLines: 2,
+                    maxLines: isCompact ? 1 : 2,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
-                      height: 1.3,
-                      fontSize: 14,
+                      height: 1.2,
+                      fontSize: isCompact ? 12 : 14,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  SizedBox(height: isCompact ? 3 : 6),
                   Row(
                     children: [
                       VideoCardAvatar(
                         imageUrl: avatarUrl,
-                        radius: 10,
+                        radius: isCompact ? 7 : 10,
                         placeholderText: channelName.isEmpty ? '?' : channelName,
                       ),
-                      const SizedBox(width: 6),
+                      SizedBox(width: isCompact ? 4 : 6),
                       Expanded(
                         child: Text(
                           channelName,
@@ -159,16 +161,18 @@ class VideoCardListInfo extends StatelessWidget {
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                             fontWeight: FontWeight.w500,
+                            fontSize: isCompact ? 10 : null,
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: isCompact ? 2 : 4),
                   Text(
-                    '${VideoCardFormatters.formatViews(video.views)} views · ${VideoCardFormatters.formatTimestamp(video.uploadedAt)}',
+                    '${VideoCardFormatters.formatViews(video.views)} ${video.views == 1 ? 'view' : 'views'} · ${VideoCardFormatters.formatTimestamp(video.uploadedAt)}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: isCompact ? 9 : null,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -176,16 +180,17 @@ class VideoCardListInfo extends StatelessWidget {
                 ],
               ),
             ),
-            IconButton(
-              icon: const Icon(
-                Icons.more_vert,
-                size: 18,
-                color: AppColors.textPrimary,
+            if (!isCompact)
+              IconButton(
+                icon: const Icon(
+                  Icons.more_vert,
+                  size: 18,
+                  color: AppColors.textPrimary,
+                ),
+                onPressed: () => VideoOptionsSheet.show(context, video),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
               ),
-              onPressed: () => VideoOptionsSheet.show(context, video),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
           ],
         ),
       );

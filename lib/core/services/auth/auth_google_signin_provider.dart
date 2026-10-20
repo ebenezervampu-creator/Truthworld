@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart'
@@ -111,14 +113,15 @@ class AuthGoogleSignInProvider {
   bool _isSigningInWeb = false;
 
   /// Web authentication flow:
-  /// - In WebAssembly (dart2wasm), browsers enforce Cross-Origin Isolation (COOP: same-origin),
-  ///   which severs the window.opener reference on popup windows and causes signInWithPopup to hang or fail.
-  ///   Therefore, WASM mode directly and reliably utilizes signInWithRedirect.
-  /// - In standard Web (CanvasKit/HTML), signInWithPopup provides seamless authentication without page refresh,
-  ///   with automatic fallback to signInWithRedirect if popups are blocked by browser settings.
+  /// - Uses [signInWithPopup] as the primary flow across all Web environments (both WASM and JavaScript).
+  ///   This guarantees instantaneous sign-in without page reloads, preserves runtime memory, and prevents
+  ///   third-party cookie/partitioned storage issues common in private browsing (InPrivate/Incognito).
+  /// - Automatically falls back to [signInWithRedirect] ONLY if the browser actively blocks popups
+  ///   or runs in a webview environment where popups are unsupported.
   Future<UserCredential> signInWithGoogleWeb(
     FirebaseAuth auth, {
     @visibleForTesting bool? isWasmOverride,
+    @visibleForTesting bool? forceRedirectForTesting,
   }) async {
     if (_isSigningInWeb) {
       debugPrint('AuthGoogleSignInProvider: Web sign-in is already in progress.');
@@ -134,13 +137,8 @@ class AuthGoogleSignInProvider {
     provider.addScope('https://www.googleapis.com/auth/userinfo.profile');
     provider.setCustomParameters({'prompt': 'select_account'});
 
-    final runningOnWasm = isWasmOverride ?? isWasm;
-
     try {
-      if (runningOnWasm) {
-        debugPrint(
-          'AuthGoogleSignInProvider: WASM environment detected. Using signInWithRedirect to guarantee authentication under cross-origin isolation.',
-        );
+      if (forceRedirectForTesting ?? false) {
         try {
           final box = GetStorage();
           box.write('auth_pending_redirect', true);
@@ -158,11 +156,36 @@ class AuthGoogleSignInProvider {
       }
 
       try {
+        // Prime App Check token in memory prior to initiating popup flow.
+        // This guarantees that Firebase Auth JS SDK has an active token ready to append
+        // to the popup handler URL (#fac=<token>), preventing 401s on createAuthUri.
+        if (kIsWeb && Firebase.apps.isNotEmpty) {
+          try {
+            await FirebaseAppCheck.instance
+                .getToken()
+                .timeout(const Duration(seconds: 3));
+          } catch (e) {
+            debugPrint('AuthGoogleSignInProvider: App Check token prime notice: $e');
+          }
+        }
+
+        debugPrint(
+          'AuthGoogleSignInProvider: Initiating Google Sign-In with popup...',
+        );
         return await auth.signInWithPopup(provider);
       } on FirebaseAuthException catch (e) {
-        // Fall back to redirect if popup was blocked or window opener was restricted
+        if (e.code == 'popup-closed-by-user' ||
+            e.code == 'cancelled-popup-request') {
+          debugPrint('AuthGoogleSignInProvider: User closed Google Sign-In popup.');
+          throw const GoogleSignInException(
+            message: 'Sign-in was cancelled.',
+            code: 'user-cancelled',
+            isRetryable: true,
+          );
+        }
+
+        // Fall back to redirect only if popup was blocked or window opener was restricted
         if (e.code == 'popup-blocked' ||
-            e.code == 'cancelled-popup-request' ||
             e.code == 'operation-not-supported-in-this-environment') {
           debugPrint(
             'AuthGoogleSignInProvider: Popup unavailable (${e.code}). Falling back to signInWithRedirect.',
@@ -376,35 +399,31 @@ class AuthGoogleSignInProvider {
   }) async {
     try {
       if (kIsWeb) {
+        if (Firebase.apps.isNotEmpty) {
+          try {
+            await FirebaseAppCheck.instance
+                .getToken()
+                .timeout(const Duration(seconds: 3));
+          } catch (_) {}
+        }
+
         final provider = GoogleAuthProvider();
         provider.addScope('https://www.googleapis.com/auth/userinfo.email');
         provider.addScope('https://www.googleapis.com/auth/userinfo.profile');
         provider.setCustomParameters({'prompt': 'select_account'});
 
-        final runningOnWasm = isWasmOverride ?? isWasm;
-
-        if (runningOnWasm) {
-          try {
-            final box = GetStorage();
-            box.write('auth_pending_redirect', true);
-            box.write(
-              'auth_pending_redirect_time',
-              DateTime.now().millisecondsSinceEpoch,
-            );
-          } catch (_) {}
-
-          await user.reauthenticateWithRedirect(provider);
-          throw const GoogleSignInException(
-            message: 'Redirecting to Google Sign-In...',
-            code: 'redirecting',
-          );
-        }
-
         try {
           return await user.reauthenticateWithPopup(provider);
         } on FirebaseAuthException catch (e) {
+          if (e.code == 'popup-closed-by-user' ||
+              e.code == 'cancelled-popup-request') {
+            throw const GoogleSignInException(
+              message: 'Re-authentication was cancelled.',
+              code: 'user-cancelled',
+              isRetryable: true,
+            );
+          }
           if (e.code == 'popup-blocked' ||
-              e.code == 'cancelled-popup-request' ||
               e.code == 'operation-not-supported-in-this-environment') {
             try {
               final box = GetStorage();

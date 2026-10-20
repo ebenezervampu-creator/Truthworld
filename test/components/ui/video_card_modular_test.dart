@@ -81,7 +81,7 @@ void main() {
       expect(find.text('T'), findsOneWidget);
     });
 
-    testWidgets('4. VideoCardFactCheckBadge renders emerald badge and white icon',
+    testWidgets('4. VideoCardFactCheckBadge renders emerald badge and verified icon',
         (tester) async {
       await tester.pumpWidget(
         wrapWithMaterial(
@@ -94,17 +94,20 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Fact Checked'), findsOneWidget);
+      expect(find.byType(VideoCardFactCheckBadge), findsOneWidget);
       expect(find.byIcon(Icons.verified_rounded), findsOneWidget);
     });
 
-    testWidgets('5. VideoCardDurationBadge renders duration label',
+    testWidgets('5. VideoCardDurationBadge renders duration label and verified icon when fact checked',
         (tester) async {
       await tester.pumpWidget(
         wrapWithMaterial(
           const Stack(
             children: [
-              VideoCardDurationBadge(duration: '10:45'),
+              VideoCardDurationBadge(
+                duration: '10:45',
+                isFactChecked: true,
+              ),
             ],
           ),
         ),
@@ -112,6 +115,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('10:45'), findsOneWidget);
+      expect(find.byIcon(Icons.verified_rounded), findsOneWidget);
     });
 
     testWidgets('6. VideoCardAudioToggle toggles global mute state',
@@ -166,7 +170,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
 
       expect(find.text(sampleVideo.title), findsOneWidget);
-      expect(find.text('Fact Checked'), findsOneWidget);
+      expect(find.byIcon(Icons.verified_rounded), findsOneWidget);
       expect(find.text(sampleVideo.duration), findsOneWidget);
       expect(find.byIcon(Icons.more_vert), findsOneWidget);
     });

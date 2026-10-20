@@ -814,20 +814,64 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
   if (channelId) {
     try {
       const sanitizedChannelId = String(channelId).trim().replace(/[^a-zA-Z0-9-_.~%]/g, "_");
+      const rawThumb = (video.thumbnailUrl || video.customThumbnailUrl || "").trim();
+      const validThumb = (rawThumb.startsWith("http") && !rawThumb.includes("Icon-512") && !rawThumb.includes("play_icon")) ? rawThumb : "";
+
       await admin.messaging().send({
         topic: `channel_${sanitizedChannelId}`,
         notification: {
           title: `New Video from ${channelNameStr}`,
           body: `${channelNameStr} just uploaded: ${title || "Untitled Video"}`,
+          ...(validThumb ? { imageUrl: validThumb } : {}),
         },
         data: {
           click_action: "FLUTTER_NOTIFICATION_CLICK",
           type: "new_video_followed",
           channelId: String(channelId),
           videoId: String(videoId),
-          actionUrl: `/video/${videoId}`,
-          thumbnailUrl: video.thumbnailUrl || "",
+          actionUrl: `/watch?v=${videoId}`,
+          thumbnailUrl: validThumb,
           avatarUrl: video.channelImage || "",
+          targetApp: "app",
+        },
+        android: {
+          priority: "high" as const,
+          notification: {
+            channelId: "truthworld_notifications",
+            clickAction: "FLUTTER_NOTIFICATION_CLICK",
+            priority: "max" as const,
+            visibility: "public" as const,
+            icon: "ic_notification",
+            color: "#14EAB2",
+            ...(validThumb ? { imageUrl: validThumb } : {}),
+          },
+        },
+        apns: {
+          headers: {
+            "apns-priority": "10",
+            "apns-push-type": "alert",
+          },
+          payload: {
+            aps: {
+              sound: "default",
+              badge: 1,
+              "mutable-content": 1,
+            },
+          },
+          ...(validThumb ? { fcmOptions: { imageUrl: validThumb } } : {}),
+        },
+        webpush: {
+          headers: {
+            Urgency: "high",
+          },
+          notification: {
+            icon: "https://www.truthworld.in/icons/Icon-192.png",
+            badge: "https://www.truthworld.in/icons/Icon-192.png",
+            ...(validThumb ? { image: validThumb } : {}),
+          },
+          fcmOptions: {
+            link: `/watch?v=${videoId}`,
+          },
         },
       });
       logger.info(`[FanOut] Dispatched broadcast topic push for channel_${sanitizedChannelId}`);

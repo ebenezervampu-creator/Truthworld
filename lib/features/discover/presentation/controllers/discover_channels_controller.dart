@@ -10,6 +10,7 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/ai/ai_search_service.dart';
 import 'package:truthworld/core/services/ai/models/ai_search_intent.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
@@ -38,7 +39,8 @@ class DiscoverChannelsController extends BaseController {
 
   // Authentic real channel counts per category (Zero Mock Data Policy compliant)
   final RxMap<String, int> categoryChannelCounts = <String, int>{}.obs;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _channelsSubscription;
+  List<Channel> _cachedAllChannels = <Channel>[];
+  DateTime? _lastChannelsFetchTime;
 
   int getCategoryCount(String categoryName) {
     return categoryChannelCounts[categoryName] ?? 0;
@@ -98,7 +100,7 @@ class DiscoverChannelsController extends BaseController {
     {'name': 'Health & Fitness', 'tag': 'health'},
   ];
 
-  /// Categorical catalog containing all 31 unified categories across TruthWorld.
+  /// Categorical catalog containing all 30 unified categories across TruthWorld.
   final List<Map<String, dynamic>> categories = [
     {'name': 'All', 'icon': 'All'},
     ...AppCategories.allCategories.map(
@@ -114,7 +116,6 @@ class DiscoverChannelsController extends BaseController {
     super.onInit();
     updateCategoryChannelCounts(<Channel>[]);
     fetchUserSubscriptions();
-    _initChannelsStream();
     loadChannels();
   }
 
@@ -127,7 +128,7 @@ class DiscoverChannelsController extends BaseController {
       final snapshot = await _firestore
           .collection('subscriptions')
           .where('userId', isEqualTo: user.uid)
-          .get();
+          .getCacheFirst();
 
       final ids = snapshot.docs
           .map((doc) => doc.data()['channelId'] as String?)
@@ -243,28 +244,28 @@ class DiscoverChannelsController extends BaseController {
       selectedTopic.value = 'All Topics';
       selectedLanguage.value = 'All Languages';
     }
-    loadChannels();
+    _applyFiltersAndRanking();
   }
 
   void selectLanguage(String language) {
     selectedLanguage.value = language;
-    loadChannels();
+    _applyFiltersAndRanking();
   }
 
   void selectTopic(String topicName) {
     selectedTopic.value = topicName;
-    loadChannels();
+    _applyFiltersAndRanking();
   }
 
   void selectFilter(String filter) {
     selectedFilter.value = filter;
-    loadChannels();
+    _applyFiltersAndRanking();
   }
 
   void onSearchChanged(String query) {
     searchQuery.value = query;
     if (_debounce?.isActive ?? false) _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), loadChannels);
+    _debounce = Timer(const Duration(milliseconds: 300), _applyFiltersAndRanking);
   }
 
   void broadenSearch() {
@@ -280,6 +281,7 @@ class DiscoverChannelsController extends BaseController {
     broadenedChannels.clear();
     searchController.clear();
     searchQuery.value = '';
+    _applyFiltersAndRanking();
   }
 
   void clearSearch() {
@@ -288,35 +290,7 @@ class DiscoverChannelsController extends BaseController {
     activeAiIntent.value = null;
     isBroadenedView.value = false;
     broadenedChannels.clear();
-    loadChannels();
-  }
-
-  /// Real-time listener for authentic channel updates in Firestore.
-  void _initChannelsStream() {
-    try {
-      _channelsSubscription = _firestore
-          .collection(FirestoreCollections.channels)
-          .limit(300)
-          .snapshots()
-          .listen(
-        (snapshot) {
-          final allChannels = snapshot.docs
-              .map(Channel.fromDocumentSnapshot)
-              .where((c) =>
-                  c.status != ChannelStatus.deleted &&
-                  c.status != ChannelStatus.suspended)
-              .toList();
-          if (allChannels.isNotEmpty) {
-            updateCategoryChannelCounts(allChannels);
-          }
-        },
-        onError: (e) {
-          ErrorHandler.log(e, tag: 'DiscoverChannelsController.channelsStream');
-        },
-      );
-    } catch (e) {
-      ErrorHandler.log(e, tag: 'DiscoverChannelsController._initChannelsStream');
-    }
+    _applyFiltersAndRanking();
   }
 
   /// Evaluates whether a channel belongs to a specified category name.
@@ -390,176 +364,35 @@ class DiscoverChannelsController extends BaseController {
     }
   }
 
-  Future<void> loadChannels() async {
+  Future<void> loadChannels({bool forceRefresh = false}) async {
+    final isCacheWarm = !forceRefresh &&
+        _cachedAllChannels.isNotEmpty &&
+        _lastChannelsFetchTime != null &&
+        DateTime.now().difference(_lastChannelsFetchTime!) < const Duration(minutes: 10);
+
+    if (isCacheWarm) {
+      await _applyFiltersAndRanking();
+      return;
+    }
+
     rxIsLoading.value = true;
     try {
-      final rawQuery = searchQuery.value.trim();
       final query = _firestore
           .collection(FirestoreCollections.channels);
 
-      final snapshot = await query.limit(rawQuery.isNotEmpty ? 100 : 300).get();
-      var loadedChannels = snapshot.docs
+      final snapshot = await query.limit(300).getCacheFirst();
+      final loadedChannels = snapshot.docs
           .map(Channel.fromDocumentSnapshot)
           .where((c) =>
               c.status != ChannelStatus.deleted &&
               c.status != ChannelStatus.suspended)
           .toList();
 
-      // Compute authentic real channel counts per category from all active channels
-      updateCategoryChannelCounts(loadedChannels);
+      _cachedAllChannels = loadedChannels;
+      _lastChannelsFetchTime = DateTime.now();
 
-      if (rawQuery.isNotEmpty) {
-        isAiSearching.value = true;
-        final intent = await AiSearchService.instance.parseQuery(
-          rawQuery,
-          scope: SearchScope.channels,
-        );
-        activeAiIntent.value = intent;
-
-        if (intent.hasCriteria) {
-          final scored = <MapEntry<Channel, double>>[];
-          for (final ch in loadedChannels) {
-            final score = AiSearchService.instance.scoreChannel(ch, intent);
-            if (score > 0) {
-              scored.add(MapEntry(ch, score));
-            }
-          }
-
-          scored.sort((a, b) => b.value.compareTo(a.value));
-          final matched = scored.map((e) => e.key).toList();
-
-          if (intent.detectedLanguage != null && intent.broadenPrompt != null) {
-            final broadIntent = intent.copyWith(clearLanguage: true);
-            final broadScored = <MapEntry<Channel, double>>[];
-            for (final ch in loadedChannels) {
-              final score =
-                  AiSearchService.instance.scoreChannel(ch, broadIntent);
-              if (score > 0) {
-                broadScored.add(MapEntry(ch, score));
-              }
-            }
-            broadScored.sort((a, b) => b.value.compareTo(a.value));
-            broadenedChannels.assignAll(broadScored.map((e) => e.key).toList());
-          } else {
-            broadenedChannels.clear();
-          }
-
-          if (intent.resultMode == SearchResultMode.ranked) {
-            final maxSubs = loadedChannels.fold<int>(
-              1,
-              (max, c) =>
-                  getSubscriberCount(c) > max ? getSubscriberCount(c) : max,
-            );
-            final maxVideos = loadedChannels.fold<int>(
-              1,
-              (max, c) => c.videoCount > max ? c.videoCount : max,
-            );
-            final scoreMap = {for (final e in scored) e.key.id: e.value};
-            matched.sort((a, b) {
-              final relA = scoreMap[a.id] ?? 0.0;
-              final relB = scoreMap[b.id] ?? 0.0;
-              final qualityA = a.isVerified ? 1.0 : 0.0;
-              final qualityB = b.isVerified ? 1.0 : 0.0;
-              final activityA = (a.videoCount / maxVideos).clamp(0.0, 1.0);
-              final activityB = (b.videoCount / maxVideos).clamp(0.0, 1.0);
-              final audienceA =
-                  (getSubscriberCount(a) / maxSubs).clamp(0.0, 1.0);
-              final audienceB =
-                  (getSubscriberCount(b) / maxSubs).clamp(0.0, 1.0);
-
-              final rankA = (relA * 0.70) +
-                  (qualityA * 15.0) +
-                  (activityA * 10.0) +
-                  (audienceA * 5.0);
-              final rankB = (relB * 0.70) +
-                  (qualityB * 15.0) +
-                  (activityB * 10.0) +
-                  (audienceB * 5.0);
-              return rankB.compareTo(rankA);
-            });
-          } else if (intent.resultMode == SearchResultMode.trending) {
-            matched.sort((a, b) => b.videoCount.compareTo(a.videoCount));
-          } else if (intent.resultMode == SearchResultMode.recent) {
-            matched.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          }
-
-          loadedChannels = matched;
-        } else {
-          final clean = rawQuery.toLowerCase();
-          loadedChannels = loadedChannels.where((c) {
-            return c.name.toLowerCase().contains(clean) ||
-                c.handle.toLowerCase().contains(clean) ||
-                c.description.toLowerCase().contains(clean);
-          }).toList();
-        }
-      } else {
-        activeAiIntent.value = null;
-        isBroadenedView.value = false;
-        broadenedChannels.clear();
-
-        // 1. Topic Filter
-        if (selectedTopic.value != 'All Topics') {
-          final topicItem = nicheTopics.firstWhere(
-            (t) => t['name'] == selectedTopic.value,
-            orElse: () => {'name': '', 'tag': ''},
-          );
-          final tag = (topicItem['tag'] ?? '').toLowerCase();
-          if (tag.isNotEmpty) {
-            loadedChannels = loadedChannels.where((c) {
-              return c.category.toLowerCase().contains(tag) ||
-                  c.categories.any((cat) => cat.toLowerCase().contains(tag)) ||
-                  c.name.toLowerCase().contains(tag) ||
-                  c.description.toLowerCase().contains(tag);
-            }).toList();
-          }
-        }
-
-        // 2. Language Filter
-        if (selectedLanguage.value != 'All Languages') {
-          final lang = selectedLanguage.value.toLowerCase().trim();
-          loadedChannels = loadedChannels.where((c) {
-            final cLang = c.language.toLowerCase().trim();
-            if (lang == 'telugu') return cLang == 'te' || cLang == 'telugu';
-            if (lang == 'english') return cLang == 'en' || cLang == 'english';
-            if (lang == 'hindi') return cLang == 'hi' || cLang == 'hindi';
-            if (lang == 'tamil') return cLang == 'ta' || cLang == 'tamil';
-            if (lang == 'kannada') return cLang == 'kn' || cLang == 'kannada';
-            if (lang == 'malayalam') return cLang == 'ml' || cLang == 'malayalam';
-            return cLang.contains(lang);
-          }).toList();
-        }
-
-        // 3. Category Filter
-        if (selectedCategory.value != 'All') {
-          loadedChannels = loadedChannels
-              .where((c) => channelMatchesCategory(c, selectedCategory.value))
-              .toList();
-        }
-
-        // 4. Sort Filter
-        switch (selectedFilter.value) {
-          case 'Top Channels':
-            loadedChannels.sort(
-              (a, b) =>
-                  getSubscriberCount(b).compareTo(getSubscriberCount(a)),
-            );
-          case 'Emerging':
-            loadedChannels.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          case 'Verified Only':
-            loadedChannels = loadedChannels.where((c) => c.isVerified).toList();
-          case 'Most Active':
-            loadedChannels.sort((a, b) => b.videoCount.compareTo(a.videoCount));
-        }
-      }
-
-      // Initialize subscriber count map
-      for (final ch in loadedChannels) {
-        if (!channelSubscriberCounts.containsKey(ch.channelId)) {
-          channelSubscriberCounts[ch.channelId] = ch.subscriberCount;
-        }
-      }
-
-      channels.value = loadedChannels;
+      updateCategoryChannelCounts(_cachedAllChannels);
+      await _applyFiltersAndRanking();
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,
@@ -574,10 +407,173 @@ class DiscoverChannelsController extends BaseController {
     }
   }
 
+  Future<void> _applyFiltersAndRanking() async {
+    if (_cachedAllChannels.isEmpty) {
+      await loadChannels();
+      return;
+    }
+
+    var loadedChannels = List<Channel>.from(_cachedAllChannels);
+    final rawQuery = searchQuery.value.trim();
+
+    if (rawQuery.isNotEmpty) {
+      isAiSearching.value = true;
+      final intent = await AiSearchService.instance.parseQuery(
+        rawQuery,
+        scope: SearchScope.channels,
+      );
+      activeAiIntent.value = intent;
+
+      if (intent.hasCriteria) {
+        final scored = <MapEntry<Channel, double>>[];
+        for (final ch in loadedChannels) {
+          final score = AiSearchService.instance.scoreChannel(ch, intent);
+          if (score > 0) {
+            scored.add(MapEntry(ch, score));
+          }
+        }
+
+        scored.sort((a, b) => b.value.compareTo(a.value));
+        final matched = scored.map((e) => e.key).toList();
+
+        if (intent.detectedLanguage != null && intent.broadenPrompt != null) {
+          final broadIntent = intent.copyWith(clearLanguage: true);
+          final broadScored = <MapEntry<Channel, double>>[];
+          for (final ch in loadedChannels) {
+            final score =
+                AiSearchService.instance.scoreChannel(ch, broadIntent);
+            if (score > 0) {
+              broadScored.add(MapEntry(ch, score));
+            }
+          }
+          broadScored.sort((a, b) => b.value.compareTo(a.value));
+          broadenedChannels.assignAll(broadScored.map((e) => e.key).toList());
+        } else {
+          broadenedChannels.clear();
+        }
+
+        if (intent.resultMode == SearchResultMode.ranked) {
+          final maxSubs = loadedChannels.fold<int>(
+            1,
+            (max, c) =>
+                getSubscriberCount(c) > max ? getSubscriberCount(c) : max,
+          );
+          final maxVideos = loadedChannels.fold<int>(
+            1,
+            (max, c) => c.videoCount > max ? c.videoCount : max,
+          );
+          final scoreMap = {for (final e in scored) e.key.id: e.value};
+          matched.sort((a, b) {
+            final relA = scoreMap[a.id] ?? 0.0;
+            final relB = scoreMap[b.id] ?? 0.0;
+            final qualityA = a.isVerified ? 1.0 : 0.0;
+            final qualityB = b.isVerified ? 1.0 : 0.0;
+            final activityA = (a.videoCount / maxVideos).clamp(0.0, 1.0);
+            final activityB = (b.videoCount / maxVideos).clamp(0.0, 1.0);
+            final audienceA =
+                (getSubscriberCount(a) / maxSubs).clamp(0.0, 1.0);
+            final audienceB =
+                (getSubscriberCount(b) / maxSubs).clamp(0.0, 1.0);
+
+            final rankA = (relA * 0.70) +
+                (qualityA * 15.0) +
+                (activityA * 10.0) +
+                (audienceA * 5.0);
+            final rankB = (relB * 0.70) +
+                (qualityB * 15.0) +
+                (activityB * 10.0) +
+                (audienceB * 5.0);
+            return rankB.compareTo(rankA);
+          });
+        } else if (intent.resultMode == SearchResultMode.trending) {
+          matched.sort((a, b) => b.videoCount.compareTo(a.videoCount));
+        } else if (intent.resultMode == SearchResultMode.recent) {
+          matched.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        }
+
+        loadedChannels = matched;
+      } else {
+        final clean = rawQuery.toLowerCase();
+        loadedChannels = loadedChannels.where((c) {
+          return c.name.toLowerCase().contains(clean) ||
+              c.handle.toLowerCase().contains(clean) ||
+              c.description.toLowerCase().contains(clean);
+        }).toList();
+      }
+      isAiSearching.value = false;
+    } else {
+      activeAiIntent.value = null;
+      isBroadenedView.value = false;
+      broadenedChannels.clear();
+
+      // 1. Topic Filter
+      if (selectedTopic.value != 'All Topics') {
+        final topicItem = nicheTopics.firstWhere(
+          (t) => t['name'] == selectedTopic.value,
+          orElse: () => {'name': '', 'tag': ''},
+        );
+        final tag = (topicItem['tag'] ?? '').toLowerCase();
+        if (tag.isNotEmpty) {
+          loadedChannels = loadedChannels.where((c) {
+            return c.category.toLowerCase().contains(tag) ||
+                c.categories.any((cat) => cat.toLowerCase().contains(tag)) ||
+                c.name.toLowerCase().contains(tag) ||
+                c.description.toLowerCase().contains(tag);
+          }).toList();
+        }
+      }
+
+      // 2. Language Filter
+      if (selectedLanguage.value != 'All Languages') {
+        final lang = selectedLanguage.value.toLowerCase().trim();
+        loadedChannels = loadedChannels.where((c) {
+          final cLang = c.language.toLowerCase().trim();
+          if (lang == 'telugu') return cLang == 'te' || cLang == 'telugu';
+          if (lang == 'english') return cLang == 'en' || cLang == 'english';
+          if (lang == 'hindi') return cLang == 'hi' || cLang == 'hindi';
+          if (lang == 'tamil') return cLang == 'ta' || cLang == 'tamil';
+          if (lang == 'kannada') return cLang == 'kn' || cLang == 'kannada';
+          if (lang == 'malayalam') return cLang == 'ml' || cLang == 'malayalam';
+          return cLang.contains(lang);
+        }).toList();
+      }
+
+      // 3. Category Filter
+      if (selectedCategory.value != 'All') {
+        loadedChannels = loadedChannels
+            .where((c) => channelMatchesCategory(c, selectedCategory.value))
+            .toList();
+      }
+
+      // 4. Sort Filter
+      switch (selectedFilter.value) {
+        case 'Top Channels':
+          loadedChannels.sort(
+            (a, b) =>
+                getSubscriberCount(b).compareTo(getSubscriberCount(a)),
+          );
+        case 'Emerging':
+          loadedChannels.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        case 'Verified Only':
+          loadedChannels = loadedChannels.where((c) => c.isVerified).toList();
+        case 'Most Active':
+          loadedChannels.sort((a, b) => b.videoCount.compareTo(a.videoCount));
+      }
+    }
+
+    // Initialize subscriber count map
+    for (final ch in loadedChannels) {
+      if (!channelSubscriberCounts.containsKey(ch.channelId)) {
+        channelSubscriberCounts[ch.channelId] = ch.subscriberCount;
+      }
+    }
+
+    channels.value = loadedChannels;
+  }
+
   @override
   void onClose() {
     _debounce?.cancel();
-    _channelsSubscription?.cancel();
     _searchController.dispose();
     _isDisposed = true;
     super.onClose();

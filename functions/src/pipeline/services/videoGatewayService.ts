@@ -192,8 +192,11 @@ export class VideoGatewayService {
       (executionPlan as any).enableChapters
     );
 
-    const prompt = `ROLE: TruthWorld Video Moderation & Metadata Gateway.
-OBJECTIVE: Evaluate the provided video transcript to determine if the video should be APPROVED, REJECTED, or sent for MANUAL_REVIEW.
+    const prompt = `ROLE: TruthWorld Content Moderation & Metadata Gateway.
+OBJECTIVE: Evaluate the provided video transcript to determine if the video should be APPROVED, REJECTED, or sent for MANUAL_REVIEW for Content Moderation.
+
+IMPORTANT: You are checking CONTENT MODERATION (safety, decorum, language policy). You are NOT the Credibility Engine.
+Factual verification, claim testing, and source checking are handled downstream by the Credibility Engine; do NOT reject videos for controversial or disputed claims.
 
 LANGUAGE POLICY (90% PRIMARY ENGLISH / 10% SECONDARY ALLOWANCE):
 - TruthWorld requires the primary language of every video to be English: at least 90% of the spoken video content must be in English.
@@ -257,8 +260,8 @@ RETURN STRICT JSON FORMAT ONLY:
 }`;
 
     const chain = {
-      primary: PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-3.1-flash-lite",
-      fallback: "gemini-3.1-flash-lite",
+      primary: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-2.5-flash",
+      fallback: "gemini-2.5-flash",
       forcePrimary: false
     };
 
@@ -358,9 +361,24 @@ RETURN STRICT JSON FORMAT ONLY:
         };
       }
 
-      const fallbackSummary = transcriptText.length > 20
-        ? (transcriptText.length > 200 ? `${transcriptText.substring(0, 197)}...` : transcriptText)
-        : "Video content processed successfully.";
+      // NEVER leak or slice raw transcripts as an AI summary
+      let fallbackSummary: string | undefined = undefined;
+      try {
+        const summaryModel = this.genAI.getGenerativeModel({
+          model: "gemini-2.5-flash",
+          generationConfig: { maxOutputTokens: 150, temperature: 0.2 } as any,
+        });
+        const summaryRes = await summaryModel.generateContent(
+          `Provide a concise 2-3 sentence AI summary of the following video transcript. Focus on the core topic, arguments, and key takeaways. Do NOT quote or repeat the transcript verbatim:\n\n${transcriptText.substring(0, 6000)}`
+        );
+        const candidateText = extractCandidateText(summaryRes.response?.candidates?.[0])?.trim();
+        if (candidateText && candidateText.length > 20 && !transcriptText.startsWith(candidateText.replace(/\.{3}$/, '').trim())) {
+          fallbackSummary = candidateText;
+        }
+      } catch (sumErr) {
+        logger.warn(`[VideoGateway] Dedicated AI summary fallback failed for job ${jobId}`, { sumErr });
+      }
+
       return {
         status: "APPROVED",
         confidence: 0.8,

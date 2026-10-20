@@ -100,8 +100,10 @@ class NotificationViewController extends BaseController {
       }
     }
 
-    // 2. User notifications based on tab
+    // 2. User notifications based on tab (Strictly excluding Studio notifications in Consumer App)
     for (final n in userNotificationController.notifications) {
+      if (n.isStudioNotification || !n.isConsumerNotification) continue;
+
       final typeLower = n.type.toLowerCase();
       final isMention = typeLower == 'mention';
 

@@ -3,6 +3,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/cashfree/cashfree_country_support.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
 import 'package:truthworld/domain/entities/channel_entity.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 
 
 enum ChannelStatus {
@@ -182,6 +183,10 @@ class Channel {
     this.categories = const [],
     this.language = 'en',
     this.visibility = 'Public',
+    this.showLikeCount = true,
+    this.showDislikeCount = true,
+    this.showSubscriberCount = true,
+    this.allowComments = true,
     this.monetizationTier = MonetizationTier.none,
     this.monetizationSettings,
     this.brandingSettings,
@@ -316,6 +321,10 @@ class Channel {
       language: data['language'] ?? 'en',
       visibility: data['visibility'] as String? ??
           (data['isPublic'] == false ? 'Private' : 'Public'),
+      showLikeCount: (data['showLikeCount'] as bool?) ?? true,
+      showDislikeCount: (data['showDislikeCount'] as bool?) ?? true,
+      showSubscriberCount: (data['showSubscriberCount'] as bool?) ?? true,
+      allowComments: (data['allowComments'] as bool?) ?? true,
       monetizationTier: MonetizationTier.values.firstWhere(
         (e) => e.name == (data['monetizationTier'] ?? 'none'),
         orElse: () => MonetizationTier.none,
@@ -422,6 +431,34 @@ class Channel {
     }
   }
 
+  /// Optimistically constructs a channel from an already-hydrated [Video] entity for 0ms low-latency rendering.
+  factory Channel.fromVideo(Video video) {
+    final effectiveId = video.channelId.trim().isNotEmpty
+        ? video.channelId.trim()
+        : (video.ownerId.trim().isNotEmpty ? video.ownerId.trim() : 'channel_pending');
+    final nameVal = video.channelName.trim().isNotEmpty
+        ? video.channelName.trim()
+        : 'Truthworld Channel';
+    final handleVal = '@${nameVal.toLowerCase().replaceAll(RegExp(r'\s+'), '')}';
+    final avatar = video.channelAvatarUrl.trim().isNotEmpty
+        ? video.channelAvatarUrl.trim()
+        : (video.channelImage.trim().isNotEmpty ? video.channelImage.trim() : '');
+    return Channel(
+      id: effectiveId,
+      name: nameVal,
+      nameLowercase: nameVal.toLowerCase(),
+      handle: handleVal,
+      handleLowercase: handleVal.toLowerCase(),
+      description: '',
+      avatarUrl: avatar,
+      bannerUrl: '',
+      ownerId: video.ownerId,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+      isVerified: video.isVerified,
+    );
+  }
+
   Channel copyWith({
     String? id,
     String? name,
@@ -449,6 +486,10 @@ class Channel {
     List<String>? categories,
     String? language,
     String? visibility,
+    bool? showLikeCount,
+    bool? showDislikeCount,
+    bool? showSubscriberCount,
+    bool? allowComments,
     MonetizationTier? monetizationTier,
     dynamic monetizationSettings,
     dynamic brandingSettings,
@@ -502,6 +543,10 @@ class Channel {
       categories: categories ?? this.categories,
       language: language ?? this.language,
       visibility: visibility ?? this.visibility,
+      showLikeCount: showLikeCount ?? this.showLikeCount,
+      showDislikeCount: showDislikeCount ?? this.showDislikeCount,
+      showSubscriberCount: showSubscriberCount ?? this.showSubscriberCount,
+      allowComments: allowComments ?? this.allowComments,
       monetizationTier: monetizationTier ?? this.monetizationTier,
       monetizationSettings: monetizationSettings ?? this.monetizationSettings,
       brandingSettings: brandingSettings ?? this.brandingSettings,
@@ -571,6 +616,10 @@ class Channel {
   final List<String> categories;
   final String language;
   final String visibility;
+  final bool showLikeCount;
+  final bool showDislikeCount;
+  final bool showSubscriberCount;
+  final bool allowComments;
   final String country;
   final String? moderationReason;
   final Timestamp? deletionScheduledAt;
@@ -697,7 +746,11 @@ class Channel {
       'categories': categories,
       'language': language,
       'visibility': visibility,
-      'isPublic': visibility == 'Public',
+      'isPublic': visibility.toLowerCase() == 'public',
+      'showLikeCount': showLikeCount,
+      'showDislikeCount': showDislikeCount,
+      'showSubscriberCount': showSubscriberCount,
+      'allowComments': allowComments,
       'country': country,
       'monetizationTier': monetizationTier.name,
       'monetizationSettings': monetizationSettings,
@@ -742,6 +795,10 @@ class Channel {
       category: category,
       categories: categories,
       visibility: visibility,
+      showLikeCount: showLikeCount,
+      showDislikeCount: showDislikeCount,
+      showSubscriberCount: showSubscriberCount,
+      allowComments: allowComments,
       country: country,
       createdAt: createdAt.toDate(),
       updatedAt: updatedAt.toDate(),
@@ -780,6 +837,10 @@ class Channel {
       category: entity.category,
       categories: entity.categories,
       visibility: entity.visibility,
+      showLikeCount: entity.showLikeCount,
+      showDislikeCount: entity.showDislikeCount,
+      showSubscriberCount: entity.showSubscriberCount,
+      allowComments: entity.allowComments,
       country: entity.country,
     );
   }

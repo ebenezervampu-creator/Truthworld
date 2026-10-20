@@ -24,6 +24,8 @@ export const onPayoutRequestCreated = onDocumentCreated(
   {
     document: "payout_requests/{requestId}",
     region: "asia-south1",
+    memory: "256MiB",
+    maxInstances: 2,
   },
   async (event) => {
     const snap = event.data;

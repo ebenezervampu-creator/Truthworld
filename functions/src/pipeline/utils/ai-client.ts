@@ -9,7 +9,7 @@ let vertexAIInstance: VertexAI | null = null;
 export function getVertexAI(): VertexAI {
   if (!vertexAIInstance) {
     const { VertexAI } = require("@google-cloud/vertexai");
-    const project = process.env.GCP_PROJECT || process.env.GCLOUD_PROJECT || "truthworld-1";
+    const project = process.env.GCP_PROJECT_ID || process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || "truthworld-1";
     const location = process.env.GCP_LOCATION || "us-central1";
     vertexAIInstance = new VertexAI({ project, location });
   }

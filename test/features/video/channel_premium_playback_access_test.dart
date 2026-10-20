@@ -38,6 +38,9 @@ class TestTowerPlayerController extends GetxController with TowerPlayerAbrMixin 
 
   @override
   void trackAnalytics(dynamic event) {}
+
+  @override
+  void showToast(String msg) {}
 }
 
 void main() {

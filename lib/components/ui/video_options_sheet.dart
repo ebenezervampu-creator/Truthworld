@@ -627,12 +627,12 @@ class VideoOptionsSheet extends StatelessWidget {
 
   static Future<void> _handleFactCheckAction(BuildContext context, Video video) async {
     if (video.isFactChecked || video.factCheckUrl.isNotEmpty) {
-      Get.bottomSheet(
-        VideoAnalysisBottomSheet(
-          video: video,
-        ),
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
+      if (Get.isBottomSheetOpen == true) {
+        Get.back();
+      }
+      VideoAnalysisScreen.open(
+        context,
+        video: video,
       );
       return;
     }

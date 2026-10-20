@@ -407,13 +407,20 @@ class AdaptiveBitrateController extends BaseController {
     final bw = _getSmoothedBandwidth();
     final effectiveBw = bw * _bandwidthSafetyFactor;
 
-    // ── PANIC MODE: Critically low buffer (< 1s) outside startup grace period ──
+    // ── PANIC MODE: Critically low buffer (< 1.5s) outside startup grace period and not initial buffering ──
+    final isBufferingOrStarting = (_vpc?.value.isBuffering ?? false) ||
+        (_vpc?.value.position ?? Duration.zero) == Duration.zero;
     if (!isWithinStartupGrace &&
+        !isBufferingOrStarting &&
         buffer < _panicBufferLevel &&
         buffer > 0 &&
         bw > 0 &&
         !forceHighest) {
-      _switchToTier(0, reason: 'Panic: buffer=${buffer.toStringAsFixed(1)}s');
+      final stepDownIndex = max(0, currentTierIndex.value - 1);
+      _switchToTier(
+        stepDownIndex,
+        reason: 'Panic: buffer=${buffer.toStringAsFixed(1)}s',
+      );
       return;
     }
 
@@ -507,7 +514,7 @@ class AdaptiveBitrateController extends BaseController {
     bool isManual = false,
   }) {
     final clamped = index.clamp(0, resolutionLadder.length - 1);
-    if (clamped == currentTierIndex.value) return;
+    if (clamped == currentTierIndex.value && !isManual) return;
 
     _lastTierSwitchTime = DateTime.now();
 
@@ -644,14 +651,19 @@ class AdaptiveBitrateController extends BaseController {
     final now = DateTime.now();
     final currentPos = value.position;
 
-    // During initial startup grace period or immediately after a tier switch,
+    // During initial startup grace period, tier switch dwell period, active pre-roll buffering,
+    // before the video is initialized, or before the first frame has rendered (currentPos == Duration.zero),
     // let stream establish initial playback buffer and start decoding without false stalls.
     final isWithinStartupGrace =
         now.difference(_playbackStartTime) < _startupGracePeriod;
     final isWithinDwellPeriod =
         now.difference(_lastTierSwitchTime) < _minDwellDuration;
 
-    if (isWithinStartupGrace || isWithinDwellPeriod) {
+    if (isWithinStartupGrace ||
+        isWithinDwellPeriod ||
+        value.isBuffering ||
+        currentPos == Duration.zero ||
+        !value.isInitialized) {
       _lastPositionUpdate = now;
       _lastKnownPosition = currentPos;
       return;
@@ -687,7 +699,7 @@ class AdaptiveBitrateController extends BaseController {
     stallReason.value = 'Network congestion';
     debugPrint('[ABR] STALL detected at ${_vpc?.value.position}');
 
-    // Emergency downgrade
+    // Emergency downgrade (ABR degrades down to tier 0 / 144p minimum)
     if (isAutoMode.value && currentTierIndex.value > 0) {
       _switchToTier(
         max(0, currentTierIndex.value - 1),
@@ -734,7 +746,12 @@ class AdaptiveBitrateController extends BaseController {
         playbackState.value = PlaybackState.buffering;
       }
     } else if (value.isPlaying) {
-      playbackState.value = PlaybackState.playing;
+      if (playbackState.value == PlaybackState.stalled &&
+          value.position > _lastKnownPosition) {
+        _onStallRecovered();
+      } else if (playbackState.value != PlaybackState.stalled) {
+        playbackState.value = PlaybackState.playing;
+      }
     } else if (value.position >= value.duration &&
         value.duration > Duration.zero) {
       playbackState.value = PlaybackState.ended;

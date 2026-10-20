@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/security/biometric_security_service.dart';
+import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/analytics/data/models/creator_bank_account.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/revenue_analytics_controller.dart';
@@ -136,6 +138,7 @@ class ManageBankAccountDialog extends StatelessWidget {
                 controller: holderController,
                 hint: 'e.g. Ebenezer Vampu',
                 icon: Icons.person_outline_rounded,
+                maxLength: 70,
               ),
               const SizedBox(height: 14),
 
@@ -177,6 +180,11 @@ class ManageBankAccountDialog extends StatelessWidget {
                 controller: ifscController,
                 hint: 'e.g. SBIN0001234 or HDFC0000001',
                 icon: Icons.account_balance_outlined,
+                maxLength: 11,
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(11),
+                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+                ],
                 onChanged: (val) {
                   final inferred = CreatorBankAccount.inferBankName(val);
                   if (inferred != 'Direct Bank Transfer' && bankNameController.text.isEmpty) {
@@ -321,9 +329,23 @@ class ManageBankAccountDialog extends StatelessWidget {
     bool isObscure = false,
     Widget? suffixIcon,
     ValueChanged<String>? onChanged,
+    int? maxLength,
+    List<TextInputFormatter>? inputFormatters,
   }) {
+    final effectiveLimit = maxLength ?? (isNumeric ? 18 : 100);
+    final effectiveFormatters = inputFormatters ??
+        (isNumeric
+            ? [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(18),
+              ]
+            : TruthworldTextInputFormatters.internationalWithLimit(effectiveLimit));
+
     return TextField(
       controller: controller,
+      maxLength: effectiveLimit,
+      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+      inputFormatters: effectiveFormatters,
       keyboardType: isNumeric ? TextInputType.number : TextInputType.text,
       obscureText: isObscure,
       onChanged: onChanged,

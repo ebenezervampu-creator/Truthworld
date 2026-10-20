@@ -60,10 +60,27 @@ class TopicManagementController extends BaseController {
   int get totalVideosCount =>
       topicsList.fold(0, (acc, t) => acc + t.videoCount);
   int get publicTopicsCount => topicsList
-      .where((t) => t.visibilityType == TopicVisibilityType.public)
+      .where((t) =>
+          t.visibilityType == TopicVisibilityType.public &&
+          t.status.toLowerCase() == 'active' &&
+          !t.isArchivedOrDeleted)
       .length;
   int get privateTopicsCount => topicsList
-      .where((t) => t.visibilityType == TopicVisibilityType.private)
+      .where((t) =>
+          t.visibilityType == TopicVisibilityType.private &&
+          !t.isArchivedOrDeleted)
+      .length;
+  int get rejectedTopicsCount => topicsList
+      .where((t) =>
+          (t.status.toLowerCase() == 'verificationrejected' ||
+           t.status.toLowerCase() == 'rejected') &&
+          !t.isArchivedOrDeleted)
+      .length;
+  int get underReviewTopicsCount => topicsList
+      .where((t) =>
+          (t.status.toLowerCase() == 'underreview' ||
+           t.status.toLowerCase() == 'pending') &&
+          !t.isArchivedOrDeleted)
       .length;
 
   Future<void> _ensureStorageAuthReady() async {
@@ -292,18 +309,30 @@ class TopicManagementController extends BaseController {
       final newTopicRef = _firestore
           .collection(FirestoreCollections.topics)
           .doc();
-      final currentUid = FirebaseAuth.instance.currentUser?.uid;
+      final currentUid = AuthService.to.uid.isNotEmpty
+          ? AuthService.to.uid
+          : FirebaseAuth.instance.currentUser?.uid;
+
+      if (currentUid == null || currentUid.isEmpty) {
+        AppSnackbar.warning(
+          'Please sign in to create a topic.',
+          title: 'Sign In Required',
+        );
+        throw Exception('User authentication required to create topic.');
+      }
 
       final topic = Topic(
         id: newTopicRef.id,
-        title: title,
+        title: title.trim(),
         slug: finalSlug,
         handle: finalHandle,
         handleLowercase: finalHandleLowercase,
-        description: description,
-        category: category,
+        description: description.trim(),
+        category: category.trim().isEmpty ? 'General' : category.trim(),
         thumbnailUrl: thumbnailUrl,
-        channelId: channelId,
+        channelId: channelId.trim().isNotEmpty
+            ? channelId.trim()
+            : (AuthService.to.userChannel?.id ?? ''),
         creatorId: currentUid,
         visibilityType: visibilityType,
         accessCode: accessCode,
@@ -311,30 +340,54 @@ class TopicManagementController extends BaseController {
         featuredVideoIds: selectedVideoIds,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
+        status: 'pending',
+        geminiApproved: false,
       );
 
-      // Atomically create the topic and link all selected videos in a single batch write
-      final batch = _firestore.batch();
-      batch.set(newTopicRef, topic.toMap());
+      // Create the topic document
+      await newTopicRef.set(topic.toMap());
 
+      // Link selected videos
       for (final videoId in selectedVideoIds) {
-        final videoRef = _firestore
-            .collection(FirestoreCollections.videos)
-            .doc(videoId);
-        batch.update(videoRef, {
-          'topicId': finalSlug,
-          'topics': FieldValue.arrayUnion([finalSlug, cleanHandle, newTopicRef.id]),
-        });
+        try {
+          final videoRef = _firestore
+              .collection(FirestoreCollections.videos)
+              .doc(videoId);
+          await videoRef.update({
+            'topicId': finalSlug,
+            'topics': FieldValue.arrayUnion([finalSlug, cleanHandle, newTopicRef.id]),
+          });
+        } catch (videoLinkErr, s) {
+          ErrorHandler.log(
+            videoLinkErr,
+            stackTrace: s,
+            tag: 'TopicManagementController.createTopic.linkVideo',
+          );
+        }
       }
 
-      await batch.commit();
+      // Sync with local reactive controller list
+      if (!topicsList.any((t) => t.id == topic.id || t.slug == topic.slug)) {
+        topicsList.insert(0, topic);
+        topicsList.refresh();
+      }
 
       AppSnackbar.success(
         'Topic created successfully.',
       );
-    } catch (e) {
-      ErrorHandler.log(e);
-      if (e is! Exception || !e.toString().contains('Topic handle')) {
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TopicManagementController.createTopic',
+      );
+      final msg = e.toString();
+      if (!msg.contains('Video Required') &&
+          !msg.contains('Description Required') &&
+          !msg.contains('Handle Required') &&
+          !msg.contains('Handle Taken') &&
+          !msg.contains('Title Taken') &&
+          !msg.contains('Sign In Required')) {
         AppSnackbar.error(
           'Unable to create topic. Please try again.',
         );
@@ -380,6 +433,11 @@ class TopicManagementController extends BaseController {
         return false;
       }
 
+      final wasRejected = topic.status.toLowerCase() == 'verificationrejected' ||
+          topic.status.toLowerCase() == 'rejected';
+      final newStatus = wasRejected ? 'underReview' : topic.status;
+      final newApproved = wasRejected ? false : topic.geminiApproved;
+
       final updatedTopic = topic.copyWith(
         title: title,
         description: description,
@@ -392,12 +450,20 @@ class TopicManagementController extends BaseController {
         videoCount: selectedVideoIds.length,
         featuredVideoIds: selectedVideoIds,
         updatedAt: DateTime.now(),
+        status: newStatus,
+        geminiApproved: newApproved,
+        moderationReason: wasRejected ? '' : topic.moderationReason,
       );
 
       final batch = _firestore.batch();
       batch.update(
         _firestore.collection(FirestoreCollections.topics).doc(topic.id),
-        updatedTopic.toMap(),
+        {
+          ...updatedTopic.toMap(),
+          'status': newStatus,
+          'geminiApproved': newApproved ?? false,
+          if (wasRejected) 'moderationReason': FieldValue.delete(),
+        },
       );
 
       final currentLinkedVideos = await fetchTopicVideos(topic.slug);
@@ -464,12 +530,12 @@ class TopicManagementController extends BaseController {
           });
       topicsList.removeWhere((t) => t.id == topic.id);
       AppSnackbar.success(
-        'Topic is now private and scheduled for deletion in 30 days.',
+        'Topic moved to Trash. It will be retained for 30 days.',
       );
     } catch (e) {
       ErrorHandler.log(e);
       AppSnackbar.error(
-        'Unable to schedule topic deletion. Please try again.',
+        'Unable to move topic to Trash. Please try again.',
       );
     }
   }
@@ -517,7 +583,7 @@ class TopicManagementController extends BaseController {
             const SizedBox(width: 12),
             const Expanded(
               child: Text(
-                'Delete Topic?',
+                'Move Topic to Trash?',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -533,7 +599,7 @@ class TopicManagementController extends BaseController {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Are you sure you want to delete "${topic.title}"?',
+              'Are you sure you want to move "${topic.title}" to Trash?',
               style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -542,7 +608,7 @@ class TopicManagementController extends BaseController {
             ),
             const SizedBox(height: 8),
             const Text(
-              'This will remove the topic knowledge hub from your studio. Linked videos will remain safe on your channel.',
+              'Deleted topics are retained for 30 days before permanent deletion. Linked videos will remain safe on your channel.',
               style: TextStyle(
                 fontSize: 13,
                 color: AppColors.textSecondary,
@@ -569,7 +635,7 @@ class TopicManagementController extends BaseController {
             },
             icon: const Icon(Icons.delete_rounded, size: 16, color: Colors.white),
             label: const Text(
-              'Delete Topic',
+              'Move to Trash',
               style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
             ),
             style: ElevatedButton.styleFrom(

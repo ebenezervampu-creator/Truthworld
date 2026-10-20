@@ -337,8 +337,12 @@ class TopicCommentItemWidget extends StatelessWidget {
                       child: TextField(
                         controller: replyController.replyController,
                         focusNode: replyController.replyFocusNode,
+                        maxLength: ContentValidator.defaultMaxReplyLength,
+                        buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                         inputFormatters:
-                            TruthworldTextInputFormatters.standard,
+                            TruthworldTextInputFormatters.withLimit(
+                          ContentValidator.defaultMaxReplyLength,
+                        ),
                         decoration: const InputDecoration(
                           hintText: 'Add a reply...',
                           hintStyle: TextStyle(

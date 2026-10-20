@@ -24,6 +24,7 @@ export async function computeTextEmbedding(text: string): Promise<number[] | nul
   try {
     const client = await getAuthClient();
     const project =
+      process.env.GCP_PROJECT_ID ||
       process.env.GCP_PROJECT ||
       process.env.GCLOUD_PROJECT ||
       process.env.FIREBASE_CONFIG

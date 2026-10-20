@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
@@ -7,7 +8,13 @@ import 'package:truthworld/features/video/presentation/widgets/analysis/video_an
 import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-  class VideoAnalysisClaimsSection extends StatelessWidget {
+/// 🏛 VideoAnalysisClaimsSection
+///
+/// Section displaying the interactive list of Fact-Checked Claims:
+/// - Section Header with total claim count, search toggle, and sort dropdown
+/// - Filter Capsule Pills (All, Verified, Caution, False)
+/// - List of claims matching exact visual design
+class VideoAnalysisClaimsSection extends StatelessWidget {
   final List<dynamic> claims;
   final List<dynamic> allSources;
   final VideoController videoCtrl;
@@ -29,117 +36,244 @@ import 'package:truthworld/theme/app_theme.dart';
     super.key,
   });
 
-  BuildContext get context => Get.context!;
-
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.fact_check_outlined,
-                  size: 16,
-                  color: Colors.white,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'FACT-CHECKED CLAIMS (${claims.length})',
-                  style: context.twTypography.overline.copyWith(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textTertiary,
-                    letterSpacing: 1.1,
+        // 1. SECTION HEADER (Title, Search Button, Sort Menu)
+        Obx(() {
+          final isSearchOpen = analysisCtrl.isSearchOpen.value;
+          final sortOrder = analysisCtrl.sortOrder.value;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.article_rounded,
+                          size: 18,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 7),
+                        Flexible(
+                          child: Text(
+                            'Fact-Checked Claims (${claims.length})',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.roboto(
+                              fontSize: 15.5,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+
+                  // Search toggle button
+                  IconButton(
+                    icon: Icon(
+                      isSearchOpen ? Icons.close_rounded : Icons.search_rounded,
+                      size: 20,
+                      color: Colors.white,
+                    ),
+                    tooltip: isSearchOpen ? 'Close Search' : 'Search Claims',
+                    onPressed: analysisCtrl.toggleSearch,
+                    padding: const EdgeInsets.all(6),
+                    constraints: const BoxConstraints(),
+                  ),
+                  const SizedBox(width: 6),
+
+                  // Sort Dropdown Pill
+                  PopupMenuButton<String>(
+                    onSelected: analysisCtrl.setSortOrder,
+                    color: const Color(0xFF1C1F2B),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    itemBuilder: (ctx) => [
+                      _buildPopupItem('Video Order', sortOrder == 'Video Order'),
+                      _buildPopupItem('Highest Confidence', sortOrder == 'Highest Confidence'),
+                      _buildPopupItem('Disputed First', sortOrder == 'Disputed First'),
+                    ],
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5.5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1C1F2B),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 85),
+                            child: Text(
+                              _getSortLabel(sortOrder),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.roboto(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 3),
+                          const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            size: 15,
+                            color: Colors.white,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              // Inline Search TextField (if open)
+              if (isSearchOpen) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1C1F2B),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                  ),
+                  child: TextField(
+                    autofocus: true,
+                    style: GoogleFonts.roboto(color: Colors.white, fontSize: 13.5),
+                    decoration: InputDecoration(
+                      hintText: 'Search verified claim statements…',
+                      hintStyle: GoogleFonts.roboto(
+                        color: AppColors.textTertiary,
+                        fontSize: 13,
+                      ),
+                      icon: const Icon(Icons.search_rounded, size: 18, color: AppColors.textTertiary),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    onChanged: analysisCtrl.setSearchQuery,
                   ),
                 ),
               ],
-            ),
-            if (claims.isNotEmpty)
-              Text(
-                'Tap to inspect sources',
-                style: context.twTypography.caption.copyWith(
-                  fontSize: 10,
-                  color: AppColors.textTertiary,
-                  fontStyle: FontStyle.italic,
+            ],
+          );
+        }),
+        const SizedBox(height: 12),
+
+        // 2. FILTER CAPSULE PILLS ROW (All, Verified, Caution, False)
+        Obx(() {
+          final current = analysisCtrl.selectedClaimFilter.value;
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildFilterPill(
+                  filterKey: 'All',
+                  label: 'All (${claims.length})',
+                  isSelected: current == 'All',
                 ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 10),
+                const SizedBox(width: 8),
+                _buildFilterPill(
+                  filterKey: 'Verified',
+                  label: 'Verified ($verifiedCount)',
+                  dotColor: const Color(0xFF10B981),
+                  isSelected: current == 'Verified',
+                ),
+                const SizedBox(width: 8),
+                _buildFilterPill(
+                  filterKey: 'Caution',
+                  label: 'Caution ($cautionCount)',
+                  dotColor: const Color(0xFFF59E0B),
+                  isSelected: current == 'Caution',
+                ),
+                const SizedBox(width: 8),
+                _buildFilterPill(
+                  filterKey: 'False',
+                  label: 'False ($falseCount)',
+                  dotColor: const Color(0xFFEF4444),
+                  isSelected: current == 'False',
+                ),
+              ],
+            ),
+          );
+        }),
+        const SizedBox(height: 14),
 
-        // Claim Filter Tabs (All, Verified, Caution, False)
-        if (claims.length > 3) ...[
-          Obx(() {
-            final current = analysisCtrl.selectedClaimFilter.value;
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildClaimFilterChip(
-                    'All',
-                    'All (${claims.length})',
-                    current == 'All',
-                  ),
-                  const SizedBox(width: 8),
-                  if (verifiedCount > 0) ...[
-                    _buildClaimFilterChip(
-                      'Verified',
-                      'Verified ($verifiedCount)',
-                      current == 'Verified',
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  if (cautionCount > 0) ...[
-                    _buildClaimFilterChip(
-                      'Caution',
-                      'Caution ($cautionCount)',
-                      current == 'Caution',
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  if (falseCount > 0) ...[
-                    _buildClaimFilterChip(
-                      'False',
-                      'False ($falseCount)',
-                      current == 'False',
-                    ),
-                  ],
-                ],
-              ),
-            );
-          }),
-          const SizedBox(height: 12),
-        ],
-
+        // 3. CLAIMS LIST
         Obx(() {
           final filter = analysisCtrl.selectedClaimFilter.value;
-          final filteredClaims = claims.where((claim) {
-            if (claim is! Map) return false;
-            if (filter == 'All') return true;
-            final verdict = ClaimVerdictHelper.resolveVerdict(claim);
-            if (filter == 'Verified') return verdict.isVerified;
-            if (filter == 'False') return verdict.isFalse;
-            if (filter == 'Caution') return verdict.isCaution;
+          final search = analysisCtrl.searchQuery.value.trim().toLowerCase();
+          final sort = analysisCtrl.sortOrder.value;
+
+          final workingList = claims.where((c) {
+            if (c is! Map) return false;
+            if (filter != 'All') {
+              final verdict = ClaimVerdictHelper.resolveVerdict(c);
+              if (filter == 'Verified' && !verdict.isVerified) return false;
+              if (filter == 'False' && !verdict.isFalse) return false;
+              if (filter == 'Caution' && !verdict.isCaution) return false;
+            }
+            if (search.isNotEmpty) {
+              final text = (c['claim'] ?? c['text'] ?? c['statement'] ?? '').toString().toLowerCase();
+              if (!text.contains(search)) return false;
+            }
             return true;
           }).toList();
 
-          if (filteredClaims.isEmpty) {
+          // Apply Sorting
+          if (sort == 'Disputed First') {
+            workingList.sort((a, b) {
+              final vA = ClaimVerdictHelper.resolveVerdict(a as Map);
+              final vB = ClaimVerdictHelper.resolveVerdict(b as Map);
+              final rankA = vA.isFalse ? 0 : (vA.isCaution ? 1 : 2);
+              final rankB = vB.isFalse ? 0 : (vB.isCaution ? 1 : 2);
+              return rankA.compareTo(rankB);
+            });
+          } else if (sort == 'Highest Confidence') {
+            workingList.sort((a, b) {
+              final vA = ClaimVerdictHelper.resolveVerdict(a as Map);
+              final vB = ClaimVerdictHelper.resolveVerdict(b as Map);
+              final scoreA = (a['confidence'] is num) ? (a['confidence'] as num).toDouble() : (vA.isVerified ? 1.0 : 0.5);
+              final scoreB = (b['confidence'] is num) ? (b['confidence'] as num).toDouble() : (vB.isVerified ? 1.0 : 0.5);
+              return scoreB.compareTo(scoreA);
+            });
+          }
+
+          if (workingList.isEmpty) {
             return Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: AppColors.bgSurface,
+                color: const Color(0xFF14161F),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: AppColors.bgDivider),
               ),
               child: Center(
                 child: Text(
-                  'No claims found in "$filter" category.',
-                  style: context.twTypography.bodySmall.copyWith(
+                  search.isNotEmpty
+                      ? 'No claims match "$search"'
+                      : 'No claims found in "$filter" category.',
+                  style: GoogleFonts.roboto(
                     color: AppColors.textSecondary,
+                    fontSize: 13,
                   ),
                 ),
               ),
@@ -149,13 +283,18 @@ import 'package:truthworld/theme/app_theme.dart';
           return ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: filteredClaims.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 10),
+            itemCount: workingList.length,
+            separatorBuilder: (_, _) => const Divider(
+              height: 16,
+              thickness: 0.6,
+              color: AppColors.bgDivider,
+            ),
             itemBuilder: (context, index) {
-              final claim = filteredClaims[index];
+              final claim = workingList[index] as Map<dynamic, dynamic>;
               final originalIndex = claims.indexOf(claim);
+
               return VideoAnalysisClaimCard(
-                claim: claim as Map,
+                claim: claim,
                 index: originalIndex != -1 ? originalIndex : index,
                 allClaims: claims,
                 allSources: allSources,
@@ -170,39 +309,89 @@ import 'package:truthworld/theme/app_theme.dart';
     );
   }
 
-  Widget _buildClaimFilterChip(
-    String filterKey,
-    String label,
-    bool isSelected,
-  ) {
+  Widget _buildFilterPill({
+    required String filterKey,
+    required String label,
+    required bool isSelected,
+    Color? dotColor,
+  }) {
+    // Zero white-on-white: If background is pure white, text & icons MUST be black
+    final bgColor = isSelected ? Colors.white : const Color(0xFF1C1F2B);
+    final textColor = isSelected ? Colors.black : Colors.white;
+    final borderColor = isSelected ? Colors.transparent : Colors.white.withValues(alpha: 0.12);
+
     return InkWell(
       onTap: () => analysisCtrl.selectedClaimFilter.value = filterKey,
       borderRadius: BorderRadius.circular(20),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.08),
+          color: bgColor,
           borderRadius: BorderRadius.circular(20),
-          border: isSelected
-              ? null
-              : Border.all(
-                  color: Colors.white.withValues(alpha: 0.15),
-                  width: 0.5,
-                ),
+          border: Border.all(color: borderColor, width: 0.8),
         ),
-        child: Text(
-          label,
-          style: context.twTypography.caption.copyWith(
-            fontSize: 12,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-            color: isSelected ? Colors.black : AppColors.textSecondary,
-            fontFamily: TWTypography.uiFamily,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (dotColor != null) ...[
+              Container(
+                width: 7.5,
+                height: 7.5,
+                decoration: BoxDecoration(
+                  color: dotColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: GoogleFonts.roboto(
+                fontSize: 12.5,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: textColor, // Strictly black when selected white
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
+  PopupMenuItem<String> _buildPopupItem(String title, bool isSelected) {
+    return PopupMenuItem<String>(
+      value: title,
+      height: 38,
+      child: Row(
+        children: [
+          Icon(
+            isSelected ? Icons.check_rounded : Icons.circle_outlined,
+            size: 16,
+            color: isSelected ? const Color(0xFF10B981) : AppColors.textTertiary,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: GoogleFonts.roboto(
+              fontSize: 13,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w400,
+              color: isSelected ? Colors.white : AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getSortLabel(String order) {
+    switch (order) {
+      case 'Highest Confidence':
+        return 'Confidence';
+      case 'Disputed First':
+        return 'Disputed';
+      default:
+        return 'Video Order';
+    }
+  }
 }

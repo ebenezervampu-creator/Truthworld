@@ -168,6 +168,38 @@ import 'package:truthworld/theme/app_theme.dart';
                     );
                 },
               ),
+              const Divider(height: 16, color: AppColors.bgDivider),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: AppColors.error,
+                    size: 22,
+                  ),
+                ),
+                title: Text(
+                  'Move to Trash',
+                  style: AppTextStyles.titleMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.error,
+                  ),
+                ),
+                subtitle: Text(
+                  'Retained in Trash for 30 days before permanent deletion',
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                onTap: () {
+                  Get.back<void>();
+                  showDeleteVideoDialog(context, video, controller);
+                },
+              ),
               const SizedBox(height: 12),
             ],
           ),
@@ -557,7 +589,7 @@ import 'package:truthworld/theme/app_theme.dart';
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Delete Video?',
+                'Move to Trash?',
                 style: AppTextStyles.titleLarge.copyWith(
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.bold,
@@ -566,7 +598,7 @@ import 'package:truthworld/theme/app_theme.dart';
               ),
               const SizedBox(height: 12),
               Text(
-                "Are you sure you want to delete '${video.title}'? This action cannot be undone.",
+                "Are you sure you want to move '${video.title}' to Trash? Deleted items are retained for 30 days before permanent deletion.",
                 style: AppTextStyles.bodyMedium.copyWith(
                   color: AppColors.textSecondary,
                 ),
@@ -598,7 +630,7 @@ import 'package:truthworld/theme/app_theme.dart';
                       Get.back<void>();
                     },
                     child: const Text(
-                      'Delete',
+                      'Move to Trash',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,

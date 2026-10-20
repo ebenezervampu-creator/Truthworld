@@ -507,20 +507,30 @@ export class AggregationLayer {
             finalStatus = vData?.status && vData.status !== "processing" && vData.status !== "uploading" ? vData.status : "published";
           }
 
-          // Ensure technical moderation messages are never propagated as the public video summary
-          const isInvalidSummary = (s?: string) => !s || /moderation timed out|video approved pending|async review|moderation could not complete|verification in progress|held safely in review queue|video held for admin|admin manual review|gemini ai bypassed/i.test(s);
+          // Ensure technical moderation messages or transcript snippets are never propagated as the public video summary
+          const isInvalidSummary = (s?: string) => !s || /moderation timed out|video approved pending|async review|moderation could not complete|verification in progress|held safely in review queue|video held for admin|admin manual review|gemini ai bypassed|infrastructure timeout|synthesis unavailable|analysis unavailable|quota saturated|quota_backpressure|timeout_passthrough|retry_exhausted_passthrough|summary unavailable|peak load|strategic analysis unavailable/i.test(s);
           
+          const isTranscriptSnippet = (s?: string) => {
+            if (!s || !trans?.text) return false;
+            const clean = s.replace(/\.{3}$/, "").trim();
+            return clean.length > 20 && trans.text.trim().startsWith(clean);
+          };
+
           let resolvedSummary = "";
-          if (!isInvalidSummary(jobOutputs.summary)) {
-            resolvedSummary = jobOutputs.summary || "";
-          } else if (!isInvalidSummary((jobData as any)?.gatewayDecision?.summary)) {
-            resolvedSummary = String((jobData as any)?.gatewayDecision?.summary || "");
-          } else if (cred && !isInvalidSummary(cred.summary)) {
-            resolvedSummary = cred.summary || "";
-          } else if (vData && !isInvalidSummary(vData.summary)) {
-            resolvedSummary = vData.summary || "";
-          } else if (vData && !isInvalidSummary(vData.moderationSummary)) {
+          if (vData && !isInvalidSummary(vData.moderation?.summary) && !isTranscriptSnippet(vData.moderation?.summary)) {
+            resolvedSummary = vData.moderation.summary || "";
+          } else if (vData && !isInvalidSummary(vData.moderationSummary) && !isTranscriptSnippet(vData.moderationSummary)) {
             resolvedSummary = vData.moderationSummary || "";
+          } else if ((jobData as any)?.stages?.moderation?.summary && !isInvalidSummary((jobData as any).stages.moderation.summary) && !isTranscriptSnippet((jobData as any).stages.moderation.summary)) {
+            resolvedSummary = (jobData as any).stages.moderation.summary || "";
+          } else if (!isInvalidSummary((jobData as any)?.gatewayDecision?.summary) && !isTranscriptSnippet((jobData as any)?.gatewayDecision?.summary)) {
+            resolvedSummary = String((jobData as any)?.gatewayDecision?.summary || "");
+          } else if (!isInvalidSummary(jobOutputs.summary) && !isTranscriptSnippet(jobOutputs.summary)) {
+            resolvedSummary = jobOutputs.summary || "";
+          } else if (cred && !isInvalidSummary(cred.summary) && !isTranscriptSnippet(cred.summary)) {
+            resolvedSummary = cred.summary || "";
+          } else if (vData && !isInvalidSummary(vData.summary) && !isTranscriptSnippet(vData.summary)) {
+            resolvedSummary = vData.summary || "";
           }
 
           const resolvedChapters = (vData?.autoChapters && vData.autoChapters.length > 0)
@@ -751,6 +761,7 @@ export class AggregationLayer {
                         videoId: vid,
                         channelId,
                         videoTitle,
+                        thumbnailUrl: vData?.thumbnailUrl || vData?.customThumbnailUrl || "",
                         factCheckReviewMode: reviewMode,
                         isFactCheckApproved: !isReviewFirst,
                         approved: !isReviewFirst,

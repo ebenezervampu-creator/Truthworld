@@ -51,7 +51,11 @@ class EditVideoController extends BaseController with ContentValidationMixin {
     if (!formKey.currentState!.validate()) return;
 
     final title = titleController.text.trim();
-    final titleResult = ContentValidator.validate(title, fieldName: 'Title');
+    final titleResult = ContentValidator.validate(
+      title,
+      maxLength: 100,
+      fieldName: 'Title',
+    );
     if (!titleResult.isValid) {
       AppSnackbar.warning(titleResult.message);
       return;
@@ -61,6 +65,7 @@ class EditVideoController extends BaseController with ContentValidationMixin {
     if (description.isNotEmpty) {
       final descResult = ContentValidator.validate(
         description,
+        maxLength: 5000,
         fieldName: 'Description',
       );
       if (!descResult.isValid) {

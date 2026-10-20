@@ -19,6 +19,17 @@ class MockUser extends Mock implements User {}
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  setUpAll(() async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      const MethodChannel('plugins.flutter.io/path_provider'),
+      (methodCall) async => '.',
+    );
+    try {
+      await GetStorage.init();
+    } catch (_) {}
+  });
+
   group('AuthPhoneSignInProvider Tests', () {
     test('normalizePhoneNumber formats correctly with country code', () {
       expect(
@@ -80,15 +91,46 @@ void main() {
   });
 
   group('AuthSheetController Tests', () {
-    test('Initializes with default options step and country', () {
+    test('Initializes with default languageSelection step and country', () {
       final controller = AuthSheetController();
-      expect(controller.currentStep.value, equals(AuthStep.options));
+      expect(controller.currentStep.value, equals(AuthStep.languageSelection));
       expect(controller.selectedCountry.value.dialCode, isNotEmpty);
       expect(controller.isAuthBusy.value, isFalse);
     });
 
+    test('Selecting English proceeds to options with Google sign-in available', () {
+      final controller = AuthSheetController();
+      controller.selectPrimaryLanguage('English');
+      expect(controller.selectedLanguage.value, equals('English'));
+      expect(controller.currentStep.value, equals(AuthStep.options));
+    });
+
+    test('Selecting non-English language transitions to languageNotice', () {
+      final controller = AuthSheetController();
+      controller.selectPrimaryLanguage('Spanish');
+      expect(controller.selectedLanguage.value, equals('Spanish'));
+      expect(controller.currentStep.value, equals(AuthStep.languageNotice));
+
+      // Continuing with English switches to options
+      controller.continueWithEnglish();
+      expect(controller.selectedLanguage.value, equals('English'));
+      expect(controller.currentStep.value, equals(AuthStep.options));
+    });
+
+    test('Language search filters supported languages with English available', () {
+      final controller = AuthSheetController();
+      expect(controller.filteredLanguages.first.name, equals('English'));
+
+      controller.updateLanguageSearch('Span');
+      expect(controller.filteredLanguages.any((l) => l.name.contains('Spanish')), isTrue);
+
+      controller.clearLanguageSearch();
+      expect(controller.languageSearchQuery.value, isEmpty);
+    });
+
     test('Navigates between options, phone input, and resets gracefully', () {
       final controller = AuthSheetController();
+      controller.selectPrimaryLanguage('English');
       controller.goToPhoneInput();
       expect(controller.currentStep.value, equals(AuthStep.phoneInput));
 
@@ -181,26 +223,61 @@ void main() {
       } catch (_) {}
     });
 
-    test('signInWithGoogleWeb uses signInWithPopup on standard Web (non-WASM)', () async {
+    test('signInWithGoogleWeb uses signInWithPopup across Web and WASM', () async {
       final provider = AuthGoogleSignInProvider();
       final mockAuth = MockFirebaseAuth();
       final mockCredential = MockUserCredential();
 
       when(() => mockAuth.signInWithPopup(any())).thenAnswer((_) async => mockCredential);
 
-      final result = await provider.signInWithGoogleWeb(
+      final resultNonWasm = await provider.signInWithGoogleWeb(
         mockAuth,
         isWasmOverride: false,
       );
-      expect(result, equals(mockCredential));
+      expect(resultNonWasm, equals(mockCredential));
+
+      final resultWasm = await provider.signInWithGoogleWeb(
+        mockAuth,
+        isWasmOverride: true,
+      );
+      expect(resultWasm, equals(mockCredential));
+
+      verify(() => mockAuth.signInWithPopup(any())).called(2);
+      verifyNever(() => mockAuth.signInWithRedirect(any()));
+    });
+
+    test('signInWithGoogleWeb handles popup-closed-by-user gracefully without redirecting or throwing fatal error', () async {
+      final provider = AuthGoogleSignInProvider();
+      final mockAuth = MockFirebaseAuth();
+
+      when(() => mockAuth.signInWithPopup(any())).thenThrow(
+        FirebaseAuthException(code: 'popup-closed-by-user', message: 'Popup was closed'),
+      );
+
+      expect(
+        () => provider.signInWithGoogleWeb(
+          mockAuth,
+          isWasmOverride: true,
+        ),
+        throwsA(
+          isA<GoogleSignInException>().having(
+            (e) => e.code,
+            'code',
+            equals('user-cancelled'),
+          ),
+        ),
+      );
       verify(() => mockAuth.signInWithPopup(any())).called(1);
       verifyNever(() => mockAuth.signInWithRedirect(any()));
     });
 
-    test('signInWithGoogleWeb directly uses signInWithRedirect on WASM to avoid COOP isolation failure', () async {
+    test('signInWithGoogleWeb falls back to redirect when popup is blocked', () async {
       final provider = AuthGoogleSignInProvider();
       final mockAuth = MockFirebaseAuth();
 
+      when(() => mockAuth.signInWithPopup(any())).thenThrow(
+        FirebaseAuthException(code: 'popup-blocked', message: 'Popup blocked by browser'),
+      );
       when(() => mockAuth.signInWithRedirect(any())).thenAnswer((_) async {});
 
       expect(
@@ -216,48 +293,16 @@ void main() {
           ),
         ),
       );
+      verify(() => mockAuth.signInWithPopup(any())).called(1);
       verify(() => mockAuth.signInWithRedirect(any())).called(1);
-      verifyNever(() => mockAuth.signInWithPopup(any()));
 
       final box = GetStorage();
       expect(box.read<bool>('auth_pending_redirect'), isTrue);
       expect(box.read<int>('auth_pending_redirect_time'), isNotNull);
     });
 
-    test('signInWithGoogleWeb falls back to redirect when popup is blocked on standard Web', () async {
+    test('reauthenticateWithGoogle provider initializes and handles reauthentication cleanly', () async {
       final provider = AuthGoogleSignInProvider();
-      final mockAuth = MockFirebaseAuth();
-
-      when(() => mockAuth.signInWithPopup(any())).thenThrow(
-        FirebaseAuthException(code: 'popup-blocked', message: 'Popup blocked by browser'),
-      );
-      when(() => mockAuth.signInWithRedirect(any())).thenAnswer((_) async {});
-
-      expect(
-        () => provider.signInWithGoogleWeb(
-          mockAuth,
-          isWasmOverride: false,
-        ),
-        throwsA(
-          isA<GoogleSignInException>().having(
-            (e) => e.code,
-            'code',
-            equals('redirecting'),
-          ),
-        ),
-      );
-      verify(() => mockAuth.signInWithPopup(any())).called(1);
-      verify(() => mockAuth.signInWithRedirect(any())).called(1);
-    });
-
-    test('reauthenticateWithGoogle on WASM uses reauthenticateWithRedirect', () async {
-      final provider = AuthGoogleSignInProvider();
-      final mockUser = MockUser();
-
-      when(() => mockUser.reauthenticateWithRedirect(any())).thenAnswer((_) async {});
-
-      // Running on VM test runtime has kIsWeb false, which invokes mobile branch.
-      // But we can verify provider initializes and handles reauthentication cleanly.
       expect(provider, isNotNull);
     });
 
@@ -266,14 +311,14 @@ void main() {
       expect(AuthGoogleSignInProvider.isWasm, isFalse);
     });
 
-    test('DefaultFirebaseOptions uses canonical truthworld-1.firebaseapp.com authDomain', () {
+    test('DefaultFirebaseOptions uses canonical www.truthworld.in authDomain', () {
       expect(
         DefaultFirebaseOptions.defaultAuthDomain,
-        equals('truthworld-1.firebaseapp.com'),
+        equals('www.truthworld.in'),
       );
       expect(
         DefaultFirebaseOptions.resolvedWebAuthDomain,
-        equals('truthworld-1.firebaseapp.com'),
+        equals('www.truthworld.in'),
       );
     });
   });

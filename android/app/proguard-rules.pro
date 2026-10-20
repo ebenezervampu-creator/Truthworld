@@ -95,4 +95,13 @@
 -keep class com.google.android.play.core.integrity.** { *; }
 -dontwarn com.google.android.play.core.integrity.**
 
+# FFmpeg Kit JNI & Execution
+-keep class com.arthenica.ffmpegkit.** { *; }
+-dontwarn com.arthenica.ffmpegkit.**
+
+# AndroidX Biometric (local_auth)
+-keep class androidx.biometric.** { *; }
+-dontwarn androidx.biometric.**
+
+
 

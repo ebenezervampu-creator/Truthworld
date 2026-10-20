@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
@@ -20,7 +21,7 @@ class CommentActionHandler {
       'Please sign in to proceed',
       title: 'Sign In Required',
       actionLabel: 'SIGN IN',
-      onAction: () => AuthService.to.signInWithGoogle(),
+      onAction: AuthBottomSheet.prompt,
     );
   }
 

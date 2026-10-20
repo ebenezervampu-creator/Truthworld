@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 
 /// In-line input widget for drafting and posting a reply to a comment.
 class CommunityCommentReplyInput extends StatelessWidget {
@@ -37,6 +38,11 @@ class CommunityCommentReplyInput extends StatelessWidget {
               Expanded(
                 child: TextField(
                   controller: replyController,
+                  maxLength: ContentValidator.defaultMaxReplyLength,
+                  buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                  inputFormatters: TruthworldTextInputFormatters.withLimit(
+                    ContentValidator.defaultMaxReplyLength,
+                  ),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 13,

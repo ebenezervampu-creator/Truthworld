@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/controls/components/player_controls_buttons.dart';
@@ -73,10 +74,11 @@ class TimeDisplay extends StatelessWidget {
 
   void _openChapters(BuildContext context) {
     if (ctrl.chapters.isEmpty) return;
-    final isMobileDevice =
+    final isMobile =
         Theme.of(context).platform == TargetPlatform.android ||
-        Theme.of(context).platform == TargetPlatform.iOS;
-    if (isMobileDevice) {
+        Theme.of(context).platform == TargetPlatform.iOS ||
+        MediaQuery.of(context).size.width < 600;
+    if (isMobile) {
       VideoController? vc;
       try {
         if (ctrl.tag != null &&
@@ -92,14 +94,26 @@ class TimeDisplay extends StatelessWidget {
           tag: 'PlayerControls.showChapters.findVideo',
         );
       }
-      if (vc != null) {
-        VideoChaptersBottomSheet.show(
-          context,
-          video: vc.video,
-          videoTag: ctrl.tag,
-        );
-        return;
-      }
+      final video = vc?.video ??
+          Video(
+            id: ctrl.tag ?? '',
+            title: '',
+            description: '',
+            videoUrl: '',
+            thumbnailUrl: '',
+            ownerId: '',
+            channelId: '',
+            channelName: '',
+            category: '',
+            tags: const [],
+            chapters: ctrl.chapters.toList(),
+          );
+      VideoChaptersBottomSheet.show(
+        context,
+        video: video,
+        videoTag: ctrl.tag,
+      );
+      return;
     }
     ctrl.activePanel.value = 'chapters';
     ctrl.settingsOpen.value = true;
@@ -115,63 +129,52 @@ class TimeDisplay extends StatelessWidget {
             ? (currentChapter?.title ?? (hasChapters ? 'Chapters' : null))
             : null;
 
-        final timeWidget = InkWell(
-          onTap: hasChapters ? () => _openChapters(context) : null,
-          borderRadius: BorderRadius.circular(4),
-          child: Text(
-            '${_fmt(ctrl.vv.position)} / ${_fmt(ctrl.vv.duration)}',
-            style: TS.time,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        );
-
-        if (chapterTitle == null) {
-          return timeWidget;
-        }
-
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            timeWidget,
-            const SizedBox(width: 6),
-            Text(
-              '•',
-              style: TextStyle(
-                color: AppColors.textPrimary.withValues(alpha: 0.5),
-              ),
-            ),
-            const SizedBox(width: 6),
-            Flexible(
-              child: InkWell(
-                onTap: () => _openChapters(context),
-                borderRadius: BorderRadius.circular(4),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        chapterTitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+        return Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: hasChapters ? () => _openChapters(context) : null,
+            borderRadius: BorderRadius.circular(4),
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: '${_fmt(ctrl.vv.position)} / ${_fmt(ctrl.vv.duration)}',
+                    style: TS.time,
+                  ),
+                  if (chapterTitle != null) ...[
+                    TextSpan(
+                      text: ' • ',
+                      style: TextStyle(
+                        color: AppColors.textPrimary.withValues(alpha: 0.5),
+                        fontSize: 12,
+                      ),
+                    ),
+                    TextSpan(
+                      text: chapterTitle,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: Padding(
+                        padding: EdgeInsets.only(left: 2),
+                        child: Icon(
+                          Icons.chevron_right_rounded,
+                          size: 14,
                           color: AppColors.textPrimary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 2),
-                    const Icon(
-                      Icons.chevron_right_rounded,
-                      size: 14,
-                      color: AppColors.textPrimary,
-                    ),
                   ],
-                ),
+                ],
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-          ],
+          ),
         );
       },
     );

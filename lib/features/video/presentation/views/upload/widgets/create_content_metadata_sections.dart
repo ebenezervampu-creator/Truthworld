@@ -59,6 +59,7 @@ class CreateContentTitleSection extends StatelessWidget {
                       TextField(
                         controller: titleController,
                         maxLength: 100,
+                        inputFormatters: TruthworldTextInputFormatters.withLimit(100),
                         style: const TextStyle(color: Colors.white, fontSize: 14),
                         decoration: InputDecoration(
                           hintText: 'Enter video title',
@@ -181,7 +182,7 @@ class CreateContentDescriptionSection extends StatelessWidget {
                       text,
                       fieldName: 'Description',
                       minLength: 10,
-                      maxLength: 500,
+                      maxLength: ContentValidator.defaultMaxDescriptionLength,
                       checkPhoneNumbers: true,
                     )
                   : null;
@@ -200,7 +201,10 @@ class CreateContentDescriptionSection extends StatelessWidget {
                       TextField(
                         controller: descriptionController,
                         maxLines: 4,
-                        maxLength: 500,
+                        maxLength: ContentValidator.defaultMaxDescriptionLength,
+                        inputFormatters: TruthworldTextInputFormatters.withLimit(
+                          ContentValidator.defaultMaxDescriptionLength,
+                        ),
                         style: const TextStyle(color: Colors.white, fontSize: 14),
                         decoration: InputDecoration(
                           hintText: 'Describe your video',
@@ -234,7 +238,7 @@ class CreateContentDescriptionSection extends StatelessWidget {
                         right: 14,
                         bottom: 10,
                         child: Text(
-                          '${value.text.length}/500',
+                          '${value.text.length}/${ContentValidator.defaultMaxDescriptionLength}',
                           style: TextStyle(
                             color: hasError
                                 ? const Color(0xFFEF4444)
@@ -335,6 +339,9 @@ class CreateContentTagsSection extends StatelessWidget {
                 children: [
                   TextField(
                     controller: tagsController,
+                    maxLength: 200,
+                    buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                    inputFormatters: TruthworldTextInputFormatters.withLimit(200),
                     style: const TextStyle(color: Colors.white, fontSize: 14),
                     decoration: InputDecoration(
                       hintText:

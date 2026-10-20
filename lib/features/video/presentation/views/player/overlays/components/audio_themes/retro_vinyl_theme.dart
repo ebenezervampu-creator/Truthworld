@@ -91,8 +91,8 @@ class _RetroVinylThemeState extends State<RetroVinylTheme>
                 RotationTransition(
                   turns: _spinController,
                   child: Container(
-                    width: 140,
-                    height: 140,
+                    width: 120,
+                    height: 120,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: const Color(0xFF141416),
@@ -117,7 +117,7 @@ class _RetroVinylThemeState extends State<RetroVinylTheme>
                       children: [
                         // Concentric Grooves
                         CustomPaint(
-                          size: const Size(140, 140),
+                          size: const Size(120, 120),
                           painter: _VinylGroovesPainter(),
                         ),
                         // Center Vinyl Label with Thumbnail
@@ -165,7 +165,7 @@ class _RetroVinylThemeState extends State<RetroVinylTheme>
                   ),
                 ),
 
-                const SizedBox(width: 24),
+                const SizedBox(width: 16),
 
                 // Vinyl Metadata Card
                 Flexible(
@@ -199,13 +199,17 @@ class _RetroVinylThemeState extends State<RetroVinylTheme>
                                 ),
                               ),
                               const SizedBox(width: 6),
-                              const Text(
-                                '33⅓ RPM HIGH-FIDELITY',
-                                style: TextStyle(
-                                  color: Color(0xFFFBBF24),
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.8,
+                              const Flexible(
+                                child: Text(
+                                  '33⅓ RPM HIGH-FIDELITY',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Color(0xFFFBBF24),
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.8,
+                                  ),
                                 ),
                               ),
                             ],
@@ -233,25 +237,15 @@ class _RetroVinylThemeState extends State<RetroVinylTheme>
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Text(
-                              'Analog Remaster',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.4),
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            Text(
-                              ' • Lossless Stereo',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.4),
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
+                        Text(
+                          'Analog Remaster • Lossless Stereo',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.4),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ],
                     ),

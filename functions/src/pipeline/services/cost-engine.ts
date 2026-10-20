@@ -19,8 +19,12 @@ export const RATE_CARDS = {
   storage: { perGBMonth: 0.020 },
   ffmpeg: { perSecond: 0.0001 },
   // ─── Gemini AI (Vertex AI pricing, USD per token) ───────────────────────
+  "gemini-flash-lite": { perInputToken: 0.000000075, perOutputToken: 0.0000003 },
   "gemini-flash": { perInputToken: 0.00000015, perOutputToken: 0.0000006 },
+  "gemini-reasoning": { perInputToken: 0.0000020, perOutputToken: 0.000010 }, // Gemini 4 Argon ($2.00 in / $10.00 out per 1M)
+  "gemini-4-argon": { perInputToken: 0.0000020, perOutputToken: 0.000010 },
   "gemini-pro": { perInputToken: 0.00000125, perOutputToken: 0.000005 },
+  "gemini-cached-read": { perToken: 0.0000001 }, // $0.10 per 1M for Argon implicit cache read
   // ─── Google Search Grounding API ────────────────────────────────────────
   "search-grounding": { perQuery: 0.005 },
   // ─── Cloud Functions compute (USD per vCPU-second) ──────────────────────
@@ -429,14 +433,32 @@ export class CostEngine {
     jobId: string,
     userId: string,
     stage: string,
-    modelTier: "flash" | "pro",
+    modelTier: "flash" | "pro" | "flash-lite" | "reasoning",
     inputTokens: number,
-    outputTokens: number
+    outputTokens: number,
+    cachedTokens: number = 0
   ): Promise<void> {
-    const rateCard = modelTier === "pro"
-      ? RATE_CARDS["gemini-pro"]
-      : RATE_CARDS["gemini-flash"];
-    const cost = (inputTokens * rateCard.perInputToken) + (outputTokens * rateCard.perOutputToken);
+    let rateCard;
+    switch (modelTier) {
+      case "flash-lite":
+        rateCard = RATE_CARDS["gemini-flash-lite"];
+        break;
+      case "reasoning":
+      case "argon" as any:
+        rateCard = RATE_CARDS["gemini-4-argon"];
+        break;
+      case "pro":
+        rateCard = RATE_CARDS["gemini-pro"];
+        break;
+      case "flash":
+      default:
+        rateCard = RATE_CARDS["gemini-flash"];
+        break;
+    }
+    const nonCachedInputTokens = Math.max(0, inputTokens - cachedTokens);
+    const cost = (nonCachedInputTokens * rateCard.perInputToken) +
+                 (cachedTokens * RATE_CARDS["gemini-cached-read"].perToken) +
+                 (outputTokens * rateCard.perOutputToken);
     await this.recordCost(jobId, userId, stage, `gemini-${modelTier}`, cost, "tokens", inputTokens + outputTokens);
   }
 

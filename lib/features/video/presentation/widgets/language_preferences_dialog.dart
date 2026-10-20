@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/user_languages_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
@@ -412,6 +413,9 @@ class LanguageSelectionDialog extends StatelessWidget {
             const SizedBox(height: 12),
             TextField(
               controller: searchCtrl,
+              maxLength: defaultMaxSearchLength,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: TruthworldTextInputFormatters.withLimit(defaultMaxSearchLength),
               onChanged: onSearch,
               style: const TextStyle(
                 color: AppColors.textPrimary,

@@ -299,6 +299,18 @@ mixin VideoOfflineDownloadMixin on GetxController {
       return;
     }
 
+    if (DownloadQualityDialog.isPremiumResolution(resolution)) {
+      final isPremium = DownloadQualityDialog.hasPremiumAccess(video);
+      if (!isPremium) {
+        AppSnackbar.info(
+          'Downloading in ${resolution.label} requires a Premium subscription.',
+          title: 'Premium Required',
+        );
+        DownloadQualityDialog.showUpgradeSheet(Get.context, video);
+        return;
+      }
+    }
+
     final downloadsCtrl = Get.isRegistered<DownloadsController>()
         ? Get.find<DownloadsController>()
         : Get.put(DownloadsController());

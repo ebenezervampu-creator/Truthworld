@@ -21,6 +21,9 @@ class TestUIStateController extends GetxController with TowerPlayerUIStateMixin 
   bool get isScrubbingValue => isScrubbing.value;
 
   @override
+  void hideSeekPreview() {}
+
+  @override
   void onClose() {
     timers.cancelAll();
     overlayManager.dispose();

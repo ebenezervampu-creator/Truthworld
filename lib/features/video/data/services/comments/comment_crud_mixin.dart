@@ -41,6 +41,8 @@ mixin CommentCrudMixin on CommentServiceBase {
     }
 
     try {
+      await ensureAuthFreshness();
+
       final callable = functions.httpsCallable('addCommentNested');
       final payload = <String, dynamic>{
         'videoId': videoId,
@@ -67,8 +69,8 @@ mixin CommentCrudMixin on CommentServiceBase {
       final data = result.data as Map<String, dynamic>;
       return data['commentId'] as String;
     } catch (e) {
-      logger.warning(
-        'Failed to add comment via cloud function, falling back to direct Firestore: $e',
+      logger.info(
+        'Cloud function addCommentNested bypassed ($e), writing directly to Firestore.',
         tag: 'COMMENTS',
       );
       try {
@@ -209,6 +211,7 @@ mixin CommentCrudMixin on CommentServiceBase {
   /// falling back to direct Firestore batch deletion if unavailable.
   Future<void> deleteComment(String videoId, String commentId) async {
     try {
+      await ensureAuthFreshness();
       final callable = functions.httpsCallable('deleteCommentNested');
       await callable.call({
         'videoId': videoId,

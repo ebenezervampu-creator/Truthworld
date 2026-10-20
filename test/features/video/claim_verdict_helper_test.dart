@@ -253,6 +253,44 @@ void main() {
         }
       });
 
+      test('cleanResponseText humanizes robotic subjective/opinion responses and explains why it was configured as an opinion', () {
+        const roboticInput1 = 'Classified as subjective content — not subject to factual verification.';
+        final humanized1 = ClaimVerdictHelper.cleanResponseText(roboticInput1);
+        expect(
+          humanized1,
+          'Classified as an opinion because this statement shares a personal viewpoint or feeling rather than a measurable fact that can be proven true or false.',
+        );
+
+        const roboticInput2 = 'Classified as subjective content - not subject to factual verification';
+        final humanized2 = ClaimVerdictHelper.cleanResponseText(
+          roboticInput2,
+          claimText: "The word 'complete' (in complete protein) is vital.",
+        );
+        expect(
+          humanized2,
+          "Classified as an opinion because the speaker describes this as 'vital'. While science can measure real facts like nutrients or numbers, deciding that something is 'vital' is a personal value judgment, not a measurable fact.",
+        );
+
+        const roboticInput3 = 'Subjective content — not subject to factual verification.';
+        final humanized3 = ClaimVerdictHelper.cleanResponseText(
+          roboticInput3,
+          claimText: 'Chocolate ice cream is the best dessert.',
+        );
+        expect(
+          humanized3,
+          "Classified as an opinion because the speaker uses the word 'best'. Words like 'best' describe personal taste — everyone likes different things, and no science test can prove what is truly 'best'.",
+        );
+      });
+
+      test('Opinion verdict summary takeaway explains why it was configured as an opinion', () {
+        final opinionVerdict = ClaimVerdictHelper.resolveVerdictString('opinion');
+        expect(
+          opinionVerdict.summaryTakeaway,
+          'Classified as an opinion because it shares a personal perspective or value judgment rather than a measurable fact.',
+        );
+        expect(opinionVerdict.microTakeaway, 'Personal viewpoint, not a testable fact');
+      });
+
       test('cleanClaimText strips emojis and handles fallback', () {
         expect(ClaimVerdictHelper.cleanClaimText('✅ Good claim', 0),
             'Good claim');
@@ -260,6 +298,105 @@ void main() {
             'Questionable claim');
         expect(ClaimVerdictHelper.cleanClaimText('', 5), 'Claim #6');
         expect(ClaimVerdictHelper.cleanClaimText('  ✅  ', 2), 'Claim #3');
+      });
+
+      test('humanizeConclusionText transforms academic conclusions into kid-accessible English', () {
+        const academicInput = 'Empirical corroboration substantiates the core tenets of this video with verified data.';
+        final humanized = ClaimVerdictHelper.humanizeConclusionText(academicInput);
+        expect(humanized, contains('Reliable experts and records back up what was said'));
+
+        const roboticNoClaims = 'No empirical assertions were detected in the speech transcript.';
+        final humanizedNoClaims = ClaimVerdictHelper.humanizeConclusionText(roboticNoClaims);
+        expect(humanizedNoClaims, contains("We checked this video and didn't find any specific facts that need checking"));
+
+        const roboticThesis = 'The overarching thesis presents empirical concordance with published archives.';
+        final humanizedThesis = ClaimVerdictHelper.humanizeConclusionText(roboticThesis);
+        expect(humanizedThesis, contains('The main points in this video match real facts from'));
+      });
+
+      test('buildCompleteVideoConclusion generates a single cohesive paragraph answering the video', () {
+        final conclusionVerified = ClaimVerdictHelper.buildCompleteVideoConclusion(
+          videoTitle: 'How Driverless Robotaxis Work',
+          summary: 'This video explores how autonomous robotaxis navigate city streets.',
+          verifiedCount: 15,
+          cautionCount: 2,
+          falseCount: 0,
+        );
+        expect(conclusionVerified, contains('autonomous robotaxis navigate city streets'));
+        expect(conclusionVerified, contains('Our comprehensive verification confirms'));
+        expect(conclusionVerified.contains('\n'), isFalse, reason: 'Must be a single paragraph');
+        expect(conclusionVerified.startsWith('Based on '), isFalse);
+
+        final conclusionTitleOnly = ClaimVerdictHelper.buildCompleteVideoConclusion(
+          videoTitle: 'How Driverless Robotaxis Work',
+          verifiedCount: 15,
+          cautionCount: 2,
+          falseCount: 0,
+        );
+        expect(conclusionTitleOnly, contains('How Driverless Robotaxis Work'));
+
+        final conclusionCaution = ClaimVerdictHelper.buildCompleteVideoConclusion(
+          videoTitle: 'Quantum Computing Breakthroughs',
+          summary: 'A look at upcoming quantum processor timelines.',
+          verifiedCount: 2,
+          cautionCount: 8,
+          falseCount: 0,
+        );
+        expect(conclusionCaution, contains('The documented events and real-world milestones'));
+        expect(conclusionCaution.contains('\n'), isFalse);
+
+        final conclusionFalse = ClaimVerdictHelper.buildCompleteVideoConclusion(
+          videoTitle: 'Perpetual Energy Machine Revealed',
+          verifiedCount: 1,
+          cautionCount: 0,
+          falseCount: 5,
+        );
+        expect(conclusionFalse, contains('conflict directly with documented records'));
+        expect(conclusionFalse.contains('\n'), isFalse);
+
+        // Ensures formulaic conclusions are replaced with complete answers
+        final replacedFormula = ClaimVerdictHelper.buildCompleteVideoConclusion(
+          rawConclusion: 'Based on 62 empirical claims evaluated across external authoritative sources: 12 verified true, 45 requiring context or caution, and 5 contradicted by documented evidence. Inspect individual claim breakdowns for citations and details.',
+          videoTitle: 'Waymo Autonomous Fleet Expansion',
+          verifiedCount: 12,
+          cautionCount: 45,
+          falseCount: 5,
+        );
+        expect(replacedFormula.startsWith('Based on '), isFalse);
+        expect(replacedFormula, contains('conflict directly with documented records'));
+      });
+
+      test('getMostValuableSources ranks primary and authoritative sources and limits count', () {
+        final sampleSources = [
+          {'title': 'Random Blog', 'domain': 'randomblog.com', 'trustLevel': 'Low'},
+          {'title': 'CPUC Regulatory Ruling', 'domain': 'cpuc.ca.gov', 'trustLevel': 'High', 'type': 'Primary'},
+          {'title': 'Reuters Industry Report', 'domain': 'reuters.com', 'trustLevel': 'High'},
+          {'title': 'Another CPUC Document', 'domain': 'cpuc.ca.gov', 'trustLevel': 'High'},
+          {'title': 'NHTSA Crash Database', 'domain': 'nhtsa.gov', 'trustLevel': 'High', 'type': 'Primary'},
+          {'title': 'Medium Tech Article', 'domain': 'medium.com', 'trustLevel': 'Medium'},
+        ];
+
+        final top = ClaimVerdictHelper.getMostValuableSources(sampleSources, limit: 3);
+        expect(top.length, 3);
+        // High-scoring gov and reuters sources should be selected
+        final domains = top.map((s) => s['domain']).toList();
+        expect(domains, contains('cpuc.ca.gov'));
+        expect(domains, contains('nhtsa.gov'));
+        expect(domains, contains('reuters.com'));
+      });
+
+      test('getClaimsOverviewHighlights extracts top verified, caution, and false claims', () {
+        final sampleClaims = [
+          {'claim': 'Opinion on future AI', 'status': 'opinion'},
+          {'claim': 'Waymo operates in Phoenix', 'status': 'verified_true', 'isVerified': true},
+          {'claim': 'Full profitability by next year', 'status': 'disputed'},
+          {'claim': 'Cars fly over traffic', 'status': 'false_claim'},
+        ];
+
+        final highlights = ClaimVerdictHelper.getClaimsOverviewHighlights(sampleClaims);
+        expect(highlights['topVerified']?['claim'], 'Waymo operates in Phoenix');
+        expect(highlights['topCaution']?['claim'], 'Full profitability by next year');
+        expect(highlights['topFalse']?['claim'], 'Cars fly over traffic');
       });
     });
   });

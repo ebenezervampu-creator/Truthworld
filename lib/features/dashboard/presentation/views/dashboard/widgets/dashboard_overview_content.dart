@@ -3,6 +3,8 @@ import 'package:get/get.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_view_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/sections/sections.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Primary studio overview content (Tab 1) aggregating channel header, verification
 /// banners, stats grid, performance analytics, recommendations, latest content, and quick actions.
@@ -69,26 +71,45 @@ class DashboardOverviewContent extends StatelessWidget {
           ),
           const SizedBox(height: 32),
           Obx(
-            () => DashboardRecommendationsSection(
-              isDarkMode: isDarkMode,
-              isMobile: isMobile,
-              isDesktop: isDesktop,
-              isTablet: isTablet,
-              channel: dashboardController.currentChannel.value,
-              videos: dashboardController.recentVideos.toList(),
-              stats: dashboardController.channelStats,
-              controller: dashboardController,
-            ),
+            () {
+              final vmVideos = Get.isRegistered<VideoManagementController>()
+                  ? Get.find<VideoManagementController>().channelVideos.toList()
+                  : <Video>[];
+              final effectiveVideos =
+                  dashboardController.recentVideos.isNotEmpty
+                      ? dashboardController.recentVideos.toList()
+                      : vmVideos;
+              return DashboardRecommendationsSection(
+                isDarkMode: isDarkMode,
+                isMobile: isMobile,
+                isDesktop: isDesktop,
+                isTablet: isTablet,
+                channel: dashboardController.currentChannel.value ??
+                    viewController.channel,
+                videos: effectiveVideos,
+                stats: dashboardController.channelStats,
+                controller: dashboardController,
+              );
+            },
           ),
           const SizedBox(height: 32),
           Obx(
-            () => DashboardLatestContentSection(
-              isDarkMode: isDarkMode,
-              isMobile: isMobile,
-              videos: dashboardController.filteredVideos,
-              searchQuery: dashboardController.searchQuery.value,
-              onViewAll: () => dashboardController.setSelectedIndex(2),
-            ),
+            () {
+              final vmVideos = Get.isRegistered<VideoManagementController>()
+                  ? Get.find<VideoManagementController>().channelVideos.toList()
+                  : <Video>[];
+              final effectiveVideos =
+                  dashboardController.filteredVideos.isNotEmpty
+                      ? dashboardController.filteredVideos
+                      : vmVideos;
+              return DashboardLatestContentSection(
+                isDarkMode: isDarkMode,
+                isMobile: isMobile,
+                videos: effectiveVideos,
+                searchQuery: dashboardController.searchQuery.value,
+                onViewAll: () => dashboardController.setSelectedIndex(2),
+              );
+            },
           ),
           const SizedBox(height: 32),
           DashboardQuickActionsSection(

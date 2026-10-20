@@ -112,7 +112,7 @@ void main() {
       expect(find.text('James Webb Telescope Discoveries'), findsOneWidget);
       expect(find.text('NASA Space Science'), findsOneWidget);
       expect(find.text('Space & Astronomy'), findsOneWidget);
-      expect(find.text('Fact Checked'), findsOneWidget);
+      expect(find.byIcon(Icons.verified_rounded), findsOneWidget);
       expect(find.text('12:34'), findsOneWidget);
       expect(find.byIcon(Icons.more_vert), findsOneWidget);
     });

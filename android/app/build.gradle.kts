@@ -1,3 +1,7 @@
+import java.io.File
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
@@ -8,13 +12,16 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-import java.util.Properties
-import java.io.FileInputStream
-
 val keystorePropertiesFile = rootProject.file("key.properties")
 val keystoreProperties = Properties()
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
+val localPropertiesFile = rootProject.file("local.properties")
+val localProperties = Properties()
+if (localPropertiesFile.exists()) {
+    localProperties.load(FileInputStream(localPropertiesFile))
 }
 
 android {
@@ -43,14 +50,33 @@ android {
 
     signingConfigs {
         create("release") {
-            val keyAliasProp = keystoreProperties.getProperty("keyAlias")
-            val keyPasswordProp = keystoreProperties.getProperty("keyPassword")
-            val storeFileProp = keystoreProperties.getProperty("storeFile")
-            val storePasswordProp = keystoreProperties.getProperty("storePassword")
+            val keyAliasProp =
+                keystoreProperties.getProperty("keyAlias")
+                    ?: localProperties.getProperty("keyAlias")
+                    ?: System.getenv("KEY_ALIAS")
+            val keyPasswordProp =
+                keystoreProperties.getProperty("keyPassword")
+                    ?: localProperties.getProperty("keyPassword")
+                    ?: System.getenv("KEY_PASSWORD")
+            val storeFileProp =
+                keystoreProperties.getProperty("storeFile")
+                    ?: localProperties.getProperty("storeFile")
+                    ?: System.getenv("KEYSTORE_FILE")
+            val storePasswordProp =
+                keystoreProperties.getProperty("storePassword")
+                    ?: localProperties.getProperty("storePassword")
+                    ?: System.getenv("KEYSTORE_PASSWORD")
 
             if (storeFileProp != null) {
-                val resolvedFile = rootProject.file(storeFileProp)
-                if (resolvedFile.exists()) {
+                val candidate = File(storeFileProp)
+                val resolvedFile =
+                    when {
+                        candidate.isAbsolute && candidate.exists() -> candidate
+                        rootProject.file(storeFileProp).exists() -> rootProject.file(storeFileProp)
+                        rootProject.file("../$storeFileProp").exists() -> rootProject.file("../$storeFileProp")
+                        else -> null
+                    }
+                if (resolvedFile != null && resolvedFile.exists()) {
                     keyAlias = keyAliasProp
                     keyPassword = keyPasswordProp
                     storeFile = resolvedFile
@@ -75,15 +101,15 @@ android {
             } else {
                 throw GradleException(
                     "Release keystore not found. Set KEYSTORE_FILE, KEYSTORE_PASSWORD, " +
-                    "KEY_ALIAS, and KEY_PASSWORD environment variables, or configure " +
-                    "signing in local.properties. Never ship with debug signing."
+                        "KEY_ALIAS, and KEY_PASSWORD environment variables, or configure " +
+                        "signing in local.properties. Never ship with debug signing.",
                 )
             }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
         }
     }
@@ -133,4 +159,8 @@ kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
+}
+
+dependencies {
+    testImplementation("junit:junit:4.13.2")
 }

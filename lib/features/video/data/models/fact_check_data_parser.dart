@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:truthworld/core/utils/source_url_sanitizer.dart';
+import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_helpers.dart';
@@ -34,6 +35,9 @@ class ParsedFactCheckData {
     required this.scoreColor,
     required this.urgencyColor,
     required this.scoreAvailable,
+    this.summary = '',
+    this.conclusion = '',
+    this.conclusionSources = const [],
     this.isProvisional = false,
     this.factCheckTier = 'standard',
     this.isVideoFactChecked = false,
@@ -73,6 +77,9 @@ class ParsedFactCheckData {
   final String confidenceTier;
   final String analysisState;
   final String viewerNote;
+  final String summary;
+  final String conclusion;
+  final List<UISource> conclusionSources;
   final List<Map<String, dynamic>> claims;
   final List<ClaimResult> claimResults;
   final List<dynamic> sources;
@@ -107,7 +114,10 @@ class ParsedFactCheckData {
   }
 
   bool get isEmpty {
-    if (claims.isNotEmpty || sources.isNotEmpty || viewerNote.isNotEmpty) {
+    if (claims.isNotEmpty ||
+        sources.isNotEmpty ||
+        viewerNote.isNotEmpty ||
+        conclusion.isNotEmpty) {
       return false;
     }
     if (isVideoFactChecked && trustScore != null && trustScore! > 0) {
@@ -122,6 +132,20 @@ class ParsedFactCheckData {
 /// Canonical parser for raw fact-check and credibility JSON maps.
 class FactCheckDataParser {
   FactCheckDataParser._();
+
+  /// Detects whether a string is an interim or provisional pipeline placeholder
+  /// (e.g. background synthesis in progress) rather than a final verified conclusion.
+  static bool isPlaceholderStatus(String? text) {
+    if (text == null || text.trim().isEmpty) return true;
+    final lower = text.trim().toLowerCase();
+    return lower.contains('overview is being generated') ||
+        lower.contains('overview synthesis is finalizing') ||
+        lower.contains('finalizing in the background') ||
+        lower.contains('checking the facts in this video right now') ||
+        lower.contains('individual claim verdicts are already ready') ||
+        lower.contains('claim verdicts are complete and available now') ||
+        lower.contains('synthesis is finalizing');
+  }
 
   /// Parses raw map data (and optional fallback models) into a unified [ParsedFactCheckData].
   static ParsedFactCheckData parse(
@@ -218,24 +242,43 @@ class FactCheckDataParser {
             ? 0.9
             : (confidenceTier.toLowerCase() == 'medium' ? 0.6 : 0.4));
 
-    // 5. Viewer Note / Narrative
-    final rawConclusion = data['conclusion'];
-    final conclusionText = rawConclusion is Map
-        ? (rawConclusion['text'] ?? rawConclusion['summary'] ?? '').toString()
-        : (rawConclusion is String ? rawConclusion : '');
+    // 5. Summary / Viewer Note / Narrative / Conclusion
+    final rawSummary = (data['summary'] ??
+            data['overview'] ??
+            data['aiFeatures']?['factCheckSummary'] ??
+            data['uiReport']?['summary']?['narrative'] ??
+            '')
+        .toString()
+        .trim();
+    final cleanSummary = UserFeedbackSanitizer.sanitizeViewerNote(rawSummary);
 
-    final viewerNote = (data['viewerNote'] ??
+    final rawDataConclusion = data['conclusion'];
+    final dataConclusionText = rawDataConclusion is Map
+        ? (rawDataConclusion['text'] ?? rawDataConclusion['summary'] ?? '').toString()
+        : (rawDataConclusion is String ? rawDataConclusion : '');
+
+    final rawViewerNote = (data['viewerNote'] ??
             data['narrative'] ??
-            data['summary'] ??
             data['explanation'] ??
             data['provisionalViewerNote'] ??
             data['uiReport']?['narrative'] ??
-            (conclusionText.isNotEmpty ? conclusionText : null) ??
+            (dataConclusionText.isNotEmpty ? dataConclusionText : null) ??
             fallbackReport?.narrative ??
             fallbackReport?.riskNote ??
             '')
         .toString()
         .trim();
+    final viewerNote = UserFeedbackSanitizer.sanitizeViewerNote(rawViewerNote);
+
+    final rawConclusion = data['conclusion'] ??
+        data['uiReport']?['conclusion'] ??
+        fallbackReport?.conclusion;
+    final conclusionText = rawConclusion is Map
+        ? (rawConclusion['text'] ?? rawConclusion['summary'] ?? '').toString()
+        : (rawConclusion is String ? rawConclusion : (rawConclusion ?? '').toString());
+    final cleanConclusion = ClaimVerdictHelper.humanizeConclusionText(
+      UserFeedbackSanitizer.sanitizeViewerNote(conclusionText),
+    ).trim();
 
     // 6. Chapters
     final chapters = (data['chapters'] as List?) ?? [];
@@ -448,6 +491,57 @@ class FactCheckDataParser {
       }
     }
 
+    // 8.2 Conclusion Sources: Extract specific conclusion sources from conclusion or conclusionSources
+    final rawConclusionSources = (rawConclusion is Map && rawConclusion['sources'] is List
+            ? rawConclusion['sources'] as List
+            : null) ??
+        (data['conclusionSources'] as List?) ??
+        (data['uiReport']?['conclusionSources'] as List?) ??
+        (fallbackReport?.conclusionSources.isNotEmpty == true ? fallbackReport!.conclusionSources : null);
+
+    final parsedConclusionSources = <UISource>[];
+    if (rawConclusionSources != null && rawConclusionSources.isNotEmpty) {
+      for (final s in rawConclusionSources) {
+        if (!SourceUrlSanitizer.isValidSource(s)) continue;
+        if (s is UISource) {
+          parsedConclusionSources.add(s);
+        } else if (s is Map) {
+          final sanitized = SourceUrlSanitizer.sanitizeSourceMap(Map<dynamic, dynamic>.from(s));
+          parsedConclusionSources.add(UISource.fromMap(Map<String, dynamic>.from(sanitized)));
+        } else if (s is String && s.trim().isNotEmpty) {
+          final clean = SourceUrlSanitizer.sanitizeUrl(s, title: s);
+          parsedConclusionSources.add(UISource(
+            title: s.trim(),
+            trustLevel: 'Medium',
+            type: 'Supporting',
+            url: clean,
+            domain: SourceUrlSanitizer.resolveDisplayDomain(clean, title: s),
+          ));
+        }
+      }
+    }
+
+    // 8.3 Include distinct conclusion sources in sources list if not already present
+    if (parsedConclusionSources.isNotEmpty) {
+      final existingKeys = <String>{};
+      for (final s in parsedSourcesList) {
+        final key = (s.url != null && s.url!.isNotEmpty)
+            ? s.url!.toLowerCase()
+            : s.title.toLowerCase();
+        if (key.isNotEmpty) existingKeys.add(key);
+      }
+      for (final s in parsedConclusionSources) {
+        final key = (s.url != null && s.url!.isNotEmpty)
+            ? s.url!.toLowerCase()
+            : s.title.toLowerCase();
+        if (!existingKeys.contains(key)) {
+          existingKeys.add(key);
+          sourcesList.add(s.toMap());
+          parsedSourcesList.add(s);
+        }
+      }
+    }
+
     // 9. Scoring Factors
     final factors = (data['scoringFactors'] ?? data['factors']) as Map? ?? {};
     final factorsMap = Map<String, dynamic>.from(factors);
@@ -470,6 +564,26 @@ class FactCheckDataParser {
         trustScore != null ||
         claimsList.isNotEmpty;
 
+    // 10.1 Synthesize conclusion if raw conclusion was a placeholder, empty, or formulaic
+    var finalConclusion = cleanConclusion;
+    final isGenericFormula = finalConclusion.toLowerCase().startsWith('based on ') &&
+        finalConclusion.toLowerCase().contains('empirical claims evaluated');
+    if (isPlaceholderStatus(finalConclusion) || isGenericFormula || finalConclusion.isEmpty) {
+      if (claimsList.isNotEmpty) {
+        finalConclusion = ClaimVerdictHelper.buildCompleteVideoConclusion(
+          rawConclusion: finalConclusion,
+          summary: cleanSummary,
+          videoTitle: (data['title'] ?? data['videoTitle'] ?? '').toString(),
+          claims: claimsList,
+          verifiedCount: verifiedCount,
+          cautionCount: cautionCount,
+          falseCount: falseCount,
+        );
+      } else {
+        finalConclusion = '';
+      }
+    }
+
     return ParsedFactCheckData(
       trustScore: trustScore,
       normalizedScore: normalizedScore,
@@ -478,6 +592,9 @@ class FactCheckDataParser {
       confidenceTier: confidenceTier,
       analysisState: analysisState,
       viewerNote: viewerNote,
+      summary: cleanSummary,
+      conclusion: finalConclusion,
+      conclusionSources: parsedConclusionSources,
       claims: claimsList,
       claimResults: claimResultsList,
       sources: sourcesList,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
@@ -101,6 +102,9 @@ class ChapterDialogs {
                 child: TextField(
                   controller: textController,
                   maxLines: 8,
+                  maxLength: 5000,
+                  buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                  inputFormatters: TruthworldTextInputFormatters.withLimit(5000),
                   style: TextStyle(
                     fontSize: 14,
                     color: textColor,
@@ -276,6 +280,12 @@ class ChapterDialogs {
               const SizedBox(height: 6),
               TextField(
                 controller: timeController,
+                maxLength: 10,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9:]')),
+                  LengthLimitingTextInputFormatter(10),
+                ],
                 style: TextStyle(
                   fontSize: 14,
                   color: textColor,
@@ -310,7 +320,9 @@ class ChapterDialogs {
               const SizedBox(height: 6),
               TextField(
                 controller: titleController,
-                inputFormatters: TruthworldTextInputFormatters.standard,
+                maxLength: 100,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: TruthworldTextInputFormatters.withLimit(100),
                 style: TextStyle(
                   fontSize: 14,
                   color: textColor,
@@ -336,6 +348,7 @@ class ChapterDialogs {
 
               final validation = ContentValidator.validate(
                 title,
+                maxLength: 100,
                 fieldName: 'Chapter Title',
               );
               if (!validation.isValid) {

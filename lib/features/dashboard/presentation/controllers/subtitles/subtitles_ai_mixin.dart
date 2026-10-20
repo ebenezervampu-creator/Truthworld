@@ -36,27 +36,44 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
         '${AppConfig.cloudFunctionsBaseUrl}/triggerVideoAIFeatures',
       );
 
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'videoId': video.id,
-          'features': ['subtitles'],
-          'targetLanguages': targetLanguages,
-          'priorityMode': priorityMode,
-          'autoChapters': false,
-        }),
-      );
+      var pipelineTriggered = false;
+      try {
+        final response = await http.post(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({
+            'videoId': video.id,
+            'features': ['subtitles'],
+            'targetLanguages': targetLanguages,
+            'priorityMode': priorityMode,
+            'autoChapters': false,
+          }),
+        ).timeout(const Duration(seconds: 15));
 
-      if (response.statusCode == 200) {
-        showSuccess(
-          'Truthworld AI has started generating subtitles for ${targetLanguages.join(", ").toUpperCase()}!',
+        if (response.statusCode == 200) {
+          pipelineTriggered = true;
+          showSuccess(
+            'Truthworld AI has started generating subtitles for ${targetLanguages.join(", ").toUpperCase()}!',
+          );
+          listenToAIJob(video.id, targetLanguages);
+          return;
+        } else {
+          logger.warning(
+            'triggerVideoAIFeatures returned HTTP ${response.statusCode}: ${response.body}',
+            tag: SubtitlesControllerBase.subtitlesTag,
+          );
+        }
+      } catch (httpError) {
+        logger.warning(
+          'triggerVideoAIFeatures HTTP failed, using Firestore fallback: $httpError',
+          tag: SubtitlesControllerBase.subtitlesTag,
         );
-        listenToAIJob(video.id, targetLanguages);
-      } else {
+      }
+
+      if (!pipelineTriggered) {
         // Fallback: update Firestore document directly
         await firestore.collection('video_jobs').doc(video.id).set({
           'jobId': video.id,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -164,7 +165,9 @@ class PrivacyHistorySection extends StatelessWidget {
                   Expanded(
                     child: TextField(
                       controller: keywordCtrl,
-                      inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+                      maxLength: 50,
+                      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                      inputFormatters: TruthworldTextInputFormatters.withLimit(50),
                       style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 14,
@@ -222,7 +225,12 @@ class PrivacyHistorySection extends StatelessWidget {
                   Expanded(
                     child: TextField(
                       controller: blockUserCtrl,
-                      inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+                      maxLength: 30,
+                      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                      inputFormatters: [
+                        LengthLimitingTextInputFormatter(30),
+                        FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                      ],
                       style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 14,

@@ -23,7 +23,11 @@ class LibraryDialogs {
           ),
         ),
         content: TextField(
-          inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+          maxLength: ContentValidator.defaultMaxSearchLength,
+          buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+          inputFormatters: TruthworldTextInputFormatters.withLimit(
+            ContentValidator.defaultMaxSearchLength,
+          ),
           style: const TextStyle(color: primaryText),
           decoration: InputDecoration(
             hintText: 'Search videos, playlists...',

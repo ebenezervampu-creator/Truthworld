@@ -126,10 +126,18 @@ class CustomizationController extends BaseController
   }
 
   // Settings (Reactive)
+  final RxString visibility = 'Public'.obs;
   final RxBool isPublic = true.obs;
   final RxBool allowComments = true.obs;
   final RxBool allowSubscriptions = true.obs;
   final RxBool showSubscriberCount = true.obs;
+  final RxBool showLikeCount = true.obs;
+  final RxBool showDislikeCount = true.obs;
+
+  void setVisibility(String val) {
+    visibility.value = val;
+    isPublic.value = val.toLowerCase() == 'public';
+  }
 
   // Images (Reactive)
   final RxString avatarUrl = ''.obs;
@@ -184,12 +192,33 @@ class CustomizationController extends BaseController
             (data['bannerStatusReason'] as String?) ?? '';
         avatarFileId.value = (data['avatarFileId'] as String?) ?? '';
         bannerFileId.value = (data['bannerFileId'] as String?) ?? '';
-        isPublic.value = (data['isPublic'] as bool?) ?? true;
+        final rawVis = (data['visibility'] as String?)?.trim();
+        if (rawVis != null && rawVis.isNotEmpty) {
+          if (rawVis.toLowerCase() == 'public') {
+            visibility.value = 'Public';
+            isPublic.value = true;
+          } else if (rawVis.toLowerCase() == 'unlisted') {
+            visibility.value = 'Unlisted';
+            isPublic.value = false;
+          } else if (rawVis.toLowerCase() == 'private') {
+            visibility.value = 'Private';
+            isPublic.value = false;
+          } else {
+            visibility.value = rawVis;
+            isPublic.value = false;
+          }
+        } else {
+          final pub = (data['isPublic'] as bool?) ?? true;
+          isPublic.value = pub;
+          visibility.value = pub ? 'Public' : 'Private';
+        }
         allowComments.value = (data['allowComments'] as bool?) ?? true;
         allowSubscriptions.value =
             (data['allowSubscriptions'] as bool?) ?? true;
         showSubscriberCount.value =
             (data['showSubscriberCount'] as bool?) ?? true;
+        showLikeCount.value = (data['showLikeCount'] as bool?) ?? true;
+        showDislikeCount.value = (data['showDislikeCount'] as bool?) ?? true;
 
         final tags = data['tags'] as List<dynamic>?;
         tagsController.text = tags?.join(', ') ?? '';
@@ -633,10 +662,13 @@ class CustomizationController extends BaseController
         'bannerImageUrl': updatedBannerUrl,
         'banner': updatedBannerUrl,
         'bannerPicUrl': updatedBannerUrl,
-        'isPublic': isPublic.value,
+        'visibility': visibility.value,
+        'isPublic': visibility.value.toLowerCase() == 'public',
         'allowComments': allowComments.value,
         'allowSubscriptions': allowSubscriptions.value,
         'showSubscriberCount': showSubscriberCount.value,
+        'showLikeCount': showLikeCount.value,
+        'showDislikeCount': showDislikeCount.value,
         'contactEmail': contactEmailController.text.isNotEmpty
             ? contactEmailController.text
             : null,

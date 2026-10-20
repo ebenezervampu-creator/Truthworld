@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -63,6 +64,12 @@ class ShiftTimingsDialog {
             TextField(
               controller: offsetController,
               keyboardType: const TextInputType.numberWithOptions(signed: true),
+              maxLength: 8,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(8),
+                FilteringTextInputFormatter.allow(RegExp(r'^-?[0-9]*')),
+              ],
               decoration: const InputDecoration(
                 labelText: 'Custom Offset (Milliseconds)',
                 hintText: 'e.g. -250 or 750',

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -311,6 +312,9 @@ class CreateContentCommunityFlow extends StatelessWidget {
           controller: controller,
           maxLines: maxLines,
           maxLength: maxLength,
+          inputFormatters: maxLength != null
+              ? TruthworldTextInputFormatters.withLimit(maxLength)
+              : [...TruthworldTextInputFormatters.standard],
           validator: validator,
           style: context.themeTypography.body.copyWith(
             color: isDark ? AppColors.textPrimary : const Color(0xFF111827),

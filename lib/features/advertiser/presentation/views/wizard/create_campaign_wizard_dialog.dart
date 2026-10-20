@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/app_categories.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/utils/content_validator.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -201,16 +202,7 @@ void showCreateCampaignWizard(
     'Human Resources (HR) & Recruiters',
   ];
 
-  const availableTopics = [
-    'Technology & AI',
-    'News & Politics',
-    'Entertainment & Cinema',
-    'Education & Knowledge',
-    'Business & Finance',
-    'Gaming & Esports',
-    'Lifestyle & Fitness',
-    'Music & Arts',
-  ];
+  const availableTopics = AppCategories.allCategories;
 
   final gradientOptions = <List<Color>>[
     [const Color(0xFF8B5CF6), const Color(0xFFEC4899)],

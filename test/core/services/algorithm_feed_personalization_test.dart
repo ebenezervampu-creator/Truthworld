@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/algorithm/algorithm_remote_config.dart';
 import 'package:truthworld/core/services/algorithm/diversity_config.dart';
+import 'package:truthworld/core/services/algorithm/feed_algorithm_service.dart';
 import 'package:truthworld/core/services/algorithm/scored_video.dart';
 import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile.dart';
@@ -118,6 +119,73 @@ void main() {
       expect(guest.topicAffinities, isEmpty);
       expect(guest.avgWatchCompletion, equals(0.5));
       expect(guest.recentlyWatchedVideoIds, isEmpty);
+    });
+  });
+
+  group('FeedAlgorithmService - Zero Starvation & Fallbacks', () {
+    test('applyLocalAdjustments never returns 0 videos when server videos exist even if all were recently watched', () {
+      final feedService = FeedAlgorithmService();
+      final videos = [
+        createVideo(id: 'v1', title: 'Video 1', channelId: 'c1', category: 'Tech'),
+        createVideo(id: 'v2', title: 'Video 2', channelId: 'c2', category: 'Tech'),
+      ];
+
+      // All videos in recentlyWatchedVideoIds
+      final adjusted = feedService.applyLocalAdjustments(
+        videos,
+        recentlyWatchedVideoIds: {'v1', 'v2'},
+      );
+
+      // Must relax filter rather than returning 0 videos
+      expect(adjusted, isNotEmpty);
+      expect(adjusted.length, equals(2));
+    });
+
+    test('applyLocalAdjustments falls back to original server videos if not-interested covers all items', () {
+      final feedService = FeedAlgorithmService();
+      final videos = [
+        createVideo(id: 'v1', title: 'Video 1', channelId: 'c1', category: 'Tech'),
+      ];
+
+      final adjusted = feedService.applyLocalAdjustments(
+        videos,
+        notInterestedVideoIds: {'v1'},
+      );
+
+      // Must fallback to original server videos rather than returning 0 items
+      expect(adjusted, isNotEmpty);
+      expect(adjusted.first.id, equals('v1'));
+    });
+
+    test('YouTube-style backfill preserves personalized items at top and fills remaining slots from catalog without duplicate', () {
+      final personalizedItems = [
+        createVideo(id: 'v_pref', title: 'Personalized Preferred', channelId: 'c1', category: 'Tech'),
+      ];
+      final catalogVideos = [
+        createVideo(id: 'v_pref', title: 'Personalized Preferred', channelId: 'c1', category: 'Tech'),
+        createVideo(id: 'v_cat1', title: 'Catalog Video 1', channelId: 'c2', category: 'Tech'),
+        createVideo(id: 'v_cat2', title: 'Catalog Video 2', channelId: 'c3', category: 'Tech'),
+      ];
+
+      const targetLimit = 3;
+      final existingIds = personalizedItems.map((v) => v.id).toSet();
+      final filledFeed = List<Video>.from(personalizedItems);
+
+      for (final v in catalogVideos) {
+        if (!existingIds.contains(v.id)) {
+          filledFeed.add(v);
+          existingIds.add(v.id);
+          if (filledFeed.length >= targetLimit) break;
+        }
+      }
+
+      // First item must be the preferred personalized item
+      expect(filledFeed.first.id, equals('v_pref'));
+      // Feed must reach target limit (no crisis or starvation)
+      expect(filledFeed.length, equals(targetLimit));
+      // No duplicates
+      expect(filledFeed.map((v) => v.id).toSet().length, equals(targetLimit));
+      expect(filledFeed.map((v) => v.id).toList(), equals(['v_pref', 'v_cat1', 'v_cat2']));
     });
   });
 }

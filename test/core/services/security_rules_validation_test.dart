@@ -741,7 +741,7 @@ void main() {
         'isVerified', 'geminiApproved', 'status', 'monetizationTier', 'superchatRevenueTotal',
         'adsRevenueTotal', 'membershipRevenueTotal', 'membershipsRevenueTotal', 'premiumSubsRevenueTotal',
         'walletBalanceUSD', 'walletBalance', 'withdrawnRevenueTotal',
-        'subscriberCount', 'videoCount', 'ownerId', 'userId', 'createdAt', 'penaltyStatus',
+        'subscriberCount', 'ownerId', 'userId', 'createdAt', 'penaltyStatus',
         'trustScore', 'reputationScore', 'moderationReason', 'metrics',
         'strikes', 'strikeCount', 'isBanned', 'suspendedAt', 'bannedAt'
       ];
@@ -756,6 +756,8 @@ void main() {
 
       // Normal channel metadata update
       expect(canUpdateChannel(['name', 'description', 'socialLinks'], false), isTrue);
+      // Video publishing updates videoCount and updatedAt
+      expect(canUpdateChannel(['videoCount', 'updatedAt'], false), isTrue);
 
       // Malicious attempt to clear strikes or un-suspend channel
       expect(canUpdateChannel(['strikes'], false), isFalse);
@@ -1266,6 +1268,488 @@ void main() {
       // 5. Client trying to update or alter payout status directly -> BLOCKED
       expect(canClientUpdatePayoutRequest(), isFalse);
       expect(canClientUpdatePayoutRequest(isAdmin: true), isTrue);
+    });
+
+    test('L-60: video_jobs security rules enforce owner verification on read, create, and update', () {
+      bool canReadVideoJob({
+        required bool isAuthenticated,
+        required String? callerUid,
+        required Map<String, dynamic> resourceData,
+        required String jobId,
+        required bool Function(String videoId) isVideoOwner,
+        bool isAdmin = false,
+      }) {
+        if (!isAuthenticated || callerUid == null) return false;
+        if (isAdmin) return true;
+        if (resourceData['userId'] == callerUid) return true;
+        if (isVideoOwner(jobId)) return true;
+        if (resourceData['videoId'] != null && isVideoOwner(resourceData['videoId'].toString())) {
+          return true;
+        }
+        return false;
+      }
+
+      bool canCreateVideoJob({
+        required bool isAuthenticated,
+        required String? callerUid,
+        required Map<String, dynamic> requestResourceData,
+        required String jobId,
+        required bool Function(String videoId) isVideoOwner,
+        required bool Function(String videoId) videoExists,
+        bool isAdmin = false,
+      }) {
+        if (!isAuthenticated || callerUid == null) return false;
+        if (isAdmin) return true;
+        if (requestResourceData['userId'] == callerUid &&
+            (isVideoOwner(jobId) || !videoExists(jobId))) {
+          return true;
+        }
+        return false;
+      }
+
+      bool canUpdateVideoJob({
+        required bool isAuthenticated,
+        required String? callerUid,
+        required Map<String, dynamic> resourceData,
+        required Map<String, dynamic> requestResourceData,
+        required String jobId,
+        required bool Function(String videoId) isVideoOwner,
+        bool isAdmin = false,
+      }) {
+        if (!isAuthenticated || callerUid == null) return false;
+        if (isAdmin) return true;
+        return resourceData['userId'] == callerUid ||
+            requestResourceData['userId'] == callerUid ||
+            isVideoOwner(jobId);
+      }
+
+      bool canDeleteVideoJob({bool isAdmin = false}) {
+        return isAdmin;
+      }
+
+      // Read tests
+      expect(
+        canReadVideoJob(
+          isAuthenticated: true,
+          callerUid: 'creator_1',
+          resourceData: {'userId': 'creator_1', 'videoId': 'vid_1'},
+          jobId: 'vid_1',
+          isVideoOwner: (vid) => vid == 'vid_1',
+        ),
+        isTrue,
+        reason: 'Creator who is doc userId can read their job',
+      );
+
+      expect(
+        canReadVideoJob(
+          isAuthenticated: true,
+          callerUid: 'creator_1',
+          resourceData: {'userId': 'other_user', 'videoId': 'vid_1'},
+          jobId: 'vid_1',
+          isVideoOwner: (vid) => vid == 'vid_1',
+        ),
+        isTrue,
+        reason: 'Creator who owns video can read their video job even if doc userId differs',
+      );
+
+      expect(
+        canReadVideoJob(
+          isAuthenticated: true,
+          callerUid: 'attacker',
+          resourceData: {'userId': 'victim', 'videoId': 'vid_victim'},
+          jobId: 'vid_victim',
+          isVideoOwner: (vid) => false,
+        ),
+        isFalse,
+        reason: 'Attacker cannot read victim video job',
+      );
+
+      expect(
+        canReadVideoJob(
+          isAuthenticated: false,
+          callerUid: null,
+          resourceData: {'userId': 'creator_1'},
+          jobId: 'vid_1',
+          isVideoOwner: (vid) => false,
+        ),
+        isFalse,
+        reason: 'Unauthenticated read blocked',
+      );
+
+      expect(
+        canReadVideoJob(
+          isAuthenticated: true,
+          callerUid: 'admin_user',
+          resourceData: {'userId': 'victim'},
+          jobId: 'vid_1',
+          isVideoOwner: (vid) => false,
+          isAdmin: true,
+        ),
+        isTrue,
+        reason: 'Admin can read any video job',
+      );
+
+      // Create tests
+      expect(
+        canCreateVideoJob(
+          isAuthenticated: true,
+          callerUid: 'creator_1',
+          requestResourceData: {'userId': 'creator_1', 'videoId': 'vid_1'},
+          jobId: 'vid_1',
+          isVideoOwner: (vid) => true,
+          videoExists: (vid) => true,
+        ),
+        isTrue,
+        reason: 'Creator can create job for their existing video',
+      );
+
+      expect(
+        canCreateVideoJob(
+          isAuthenticated: true,
+          callerUid: 'creator_1',
+          requestResourceData: {'userId': 'creator_1'},
+          jobId: 'new_job_1',
+          isVideoOwner: (vid) => false,
+          videoExists: (vid) => false,
+        ),
+        isTrue,
+        reason: 'Creator can create job for newly queued video that does not exist yet',
+      );
+
+      expect(
+        canCreateVideoJob(
+          isAuthenticated: true,
+          callerUid: 'attacker',
+          requestResourceData: {'userId': 'attacker'},
+          jobId: 'victim_vid',
+          isVideoOwner: (vid) => false,
+          videoExists: (vid) => true,
+        ),
+        isFalse,
+        reason: 'Attacker cannot create job for existing video owned by someone else',
+      );
+
+      expect(
+        canCreateVideoJob(
+          isAuthenticated: true,
+          callerUid: 'attacker',
+          requestResourceData: {'userId': 'victim'},
+          jobId: 'new_job',
+          isVideoOwner: (vid) => false,
+          videoExists: (vid) => false,
+        ),
+        isFalse,
+        reason: 'Attacker cannot forge userId of victim on create',
+      );
+
+      // Update tests
+      expect(
+        canUpdateVideoJob(
+          isAuthenticated: true,
+          callerUid: 'creator_1',
+          resourceData: {'userId': 'creator_1'},
+          requestResourceData: {'userId': 'creator_1'},
+          jobId: 'vid_1',
+          isVideoOwner: (vid) => true,
+        ),
+        isTrue,
+      );
+
+      expect(
+        canUpdateVideoJob(
+          isAuthenticated: true,
+          callerUid: 'attacker',
+          resourceData: {'userId': 'victim'},
+          requestResourceData: {'userId': 'victim'},
+          jobId: 'victim_vid',
+          isVideoOwner: (vid) => false,
+        ),
+        isFalse,
+        reason: 'Attacker cannot update victim video job',
+      );
+
+      // Delete tests
+      expect(canDeleteVideoJob(isAdmin: false), isFalse);
+      expect(canDeleteVideoJob(isAdmin: true), isTrue);
+    });
+
+    test('L-61: Firestore Rules Invariants - Null resource handling and channel/claim permissions', () {
+      // 1. Channel update allows owner to increment videoCount and updatedAt
+      bool canUpdateChannelOwner({
+        required bool isAuthenticated,
+        required String callerUid,
+        required String ownerUid,
+        required List<String> affectedKeys,
+      }) {
+        if (!isAuthenticated) return false;
+        if (callerUid != ownerUid) return false;
+        const forbiddenKeys = [
+          'isVerified', 'geminiApproved', 'status', 'monetizationTier', 'superchatRevenueTotal',
+          'adsRevenueTotal', 'membershipRevenueTotal', 'membershipsRevenueTotal', 'premiumSubsRevenueTotal',
+          'walletBalanceUSD', 'walletBalance', 'withdrawnRevenueTotal',
+          'subscriberCount', 'ownerId', 'userId', 'createdAt', 'penaltyStatus',
+          'trustScore', 'reputationScore', 'moderationReason', 'metrics',
+          'strikes', 'strikeCount', 'isBanned', 'suspendedAt', 'bannedAt',
+        ];
+        return !affectedKeys.any(forbiddenKeys.contains);
+      }
+
+      expect(
+        canUpdateChannelOwner(
+          isAuthenticated: true,
+          callerUid: 'creator_1',
+          ownerUid: 'creator_1',
+          affectedKeys: ['videoCount', 'updatedAt'],
+        ),
+        isTrue,
+      );
+
+      // Counter branch allows updatedAt alongside counters
+      bool canUpdateCounterBranch({
+        required bool isAuthenticated,
+        required List<String> affectedKeys,
+      }) {
+        if (!isAuthenticated) return false;
+        const allowedKeys = ['subscriberCount', 'lastActiveAt', 'videoCount', 'updatedAt'];
+        return affectedKeys.every(allowedKeys.contains);
+      }
+
+      expect(
+        canUpdateCounterBranch(
+          isAuthenticated: true,
+          affectedKeys: ['videoCount', 'updatedAt'],
+        ),
+        isTrue,
+      );
+
+      // 2. User drafts delete allows null resource or ownership
+      bool canDeleteDraft({
+        required bool isAuthenticated,
+        required String callerUid,
+        required Map<String, dynamic>? resource,
+        bool isAdmin = false,
+      }) {
+        if (!isAuthenticated) return false;
+        return resource == null || resource['userId'] == callerUid || isAdmin;
+      }
+
+      expect(canDeleteDraft(isAuthenticated: true, callerUid: 'user_1', resource: null), isTrue);
+      expect(canDeleteDraft(isAuthenticated: true, callerUid: 'user_1', resource: {'userId': 'user_1'}), isTrue);
+      expect(canDeleteDraft(isAuthenticated: true, callerUid: 'user_2', resource: {'userId': 'user_1'}), isFalse);
+
+      // 3. Copyright claims read and create authorization rules
+      bool canReadCopyrightClaim({
+        required bool isAuthenticated,
+        required String callerUid,
+        required Map<String, dynamic> resource,
+        bool isAdmin = false,
+      }) {
+        if (!isAuthenticated) return false;
+        if (isAdmin) return true;
+        return resource['uploaderId'] == callerUid ||
+            resource['ownerId'] == callerUid ||
+            resource['channelId'] == callerUid ||
+            resource['ownerChannelId'] == callerUid ||
+            resource['userId'] == callerUid ||
+            resource['claimantId'] == callerUid;
+      }
+
+      bool canCreateCopyrightClaim({
+        required bool isAuthenticated,
+        required String callerUid,
+        required Map<String, dynamic> requestData,
+        bool isAdmin = false,
+      }) {
+        if (!isAuthenticated) return false;
+        if (isAdmin) return true;
+        return requestData['uploaderId'] == callerUid ||
+            requestData['ownerId'] == callerUid ||
+            requestData['channelId'] == callerUid ||
+            requestData['ownerChannelId'] == callerUid ||
+            requestData['userId'] == callerUid ||
+            requestData['claimantId'] == callerUid;
+      }
+
+      const testClaim = {
+        'claimId': 'claim_123',
+        'uploaderId': 'creator_upload_uid',
+        'ownerId': 'rights_holder_uid',
+        'channelId': 'channel_creator_uid',
+        'ownerChannelId': 'channel_owner_uid',
+      };
+
+      // Unauthenticated reads are strictly blocked
+      expect(canReadCopyrightClaim(isAuthenticated: false, callerUid: 'creator_upload_uid', resource: testClaim), isFalse);
+
+      // Authorized parties can read
+      expect(canReadCopyrightClaim(isAuthenticated: true, callerUid: 'creator_upload_uid', resource: testClaim), isTrue, reason: 'Uploader can read claim');
+      expect(canReadCopyrightClaim(isAuthenticated: true, callerUid: 'rights_holder_uid', resource: testClaim), isTrue, reason: 'Rights holder owner can read claim');
+      expect(canReadCopyrightClaim(isAuthenticated: true, callerUid: 'channel_creator_uid', resource: testClaim), isTrue, reason: 'Infringing channel can read claim');
+      expect(canReadCopyrightClaim(isAuthenticated: true, callerUid: 'channel_owner_uid', resource: testClaim), isTrue, reason: 'Rights holder channel can read claim');
+      expect(canReadCopyrightClaim(isAuthenticated: true, callerUid: 'legacy_user_uid', resource: {'userId': 'legacy_user_uid'}), isTrue, reason: 'Legacy userId can read');
+      expect(canReadCopyrightClaim(isAuthenticated: true, callerUid: 'legacy_claimant_uid', resource: {'claimantId': 'legacy_claimant_uid'}), isTrue, reason: 'Legacy claimantId can read');
+      expect(canReadCopyrightClaim(isAuthenticated: true, callerUid: 'admin_uid', resource: testClaim, isAdmin: true), isTrue, reason: 'Admin can read any claim');
+
+      // Unrelated third party is blocked
+      expect(canReadCopyrightClaim(isAuthenticated: true, callerUid: 'unrelated_attacker', resource: testClaim), isFalse, reason: 'Unrelated party cannot read claims');
+
+      // Create claims authorization
+      expect(canCreateCopyrightClaim(isAuthenticated: true, callerUid: 'rights_holder_uid', requestData: {'ownerId': 'rights_holder_uid'}), isTrue);
+      expect(canCreateCopyrightClaim(isAuthenticated: true, callerUid: 'unrelated_user', requestData: {'ownerId': 'victim_owner'}), isFalse);
+      expect(canCreateCopyrightClaim(isAuthenticated: true, callerUid: 'admin_uid', requestData: {'ownerId': 'victim_owner'}, isAdmin: true), isTrue);
+
+      // 4. Video get safely handles null resource without throw
+      bool canGetVideo({required Map<String, dynamic>? resource}) {
+        if (resource == null) return true;
+        final visibility = resource['visibility'];
+        return visibility == null ||
+            visibility == 'public' ||
+            visibility == 'Public' ||
+            visibility == 'unlisted' ||
+            visibility == 'Unlisted';
+      }
+
+      expect(canGetVideo(resource: null), isTrue);
+      expect(canGetVideo(resource: {'visibility': 'public'}), isTrue);
+      expect(canGetVideo(resource: {'visibility': 'private'}), isFalse);
+    });
+
+    test('L-62: Video engagement counter update safely handles missing fields and prevents counter exploits', () {
+      // Simulates the hardened CEL rule for viewCount and views
+      bool canUpdateVideoCounters({
+        required Map<String, dynamic> existingDoc,
+        required Map<String, dynamic> updatedDoc,
+        required bool isAuthenticated,
+      }) {
+        if (!isAuthenticated) return false;
+
+        // Calculate affected keys
+        final affectedKeys = <String>{};
+        final allKeys = {...existingDoc.keys, ...updatedDoc.keys};
+        for (final k in allKeys) {
+          if (!existingDoc.containsKey(k) || !updatedDoc.containsKey(k) || existingDoc[k] != updatedDoc[k]) {
+            affectedKeys.add(k);
+          }
+        }
+
+        const allowedEngagementKeys = {
+          'likeCount', 'dislikeCount', 'likes', 'dislikes', 'views', 'viewCount',
+          'shareCount', 'playCount', 'engagement', 'languageRequestsCount', 'commentCount', 'commentsCount'
+        };
+
+        if (!affectedKeys.every(allowedEngagementKeys.contains)) return false;
+
+        // viewCount CEL check
+        final viewCountAffected = affectedKeys.contains('viewCount');
+        final viewCountOk = !viewCountAffected ||
+            (!existingDoc.containsKey('viewCount') && updatedDoc['viewCount'] == 1) ||
+            (existingDoc.containsKey('viewCount') &&
+                (updatedDoc['viewCount'] == existingDoc['viewCount'] + 1 ||
+                 updatedDoc['viewCount'] == existingDoc['viewCount']));
+
+        // views CEL check
+        final viewsAffected = affectedKeys.contains('views');
+        final viewsOk = !viewsAffected ||
+            (!existingDoc.containsKey('views') && updatedDoc['views'] == 1) ||
+            (existingDoc.containsKey('views') &&
+                (updatedDoc['views'] == existingDoc['views'] + 1 ||
+                 updatedDoc['views'] == existingDoc['views']));
+
+        return viewCountOk && viewsOk;
+      }
+
+      // Case 1: Doc has views but lacks viewCount
+      final docWithViewsOnly = {'views': 42};
+      // Legitimate client updates viewCount for the first time
+      expect(
+        canUpdateVideoCounters(
+          existingDoc: docWithViewsOnly,
+          updatedDoc: {'views': 42, 'viewCount': 1},
+          isAuthenticated: true,
+        ),
+        isTrue,
+        reason: 'Should safely allow initializing viewCount to 1 when doc only had views',
+      );
+
+      // Case 2: Doc has viewCount but lacks views
+      final docWithViewCountOnly = {'viewCount': 100};
+      // Legitimate client updates views for the first time
+      expect(
+        canUpdateVideoCounters(
+          existingDoc: docWithViewCountOnly,
+          updatedDoc: {'viewCount': 100, 'views': 1},
+          isAuthenticated: true,
+        ),
+        isTrue,
+        reason: 'Should safely allow initializing views to 1 when doc only had viewCount',
+      );
+
+      // Case 3: Doc lacks both views and viewCount
+      final docWithNeither = <String, dynamic>{'title': 'Legacy Video'};
+      expect(
+        canUpdateVideoCounters(
+          existingDoc: docWithNeither,
+          updatedDoc: {'title': 'Legacy Video', 'viewCount': 1},
+          isAuthenticated: true,
+        ),
+        isTrue,
+      );
+      expect(
+        canUpdateVideoCounters(
+          existingDoc: docWithNeither,
+          updatedDoc: {'title': 'Legacy Video', 'views': 1},
+          isAuthenticated: true,
+        ),
+        isTrue,
+      );
+
+      // Case 4: Attacker tries to initialize missing field to > 1
+      expect(
+        canUpdateVideoCounters(
+          existingDoc: docWithViewsOnly,
+          updatedDoc: {'views': 42, 'viewCount': 1000},
+          isAuthenticated: true,
+        ),
+        isFalse,
+        reason: 'Attacker cannot initialize missing viewCount to arbitrary inflated value',
+      );
+      expect(
+        canUpdateVideoCounters(
+          existingDoc: docWithViewCountOnly,
+          updatedDoc: {'viewCount': 100, 'views': 500},
+          isAuthenticated: true,
+        ),
+        isFalse,
+        reason: 'Attacker cannot initialize missing views to arbitrary inflated value',
+      );
+
+      // Case 5: Normal +1 increment when field exists
+      expect(
+        canUpdateVideoCounters(
+          existingDoc: {'views': 42, 'viewCount': 42},
+          updatedDoc: {'views': 43, 'viewCount': 43},
+          isAuthenticated: true,
+        ),
+        isTrue,
+      );
+
+      // Case 6: Attacker tries +2 or decrement when field exists
+      expect(
+        canUpdateVideoCounters(
+          existingDoc: {'views': 42, 'viewCount': 42},
+          updatedDoc: {'views': 44, 'viewCount': 42},
+          isAuthenticated: true,
+        ),
+        isFalse,
+      );
+      expect(
+        canUpdateVideoCounters(
+          existingDoc: {'views': 42, 'viewCount': 42},
+          updatedDoc: {'views': 41, 'viewCount': 42},
+          isAuthenticated: true,
+        ),
+        isFalse,
+      );
     });
   });
 }

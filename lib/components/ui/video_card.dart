@@ -152,30 +152,45 @@ class VideoCard extends StatelessWidget {
     final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS;
     final isDesktop = !isMobileDevice && MediaQuery.sizeOf(context).width >= 1000;
-    final thumbWidth = isDesktop ? 260.0 : AppTheme.sizes.thumbnailMediumWidth;
 
-    return Padding(
-      padding: EdgeInsets.all(AppTheme.spacing.sm),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: thumbWidth,
-            child: AspectRatio(
-              aspectRatio: 16 / 9,
-              child: VideoCardThumbnail(
-                video: video,
-                controller: controller,
-                borderRadius: BorderRadius.circular(8),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth;
+        final isCompact = availableWidth < 220;
+        final defaultThumbWidth =
+            isDesktop ? 260.0 : AppTheme.sizes.thumbnailMediumWidth;
+        final thumbWidth = availableWidth > 260
+            ? defaultThumbWidth
+            : (availableWidth * 0.38).clamp(44.0, defaultThumbWidth);
+
+        return Padding(
+          padding: EdgeInsets.all(isCompact ? 4.0 : AppTheme.spacing.sm),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: thumbWidth,
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: VideoCardThumbnail(
+                    video: video,
+                    controller: controller,
+                    borderRadius: BorderRadius.circular(isCompact ? 4 : 8),
+                  ),
+                ),
               ),
-            ),
+              SizedBox(width: isCompact ? 6 : 12),
+              Expanded(
+                child: VideoCardListInfo(
+                  video: video,
+                  controller: controller,
+                  isCompact: isCompact,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: VideoCardListInfo(video: video, controller: controller),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

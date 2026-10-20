@@ -126,6 +126,25 @@ void main() {
       );
     });
 
+    test('UserFeedbackSanitizer.isValidVideoSummary rejects raw transcript snippets and cuts', () {
+      const transcriptSnippet =
+          "Welcome to This Explainer. Today we're cracking open one of the most universally debated questions out there. It's something you've probably pondered while standing totally confused in the grocery ...";
+      expect(
+        UserFeedbackSanitizer.isValidVideoSummary(transcriptSnippet),
+        isFalse,
+      );
+
+      const fullTranscript =
+          "Welcome to This Explainer. Today we're cracking open one of the most universally debated questions out there. It's something you've probably pondered while standing totally confused in the grocery aisle holding a carton of eggs.";
+      expect(
+        UserFeedbackSanitizer.isValidVideoSummary(
+          "Welcome to This Explainer. Today we're cracking open one of the most universally debated questions out there.",
+          transcript: fullTranscript,
+        ),
+        isFalse,
+      );
+    });
+
     test('VideoMediaCredibility.fromMap filters out moderation timeout strings', () {
       final credData = <String, dynamic>{
         'trustScore': 90.0,

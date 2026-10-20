@@ -1,7 +1,9 @@
+import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/guest_playback_limit_service.dart';
 import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/controls/player_controls.dart';
@@ -61,7 +63,10 @@ class TowerCustomPlayer extends StatelessWidget {
         }
 
         var baseScale = 1.0;
+        var basePan = Offset.zero;
+        var initialFocalPoint = Offset.zero;
         var isPinching = false;
+        var isMovingZoom = false;
 
         return LayoutBuilder(
           builder: (ctx, constraints) {
@@ -97,35 +102,55 @@ class TowerCustomPlayer extends StatelessWidget {
                                 ? c.aspectRatio.value
                                 : 16 / 9;
 
+                            final viewportSize = Size(playerWidth, playerHeight);
+                            final fillScale = c.calculateFillScale(viewportSize);
+                            final effectiveScale =
+                                isZoom && scale <= 1.05 ? fillScale : scale;
+                            final panOffset = c.clampPanOffset(
+                              c.zoomPanOffset.value,
+                              effectiveScale,
+                              viewportSize,
+                            );
+
+                            final activeVpc = c.rxVideoPlayerController.value;
+
                             Widget basePlayer = isInit
-                                ? (isZoom
-                                    ? FittedBox(
-                                        fit: BoxFit.cover,
-                                        clipBehavior: Clip.hardEdge,
-                                        child: SizedBox(
-                                          width: ar * 1000,
-                                          height: 1000,
-                                          child: MobileFriendlyVideoPlayer(
-                                            key: ValueKey(c.videoPlayerController),
-                                            controller: c.videoPlayerController,
-                                          ),
-                                        ),
-                                      )
-                                    : Center(
-                                        child: AspectRatio(
-                                          aspectRatio: ar,
-                                          child: MobileFriendlyVideoPlayer(
-                                            key: ValueKey(c.videoPlayerController),
-                                            controller: c.videoPlayerController,
-                                          ),
-                                        ),
-                                      ))
+                                ? Center(
+                                    child: AspectRatio(
+                                      aspectRatio: ar,
+                                      child: MobileFriendlyVideoPlayer(
+                                        key: ValueKey(activeVpc),
+                                        controller: activeVpc,
+                                      ),
+                                    ),
+                                  )
                                 : const SizedBox.shrink();
 
-                            if (scale > 1.0 && isInit) {
+                            if (effectiveScale > 1.001 && isInit) {
                               basePlayer = ClipRect(
-                                child: Transform.scale(
-                                  scale: scale,
+                                child: Transform.translate(
+                                  offset: panOffset,
+                                  child: Transform.scale(
+                                    scale: effectiveScale,
+                                    child: basePlayer,
+                                  ),
+                                ),
+                              );
+                            }
+
+                            // ── Resolution Downsampling / Blur Effect ──────────────────
+                            // When playing at lower resolutions (e.g. 144p, 240p, 360p, 480p),
+                            // if the decoded stream is high resolution (e.g. 1080p source or synthetic ladder),
+                            // apply authentic visual resolution blur so 144p actually displays with low-res blur.
+                            final blurSigma = c.resolutionBlurSigma;
+                            if (blurSigma > 0.1 && isInit) {
+                              basePlayer = ClipRect(
+                                child: ImageFiltered(
+                                  imageFilter: ui.ImageFilter.blur(
+                                    sigmaX: blurSigma,
+                                    sigmaY: blurSigma,
+                                    tileMode: TileMode.clamp,
+                                  ),
                                   child: basePlayer,
                                 ),
                               );
@@ -218,37 +243,99 @@ class TowerCustomPlayer extends StatelessWidget {
                                 onLongPressEnd: (_) => c.isShowingAd.value
                                     ? null
                                     : c.endLongPressSpeedUp(),
-                                onScaleStart: (details) {
+                                  onScaleStart: (details) {
                                   if (c.isShowingAd.value) return;
+                                  c.cancelZoomAnimation();
+                                  final viewportSize =
+                                      Size(playerWidth, playerHeight);
+                                  final fillScale =
+                                      c.calculateFillScale(viewportSize);
+                                  final currentScale = c.isZoomToFill.value &&
+                                          c.zoomScale.value <= 1.05
+                                      ? fillScale
+                                      : c.zoomScale.value;
+                                  final isCurrentlyZoomed =
+                                      currentScale > 1.02;
+
                                   if (details.pointerCount >= 2) {
                                     c.cancelPendingTap();
                                     isPinching = true;
-                                    baseScale = c.zoomScale.value;
+                                    isMovingZoom = false;
+                                    baseScale = currentScale;
+                                    basePan = c.zoomPanOffset.value;
+                                    initialFocalPoint = details.localFocalPoint;
+                                  } else if (isCurrentlyZoomed) {
+                                    c.cancelPendingTap();
+                                    isPinching = false;
+                                    isMovingZoom = true;
+                                    basePan = c.zoomPanOffset.value;
+                                    initialFocalPoint = details.localFocalPoint;
                                   } else {
                                     isPinching = false;
+                                    isMovingZoom = false;
                                     c.onVerticalDragStart(
                                       DragStartDetails(
                                         globalPosition: details.focalPoint,
                                         localPosition: details.localFocalPoint,
                                       ),
-                                      Size(playerWidth, playerHeight),
+                                      viewportSize,
                                     );
                                   }
                                 },
                                 onScaleUpdate: (details) {
                                   if (c.isShowingAd.value) return;
+                                  final viewportSize =
+                                      Size(playerWidth, playerHeight);
+                                  final fillScale =
+                                      c.calculateFillScale(viewportSize);
+
                                   if (details.pointerCount >= 2 || isPinching) {
                                     isPinching = true;
-                                    final newScale = (baseScale * details.scale).clamp(
-                                      1.0,
-                                      8.0,
+                                    isMovingZoom = false;
+                                    final newScale =
+                                        (baseScale * details.scale)
+                                            .clamp(1.0, 8.0);
+                                    final focalDelta =
+                                        details.localFocalPoint -
+                                            initialFocalPoint;
+                                    final candidatePan = basePan + focalDelta;
+                                    final clampedPan = c.clampPanOffset(
+                                      candidatePan,
+                                      newScale,
+                                      viewportSize,
                                     );
-                                    c.isZoomToFill.value = false;
+
                                     c.zoomScale.value = newScale;
-                                    final valStr = newScale % 1 == 0
-                                        ? newScale.toInt().toString()
-                                        : newScale.toStringAsFixed(1);
-                                    c.showToast('${valStr}x');
+                                    c.zoomPanOffset.value = clampedPan;
+
+                                    if ((newScale - fillScale).abs() < 0.08) {
+                                      c.isZoomToFill.value = true;
+                                      c.showToast('Zoomed to fill');
+                                    } else if (newScale <= 1.05) {
+                                      c.isZoomToFill.value = false;
+                                      c.showToast('Original');
+                                    } else {
+                                      c.isZoomToFill.value = false;
+                                      final valStr = newScale % 1 == 0
+                                          ? newScale.toInt().toString()
+                                          : newScale.toStringAsFixed(1);
+                                      c.showToast('${valStr}x');
+                                    }
+                                  } else if (isMovingZoom) {
+                                    final focalDelta =
+                                        details.localFocalPoint -
+                                            initialFocalPoint;
+                                    final candidatePan = basePan + focalDelta;
+                                    final currentScale = c.isZoomToFill.value &&
+                                            c.zoomScale.value <= 1.05
+                                        ? fillScale
+                                        : c.zoomScale.value;
+                                    final clampedPan = c.clampPanOffset(
+                                      candidatePan,
+                                      currentScale,
+                                      viewportSize,
+                                    );
+                                    c.zoomPanOffset.value = clampedPan;
                                   } else {
                                     c.onVerticalDragUpdate(
                                       DragUpdateDetails(
@@ -256,25 +343,78 @@ class TowerCustomPlayer extends StatelessWidget {
                                         localPosition: details.localFocalPoint,
                                         delta: details.focalPointDelta,
                                       ),
-                                      Size(playerWidth, playerHeight),
+                                      viewportSize,
                                     );
                                   }
                                 },
                                 onScaleEnd: (details) {
                                   if (c.isShowingAd.value) return;
+                                  final viewportSize =
+                                      Size(playerWidth, playerHeight);
+                                  final fillScale =
+                                      c.calculateFillScale(viewportSize);
+
                                   if (isPinching) {
                                     isPinching = false;
                                     if (c.zoomScale.value < 1.08) {
-                                      c.zoomScale.value = 1.0;
-                                      c.isZoomToFill.value = false;
-                                      c.showToast('Original (1.0x)');
+                                      c.animateZoomTo(
+                                        targetScale: 1.0,
+                                        targetPan: Offset.zero,
+                                        fill: false,
+                                      );
+                                      c.showToast('Original');
+                                    } else if ((c.zoomScale.value - fillScale)
+                                            .abs() <
+                                        0.12) {
+                                      final targetPan = c.clampPanOffset(
+                                        c.zoomPanOffset.value,
+                                        fillScale,
+                                        viewportSize,
+                                      );
+                                      c.animateZoomTo(
+                                        targetScale: fillScale,
+                                        targetPan: targetPan,
+                                        fill: true,
+                                      );
+                                      c.showToast('Zoomed to fill');
                                     } else {
+                                      c.isZoomToFill.value = false;
+                                      final targetPan = c.clampPanOffset(
+                                        c.zoomPanOffset.value,
+                                        c.zoomScale.value,
+                                        viewportSize,
+                                      );
+                                      c.animateZoomTo(
+                                        targetScale: c.zoomScale.value,
+                                        targetPan: targetPan,
+                                        fill: false,
+                                        duration:
+                                            const Duration(milliseconds: 140),
+                                      );
                                       final scale = c.zoomScale.value;
                                       final valStr = scale % 1 == 0
                                           ? scale.toInt().toString()
                                           : scale.toStringAsFixed(1);
                                       c.showToast('${valStr}x');
                                     }
+                                  } else if (isMovingZoom) {
+                                    isMovingZoom = false;
+                                    final currentScale = c.isZoomToFill.value &&
+                                            c.zoomScale.value <= 1.05
+                                        ? fillScale
+                                        : c.zoomScale.value;
+                                    final targetPan = c.clampPanOffset(
+                                      c.zoomPanOffset.value,
+                                      currentScale,
+                                      viewportSize,
+                                    );
+                                    c.animateZoomTo(
+                                      targetScale: currentScale,
+                                      targetPan: targetPan,
+                                      fill: c.isZoomToFill.value,
+                                      duration:
+                                          const Duration(milliseconds: 120),
+                                    );
                                   } else {
                                     c.onVerticalDragEnd(
                                       DragEndDetails(
@@ -397,8 +537,18 @@ class TowerCustomPlayer extends StatelessWidget {
                             ),
 
                             // ── Layer 4: Seek preview tooltip ──────────────────────
-                            Obx(
-                              () => c.seekPreviewVis.value && !c.isPiP.value
+                            Obx(() {
+                              final isInteractingWithProgress =
+                                  c.isScrubbing.value ||
+                                  c.isDragging.value ||
+                                  c.isTimelineHovered.value ||
+                                  c.progressBarHovered.value;
+                              final shouldShow = c.seekPreviewVis.value &&
+                                  !c.isPiP.value &&
+                                  c.controlsVisible.value &&
+                                  isInteractingWithProgress;
+
+                              return shouldShow
                                   ? Positioned(
                                       bottom: 100,
                                       left: 0,
@@ -407,8 +557,8 @@ class TowerCustomPlayer extends StatelessWidget {
                                         child: SeekPreviewTooltip(ctrl: c),
                                       ),
                                     )
-                                  : const SizedBox.shrink(),
-                            ),
+                                  : const SizedBox.shrink();
+                            }),
 
                             // ── Layer 5: Toast ─────────────────────────────────────
                             Obx(
@@ -500,10 +650,19 @@ class TowerCustomPlayer extends StatelessWidget {
                             }),
 
                             // ── Layer 5.7: Real-time Fact Overlay ─────────────────
+                            // Show active claim ONLY in fullscreen mode on the right side as a popup menu/card
                             Obx(() {
                               if (c.isShowingAd.value ||
                                   c.isPiP.value ||
+                                  !c.isFullScreen.value ||
                                   !c.showFactOverlay.value) {
+                                return const SizedBox.shrink();
+                              }
+                              // Do not obstruct if full fact-check, comments, transcript, or live chat panel is open
+                              if (c.showFactCheckPopup.value ||
+                                  c.showCommentsPopup.value ||
+                                  c.showTranscriptPopup.value ||
+                                  c.showLiveChat.value) {
                                 return const SizedBox.shrink();
                               }
                               final activeClaim = c.activeClaim.value;
@@ -513,14 +672,26 @@ class TowerCustomPlayer extends StatelessWidget {
 
                               return AnimatedPositioned(
                                 duration: const Duration(milliseconds: 250),
-                                top: c.controlsVisible.value ? 76.0 : 24.0,
-                                left: 24,
-                                right: 24,
-                                child: Align(
-                                  alignment: Alignment.topCenter,
-                                  child: RealTimeFactOverlayWidget(
-                                    claim: activeClaim,
-                                  ),
+                                top: playerHeight < 500
+                                    ? 16.0
+                                    : (c.controlsVisible.value ? 76.0 : 24.0),
+                                right: 20,
+                                width: (playerWidth < 460)
+                                    ? (playerWidth - 40).clamp(280.0, 390.0)
+                                    : 380.0,
+                                child: RealTimeFactOverlayWidget(
+                                  claim: activeClaim,
+                                  onClose: () {
+                                    c.showFactOverlay.value = false;
+                                  },
+                                  onTap: () {
+                                    c.overlayManager.toggle(TowerPlayerOverlay.factCheck);
+                                    c.showFactCheckPopup.value =
+                                        c.overlayManager.isFactCheckOpen;
+                                    c.showCommentsPopup.value = false;
+                                    c.showTranscriptPopup.value = false;
+                                    c.showLiveChat.value = false;
+                                  },
                                 ),
                               );
                             }),
@@ -734,6 +905,9 @@ class TowerCustomPlayer extends StatelessWidget {
                               }
                               return const SizedBox.shrink();
                             }),
+
+                            // ── Layer 8.8: Guest 10-Minute Playback Limit Barrier ──
+                            const GuestPlaybackBarrierOverlay(),
 
                             // ── Layer 9: Stats for Nerds ───────────────────────────
                             Obx(() {

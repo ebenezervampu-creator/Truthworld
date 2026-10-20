@@ -54,9 +54,14 @@ class TruthworldSplashScreen extends StatefulWidget {
   }
 
   /// Checks whether splash screen should be shown.
-  /// Shows ONLY on mobiles (Android and iOS).
-  /// Removed for Desktops (Windows, macOS, Linux, and Desktop Web).
+  /// Shows ONLY on native mobiles (Android and iOS).
+  /// Removed for Web (consumerapp, studio, admin, advertiser) and Desktops (Windows, macOS, Linux).
   static bool shouldShowSplashScreen([BuildContext? context]) {
+    // Disabled on all web platforms
+    if (kIsWeb) {
+      return false;
+    }
+
     // Check if target platform is mobile (Android or iOS)
     final isMobilePlatform = defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS;
@@ -64,7 +69,7 @@ class TruthworldSplashScreen extends StatefulWidget {
       return false;
     }
 
-    // On Web or responsive layouts, if context is provided, ensure it's not a desktop screen size
+    // On responsive layouts, if context is provided, ensure it's not a desktop screen size
     if (context != null) {
       final width = MediaQuery.sizeOf(context).width;
       if (width >= 1024) {

@@ -421,7 +421,8 @@ mixin ChannelCreationMixin on ChannelControllerBase {
         'customPricingTier': customPricingTier.value,
         'customPlanAutoPay': customPlanAutoPay.value,
         'autoPay': customPlanAutoPay.value,
-        'isPublic': isPublic.value,
+        'visibility': visibility.value,
+        'isPublic': visibility.value.toLowerCase() == 'public',
         'isVerified': false,
         'subscriberCount': 0,
         'videoCount': 0,
@@ -457,6 +458,8 @@ mixin ChannelCreationMixin on ChannelControllerBase {
         'allowComments': advancedSettings['allowComments'] ?? true,
         'allowSubscriptions': advancedSettings['allowSubscriptions'] ?? true,
         'showSubscriberCount': advancedSettings['showSubscriberCount'] ?? true,
+        'showLikeCount': advancedSettings['showLikeCount'] ?? true,
+        'showDislikeCount': advancedSettings['showDislikeCount'] ?? true,
 
         // Branding
         'brandingSettings': {

@@ -10,6 +10,7 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart'
     hide GoogleSignInException;
+import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
@@ -225,13 +226,13 @@ class AuthService extends GetxService {
 
       if (hasActiveSession) {
         _isAuthenticated.value = true;
-        _isInitialAuthRestorationPending = true;
+        _isInitialAuthRestorationPending = kIsWeb;
         _cachedUid = box.read<String>('auth_session_uid');
         if (_cachedUid != null && _cachedUid!.isNotEmpty) {
           _profileManager.initCachedProfile(_cachedUid);
         }
       } else if (validPendingRedirect) {
-        _isInitialAuthRestorationPending = true;
+        _isInitialAuthRestorationPending = kIsWeb;
       }
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'AuthService._initCachedSession');
@@ -274,8 +275,15 @@ class AuthService extends GetxService {
           box.read<bool>('auth_pending_redirect') ?? false;
 
       try {
-        final redirectResult = await _auth.getRedirectResult();
-        final redirectUser = redirectResult.user;
+        UserCredential? redirectResult;
+        try {
+          redirectResult = await _auth
+              .getRedirectResult()
+              .timeout(const Duration(seconds: 4));
+        } catch (_) {
+          redirectResult = null;
+        }
+        final redirectUser = redirectResult?.user;
         if (redirectUser != null && !redirectUser.isAnonymous) {
           box.remove('auth_pending_redirect');
           box.remove('auth_pending_redirect_time');
@@ -299,9 +307,9 @@ class AuthService extends GetxService {
       }
 
       // If returning from redirect but getRedirectResult didn't return a user yet,
-      // wait for currentUser or IndexedDB to settle
+      // wait briefly for currentUser or IndexedDB to settle
       if (wasPendingRedirect && (_user.value == null || _user.value!.isAnonymous)) {
-        for (var i = 0; i < 6; i++) {
+        for (var i = 0; i < 10; i++) {
           final current = _auth.currentUser;
           if (current != null && !current.isAnonymous) {
             box.remove('auth_pending_redirect');
@@ -314,7 +322,7 @@ class AuthService extends GetxService {
             _handleAuthChanged(current);
             break;
           }
-          await Future<void>.delayed(const Duration(milliseconds: 500));
+          await Future<void>.delayed(const Duration(milliseconds: 150));
         }
       }
 
@@ -331,11 +339,11 @@ class AuthService extends GetxService {
     if (current != null && !current.isAnonymous) {
       _isInitialAuthRestorationPending = false;
       _handleAuthChanged(current);
-    } else if (_isInitialAuthRestorationPending) {
+    } else if (kIsWeb && _isInitialAuthRestorationPending) {
       // IndexedDB reading on Web / Keystore retrieval on Mobile is asynchronous.
-      // Poll currentUser or wait up to 4.4 seconds for Firebase Auth to finish hydrating user credentials.
-      const pollInterval = Duration(milliseconds: 200);
-      const maxAttempts = 22; // 22 * 200ms = 4.4 seconds
+      // Poll currentUser or wait up to 1.2 seconds for Firebase Auth to finish hydrating user credentials.
+      const pollInterval = Duration(milliseconds: 150);
+      const maxAttempts = 8; // 8 * 150ms = 1.2 seconds max
       for (var i = 0; i < maxAttempts; i++) {
         if (!_isInitialAuthRestorationPending) {
           // Resolved concurrently by authStateChanges stream listener!
@@ -350,7 +358,7 @@ class AuthService extends GetxService {
         await Future<void>.delayed(pollInterval);
       }
 
-      // If still pending after the full grace period, check one last time before concluding
+      // If still pending after the grace period, check one last time before concluding
       // genuine unauthenticated state:
       if (_isInitialAuthRestorationPending) {
         final finalUser = _auth.currentUser;
@@ -378,7 +386,10 @@ class AuthService extends GetxService {
     return this;
   }
 
+  bool _isTestOverride = false;
+
   void _handleAuthChanged(User? u) {
+    if (_isTestOverride) return;
     if (u != null && u.isAnonymous) {
       _isInitialAuthRestorationPending = false;
       _lastHandledUid = null;
@@ -425,7 +436,7 @@ class AuthService extends GetxService {
         box.write('profile_photo_${u.uid}', u.photoURL);
       }
     } else {
-      if (_isInitialAuthRestorationPending) {
+      if (kIsWeb && _isInitialAuthRestorationPending) {
         debugPrint(
           'AuthService: Initial auth restoration in progress; preserving cached session.',
         );
@@ -461,6 +472,13 @@ class AuthService extends GetxService {
             lastGooglePeopleData: _googleProvider.lastGooglePeopleData,
             onNeedsOnboardingChanged: (val) => needsOnboarding.value = val,
             onPromptOnboarding: () {
+              if (AppFlavor.isStudio) return;
+              if (kIsWeb) {
+                final host = Uri.base.host.toLowerCase();
+                if (host.startsWith('studio') || host.contains('studio.truthworld.in')) {
+                  return;
+                }
+              }
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 checkAndPromptOnboarding();
               });
@@ -535,37 +553,45 @@ class AuthService extends GetxService {
       _profileManager.userPhotoUrl.value = u.photoURL;
       box.write('profile_photo_${u.uid}', u.photoURL);
     }
-    try {
-      await _firestoreSync.syncUserToFirestore(
+    // Execute post-sign-in synchronization tasks in parallel with resilient timeouts
+    // to guarantee ultra-low sign-in latency and eliminate UI blocking.
+    await Future.wait([
+      _firestoreSync.syncUserToFirestore(
         u,
         lastGooglePeopleData: lastGooglePeopleData,
         onNeedsOnboardingChanged: (val) => needsOnboarding.value = val,
-      );
-    } catch (e, s) {
-      ErrorHandler.log(
-        e,
-        stackTrace: s,
-        tag: 'AuthService._handlePostSignIn.syncUser',
-      );
-    }
-    try {
-      await PushNotificationService.to.registerToken(u.uid);
-    } catch (e, s) {
-      ErrorHandler.log(
-        e,
-        stackTrace: s,
-        tag: 'AuthService._handlePostSignIn.push',
-      );
-    }
-    try {
-      await ensureChannelLoaded();
-    } catch (e, s) {
-      ErrorHandler.log(
-        e,
-        stackTrace: s,
-        tag: 'AuthService._handlePostSignIn.ensureChannel',
-      );
-    }
+      ).timeout(
+        const Duration(seconds: 4),
+        onTimeout: () => debugPrint('AuthService: syncUserToFirestore timed out gracefully.'),
+      ).catchError((e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s is StackTrace ? s : null,
+          tag: 'AuthService._handlePostSignIn.syncUser',
+        );
+      }),
+      ensureChannelLoaded().timeout(
+        const Duration(seconds: 3),
+        onTimeout: () {
+          debugPrint('AuthService: ensureChannelLoaded timed out gracefully.');
+          return null;
+        },
+      ).catchError((e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s is StackTrace ? s : null,
+          tag: 'AuthService._handlePostSignIn.ensureChannel',
+        );
+        return null;
+      }),
+      PushNotificationService.to.registerToken(u.uid).catchError((e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s is StackTrace ? s : null,
+          tag: 'AuthService._handlePostSignIn.push',
+        );
+      }),
+    ]);
   }
 
   /// Initiates sign-in using Google provider.
@@ -1061,5 +1087,13 @@ class AuthService extends GetxService {
     _user.value = null;
     _isAuthenticated.value = false;
     needsOnboarding.value = false;
+  }
+
+  /// Sets authentication state in unit tests without invoking native Firebase Auth.
+  @visibleForTesting
+  void setAuthenticatedForTesting({required bool isAuthenticated, String? uid}) {
+    _isTestOverride = true;
+    _isAuthenticated.value = isAuthenticated;
+    _cachedUid = uid;
   }
 }

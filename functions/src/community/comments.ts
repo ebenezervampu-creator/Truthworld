@@ -1,11 +1,21 @@
 import * as admin from "firebase-admin";
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { onCall, HttpsError, CallableOptions } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import { Comment } from "./types";
 import { notifyUser } from "../notifications/notifications";
 
 // Safe db access function/instance
 const db = () => admin.firestore();
+
+// Standard callable options for comments: allow public invoke and bypass strict App Check
+// so sideloaded devices and authenticated clients do not hit UNAUTHENTICATED
+const COMMENT_CALLABLE_OPTS: CallableOptions = {
+  region: "asia-south1",
+  memory: "256MiB",
+  maxInstances: 15,
+  enforceAppCheck: false,
+  invoker: "public",
+};
 
 // L-34: Hardened sanitization — strip ALL HTML tags, not just script/iframe
 // The previous regex-only approach was easily bypassed with <img onerror>, <svg onload>, etc.
@@ -36,7 +46,7 @@ function sanitizeText(text: string): string {
  * Records a comment with the author's trust snapshot for weighted ranking.
  */
 export const addComment = onCall(
-  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
+  COMMENT_CALLABLE_OPTS,
   async (request) => {
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
@@ -82,7 +92,7 @@ export const addComment = onCall(
  * 📥 GET COMMENTS (Callable - Flat Collection)
  */
 export const getComments = onCall(
-  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
+  COMMENT_CALLABLE_OPTS,
   async (request) => {
     const { videoId, limit = 20 } = request.data;
     if (!videoId) throw new HttpsError("invalid-argument", "Missing videoId.");
@@ -116,7 +126,7 @@ export const getComments = onCall(
  * Targets: videos/{videoId}/comments
  */
 export const addCommentNested = onCall(
-  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
+  COMMENT_CALLABLE_OPTS,
   async (request) => {
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
@@ -230,7 +240,7 @@ export const addCommentNested = onCall(
  * Targets: videos/{videoId}/comments/{commentId}/replies
  */
 export const addReplyNested = onCall(
-  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
+  COMMENT_CALLABLE_OPTS,
   async (request) => {
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
@@ -351,7 +361,7 @@ export const addReplyNested = onCall(
  * Safely executes backend transaction to increment/decrement likeCount/dislikeCount using subcollections
  */
 export const toggleCommentInteraction = onCall(
-  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
+  COMMENT_CALLABLE_OPTS,
   async (request) => {
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
@@ -551,7 +561,7 @@ export const toggleCommentInteraction = onCall(
  * Safely executes backend transaction to increment/decrement likeCount/dislikeCount on replies using subcollections
  */
 export const toggleReplyInteraction = onCall(
-  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
+  COMMENT_CALLABLE_OPTS,
   async (request) => {
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
@@ -741,7 +751,7 @@ export const toggleReplyInteraction = onCall(
  * Safely performs cascading deletion of all replies before removing the parent comment.
  */
 export const deleteCommentNested = onCall(
-  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
+  COMMENT_CALLABLE_OPTS,
   async (request) => {
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
@@ -791,7 +801,7 @@ export const deleteCommentNested = onCall(
  * 🗑️ DELETE REPLY NESTED (Callable)
  */
 export const deleteReplyNested = onCall(
-  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
+  COMMENT_CALLABLE_OPTS,
   async (request) => {
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
@@ -836,7 +846,7 @@ export const deleteReplyNested = onCall(
  * Safely creates a report tracking record and increments reportCount server-side.
  */
 export const reportCommentNested = onCall(
-  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
+  COMMENT_CALLABLE_OPTS,
   async (request) => {
     const reporterId = request.auth?.uid;
     if (!reporterId) throw new HttpsError("unauthenticated", "Auth required.");
@@ -902,7 +912,7 @@ export const reportCommentNested = onCall(
  * Distributes high-velocity writes across 20 shards to prevent write contention.
  */
 export const addTopicComment = onCall(
-  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
+  COMMENT_CALLABLE_OPTS,
   async (request) => {
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
@@ -977,7 +987,7 @@ export const addTopicComment = onCall(
  * Distributes high-velocity writes across 20 shards.
  */
 export const addTopicReply = onCall(
-  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
+  COMMENT_CALLABLE_OPTS,
   async (request) => {
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");

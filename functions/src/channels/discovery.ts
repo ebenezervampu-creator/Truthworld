@@ -60,7 +60,12 @@ export const getLeaderboard = onRequest(
             discoveryScore: calculateRankScore(data)
           };
         })
-        .filter((c: any) => c.status !== "suspended" && c.status !== "banned" && c.status !== "deleted");
+        .filter((c: any) => {
+          const isSuspended = c.status === "suspended" || c.status === "banned" || c.status === "deleted";
+          const vis = (c.visibility || "").toLowerCase();
+          const isPrivateOrUnlisted = vis === "private" || vis === "unlisted" || c.isPublic === false;
+          return !isSuspended && !isPrivateOrUnlisted;
+        });
 
       // Re-rank by weighted discovery score
       const ranked = channels
@@ -114,10 +119,17 @@ export const getRisingCreators = onRequest(
             avatarUrl: data.profile.photoUrl,
             channelRating: data.reputation.channelRating ?? data.reputation.avgTrustIndex,
             trend: data.reputation.trend30d,
+            visibility: (data as any).visibility,
+            isPublic: (data as any).isPublic,
             subscribers: data.stats.subscriberCount
           };
         })
-        .filter(c => c.status !== "suspended" && c.status !== "banned" && c.status !== "deleted")
+        .filter(c => {
+          const isSuspended = c.status === "suspended" || c.status === "banned" || c.status === "deleted";
+          const vis = (c.visibility || "").toLowerCase();
+          const isPrivateOrUnlisted = vis === "private" || vis === "unlisted" || c.isPublic === false;
+          return !isSuspended && !isPrivateOrUnlisted;
+        })
         .slice(0, limit)
         .map(c => ({
           id: c.id,

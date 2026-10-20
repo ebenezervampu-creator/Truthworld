@@ -607,6 +607,12 @@ class StudioSettingsPage extends StatelessWidget {
             TextField(
               controller: textController,
               autofocus: true,
+              maxLength: 10,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(10),
+                FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z]')),
+              ],
               style: TextStyle(
                 fontFamily: TWTypography.uiFamily,
                 color: context.colors.textPrimary,
@@ -695,14 +701,21 @@ class StudioSettingsPage extends StatelessWidget {
     String? prefix,
     bool readOnly = false,
     List<TextInputFormatter>? inputFormatters,
+    int? maxLength,
   }) {
+    final effectiveLimit = maxLength ?? (label.toLowerCase().contains('email') ? 254 : 100);
     final effectiveFormatters = inputFormatters ??
         (label.toLowerCase().contains('email')
-            ? null
-            : [...TruthworldTextInputFormatters.standard]);
+            ? [
+                LengthLimitingTextInputFormatter(254),
+                FilteringTextInputFormatter.deny(RegExp(r'\s')),
+              ]
+            : TruthworldTextInputFormatters.internationalWithLimit(effectiveLimit));
 
     return TextFormField(
       readOnly: readOnly,
+      maxLength: effectiveLimit,
+      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
       inputFormatters: effectiveFormatters,
       initialValue: '${prefix ?? ""}$value',
       onFieldSubmitted: onChanged,

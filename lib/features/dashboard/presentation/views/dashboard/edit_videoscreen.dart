@@ -136,27 +136,33 @@ class EditVideoScreen extends StatelessWidget {
                   _buildTextField(
                     controller: controller.titleController,
                     label: 'Title',
-                    validator: ContentValidator.formValidator('Title'),
+                    maxLength: 100,
+                    validator: ContentValidator.formValidator('Title', maxLength: 100),
                   ),
                   const SizedBox(height: 20),
                   _buildTextField(
                     controller: controller.descriptionController,
                     label: 'Description',
                     maxLines: 5,
-                    validator: ContentValidator.formValidator('Description', required: false),
+                    maxLength: 5000,
+                    validator: ContentValidator.formValidator('Description', required: false, maxLength: 5000),
                   ),
                   const SizedBox(height: 20),
                   _buildTextField(
                     controller: controller.tagsController,
                     label: 'Tags (comma separated, max 5)',
+                    maxLength: 200,
                     validator: (val) {
                       if (val != null && val.trim().isNotEmpty) {
+                        if (val.length > 200) {
+                          return 'Tags cannot exceed 200 characters';
+                        }
                         final tagList = val.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
                         if (tagList.length > 5) {
                           return 'Maximum 5 tags allowed';
                         }
                         for (final tag in tagList) {
-                          final res = ContentValidator.validate(tag, fieldName: 'Tag');
+                          final res = ContentValidator.validate(tag, maxLength: 50, fieldName: 'Tag');
                           if (!res.isValid) return res.message;
                         }
                       }
@@ -180,12 +186,19 @@ class EditVideoScreen extends StatelessWidget {
     required TextEditingController controller,
     required String label,
     int maxLines = 1,
+    int? maxLength,
     String? Function(String?)? validator,
   }) {
     return TextFormField(
       controller: controller,
       maxLines: maxLines,
-      inputFormatters: [...TruthworldTextInputFormatters.standard],
+      maxLength: maxLength,
+      buildCounter: maxLength != null
+          ? (context, {required currentLength, required isFocused, maxLength}) => null
+          : null,
+      inputFormatters: maxLength != null
+          ? TruthworldTextInputFormatters.withLimit(maxLength)
+          : [...TruthworldTextInputFormatters.standard],
       validator: validator,
       style: AppTextStyles.inputText,
       decoration: InputDecoration(

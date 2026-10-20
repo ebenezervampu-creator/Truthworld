@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
@@ -306,6 +307,11 @@ class AdminPasswordService {
                 const SizedBox(height: 24),
                 TextField(
                   controller: newPassCtrl,
+                  maxLength: 128,
+                  buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                  inputFormatters: [
+                    LengthLimitingTextInputFormatter(128),
+                  ],
                   obscureText: true,
                   style: const TextStyle(color: AppColors.textPrimary),
                   decoration: InputDecoration(
@@ -326,6 +332,11 @@ class AdminPasswordService {
                 const SizedBox(height: 14),
                 TextField(
                   controller: confirmPassCtrl,
+                  maxLength: 128,
+                  buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                  inputFormatters: [
+                    LengthLimitingTextInputFormatter(128),
+                  ],
                   obscureText: true,
                   style: const TextStyle(color: AppColors.textPrimary),
                   decoration: InputDecoration(

@@ -168,16 +168,20 @@ class EditTopicController extends GetxController {
     }
 
     final desc = descriptionController.text.trim();
-    if (desc.isNotEmpty) {
-      final descVal = ContentValidator.validate(
-        desc,
-        fieldName: 'Topic Description',
-        maxLength: 1000,
+    if (desc.length < 10) {
+      AppSnackbar.warning(
+        'Topic description must be at least 10 characters and explain your topic clearly.',
       );
-      if (!descVal.isValid) {
-        AppSnackbar.warning(descVal.message);
-        return;
-      }
+      return;
+    }
+    final descVal = ContentValidator.validate(
+      desc,
+      fieldName: 'Topic Description',
+      maxLength: 1000,
+    );
+    if (!descVal.isValid) {
+      AppSnackbar.warning(descVal.message);
+      return;
     }
 
     if (selectedVisibility.value == TopicVisibilityType.private &&

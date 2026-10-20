@@ -29,7 +29,11 @@ class DiscoverSearchBar extends StatelessWidget {
       ),
       child: TextField(
         controller: controller.searchController,
-        inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+        maxLength: ContentValidator.defaultMaxSearchLength,
+        buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+        inputFormatters: TruthworldTextInputFormatters.withLimit(
+          ContentValidator.defaultMaxSearchLength,
+        ),
         onChanged: controller.onSearchChanged,
         style: const TextStyle(
           color: primaryText,
