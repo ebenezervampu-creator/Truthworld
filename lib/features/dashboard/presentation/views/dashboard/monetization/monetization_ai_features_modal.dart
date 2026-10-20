@@ -12,6 +12,8 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
 /// Modal bottom sheet allowing creators to spend earned balance on AI features & infra top-ups.
+typedef MonetizationAiFeaturesModal = SpendRevenueBottomSheet;
+
 class SpendRevenueBottomSheet {
   SpendRevenueBottomSheet._();
 

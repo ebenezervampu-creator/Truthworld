@@ -1,6 +1,15 @@
+// ignore_for_file: subtype_of_sealed_class, unnecessary_lambdas
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/data/models/channel.dart';
+
+class MockFirestore extends Mock implements FirebaseFirestore {}
+class MockCollectionReference extends Mock
+    implements CollectionReference<Map<String, dynamic>> {}
+class MockQuery extends Mock implements Query<Map<String, dynamic>> {}
 
 void main() {
   group('ChannelWalletService Unit Tests', () {
@@ -761,6 +770,72 @@ void main() {
       // Legacy tier names still evaluate to $0.00
       expect(ChannelWalletService.getFlatFactCheckPrice(tierType: 'short'), equals(0.0));
       expect(ChannelWalletService.getFlatFactCheckPrice(tierType: 'standard'), equals(0.0));
+    });
+
+    test('SpendableBalance mathematical breakdown includes rollover credits', () {
+      final service = ChannelWalletService();
+      final ch = Channel(
+        id: 'ch_test_123',
+        name: 'Test Channel',
+        nameLowercase: 'test channel',
+        handle: '@testchannel',
+        handleLowercase: '@testchannel',
+        description: 'Test description',
+        avatarUrl: '',
+        bannerUrl: '',
+        ownerId: 'owner_user_456',
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+        walletBalanceUSD: 15.00,
+        infraConfig: CustomChannelInfraConfig(
+          subscriptionId: 'sub_test_123',
+          rolloverCreditUSD: 7.50,
+        ),
+      );
+
+      final spendable = service.getSpendableBalance(
+        channel: ch,
+        rawTotalRevenue: 30.00,
+        withdrawableRevenue: 20.00,
+        lockedRevenue: 10.00,
+      );
+
+      // Verify that totalSpendable equals funded + rollover + totalRevenue
+      expect(spendable.fundedBalance, equals(15.00));
+      expect(spendable.rolloverCredit, equals(7.50));
+      expect(spendable.totalRevenue, equals(30.00));
+      expect(spendable.totalSpendableBalance, equals(52.50));
+
+      // Spendable breakdown string formatting
+      final breakdownStr =
+          'Available Spendable: \$${spendable.totalSpendableBalance.toStringAsFixed(2)} '
+          '(\$${spendable.fundedBalance.toStringAsFixed(2)} Wallet + '
+          '\$${spendable.totalRevenue.toStringAsFixed(2)} Revenue'
+          '${spendable.rolloverCredit > 0 ? " + \$${spendable.rolloverCredit.toStringAsFixed(2)} Rollover" : ""})';
+
+      expect(
+        breakdownStr,
+        equals(r'Available Spendable: $52.50 ($15.00 Wallet + $30.00 Revenue + $7.50 Rollover)'),
+      );
+    });
+
+    test('streamChannelTransactions queries with channelId and optional userId', () {
+      final mockFirestore = MockFirestore();
+      final mockCollection = MockCollectionReference();
+      final mockQuery = MockQuery();
+
+      when(() => mockFirestore.collection('channel_wallet_transactions')).thenReturn(mockCollection);
+      when(() => mockCollection.where('channelId', isEqualTo: any(named: 'isEqualTo'))).thenReturn(mockQuery);
+      when(() => mockQuery.where('userId', isEqualTo: any(named: 'isEqualTo'))).thenReturn(mockQuery);
+      when(() => mockQuery.orderBy('timestamp', descending: true)).thenReturn(mockQuery);
+      when(() => mockQuery.limit(20)).thenReturn(mockQuery);
+      when(() => mockQuery.snapshots()).thenAnswer((_) => const Stream.empty());
+
+      final service = ChannelWalletService(firestore: mockFirestore);
+      expect(
+        () => service.streamChannelTransactions('ch_test', userId: 'user_test'),
+        returnsNormally,
+      );
     });
   });
 }

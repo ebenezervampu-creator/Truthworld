@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_wallet_topup_sheet.dart';
@@ -234,8 +236,16 @@ class ChannelWalletCard extends StatelessWidget {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () {
-                    if (controller != null) {
-                      SpendRevenueBottomSheet.show(context, controller!);
+                    final effectiveController = controller ??
+                        (Get.isRegistered<DashboardController>()
+                            ? Get.find<DashboardController>()
+                            : null);
+                    if (effectiveController != null) {
+                      SpendRevenueBottomSheet.show(context, effectiveController);
+                    } else {
+                      AppSnackbar.info(
+                        'AI feature checkout is available in Creator Studio.',
+                      );
                     }
                   },
                   icon: const Icon(
@@ -300,8 +310,31 @@ class ChannelWalletCard extends StatelessWidget {
             if (!showTransactions.value) return const SizedBox.shrink();
 
             return StreamBuilder<List<WalletTransaction>>(
-              stream: walletService.streamChannelTransactions(channel.id),
+              stream: walletService.streamChannelTransactions(
+                liveChannel.id,
+                userId: liveChannel.ownerId.isNotEmpty ? liveChannel.ownerId : null,
+              ),
               builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  ErrorHandler.log(snapshot.error);
+                  return Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgInput,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'Unable to load activity right now. Please check your connection and try again.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  );
+                }
+
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Padding(
                     padding: EdgeInsets.symmetric(vertical: 16),

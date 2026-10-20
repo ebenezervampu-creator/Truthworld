@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/constants/ai_languages.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/cashfree_service.dart';
 import 'package:truthworld/core/services/channel_wallet_pricing.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
@@ -859,11 +860,23 @@ class ChannelWalletService {
     }
   }
 
-  /// Streams recent wallet spend transactions for a channel
-  Stream<List<WalletTransaction>> streamChannelTransactions(String channelId) {
-    return _firestore
+  /// Streams recent wallet spend transactions for a channel.
+  /// Scopes query with [userId] (or [AuthService.to.uid]) when available to satisfy Firestore security rules.
+  Stream<List<WalletTransaction>> streamChannelTransactions(
+    String channelId, {
+    String? userId,
+  }) {
+    var query = _firestore
         .collection('channel_wallet_transactions')
-        .where('channelId', isEqualTo: channelId)
+        .where('channelId', isEqualTo: channelId);
+
+    final resolvedUserId = userId ??
+        (Get.isRegistered<AuthService>() ? AuthService.to.uid : null);
+    if (resolvedUserId != null && resolvedUserId.isNotEmpty) {
+      query = query.where('userId', isEqualTo: resolvedUserId);
+    }
+
+    return query
         .orderBy('timestamp', descending: true)
         .limit(20)
         .snapshots()
