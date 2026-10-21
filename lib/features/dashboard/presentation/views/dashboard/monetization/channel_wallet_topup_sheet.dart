@@ -52,8 +52,9 @@ class ChannelWalletTopupSheet {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: AppColors.brand.withValues(alpha: 0.15),
+                          color: AppColors.bgSurfaceHover,
                           borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.1)),
                         ),
                         child: const Icon(
                           Icons.add_card_rounded,
@@ -100,7 +101,7 @@ class ChannelWalletTopupSheet {
                   children: [
                     const Icon(
                       Icons.stars_rounded,
-                      color: AppColors.warning,
+                      color: Colors.white,
                       size: 20,
                     ),
                     const SizedBox(width: 10),

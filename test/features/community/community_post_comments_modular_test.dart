@@ -110,7 +110,7 @@ void main() {
 
       controller.prepareReplyToUser('Sam Creator');
       expect(controller.isReplying.value, isTrue);
-      expect(controller.replyController.text, '@Sam Creator ');
+      expect(controller.replyController.text, 'Sam Creator ');
 
       controller.onClose();
     });
@@ -131,7 +131,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Replying to @Alex'), findsOneWidget);
+      expect(find.text('Replying to Alex'), findsOneWidget);
       expect(find.byType(TextField), findsOneWidget);
       expect(find.text('Cancel'), findsOneWidget);
       expect(find.byIcon(Icons.send_rounded), findsOneWidget);
@@ -225,7 +225,7 @@ void main() {
       await tester.pump();
 
       expect(find.byType(CommunityCommentReplyInput), findsOneWidget);
-      expect(find.text('Replying to @Alice'), findsOneWidget);
+      expect(find.text('Replying to Alice'), findsOneWidget);
 
       // Tap cancel to close reply box
       await tester.tap(find.text('Cancel'));

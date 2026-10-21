@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:video_player/video_player.dart';
@@ -41,13 +42,18 @@ class VideoPlaybackHandoff {
       if (video.hlsUrl.isNotEmpty && !video.hlsUrl.startsWith('gs://')) {
         targetUrl = video.hlsUrl;
       } else if (video.adaptiveResolutions.isNotEmpty) {
-        final mp4Res = video.adaptiveResolutions.firstWhereOrNull(
+        final hasPremium = Get.isRegistered<AuthService>() && AuthService.to.hasFullPremium;
+        final eligible = hasPremium
+            ? video.adaptiveResolutions
+            : video.adaptiveResolutions.where((r) => r.height <= 1040).toList();
+        final searchList = eligible.isNotEmpty ? eligible : video.adaptiveResolutions;
+        final mp4Res = searchList.firstWhereOrNull(
           (r) =>
               r.url.isNotEmpty &&
               !r.url.contains('.m3u8') &&
               !r.url.endsWith('original.mp4') &&
               !r.url.contains('/original/'),
-        ) ?? video.adaptiveResolutions.firstOrNull;
+        ) ?? searchList.firstOrNull;
         if (mp4Res != null && mp4Res.url.isNotEmpty) {
           targetUrl = mp4Res.url;
         }

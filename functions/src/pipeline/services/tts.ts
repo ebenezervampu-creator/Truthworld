@@ -1,8 +1,13 @@
 /**
- * 🎙️ TTS SERVICE — ElevenLabs v3 / Multilingual v2
- * 
- * Generates audio speech from translated text segments using ElevenLabs API.
- * Supports 70+ languages via model auto-selection.
+ * 🎙️ HYBRID TEXT-TO-SPEECH (TTS) SERVICE
+ *
+ * Industry-Standard Architecture combining Google Cloud Text-to-Speech & ElevenLabs:
+ *   - Google Cloud Text-to-Speech (Default): Neural2, Journey, Studio, and Standard voices.
+ *     Cuts unit cost by 50%-75%, offers 4M free characters/month, and delivers native
+ *     subcontinent phoneme pronunciation across Indian languages (Telugu, Hindi, Tamil, etc.).
+ *   - ElevenLabs: Reserved for explicit creator voice cloning requests (preferVoiceCloning: true).
+ *   - Resilient Fallback: If ElevenLabs encounters rate limits, quota exhaustion, or failures,
+ *     the pipeline automatically and seamlessly falls back to Google Cloud Text-to-Speech.
  */
 
 import axios from "axios";
@@ -12,22 +17,17 @@ import { TTSResult, TTSRequest } from "../types";
 import { costEngine } from "./cost-engine";
 import { PIPELINE_CONFIG } from "../config";
 import { logger } from "../utils/logger";
+import { GoogleTextToSpeechService, googleTextToSpeechService } from "./googleTextToSpeechService";
 
 const ELEVENLABS_BASE_URL = "https://api.elevenlabs.io/v1";
 
-/**
- * Model selection:
- *   - eleven_flash_v2_5: Ultra-low latency (~75ms), 32 languages — best for batch dubbing
- *   - eleven_multilingual_v2: Consistent, lifelike quality, 29 languages — fallback
- *   - eleven_v3: Flagship, emotionally rich — for premium tier
- */
 const TTS_MODELS = {
-  flash: "eleven_flash_v2_5",          // Best for batch dubbing (low latency, good quality)
+  flash: "eleven_flash_v2_5",                // Best for batch dubbing (low latency)
   multilingual_v2: "eleven_multilingual_v2", // Stable fallback
-  v3: "eleven_v3",                     // Premium narration
+  v3: "eleven_v3",                           // Premium narration
 } as const;
 
-/** Languages supported by Flash v2.5 (32 languages) */
+/** Languages supported by ElevenLabs Flash v2.5 (32 languages) */
 const FLASH_SUPPORTED = new Set([
   "en", "hi", "te", "ta", "ml", "kn", "bn", "gu", "mr", "pa",
   "zh", "ja", "ko", "ar", "cs", "da", "nl", "fi", "fr", "de",
@@ -35,11 +35,11 @@ const FLASH_SUPPORTED = new Set([
   "ru", "sk", "es", "sv", "th", "tr", "uk", "vi",
 ]);
 
-/** Languages supported by Multilingual v2 (29 languages) */
+/** Languages supported by ElevenLabs Multilingual v2 (29 languages) */
 const MULTILINGUAL_V2_SUPPORTED = new Set([
   "en", "ja", "zh", "de", "hi", "fr", "ko", "pt", "it", "es",
   "id", "nl", "tr", "fil", "tl", "pl", "sv", "bg", "ro", "ar",
-  "cs", "el", "fi", "hr", "ms", "sk", "ta", "uk", "ru"
+  "cs", "el", "fi", "hr", "ms", "sk", "ta", "uk", "ru",
 ]);
 
 const MAX_RETRIES = 3;
@@ -51,7 +51,7 @@ interface VoiceSettings {
   use_speaker_boost?: boolean;
 }
 
-export class TTSService {
+export class ElevenLabsTTSService {
   private apiKey: string;
   private defaultVoiceSettings: VoiceSettings = {
     stability: 0.5,
@@ -64,42 +64,36 @@ export class TTSService {
     this.apiKey = apiKey || "";
   }
 
-  private getApiKey(): string {
+  public getApiKey(): string {
     return this.apiKey || PIPELINE_CONFIG.ELEVENLABS_API_KEY;
   }
 
-  /**
-   * Auto-select the best model for the target language.
-   * - Flash v2.5: 32 high-speed languages
-   * - Multilingual v2: 29 core languages
-   * - Eleven v3: Flagship supporting all 74+ languages
-   */
   private selectModel(language: string): string {
-    const langLower = language.toLowerCase().split("-")[0]; // "en-us" → "en"
+    const langLower = language.toLowerCase().split("-")[0];
     if (FLASH_SUPPORTED.has(langLower)) {
       return TTS_MODELS.flash;
     }
     if (MULTILINGUAL_V2_SUPPORTED.has(langLower)) {
       return TTS_MODELS.multilingual_v2;
     }
-    // Flagship Eleven v3 covers the extended 74+ languages
     return TTS_MODELS.v3;
   }
 
   async synthesize(request: TTSRequest): Promise<TTSResult> {
-    const voiceId = request.voiceId || "EXAVITQu4vr4xnSDxMaL"; // Sarah (default valid premade voice)
+    const voiceId = request.voiceCloneId || request.voiceId || "EXAVITQu4vr4xnSDxMaL";
     const model = this.selectModel(request.language);
     const apiKey = this.getApiKey();
 
     if (!apiKey) {
-      throw new Error("[TTS] No ElevenLabs API key configured");
+      throw new Error("[ElevenLabsTTS] No ElevenLabs API key configured");
     }
 
-    logger.info("[TTS] Synthesizing segment", {
+    logger.info("[ElevenLabsTTS] Synthesizing segment", {
       jobId: request.jobId,
       language: request.language,
       model,
       voiceId,
+      isVoiceClone: Boolean(request.voiceCloneId || request.preferVoiceCloning),
       textLength: request.text.length,
       textPreview: request.text.substring(0, 60),
     });
@@ -123,9 +117,8 @@ export class TTSService {
           }
         );
 
-        // Verify we got audio data back
         if (!response.data || response.data.byteLength === 0) {
-          throw new Error("[TTS] Empty audio response from ElevenLabs");
+          throw new Error("[ElevenLabsTTS] Empty audio response from ElevenLabs");
         }
 
         const bucket = storage().bucket();
@@ -135,14 +128,25 @@ export class TTSService {
         await file.save(response.data, {
           metadata: {
             contentType: "audio/mpeg",
-            metadata: { model, voiceId, language: request.language },
+            metadata: {
+              provider: "elevenlabs",
+              model,
+              voiceId,
+              language: request.language,
+              isVoiceClone: String(Boolean(request.voiceCloneId || request.preferVoiceCloning)),
+            },
           },
         });
 
         const audioUrl = `gs://${bucket.name}/${filePath}`;
-        costEngine.recordTTSCost(request.jobId, "__tts__", request.text.length).catch(() => {});
+        costEngine.recordTTSCost(
+          request.jobId,
+          request.userId || "__tts__",
+          request.text.length,
+          "elevenlabs"
+        ).catch(() => {});
 
-        logger.info("[TTS] ✅ Segment synthesized", {
+        logger.info("[ElevenLabsTTS] ✅ Segment synthesized", {
           jobId: request.jobId,
           language: request.language,
           audioUrl,
@@ -155,6 +159,8 @@ export class TTSService {
           audioUrl,
           duration: this.estimateDuration(request.text),
           format: "mp3",
+          provider: "elevenlabs",
+          voiceName: voiceId,
         };
       } catch (error: any) {
         const statusCode = error.response?.status;
@@ -164,7 +170,7 @@ export class TTSService {
             : JSON.stringify(error.response.data)
           : error.message;
 
-        logger.error("[TTS] ❌ ElevenLabs API error", {
+        logger.error("[ElevenLabsTTS] ❌ ElevenLabs API error", {
           jobId: request.jobId,
           language: request.language,
           attempt: attempt + 1,
@@ -175,21 +181,113 @@ export class TTSService {
         });
 
         if (attempt === MAX_RETRIES - 1) {
-          throw new Error(`[TTS] Failed after ${MAX_RETRIES} retries: ${statusCode} — ${errorBody}`);
+          throw new Error(`[ElevenLabsTTS] Failed after ${MAX_RETRIES} retries: ${statusCode} — ${errorBody}`);
         }
 
-        // Exponential backoff
         const delay = 1000 * Math.pow(2, attempt);
-        logger.info("[TTS] Retrying after delay", { delayMs: delay, attempt: attempt + 1 });
-        await new Promise(r => setTimeout(r, delay));
+        await new Promise((r) => setTimeout(r, delay));
       }
     }
-    throw new Error("[TTS] Synthesize failed after all retries");
+    throw new Error("[ElevenLabsTTS] Synthesize failed after all retries");
   }
 
   private estimateDuration(text: string): number {
-    return text.length / 15; // Rough estimate: 15 chars per second
+    return text.length / 15;
   }
 }
 
+export class TTSService {
+  private googleTts: GoogleTextToSpeechService;
+  private elevenLabsTts: ElevenLabsTTSService;
+
+  constructor(
+    googleTts?: GoogleTextToSpeechService,
+    elevenLabsTts?: ElevenLabsTTSService
+  ) {
+    this.googleTts = googleTts || googleTextToSpeechService;
+    this.elevenLabsTts = elevenLabsTts || new ElevenLabsTTSService();
+  }
+
+  /**
+   * Unified synthesis entry point.
+   * - Defaults to Google Cloud Text-to-Speech for standard dubbing (50%-75% cost savings).
+   * - Routes to ElevenLabs if explicit voice cloning is requested.
+   * - Automatically falls back to Google Cloud TTS if ElevenLabs fails, lacks quota, or is rate limited.
+   */
+  async synthesize(request: TTSRequest): Promise<TTSResult> {
+    const isVoiceCloningRequested = Boolean(
+      request.preferVoiceCloning ||
+      request.voiceCloneId ||
+      request.provider === "elevenlabs"
+    );
+
+    // 1. Voice Cloning Requested -> Attempt ElevenLabs
+    if (isVoiceCloningRequested) {
+      const apiKey = this.elevenLabsTts.getApiKey();
+      if (!apiKey) {
+        logger.warn(
+          "[TTS] ⚠️ Voice cloning requested but ElevenLabs API key is missing. Falling back to Google Cloud Text-to-Speech.",
+          { jobId: request.jobId, language: request.language }
+        );
+        return this.googleTts.synthesize({
+          ...request,
+          preferVoiceCloning: false,
+        });
+      }
+
+      try {
+        return await this.elevenLabsTts.synthesize(request);
+      } catch (err: any) {
+        logger.warn(
+          "[TTS] ⚠️ ElevenLabs voice cloning failed or quota exceeded. Seamlessly falling back to Google Cloud Text-to-Speech.",
+          {
+            jobId: request.jobId,
+            language: request.language,
+            error: err.message,
+          }
+        );
+
+        // Resilient Fallback to Google Cloud Text-to-Speech
+        return await this.googleTts.synthesize({
+          ...request,
+          preferVoiceCloning: false,
+        });
+      }
+    }
+
+    // 2. Standard Dubbing -> Google Cloud Text-to-Speech (High quality, native regional accents, cost-effective)
+    try {
+      return await this.googleTts.synthesize(request);
+    } catch (googleErr: any) {
+      // If Google Cloud TTS experiences an outage and ElevenLabs key exists, provide emergency fallback
+      const elevenKey = this.elevenLabsTts.getApiKey();
+      if (elevenKey) {
+        logger.warn(
+          "[TTS] ⚠️ Google Cloud TTS error — attempting emergency fallback to ElevenLabs.",
+          {
+            jobId: request.jobId,
+            language: request.language,
+            error: googleErr.message,
+          }
+        );
+        try {
+          return await this.elevenLabsTts.synthesize(request);
+        } catch (elevenErr: any) {
+          logger.error("[TTS] ❌ Both Google Cloud TTS and ElevenLabs fallback failed.", {
+            jobId: request.jobId,
+            googleError: googleErr.message,
+            elevenError: elevenErr.message,
+          });
+        }
+      }
+      throw googleErr;
+    }
+  }
+
+  public estimateDuration(text: string): number {
+    return text.length / 15;
+  }
+}
+
+export const elevenLabsTtsService = new ElevenLabsTTSService();
 export const ttsService = new TTSService();

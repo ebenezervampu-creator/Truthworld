@@ -118,7 +118,7 @@ void main() {
       expect(vc.currentResolution.value?.label, equals('1080p'));
 
       // Switch to 144p with shared source URL
-      await vc.setResolution(res144, isManual: true);
+      await vc.setResolution(res144);
 
       // Must update currentResolution reactively to 144p
       expect(vc.currentResolution.value?.label, equals('144p'));

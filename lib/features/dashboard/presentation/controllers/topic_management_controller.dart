@@ -677,4 +677,12 @@ class TopicManagementController extends BaseController {
       onEditTopicRequested!(context, topic);
     }
   }
+
+  void clearData() {
+    topicsList.clear();
+    selectedTopicId.value = '';
+    newTopicData.clear();
+    searchQuery.value = '';
+    rxIsLoading.value = false;
+  }
 }

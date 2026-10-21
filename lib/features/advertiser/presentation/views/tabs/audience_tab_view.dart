@@ -701,14 +701,14 @@ class AudienceTabView extends StatelessWidget {
                 AppSnackbar.warning('Please enter a preset name.');
                 return;
               }
-              final nameVal = ContentValidator.validate(name, checkEnglishOnly: false, fieldName: 'Preset Name');
+              final nameVal = ContentValidator.validate(name, fieldName: 'Preset Name');
               if (!nameVal.isValid) {
                 AppSnackbar.warning(nameVal.message);
                 return;
               }
               final locText = locationsController.text.trim();
               if (locText.isNotEmpty) {
-                final locVal = ContentValidator.validate(locText, checkEnglishOnly: false, fieldName: 'Locations');
+                final locVal = ContentValidator.validate(locText, fieldName: 'Locations');
                 if (!locVal.isValid) {
                   AppSnackbar.warning(locVal.message);
                   return;
@@ -716,7 +716,7 @@ class AudienceTabView extends StatelessWidget {
               }
               final intText = interestsController.text.trim();
               if (intText.isNotEmpty) {
-                final intVal = ContentValidator.validate(intText, checkEnglishOnly: false, fieldName: 'Interests');
+                final intVal = ContentValidator.validate(intText, fieldName: 'Interests');
                 if (!intVal.isValid) {
                   AppSnackbar.warning(intVal.message);
                   return;

@@ -42,6 +42,52 @@ class EditVideoScreen extends StatelessWidget {
               onPressed: () => Get.back<void>(),
             ),
             actions: [
+              if (video.isRejected)
+                Obx(() {
+                  final isMax = controller.resubmitCount.value >= 2;
+                  if (isMax) {
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppColors.error.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                          ),
+                          child: const Text(
+                            'Resubmissions (2/2)',
+                            style: TextStyle(
+                              color: AppColors.error,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: OutlinedButton.icon(
+                      onPressed: controller.isResubmitting.value
+                          ? null
+                          : controller.resubmitForModeration,
+                      icon: const Icon(Icons.refresh_rounded, size: 16, color: AppColors.textPrimary),
+                      label: Text(
+                        'Resubmit (${controller.remainingResubmissions})',
+                        style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.bgDivider),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
               Padding(
                 padding: const EdgeInsets.only(right: 12),
                 child: ElevatedButton.icon(
@@ -66,6 +112,7 @@ class EditVideoScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (video.isRejected) _buildModerationRejectionBanner(controller),
                   // Video Thumbnail & Context Header with Hero flight
                   Container(
                     margin: const EdgeInsets.only(bottom: 24),
@@ -397,5 +444,142 @@ class EditVideoScreen extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Widget _buildModerationRejectionBanner(EditVideoController controller) {
+    return Obx(() {
+      final resubmitCount = controller.resubmitCount.value;
+      final isMax = resubmitCount >= 2;
+      final remaining = (2 - resubmitCount).clamp(0, 2);
+
+      return Container(
+        margin: const EdgeInsets.only(bottom: 24),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.error.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  color: AppColors.error,
+                  size: 22,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Content Rejected by Moderation',
+                    style: AppTextStyles.titleMedium.copyWith(
+                      color: AppColors.error,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: TWTypography.brandFamily,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isMax
+                        ? AppColors.error.withValues(alpha: 0.25)
+                        : AppColors.warning.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    isMax ? 'Limit Reached (2/2)' : 'Attempt ${resubmitCount + 1} of 2',
+                    style: TextStyle(
+                      color: isMax ? AppColors.error : AppColors.warning,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              video.moderationSummary.isNotEmpty
+                  ? video.moderationSummary
+                  : 'This video violates our Community Guidelines and cannot be published in its current state. Please update your title, description, or metadata below to ensure compliance.',
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.bgSurface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.bgDivider),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    isMax ? Icons.lock_outline_rounded : Icons.info_outline_rounded,
+                    size: 16,
+                    color: isMax ? AppColors.error : AppColors.brand,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      isMax
+                          ? 'This video has reached the maximum of 2 resubmissions allowed. Further resubmission is disabled.'
+                          : 'You can resubmit this video up to 2 times. ($remaining resubmission remaining). Updating fields below and clicking "Save & Resubmit" will queue it for re-evaluation.',
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (!isMax) ...[
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onPressed: controller.isResubmitting.value
+                      ? null
+                      : controller.resubmitForModeration,
+                  icon: controller.isResubmitting.value
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                          ),
+                        )
+                      : const Icon(Icons.refresh_rounded, size: 18, color: Colors.black),
+                  label: Text(
+                    controller.isResubmitting.value
+                        ? 'Resubmitting Video...'
+                        : 'Save & Resubmit for Moderation ($remaining left)',
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    });
   }
 }

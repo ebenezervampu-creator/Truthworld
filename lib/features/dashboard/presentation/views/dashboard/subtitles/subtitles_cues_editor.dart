@@ -5,6 +5,7 @@ import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/dialogs/find_replace_dialog.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/dialogs/shift_timings_dialog.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/pages/generate_ai_subtitles_page.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class SubtitlesCuesEditor extends StatelessWidget {
@@ -39,38 +40,82 @@ class SubtitlesCuesEditor extends StatelessWidget {
           borderColor: borderColor,
         ),
 
-        // Cues Header Row
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          color: surfaceColor.withValues(alpha: 0.4),
-          child: Row(
-            children: [
-              SizedBox(
-                width: isMobile ? 140 : 180,
-                child: Text(
-                  'Timing Interval',
-                  style: AppTextStyles.labelMedium.copyWith(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: textSecondaryColor,
+        // Cues Header Row (Responsive)
+        if (!isMobile)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: surfaceColor.withValues(alpha: 0.4),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 180,
+                  child: Text(
+                    'Timing Interval',
+                    style: AppTextStyles.labelMedium.copyWith(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: textSecondaryColor,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  'Subtitle Text Cue',
-                  style: AppTextStyles.labelMedium.copyWith(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: textSecondaryColor,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    'Subtitle Text Cue',
+                    style: AppTextStyles.labelMedium.copyWith(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: textSecondaryColor,
+                    ),
                   ),
                 ),
+                const SizedBox(width: 70),
+              ],
+            ),
+          )
+        else
+          Obx(() {
+            final count = controller.filteredCues.length;
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              color: surfaceColor.withValues(alpha: 0.3),
+              child: Row(
+                children: [
+                  Text(
+                    'Subtitles ($count segments)',
+                    style: AppTextStyles.labelMedium.copyWith(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: textSecondaryColor,
+                    ),
+                  ),
+                  const Spacer(),
+                  InkWell(
+                    onTap: controller.addCueAtCurrentTime,
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.add_rounded,
+                          size: 14,
+                          color: AppColors.brand,
+                        ),
+                        SizedBox(width: 2),
+                        Text(
+                          'Add Cue',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.brand,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 70),
-            ],
-          ),
-        ),
+            );
+          }),
         Divider(height: 1, color: borderColor),
 
         // Cues List / Scrollable Empty State
@@ -110,12 +155,39 @@ class SubtitlesCuesEditor extends StatelessWidget {
                                   color: textSecondaryColor,
                                 ),
                               ),
-                              const SizedBox(height: 14),
+                              const SizedBox(height: 16),
                               Wrap(
                                 spacing: 8,
                                 runSpacing: 8,
                                 alignment: WrapAlignment.center,
                                 children: [
+                                  ElevatedButton.icon(
+                                    onPressed: () => Get.to(() =>
+                                        GenerateAiSubtitlesPage(
+                                          controller: controller,
+                                          isDarkMode: isDarkMode,
+                                        )),
+                                    icon: const Icon(
+                                      Icons.auto_awesome_rounded,
+                                      size: 15,
+                                      color: Colors.white,
+                                    ),
+                                    label: const Text(
+                                      'Generate with AI',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF2E2E2E),
+                                      foregroundColor: Colors.white,
+                                      side: BorderSide(
+                                        color: AppColors.brand
+                                            .withValues(alpha: 0.3),
+                                      ),
+                                    ),
+                                  ),
                                   ElevatedButton.icon(
                                     onPressed: controller.addCueAtCurrentTime,
                                     icon: const Icon(
@@ -125,7 +197,10 @@ class SubtitlesCuesEditor extends StatelessWidget {
                                     ),
                                     label: const Text(
                                       'Add First Cue',
-                                      style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                                      style: TextStyle(
+                                        color: Colors.black,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: AppColors.brand,
@@ -176,6 +251,7 @@ class SubtitlesCuesEditor extends StatelessWidget {
                   textSecondaryColor: textSecondaryColor,
                   borderColor: borderColor,
                   isDarkMode: isDarkMode,
+                  isMobile: isMobile,
                 );
               },
             );
@@ -314,6 +390,7 @@ class SubtitlesCueCardItem extends StatelessWidget {
     required this.textSecondaryColor,
     required this.borderColor,
     required this.isDarkMode,
+    required this.isMobile,
     super.key,
   });
 
@@ -325,12 +402,272 @@ class SubtitlesCueCardItem extends StatelessWidget {
   final Color textSecondaryColor;
   final Color borderColor;
   final bool isDarkMode;
+  final bool isMobile;
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
       final isActive = controller.activeCueIndex.value == index;
 
+      if (isMobile) {
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: isActive
+                ? AppColors.brand.withValues(alpha: 0.12)
+                : surfaceColor,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isActive ? AppColors.brand : borderColor,
+              width: isActive ? 1.5 : 1.0,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Card Header: #Index | Clickable Timing Span | Actions
+              Row(
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color:
+                          isActive ? AppColors.brand : const Color(0xFF2E2E2E),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '#${index + 1}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: isActive ? Colors.black : Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+
+                  // Timing interval pill (Clickable to seek video!)
+                  InkWell(
+                    onTap: () => controller.seekToCue(index),
+                    borderRadius: BorderRadius.circular(4),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF141414),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: borderColor),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.play_circle_fill_rounded,
+                            size: 13,
+                            color: AppColors.brand,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            '${cue.startTime.split('.').first} ➔ ${cue.endTime.split('.').first}',
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const Spacer(),
+
+                  // Duplicate Cue
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.all(4),
+                    constraints: const BoxConstraints(),
+                    icon: const Icon(Icons.content_copy_rounded, size: 16),
+                    color: Colors.white,
+                    tooltip: 'Duplicate Cue',
+                    onPressed: () => controller.duplicateCue(index),
+                  ),
+                  const SizedBox(width: 8),
+
+                  // Delete Cue
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.all(4),
+                    constraints: const BoxConstraints(),
+                    icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                    color: Colors.white,
+                    tooltip: 'Delete Cue',
+                    onPressed: () => controller.deleteCue(index),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // Subtitle Text Box (Full width on mobile!)
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.bgPage,
+                  borderRadius: BorderRadius.circular(6),
+                  border:
+                      Border.all(color: borderColor.withValues(alpha: 0.5)),
+                ),
+                child: TextFormField(
+                  key: ValueKey(
+                    '${controller.selectedLanguage.value}_${cue.id}_$index',
+                  ),
+                  initialValue: cue.text,
+                  maxLength: 1000,
+                  buildCounter: (
+                    context, {
+                    required currentLength,
+                    required isFocused,
+                    maxLength,
+                  }) =>
+                      null,
+                  maxLines: null,
+                  inputFormatters: controller.selectedLanguage.value == 'en'
+                      ? TruthworldTextInputFormatters.standard
+                      : [TruthworldTextInputFormatters.profanityFilter],
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    fontSize: 14,
+                    color: textColor,
+                    height: 1.3,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Enter subtitle segment text...',
+                    hintStyle: AppTextStyles.bodySmall.copyWith(
+                      color: textSecondaryColor,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                    fillColor: Colors.transparent,
+                  ),
+                  onChanged: (val) => controller.updateCueText(index, val),
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              // Timing Steppers Toolbar (Nudge Start & End)
+              Row(
+                children: [
+                  // Start Nudge
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF141414),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: borderColor.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Start',
+                              style: TextStyle(
+                                  fontSize: 10, color: textSecondaryColor)),
+                          InkWell(
+                            onTap: () => controller.shiftCueTiming(
+                              index,
+                              shiftMilliseconds: -500,
+                            ),
+                            child: const Icon(Icons.remove_circle_outline,
+                                size: 14, color: Colors.white),
+                          ),
+                          InkWell(
+                            onTap: () => controller.shiftCueTiming(index),
+                            child: const Icon(Icons.add_circle_outline,
+                                size: 14, color: Colors.white),
+                          ),
+                          Tooltip(
+                            message: 'Set Start to Video Playhead',
+                            child: InkWell(
+                              onTap: () =>
+                                  controller.setStartToCurrentTime(index),
+                              child: const Icon(Icons.my_location_rounded,
+                                  size: 13, color: AppColors.brand),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+
+                  // End Nudge
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF141414),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: borderColor.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('End',
+                              style: TextStyle(
+                                  fontSize: 10, color: textSecondaryColor)),
+                          InkWell(
+                            onTap: () => controller.shiftCueTiming(
+                              index,
+                              isStart: false,
+                              shiftMilliseconds: -500,
+                            ),
+                            child: const Icon(Icons.remove_circle_outline,
+                                size: 14, color: Colors.white),
+                          ),
+                          InkWell(
+                            onTap: () => controller.shiftCueTiming(
+                              index,
+                              isStart: false,
+                            ),
+                            child: const Icon(Icons.add_circle_outline,
+                                size: 14, color: Colors.white),
+                          ),
+                          Tooltip(
+                            message: 'Set End to Video Playhead',
+                            child: InkWell(
+                              onTap: () =>
+                                  controller.setEndToCurrentTime(index),
+                              child: const Icon(Icons.my_location_rounded,
+                                  size: 13, color: AppColors.brand),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      }
+
+      // Desktop & Tablet (Side-by-side with matched 180px timing badge)
       return AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(10),
@@ -366,7 +703,13 @@ class SubtitlesCueCardItem extends StatelessWidget {
                 ),
                 initialValue: cue.text,
                 maxLength: 1000,
-                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                buildCounter: (
+                  context, {
+                  required currentLength,
+                  required isFocused,
+                  maxLength,
+                }) =>
+                    null,
                 maxLines: null,
                 inputFormatters: controller.selectedLanguage.value == 'en'
                     ? TruthworldTextInputFormatters.standard

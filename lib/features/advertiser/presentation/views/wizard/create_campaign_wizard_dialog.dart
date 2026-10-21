@@ -618,31 +618,31 @@ void showCreateCampaignWizard(
                               AppSnackbar.warning('Please fill brand name, title, and description.');
                               return;
                             }
-                            final brandVal = ContentValidator.validate(brand, checkEnglishOnly: false, fieldName: 'Brand Name');
+                            final brandVal = ContentValidator.validate(brand, fieldName: 'Brand Name');
                             if (!brandVal.isValid) {
                               AppSnackbar.warning(brandVal.message);
                               return;
                             }
-                            final titleVal = ContentValidator.validate(title, checkEnglishOnly: false, fieldName: 'Campaign Title');
+                            final titleVal = ContentValidator.validate(title, fieldName: 'Campaign Title');
                             if (!titleVal.isValid) {
                               AppSnackbar.warning(titleVal.message);
                               return;
                             }
-                            final descVal = ContentValidator.validate(desc, checkEnglishOnly: false, fieldName: 'Description');
+                            final descVal = ContentValidator.validate(desc, fieldName: 'Description');
                             if (!descVal.isValid) {
                               AppSnackbar.warning(descVal.message);
                               return;
                             }
                             final ctaText = ctaTextController.text.trim();
                             if (ctaText.isNotEmpty) {
-                              final ctaVal = ContentValidator.validate(ctaText, checkEnglishOnly: false, fieldName: 'CTA Button Text');
+                              final ctaVal = ContentValidator.validate(ctaText, fieldName: 'CTA Button Text');
                               if (!ctaVal.isValid) {
                                 AppSnackbar.warning(ctaVal.message);
                                 return;
                               }
                             }
                             if (adFormat.value == 'video_sponsor' && pinnedCommentController.text.trim().isNotEmpty) {
-                              final pinVal = ContentValidator.validate(pinnedCommentController.text.trim(), checkEnglishOnly: false, fieldName: 'Pinned Comment');
+                              final pinVal = ContentValidator.validate(pinnedCommentController.text.trim(), fieldName: 'Pinned Comment');
                               if (!pinVal.isValid) {
                                 AppSnackbar.warning(pinVal.message);
                                 return;

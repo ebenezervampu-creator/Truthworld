@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/analytics/data/models/creator_bank_account.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/revenue_analytics/revenue_analytics_state_base.dart';
@@ -76,6 +77,8 @@ mixin RevenueAnalyticsPayoutMixin on RevenueAnalyticsStateBase {
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
+
+      ChannelWalletService.invalidateLedgerCache(channelId: channelId.value);
 
       isSubmittingWithdrawal.value = false;
       AppSnackbar.success(
@@ -247,6 +250,8 @@ mixin RevenueAnalyticsPayoutMixin on RevenueAnalyticsStateBase {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
+      ChannelWalletService.invalidateLedgerCache(channelId: channelId.value);
+
       isSubmittingWithdrawal.value = false;
       AppSnackbar.success(
         'Withdrawal request of ₹${amount.toStringAsFixed(2)} to ${bankAccount.bankName} (${bankAccount.maskedAccountNumber}) submitted successfully! Direct transfer is being processed.',
@@ -261,6 +266,42 @@ mixin RevenueAnalyticsPayoutMixin on RevenueAnalyticsStateBase {
       );
       AppSnackbar.error(
         'Unable to process bank withdrawal. Please check your connection and try again.',
+      );
+      return false;
+    }
+  }
+
+  /// Toggles YouTube AdSense-style automatic monthly bank deposits on the 1st of every month.
+  Future<bool> toggleAutoPayout(bool enabled) async {
+    final chId = channelId.value;
+    if (chId.isEmpty) return false;
+
+    try {
+      isUpdatingAutoPayout.value = true;
+      await firestore.collection(FirestoreCollections.channels).doc(chId).update({
+        'autoPayoutEnabled': enabled,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      autoPayoutEnabled.value = enabled;
+      isUpdatingAutoPayout.value = false;
+
+      AppSnackbar.success(
+        enabled
+            ? 'Automatic Monthly Payout enabled. Cleared earnings (min ₹100) will be automatically deposited to your bank account on the 1st of every month.'
+            : 'Automatic Monthly Payout disabled. Cleared earnings will remain safely in your channel wallet until you choose to withdraw them.',
+        title: 'Auto-Deposit Setting Updated',
+      );
+      return true;
+    } catch (e, stackTrace) {
+      isUpdatingAutoPayout.value = false;
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'RevenueAnalyticsPayoutMixin.toggleAutoPayout',
+      );
+      AppSnackbar.error(
+        'Unable to update Auto-Payout setting. Please check your connection and try again.',
       );
       return false;
     }

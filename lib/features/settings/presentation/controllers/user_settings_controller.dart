@@ -441,9 +441,7 @@ class UserSettingsController extends BaseController {
 
   Future<bool> updateProfileDetails({
     required String displayName,
-    required String handle,
-    required String bio,
-    required String gender,
+    required String bio, required String gender, String? handle,
     int? age,
     String? location,
     String? city,
@@ -460,16 +458,22 @@ class UserSettingsController extends BaseController {
     }
 
     final cleanName = ContentValidator.cleanProfanity(displayName.trim());
-    final cleanHandle = ContentValidator.cleanProfanity(handle.trim());
-    final formattedHandle = cleanHandle.startsWith('@') ? cleanHandle : '@$cleanHandle';
     final cleanBio = ContentValidator.cleanProfanity(bio.trim());
     final cleanLocation = location?.trim() ?? '';
+
+    String? formattedHandle;
+    if (handle != null && handle.trim().isNotEmpty) {
+      final cleanHandle = ContentValidator.cleanProfanity(handle.trim());
+      formattedHandle = cleanHandle.startsWith('@') ? cleanHandle : '@$cleanHandle';
+    }
 
     isUpdatingProfile.value = true;
     try {
       // 1. Optimistically update AuthService in-memory reactive properties for instant UI response
       auth.userDisplayName.value = cleanName;
-      auth.userHandle.value = formattedHandle;
+      if (formattedHandle != null) {
+        auth.userHandle.value = formattedHandle;
+      }
       auth.userBio.value = cleanBio;
       auth.userGender.value = gender;
       auth.userAge.value = age;
@@ -506,7 +510,7 @@ class UserSettingsController extends BaseController {
       final userUpdates = <String, dynamic>{
         'displayName': cleanName,
         'name': cleanName,
-        'handle': formattedHandle,
+        'handle': ?formattedHandle,
         'bio': cleanBio,
         'gender': gender,
         'age': age,

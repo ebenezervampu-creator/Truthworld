@@ -112,30 +112,88 @@ class VideoContentCard extends StatelessWidget {
                         fontFamily: TWTypography.brandFamily,
                       ),
                     ),
-                    if (video.status == VideoStatus.rejected || video.visibility == 'rejected') ...[
+                    if (video.status == VideoStatus.rejected || video.visibility == 'rejected' || video.isRejected) ...[
                       const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppColors.error.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.block_rounded, color: AppColors.error, size: 12),
-                            SizedBox(width: 4),
-                            Text(
-                              'REJECTED by Moderation',
-                              style: TextStyle(
-                                color: AppColors.error,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppColors.error.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.block_rounded, color: AppColors.error, size: 12),
+                                SizedBox(width: 4),
+                                Text(
+                                  'REJECTED by Moderation',
+                                  style: TextStyle(
+                                    color: AppColors.error,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (video.resubmitCount < 2)
+                            InkWell(
+                              onTap: () => showResubmitModerationDialog(context, video, controller),
+                              borderRadius: BorderRadius.circular(6),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: AppColors.brand,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.refresh_rounded, color: Colors.black, size: 12),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Resubmit (${2 - video.resubmitCount} left)',
+                                      style: const TextStyle(
+                                        color: Colors.black,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          else
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: AppColors.error.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.lock_outline_rounded, color: AppColors.error, size: 12),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Limit reached (2/2)',
+                                    style: TextStyle(
+                                      color: AppColors.error,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
+                        ],
                       ),
                     ],
                     const SizedBox(height: 6),
@@ -252,6 +310,8 @@ class VideoContentCard extends StatelessWidget {
                         ),
                       );
                     }
+                  } else if (value == 'resubmit') {
+                    showResubmitModerationDialog(context, video, controller);
                   } else if (value == 'visibility') {
                     showChangeVisibilityDialog(context, video, controller);
                   } else if (value == 'edit') {
@@ -265,6 +325,37 @@ class VideoContentCard extends StatelessWidget {
                   }
                 },
                 itemBuilder: (context) => <PopupMenuEntry<String>>[
+                  if (video.isRejected)
+                    PopupMenuItem<String>(
+                      value: 'resubmit',
+                      child: Row(
+                        children: [
+                          Icon(
+                            video.resubmitCount < 2
+                                ? Icons.refresh_rounded
+                                : Icons.block_rounded,
+                            size: 18,
+                            color: video.resubmitCount < 2
+                                ? AppColors.brand
+                                : AppColors.error,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              video.resubmitCount < 2
+                                  ? 'Resubmit Video (${2 - video.resubmitCount} left)'
+                                  : 'Resubmissions Limit (2/2)',
+                              style: AppTextStyles.bodyMedium.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: video.resubmitCount < 2
+                                    ? AppColors.textPrimary
+                                    : AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   PopupMenuItem<String>(
                     value: 'watch',
                     child: Row(

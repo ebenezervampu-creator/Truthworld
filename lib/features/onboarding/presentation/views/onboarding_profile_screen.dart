@@ -1,25 +1,84 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:truthworld/components/ui/google_onboarding_controller.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/cashfree/cashfree_country_support.dart';
+import 'package:truthworld/features/library/presentation/views/library/widgets/library_constants.dart';
 import 'package:truthworld/features/onboarding/presentation/controllers/onboarding_profile_controller.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
-/// Dedicated full-screen page for onboarding new Truthworld users.
+/// Dedicated full-screen page for onboarding new TruthWorld users.
 ///
-/// Features:
-/// - "Continue as [Google Display Name]" banner with Google Avatar preview
-/// - Interactive options to change avatar photo (Camera / Gallery upload) and edit display name & handle
-/// - Country / Region selector with international flags & pre-selected detected country
-/// - Age group selection strictly 18+ (no under-18 groups)
-/// - Gender selection (including self-describe)
-/// - "Continue & Finish" button which saves profile and directly routes to Truthworld Home
+/// Designed with Library Page theme, fonts, and UI styling:
+/// - Library native typography and dark surface hierarchy (bgColor, cardColor, buttonBg)
+/// - Profile header with avatar, user details, and photo customization
+/// - Account details (Full Name & Handle)
+/// - Complete Country / Region selector with all 240+ countries and flag emojis
+/// - Primary Language selector implemented exactly like Country selection with 130+ languages
+/// - 18+ Age group selection and Gender selection
+/// - Clean high-contrast action buttons leading to TruthWorld Home
 class OnboardingProfileScreen extends StatelessWidget {
   const OnboardingProfileScreen({super.key});
+
+  static final List<DropdownMenuItem<String>> _cachedCountryDropdownItems =
+      CashfreeCountrySupport.allCountries.map((country) {
+    return DropdownMenuItem<String>(
+      value: country.code,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            country.flagEmoji,
+            style: const TextStyle(fontSize: 18),
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Text(
+              '${country.name} (${country.code})',
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 14,
+                color: primaryText,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }).toList(growable: false);
+
+  static final List<DropdownMenuItem<String>> _cachedLanguageDropdownItems =
+      GoogleOnboardingController.staticLanguageOptions.map((lang) {
+    final hasNative = lang.nativeName.isNotEmpty &&
+        lang.nativeName.toLowerCase() != lang.name.toLowerCase();
+    return DropdownMenuItem<String>(
+      value: lang.name,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            '🌐',
+            style: TextStyle(fontSize: 18),
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Text(
+              hasNative ? '${lang.name} (${lang.nativeName})' : lang.name,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 14,
+                color: primaryText,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }).toList(growable: false);
 
   static Future<void> open() async {
     if (!Get.isRegistered<OnboardingProfileController>()) {
@@ -33,7 +92,7 @@ class OnboardingProfileScreen extends StatelessWidget {
   void _showImageSourcePicker(BuildContext context, OnboardingProfileController controller) {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: AppColors.bgSurface,
+      backgroundColor: cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -53,20 +112,20 @@ class OnboardingProfileScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                Text(
+                const Text(
                   'Change Profile Photo',
-                  style: GoogleFonts.outfit(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                    color: primaryText,
                   ),
                 ),
                 const SizedBox(height: 16),
                 ListTile(
-                  leading: const Icon(Icons.photo_library_outlined, color: Colors.white),
+                  leading: const Icon(Icons.photo_library_outlined, color: primaryText),
                   title: const Text(
                     'Choose from Gallery',
-                    style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w500),
+                    style: TextStyle(color: primaryText, fontWeight: FontWeight.w500),
                   ),
                   onTap: () {
                     Navigator.of(ctx).pop();
@@ -74,10 +133,10 @@ class OnboardingProfileScreen extends StatelessWidget {
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.camera_alt_outlined, color: Colors.white),
+                  leading: const Icon(Icons.camera_alt_outlined, color: primaryText),
                   title: const Text(
                     'Take a Photo',
-                    style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w500),
+                    style: TextStyle(color: primaryText, fontWeight: FontWeight.w500),
                   ),
                   onTap: () {
                     Navigator.of(ctx).pop();
@@ -102,35 +161,35 @@ class OnboardingProfileScreen extends StatelessWidget {
     final googleEmail = auth.user?.email ?? '';
 
     return Scaffold(
-      backgroundColor: AppColors.bgPage,
+      backgroundColor: bgColor,
       appBar: AppBar(
-        backgroundColor: AppColors.bgPage,
+        backgroundColor: surfaceColor.withValues(alpha: 0.95),
         elevation: 0,
-        centerTitle: true,
+        centerTitle: false,
         automaticallyImplyLeading: false,
+        systemOverlayStyle: SystemUiOverlayStyle.light,
         title: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.white.withAlpha(20),
-                shape: BoxShape.circle,
+                color: buttonBg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.bgDivider),
               ),
               child: const Icon(
                 Icons.verified_user_rounded,
-                color: Colors.white,
+                color: primaryText,
                 size: 20,
               ),
             ),
-            const SizedBox(width: 8),
-            Text(
-              'TruthWorld',
-              style: GoogleFonts.outfit(
+            const SizedBox(width: 12),
+            const Text(
+              'Welcome to TruthWorld',
+              style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
-                letterSpacing: 0.5,
+                color: primaryText,
               ),
             ),
           ],
@@ -138,72 +197,47 @@ class OnboardingProfileScreen extends StatelessWidget {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Welcome & Continue-as Banner
+              // 1. Profile Header Card (Library Profile Header Style)
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: AppColors.bgSurface,
-                  borderRadius: BorderRadius.circular(20),
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: AppColors.bgDivider),
                 ),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Welcome to TruthWorld',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.outfit(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Confirm your profile details to personalize your experience, regional topics, and community presence.',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.roboto(
-                        fontSize: 13,
-                        color: AppColors.textSecondary,
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
+                    Obx(() {
+                      final photoUrl = controller.activeAvatarUrl.value;
+                      final isUploading = controller.isUploadingPhoto.value;
+                      final authName = auth.activeDisplayName;
+                      final name = controller.displayNameController.text.isNotEmpty
+                          ? controller.displayNameController.text
+                          : (authName.isNotEmpty ? authName : 'New TruthSeeker');
 
-                    // Avatar with interactive edit badge
-                    Stack(
-                      alignment: Alignment.bottomRight,
-                      children: [
-                        Obx(() {
-                          final photoUrl = controller.activeAvatarUrl.value;
-                          final isUploading = controller.isUploadingPhoto.value;
-
-                          return Stack(
+                      return Row(
+                        children: [
+                          Stack(
                             alignment: Alignment.center,
                             children: [
-                              GestureDetector(
-                                onTap: isUploading ? null : () => _showImageSourcePicker(context, controller),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white.withAlpha(80), width: 3),
-                                  ),
-                                  child: UserAvatar(
-                                    photoUrl: photoUrl.isNotEmpty ? photoUrl : null,
-                                    displayName: controller.displayNameController.text,
-                                    radius: 44,
-                                    showBorder: false,
-                                  ),
-                                ),
+                              UserAvatar(
+                                radius: 36,
+                                photoUrl: photoUrl.isNotEmpty ? photoUrl : null,
+                                displayName: name,
+                                backgroundColor: buttonBg,
+                                textColor: primaryText,
+                                fontSize: 28,
                               ),
                               if (isUploading)
                                 Container(
-                                  width: 88,
-                                  height: 88,
+                                  width: 72,
+                                  height: 72,
                                   decoration: BoxDecoration(
                                     color: Colors.black.withAlpha(160),
                                     shape: BoxShape.circle,
@@ -216,112 +250,113 @@ class OnboardingProfileScreen extends StatelessWidget {
                                   ),
                                 ),
                             ],
-                          );
-                        }),
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: GestureDetector(
-                            onTap: () => _showImageSourcePicker(context, controller),
-                            child: Container(
-                              padding: const EdgeInsets.all(7),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withAlpha(80),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  name,
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: primaryText,
+                                  ),
+                                ),
+
+                                if (googleEmail.isNotEmpty) ...[
+                                  const SizedBox(height: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: buttonBg,
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: AppColors.bgDivider),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.check_circle, size: 12, color: AppColors.success),
+                                        const SizedBox(width: 6),
+                                        Flexible(
+                                          child: Text(
+                                            googleEmail,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: secondaryText,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ],
-                              ),
-                              child: const Icon(
-                                Icons.camera_alt_rounded,
-                                size: 16,
-                                color: Colors.black, // Rule: Black icon on white container
-                              ),
+                              ],
                             ),
                           ),
+                        ],
+                      );
+                    }),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _showImageSourcePicker(context, controller),
+                        icon: const Icon(Icons.camera_alt_outlined, size: 16, color: primaryText),
+                        label: const Text(
+                          'Change Photo',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: primaryText,
+                          ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-
-                    TextButton.icon(
-                      onPressed: () => _showImageSourcePicker(context, controller),
-                      icon: const Icon(Icons.edit_outlined, size: 14, color: Colors.white),
-                      label: const Text(
-                        'Change Photo',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-
-                    if (googleEmail.isNotEmpty) ...[
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.bgElevated,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.bgDivider),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.check_circle, size: 12, color: AppColors.success),
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                googleEmail,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.roboto(
-                                  fontSize: 11,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            ),
-                          ],
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: buttonBg,
+                          side: const BorderSide(color: AppColors.bgDivider),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
-                    ],
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
-              // 2. Profile Details Form (Display Name & Handle)
+              // 2. Account Details Card (Full Name & Handle)
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: AppColors.bgSurface,
-                  borderRadius: BorderRadius.circular(20),
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: AppColors.bgDivider),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       'Account Details',
-                      style: GoogleFonts.outfit(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: primaryText,
                       ),
                     ),
                     const SizedBox(height: 16),
 
                     // Display Name Field
-                    Text(
+                    const Text(
                       'Full Name / Display Name',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
-                        color: AppColors.textSecondary,
+                        color: secondaryText,
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -334,29 +369,29 @@ class OnboardingProfileScreen extends StatelessWidget {
                         inputFormatters: TruthworldTextInputFormatters.internationalWithLimit(
                           ContentValidator.defaultMaxDisplayNameLength,
                         ),
-                        style: GoogleFonts.roboto(
+                        style: const TextStyle(
                           fontSize: 15,
-                          color: AppColors.textPrimary,
+                          color: primaryText,
                           fontWeight: FontWeight.w500,
                         ),
                         decoration: InputDecoration(
                           prefixIcon: const Icon(
                             Icons.person_outline_rounded,
-                            color: Colors.white,
+                            color: primaryText,
                             size: 20,
                           ),
                           hintText: 'Enter your name',
-                          hintStyle: GoogleFonts.roboto(
+                          hintStyle: const TextStyle(
                             fontSize: 14,
-                            color: AppColors.textTertiary,
+                            color: secondaryText,
                           ),
                           errorText: err,
-                          errorStyle: GoogleFonts.roboto(
+                          errorStyle: const TextStyle(
                             fontSize: 12,
                             color: AppColors.error,
                           ),
                           filled: true,
-                          fillColor: AppColors.bgInput,
+                          fillColor: buttonBg,
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 14,
@@ -371,7 +406,7 @@ class OnboardingProfileScreen extends StatelessWidget {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Colors.white),
+                            borderSide: const BorderSide(color: primaryText),
                           ),
                         ),
                       );
@@ -379,25 +414,13 @@ class OnboardingProfileScreen extends StatelessWidget {
                     const SizedBox(height: 16),
 
                     // Username / Handle Field
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Username / Handle',
-                          style: GoogleFonts.roboto(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        Text(
-                          'Optional',
-                          style: GoogleFonts.roboto(
-                            fontSize: 11,
-                            color: AppColors.textTertiary,
-                          ),
-                        ),
-                      ],
+                    const Text(
+                      'Username / Handle',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: secondaryText,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Obx(() {
@@ -411,36 +434,35 @@ class OnboardingProfileScreen extends StatelessWidget {
                           TruthworldTextInputFormatters.profanityFilter,
                           LengthLimitingTextInputFormatter(ContentValidator.defaultMaxHandleLength),
                         ],
-                        style: GoogleFonts.roboto(
+                        style: const TextStyle(
                           fontSize: 15,
-                          color: AppColors.textPrimary,
+                          color: primaryText,
                           fontWeight: FontWeight.w500,
                         ),
                         decoration: InputDecoration(
                           prefixIcon: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                            child: Text(
+                            child: const Text(
                               '@',
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.textSecondary,
+                                color: primaryText,
                               ),
                             ),
                           ),
-                          prefixIconConstraints: const BoxConstraints(),
-                          hintText: 'username',
-                          hintStyle: GoogleFonts.roboto(
+                          hintText: 'your_username',
+                          hintStyle: const TextStyle(
                             fontSize: 14,
-                            color: AppColors.textTertiary,
+                            color: secondaryText,
                           ),
                           errorText: err,
-                          errorStyle: GoogleFonts.roboto(
+                          errorStyle: const TextStyle(
                             fontSize: 12,
                             color: AppColors.error,
                           ),
                           filled: true,
-                          fillColor: AppColors.bgInput,
+                          fillColor: buttonBg,
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 14,
@@ -455,7 +477,7 @@ class OnboardingProfileScreen extends StatelessWidget {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Colors.white),
+                            borderSide: const BorderSide(color: primaryText),
                           ),
                         ),
                       );
@@ -463,15 +485,15 @@ class OnboardingProfileScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
-              // 3. Country / Region Section
+              // 3. Country / Region Section (All 240+ Countries Worldwide)
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: AppColors.bgSurface,
-                  borderRadius: BorderRadius.circular(20),
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: AppColors.bgDivider),
                 ),
                 child: Column(
@@ -480,39 +502,42 @@ class OnboardingProfileScreen extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
+                        const Text(
                           'Country / Region',
-                          style: GoogleFonts.outfit(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: primaryText,
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: AppColors.bgElevated,
-                            borderRadius: BorderRadius.circular(8),
+                            color: buttonBg,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: AppColors.bgDivider),
                           ),
-                          child: Text(
+                          child: const Text(
                             'Country',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               fontSize: 11,
-                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w600,
+                              color: secondaryText,
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
+                    const SizedBox(height: 6),
+                    const Text(
                       'Truthworld uses this to localize your content recommendations, currency, and payment options.',
-                      style: GoogleFonts.roboto(
-                        fontSize: 12,
-                        color: AppColors.textTertiary,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: secondaryText,
+                        height: 1.4,
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 16),
 
                     Obx(() {
                       final selectedCode = controller.selectedCountry.value;
@@ -524,25 +549,26 @@ class OnboardingProfileScreen extends StatelessWidget {
                           : (countryList.isNotEmpty ? countryList.first.code : null);
 
                       return DropdownButtonFormField<String>(
+                        isExpanded: true,
                         value: effectiveVal,
-                        dropdownColor: AppColors.bgSurface,
+                        dropdownColor: cardColor,
                         icon: const Icon(
                           Icons.keyboard_arrow_down_rounded,
-                          color: Colors.white,
+                          color: primaryText,
                         ),
-                        style: GoogleFonts.roboto(
-                          fontSize: 15,
-                          color: AppColors.textPrimary,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: primaryText,
                           fontWeight: FontWeight.w500,
                         ),
                         decoration: InputDecoration(
                           prefixIcon: const Icon(
                             Icons.public_rounded,
-                            color: Colors.white,
+                            color: primaryText,
                             size: 20,
                           ),
                           filled: true,
-                          fillColor: AppColors.bgInput,
+                          fillColor: buttonBg,
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 14,
@@ -557,34 +583,36 @@ class OnboardingProfileScreen extends StatelessWidget {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Colors.white),
+                            borderSide: const BorderSide(color: primaryText),
                           ),
                         ),
-                        items: countryList.map((country) {
-                          return DropdownMenuItem<String>(
-                            value: country.code,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  country.flagEmoji,
-                                  style: const TextStyle(fontSize: 18),
-                                ),
-                                const SizedBox(width: 10),
-                                Flexible(
-                                  child: Text(
-                                    '${country.name} (${country.code})',
-                                    overflow: TextOverflow.ellipsis,
-                                    style: GoogleFonts.roboto(
-                                      fontSize: 14,
-                                      color: AppColors.textPrimary,
-                                    ),
+                        items: countryList.length == _cachedCountryDropdownItems.length
+                            ? _cachedCountryDropdownItems
+                            : countryList.map((country) {
+                                return DropdownMenuItem<String>(
+                                  value: country.code,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        country.flagEmoji,
+                                        style: const TextStyle(fontSize: 18),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Flexible(
+                                        child: Text(
+                                          '${country.name} (${country.code})',
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            color: primaryText,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
+                                );
+                              }).toList(growable: false),
                         onChanged: (val) {
                           if (val != null) {
                             controller.selectCountry(val);
@@ -595,15 +623,15 @@ class OnboardingProfileScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
-              // 4. Age Group Section (Strictly 18+)
+              // 4. Primary Language Section (Implemented Exactly Like Country Selection)
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: AppColors.bgSurface,
-                  borderRadius: BorderRadius.circular(20),
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: AppColors.bgDivider),
                 ),
                 child: Column(
@@ -612,41 +640,181 @@ class OnboardingProfileScreen extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Age Group',
-                          style: GoogleFonts.outfit(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
+                        const Text(
+                          'Primary Language',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: primaryText,
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: AppColors.bgElevated,
-                            borderRadius: BorderRadius.circular(8),
+                            color: buttonBg,
+                            borderRadius: BorderRadius.circular(6),
                             border: Border.all(color: AppColors.bgDivider),
                           ),
-                          child: Text(
-                            '18+ Only',
-                            style: GoogleFonts.roboto(
+                          child: const Text(
+                            '130+ Global',
+                            style: TextStyle(
                               fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w600,
+                              color: secondaryText,
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Truthworld is strictly for users aged 18 and older. Helps recommend age-appropriate content.',
-                      style: GoogleFonts.roboto(
-                        fontSize: 12,
-                        color: AppColors.textTertiary,
+                    const SizedBox(height: 6),
+                    const Text(
+                      'TruthWorld welcomes creators and users from all languages and backgrounds worldwide. Select your primary language to personalize your experience.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: secondaryText,
+                        height: 1.4,
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 16),
+
+                    Obx(() {
+                      final currentLang = controller.selectedLanguage.value;
+                      final languageList = controller.languageOptions;
+                      final hasSelected = languageList.any((l) => l.name.toLowerCase() == currentLang.toLowerCase());
+                      final effectiveVal = hasSelected
+                          ? languageList.firstWhere((l) => l.name.toLowerCase() == currentLang.toLowerCase()).name
+                          : (languageList.isNotEmpty ? languageList.first.name : 'English');
+
+                      return DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        value: effectiveVal,
+                        dropdownColor: cardColor,
+                        icon: const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: primaryText,
+                        ),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: primaryText,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(
+                            Icons.language_rounded,
+                            color: primaryText,
+                            size: 20,
+                          ),
+                          filled: true,
+                          fillColor: buttonBg,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.bgDivider),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.bgDivider),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: primaryText),
+                          ),
+                        ),
+                        items: languageList.length == _cachedLanguageDropdownItems.length
+                            ? _cachedLanguageDropdownItems
+                            : languageList.map((lang) {
+                                final hasNative = lang.nativeName.isNotEmpty &&
+                                    lang.nativeName.toLowerCase() != lang.name.toLowerCase();
+                                return DropdownMenuItem<String>(
+                                  value: lang.name,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Text(
+                                        '🌐',
+                                        style: TextStyle(fontSize: 18),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Flexible(
+                                        child: Text(
+                                          hasNative ? '${lang.name} (${lang.nativeName})' : lang.name,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            color: primaryText,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(growable: false),
+                        onChanged: (val) {
+                          if (val != null) {
+                            controller.selectLanguage(val);
+                          }
+                        },
+                      );
+                    }),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 5. Age Group Section (Strictly 18+)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.bgDivider),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Age Group',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: primaryText,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: buttonBg,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: AppColors.bgDivider),
+                          ),
+                          child: const Text(
+                            '18+ Only',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: primaryText,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Truthworld is strictly for users aged 18 and older. Helps recommend age-appropriate content.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: secondaryText,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
 
                     Obx(() {
                       final selectedAge = controller.selectedAgeGroup.value;
@@ -658,15 +826,15 @@ class OnboardingProfileScreen extends StatelessWidget {
                           return ChoiceChip(
                             label: Text(
                               option,
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 fontSize: 13,
-                                color: isSelected ? Colors.black : AppColors.textPrimary,
+                                color: isSelected ? Colors.black : primaryText,
                                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                               ),
                             ),
                             selected: isSelected,
                             selectedColor: Colors.white,
-                            backgroundColor: AppColors.bgInput,
+                            backgroundColor: buttonBg,
                             side: BorderSide(
                               color: isSelected ? Colors.white : AppColors.bgDivider,
                             ),
@@ -680,15 +848,15 @@ class OnboardingProfileScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
-              // 5. Gender Section
+              // 6. Gender Section
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: AppColors.bgSurface,
-                  borderRadius: BorderRadius.circular(20),
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: AppColors.bgDivider),
                 ),
                 child: Column(
@@ -697,39 +865,42 @@ class OnboardingProfileScreen extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
+                        const Text(
                           'Gender',
-                          style: GoogleFonts.outfit(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: primaryText,
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: AppColors.bgElevated,
-                            borderRadius: BorderRadius.circular(8),
+                            color: buttonBg,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: AppColors.bgDivider),
                           ),
-                          child: Text(
+                          child: const Text(
                             'Optional',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               fontSize: 11,
-                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w600,
+                              color: secondaryText,
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
+                    const SizedBox(height: 6),
+                    const Text(
                       'Helps ensure diverse representation in content recommendations.',
-                      style: GoogleFonts.roboto(
-                        fontSize: 12,
-                        color: AppColors.textTertiary,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: secondaryText,
+                        height: 1.4,
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 16),
 
                     Obx(() {
                       final selectedGender = controller.selectedGender.value;
@@ -744,15 +915,15 @@ class OnboardingProfileScreen extends StatelessWidget {
                               return ChoiceChip(
                                 label: Text(
                                   option,
-                                  style: GoogleFonts.roboto(
+                                  style: TextStyle(
                                     fontSize: 13,
-                                    color: isSelected ? Colors.black : AppColors.textPrimary,
+                                    color: isSelected ? Colors.black : primaryText,
                                     fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                                   ),
                                 ),
                                 selected: isSelected,
                                 selectedColor: Colors.white,
-                                backgroundColor: AppColors.bgInput,
+                                backgroundColor: buttonBg,
                                 side: BorderSide(
                                   color: isSelected ? Colors.white : AppColors.bgDivider,
                                 ),
@@ -769,18 +940,18 @@ class OnboardingProfileScreen extends StatelessWidget {
                               maxLength: 100,
                               buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                               inputFormatters: TruthworldTextInputFormatters.withLimit(100),
-                              style: GoogleFonts.roboto(
+                              style: const TextStyle(
                                 fontSize: 14,
-                                color: AppColors.textPrimary,
+                                color: primaryText,
                               ),
                               decoration: InputDecoration(
                                 hintText: 'Self-describe (optional)',
-                                hintStyle: GoogleFonts.roboto(
+                                hintStyle: const TextStyle(
                                   fontSize: 14,
-                                  color: AppColors.textTertiary,
+                                  color: secondaryText,
                                 ),
                                 filled: true,
-                                fillColor: AppColors.bgInput,
+                                fillColor: buttonBg,
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 16,
                                   vertical: 12,
@@ -791,7 +962,7 @@ class OnboardingProfileScreen extends StatelessWidget {
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Colors.white),
+                                  borderSide: const BorderSide(color: primaryText),
                                 ),
                               ),
                             ),
@@ -802,9 +973,9 @@ class OnboardingProfileScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
 
-              // 6. Action Buttons: Finish & Go to Home
+              // 7. Action Buttons: Finish & Go to Home
               Obx(() {
                 final saving = controller.isSaving.value;
                 return Column(
@@ -815,7 +986,7 @@ class OnboardingProfileScreen extends StatelessWidget {
                       child: ElevatedButton(
                         onPressed: saving ? null : () => controller.finishAndGoToHome(context),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
+                          backgroundColor: primaryText,
                           foregroundColor: Colors.black, // Rule: Black on white
                           elevation: 0,
                           shape: RoundedRectangleBorder(
@@ -828,22 +999,22 @@ class OnboardingProfileScreen extends StatelessWidget {
                                 width: 22,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2.2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.black), // Rule: Black spinner on white button
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
                                 ),
                               )
-                            : Row(
+                            : const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
                                     'Continue & Finish',
-                                    style: GoogleFonts.outfit(
+                                    style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
                                       color: Colors.black,
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  const Icon(Icons.arrow_forward_rounded, size: 18, color: Colors.black),
+                                  SizedBox(width: 8),
+                                  Icon(Icons.arrow_forward_rounded, size: 18, color: Colors.black),
                                 ],
                               ),
                       ),
@@ -851,14 +1022,22 @@ class OnboardingProfileScreen extends StatelessWidget {
                     const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
-                      child: TextButton(
+                      child: OutlinedButton(
                         onPressed: saving ? null : controller.skipAndGoToHome,
-                        child: Text(
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: buttonBg,
+                          side: const BorderSide(color: AppColors.bgDivider),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text(
                           'Skip & Go to Home',
-                          style: GoogleFonts.outfit(
+                          style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
-                            color: AppColors.textSecondary,
+                            color: secondaryText,
                           ),
                         ),
                       ),

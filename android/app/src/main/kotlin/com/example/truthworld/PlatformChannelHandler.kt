@@ -29,20 +29,49 @@ class PlatformChannelHandler(private val activity: Activity) {
                 try {
                     val pkg = activity.packageName
                     val pm = activity.packageManager
-                    val installer: String? =
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                            pm.getInstallSourceInfo(pkg).installingPackageName
-                        } else {
-                            @Suppress("DEPRECATION")
-                            pm.getInstallerPackageName(pkg)
+                    val source = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        val info = pm.getInstallSourceInfo(pkg)
+                        val initiating = info.initiatingPackageName
+                        val installing = info.installingPackageName
+                        val originating = info.originatingPackageName
+                        when {
+                            initiating == "com.android.vending" || installing == "com.android.vending" || originating == "com.android.vending" -> "play_store"
+                            initiating == "com.sec.android.app.samsungapps" || installing == "com.sec.android.app.samsungapps" || originating == "com.sec.android.app.samsungapps" -> "samsung_galaxy_store"
+                            initiating == "com.amazon.venezia" || installing == "com.amazon.venezia" || originating == "com.amazon.venezia" -> "amazon_appstore"
+                            else -> "sideloaded"
                         }
-                    val source =
-                        when (installer) {
+                    } else {
+                        @Suppress("DEPRECATION")
+                        when (pm.getInstallerPackageName(pkg)) {
                             "com.android.vending" -> "play_store"
                             "com.sec.android.app.samsungapps" -> "samsung_galaxy_store"
                             "com.amazon.venezia" -> "amazon_appstore"
                             else -> "sideloaded"
                         }
+                    }
+
+                    // Defense-in-depth: Ensure Cashfree CFPersistence is also sanitized if present
+                    val approvedPackage = when (source) {
+                        "play_store" -> "com.android.vending"
+                        "samsung_galaxy_store" -> "com.sec.android.app.samsungapps"
+                        "amazon_appstore" -> "com.amazon.venezia"
+                        else -> null
+                    }
+                    if (approvedPackage != null) {
+                        try {
+                            val cfClass = Class.forName("com.cashfree.pg.core.api.persistence.CFPersistence")
+                            val getInstanceMethod = cfClass.getMethod("getInstance")
+                            val persistenceInstance = getInstanceMethod.invoke(null)
+                            if (persistenceInstance != null) {
+                                val setPackageInstallerMethod = cfClass.getMethod("setPackageInstaller", String::class.java)
+                                setPackageInstallerMethod.invoke(persistenceInstance, approvedPackage)
+                                Log.i(TAG, "PlatformChannel sanitized Cashfree package installer to: $approvedPackage")
+                            }
+                        } catch (_: Throwable) {
+                            // Non-fatal if Cashfree persistence is not yet initialized
+                        }
+                    }
+
                     result.success(source)
                 } catch (e: Exception) {
                     Log.w(TAG, "getInstallerSource error: ${e.message}")

@@ -4,28 +4,29 @@ import 'package:truthworld/features/dashboard/presentation/controllers/membershi
 void main() {
   group('ChannelMembershipTier Minimum Price Constants & Helpers', () {
     test('verifies minimum price values for INR and USD', () {
-      expect(ChannelMembershipTier.minPriceINR, equals(10.0));
+      expect(ChannelMembershipTier.minPriceINR, equals(50.0));
       expect(ChannelMembershipTier.minPriceUSD, equals(1.0));
     });
 
     test('minPriceFor returns correct minimum price according to currency', () {
-      expect(ChannelMembershipTier.minPriceFor('INR'), equals(10.0));
-      expect(ChannelMembershipTier.minPriceFor('inr'), equals(10.0));
+      expect(ChannelMembershipTier.minPriceFor('INR'), equals(50.0));
+      expect(ChannelMembershipTier.minPriceFor('inr'), equals(50.0));
       expect(ChannelMembershipTier.minPriceFor('USD'), equals(1.0));
       expect(ChannelMembershipTier.minPriceFor('usd'), equals(1.0));
       expect(ChannelMembershipTier.minPriceFor(''), equals(1.0));
     });
 
     test('minPriceLabel provides user-friendly labels with rupees and dollars', () {
-      expect(ChannelMembershipTier.minPriceLabel('INR'), contains('10 rupees'));
+      expect(ChannelMembershipTier.minPriceLabel('INR'), contains('50 rupees'));
       expect(ChannelMembershipTier.minPriceLabel('USD'), contains('1 dollar'));
     });
 
     test('validates whether a given price meets minimum pricing requirements', () {
-      // INR minimum is 10 rupees
+      // INR minimum is 50 rupees
       expect(9.99 >= ChannelMembershipTier.minPriceFor('INR'), isFalse);
-      expect(10.0 >= ChannelMembershipTier.minPriceFor('INR'), isTrue);
-      expect(25.0 >= ChannelMembershipTier.minPriceFor('INR'), isTrue);
+      expect(10.0 >= ChannelMembershipTier.minPriceFor('INR'), isFalse);
+      expect(25.0 >= ChannelMembershipTier.minPriceFor('INR'), isFalse);
+      expect(50.0 >= ChannelMembershipTier.minPriceFor('INR'), isTrue);
 
       // USD minimum is 1 dollar ($1)
       expect(0.50 >= ChannelMembershipTier.minPriceFor('USD'), isFalse);
@@ -40,12 +41,12 @@ void main() {
       final tierWholeINR = ChannelMembershipTier(
         id: 'tier_1',
         name: 'Desi Supporter',
-        price: 10.0,
+        price: 50.0,
         currency: 'INR',
         perks: ['Perk 1'],
       );
       expect(tierWholeINR.currencySymbol, equals('₹'));
-      expect(tierWholeINR.formattedPrice, equals('₹10'));
+      expect(tierWholeINR.formattedPrice, equals('₹50'));
 
       final tierDecINR = ChannelMembershipTier(
         id: 'tier_2',
@@ -90,7 +91,7 @@ void main() {
       final original = ChannelMembershipTier(
         id: 'tier_test_1',
         name: 'Super Fan',
-        price: 10.0,
+        price: 50.0,
         currency: 'INR',
         perks: ['Badge', 'Chat Emojis'],
         badgeColorHex: '0xFF0284C7',
@@ -98,12 +99,12 @@ void main() {
 
       final map = original.toMap();
       expect(map['currency'], equals('INR'));
-      expect(map['price'], equals(10.0));
+      expect(map['price'], equals(50.0));
 
       final restored = ChannelMembershipTier.fromMap(map, 'tier_test_1');
       expect(restored.currency, equals('INR'));
-      expect(restored.price, equals(10.0));
-      expect(restored.formattedPrice, equals('₹10'));
+      expect(restored.price, equals(50.0));
+      expect(restored.formattedPrice, equals('₹50'));
     });
 
     test('backward compatibility: infers currency when currency field is absent in legacy map', () {
@@ -138,12 +139,12 @@ void main() {
 
       final updated = tier.copyWith(
         currency: 'INR',
-        price: 10.0,
+        price: 50.0,
       );
 
       expect(updated.currency, equals('INR'));
-      expect(updated.price, equals(10.0));
-      expect(updated.formattedPrice, equals('₹10'));
+      expect(updated.price, equals(50.0));
+      expect(updated.formattedPrice, equals('₹50'));
     });
   });
 
@@ -155,11 +156,11 @@ void main() {
         userAvatarUrl: '',
         tierId: 't1',
         tierName: 'Gold Member',
-        price: 10.0,
+        price: 50.0,
         currency: 'INR',
       );
       expect(memberINR.currencySymbol, equals('₹'));
-      expect(memberINR.formattedPrice, equals('₹10'));
+      expect(memberINR.formattedPrice, equals('₹50'));
 
       final memberUSD = ChannelMember(
         userId: 'u2',

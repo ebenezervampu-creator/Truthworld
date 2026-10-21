@@ -21,6 +21,7 @@ class VideoCard extends StatelessWidget {
     this.heroPrefix = 'video_card',
     this.onTap,
     this.disableHoverPreview = false,
+    this.isChannelContext = false,
   });
 
   final Video video;
@@ -28,14 +29,17 @@ class VideoCard extends StatelessWidget {
   final String heroPrefix;
   final VoidCallback? onTap;
   final bool disableHoverPreview;
+  final bool isChannelContext;
 
   @override
   Widget build(BuildContext context) {
     final hasPlayable = VideoVisibilityPolicy.hasPlayableMedia(video);
     final isExplicitlyHidden = video.isDraft ||
+        video.isRejected ||
         video.status == VideoStatus.deleted ||
         video.status == VideoStatus.rejected ||
         video.visibility.trim().toLowerCase() == 'draft' ||
+        video.visibility.trim().toLowerCase() == 'rejected' ||
         (video.isPrivate && !VideoVisibilityPolicy.isOwner(video)) ||
         !hasPlayable;
 
@@ -45,9 +49,12 @@ class VideoCard extends StatelessWidget {
     if (!VideoVisibilityPolicy.isValidVideo(video) && !hasPlayable) {
       return const SizedBox.shrink();
     }
-    if (Get.isRegistered<UserPreferencesService>() &&
-        UserPreferencesService.to.isVideoBlocked(video)) {
-      return const SizedBox.shrink();
+    final isOwner = VideoVisibilityPolicy.isOwner(video);
+    if (!isChannelContext && !isOwner) {
+      if (Get.isRegistered<UserPreferencesService>() &&
+          UserPreferencesService.to.isVideoBlocked(video)) {
+        return const SizedBox.shrink();
+      }
     }
 
     final tag = 'video_card_${video.id}_$heroPrefix';
@@ -140,7 +147,11 @@ class VideoCard extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         VideoCardThumbnail(video: video, controller: controller),
-        VideoCardGridInfo(video: video, controller: controller),
+        VideoCardGridInfo(
+          video: video,
+          controller: controller,
+          isChannelContext: isChannelContext,
+        ),
       ],
     );
   }
@@ -185,6 +196,7 @@ class VideoCard extends StatelessWidget {
                   video: video,
                   controller: controller,
                   isCompact: isCompact,
+                  isChannelContext: isChannelContext,
                 ),
               ),
             ],

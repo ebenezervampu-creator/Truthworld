@@ -1,11 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/content_validator.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 
 /// Controller for Studio Settings
@@ -17,8 +20,20 @@ class StudioSettingsController extends BaseController {
   final RxMap<String, dynamic> userData = <String, dynamic>{}.obs;
   final RxBool isLoadingData = true.obs;
   final RxBool isDeletingChannel = false.obs;
+  final RxBool isLoggingOut = false.obs;
 
   late DocumentReference _userRef;
+
+  void clearSettings() {
+    userData.clear();
+    isLoadingData.value = false;
+  }
+
+  @override
+  void onClose() {
+    clearSettings();
+    super.onClose();
+  }
 
   @override
   void onInit() {
@@ -31,9 +46,10 @@ class StudioSettingsController extends BaseController {
       isLoadingData.value = true;
       final user = _auth.currentUser;
       if (user == null) {
-        isLoadingData.value = false;
+        clearSettings();
         return;
       }
+      userData.clear();
 
       _userRef = _firestore
           .collection(FirestoreCollections.users)
@@ -146,7 +162,6 @@ class StudioSettingsController extends BaseController {
     if (value is String && (field == 'displayName' || field == 'channelHandle')) {
       final validation = ContentValidator.validate(
         value,
-        checkEnglishOnly: false,
         fieldName: field == 'channelHandle' ? 'Channel Handle' : 'Channel Name',
       );
       if (!validation.isValid) {
@@ -283,6 +298,39 @@ class StudioSettingsController extends BaseController {
       return false;
     } finally {
       isDeletingChannel.value = false;
+    }
+  }
+
+  /// Signs out the active user and redirects to the landing page.
+  Future<void> handleSignOut() async {
+    try {
+      isLoggingOut.value = true;
+      clearSettings();
+      if (Get.isRegistered<AuthService>()) {
+        await AuthService.to.signOut();
+      } else {
+        await _auth.signOut();
+      }
+      AppSnackbar.success('You have been successfully signed out.');
+      final isStudioContext = AppFlavor.isStudio ||
+          Get.currentRoute.toLowerCase().startsWith('/studio') ||
+          (kIsWeb &&
+              (Uri.base.host.toLowerCase().startsWith('studio') ||
+                  Uri.base.path.toLowerCase().startsWith('/studio')));
+      if (isStudioContext) {
+        Get.offAllNamed('/studio');
+      } else {
+        Get.offAllNamed('/');
+      }
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'StudioSettingsController.handleSignOut',
+      );
+      AppSnackbar.error('Unable to sign out. Please try again.');
+    } finally {
+      isLoggingOut.value = false;
     }
   }
 }

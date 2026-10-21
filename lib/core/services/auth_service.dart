@@ -18,6 +18,7 @@ import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth/auth_barrel.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/services/push_notification_service.dart';
+import 'package:truthworld/core/services/user_session_reset_manager.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 
@@ -136,6 +137,16 @@ class AuthService extends GetxService {
   RxBool get isPhoneVerified => _profileManager.isPhoneVerified;
   RxBool get isEmailVerified => _profileManager.isEmailVerified;
   RxBool get needsOnboarding => _profileManager.needsOnboarding;
+  bool get hasPendingOnboardingPrompt => _profileManager.hasPendingOnboardingPrompt;
+
+  bool _isNewUserHeuristic(User u) {
+    final creation = u.metadata.creationTime;
+    final lastSignIn = u.metadata.lastSignInTime;
+    if (creation != null && lastSignIn != null) {
+      return lastSignIn.difference(creation).inSeconds.abs() <= 10;
+    }
+    return false;
+  }
 
   String get activeDisplayName => _profileManager.getActiveDisplayName(
     userChannel: userChannel,
@@ -167,6 +178,7 @@ class AuthService extends GetxService {
     String? gender,
     String? username,
     String? displayName,
+    String? primaryLanguage,
   }) => _profileManager.updateUserProfileOnboarding(
     user,
     country: country,
@@ -174,6 +186,7 @@ class AuthService extends GetxService {
     gender: gender,
     username: username,
     displayName: displayName,
+    primaryLanguage: primaryLanguage,
   );
 
   Future<void> skipUserOnboarding({String? defaultCountry}) =>
@@ -377,7 +390,7 @@ class AuthService extends GetxService {
     // Purge any lingering anonymous session
     try {
       if (_auth.currentUser != null && _auth.currentUser!.isAnonymous) {
-        await _auth.signOut();
+        await _auth.signOut().timeout(const Duration(seconds: 4), onTimeout: () {});
       }
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.purgeAnonymousUser');
@@ -399,7 +412,9 @@ class AuthService extends GetxService {
       final box = GetStorage();
       box.write('auth_has_active_session', false);
       box.remove('auth_session_uid');
+      _channelManager.clearUserChannel();
       _channelManager.updateChannelSubscription(null);
+      UserSessionResetManager.resetAllUserSessions();
       _profileManager.updateUserDocSubscription(
         null,
         onUserData: (_) {},
@@ -447,10 +462,17 @@ class AuthService extends GetxService {
       _cachedUid = null;
       box.write('auth_has_active_session', false);
       box.remove('auth_session_uid');
+      _channelManager.clearUserChannel();
+      UserSessionResetManager.resetAllUserSessions();
     }
 
     if (_lastHandledUid == newUid && isRealUser) {
       return;
+    }
+
+    if (_lastHandledUid != null && _lastHandledUid != newUid) {
+      _channelManager.clearUserChannel();
+      UserSessionResetManager.resetAllUserSessions();
     }
     _lastHandledUid = newUid;
 
@@ -534,6 +556,7 @@ class AuthService extends GetxService {
   Future<void> _handlePostSignIn(
     User u, {
     Map<String, dynamic>? lastGooglePeopleData,
+    bool isNewUser = false,
   }) async {
     _user.value = u;
     _isAuthenticated.value = true;
@@ -553,45 +576,58 @@ class AuthService extends GetxService {
       _profileManager.userPhotoUrl.value = u.photoURL;
       box.write('profile_photo_${u.uid}', u.photoURL);
     }
-    // Execute post-sign-in synchronization tasks in parallel with resilient timeouts
-    // to guarantee ultra-low sign-in latency and eliminate UI blocking.
-    await Future.wait([
-      _firestoreSync.syncUserToFirestore(
-        u,
-        lastGooglePeopleData: lastGooglePeopleData,
-        onNeedsOnboardingChanged: (val) => needsOnboarding.value = val,
-      ).timeout(
-        const Duration(seconds: 4),
-        onTimeout: () => debugPrint('AuthService: syncUserToFirestore timed out gracefully.'),
-      ).catchError((e, s) {
-        ErrorHandler.log(
-          e,
-          stackTrace: s is StackTrace ? s : null,
-          tag: 'AuthService._handlePostSignIn.syncUser',
-        );
-      }),
-      ensureChannelLoaded().timeout(
-        const Duration(seconds: 3),
-        onTimeout: () {
-          debugPrint('AuthService: ensureChannelLoaded timed out gracefully.');
+
+    // Flag needsOnboarding immediately for new users to eliminate modal latency
+    // and launch the onboarding flow in under 50ms without waiting for background sync.
+    final hasCompletedOnboarding = box.read('profile_completed_${u.uid}') == true;
+    final isBrandNew = isNewUser || (!hasCompletedOnboarding && _isNewUserHeuristic(u));
+
+    if (isBrandNew && !hasCompletedOnboarding) {
+      needsOnboarding.value = true;
+    }
+
+    // Execute post-sign-in synchronization tasks asynchronously in the background.
+    // This guarantees sub-millisecond return latency so the modal closes instantly
+    // and the onboarding site opens immediately.
+    unawaited(
+      Future.wait([
+        _firestoreSync.syncUserToFirestore(
+          u,
+          lastGooglePeopleData: lastGooglePeopleData,
+          onNeedsOnboardingChanged: (val) => needsOnboarding.value = val,
+        ).timeout(
+          const Duration(seconds: 6),
+          onTimeout: () => debugPrint('AuthService: syncUserToFirestore timed out gracefully.'),
+        ).catchError((e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s is StackTrace ? s : null,
+            tag: 'AuthService._handlePostSignIn.syncUser',
+          );
+        }),
+        ensureChannelLoaded().timeout(
+          const Duration(seconds: 4),
+          onTimeout: () {
+            debugPrint('AuthService: ensureChannelLoaded timed out gracefully.');
+            return null;
+          },
+        ).catchError((e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s is StackTrace ? s : null,
+            tag: 'AuthService._handlePostSignIn.ensureChannel',
+          );
           return null;
-        },
-      ).catchError((e, s) {
-        ErrorHandler.log(
-          e,
-          stackTrace: s is StackTrace ? s : null,
-          tag: 'AuthService._handlePostSignIn.ensureChannel',
-        );
-        return null;
-      }),
-      PushNotificationService.to.registerToken(u.uid).catchError((e, s) {
-        ErrorHandler.log(
-          e,
-          stackTrace: s is StackTrace ? s : null,
-          tag: 'AuthService._handlePostSignIn.push',
-        );
-      }),
-    ]);
+        }),
+        PushNotificationService.to.registerToken(u.uid).catchError((e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s is StackTrace ? s : null,
+            tag: 'AuthService._handlePostSignIn.push',
+          );
+        }),
+      ]),
+    );
   }
 
   /// Initiates sign-in using Google provider.
@@ -599,9 +635,11 @@ class AuthService extends GetxService {
     final credential = await _googleProvider.signInWithGoogle(_auth);
     final u = credential.user;
     if (u != null) {
+      final isNewUser = credential.additionalUserInfo?.isNewUser ?? _isNewUserHeuristic(u);
       await _handlePostSignIn(
         u,
         lastGooglePeopleData: _googleProvider.lastGooglePeopleData,
+        isNewUser: isNewUser,
       );
     }
     return credential;
@@ -616,7 +654,8 @@ class AuthService extends GetxService {
     final credential = await _appleProvider.signInWithApple(_auth);
     final u = credential.user;
     if (u != null) {
-      await _handlePostSignIn(u);
+      final isNewUser = credential.additionalUserInfo?.isNewUser ?? _isNewUserHeuristic(u);
+      await _handlePostSignIn(u, isNewUser: isNewUser);
     }
     return credential;
   }
@@ -640,7 +679,8 @@ class AuthService extends GetxService {
           final userCredential = await _auth.signInWithCredential(cred);
           final u = userCredential.user;
           if (u != null) {
-            await _handlePostSignIn(u);
+            final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? _isNewUserHeuristic(u);
+            await _handlePostSignIn(u, isNewUser: isNewUser);
           }
           onVerificationCompleted(cred);
         } catch (e, s) {
@@ -670,7 +710,8 @@ class AuthService extends GetxService {
     );
     final u = credential.user;
     if (u != null) {
-      await _handlePostSignIn(u);
+      final isNewUser = credential.additionalUserInfo?.isNewUser ?? _isNewUserHeuristic(u);
+      await _handlePostSignIn(u, isNewUser: isNewUser);
     }
     return credential;
   }
@@ -950,11 +991,13 @@ class AuthService extends GetxService {
         }
       }
       if (Get.isRegistered<AdService>()) {
-        AdService.to.clearUserInteractions();
+        await AdService.to.clearUserInteractions();
       }
       if (Get.isRegistered<WatchHistoryService>()) {
-        WatchHistoryService.to.clearHistorySubscriptions();
+        await WatchHistoryService.to.clearHistorySubscriptions();
       }
+      _profileManager.dispose();
+      _channelManager.dispose();
       await _googleProvider.signOut();
       await _auth.signOut();
     } catch (e) {
@@ -967,11 +1010,13 @@ class AuthService extends GetxService {
       box.remove('auth_pending_redirect');
       box.remove('auth_pending_redirect_time');
       _cachedUid = null;
+      _lastHandledUid = null;
       _user.value = null;
       _isAuthenticated.value = false;
       needsOnboarding.value = false;
       _profileManager.clearProfile();
       _channelManager.clearUserChannel();
+      UserSessionResetManager.resetAllUserSessions();
     }
   }
 

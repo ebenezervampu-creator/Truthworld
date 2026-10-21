@@ -592,9 +592,19 @@ class PlaylistsManagementController extends BaseController
     );
   }
 
+  void clearData() {
+    _playlistsSubscription?.cancel();
+    _playlistsSubscription = null;
+    playlistsList.clear();
+    cachedVideos.clear();
+    searchQuery.value = '';
+    rxIsLoading.value = false;
+  }
+
   @override
   void onClose() {
     _playlistsSubscription?.cancel();
+    _playlistsSubscription = null;
     super.onClose();
   }
 }

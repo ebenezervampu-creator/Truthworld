@@ -128,6 +128,39 @@ Widget buildAudienceGenderDemographicsCard({
           textColor: textColor,
           subtitleColor: subtitleColor,
         ),
+        if (!hasGenderData) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.bgSurfaceHover,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.bgDivider),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.info_outline_rounded,
+                  size: 16,
+                  color: AppColors.info,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Viewer gender distribution updates dynamically as audience members complete their profiles.',
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      fontSize: 12,
+                      color: subtitleColor,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     ),
   );

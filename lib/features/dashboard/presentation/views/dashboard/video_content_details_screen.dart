@@ -6,6 +6,7 @@ import 'package:truthworld/core/utils/watch_time_formatter.dart';
 import 'package:truthworld/features/analytics/presentation/pages/watch_time_page.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/chapters_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/chapters_page.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/content/content_dialogs.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/edit_videoscreen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/video_ai_features_card.dart';
@@ -194,11 +195,150 @@ class VideoContentDetailsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // Action Row: Watch Video, Analytics, Chapters & Edit Video
+            if (video.isRejected) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.warning_amber_rounded,
+                          color: AppColors.error,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Rejected by Moderation',
+                            style: AppTextStyles.titleMedium.copyWith(
+                              color: AppColors.error,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: TWTypography.brandFamily,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: video.resubmitCount >= 2
+                                ? AppColors.error.withValues(alpha: 0.25)
+                                : AppColors.warning.withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            video.resubmitCount >= 2
+                                ? 'Limit Reached (2/2)'
+                                : 'Attempts: ${video.resubmitCount}/2',
+                            style: TextStyle(
+                              color: video.resubmitCount >= 2 ? AppColors.error : AppColors.warning,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      video.moderationSummary.isNotEmpty
+                          ? video.moderationSummary
+                          : 'This video was rejected during automated safety review for Community Guidelines compliance.',
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.textPrimary,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            video.resubmitCount < 2
+                                ? '${2 - video.resubmitCount} resubmission(s) remaining. You can edit details or resubmit for another review.'
+                                : 'Maximum of 2 resubmissions reached. Further resubmission is disabled for this video.',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                        if (video.resubmitCount < 2) ...[
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.brand,
+                              foregroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            icon: const Icon(Icons.refresh_rounded, size: 16, color: Colors.black),
+                            label: const Text(
+                              'Resubmit Video',
+                              style: TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                            onPressed: () => showResubmitModerationDialog(context, video, controller),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            // Action Row: Watch Video, Analytics, Chapters, Edit & Resubmit
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
+                if (video.isRejected)
+                  video.resubmitCount < 2
+                      ? ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.brand,
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          icon: const Icon(Icons.refresh_rounded, size: 18, color: Colors.black),
+                          label: Text(
+                            'Resubmit (${2 - video.resubmitCount} left)',
+                            style: AppTextStyles.buttonText.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          ),
+                          onPressed: () => showResubmitModerationDialog(context, video, controller),
+                        )
+                      : OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: AppColors.bgSurfaceHover,
+                            foregroundColor: AppColors.error,
+                            side: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          icon: const Icon(Icons.block_rounded, size: 16, color: AppColors.error),
+                          label: const Text('Resubmissions Limit (2/2)'),
+                          onPressed: () => showResubmitModerationDialog(context, video, controller),
+                        ),
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.brand,

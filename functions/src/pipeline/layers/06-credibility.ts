@@ -42,9 +42,10 @@ import { sourceTrustService } from "../services/sourceTrustService";
 import { tier0KnowledgeService } from "../services/tier0Knowledge";
 import { getAnalysisRepository, AnalysisRepository } from "../services/analysisRepository";
 import { costEngine } from "../services/cost-engine";
-import { JobTokenTracker } from "../utils/ai-utils";
+import { JobTokenTracker, normalizeToGcsUri } from "../utils/ai-utils";
 import { formatOpinionReasoning } from "../utils/opinion-formatting";
 import { SourceAvatarService } from "../services/sourceAvatarService";
+import { normalizeLanguageCode } from "../../shared/language-normalizer";
 
 const db = () => admin.firestore();
 
@@ -178,7 +179,8 @@ export class CredibilityEngine {
     userId:        string,
     executionPlan: ExecutionPlan,
     eventId:       string,
-    traceId?:      string
+    traceId?:      string,
+    providedVideoUrl?: string
   ): Promise<CredibilityResult> {
     // ── Idempotency gate ──────────────────────────────────────────────────────
     const status = await this.distribution.checkAndMarkEventId(eventId, jobId);
@@ -195,94 +197,127 @@ export class CredibilityEngine {
     logger.info("[TruthEngine] Starting Path 1", { jobId, traceId });
     let transcript: any = null;
 
-    // ── Transcription Gate (Hardened) ─────────────────────────────────────────
+    // ── Input Resolution (Decoupled from AssemblyAI Transcription) ───────────
     const jobDoc = await db().collection("video_jobs").doc(jobId).get();
-    const stages = jobDoc.exists ? jobDoc.data()?.stages : {};
-    
-    if (stages?.transcription?.status !== "completed") {
-        logger.info("[Credibility] Gate: Transcription status not 'completed'. Checking for transcript document fallback.", { jobId });
-        
-        // Fallback: Check if the transcript document actually exists
-        const transcriptDoc = await db().collection("transcripts").doc(jobId).get();
-        if (!transcriptDoc.exists) {
-            logger.warn("[Credibility] Gate: Transcription not completed and no transcript doc found — aborting", { jobId, traceId });
-            throw new Error("Transcription must be completed before starting Credibility Engine");
-        }
-        
-        logger.info("[Credibility] Gate: Transcript doc found! Proceeding despite metadata drift.", { jobId });
-    }
+    const jobData = jobDoc.exists ? jobDoc.data() : {};
 
     await EdgeLayer.updateStageSync(jobId, "credibility", {
       status: "running", progress: 5, startedAt: Date.now(),
     });
 
     try {
-      // 1. Load transcript
-      logger.info("[Credibility] Stage 1: Loading transcript", { jobId, traceId });
-      transcript = await this.loadTranscript(jobId);
-      if (!transcript) throw new Error(`Transcript not found for job ${jobId}`);
+      // 1. Resolve Input: Check if a transcript already exists; if not, extract directly from video media via Vertex AI
+      logger.info("[Credibility] Stage 1: Resolving input source (transcript or Google Cloud direct media)", { jobId, traceId });
+      let hasTranscript = false;
+      try {
+        transcript = await this.loadTranscript(jobId);
+        if (transcript && Array.isArray(transcript.utterances) && transcript.utterances.length > 0) {
+          hasTranscript = true;
+        }
+      } catch {
+        logger.info("[Credibility] Transcript document not present — using Google Cloud multimodal media extraction", { jobId });
+      }
 
       await EdgeLayer.updateStage(jobId, "credibility", { progress: 10 });
 
-      // 1.5 NEW: Domain & Stance Detection + Claim Extraction + Speaker Identities (v11.1 PARALLEL)
-      logger.info("[Credibility] Stage 2: Parallelized Analysis & Extraction", { jobId, traceId });
-      // All claims fact-checked with complete full ground truth verification
+      // All claims fact-checked with complete full ground truth verification across ALL languages
       const deepResearchActive = isDeepResearchEnabled(executionPlan.synthesisTier || 'standard') || executionPlan.factCheckTier === 'full_ground' || Boolean(executionPlan.factCheckEnabled) || (executionPlan.factCheckTier as string) !== 'none';
 
-      // v20.0: Derive video duration accurately from transcript or utterances first
-      const rawDuration = transcript.duration;
-      const fallbackDurationSec = (transcript.utterances?.length > 0)
-        ? Math.max(...transcript.utterances.map((u: any) => u.end || 0)) / 1000
-        : 120;
-      const videoDurationSec = rawDuration > 0 ? rawDuration : fallbackDurationSec;
-
       // TruthWorld Core Epistemic Policy: "No Claim Left Unchecked"
-      // In TruthWorld, no empirical claim is left unverified or filtered out.
-      // Every verifiable claim extracted from the video is verified.
-      // configuredMax (default 200) acts as a high system ceiling against memory exhaustion.
       const configuredMax = typeof executionPlan.maxClaims === 'number' && executionPlan.maxClaims > 0
         ? executionPlan.maxClaims
         : 200;
       const effectiveMaxClaims = Math.max(configuredMax, 200);
 
-      // Extraction concurrency (safe parallel Gemini calls for transcript chunks)
-      const extractionConcurrency = 5;
-
-      // v19.0 & v20.0: Scale extraction timeout with video duration.
-      // Cloud Function has 540s — give extraction generous time so claims are NEVER lost.
-      const extractionBudgetMs = deepResearchActive ? 280_000       // Deep research
-        : videoDurationSec >= 1200 ? 300_000  // 20+ minutes: 5 min
-        : videoDurationSec >= 600 ? 240_000   // 10-20 minutes: 4 min
-        : videoDurationSec >= 180 ? 160_000   // 3-10 minutes: 2.6 min
-        : 120_000;                            // < 3 minutes: 2 min
-
+      let rawClaims: ExtractedClaim[] = [];
+      let domainInfo: any = null;
+      let speakerIdentities: any = {};
+      let videoDurationSec = 120;
       let extractionPartial = false;
-      const [domainInfo, rawClaimsResult, speakerIdentities] = await Promise.all([
-        // v13.2: Graceful degradation — domain detection must NEVER crash the pipeline
-        this.extractionService.detectDomainAndStance(transcript.utterances ?? []).catch((err: any) => {
-          logger.error("[Credibility] Domain detection failed, using safe defaults", { jobId, error: err?.message });
-          return { domain: "General", stance: "Mixed", cautionLevel: "medium" as const, isLaunchNews: false, primaryIntent: "educational", isSensitive: false };
-        }),
-        // v20.0: Extraction with duration-scaled budget and 45s chunks
-        Promise.race([
-          this.extractionService.extractClaims(jobId, transcript, 45_000, extractionConcurrency)
-            .then(claims => ({ claims, partial: false }))
-            .catch((err: any) => {
-              logger.error("[Credibility] Primary extraction failed", { jobId, error: err?.message });
-              return { claims: [] as any[], partial: true };
-            }),
-          new Promise<{ claims: any[], partial: boolean }>(resolve => {
-            setTimeout(() => {
-              logger.warn(`[Credibility] Extraction reached ${extractionBudgetMs / 1000}s budget — returning partial results`, { jobId, budgetMs: extractionBudgetMs });
-              resolve({ claims: [], partial: true });
-            }, extractionBudgetMs);
-          })
-        ]),
-        this.resolveSpeakerIdentities(jobId, jobDoc.data()?.channelId || "unknown", transcript, {}).catch(() => ({}))
-      ]);
 
-      const rawClaims = rawClaimsResult.claims;
-      extractionPartial = rawClaimsResult.partial;
+      if (hasTranscript) {
+        // Path A: Transcript-based Parallelized Analysis & Extraction (Global Languages Supported)
+        const rawDuration = transcript.duration;
+        const fallbackDurationSec = (transcript.utterances?.length > 0)
+          ? Math.max(...transcript.utterances.map((u: any) => u.end || 0)) / 1000
+          : 120;
+        videoDurationSec = rawDuration > 0 ? rawDuration : fallbackDurationSec;
+
+        const extractionConcurrency = 5;
+        const extractionBudgetMs = deepResearchActive ? 280_000
+          : videoDurationSec >= 1200 ? 300_000
+          : videoDurationSec >= 600 ? 240_000
+          : videoDurationSec >= 180 ? 160_000
+          : 120_000;
+
+        const [detectedDomain, rawClaimsResult, resolvedSpeakers] = await Promise.all([
+          this.extractionService.detectDomainAndStance(transcript.utterances ?? []).catch((err: any) => {
+            logger.error("[Credibility] Domain detection failed, using safe defaults", { jobId, error: err?.message });
+            return { domain: "General", stance: "Mixed", cautionLevel: "medium" as const, isLaunchNews: false, primaryIntent: "educational", isSensitive: false };
+          }),
+          Promise.race([
+            this.extractionService.extractClaims(jobId, transcript, 45_000, extractionConcurrency)
+              .then(claims => ({ claims, partial: false }))
+              .catch((err: any) => {
+                logger.error("[Credibility] Primary extraction failed", { jobId, error: err?.message });
+                return { claims: [] as any[], partial: true };
+              }),
+            new Promise<{ claims: any[], partial: boolean }>(resolve => {
+              setTimeout(() => {
+                logger.warn(`[Credibility] Extraction reached ${extractionBudgetMs / 1000}s budget — returning partial results`, { jobId, budgetMs: extractionBudgetMs });
+                resolve({ claims: [], partial: true });
+              }, extractionBudgetMs);
+            })
+          ]),
+          this.resolveSpeakerIdentities(jobId, jobData?.channelId || "unknown", transcript, {}).catch(() => ({}))
+        ]);
+
+        domainInfo = detectedDomain;
+        rawClaims = rawClaimsResult.claims;
+        extractionPartial = rawClaimsResult.partial;
+        speakerIdentities = resolvedSpeakers;
+      } else {
+        // Path B: Multimodal Direct Video Media Extraction via Google Cloud Vertex AI Gemini 2.5 Flash
+        // Zero-copy, operates directly on GCS media without AssemblyAI dependency
+        logger.info("[Credibility] Stage 2: Direct multimodal claim extraction from media via Google Cloud Vertex AI", { jobId });
+        let mediaUrl = providedVideoUrl || jobData?.videoUrl || jobData?.filePath || "";
+        let videoTitle = jobData?.title || "";
+        if (!mediaUrl) {
+          const videoSnap = await db().collection("videos").doc(jobId).get();
+          if (videoSnap.exists) {
+            mediaUrl = videoSnap.data()?.videoUrl || "";
+            if (!videoTitle) videoTitle = videoSnap.data()?.title || "";
+          }
+        }
+
+        const gcsUri = normalizeToGcsUri(mediaUrl);
+        if (!gcsUri) {
+          logger.warn("[Credibility] No valid GCS media URI or transcript available for job", { jobId, mediaUrl });
+          throw new Error(`Cannot run credibility pipeline for ${jobId}: no valid video media URL or transcript found`);
+        }
+
+        const mimeType = mediaUrl.endsWith(".webm") ? "video/webm" : "video/mp4";
+        const mediaExtraction = await this.extractionService.extractClaimsFromMedia(jobId, gcsUri, mimeType, videoTitle);
+        rawClaims = mediaExtraction.claims;
+        domainInfo = mediaExtraction.domainInfo;
+        videoDurationSec = jobData?.duration || 120;
+
+        // Construct synthetic transcript object to preserve 100% compatibility with downstream layers
+        transcript = {
+          duration: videoDurationSec,
+          language: domainInfo.detectedLanguage || "en",
+          utterances: rawClaims.map((c, idx) => ({
+            speaker: c.speaker || "Speaker",
+            text: c.text,
+            start: typeof c.start === "number" ? c.start : idx * 5000,
+            end: typeof c.end === "number" ? c.end : (idx + 1) * 5000,
+          })),
+          speakers: ["Speaker"],
+          speakerCount: 1,
+        };
+
+        speakerIdentities = await this.resolveSpeakerIdentities(jobId, jobData?.channelId || "unknown", transcript, {}).catch(() => ({}));
+      }
       void extractionPartial; // v12.0: No longer passed to scoring engine
 
       logger.info("[Credibility] Context recognized", { jobId, traceId, ...domainInfo });
@@ -960,8 +995,8 @@ export class CredibilityEngine {
         },
 
         llmProvider: "Gemini 2.5 (Flash+Pro)",
-        sttProvider: "AssemblyAI Universal-3-Pro",
-        language: transcript.language,
+        sttProvider: hasTranscript ? "AssemblyAI Universal-3-Pro" : "Google Cloud Multimodal (Zero-Copy)",
+        language: normalizeLanguageCode(transcript?.language || "en"),
 
         latencyMs: {
           extraction:   t1 - t0,

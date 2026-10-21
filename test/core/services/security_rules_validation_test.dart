@@ -1111,6 +1111,8 @@ void main() {
         'walletBalanceUSD',
         'walletBalance',
         'withdrawnRevenueTotal',
+        'clearedWithdrawableRevenueTotal',
+        'pendingRevenueTotal',
       };
 
       bool canClientUpdateChannelFields({
@@ -1172,6 +1174,37 @@ void main() {
           changedFields: {'adsRevenueTotal', 'membershipRevenueTotal'},
         ),
         isFalse,
+      );
+
+      // Malicious attempt to fabricate cleared or pending revenue -> BLOCKED
+      expect(
+        canClientUpdateChannelFields(
+          isAuthenticated: true,
+          callerUid: 'owner_123',
+          channelOwnerId: 'owner_123',
+          changedFields: {'clearedWithdrawableRevenueTotal'},
+        ),
+        isFalse,
+      );
+      expect(
+        canClientUpdateChannelFields(
+          isAuthenticated: true,
+          callerUid: 'owner_123',
+          channelOwnerId: 'owner_123',
+          changedFields: {'pendingRevenueTotal'},
+        ),
+        isFalse,
+      );
+
+      // Legitimate creator updating autoPayoutEnabled preference -> ALLOWED
+      expect(
+        canClientUpdateChannelFields(
+          isAuthenticated: true,
+          callerUid: 'owner_123',
+          channelOwnerId: 'owner_123',
+          changedFields: {'autoPayoutEnabled'},
+        ),
+        isTrue,
       );
     });
 
@@ -1469,7 +1502,7 @@ void main() {
       );
 
       // Delete tests
-      expect(canDeleteVideoJob(isAdmin: false), isFalse);
+      expect(canDeleteVideoJob(), isFalse);
       expect(canDeleteVideoJob(isAdmin: true), isTrue);
     });
 
@@ -1749,6 +1782,154 @@ void main() {
           isAuthenticated: true,
         ),
         isFalse,
+      );
+    });
+
+    test('L-63: User payout settings fallback & Creator KYC null-resource read permissions', () {
+      // 1. users/{userId}/payout_settings/{settingId}
+      bool canAccessUserPayoutSettings({
+        required bool isAuthenticated,
+        required String callerUid,
+        required String pathUserId,
+        bool isAdmin = false,
+      }) {
+        if (!isAuthenticated) return false;
+        return callerUid == pathUserId || isAdmin;
+      }
+
+      // Owner can read/write their own payout settings
+      expect(
+        canAccessUserPayoutSettings(
+          isAuthenticated: true,
+          callerUid: 'user_123',
+          pathUserId: 'user_123',
+        ),
+        isTrue,
+        reason: 'User must be allowed to read/write their own payout settings',
+      );
+
+      // Admin can access payout settings
+      expect(
+        canAccessUserPayoutSettings(
+          isAuthenticated: true,
+          callerUid: 'admin_1',
+          pathUserId: 'user_123',
+          isAdmin: true,
+        ),
+        isTrue,
+        reason: 'Admin must be allowed to access payout settings',
+      );
+
+      // Other user cannot access victim payout settings
+      expect(
+        canAccessUserPayoutSettings(
+          isAuthenticated: true,
+          callerUid: 'attacker',
+          pathUserId: 'user_123',
+          isAdmin: false,
+        ),
+        isFalse,
+        reason: 'Third party cannot read/write another user payout settings',
+      );
+
+      // Unauthenticated cannot access payout settings
+      expect(
+        canAccessUserPayoutSettings(
+          isAuthenticated: false,
+          callerUid: '',
+          pathUserId: 'user_123',
+        ),
+        isFalse,
+        reason: 'Unauthenticated requests must be rejected',
+      );
+
+      // 2. creator_kyc/{channelId} read access
+      bool canReadCreatorKyc({
+        required bool isAuthenticated,
+        required String callerUid,
+        required String channelId,
+        required Map<String, dynamic>? resource,
+        bool isAdmin = false,
+      }) {
+        if (!isAuthenticated) return false;
+        return resource == null ||
+            resource['userId'] == callerUid ||
+            callerUid == channelId ||
+            isAdmin;
+      }
+
+      // Non-existent doc allows authenticated user read (returns exists: false instead of PERMISSION_DENIED)
+      expect(
+        canReadCreatorKyc(
+          isAuthenticated: true,
+          callerUid: 'creator_1',
+          channelId: 'channel_abc',
+          resource: null,
+        ),
+        isTrue,
+        reason: 'Non-existent KYC doc must return exists: false without permission denied',
+      );
+
+      // Unauthenticated non-existent doc read is denied
+      expect(
+        canReadCreatorKyc(
+          isAuthenticated: false,
+          callerUid: '',
+          channelId: 'channel_abc',
+          resource: null,
+        ),
+        isFalse,
+        reason: 'Unauthenticated read on creator_kyc must be denied even if doc is null',
+      );
+
+      // Existing doc: Submitter can read
+      expect(
+        canReadCreatorKyc(
+          isAuthenticated: true,
+          callerUid: 'user_456',
+          channelId: 'channel_abc',
+          resource: {'userId': 'user_456', 'kycStatus': 'pending'},
+        ),
+        isTrue,
+        reason: 'KYC submitter must be allowed to read their KYC record',
+      );
+
+      // Existing doc: Channel owner can read
+      expect(
+        canReadCreatorKyc(
+          isAuthenticated: true,
+          callerUid: 'channel_abc',
+          channelId: 'channel_abc',
+          resource: {'userId': 'user_other', 'kycStatus': 'approved'},
+        ),
+        isTrue,
+        reason: 'Channel owner matching channelId must be allowed to read KYC record',
+      );
+
+      // Existing doc: Admin can read
+      expect(
+        canReadCreatorKyc(
+          isAuthenticated: true,
+          callerUid: 'admin_1',
+          channelId: 'channel_abc',
+          resource: {'userId': 'user_456', 'kycStatus': 'pending'},
+          isAdmin: true,
+        ),
+        isTrue,
+        reason: 'Admin must be allowed to read any KYC record',
+      );
+
+      // Existing doc: Unrelated attacker is denied
+      expect(
+        canReadCreatorKyc(
+          isAuthenticated: true,
+          callerUid: 'attacker',
+          channelId: 'channel_abc',
+          resource: {'userId': 'user_456', 'kycStatus': 'approved'},
+          isAdmin: false,
+        ),
+        isFalse,
+        reason: 'Unrelated third party must NOT be allowed to read sensitive KYC record',
       );
     });
   });

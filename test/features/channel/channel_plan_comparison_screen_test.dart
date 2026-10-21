@@ -58,7 +58,7 @@ void main() {
 
     test('ChannelPlanComparisonController handles selection reactive updates', () {
       final controller =
-          Get.put(ChannelPlanComparisonController(initialPlan: 'standard'));
+          Get.put(ChannelPlanComparisonController());
       expect(controller.selectedPlan.value, 'standard');
 
       controller.selectPlan('custom');
@@ -75,7 +75,7 @@ void main() {
 
       await tester.pumpWidget(
         const GetMaterialApp(
-          home: ChannelPlanComparisonScreen(initialPlan: 'standard'),
+          home: ChannelPlanComparisonScreen(),
         ),
       );
       await tester.pumpAndSettle();

@@ -96,9 +96,21 @@ class WatchtimeDetailsController extends BaseController {
           ErrorHandler.log(e, stackTrace: s, tag: 'WatchtimeDetailsController.stats');
         }
 
+        final vData = doc.data() as Map<String, dynamic>? ?? {};
+        final vViews = (vData['viewCount'] as num?)?.toInt() ?? (vData['views'] as num?)?.toInt() ?? 0;
+        var vWatch = (vData['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0;
+        final vDur = (vData['durationSeconds'] as num?)?.toInt() ?? 0;
+        if (vWatch <= 0 && vViews > 0 && vDur > 0) {
+          vWatch = (vViews * vDur * 0.75).round();
+        }
         return WatchtimeVideoItem(
           id: doc.id,
           title: videoTitle,
+          totalViews: vViews,
+          uniqueUsers: vViews,
+          totalWatchSeconds: vWatch,
+          avgWatchSeconds: vViews > 0 ? vWatch / vViews : 0.0,
+          completionRate: (vDur > 0 && vViews > 0) ? ((vWatch / vViews) / vDur * 100).clamp(0.0, 100.0) : 0.0,
         );
       });
 

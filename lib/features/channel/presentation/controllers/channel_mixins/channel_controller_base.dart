@@ -53,6 +53,7 @@ abstract class ChannelControllerBase extends BaseController
   RxString get notificationOption;
   RxBool get isChannelMember;
   Rxn<ChannelMember> get currentMembership;
+  RxBool get hasChannelMemberships;
 
   // Form Key & Controllers
   GlobalKey<FormState> get formKey;
@@ -225,7 +226,40 @@ abstract class ChannelControllerBase extends BaseController
   Future<void> loadDraft();
 
   List<String> get activeTabs {
-    return const ['Home', 'Videos', 'Topics', 'Playlists', 'Posts'];
+    final channel = selectedChannel.value;
+    final hasVideoContent = hasVideos.value ||
+        videos.isNotEmpty ||
+        (channel != null && channel.videoCount > 0);
+    final hasPlaylistContent = hasPlaylists.value;
+    final hasTopicContent = hasTopics.value;
+    final hasPostContent = hasPosts.value;
+
+    final tabs = <String>[];
+    // Home tab has content if channel has videos or playlists
+    if (hasVideoContent || hasPlaylistContent) {
+      tabs.add('Home');
+    }
+    // Videos tab has content if channel has at least one video
+    if (hasVideoContent) {
+      tabs.add('Videos');
+    }
+    // Topics tab has content if channel has at least one topic
+    if (hasTopicContent) {
+      tabs.add('Topics');
+    }
+    // Playlists tab has content if channel has at least one playlist
+    if (hasPlaylistContent) {
+      tabs.add('Playlists');
+    }
+    // Posts tab has content if channel has at least one community post
+    if (hasPostContent) {
+      tabs.add('Posts');
+    }
+    // Safe fallback: If channel has no content across all categories, default to Home
+    if (tabs.isEmpty) {
+      tabs.add('Home');
+    }
+    return tabs;
   }
 
 

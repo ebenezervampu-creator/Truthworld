@@ -221,7 +221,7 @@ class TopicManagementScreen extends StatelessWidget {
                 stream: controller.fetchChannelTopics(channelId),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const TopicShimmerGrid();
+                    return const TopicLoadingGrid();
                   }
                   if (snapshot.hasError) {
                     ErrorHandler.log(

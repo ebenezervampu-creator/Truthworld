@@ -40,6 +40,8 @@ class AuthProfileManager {
   StreamSubscription? _userDocSubscription;
   String? _subscribedUid;
   bool _isOnboardingPromptShowing = false;
+  bool _pendingOnboardingPrompt = false;
+  bool get hasPendingOnboardingPrompt => _pendingOnboardingPrompt;
 
   /// Loads cached profile information synchronously from local storage.
   void initCachedProfile(String? uid) {
@@ -202,15 +204,15 @@ class AuthProfileManager {
   /// Listens to real-time updates from Firestore 'users' document.
   void updateUserDocSubscription(
     User? user, {
-    required void Function(Map<String, dynamic> data) onUserData,
-    required VoidCallback onUserDocMissingOrSignedOut,
+    void Function(Map<String, dynamic> data)? onUserData,
+    VoidCallback? onUserDocMissingOrSignedOut,
   }) {
     if (user == null) {
       _subscribedUid = null;
       _userDocSubscription?.cancel();
       _userDocSubscription = null;
       clearProfile();
-      onUserDocMissingOrSignedOut();
+      onUserDocMissingOrSignedOut?.call();
       return;
     }
 
@@ -229,7 +231,7 @@ class AuthProfileManager {
           (snapshot) {
             if (snapshot.exists) {
               final data = snapshot.data() ?? {};
-              onUserData(data);
+              onUserData?.call(data);
 
               userDisplayName.value =
                   (data['displayName'] as String?) ??
@@ -285,7 +287,7 @@ class AuthProfileManager {
               needsOnboarding.value = !hasCompletedOnboarding;
               cacheProfile(user.uid);
             } else {
-              onUserDocMissingOrSignedOut();
+              onUserDocMissingOrSignedOut?.call();
               clearProfile();
             }
           },
@@ -332,6 +334,7 @@ class AuthProfileManager {
     String? gender,
     String? username,
     String? displayName,
+    String? primaryLanguage,
   }) async {
     if (currentUser == null) return;
 
@@ -339,6 +342,11 @@ class AuthProfileManager {
       'hasCompletedOnboarding': true,
       'updatedAt': FieldValue.serverTimestamp(),
     };
+
+    if (primaryLanguage != null && primaryLanguage.trim().isNotEmpty) {
+      final trimmedLang = primaryLanguage.trim();
+      updateData['primaryLanguage'] = trimmedLang;
+    }
 
     if (country != null && country.trim().isNotEmpty) {
       final trimmedCountry = country.trim().toUpperCase();
@@ -364,28 +372,14 @@ class AuthProfileManager {
       userGender.value = null;
     }
 
-    if (username != null && username.trim().isNotEmpty) {
-      final rawUsername = username.trim().replaceAll('@', '');
-      final cleanUsername = ContentValidator.cleanProfanity(rawUsername);
-      final formattedHandle = '@$cleanUsername';
-      updateData['handle'] = formattedHandle;
-      updateData['username'] = cleanUsername;
-      userHandle.value = formattedHandle;
-
-      final nameToSet = (displayName != null && displayName.trim().isNotEmpty)
-          ? displayName.trim()
-          : (userDisplayName.value != null &&
-                  userDisplayName.value!.isNotEmpty &&
-                  !userDisplayName.value!.startsWith('User '))
-              ? userDisplayName.value!
-              : cleanUsername;
-
-      updateData['displayName'] = nameToSet;
-      updateData['name'] = nameToSet;
-      userDisplayName.value = nameToSet;
+    if (displayName != null && displayName.trim().isNotEmpty) {
+      final cleanDisplayName = ContentValidator.cleanProfanity(displayName.trim());
+      updateData['displayName'] = cleanDisplayName;
+      updateData['name'] = cleanDisplayName;
+      userDisplayName.value = cleanDisplayName;
 
       try {
-        await currentUser.updateDisplayName(nameToSet);
+        await currentUser.updateDisplayName(cleanDisplayName);
       } catch (authErr, s) {
         ErrorHandler.log(
           authErr,
@@ -393,6 +387,15 @@ class AuthProfileManager {
           tag: 'AuthProfileManager.updateUserProfileOnboarding.updateDisplayName',
         );
       }
+    }
+
+    if (username != null && username.trim().isNotEmpty) {
+      final rawUsername = username.trim().replaceAll('@', '');
+      final cleanUsername = ContentValidator.cleanProfanity(rawUsername);
+      final formattedHandle = '@$cleanUsername';
+      updateData['handle'] = formattedHandle;
+      updateData['username'] = cleanUsername;
+      userHandle.value = formattedHandle;
     }
 
     await FirebaseFirestore.instance
@@ -439,6 +442,7 @@ class AuthProfileManager {
     // Safety guard: Never show for unsigned, guest, or anonymous users
     if (currentUser == null || currentUser.isAnonymous || !isAuthenticated) {
       needsOnboarding.value = false;
+      _pendingOnboardingPrompt = false;
       return;
     }
 
@@ -456,10 +460,14 @@ class AuthProfileManager {
     }
 
     // Only prompt if onboarding is actually flagged as needed (new signed user)
-    if (!needsOnboarding.value) return;
+    if (!needsOnboarding.value && !_pendingOnboardingPrompt) return;
 
     // If an authentication bottom sheet is currently open, defer prompt until it closes
-    if (AuthBottomSheet.isOpen) return;
+    if (AuthBottomSheet.isOpen) {
+      _pendingOnboardingPrompt = true;
+      return;
+    }
+    _pendingOnboardingPrompt = false;
 
     final ctx = context ?? Get.key.currentContext ?? Get.context;
     if (ctx == null) return;

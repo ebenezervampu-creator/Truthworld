@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -9,6 +10,7 @@ import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/cashfree/cashfree_country_support.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
+import 'package:truthworld/core/services/user_languages_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 
 /// Controller for the dedicated full-screen user onboarding profile setup.
@@ -22,6 +24,7 @@ class OnboardingProfileController extends GoogleOnboardingController {
 
   final RxString activeAvatarUrl = ''.obs;
   final RxBool isUploadingPhoto = false.obs;
+  bool _profileDefaultsInitialized = false;
 
   OnboardingProfileController() {
     displayNameController.addListener(_onDisplayNameChanged);
@@ -31,7 +34,9 @@ class OnboardingProfileController extends GoogleOnboardingController {
   @override
   void onInit() {
     super.onInit();
-    _initProfileDefaults();
+    if (!_profileDefaultsInitialized) {
+      _initProfileDefaults();
+    }
   }
 
   @override
@@ -48,6 +53,7 @@ class OnboardingProfileController extends GoogleOnboardingController {
 
   /// Initializes Google / Gmail defaults for avatar, display name, handle, and country
   void _initProfileDefaults() {
+    _profileDefaultsInitialized = true;
     try {
       final auth = AuthService.to;
       final currentUser = auth.user;
@@ -70,22 +76,9 @@ class OnboardingProfileController extends GoogleOnboardingController {
               : (currentUser?.photoURL ?? ''));
       activeAvatarUrl.value = photo;
 
-      // 3. Username: prefill clean handle if empty
-      if (usernameController.text.isEmpty) {
-        final rawHandle = auth.userHandle.value ?? '';
-        if (rawHandle.isNotEmpty && !rawHandle.startsWith('@user_')) {
-          usernameController.text = rawHandle.replaceAll('@', '');
-        } else if (name.isNotEmpty) {
-          // Generate a friendly initial handle from display name
-          final slug = name
-              .toLowerCase()
-              .replaceAll(RegExp('[^a-z0-9_]'), '_')
-              .replaceAll(RegExp('_+'), '_');
-          if (slug.isNotEmpty) {
-            usernameController.text = slug;
-          }
-        }
-      }
+      // 3. Username: Standard users do not require a handle; keep empty
+      usernameController.text = '';
+      usernameError.value = null;
 
       // 4. Country: ensure detected country is pre-selected
       final currentCountry = auth.userCountry.value;
@@ -195,21 +188,7 @@ class OnboardingProfileController extends GoogleOnboardingController {
     final cleanDisplayName = ContentValidator.cleanProfanity(rawDisplayName);
     displayNameError.value = null;
 
-    // 2. Validate Username if provided
-    String? cleanUsername;
-    final rawUsername = usernameController.text.trim().replaceAll('@', '');
-    if (rawUsername.isNotEmpty) {
-      final err = validateUsername(rawUsername);
-      if (err != null) {
-        usernameError.value = err;
-        AppSnackbar.warning(err);
-        return;
-      }
-      cleanUsername = ContentValidator.cleanProfanity(rawUsername);
-      usernameError.value = null;
-    }
-
-    // 3. Format Gender Value
+    // 2. Format Gender Value
     String? genderValue;
     final selectedGenderVal = selectedGender.value;
     if (selectedGenderVal != null) {
@@ -243,12 +222,17 @@ class OnboardingProfileController extends GoogleOnboardingController {
     isSaving.value = true;
     try {
       // 5. Update Firestore profile & Auth state
+      if (Get.isRegistered<UserLanguagesService>()) {
+        await UserLanguagesService.to.setPrimaryLanguage(selectedLanguage.value);
+      }
+
+      // 5. Update Firestore profile & Auth state
       await auth.updateUserProfileOnboarding(
         country: effectiveCountry,
         ageGroup: selectedAgeGroup.value,
         gender: genderValue,
-        username: cleanUsername,
         displayName: cleanDisplayName,
+        primaryLanguage: selectedLanguage.value,
       );
 
       // 6. If photo was updated, update user photoURL in Auth
@@ -291,6 +275,10 @@ class OnboardingProfileController extends GoogleOnboardingController {
           (Get.isRegistered<CurrencyLocalizationService>()
               ? CurrencyLocalizationService.to.userCountryCode.value
               : 'IN');
+
+      if (Get.isRegistered<UserLanguagesService>()) {
+        await UserLanguagesService.to.setPrimaryLanguage(selectedLanguage.value);
+      }
 
       await auth.skipUserOnboarding(defaultCountry: effectiveCountry);
       auth.needsOnboarding.value = false;

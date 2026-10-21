@@ -22,30 +22,30 @@ class ChannelNotificationsIssueCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color badgeBg;
-    Color borderColor;
+    Color iconColor;
+    String statusLabel;
 
     if (statusType == 'PENDING') {
-      badgeBg = AppColors.infoContainer;
-      borderColor = AppColors.info.withValues(alpha: 0.4);
+      iconColor = AppColors.textSecondary;
+      statusLabel = 'IN PROGRESS';
     } else if (statusType == 'APPROVED') {
-      badgeBg = AppColors.successContainer;
-      borderColor = AppColors.success.withValues(alpha: 0.4);
+      iconColor = const Color(0xFF34D399);
+      statusLabel = 'VERIFIED';
     } else if (statusType == 'FLAGGED') {
-      badgeBg = AppColors.warningContainer;
-      borderColor = AppColors.warning.withValues(alpha: 0.4);
+      iconColor = const Color(0xFFFBBF24);
+      statusLabel = 'NEEDS REVIEW';
     } else if (statusType == 'MANUAL_REVIEW') {
-      badgeBg = AppColors.infoContainer;
-      borderColor = AppColors.info.withValues(alpha: 0.4);
+      iconColor = AppColors.textSecondary;
+      statusLabel = 'IN REVIEW';
     } else {
       // REJECTED
-      badgeBg = AppColors.errorContainer;
-      borderColor = AppColors.error.withValues(alpha: 0.4);
+      iconColor = const Color(0xFFF87171);
+      statusLabel = 'ACTION REQUIRED';
     }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.bgSurface,
         borderRadius: BorderRadius.circular(10),
@@ -60,9 +60,9 @@ class ChannelNotificationsIssueCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: badgeBg,
+                  color: AppColors.bgSurfaceHover,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: borderColor),
+                  border: Border.all(color: AppColors.bgDivider),
                 ),
                 child: isLoading
                     ? const SizedBox(
@@ -71,27 +71,60 @@ class ChannelNotificationsIssueCard extends StatelessWidget {
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
                           valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
+                              AlwaysStoppedAnimation<Color>(AppColors.textSecondary),
                         ),
                       )
-                    : Icon(icon, color: Colors.white, size: 16),
+                    : Icon(icon, color: iconColor, size: 16),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontFamily: TWTypography.uiFamily,
-                        fontFamilyFallback: TWTypography.fallbackFamilies,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              fontFamilyFallback: TWTypography.fallbackFamilies,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: iconColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: iconColor.withValues(alpha: 0.25),
+                            ),
+                          ),
+                          child: Text(
+                            statusLabel,
+                            style: TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              fontFamilyFallback:
+                                  TWTypography.fallbackFamilies,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                              color: iconColor,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 5),
                     Text(
                       description,
                       style: const TextStyle(
@@ -99,7 +132,7 @@ class ChannelNotificationsIssueCard extends StatelessWidget {
                         fontFamilyFallback: TWTypography.fallbackFamilies,
                         fontSize: 13,
                         color: AppColors.textSecondary,
-                        height: 1.4,
+                        height: 1.45,
                       ),
                     ),
                   ],

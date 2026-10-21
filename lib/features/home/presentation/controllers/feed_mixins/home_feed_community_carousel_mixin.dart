@@ -7,9 +7,11 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/algorithm/diversity_config.dart';
 import 'package:truthworld/core/services/algorithm/scored_video.dart';
 import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/video_sanitizer.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
+import 'package:truthworld/features/community/presentation/controllers/community_interaction_cache.dart';
 import 'package:truthworld/features/home/presentation/controllers/feed_mixins/home_feed_controller_base.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/video_query_builder.dart';
@@ -189,6 +191,10 @@ mixin HomeFeedCommunityCarouselMixin on HomeFeedControllerBase {
             final data = Map<String, dynamic>.from(doc.data()! as Map);
             data.putIfAbsent('id', () => doc.id);
             final post = CommunityPostModel.fromMap(data);
+            if (post.id == '8Zq2KuYIgm9m8kgogAE3' ||
+                post.title.trim().toLowerCase().startsWith('our first video')) {
+              continue;
+            }
             if (post.isValid && !post.isDraft) {
               posts.add(post);
             }
@@ -202,8 +208,21 @@ mixin HomeFeedCommunityCarouselMixin on HomeFeedControllerBase {
         }
 
         posts.sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
-        communityPosts.assignAll(posts);
-        homeFeedItems.assignAll(posts);
+        final currentUid = Get.isRegistered<AuthService>()
+            ? AuthService.to.currentUser.value?.uid
+            : null;
+        if (currentUid != null) {
+          await CommunityInteractionCache.ensureInitialized(currentUid);
+        }
+        final visiblePosts = posts.where((p) {
+          if (currentUid != null && (currentUid == p.ownerId || currentUid == p.channelId)) {
+            return true;
+          }
+          return !CommunityInteractionCache.isFeedHidden(p.id, p.channelId);
+        }).toList();
+
+        communityPosts.assignAll(visiblePosts);
+        homeFeedItems.assignAll(visiblePosts);
         rxHasMore.value = docs.length >= HomeFeedControllerBase.pageSize;
       } else {
         communityPosts.clear();
@@ -316,7 +335,20 @@ mixin HomeFeedCommunityCarouselMixin on HomeFeedControllerBase {
         }
       }
       posts.sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
-      communityPosts.assignAll(posts.take(10));
+      final currentUid = Get.isRegistered<AuthService>()
+          ? AuthService.to.currentUser.value?.uid
+          : null;
+      if (currentUid != null) {
+        await CommunityInteractionCache.ensureInitialized(currentUid);
+      }
+      final visiblePosts = posts.where((p) {
+        if (currentUid != null && (currentUid == p.ownerId || currentUid == p.channelId)) {
+          return true;
+        }
+        return !CommunityInteractionCache.isFeedHidden(p.id, p.channelId);
+      }).toList();
+
+      communityPosts.assignAll(visiblePosts.take(10));
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,

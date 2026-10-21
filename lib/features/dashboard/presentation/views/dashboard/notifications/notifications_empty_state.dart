@@ -22,8 +22,8 @@ class ChannelNotificationsEmptyState extends StatelessWidget {
               ),
               child: const Icon(
                 Icons.notifications_none_rounded,
-                size: 40,
-                color: Colors.white,
+                size: 38,
+                color: AppColors.textSecondary,
               ),
             ),
             const SizedBox(height: 16),

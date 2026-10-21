@@ -6,6 +6,7 @@ import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
+import 'package:truthworld/features/video/presentation/views/player/tower_custom_player.dart';
 import 'package:truthworld/features/video/presentation/views/widgets/video_screen/video_player_stage.dart';
 import 'package:video_player/video_player.dart';
 import 'package:video_player_platform_interface/video_player_platform_interface.dart';
@@ -33,7 +34,15 @@ class _FakeVideoPlayerPlatform extends VideoPlayerPlatform {
   @override
   Future<Duration> getPosition(int textureId) async => Duration.zero;
   @override
-  Stream<VideoEvent> videoEventsFor(int textureId) => const Stream.empty();
+  Stream<VideoEvent> videoEventsFor(int textureId) {
+    return Stream.value(
+      VideoEvent(
+        eventType: VideoEventType.initialized,
+        duration: const Duration(minutes: 5),
+        size: const Size(1920, 1080),
+      ),
+    );
+  }
   @override
   Widget buildView(int textureId) => const SizedBox();
   @override
@@ -194,6 +203,84 @@ void main() {
       );
       expect(positionedGlow.bottom, equals(0.0));
       expect(positionedGlow.top, equals(-24.0));
+    });
+
+
+    test('5. Uninitialized video player retains 16:9 aspect ratio and does not default to 1.0 square', () {
+      final controller = VideoController();
+      controller.video = Video.empty().copyWith(
+        id: 'vid_uninit_test',
+        title: 'Zomato Big Transformation',
+        thumbnailUrl: 'https://example.com/zomato.jpg',
+      );
+
+      final uninitVpc = VideoPlayerController.networkUrl(
+        Uri.parse('https://example.com/stream.mp4'),
+      );
+      final towerCtrl = TowerPlayerController(
+        videoPlayerController: uninitVpc,
+        tag: 'vid_uninit_test',
+      );
+      Get.put(towerCtrl, tag: 'vid_uninit_test');
+
+      // Aspect ratio must NOT be corrupted to 1.0
+      expect(towerCtrl.aspectRatio.value, closeTo(16 / 9, 0.01));
+      expect(controller.vpcAspectRatio, closeTo(16 / 9, 0.01));
+
+      Get.delete<TowerPlayerController>(tag: 'vid_uninit_test', force: true);
+      uninitVpc.dispose();
+    });
+
+    testWidgets('6. VideoPlayerStage mounts TowerCustomPlayer and smoothly transitions from thumbnail overlay to live player', (tester) async {
+      tester.view.physicalSize = const Size(1024, 768);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final controller = VideoController();
+      controller.video = Video.empty().copyWith(
+        id: 'vid_mount_test',
+        title: 'Test Video',
+        thumbnailUrl: 'https://example.com/thumb.jpg',
+      );
+
+      final vpc = VideoPlayerController.networkUrl(
+        Uri.parse('https://example.com/stream.mp4'),
+      );
+      controller.videoPlayerController = vpc;
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: Scaffold(
+            body: CustomScrollView(
+              slivers: [
+                VideoPlayerStage(
+                  controller: controller,
+                  videoTag: 'vid_mount_test',
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // TowerCustomPlayer must be mounted in widget tree immediately
+      expect(find.byType(TowerCustomPlayer), findsOneWidget);
+
+      // Verify TowerPlayerController is registered
+      expect(Get.isRegistered<TowerPlayerController>(tag: 'vid_mount_test'), isTrue);
+      final towerCtrl = Get.find<TowerPlayerController>(tag: 'vid_mount_test');
+
+      // When initialized, sync should update isInitialized
+      await vpc.initialize();
+      controller.isPlayerInitialized.value = true;
+      towerCtrl.sync(vpc);
+      await tester.pump();
+
+      expect(towerCtrl.isInitialized.value, isTrue);
+
+      Get.delete<TowerPlayerController>(tag: 'vid_mount_test', force: true);
+      vpc.dispose();
     });
   });
 }

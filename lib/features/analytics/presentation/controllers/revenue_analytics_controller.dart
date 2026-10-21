@@ -43,9 +43,25 @@ class RevenueAnalyticsController extends RevenueAnalyticsStateBase
     initExchangeRateWorker();
   }
 
+  void clearData() {
+    disposeStreams();
+    channelId.value = '';
+    channelName.value = '';
+    totalRevenue.value = 0.0;
+    totalRevenueUSD.value = 0.0;
+    membershipsRevenue.value = 0.0;
+    membershipsRevenueINR.value = 0.0;
+    membershipsRevenueUSD.value = 0.0;
+    superchatRevenue.value = 0.0;
+    adsRevenue.value = 0.0;
+    watchTimeRevenue.value = 0.0;
+    premiumSubsRevenue.value = 0.0;
+    premiumSubsRevenueUSD.value = 0.0;
+  }
+
   @override
   void onClose() {
-    disposeStreams();
+    clearData();
     super.onClose();
   }
 

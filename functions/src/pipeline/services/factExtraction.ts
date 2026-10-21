@@ -458,6 +458,210 @@ RULES:
     return allClaims;
   }
 
+
+  /**
+   * 🎥 Multimodal Fact Extraction directly from Video/Audio Media via Google Cloud Vertex AI
+   * Extracts atomic factual claims from audio/speech and visual OCR without requiring AssemblyAI.
+   * Works across all languages (English, Telugu, Hindi, Spanish, French, etc.).
+   */
+  async extractClaimsFromMedia(
+    jobId: string,
+    gcsUri: string,
+    mimeType: string = "video/mp4",
+    videoTitle?: string
+  ): Promise<{
+    claims: ExtractedClaim[];
+    domainInfo: {
+      domain: string;
+      stance: string;
+      cautionLevel: "low" | "medium" | "high";
+      isLaunchNews: boolean;
+      primaryIntent?: string;
+      isSensitive?: boolean;
+      detectedLanguage?: string;
+    };
+    summary: string;
+  }> {
+    const cleanTitle = (videoTitle || "Untitled").replace(/["\r\n]/g, " ").trim();
+
+    const prompt = `You are a fact-checking expert and claim ontologist for TruthWorld's Credibility System.
+Analyze this video directly using both the AUDIO TRACK (speech across ANY language, e.g. English, Telugu, Hindi, Spanish, French, German, Tamil, etc.) and VISUAL FRAMES (on-screen text, tickers, slides).
+
+### ARCHITECTURAL SEPARATION:
+You are part of the CREDIBILITY SYSTEM (epistemic verification). You are NOT Content Moderation.
+Content Moderation handles family-friendly delivery (profanity, gore, explicit content) in a separate pre-pipeline stage.
+Your job is purely epistemic: extract all empirical claims without filtering out controversial, sensitive, political, or radical topics. Do not censor.
+
+### CORE PRINCIPLE:
+A claim is FACTUAL if an external source (news archive, official record, scientific data) could confirm or refute it, even if presented dramatically, emotionally, sarcastically, or persuasively. Tone != Falsity.
+
+### VIDEO METADATA:
+Title: "${cleanTitle}"
+
+### CRITICAL RULES:
+1.1. HISTORICAL, SCIENTIFIC, & REGIONAL TRIVIA: Always extract claims about inventions, discoveries, geographical facts, historical events, statistics, or public figures. These are BUCKET 1 (VERIFIABLE_FACT).
+1.2. NO EMOJIS: Do NOT include emojis (like 🔍, ✅, ❌) in the "text" field of the JSON. Extract the raw text only.
+1.3. LANGUAGE SUPPORT: Extract claims made in ANY language. If speech is in Telugu, Hindi, Spanish, French, etc., transcribe and represent each empirical assertion clearly.
+
+### THE FOUR BUCKETS:
+Each claim MUST be classified into one of these buckets:
+- "VERIFIABLE_FACT" (Bucket 1): Empirically testable claims, current events, statistics, historical records, inventions, scientific constants.
+- "OPINION" (Bucket 2): Subjective preferences, values, or moral judgments ("This is good", "I prefer X").
+- "BELIEF" (Bucket 3): Faith-based, scriptural, or miraculous claims ("God created the world").
+- "ESTIMATION" (Bucket 4): Projections, future-oriented claims, or theoretical guesses.
+- "SATIRE": Non-literal or parody content.
+
+FramingStyle:
+- "HEDGED", "BALANCED", "ASSERTIVE", "ABSOLUTE", "MANIPULATIVE"
+
+Assertiveness and Strength:
+- "assertiveness": "casual" | "moderate" | "confident" | "authoritative" | "absolute"
+- "claimStrength": "hedged" | "moderate" | "strong" | "absolute"
+
+Return ONLY a valid JSON object matching this structure:
+{
+  "detectedLanguage": "ISO 639-1 language code (e.g. en, te, hi, es, fr)",
+  "domain": "Technology | Health | Finance | Entertainment | Politics | Science | Geopolitical | General",
+  "stance": "Explanatory | Persuasive | Debunking | Satirical | Mixed",
+  "cautionLevel": "low | medium | high",
+  "isLaunchNews": true | false,
+  "primaryIntent": "factual | promotional | editorial | educational | entertainment | testimonial | commentary",
+  "isSensitive": true | false,
+  "summary": "Comprehensive overview of the claims made in the video",
+  "claims": [
+    {
+      "text": "Exact factual assertion",
+      "nature": "VERIFIABLE_FACT",
+      "framing": "ASSERTIVE",
+      "confidence": 0.95,
+      "importance": 0.8,
+      "isVerifiableEvent": true,
+      "honestyWashingRisk": false,
+      "assertiveness": "confident",
+      "claimStrength": "strong",
+      "start": 12000,
+      "end": 18000,
+      "speaker": "Speaker 1"
+    }
+  ]
+}`;
+
+    const extractChain = {
+      primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-2.5-flash",
+      fallback: null,
+      forcePrimary: true,
+    };
+
+    return withAiRetry(async (modelId: string, recordUsage) => {
+      const activeModel = this.genAI.getGenerativeModel({
+        model: modelId,
+        safetySettings: FACT_CHECK_SAFETY_SETTINGS,
+      });
+
+      const response = await activeModel.generateContent({
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                fileData: {
+                  mimeType,
+                  fileUri: gcsUri,
+                },
+              },
+              {
+                text: prompt,
+              },
+            ],
+          },
+        ],
+      });
+
+      recordUsage?.(response);
+      const text = extractCandidateText(response.response.candidates?.[0]) || response.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+      const jsonMatch = this.extractJSON(text);
+      if (!jsonMatch) {
+        logger.warn(`[FactExtraction] No valid JSON found in media extraction response for ${jobId}.`);
+        return {
+          claims: [],
+          domainInfo: { domain: "General", stance: "Mixed", cautionLevel: "medium", isLaunchNews: false, primaryIntent: "educational", isSensitive: false, detectedLanguage: "en" },
+          summary: "No claims detected.",
+        };
+      }
+
+      let parsed: any;
+      try {
+        parsed = JSON.parse(jsonMatch);
+      } catch (parseErr) {
+        logger.error(`[FactExtraction] JSON parse error in media extraction for ${jobId}:`, parseErr);
+        return {
+          claims: [],
+          domainInfo: { domain: "General", stance: "Mixed", cautionLevel: "medium", isLaunchNews: false, primaryIntent: "educational", isSensitive: false, detectedLanguage: "en" },
+          summary: "Parsing failed.",
+        };
+      }
+
+      const validation = GeminiExtractionSchema.safeParse(parsed);
+      const validatedData = validation.success ? validation.data : parsed;
+
+      const rawClaimsList = Array.isArray(validatedData.claims) ? validatedData.claims : [];
+
+      const extractedClaims: ExtractedClaim[] = rawClaimsList
+        .filter((c: any) => (c.confidence ?? 0.5) >= 0.5)
+        .map((claim: any, idx: number) => {
+          let nature: ClaimNature = (claim.nature as any) || "VERIFIABLE_FACT";
+          const deterministicNature = registryService.getDeterministicDomain(claim.text || "");
+          if (deterministicNature) {
+            nature = deterministicNature as any;
+          }
+
+          return {
+            text: (claim.text || "").replace(/^[🔍\s]+/, "").trim(),
+            nature,
+            framing: (claim.framing as any) || "ASSERTIVE",
+            confidence: typeof claim.confidence === "number" ? claim.confidence : 0.9,
+            importance: typeof claim.importance === "number" ? claim.importance : 0.8,
+            chunkIndex: 0,
+            isVerifiableEvent: claim.isVerifiableEvent ?? true,
+            honestyWashingRisk: claim.honestyWashingRisk ?? false,
+            assertiveness: (claim.assertiveness as any) || "confident",
+            claimStrength: (claim.claimStrength as any) || "strong",
+            start: typeof claim.start === "number" ? claim.start : idx * 5000,
+            end: typeof claim.end === "number" ? claim.end : (idx + 1) * 5000,
+            speaker: claim.speaker || "Speaker",
+          };
+        });
+
+      const calibratedClaims = extractedClaims.map((claim) => {
+        if (claim.isVerifiableEvent || containsVerifiablePredicate(claim.text)) {
+          return claim;
+        }
+        if (isSubjectiveClaim(claim.text, claim.isVerifiableEvent)) {
+          return { ...claim, nature: "OPINION" as any };
+        }
+        return claim;
+      });
+
+      const detectedLang = validatedData.detectedLanguage || "en";
+      const domainInfo = {
+        domain: validatedData.domain || "General",
+        stance: validatedData.stance || "Mixed",
+        cautionLevel: (validatedData.cautionLevel as any) || "medium",
+        isLaunchNews: !!validatedData.isLaunchNews,
+        primaryIntent: validatedData.primaryIntent || "factual",
+        isSensitive: !!validatedData.isSensitive,
+        detectedLanguage: detectedLang,
+      };
+
+      return {
+        claims: calibratedClaims,
+        domainInfo,
+        summary: validatedData.summary || "",
+      };
+    }, extractChain, { maxAttempts: 4, instanceId: jobId, jobId, stage: "media_extraction" });
+  }
+
   async extractClaims(
     jobId: string,
     transcript: any, // TranscriptData

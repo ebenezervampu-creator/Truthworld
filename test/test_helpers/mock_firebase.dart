@@ -115,6 +115,18 @@ Future<void> setupMockFirebase() async {
     const MethodChannel('plugins.flutter.io/path_provider'),
     (methodCall) async => tempDir,
   );
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(
+    const MethodChannel('plugins.flutter.io/firebase_auth'),
+    (methodCall) async => null,
+  );
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMessageHandler(
+    'dev.flutter.pigeon.firebase_auth_platform_interface.FirebaseAuthHostApi.signOut',
+    (message) async {
+      return const StandardMessageCodec().encodeMessage(<Object?>[]);
+    },
+  );
   try {
     await GetStorage.init();
     await GetStorage().erase();

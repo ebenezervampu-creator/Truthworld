@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
-import 'package:truthworld/features/channel/presentation/views/channel/wizard/widgets/language/channel_invite_only_language_dialog.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/wizard/widgets/language/channel_languages_data.dart';
 import 'package:truthworld/theme/tw_typography.dart';
 
@@ -67,44 +66,7 @@ void showLanguagePicker(BuildContext context, ChannelController controller) {
                   ],
                 ),
               ),
-              // Notice banner
-              Container(
-                margin: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 6,
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF121212),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFF27272A)),
-                ),
-                child: const Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: Color(0xFFA1A1AA),
-                      size: 18,
-                    ),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Truthworld is accepting only English as of now. All other world languages are invite-only at this stage.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFFA1A1AA),
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Search Field - Crystal Clear!
+              // Search Field
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,
@@ -165,7 +127,7 @@ void showLanguagePicker(BuildContext context, ChannelController controller) {
                           ),
                           cursorColor: Colors.white,
                           decoration: const InputDecoration(
-                            hintText: 'Search world languages...',
+                            hintText: 'Search language...',
                             hintStyle: TextStyle(
                               color: Color(0xFFA1A1AA),
                               fontSize: 14,
@@ -233,159 +195,58 @@ void showLanguagePicker(BuildContext context, ChannelController controller) {
                             final name = lang['name'] as String? ?? '';
                             final native = lang['native'] as String? ?? '';
                             final code = lang['code'] as String? ?? '';
-                            final speakers = lang['speakers'] as String? ?? '';
-                            final rank = lang['rank'] as int? ?? (index + 1);
 
-                            final isEnglish = code == 'en';
+                            return Obx(() {
+                              final isSelected = controller.language.value.trim().toLowerCase() == code.toLowerCase();
 
-                            return ListTile(
-                              dense: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 2,
-                              ),
-                              onTap: () {
-                                if (isEnglish) {
-                                  controller.language.value = 'en';
+                              return ListTile(
+                                dense: true,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 4,
+                                ),
+                                onTap: () {
+                                  controller.language.value = code;
                                   Navigator.pop(ctx);
-                                } else {
-                                  showInviteOnlyLanguageDialog(
-                                    context,
-                                    langName: name,
-                                    nativeName: native,
-                                    code: code,
-                                    speakers: speakers,
-                                    rank: rank,
-                                    controller: controller,
-                                  );
-                                }
-                              },
-                              leading: Container(
-                                width: 36,
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  color: isEnglish
-                                      ? const Color(0xFF27272A)
-                                      : const Color(0xFF202023),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: isEnglish
-                                      ? Border.all(
-                                          color: const Color(0xFF3F3F46),
-                                        )
-                                      : null,
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  '#$rank',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: isEnglish
-                                        ? FontWeight.bold
-                                        : FontWeight.w600,
-                                    color: isEnglish
-                                        ? Colors.white
-                                        : const Color(0xFF71717A),
-                                  ),
-                                ),
-                              ),
-                              title: Row(
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      name,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: isEnglish
-                                            ? FontWeight.bold
-                                            : FontWeight.w500,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    '($native)',
-                                    style: _getNativeLanguageStyle(code),
-                                  ),
-                                ],
-                              ),
-                              subtitle: Text(
-                                speakers,
-                                style: const TextStyle(
-                                  fontSize: 11,
+                                },
+                                leading: const Icon(
+                                  Icons.language,
                                   color: Color(0xFFA1A1AA),
+                                  size: 20,
                                 ),
-                              ),
-                              trailing: isEnglish
-                                  ? Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 3,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF1B382B),
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                            border: Border.all(
-                                              color: const Color(0xFF22C55E)
-                                                  .withValues(alpha: 0.4),
-                                            ),
-                                          ),
-                                          child: const Text(
-                                            'Accepted',
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.bold,
-                                              color: Color(0xFF4ADE80),
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        const Icon(
-                                          Icons.check_circle,
+                                title: Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        name,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: isSelected
+                                              ? FontWeight.bold
+                                              : FontWeight.w500,
                                           color: Colors.white,
-                                          size: 20,
                                         ),
-                                      ],
-                                    )
-                                  : Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 3,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF202023),
-                                        borderRadius:
-                                            BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: const Color(0xFF27272A),
-                                        ),
-                                      ),
-                                      child: const Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.lock_outline,
-                                            color: Color(0xFFA1A1AA),
-                                            size: 12,
-                                          ),
-                                          SizedBox(width: 4),
-                                          Text(
-                                            'Invite Only',
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              color: Color(0xFFA1A1AA),
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ],
                                       ),
                                     ),
-                            );
+                                    if (native.isNotEmpty && native != name) ...[
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        '($native)',
+                                        style: _getNativeLanguageStyle(code),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                trailing: isSelected
+                                    ? const Icon(
+                                        Icons.check_circle,
+                                        color: Colors.white,
+                                        size: 20,
+                                      )
+                                    : null,
+                              );
+                            });
                           },
                         ),
                 ),

@@ -75,14 +75,14 @@ class ChannelMembershipTier {
   /// Maximum number of membership tiers allowed per channel according to industry standards.
   static const int maxTiersPerChannel = 3;
 
-  static const double minPriceINR = 10.0;
+  static const double minPriceINR = 50.0;
   static const double minPriceUSD = 1.0;
 
   static double minPriceFor(String currency) =>
       currency.toUpperCase() == 'INR' ? minPriceINR : minPriceUSD;
 
   static String minPriceLabel(String currency) =>
-      currency.toUpperCase() == 'INR' ? '₹10 (10 rupees)' : r'$1 (1 dollar)';
+      currency.toUpperCase() == 'INR' ? '₹50 (50 rupees)' : r'$1 (1 dollar)';
 
   /// Recommended pricing for Channel Premium Bundle ($5 for USD, ₹150 for INR).
   static const double recommendedBundlePriceINR = 150.0;
@@ -259,8 +259,8 @@ class ChannelMember {
 
     return ChannelMember(
       userId: map['userId'] ?? id,
-      userName: map['userName'] ?? map['displayName'] ?? 'Channel Member',
-      userAvatarUrl: map['userAvatarUrl'] ?? map['avatarUrl'] ?? '',
+      userName: map['userName'] ?? map['displayName'] ?? map['name'] ?? 'Channel Member',
+      userAvatarUrl: map['userAvatarUrl'] ?? map['avatarUrl'] ?? map['photoUrl'] ?? map['photoURL'] ?? '',
       tierId: map['tierId'] ?? '',
       tierName: map['tierName'] ?? 'Member',
       price: rawPrice,
@@ -427,12 +427,32 @@ class MembershipsController extends BaseController with ContentValidationMixin {
     }
   }
 
+  void clearData() {
+    _tiersSub?.cancel();
+    _tiersSub = null;
+    _membersSub?.cancel();
+    _membersSub = null;
+    _channelSub?.cancel();
+    _channelSub = null;
+    _channelIdWorker?.dispose();
+    _channelIdWorker = null;
+    _channelId.value = '';
+    tiers.clear();
+    members.clear();
+    memberSearchQuery.value = '';
+    selectedTierFilter.value = 'all';
+  }
+
   @override
   void onClose() {
     _tiersSub?.cancel();
+    _tiersSub = null;
     _membersSub?.cancel();
+    _membersSub = null;
     _channelSub?.cancel();
+    _channelSub = null;
     _channelIdWorker?.dispose();
+    _channelIdWorker = null;
     super.onClose();
   }
 
@@ -831,6 +851,17 @@ class MembershipsController extends BaseController with ContentValidationMixin {
       );
 
       await docRef.set(newTier.toMap());
+      if (isEnabled) {
+        _firestore
+            .collection(FirestoreCollections.channels)
+            .doc(activeId)
+            .update({
+          'hasMemberships': true,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }).catchError((e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'MembershipsController.createTier.syncHasMemberships');
+        });
+      }
       AppSnackbar.success('Tier "$trimmedName" created successfully!');
       isSaving.value = false;
       return true;
@@ -921,6 +952,17 @@ class MembershipsController extends BaseController with ContentValidationMixin {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
+      final hasAnyEnabled = tiers.any((t) => t.id == tierId ? isEnabled : t.isEnabled);
+      _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(activeId)
+          .update({
+        'hasMemberships': hasAnyEnabled,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }).catchError((e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'MembershipsController.toggleTierStatus.syncHasMemberships');
+      });
+
       AppSnackbar.info(
         isEnabled ? 'Tier is now active for fans to join.' : 'Tier is paused and hidden from new fans.',
         title: isEnabled ? 'Tier Enabled' : 'Tier Paused',
@@ -943,6 +985,19 @@ class MembershipsController extends BaseController with ContentValidationMixin {
           .collection('membership_tiers')
           .doc(tierId)
           .delete();
+
+      final hasAnyRemaining = tiers
+          .where((t) => t.id != tierId)
+          .any((t) => t.isEnabled);
+      _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(activeId)
+          .update({
+        'hasMemberships': hasAnyRemaining,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }).catchError((e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'MembershipsController.deleteTier.syncHasMemberships');
+      });
 
       AppSnackbar.info('Tier "$tierName" has been removed.');
     } catch (e) {

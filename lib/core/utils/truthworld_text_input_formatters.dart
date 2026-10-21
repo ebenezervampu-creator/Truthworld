@@ -1,2 +1,2 @@
 export 'package:truthworld/core/mixins/content_validation_mixin.dart'
-    show TruthworldTextInputFormatters;
+    show TruthWorldTextInputFormatters, TruthworldTextInputFormatters;

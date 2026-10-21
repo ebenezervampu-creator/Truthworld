@@ -90,7 +90,7 @@ void main() {
   );
 
   group('VideoCommentItemWidget Modular Architecture Tests', () {
-    testWidgets('1. CommentAuthorHeader renders handle and relative time',
+    testWidgets('1. CommentAuthorHeader renders username and relative time',
         (tester) async {
       await tester.pumpWidget(
         wrapWithMaterial(
@@ -103,7 +103,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('@TruthSeeker'), findsOneWidget);
+      expect(find.text('TruthSeeker'), findsOneWidget);
     });
 
     testWidgets('2. CommentAuthorHeader renders verified badge when author is creator',
@@ -120,7 +120,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byIcon(Icons.check), findsOneWidget);
-      expect(find.text('@TruthSeeker'), findsOneWidget);
+      expect(find.text('TruthSeeker'), findsOneWidget);
     });
 
     testWidgets('3. CommentCreatorHeartBadge displays avatar and heart icon',
@@ -287,7 +287,7 @@ void main() {
       expect(find.text('Report'), findsOneWidget);
     });
 
-    testWidgets('10. CommentReplyItem renders reply text, author handle, and actions',
+    testWidgets('10. CommentReplyItem renders reply text, author name, and actions',
         (tester) async {
       final commentsCtrl = CommentsController();
 
@@ -305,7 +305,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(sampleReply.text), findsOneWidget);
-      expect(find.text('@ReviewerChannel'), findsOneWidget);
+      expect(find.text('CodeReviewer'), findsOneWidget);
       expect(find.byIcon(Icons.check), findsOneWidget); // creator badge
       expect(find.byIcon(Icons.more_vert), findsOneWidget);
     });

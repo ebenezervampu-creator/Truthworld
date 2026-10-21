@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -220,9 +222,8 @@ class WatchTimePage extends StatelessWidget {
               } else if (totalSec > 0) {
                 final currentSeconds =
                     controller.channelAnalytics.value?.totalWatchTimeSeconds ?? 0;
-                if (currentSeconds > totalSec || currentSeconds == 0) {
-                  displayTime = WatchTimeFormatter.format(totalSec);
-                }
+                final bestSec = math.max(currentSeconds, totalSec);
+                displayTime = WatchTimeFormatter.format(bestSec);
               }
             }
 

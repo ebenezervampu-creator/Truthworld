@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/core/utils/content_validator.dart';
 import 'package:truthworld/features/channel/data/models/channel_loyalty_badge.dart';
+import 'package:truthworld/features/channel/data/services/channel_memory_cache.dart';
 
 class Reply {
   Reply({
@@ -26,17 +28,57 @@ class Reply {
 
   factory Reply.fromDocumentSnapshot(DocumentSnapshot doc) {
     final data = doc.data()! as Map<String, dynamic>;
+    final userProfilePicUrl = () {
+      final candidates = [
+        data['userProfilePicUrl'],
+        data['userAvatar'],
+        data['userAvatarUrl'],
+        data['avatarUrl'],
+        data['photoURL'],
+        data['photoUrl'],
+        data['authorProfileImageUrl'],
+        data['userImage'],
+      ];
+      for (final item in candidates) {
+        if (item is String && item.trim().isNotEmpty) {
+          return item.trim();
+        }
+      }
+      return '';
+    }();
+
+    final channelProfilePicUrl = () {
+      final candidates = [
+        data['channelProfilePicUrl'],
+        data['channelAvatarUrl'],
+        data['channelImage'],
+        data['channelAvatar'],
+        data['avatarUrl'],
+        data['photoURL'],
+        data['photoUrl'],
+      ];
+      for (final item in candidates) {
+        if (item is String && item.trim().isNotEmpty) {
+          return item.trim();
+        }
+      }
+      return null;
+    }();
+
     return Reply(
       id: doc.id,
       commentId: data['commentId'] ?? '',
       videoId: data['videoId'] ?? '',
       userId: data['userId'] ?? '',
-      userName: data['userName'] ?? '',
-      userProfilePicUrl: data['userProfilePicUrl'] ?? '',
+      userName: (data['userName'] as String?)?.trim() ??
+          (data['displayName'] as String?)?.trim() ??
+          (data['name'] as String?)?.trim() ??
+          '',
+      userProfilePicUrl: userProfilePicUrl,
       channelId: data['channelId'] ?? data['userId'] ?? '',
       channelName: data['channelName'],
-      channelProfilePicUrl: data['channelProfilePicUrl'],
-      text: data['text'] ?? '',
+      channelProfilePicUrl: channelProfilePicUrl,
+      text: ContentValidator.cleanProfanity(data['text'] ?? ''),
       likeCount: data['likeCount'] ?? 0,
       dislikeCount: data['dislikeCount'] ?? 0,
       reportCount: data['reportCount'] ?? 0,
@@ -85,16 +127,32 @@ class Reply {
   }
 
   String get displayName {
-    if (channelName != null && channelName!.isNotEmpty) {
-      return channelName!.startsWith('@') ? channelName! : '@$channelName';
+    // Truthworld: User handles are removed. Comments by users display username only.
+    // Handles are only available for channels.
+    if (userName.isNotEmpty) {
+      return userName.startsWith('@') ? userName.substring(1) : userName;
     }
-    return userName;
+    if (channelName != null && channelName!.isNotEmpty) {
+      if (channelId.isNotEmpty && channelId != userId) {
+        return channelName!.startsWith('@') ? channelName! : '@$channelName';
+      }
+      return channelName!.startsWith('@') ? channelName!.substring(1) : channelName!;
+    }
+    return 'User';
   }
 
-  String get avatarUrl =>
-      (channelProfilePicUrl != null && channelProfilePicUrl!.isNotEmpty)
-      ? channelProfilePicUrl!
-      : userProfilePicUrl;
+  String get avatarUrl {
+    if (channelProfilePicUrl != null && channelProfilePicUrl!.isNotEmpty) {
+      return channelProfilePicUrl!;
+    }
+    if (channelId.isNotEmpty) {
+      final cachedChannel = ChannelMemoryCache.get(channelId);
+      if (cachedChannel != null && cachedChannel.avatarUrl.isNotEmpty) {
+        return cachedChannel.avatarUrl;
+      }
+    }
+    return userProfilePicUrl;
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -104,9 +162,12 @@ class Reply {
       'userId': userId,
       'userName': userName,
       'userProfilePicUrl': userProfilePicUrl,
+      'userAvatar': userProfilePicUrl,
+      'userAvatarUrl': userProfilePicUrl,
       'channelId': channelId,
       'channelName': channelName,
       'channelProfilePicUrl': channelProfilePicUrl,
+      'avatarUrl': avatarUrl,
       'text': text,
       'likeCount': likeCount,
       'dislikeCount': dislikeCount,

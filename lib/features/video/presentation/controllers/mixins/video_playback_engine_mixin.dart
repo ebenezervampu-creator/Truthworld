@@ -37,6 +37,7 @@ mixin VideoPlaybackEngineMixin on GetxController {
   set chewieController(ChewieController? c);
 
   RxBool get rxIsLoading;
+  RxBool get isPlayerInitialized;
   RxBool get videoError;
   RxString get rxErrorMessage;
   RxBool get rxIsOffline;
@@ -80,6 +81,7 @@ mixin VideoPlaybackEngineMixin on GetxController {
   }
 
   bool get isVpcInitialized {
+    if (isPlayerInitialized.value) return true;
     final vpc = videoPlayerController;
     if (vpc == null) return false;
     try {
@@ -158,7 +160,7 @@ mixin VideoPlaybackEngineMixin on GetxController {
     videoError.value = false;
     if (!isHandoffAvailable && !isSwitching && !hasActivePlayer) {
       showThumbnail.value = true;
-    } else {
+    } else if (hasActivePlayer) {
       showThumbnail.value = false;
       rxIsLoading.value = false;
     }
@@ -172,7 +174,8 @@ mixin VideoPlaybackEngineMixin on GetxController {
       return;
     }
 
-    if (video.status == VideoStatus.rejected ||
+    if (video.isRejected ||
+        video.status == VideoStatus.rejected ||
         video.visibility == 'rejected' ||
         video.channelStatus == 'rejected') {
       videoError.value = true;
@@ -200,8 +203,10 @@ mixin VideoPlaybackEngineMixin on GetxController {
           false,
         ); // Disable looping which was enabled for hover previews
         await newVpc.setVolume(1); // Reset volume to unmute on watch screen
-        rxIsLoading.value = false;
-        showThumbnail.value = false;
+        if (newVpc.value.isInitialized) {
+          rxIsLoading.value = false;
+          showThumbnail.value = false;
+        }
       } else {
         final targetUrl = await resolvePlaybackTargetUrl(overrideUrl: overrideUrl);
         if (isClosed || _playerInitEpoch != currentEpoch) return;
@@ -328,7 +333,9 @@ mixin VideoPlaybackEngineMixin on GetxController {
         }
 
         // Atomically hand off active controller to reactive UI
+        isPlayerInitialized.value = newVpc.value.isInitialized;
         videoPlayerController = newVpc;
+        rxVideoPlayerController.refresh();
         showThumbnail.value = false;
         rxIsLoading.value = false;
 
@@ -407,7 +414,9 @@ mixin VideoPlaybackEngineMixin on GetxController {
         }
 
         // Hand off controller to reactive state
+        isPlayerInitialized.value = newVpc.value.isInitialized;
         videoPlayerController = newVpc;
+        rxVideoPlayerController.refresh();
         showThumbnail.value = false;
         rxIsLoading.value = false;
 
@@ -466,13 +475,17 @@ mixin VideoPlaybackEngineMixin on GetxController {
       }
 
       // Immediately wire new initialized controller to reactive state & clear loading/thumbnail
+      isPlayerInitialized.value = newVpc.value.isInitialized;
       videoPlayerController = newVpc;
+      rxVideoPlayerController.refresh();
       showThumbnail.value = false;
       rxIsLoading.value = false;
 
       // Mute and pause old controller immediately to guarantee zero overlapping audio
       if (oldVpc != null && oldVpc != newVpc) {
         try {
+          oldVpc.removeListener(videoErrorListener);
+          oldVpc.removeListener(videoListener);
           if (_isControllerUsable(oldVpc)) {
             oldVpc.pause().catchError((_) {});
           }
@@ -752,6 +765,7 @@ mixin VideoPlaybackEngineMixin on GetxController {
     } catch (_) {}
     _safeDisposeVpc(videoPlayerController);
     videoPlayerController = null;
+    isPlayerInitialized.value = false;
   }
 
 }

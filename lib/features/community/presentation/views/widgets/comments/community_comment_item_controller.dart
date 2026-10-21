@@ -194,7 +194,7 @@ class CommunityCommentItemController extends BaseController
     if (!validation.isValid) {
       AppSnackbar.warning(
         validation.message,
-        title: 'Inappropriate Content',
+
       );
       return;
     }
@@ -203,28 +203,17 @@ class CommunityCommentItemController extends BaseController
 
     try {
       final authService = AuthService.to;
-      final hasChannel = authService.hasChannel.value;
-      final channel = authService.userChannel;
-
-      final channelId = hasChannel ? channel?.id : null;
-      final channelName = hasChannel
-          ? (channel?.handle.isNotEmpty ?? false
-                ? channel?.handle
-                : channel?.name)
-          : null;
-      final channelAvatar = hasChannel ? channel?.avatarUrl : null;
       final userAvatar = authService.activePhotoUrl;
-      final userName = authService.activeDisplayName;
+      final rawName = authService.activeDisplayName;
+      final userName =
+          rawName.startsWith('@') ? rawName.substring(1) : rawName;
 
       await commentDoc.collection('replies').add({
-        'text': text,
+        'text': ContentValidator.cleanProfanity(text),
         'userId': uid,
         'userName': userName,
         'userImage': userAvatar,
         'userProfilePicUrl': userAvatar,
-        'channelId': channelId,
-        'channelName': channelName,
-        'channelProfilePicUrl': channelAvatar,
         'createdAt': FieldValue.serverTimestamp(),
         'timestamp': FieldValue.serverTimestamp(),
         'likeCount': 0,
@@ -283,7 +272,7 @@ class CommunityCommentItemController extends BaseController
         final text = commentData['text']?.toString() ?? '';
 
         await docRef.set({
-          'text': text,
+          'text': ContentValidator.cleanProfanity(text),
           'userName': userName,
           'userImage': userImage,
           'sourceType': 'community_post',
@@ -326,7 +315,9 @@ class CommunityCommentItemController extends BaseController
   }
 
   void prepareReplyToUser(String targetUser) {
-    replyController.text = '@$targetUser ';
+    final cleanUser =
+        targetUser.startsWith('@') ? targetUser.substring(1) : targetUser;
+    replyController.text = '$cleanUser ';
     replyController.selection = TextSelection.fromPosition(
       TextPosition(offset: replyController.text.length),
     );

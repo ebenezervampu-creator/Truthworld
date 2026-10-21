@@ -35,7 +35,9 @@ interface WatchEventPayload {
   duration: number;   // total video length in seconds
   prevPosition?: number; // client sends previous ping position for delta math
   issubscriber?: boolean | string;
+  isSubscriber?: boolean | string;
   isNotsubscriber?: boolean | string;
+  isNotSubscriber?: boolean | string;
   watchTimeSecondsDelta?: number | string;
   playbackQuality?: string;
   playbackRate?: number;
@@ -94,27 +96,63 @@ interface VideoStats {
   updatedAt: admin.firestore.FieldValue;
 }
 
-// â”€â”€â”€ IP â†’ Indian State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── IP → Geolocation & Urban/Rural Classification ──────────────────────────
 // Simple in-memory cache (valid for function instance lifetime ~15 min).
-const geoCache = new Map<string, string>();
+interface ResolvedGeo {
+  state: string;
+  city: string;
+  country: string;
+  areaType: "urban" | "rural" | "unknown";
+}
 
-async function resolveState(rawIp: string): Promise<string> {
+const geoCache = new Map<string, ResolvedGeo>();
+
+const URBAN_CITIES = new Set([
+  "mumbai", "delhi", "new delhi", "bangalore", "bengaluru", "hyderabad",
+  "ahmedabad", "chennai", "kolkata", "surat", "pune", "jaipur", "lucknow",
+  "kanpur", "nagpur", "indore", "thane", "bhopal", "visakhapatnam",
+  "patna", "vadodara", "ghaziabad", "ludhiana", "agra", "nashik",
+  "faridabad", "meerut", "rajkot", "varanasi", "srinagar", "aurangabad",
+  "dhanbad", "amritsar", "navi mumbai", "allahabad", "prayagraj", "howrah",
+  "ranchi", "gwalior", "jabalpur", "coimbatore", "vijayawada", "jodhpur",
+  "madurai", "raipur", "kota", "chandigarh", "guwahati", "solapur",
+  "mysore", "mysuru", "tiruchirappalli", "dehradun", "noida", "gurgaon",
+  "gurugram", "mangalore", "mangaluru", "kochi", "cochin", "thiruvananthapuram"
+]);
+
+function classifyAreaType(city: string): "urban" | "rural" {
+  const norm = (city || "").toLowerCase().trim();
+  if (norm.length > 0 && URBAN_CITIES.has(norm)) return "urban";
+  return "rural";
+}
+
+async function resolveGeo(rawIp: string): Promise<ResolvedGeo> {
   const ip = rawIp.split(",")[0].trim();
   if (!ip || ip === "::1" || ip.startsWith("127.") || ip.startsWith("::ffff:127.")) {
-    return "Unknown";
+    return { state: "Unknown", city: "Unknown", country: "IN", areaType: "unknown" };
   }
   if (geoCache.has(ip)) return geoCache.get(ip)!;
   try {
     const { data } = await axios.get(`https://ipapi.co/${ip}/json/`, { timeout: 2000 });
+    const country = data.country_code ? String(data.country_code).toUpperCase() : "IN";
     const state =
-      data.country_code === "IN"
+      country === "IN"
         ? (data.region ?? "Unknown")
-        : "Other";
-    geoCache.set(ip, state);
-    return state;
+        : (data.region ?? "Other");
+    const city = data.city ? String(data.city).trim() : "Unknown";
+    const areaType = city !== "Unknown" ? classifyAreaType(city) : "urban";
+
+    const resolved: ResolvedGeo = { state, city, country, areaType };
+    geoCache.set(ip, resolved);
+    return resolved;
   } catch {
-    return "Unknown";
+    return { state: "Unknown", city: "Unknown", country: "IN", areaType: "unknown" };
   }
+}
+
+export async function resolveState(rawIp: string): Promise<string> {
+  const geo = await resolveGeo(rawIp);
+  return geo.state;
 }
 
 // Anti-spam: In-memory sliding window rate-limiter (0ms, 0 Firestore reads).
@@ -445,7 +483,33 @@ export const trackWatchEvent = onRequest(
 
       // ── Geo ──
       const rawIp = getClientIp(req);
-      const state = await resolveState(rawIp);
+      const geo = await resolveGeo(rawIp);
+      const state = geo.state;
+      const city = geo.city;
+      const country = geo.country;
+      const areaType = geo.areaType;
+
+      // Handle both camelCase and all-lowercase subscriber flags from Flutter and web clients
+      let isSub = body.isSubscriber === true || body.isSubscriber === "true" ||
+                  body.issubscriber === true || body.issubscriber === "true";
+      let isNotSub = body.isNotSubscriber === true || body.isNotSubscriber === "true" ||
+                     body.isNotsubscriber === true || body.isNotsubscriber === "true";
+
+      // If subscriber status wasn't explicitly supplied, check channel subscribers subcollection
+      if (!isSub && isVerifiedAuthUser && body.userId && body.channelId) {
+        try {
+          const subDoc = await db
+            .collection("channels")
+            .doc(body.channelId)
+            .collection("subscribers")
+            .doc(body.userId)
+            .get();
+          if (subDoc.exists) {
+            isSub = true;
+            isNotSub = false;
+          }
+        } catch (_) { /* non-blocking */ }
+      }
 
       // ── Write raw log only on milestones / start / completion (skips routine heartbeats to cut writes) ──
       // Epistemic honesty: Unsigned / anonymous playback must NEVER be written to watch_events (views/stats are for authenticated users only)
@@ -458,9 +522,14 @@ export const trackWatchEvent = onRequest(
           position,
           duration,
           prevPosition,
-          issubscriber: body.issubscriber === true || body.issubscriber === "true",
-          isNotsubscriber: body.isNotsubscriber === true || (body.isNotsubscriber === "true"),
+          issubscriber: isSub,
+          isSubscriber: isSub,
+          isNotsubscriber: isNotSub,
+          isNotSubscriber: isNotSub,
           state,
+          city,
+          country,
+          areaType,
           playbackQuality: body.playbackQuality ?? "auto",
           playbackRate: body.playbackRate ?? 1.0,
           trafficSource: body.trafficSource ?? "direct",
@@ -543,10 +612,15 @@ export const trackWatchEvent = onRequest(
         hasCompleted: hasWatchedEntireVideo,
         isAlreadyWatched: hasWatchedEntireVideo,
         lastPlaybackPosition: position, // Preserves scrub position for cross-device resume ONLY
-        issubscriber: body.issubscriber === true || body.issubscriber === "true",
-        isNotsubscriber: body.isNotsubscriber === true || body.isNotsubscriber === "true",
+        issubscriber: isSub,
+        isSubscriber: isSub,
+        isNotsubscriber: isNotSub,
+        isNotSubscriber: isNotSub,
         isPremiumSubscriber,
         state,
+        city,
+        country,
+        areaType,
         playbackQuality: body.playbackQuality ?? "auto",
         playbackRate: body.playbackRate ?? 1.0,
         trafficSource: body.trafficSource ?? "direct",
@@ -635,6 +709,15 @@ export const trackWatchEvent = onRequest(
                 { merge: true }
               )
               .catch((err) => logger.warn("[WatchTime] Video shard write warning:", err));
+
+            // Best-effort update on parent video document for immediate O(1) UI reads
+            db.collection("videos")
+              .doc(body.videoId)
+              .update({
+                totalWatchTimeSeconds: admin.firestore.FieldValue.increment(creditedDelta),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              })
+              .catch((err) => logger.warn("[WatchTime] Video parent watch time increment warning:", err));
           }
 
           const channelShardRef = db
@@ -652,6 +735,21 @@ export const trackWatchEvent = onRequest(
               { merge: true }
             )
             .catch((err) => logger.warn("[WatchTime] Channel shard write warning:", err));
+
+          // Best-effort update on parent channel document for immediate O(1) UI reads
+          db.collection("channels")
+            .doc(targetChannelId)
+            .set(
+              {
+                totalWatchTimeSeconds: admin.firestore.FieldValue.increment(creditedDelta),
+                metrics: {
+                  totalWatchTimeMinutes: admin.firestore.FieldValue.increment(creditedDelta / 60),
+                },
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            )
+            .catch((err) => logger.warn("[WatchTime] Channel parent watch time increment warning:", err));
         }
       }
 
@@ -748,8 +846,11 @@ export const aggregateWatchStats = onSchedule(
       if (e.duration > 0) s.duration = e.duration;
 
       // Track subscriber status (if any event in session says subscriber, they are)
-      if (e.issubscriber) s.issubscriber = true;
-      if (e.isNewsubscriber) s.isNewsubscriber = true;
+      if (e.issubscriber || (e as any).isSubscriber) s.issubscriber = true;
+      if (e.isNewsubscriber || (e as any).isNewSubscriber) s.isNewsubscriber = true;
+      if (e.country && e.country !== "IN") s.country = e.country;
+      if (e.city && e.city !== "Unknown") s.city = e.city;
+      if (e.areaType && e.areaType !== "unknown") s.areaType = e.areaType;
 
       switch (e.eventType) {
         case "video_start":
@@ -1005,6 +1106,8 @@ export const aggregateWatchStats = onSchedule(
 
       await addOp(db.collection("video_stats").doc(vid), {
         ...statsDoc,
+        subscriberViews: acc.Subscribers,
+        nonSubscriberViews: Math.max(0, acc.views - acc.Subscribers),
         stateTraffic: stateTrafficObj,
         cityTraffic: cityTrafficObj,
         countryTraffic: countryTrafficObj,

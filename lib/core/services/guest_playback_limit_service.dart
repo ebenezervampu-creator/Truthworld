@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -220,7 +219,7 @@ class GuestPlaybackLimitService extends GetxService {
       final url = Uri.parse('${AppConfig.cloudFunctionsBaseUrl}/checkGuestWatchQuota');
       final response = await http
           .get(url, headers: headers)
-          .timeout(const Duration(seconds: 6));
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -686,7 +685,6 @@ class GuestCountdownTimerPill extends StatelessWidget {
             color: isUrgent
                 ? Colors.amberAccent.withValues(alpha: 0.6)
                 : Colors.white.withValues(alpha: 0.2),
-            width: 1.0,
           ),
           boxShadow: [
             BoxShadow(

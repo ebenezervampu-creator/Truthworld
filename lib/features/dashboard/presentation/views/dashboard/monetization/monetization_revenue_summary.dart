@@ -8,6 +8,7 @@ import 'package:truthworld/theme/app_colors.dart';
 import 'package:truthworld/theme/tw_radius.dart';
 
 /// Card showing total estimated revenue, withdrawable balance, locked balance, and AI usable balance.
+/// Styled with exact Library theme in clean monochrome.
 class RevenueWithdrawalSummaryCard extends StatelessWidget {
   const RevenueWithdrawalSummaryCard({
     required this.controller,
@@ -33,7 +34,7 @@ class RevenueWithdrawalSummaryCard extends StatelessWidget {
               onPressed: () {
                 Get.defaultDialog(
                   title: 'Monetization Rules',
-                  backgroundColor: AppColors.bgSurface,
+                  backgroundColor: const Color(0xFF1E1E1E),
                   titleStyle: const TextStyle(
                     color: AppColors.textPrimary,
                     fontWeight: FontWeight.bold,
@@ -54,7 +55,7 @@ class RevenueWithdrawalSummaryCard extends StatelessWidget {
                   ),
                   textConfirm: 'Got it',
                   confirmTextColor: Colors.black,
-                  buttonColor: AppColors.brand,
+                  buttonColor: Colors.white,
                   onConfirm: Get.back,
                 );
               },
@@ -129,7 +130,6 @@ class RevenueWithdrawalSummaryCard extends StatelessWidget {
                       : (directWithdrawable > 0 && eligibleCount == 0
                           ? 'Fan Memberships & Superchats directly withdrawable'
                           : '$eligibleCount video(s) crossed 1k views & 10h watch time'),
-                  badgeColor: Colors.green,
                 ),
                 RevenueMetricRow(
                   period: 'Locked for Cash Out (Awaiting 1k Views & 10h)',
@@ -139,13 +139,11 @@ class RevenueWithdrawalSummaryCard extends StatelessWidget {
                       : (lockedTotal > 0
                           ? 'Awaiting video threshold • Wait or spend on AI'
                           : 'No locked funds'),
-                  badgeColor: Colors.orange,
                 ),
                 RevenueMetricRow(
                   period: 'Usable Balance for AI Features',
                   amount: revenueStr,
                   subtitle: 'Ready for AI Subtitles, Dubbing & Tools',
-                  badgeColor: AppColors.brand,
                 ),
                 const SizedBox(height: 18),
                 SizedBox(
@@ -160,7 +158,7 @@ class RevenueWithdrawalSummaryCard extends StatelessWidget {
                     ),
                     label: const Text('Use Balance for AI Subtitles & Dubbing'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.brand,
+                      backgroundColor: Colors.white,
                       foregroundColor: Colors.black,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
@@ -230,9 +228,9 @@ class RevenueMetricRow extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     subtitle!,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 11,
-                      color: badgeColor ?? AppColors.textSecondary,
+                      color: AppColors.textSecondary,
                     ),
                   ),
                 ],
@@ -244,11 +242,11 @@ class RevenueMetricRow extends StatelessWidget {
             flex: 0,
             child: Text(
               amount,
-              style: TextStyle(
-                fontSize: isHighlight ? (isNarrow ? 16 : 18) : (isNarrow ? 14 : 16),
+              style: const TextStyle(
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: isHighlight ? AppColors.brand : AppColors.textPrimary,
-                fontFeatures: const [FontFeature.tabularFigures()],
+                color: AppColors.textPrimary,
+                fontFeatures: [FontFeature.tabularFigures()],
               ),
             ),
           ),

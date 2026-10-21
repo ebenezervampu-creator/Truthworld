@@ -44,6 +44,11 @@ abstract class RevenueAnalyticsStateBase extends BaseController {
   // Earnings Breakdown
   final RxDouble totalRevenue = 0.0.obs; // In INR for Bank Payout
   final RxDouble totalRevenueUSD = 0.0.obs; // In USD equivalent
+  final RxDouble clearedRevenue = 0.0.obs; // Cleared withdrawable balance (INR)
+  final RxDouble clearedRevenueUSD = 0.0.obs;
+  final RxDouble pendingRevenue = 0.0.obs; // In-Flight / 7-day clearing hold (INR)
+  final RxDouble pendingRevenueUSD = 0.0.obs;
+  final RxDouble withdrawnRevenue = 0.0.obs; // Total already withdrawn (INR)
   final RxDouble membershipsRevenue = 0.0.obs; // In INR
   final RxDouble membershipsRevenueINR = 0.0.obs;
   final RxDouble membershipsRevenueUSD = 0.0.obs;
@@ -67,6 +72,10 @@ abstract class RevenueAnalyticsStateBase extends BaseController {
   // Bank Account & Direct Payout Arrangement
   final Rx<CreatorBankAccount?> savedBankAccount = Rx<CreatorBankAccount?>(null);
   final RxBool isLoadingBankAccount = false.obs;
+
+  // Auto-Payout State (YouTube AdSense-style automatic monthly bank deposit)
+  final RxBool autoPayoutEnabled = true.obs;
+  final RxBool isUpdatingAutoPayout = false.obs;
 
   // Creator KYC Document Verification State
   final Rx<CreatorKycVerification?> creatorKyc = Rx<CreatorKycVerification?>(null);
@@ -174,29 +183,50 @@ abstract class RevenueAnalyticsStateBase extends BaseController {
   String get activeMinWithdrawalText =>
       isViewingINR ? minWithdrawalText : minWithdrawalTextUSD;
 
+  /// Cleared net withdrawable balance after prior withdrawals.
+  /// Seamlessly falls back to [totalRevenue] if two-phase settlement has not populated [clearedRevenue].
+  double get clearedWithdrawableBalance {
+    final cleared = clearedRevenue.value > 0 ? clearedRevenue.value : totalRevenue.value;
+    return (cleared - withdrawnRevenue.value).clamp(0.0, double.infinity);
+  }
+
+  double get clearedWithdrawableBalanceUSD {
+    final cleared = clearedRevenueUSD.value > 0
+        ? clearedRevenueUSD.value
+        : totalRevenueUSD.value;
+    return (cleared - (withdrawnRevenue.value / usdToInrRate))
+        .clamp(0.0, double.infinity);
+  }
+
+  double get displayClearedWithdrawableBalance =>
+      isViewingINR ? clearedWithdrawableBalance : clearedWithdrawableBalanceUSD;
+
+  double get displayPendingRevenue =>
+      isViewingINR ? pendingRevenue.value : pendingRevenueUSD.value;
+
   bool get hasReachedThreshold =>
       isViewingINR
-          ? totalRevenue.value >= minimumWithdrawalAmountINR
-          : totalRevenueUSD.value >= minimumWithdrawalAmountUSD;
+          ? clearedWithdrawableBalance >= minimumWithdrawalAmountINR
+          : clearedWithdrawableBalanceUSD >= minimumWithdrawalAmountUSD;
 
-  /// True only when balance reaches minimum threshold, withdrawal is not held,
+  /// True only when cleared balance reaches minimum threshold, withdrawal is not held,
   /// and today is within the monthly payout window (1st or 2nd day of the month).
   bool get canWithdraw =>
       hasReachedThreshold && !isWithdrawalHeld.value && isTodayPayoutDay;
 
-  /// True when creator reached threshold but withdrawal window is locked until 1st of next month.
+  /// True when creator reached threshold on cleared balance but withdrawal window is locked until 1st of next month.
   bool get isThresholdMetButAwaitingFirstOfMonth =>
       hasReachedThreshold && !isWithdrawalHeld.value && !isTodayPayoutDay;
 
   double get remainingToWithdraw {
     final target = activeMinimumWithdrawalAmount;
-    final balance = isViewingINR ? totalRevenue.value : totalRevenueUSD.value;
+    final balance = displayClearedWithdrawableBalance;
     return (target - balance).clamp(0.0, target);
   }
 
   double get withdrawalProgress {
     final target = activeMinimumWithdrawalAmount;
-    final balance = isViewingINR ? totalRevenue.value : totalRevenueUSD.value;
+    final balance = displayClearedWithdrawableBalance;
     return target > 0 ? (balance / target).clamp(0.0, 1.0) : 1.0;
   }
 

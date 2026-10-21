@@ -47,24 +47,21 @@ mixin CommentsCrudMixin on CommentsStateBase {
       commentError.value = null;
 
       final authService = AuthService.to;
-      final hasChannel =
-          authService.hasChannel.value && authService.userChannel != null;
-
-      final finalUserName = authService.activeDisplayName;
+      final rawName = authService.activeDisplayName;
+      final finalUserName =
+          rawName.startsWith('@') ? rawName.substring(1) : rawName;
       final finalUserProfilePicUrl =
           userProfilePicUrl ?? authService.activePhotoUrl;
       final finalChannelId = (channelId != null && channelId.isNotEmpty)
           ? channelId
-          : (hasChannel ? authService.userChannel!.id : channelId);
+          : null;
       final finalChannelName = (channelName != null && channelName.isNotEmpty)
           ? channelName
-          : (hasChannel
-                ? (authService.userChannel?.handle.isNotEmpty == true
-                      ? authService.userChannel!.handle
-                      : authService.userChannel!.name)
-                : authService.activeDisplayName);
+          : null;
       final finalChannelProfilePicUrl =
-          channelProfilePicUrl ?? authService.activePhotoUrl;
+          (channelName != null && channelName.isNotEmpty)
+              ? channelProfilePicUrl
+              : null;
 
       // Channel Membership & Loyalty Badge lookup
       var isMember = false;
@@ -102,7 +99,7 @@ mixin CommentsCrudMixin on CommentsStateBase {
         channelId: finalChannelId ?? currentUserId,
         channelName: finalChannelName,
         channelProfilePicUrl: finalChannelProfilePicUrl,
-        text: text.trim(),
+        text: ContentValidator.cleanProfanity(text.trim()),
         donationAmount: donationAmount,
         donationCurrency: donationCurrency,
         isDonatedComment: isDonatedComment,

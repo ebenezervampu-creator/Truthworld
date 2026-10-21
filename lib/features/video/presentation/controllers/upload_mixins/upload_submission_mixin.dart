@@ -62,12 +62,6 @@ mixin UploadSubmissionMixin on
     debugPrint('Starting final video metadata update (isDraft: $isDraft)...');
 
     final channelLang = channelLanguageCode;
-    // 🔒 Language Policy Enforcement: TruthWorld is strictly English-only at this phase
-    if (channelLang != 'en') {
-      const msg = 'Truthworld currently only supports English channels and content. Non-English video uploads are not accepted at this stage.';
-      AppSnackbar.warning(msg);
-      throw Exception(msg);
-    }
 
     final effectiveSelectedLangs = selectedLanguages.contains(channelLang)
         ? selectedLanguages
@@ -97,9 +91,9 @@ mixin UploadSubmissionMixin on
 
     // All your validations...
     if (title.isEmpty || title.length > UploadControllerBase.maxTitleLength) {
-      AppSnackbar.warning('Please provide a valid title between 1 and $UploadControllerBase.maxTitleLength characters.');
+      AppSnackbar.warning('Please provide a valid title between 1 and ${UploadControllerBase.maxTitleLength} characters.');
       throw Exception(
-        'Invalid title (length must be between 1 and $UploadControllerBase.maxTitleLength characters).',
+        'Invalid title (length must be between 1 and ${UploadControllerBase.maxTitleLength} characters).',
       );
     }
 
@@ -111,7 +105,7 @@ mixin UploadSubmissionMixin on
 
     // Description validation
     if (description.isEmpty || description.length > UploadControllerBase.maxDescriptionLength) {
-      AppSnackbar.warning('Please provide a valid description up to $UploadControllerBase.maxDescriptionLength characters.');
+      AppSnackbar.warning('Please provide a valid description up to ${UploadControllerBase.maxDescriptionLength} characters.');
       throw Exception('Invalid description.');
     }
 

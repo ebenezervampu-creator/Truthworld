@@ -323,7 +323,6 @@ void main() {
           home: Scaffold(
             body: FactCheckConclusionSection(
               conclusion: 'Overall high credibility based on consensus analysis.',
-              sources: [],
             ),
           ),
         ),

@@ -52,17 +52,16 @@ class GeneralAccountSection extends StatelessWidget {
         Obx(() {
           // Explicit reactive reads ensure instant live UI re-rendering
           final liveName = authService.userDisplayName.value;
-          final liveHandle = authService.userHandle.value;
           final rawDisplayName = (liveName != null && liveName.trim().isNotEmpty)
               ? liveName.trim()
               : authService.activeDisplayName;
           final displayName = ContentValidator.cleanProfanity(rawDisplayName);
-          final rawHandleOrEmail = (liveHandle != null && liveHandle.trim().isNotEmpty)
-              ? (liveHandle.startsWith('@') ? liveHandle : '@$liveHandle')
-              : (authService.activeHandle.isNotEmpty && authService.activeHandle != '@user'
-                  ? authService.activeHandle
-                  : (authService.user?.email ?? ''));
-          final handleOrEmail = ContentValidator.cleanProfanity(rawHandleOrEmail);
+          final hasChannel = authService.hasChannel.value && authService.userChannel != null;
+          final channelHandle = hasChannel ? authService.userChannel!.handle : null;
+          final identifier = hasChannel
+              ? (channelHandle!.startsWith('@') ? channelHandle : '@$channelHandle')
+              : (authService.user?.email ?? authService.user?.phoneNumber ?? '');
+          final handleOrEmail = ContentValidator.cleanProfanity(identifier);
 
           final genderText = authService.userGender.value ?? 'Not specified';
           final ageText = authService.userAge.value != null

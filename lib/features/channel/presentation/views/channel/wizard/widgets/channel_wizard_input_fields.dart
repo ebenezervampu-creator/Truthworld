@@ -125,7 +125,7 @@ class ChannelWizardInputField extends StatelessWidget {
               if (suffix != null)
                 Padding(
                   padding: const EdgeInsets.only(left: 8),
-                  child: suffix!,
+                  child: suffix,
                 ),
               if (maxLength != null && maxLines == 1)
                 Padding(

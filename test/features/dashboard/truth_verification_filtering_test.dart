@@ -147,7 +147,7 @@ void main() {
     test('correctly handles zero assertions analyzed (opinion/philosophical discourse)', () {
       final item = VideoFactCheckItem(
         id: '014FDF6E-8648-47E0-B83A-D5815DC145A2',
-        title: 'If a language can be misinterpreted so easily, how can it be a great language? Isn\'t it useless?',
+        title: "If a language can be misinterpreted so easily, how can it be a great language? Isn't it useless?",
         thumbnailUrl: '',
         truthScore: 1.0,
         factCheckReviewMode: 'open_to_users',

@@ -103,6 +103,7 @@ class Video {
     this.moderationSummary = '',
     this.embedding,
     this.jobId,
+    this.resubmitCount = 0,
   })  : titleLowercase = (vTitleLowercase == null || vTitleLowercase.isEmpty)
             ? title.toLowerCase()
             : vTitleLowercase,
@@ -286,6 +287,11 @@ class Video {
   final bool? isApproved;
   final String moderationSummary;
   final List<double>? embedding;
+  final int resubmitCount;
+
+  bool get canResubmit => isRejected && resubmitCount < 2;
+  int get remainingResubmissions => (2 - resubmitCount).clamp(0, 2);
+  bool get hasReachedMaxResubmissions => isRejected && resubmitCount >= 2;
 
   // v8.0 Credibility Fields (lightweight)
   final String? trustLabel;
@@ -519,6 +525,7 @@ class Video {
     DateTime? scheduledPublishAt,
     List<double>? embedding,
     String? jobId,
+    int? resubmitCount,
     Map<String, String>? audioTracks,
     Map<String, String>? dubbedVideos,
     Map<String, String>? mediaSubtitles,
@@ -586,6 +593,7 @@ class Video {
       coinBattleStance: coinBattleStance ?? this.coinBattleStance,
       embedding: embedding ?? this.embedding,
       jobId: jobId ?? this.jobId,
+      resubmitCount: resubmitCount ?? this.resubmitCount,
       audioTracks: audioTracks ?? this.audioTracks,
       dubbedVideos: dubbedVideos ?? this.dubbedVideos,
       mediaSubtitles: mediaSubtitles ?? this.mediaSubtitles,
@@ -627,6 +635,7 @@ class Video {
       enableComments: enableComments,
       isMonetized: isMonetized,
       trustScore: trustScore,
+      resubmitCount: resubmitCount,
     );
   }
 
@@ -643,6 +652,7 @@ class Video {
       channelAvatarUrl: entity.channelAvatarUrl,
       category: entity.category,
       tags: entity.tags,
+      resubmitCount: entity.resubmitCount,
       originalUrl: entity.originalUrl,
       hlsUrl: entity.hlsUrl,
       dashUrl: entity.dashUrl,

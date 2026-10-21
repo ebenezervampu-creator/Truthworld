@@ -22,56 +22,127 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
   final String channelId;
   final String creatorId;
 
-  @override
-  Widget build(BuildContext context) {
-    final ch = controller.currentChannel.value;
-    final copyrightCount = controller.copyrightClaimsCount.value;
+  Widget _buildStandingBanner(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
-    final issueCards = <Widget>[];
-
-    // 1. Channel Moderation & Verification Status
-    if (ch != null) {
-      if (ch.status == ChannelStatus.active || ch.geminiApproved == true) {
-        issueCards.add(
-          ChannelNotificationsIssueCard(
-            title: 'Channel Approved by Truthworld',
-            description:
-                'Congratulations! Your channel details and branding are approved by Truthworld Verification System. You can now customize your channel and upload videos.',
-            statusType: 'APPROVED',
-            icon: Icons.check_circle_outline_rounded,
-            actions: [
-              ElevatedButton.icon(
-                onPressed: () => Get.toNamed('/upload'),
-                icon: const Icon(
-                  Icons.video_call_rounded,
-                  color: Colors.white,
-                  size: 15,
+    final content = Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: AppColors.bgSurfaceHover,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.bgDivider),
+          ),
+          child: const Icon(
+            Icons.verified_rounded,
+            color: Color(0xFF34D399),
+            size: 20,
+          ),
+        ),
+        const SizedBox(width: 14),
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Channel in Good Standing',
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
                 ),
-                label: const Text('Upload Video'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.success,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  textStyle: const TextStyle(
-                    fontFamily: TWTypography.uiFamily,
-                    fontFamilyFallback: TWTypography.fallbackFamilies,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+              ),
+              SizedBox(height: 2),
+              Text(
+                'Channel details, branding, and uploads are verified by Truthworld.',
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
                 ),
               ),
             ],
           ),
-        );
-      } else if (ch.status == ChannelStatus.verificationRejected) {
-        issueCards.add(
+        ),
+      ],
+    );
+
+    final action = ElevatedButton.icon(
+      onPressed: () => Get.toNamed('/upload'),
+      icon: const Icon(
+        Icons.video_call_rounded,
+        color: Colors.black,
+        size: 16,
+      ),
+      label: const Text('Upload Video'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        textStyle: const TextStyle(
+          fontFamily: TWTypography.uiFamily,
+          fontFamilyFallback: TWTypography.fallbackFamilies,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: Colors.black,
+        ),
+      ),
+    );
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.bgSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.bgDivider),
+      ),
+      child: isMobile
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                content,
+                const SizedBox(height: 12),
+                Align(alignment: Alignment.centerRight, child: action),
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(child: content),
+                const SizedBox(width: 16),
+                action,
+              ],
+            ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ch = controller.currentChannel.value;
+    final copyrightCount = controller.copyrightClaimsCount.value;
+    final selectedCategory = controller.selectedCategory.value;
+
+    final urgentCards = <Widget>[];
+    final inProgressCards = <Widget>[];
+
+    final isFullyApproved = ch != null &&
+        (ch.status == ChannelStatus.active || ch.geminiApproved == true) &&
+        (ch.avatarStatus == 'APPROVED' || ch.avatarStatus == null || ch.avatarStatus!.isEmpty) &&
+        (ch.bannerStatus == 'APPROVED' || ch.bannerStatus == null || ch.bannerStatus!.isEmpty) &&
+        ch.infraConfig?.isWithdrawalHeld != true;
+
+    // 1. Channel Moderation & Verification Status
+    if (ch != null) {
+      if (ch.status == ChannelStatus.verificationRejected) {
+        urgentCards.add(
           ChannelNotificationsIssueCard(
             title: 'Channel Branding Verification Rejected',
             description: ch.moderationReason != null &&
@@ -93,13 +164,13 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
                 },
                 icon: const Icon(
                   Icons.description_outlined,
-                  color: Colors.white,
+                  color: Colors.black,
                   size: 15,
                 ),
                 label: const Text('Review Community Guidelines'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.error,
-                  foregroundColor: Colors.white,
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
@@ -113,6 +184,7 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
                     fontFamilyFallback: TWTypography.fallbackFamilies,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
+                    color: Colors.black,
                   ),
                 ),
               ),
@@ -121,7 +193,7 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
         );
       } else if (ch.status == ChannelStatus.underReview ||
           ch.status == ChannelStatus.verificationPending) {
-        issueCards.add(
+        inProgressCards.add(
           const ChannelNotificationsIssueCard(
             title: 'Channel Branding Under Verification Review',
             description:
@@ -132,7 +204,7 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
           ),
         );
       } else if (ch.status == ChannelStatus.suspended) {
-        issueCards.add(
+        urgentCards.add(
           ChannelNotificationsIssueCard(
             title: 'Channel Suspended by Truthworld',
             description: ch.moderationReason != null &&
@@ -146,7 +218,7 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
       }
 
       if (ch.infraConfig?.isWithdrawalHeld == true) {
-        issueCards.add(
+        urgentCards.add(
           ChannelNotificationsIssueCard(
             title: 'Creator Payouts On Hold by Truthworld',
             description: ch.infraConfig!.withdrawalHoldReason.isNotEmpty
@@ -159,29 +231,51 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
       }
 
       // 2. Avatar Status
-      issueCards.addAll(
-        ChannelNotificationsBrandingIssues.buildAvatarIssues(
-          ch: ch,
-          controller: controller,
-          channelId: channelId,
-          creatorId: creatorId,
-        ),
-      );
+      if (ch.avatarStatus == 'REJECTED' || ch.avatarStatus == 'FLAGGED') {
+        urgentCards.addAll(
+          ChannelNotificationsBrandingIssues.buildAvatarIssues(
+            ch: ch,
+            controller: controller,
+            channelId: channelId,
+            creatorId: creatorId,
+          ),
+        );
+      } else if (ch.avatarStatus == 'MANUAL_REVIEW' || ch.avatarStatus == 'PENDING') {
+        inProgressCards.addAll(
+          ChannelNotificationsBrandingIssues.buildAvatarIssues(
+            ch: ch,
+            controller: controller,
+            channelId: channelId,
+            creatorId: creatorId,
+          ),
+        );
+      }
 
       // 3. Banner Status
-      issueCards.addAll(
-        ChannelNotificationsBrandingIssues.buildBannerIssues(
-          ch: ch,
-          controller: controller,
-          channelId: channelId,
-          creatorId: creatorId,
-        ),
-      );
+      if (ch.bannerStatus == 'REJECTED' || ch.bannerStatus == 'FLAGGED') {
+        urgentCards.addAll(
+          ChannelNotificationsBrandingIssues.buildBannerIssues(
+            ch: ch,
+            controller: controller,
+            channelId: channelId,
+            creatorId: creatorId,
+          ),
+        );
+      } else if (ch.bannerStatus == 'MANUAL_REVIEW' || ch.bannerStatus == 'PENDING') {
+        inProgressCards.addAll(
+          ChannelNotificationsBrandingIssues.buildBannerIssues(
+            ch: ch,
+            controller: controller,
+            channelId: channelId,
+            creatorId: creatorId,
+          ),
+        );
+      }
     }
 
     // 4. Copyright Claims
     if (copyrightCount > 0) {
-      issueCards.add(
+      urgentCards.add(
         ChannelNotificationsIssueCard(
           title: 'Channel Copyright Claims ($copyrightCount Active)',
           description:
@@ -195,13 +289,13 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
               },
               icon: const Icon(
                 Icons.shield_rounded,
-                color: Colors.white,
+                color: Colors.black,
                 size: 15,
               ),
               label: const Text('View Copyright Details'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.error,
-                foregroundColor: Colors.white,
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
@@ -215,6 +309,7 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
                   fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
+                  color: Colors.black,
                 ),
               ),
             ),
@@ -225,13 +320,13 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
 
     // 5. Rejected Channel Videos (Language Policy or Moderation)
     for (final v in controller.rejectedVideos) {
-      issueCards.add(
+      urgentCards.add(
         ChannelNotificationsIssueCard(
           title: v.isLanguageRejection
               ? 'Video Not Accepted (Language Policy): "${v.title}"'
               : 'Video Moderation Rejected: "${v.title}"',
           description: v.isLanguageRejection
-              ? '${v.reason}\nDetected Language: ${v.detectedLanguage.toUpperCase()} • Truthworld requires English as the primary language (minimum 90% English; up to 10% secondary languages allowed for Ground News & quotes).'
+              ? '${v.reason}\nDetected Language: ${v.detectedLanguage.toUpperCase()}'
               : v.reason,
           statusType: 'REJECTED',
           icon: v.isLanguageRejection
@@ -248,13 +343,13 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
               },
               icon: const Icon(
                 Icons.video_library_rounded,
-                color: Colors.white,
+                color: Colors.black,
                 size: 15,
               ),
               label: const Text('Manage in Videos'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.error,
-                foregroundColor: Colors.white,
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
@@ -268,6 +363,7 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
                   fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
+                  color: Colors.black,
                 ),
               ),
             ),
@@ -275,12 +371,12 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
               onPressed: () => Get.toNamed('/upload'),
               icon: const Icon(
                 Icons.upload_rounded,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 size: 15,
               ),
-              label: const Text('Upload English Video'),
+              label: const Text('Upload Video'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
+                foregroundColor: AppColors.textPrimary,
                 backgroundColor: AppColors.bgSurfaceHover,
                 side: const BorderSide(color: AppColors.bgDivider),
                 padding: const EdgeInsets.symmetric(
@@ -305,7 +401,7 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
 
     // 6. Videos Held for Manual Verification Review
     for (final v in controller.manualReviewVideos) {
-      issueCards.add(
+      urgentCards.add(
         ChannelNotificationsIssueCard(
           title: 'Video Held for Manual Review: "${v.title}"',
           description:
@@ -323,12 +419,12 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
               },
               icon: const Icon(
                 Icons.video_library_rounded,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 size: 15,
               ),
               label: const Text('View in Videos'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
+                foregroundColor: AppColors.textPrimary,
                 backgroundColor: AppColors.bgSurfaceHover,
                 side: const BorderSide(color: AppColors.bgDivider),
                 padding: const EdgeInsets.symmetric(
@@ -353,7 +449,7 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
 
     // 7. Failed / Interrupted Video Pipeline Jobs
     for (final v in controller.failedVideos) {
-      issueCards.add(
+      urgentCards.add(
         ChannelNotificationsIssueCard(
           title: 'Video Processing Interrupted: "${v.title}"',
           description: v.reason,
@@ -370,12 +466,12 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
               },
               icon: const Icon(
                 Icons.video_library_rounded,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 size: 15,
               ),
               label: const Text('Manage in Videos'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
+                foregroundColor: AppColors.textPrimary,
                 backgroundColor: AppColors.bgSurfaceHover,
                 side: const BorderSide(color: AppColors.bgDivider),
                 padding: const EdgeInsets.symmetric(
@@ -400,7 +496,7 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
 
     // 8. Disputed Fact-Checks Re-Evaluating
     for (final v in controller.disputedVideos) {
-      issueCards.add(
+      inProgressCards.add(
         ChannelNotificationsIssueCard(
           title: 'Fact-Check Appeal In Progress: "${v.title}"',
           description: v.reason,
@@ -425,12 +521,12 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
               },
               icon: const Icon(
                 Icons.fact_check_rounded,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 size: 15,
               ),
               label: const Text('View Fact-Checks Tab'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
+                foregroundColor: AppColors.textPrimary,
                 backgroundColor: AppColors.bgSurfaceHover,
                 side: const BorderSide(color: AppColors.bgDivider),
                 padding: const EdgeInsets.symmetric(
@@ -455,7 +551,7 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
 
     // 9. Videos Currently Undergoing Verification & Processing
     for (final v in controller.processingVideos) {
-      issueCards.add(
+      inProgressCards.add(
         ChannelNotificationsIssueCard(
           title: 'Video Verification & Processing Active: "${v.title}"',
           description: v.reason,
@@ -473,12 +569,12 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
               },
               icon: const Icon(
                 Icons.video_library_rounded,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 size: 15,
               ),
               label: const Text('Track in Videos'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
+                foregroundColor: AppColors.textPrimary,
                 backgroundColor: AppColors.bgSurfaceHover,
                 side: const BorderSide(color: AppColors.bgDivider),
                 padding: const EdgeInsets.symmetric(
@@ -501,98 +597,97 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
       );
     }
 
-    if (issueCards.isEmpty) return const SizedBox.shrink();
+    final children = <Widget>[];
 
-    final hasUrgentIssue = (ch != null &&
-            (ch.status == ChannelStatus.verificationRejected ||
-                ch.avatarStatus == 'REJECTED' ||
-                ch.avatarStatus == 'FLAGGED' ||
-                ch.bannerStatus == 'REJECTED' ||
-                ch.bannerStatus == 'FLAGGED')) ||
-        copyrightCount > 0 ||
-        controller.rejectedVideos.isNotEmpty ||
-        controller.failedVideos.isNotEmpty;
+    // Show standing banner if fully approved and not filtered to critical only
+    if (isFullyApproved && selectedCategory != 'critical') {
+      children.add(_buildStandingBanner(context));
+    }
 
-    final headerColor = hasUrgentIssue ? AppColors.error : AppColors.brand;
-    final headerBg = hasUrgentIssue ? AppColors.errorContainer : AppColors.infoContainer;
-    final headerBorder = hasUrgentIssue
-        ? AppColors.error.withValues(alpha: 0.4)
-        : AppColors.brand.withValues(alpha: 0.4);
-    final headerIcon = hasUrgentIssue ? Icons.gavel_rounded : Icons.verified_rounded;
-    final headerTitle = hasUrgentIssue
-        ? 'TRUTHWORLD AUDITS & ACTION REQUIRED'
-        : 'TRUTHWORLD CHANNEL NOTICES & UPDATES';
-    final headerSubtitle = hasUrgentIssue
-        ? 'Real-time verification flags, moderation notices & policy health'
-        : 'Official verification status, branding updates & channel notices';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.bgSurface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: hasUrgentIssue
-              ? AppColors.error.withValues(alpha: 0.5)
-              : AppColors.brand.withValues(alpha: 0.4),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    // Render Urgent Action Required section if any
+    if (urgentCards.isNotEmpty) {
+      children.add(
+        Container(
+          margin: const EdgeInsets.only(bottom: 20),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.bgSurface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppColors.error.withValues(alpha: 0.35),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: headerBg,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: headerBorder),
-                ),
-                child: Icon(
-                  headerIcon,
-                  color: Colors.white,
-                  size: 18,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      headerTitle,
-                      style: TextStyle(
-                        fontFamily: TWTypography.uiFamily,
-                        fontFamilyFallback: TWTypography.fallbackFamilies,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.1,
-                        color: headerColor,
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgSurfaceHover,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: AppColors.error.withValues(alpha: 0.3),
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      headerSubtitle,
-                      style: const TextStyle(
-                        fontFamily: TWTypography.uiFamily,
-                        fontFamilyFallback: TWTypography.fallbackFamilies,
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                      ),
+                    child: const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Color(0xFFF87171),
+                      size: 18,
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'ACTION REQUIRED',
+                          style: TextStyle(
+                            fontFamily: TWTypography.uiFamily,
+                            fontFamilyFallback: TWTypography.fallbackFamilies,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.1,
+                            color: Color(0xFFF87171),
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Items requiring your review or attention',
+                          style: TextStyle(
+                            fontFamily: TWTypography.uiFamily,
+                            fontFamilyFallback: TWTypography.fallbackFamilies,
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
+              const SizedBox(height: 14),
+              const Divider(height: 1, color: AppColors.bgDivider),
+              const SizedBox(height: 14),
+              ...urgentCards,
             ],
           ),
-          const SizedBox(height: 16),
-          const Divider(height: 1, color: AppColors.bgDivider),
-          const SizedBox(height: 16),
-          ...issueCards,
-        ],
-      ),
+        ),
+      );
+    }
+
+    // Render in-progress items if any
+    if (inProgressCards.isNotEmpty && selectedCategory != 'critical') {
+      children.addAll(inProgressCards);
+    }
+
+    if (children.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
     );
   }
 }

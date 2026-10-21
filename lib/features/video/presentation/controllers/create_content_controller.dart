@@ -388,7 +388,7 @@ class CreateContentController extends GetxController {
         rawDesc,
         fieldName: 'Description',
         minLength: 10,
-        maxLength: 500,
+        maxLength: ContentValidator.defaultMaxDescriptionLength,
         checkPhoneNumbers: true,
       );
       if (!descValidation.isValid) {

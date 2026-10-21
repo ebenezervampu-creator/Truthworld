@@ -58,9 +58,7 @@ class EditProfileController extends BaseController {
       liveDisplayName.value = cleaned.isNotEmpty ? cleaned : auth.activeDisplayName;
     });
 
-    handleController = trackTextController(TextEditingController(
-      text: auth.activeHandle.replaceAll('@', ''),
-    ));
+    handleController = trackTextController(TextEditingController());
 
     bioController = trackTextController(TextEditingController(
       text: auth.activeBio.isNotEmpty
@@ -329,7 +327,6 @@ class EditProfileController extends BaseController {
   /// Validates and saves profile details with strict locality verification.
   Future<void> saveProfile() async {
     final newName = nameController.text.trim();
-    final newHandle = '@${handleController.text.trim().replaceAll('@', '')}';
     final newBio = bioController.text.trim();
     final newLocation = locationController.text.trim();
     final rawAge = ageController.text.trim();
@@ -338,7 +335,6 @@ class EditProfileController extends BaseController {
     final nameRes = ContentValidator.validate(
       newName,
       fieldName: 'Display Name',
-      checkEnglishOnly: false,
       maxLength: ContentValidator.defaultMaxDisplayNameLength,
     );
     if (!nameRes.isValid) {
@@ -346,18 +342,7 @@ class EditProfileController extends BaseController {
       return;
     }
 
-    // 2. Handle validation
-    final handleRes = ContentValidator.validate(
-      newHandle,
-      fieldName: 'Handle',
-      maxLength: ContentValidator.defaultMaxHandleLength,
-    );
-    if (!handleRes.isValid) {
-      _notifyWarning(handleRes.message);
-      return;
-    }
-
-    // 3. Bio validation
+    // 2. Bio validation
     if (newBio.isNotEmpty) {
       final bioRes = ContentValidator.validate(
         newBio,
@@ -430,7 +415,6 @@ class EditProfileController extends BaseController {
 
       final success = await settingsCtrl.updateProfileDetails(
         displayName: newName,
-        handle: newHandle,
         bio: newBio,
         gender: selectedGender.value,
         age: parsedAge,

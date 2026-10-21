@@ -27,52 +27,36 @@ class DashboardCommentsPage extends StatelessWidget {
 
           return Column(
             children: [
-              // Header Bar & Navigation Tabs
+              // Header Bar & Navigation Tabs (Videos, Published, Held for review)
               DashboardCommentsHeaderBar(
                 controller: controller,
                 isMobile: isMobile,
               ),
 
-              // Filter Chips Toolbar
-              DashboardCommentsFilterToolbar(
-                controller: controller,
-                isMobile: isMobile,
-              ),
+              // Filter Chips Toolbar (Only shown for Published & Held for review comments tabs)
+              Obx(() {
+                if (controller.selectedTab.value == 0) {
+                  return const SizedBox.shrink();
+                }
+                return DashboardCommentsFilterToolbar(
+                  controller: controller,
+                  isMobile: isMobile,
+                );
+              }),
 
-              // Main Comments Stream & Desktop Layout
+              // Main Content Pane
               Expanded(
                 child: Obx(() {
-                  if (isMobile) {
-                    return _buildCommentsPane(controller, isMobile);
+                  // Tab 0: Videos selection list
+                  if (controller.selectedTab.value == 0) {
+                    return DashboardCommentsVideosListView(
+                      controller: controller,
+                      isMobile: isMobile,
+                    );
                   }
 
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Left Pane: Video Selector (Desktop / Tablet)
-                      Container(
-                        width: 320,
-                        decoration: const BoxDecoration(
-                          border: Border(
-                            right: BorderSide(
-                              color: AppColors.bgDivider,
-                            ),
-                          ),
-                        ),
-                        child: Material(
-                          color: AppColors.bgPage,
-                          child: DashboardCommentsVideoSelectorPane(
-                            controller: controller,
-                          ),
-                        ),
-                      ),
-
-                      // Right Pane: Comments Stream
-                      Expanded(
-                        child: _buildCommentsPane(controller, isMobile),
-                      ),
-                    ],
-                  );
+                  // Tabs 1 & 2: Published and Held for review comments
+                  return _buildCommentsPane(controller, isMobile);
                 }),
               ),
             ],
@@ -94,7 +78,7 @@ class DashboardCommentsPage extends StatelessWidget {
 
     if (comments.isEmpty) {
       return DashboardCommentsEmptyState(
-        isHeldTab: controller.selectedTab.value == 1,
+        isHeldTab: controller.selectedTab.value == 2,
       );
     }
 

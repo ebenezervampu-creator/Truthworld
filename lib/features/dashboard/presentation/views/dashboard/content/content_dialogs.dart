@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/edit_videoscreen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_content_details_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
@@ -66,6 +67,52 @@ import 'package:truthworld/theme/app_theme.dart';
                 ],
               ),
               const SizedBox(height: 20),
+              if (video.isRejected) ...[
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: video.resubmitCount < 2
+                          ? AppColors.brand.withValues(alpha: 0.15)
+                          : AppColors.error.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      video.resubmitCount < 2
+                          ? Icons.refresh_rounded
+                          : Icons.block_rounded,
+                      color: video.resubmitCount < 2
+                          ? AppColors.brand
+                          : AppColors.error,
+                      size: 22,
+                    ),
+                  ),
+                  title: Text(
+                    video.resubmitCount < 2
+                        ? 'Resubmit for Moderation'
+                        : 'Resubmission Limit Reached (2/2)',
+                    style: AppTextStyles.titleMedium.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: video.resubmitCount < 2
+                          ? AppColors.textPrimary
+                          : AppColors.textSecondary,
+                    ),
+                  ),
+                  subtitle: Text(
+                    video.resubmitCount < 2
+                        ? 'Resubmission attempt ${video.resubmitCount + 1} of 2 (${2 - video.resubmitCount} remaining)'
+                        : 'Maximum of 2 resubmissions have been used for this video.',
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  onTap: () {
+                    Get.back<void>();
+                    showResubmitModerationDialog(context, video, controller);
+                  },
+                ),
+                const Divider(height: 16, color: AppColors.bgDivider),
+              ],
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(10),
@@ -640,6 +687,236 @@ import 'package:truthworld/theme/app_theme.dart';
                 ],
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Displays modal dialog to resubmit a rejected video for automated moderation and verification.
+  /// Enforces strict maximum 2-times limit policy with clear feedback.
+  void showResubmitModerationDialog(
+    BuildContext context,
+    Video video,
+    VideoManagementController controller, {
+    VoidCallback? onResubmitted,
+  }) {
+    final currentCount = video.resubmitCount;
+    final isMaxReached = currentCount >= 2;
+    final nextAttempt = currentCount + 1;
+    final remaining = (2 - currentCount).clamp(0, 2);
+
+    Get.dialog<void>(
+      Dialog(
+        backgroundColor: AppColors.bgSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppColors.bgDivider),
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Padding(
+            padding: const EdgeInsets.all(22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: isMaxReached
+                            ? AppColors.error.withValues(alpha: 0.15)
+                            : AppColors.brand.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        isMaxReached ? Icons.block_rounded : Icons.refresh_rounded,
+                        color: isMaxReached ? AppColors.error : AppColors.brand,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isMaxReached
+                                ? 'Resubmission Limit Reached'
+                                : 'Resubmit for Moderation',
+                            style: AppTextStyles.titleLarge.copyWith(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: TWTypography.brandFamily,
+                            ),
+                          ),
+                          Text(
+                            isMaxReached
+                                ? '2 of 2 attempts used'
+                                : 'Attempt $nextAttempt of 2 • $remaining remaining',
+                            style: AppTextStyles.caption.copyWith(
+                              color: isMaxReached ? AppColors.error : AppColors.brand,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Video snippet container
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgInput,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.bgDivider),
+                  ),
+                  child: Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: SizedBox(
+                          width: 56,
+                          height: 32,
+                          child: video.thumbnailUrl.isNotEmpty
+                              ? CachedNetworkImage(
+                                  imageUrl: video.thumbnailUrl,
+                                  fit: BoxFit.cover,
+                                  errorWidget: (_, _, _) => const ColoredBox(
+                                    color: AppColors.bgSurface,
+                                    child: Icon(Icons.movie_outlined, size: 16, color: Colors.white),
+                                  ),
+                                )
+                              : const ColoredBox(
+                                  color: AppColors.bgSurface,
+                                  child: Icon(Icons.movie_outlined, size: 16, color: Colors.white),
+                                ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          video.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                if (isMaxReached) ...[
+                  Text(
+                    'This video has already reached the maximum limit of 2 resubmissions and cannot be resubmitted again. If you believe this is in error, please contact TruthWorld support.',
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.textPrimary,
+                        side: const BorderSide(color: AppColors.bgDivider),
+                      ),
+                      onPressed: Get.back<void>,
+                      child: const Text('Close'),
+                    ),
+                  ),
+                ] else ...[
+                  Text(
+                    'Before resubmitting, ensure your video title, description, and thumbnail comply with TruthWorld Community Guidelines. Each video can only be resubmitted twice.',
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.warning.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline_rounded, size: 16, color: AppColors.warning),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'You have $remaining resubmission attempt(s) remaining.',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.warning,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: Get.back<void>,
+                        child: Text(
+                          'Cancel',
+                          style: AppTextStyles.buttonText.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textPrimary,
+                          side: const BorderSide(color: AppColors.bgDivider),
+                        ),
+                        onPressed: () {
+                          Get.back<void>();
+                          Get.to<dynamic>(() => EditVideoScreen(video: video));
+                        },
+                        child: const Text('Edit Details First'),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.brand,
+                          foregroundColor: Colors.black,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: () async {
+                          Get.back<void>();
+                          final success = await controller.resubmitVideoForModeration(video.id);
+                          if (success && onResubmitted != null) {
+                            onResubmitted();
+                          }
+                        },
+                        child: Text(
+                          'Resubmit (Attempt $nextAttempt/2)',
+                          style: const TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
       ),

@@ -3,8 +3,8 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
-import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/distributed_counter_service.dart';
+import 'package:truthworld/core/utils/content_validator.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/topics/presentation/controllers/interaction/topic_interaction_state_base.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
@@ -58,30 +58,19 @@ mixin TopicRepliesCrudMixin on TopicInteractionStateBase {
           .collection('replies')
           .doc();
 
-      // Resolve channel details
-      String? channelId;
-      String? channelName;
-      String? channelProfilePicUrl;
-
-      if (AuthService.to.hasChannel.value &&
-          AuthService.to.userChannel != null) {
-        final channel = AuthService.to.userChannel!;
-        channelId = channel.id;
-        channelName = channel.handle.isNotEmpty ? channel.handle : channel.name;
-        channelProfilePicUrl = channel.avatarUrl;
-      }
+      final rawName = currentUserName;
+      final cleanUserName =
+          rawName.startsWith('@') ? rawName.substring(1) : rawName;
 
       final replyObj = Reply(
         id: replyRef.id,
         commentId: commentId,
         videoId: topicId,
         userId: currentUserId,
-        userName: currentUserName,
+        userName: cleanUserName,
         userProfilePicUrl: currentUserProfilePicUrl,
-        channelId: channelId ?? currentUserId,
-        channelName: channelName,
-        channelProfilePicUrl: channelProfilePicUrl,
-        text: text.trim(),
+        channelId: currentUserId,
+        text: ContentValidator.cleanProfanity(text.trim()),
         likeCount: 0,
         dislikeCount: 0,
         reportCount: 0,
@@ -95,12 +84,12 @@ mixin TopicRepliesCrudMixin on TopicInteractionStateBase {
         await callable.call({
           'topicId': topicId,
           'commentId': commentId,
-          'text': text.trim(),
-          'userName': currentUserName,
+          'text': ContentValidator.cleanProfanity(text.trim()),
+          'userName': cleanUserName,
           'userProfilePicUrl': currentUserProfilePicUrl,
-          'channelId': channelId ?? currentUserId,
-          'channelName': channelName,
-          'channelProfilePicUrl': channelProfilePicUrl,
+          'channelId': currentUserId,
+          'channelName': null,
+          'channelProfilePicUrl': null,
         }).timeout(const Duration(seconds: 8));
       } catch (fnError) {
         // Fallback to direct Firestore write + Distributed Counter

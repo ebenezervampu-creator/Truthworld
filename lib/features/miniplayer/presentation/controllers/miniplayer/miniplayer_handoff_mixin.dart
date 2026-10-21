@@ -157,7 +157,8 @@ mixin MiniplayerHandoffMixin on
       currentSubtitle.value = '';
     }
 
-    if (video.status == VideoStatus.rejected ||
+    if (video.isRejected ||
+        video.status == VideoStatus.rejected ||
         video.visibility == 'rejected' ||
         video.channelStatus == 'rejected') {
       isBuffering.value = false;
@@ -313,7 +314,6 @@ mixin MiniplayerHandoffMixin on
     PipService.to.updateAutoPip(
       enabled: false,
       isPlaying: false,
-      hasPrevious: false,
       hasNext: false,
     );
     recoveryDebounceTimer?.cancel();

@@ -100,7 +100,7 @@ class LibraryUnauthenticatedView extends StatelessWidget {
       onPressed: () {
         HapticFeedback.lightImpact();
         if (Get.context != null) {
-          AuthBottomSheet.show(Get.context!);
+          AuthBottomSheet.show(Get.context);
         } else if (Get.isRegistered<HomeController>()) {
           Get.find<HomeController>().showAuthBottomSheet();
         }

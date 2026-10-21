@@ -6,15 +6,16 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
-import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/services/image_verification_service.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_mixins/channel_controller_base.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -110,6 +111,8 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
     selectedChannel.value = channel;
     subscriberCount.value = channel.subscriberCount;
     ChannelSubscriptionController.channelSubscriberCounts[channel.channelId] = channel.subscriberCount;
+    subController.hasChannelMemberships.value = channel.hasMemberships;
+    hasVideos.value = channel.videoCount > 0;
 
     // Set initial values from the channel document
     detailsAvatarStatus.value = channel.avatarStatus ?? '';
@@ -417,6 +420,7 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
     isLoadingMore.value = false;
     isLoadingVideos.value = false;
     selectedChannel.value = null;
+    subController.hasChannelMemberships.value = false;
     videoSortFilter.value = 'Latest';
     detailsAvatarSub?.cancel();
     detailsBannerSub?.cancel();
@@ -483,52 +487,82 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
            (selectedChannel.value?.channelId != null &&
             selectedChannel.value!.channelId == AuthService.to.userChannel?.channelId));
 
-      var postQuery = firestore
-          .collection(FirestoreCollections.community)
-          .where('channelId', isEqualTo: channelId);
-
-      if (isOwner) {
-        postQuery = postQuery.where('ownerId', isEqualTo: currentUser.uid);
-      } else {
-        postQuery = postQuery.where('visibility', isEqualTo: 'Public');
-      }
+      // Performance & Cost Optimization: Skip video query if already verified from channel.videoCount
+      final needsVideoQuery = !hasVideos.value &&
+          (selectedChannel.value == null || selectedChannel.value!.videoCount <= 0);
 
       final results = await Future.wait([
-        firestore
-            .collection(FirestoreCollections.videos)
-            .where('channelId', isEqualTo: channelId)
-            .limit(10)
-            .getCacheFirst(),
+        if (needsVideoQuery)
+          firestore
+              .collection(FirestoreCollections.videos)
+              .where('channelId', isEqualTo: channelId)
+              .limit(1)
+              .getCacheFirst()
+        else
+          Future.value(),
         firestore
             .collection('public_playlists')
             .where('channelId', isEqualTo: channelId)
             .limit(1)
             .getCacheFirst(),
-        postQuery.limit(1).getCacheFirst(),
+        firestore
+            .collection(FirestoreCollections.community)
+            .where('channelId', isEqualTo: channelId)
+            .limit(1)
+            .getCacheFirst(),
         firestore
             .collection(FirestoreCollections.topics)
             .where('channelId', isEqualTo: channelId)
-            .where('status', isEqualTo: 'active')
-            .limit(5)
+            .limit(3)
             .getCacheFirst(),
       ]);
 
-      final videoDocs = results[0].docs;
-      final hasAnyVisibleVideo = videoDocs.any((doc) {
+      if (needsVideoQuery && results[0] != null) {
+        final videoDocs = results[0]!.docs;
+        final hasAnyVisibleVideo = videoDocs.any((doc) {
+          final data = doc.data() as Map<String, dynamic>?;
+          if (data == null) return false;
+          final vis = (data['visibility'] as String?)?.toLowerCase() ?? 'public';
+          return isOwner || (vis != 'private' && vis != 'draft');
+        });
+        hasVideos.value = hasAnyVisibleVideo;
+      }
+
+      final playlistDocs = results[1]!.docs;
+      final hasAnyPlaylist = playlistDocs.any((doc) {
         final data = doc.data() as Map<String, dynamic>?;
         if (data == null) return false;
-        final vis = (data['visibility'] as String?)?.toLowerCase() ?? 'public';
-        return isOwner || (vis != 'private' && vis != 'draft');
+        final thumb = (data['thumbnailUrl'] as String?)?.trim() ?? '';
+        final vCount = (data['videoCount'] as num?)?.toInt() ?? 0;
+        final videoIds = data['videoIds'] as List?;
+        return thumb.isNotEmpty || vCount > 0 || (videoIds != null && videoIds.isNotEmpty);
       });
-      hasVideos.value = hasAnyVisibleVideo;
-      hasPlaylists.value = results[1].docs.isNotEmpty;
-      hasPosts.value = results[2].docs.isNotEmpty;
-      hasTopics.value = results[3].docs.any((doc) {
+      hasPlaylists.value = hasAnyPlaylist;
+
+      final postDocs = results[2]!.docs;
+      final hasAnyPost = postDocs.any((doc) {
         final data = doc.data() as Map<String, dynamic>?;
-        final vCount = (data?['videoCount'] as num?)?.toInt() ?? 0;
-        final featVids = data?['featuredVideoIds'] as List?;
-        return vCount > 0 || (featVids != null && featVids.isNotEmpty);
+        if (data == null) return false;
+        if (isOwner) return true;
+        final vis = (data['visibility'] as String?)?.toLowerCase() ?? 'public';
+        return vis == 'public' || vis == 'subscribers' || vis == 'members';
       });
+      hasPosts.value = hasAnyPost;
+
+      final topicDocs = results[3]!.docs;
+      final hasAnyTopic = topicDocs.any((doc) {
+        try {
+          final topic = Topic.fromDocumentSnapshot(doc);
+          if (!topic.isValidTopic || (topic.videoCount <= 0 && topic.featuredVideoIds.isEmpty)) return false;
+          if (isOwner) return true;
+          if (topic.visibilityType == TopicVisibilityType.public) return true;
+          if (topic.visibilityType == TopicVisibilityType.channelOnly && isSubscribed.value) return true;
+          return false;
+        } catch (_) {
+          return false;
+        }
+      });
+      hasTopics.value = hasAnyTopic;
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,

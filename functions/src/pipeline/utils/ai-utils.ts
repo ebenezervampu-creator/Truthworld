@@ -471,3 +471,43 @@ export function extractCandidateText(candidate: any): string {
     .join("")
     .trim();
 }
+
+/**
+ * Normalizes any video URL (HTTP, Firebase Storage, GCS) into a canonical gs:// URI
+ * for zero-copy direct Vertex AI / Gemini multimodal evaluation.
+ */
+export function normalizeToGcsUri(url: string): string | null {
+  if (!url) return null;
+  if (url.startsWith("gs://")) return url;
+
+  // Handle Firebase Storage HTTP URLs:
+  // https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{path}?alt=media...
+  const fbMatch = url.match(/firebasestorage\.googleapis\.com\/v0\/b\/([^/]+)\/o\/([^?]+)/);
+  if (fbMatch) {
+    const bucket = fbMatch[1];
+    const encodedPath = fbMatch[2];
+    const decodedPath = decodeURIComponent(encodedPath);
+    return `gs://${bucket}/${decodedPath}`;
+  }
+
+  // Handle Google Cloud Storage URLs:
+  // https://storage.googleapis.com/{bucket}/{path}
+  const gcsMatch = url.match(/storage\.googleapis\.com\/([^/]+)\/(.+)/);
+  if (gcsMatch) {
+    const bucket = gcsMatch[1];
+    const path = decodeURIComponent(gcsMatch[2].split("?")[0]);
+    return `gs://${bucket}/${path}`;
+  }
+
+  // Handle relative GCS paths (e.g. "videos/{videoId}/original.mp4")
+  if (url.startsWith("videos/")) {
+    try {
+      const defaultBucket = admin.storage().bucket().name || `${process.env.GCLOUD_PROJECT || "truthworld"}.firebasestorage.app`;
+      return `gs://${defaultBucket}/${url}`;
+    } catch {
+      return `gs://truthworld.firebasestorage.app/${url}`;
+    }
+  }
+
+  return null;
+}

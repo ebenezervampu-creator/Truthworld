@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Reusable state widgets (Empty, Shimmer, Error) for Playlists Management.
@@ -98,35 +98,24 @@ class PlaylistsEmptyState extends StatelessWidget {
   }
 }
 
-/// Shimmer loading grid for Playlists.
-class PlaylistsShimmerGrid extends StatelessWidget {
-  const PlaylistsShimmerGrid({super.key});
+/// Clean lightweight loading indicator matching PlaylistGridCard's responsive architecture.
+class PlaylistsLoadingGrid extends StatelessWidget {
+  const PlaylistsLoadingGrid({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Shimmer.fromColors(
-      baseColor: const Color(0xFF1E1E1E),
-      highlightColor: AppColors.bgSurfaceHover,
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: 6,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 0.85,
-        ),
-        itemBuilder: (_, _) => Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E1E1E),
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 40),
+      child: StudioLoadingIndicator(
+        message: 'Loading playlists...',
+        isFullScreen: false,
       ),
     );
   }
 }
+
+// Backward-compatible alias
+typedef PlaylistsShimmerGrid = PlaylistsLoadingGrid;
 
 /// Sanitized error banner for Playlists loading failures.
 class PlaylistsErrorState extends StatelessWidget {

@@ -4,6 +4,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/cross_app_launcher.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Helper utility for opening Truthworld Studio:
 /// Opens installed Truthworld Studio app if available, otherwise opens in external web browser.
@@ -17,6 +18,35 @@ class StudioLauncher {
       'https://www.truthworld.in/studio';
   static const String studioWebUrlFallback =
       'https://truthworld-1-studio.web.app/';
+  static const String playStoreMarketUrl =
+      'market://details?id=com.truthworld.studio';
+  static const String playStoreWebUrl =
+      'https://play.google.com/store/apps/details?id=com.truthworld.studio';
+
+  /// Checks whether Truthworld Studio native app is installed on this device.
+  static Future<bool> isStudioInstalled() async {
+    return CrossAppLauncher.isFlavorInstalled(AppFlavor.studio);
+  }
+
+  /// Opens Google Play Store or web download page for Truthworld Studio app.
+  static Future<void> downloadStudioApp() async {
+    try {
+      final marketUri = Uri.parse(playStoreMarketUrl);
+      if (await canLaunchUrl(marketUri)) {
+        await launchUrl(marketUri, mode: LaunchMode.externalApplication);
+        return;
+      }
+      final playStoreUri = Uri.parse(playStoreWebUrl);
+      if (await canLaunchUrl(playStoreUri)) {
+        await launchUrl(playStoreUri, mode: LaunchMode.externalApplication);
+        return;
+      }
+      final webUri = Uri.parse(studioWebUrlProduction);
+      await launchUrl(webUri, mode: LaunchMode.externalApplication);
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'StudioLauncher.downloadStudioApp');
+    }
+  }
 
   /// Opens Truthworld Studio in installed app or web browser.
   static Future<void> openStudio({

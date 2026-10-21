@@ -150,9 +150,7 @@ class ExploreTopicsSearchBar extends StatelessWidget {
                 ContentValidator.defaultMaxSearchLength,
               ),
               textInputAction: TextInputAction.search,
-              onSubmitted: (query) {
-                controller.updateSearchQuery(query);
-              },
+              onSubmitted: controller.updateSearchQuery,
               style: TextStyle(
                 color: Colors.white,
                 fontSize: isDesktop ? 15 : 14,
@@ -188,7 +186,6 @@ class ExploreTopicsSearchBar extends StatelessWidget {
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.symmetric(
                   vertical: isDesktop ? 16 : (isTablet ? 14 : 12),
-                  horizontal: 0,
                 ),
                 suffixIcon: Row(
                   mainAxisSize: MainAxisSize.min,

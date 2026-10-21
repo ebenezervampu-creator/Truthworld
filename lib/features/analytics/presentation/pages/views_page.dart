@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -125,14 +127,15 @@ class ViewsPage extends StatelessWidget {
     final isPositive = viewsChange.startsWith('+');
     var totalViews = controller.selectedVideoId.value.isNotEmpty
         ? (controller.videoAnalytics.value?.totalViews ?? 0)
-        : ((controller.channelAnalytics.value?.totalVideoWatches ?? 0) > 0
-            ? controller.channelAnalytics.value!.totalVideoWatches
-            : (controller.channelVideos.isNotEmpty
+        : math.max(
+            controller.channelAnalytics.value?.totalVideoWatches ?? 0,
+            controller.channelVideos.isNotEmpty
                 ? controller.channelVideos.fold<int>(
                     0,
                     (sum, v) => sum + v.viewCount,
                   )
-                : 0));
+                : 0,
+          );
 
     if (totalViews == 0 && controller.selectedVideoId.value.isEmpty) {
       final initialViewsStr = args['views'] as String? ?? '';

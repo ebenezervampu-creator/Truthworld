@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_view_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audience_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks_page.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/channel_notifications_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/chapters_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/content_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/copyright_screen.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/channel_notifications_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/customization_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_comments_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships_screen.dart';
@@ -20,7 +20,6 @@ import 'package:truthworld/features/dashboard/presentation/views/dashboard/subti
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/topic_management_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification_dashboard_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/dashboard_overview_content.dart';
-import 'package:truthworld/theme/app_theme.dart';
 
 /// Routes active tab index to the corresponding sub-feature screen
 /// with animated fade, slide, and scale transitions.
@@ -95,15 +94,23 @@ class DashboardViewRouter extends StatelessWidget {
         final tabParam = (Get.parameters['tab'] ?? '').toLowerCase();
         final currentRoute = Get.currentRoute.toLowerCase();
         final isDrafts = currentRoute.contains('/drafts') ||
-            tabParam == 'drafts';
+            tabParam == 'drafts' ||
+            tabParam == '20';
         final isTrash = currentRoute.contains('/trash') ||
             tabParam == 'trash' ||
             tabParam == '13';
+        final isCommunity = currentRoute.contains('/community') ||
+            currentRoute.contains('/posts') ||
+            tabParam == 'community' ||
+            tabParam == 'posts' ||
+            tabParam == '19';
         var initialIdx = 0;
         if (isTrash) {
           initialIdx = 4;
         } else if (isDrafts) {
           initialIdx = 2;
+        } else if (isCommunity) {
+          initialIdx = 1;
         }
         return ContentScreen(
           channelId: channelId,
@@ -185,6 +192,13 @@ class DashboardViewRouter extends StatelessWidget {
           channelId: channelId,
           isDarkMode: isDarkMode,
         );
+      case 19:
+        return ContentScreen(
+          channelId: channelId,
+          isDarkMode: isDarkMode,
+          searchQuery: dashboardController.searchQuery.value,
+          initialIndex: 1,
+        );
       case 20:
         return ContentScreen(
           channelId: channelId,
@@ -206,53 +220,12 @@ class DashboardViewRouter extends StatelessWidget {
   }
 
   Widget _buildRouterSkeleton() {
-    return Shimmer.fromColors(
-      baseColor: const Color(0xFF1E1E1E),
-      highlightColor: AppColors.bgSurfaceHover,
-      child: SingleChildScrollView(
-        padding: EdgeInsets.symmetric(
-          horizontal: horizontalPadding,
-          vertical: 16,
-        ),
-        child: Column(
-          children: [
-            Container(
-              height: 120,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.bgDivider),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: List.generate(
-                4,
-                (index) => Expanded(
-                  child: Container(
-                    height: 100,
-                    margin: EdgeInsets.only(right: index < 3 ? 12 : 0),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E1E1E),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.bgDivider),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Container(
-              height: 220,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.bgDivider),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return DashboardOverviewContentSkeleton(
+      isMobile: isMobile,
+      isTablet: isTablet,
+      isDesktop: isDesktop,
+      horizontalPadding: horizontalPadding,
+      isDarkMode: isDarkMode,
     );
   }
 }

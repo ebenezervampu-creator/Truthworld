@@ -130,7 +130,6 @@ class PlaylistDialogController extends BaseController
       if (playlist.id == 'watchlater') {
         await playlistController.toggleWatchLater(
           videoId,
-          showFeedback: true,
         );
       } else {
         final isIn = playlist.videoIds.contains(videoId);
@@ -224,7 +223,6 @@ class PlaylistDialogController extends BaseController
       if (selectedId == 'watchlater') {
         return await playlistController.toggleWatchLater(
           videoId,
-          showFeedback: true,
         );
       } else {
         final isPublic = selectedPlaylist?.isPublic ?? false;

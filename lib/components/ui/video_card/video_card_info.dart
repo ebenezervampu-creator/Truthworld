@@ -13,11 +13,13 @@ class VideoCardGridInfo extends StatelessWidget {
   const VideoCardGridInfo({
     required this.video,
     required this.controller,
+    this.isChannelContext = false,
     super.key,
   });
 
   final Video video;
   final VideoCardController controller;
+  final bool isChannelContext;
 
   @override
   Widget build(BuildContext context) {
@@ -93,7 +95,11 @@ class VideoCardGridInfo extends StatelessWidget {
                 size: isDesktop ? 22 : 20,
                 color: Colors.white,
               ),
-              onPressed: () => VideoOptionsSheet.show(context, video),
+              onPressed: () => VideoOptionsSheet.show(
+                context,
+                video,
+                isChannelContext: isChannelContext,
+              ),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
             ),
@@ -110,12 +116,14 @@ class VideoCardListInfo extends StatelessWidget {
     required this.video,
     required this.controller,
     this.isCompact = false,
+    this.isChannelContext = false,
     super.key,
   });
 
   final Video video;
   final VideoCardController controller;
   final bool isCompact;
+  final bool isChannelContext;
 
   @override
   Widget build(BuildContext context) {
@@ -187,7 +195,11 @@ class VideoCardListInfo extends StatelessWidget {
                   size: 18,
                   color: AppColors.textPrimary,
                 ),
-                onPressed: () => VideoOptionsSheet.show(context, video),
+                onPressed: () => VideoOptionsSheet.show(
+                  context,
+                  video,
+                  isChannelContext: isChannelContext,
+                ),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
               ),

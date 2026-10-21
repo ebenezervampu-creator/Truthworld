@@ -21,7 +21,7 @@
 
 import * as admin from "firebase-admin";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
-import { onRequest } from "firebase-functions/v2/https";
+import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { requireRecentAdmin } from "../utils/auth";
 import { PIPELINE_CONFIG } from "../pipeline/config";
@@ -169,9 +169,18 @@ export const onContentUploadedForModeration = onObjectFinalized(
       let lastErr: any = null;
       const MAX_MODERATION_ATTEMPTS = 5;
 
+      const videoMetadata = videoDoc.data();
+      const videoTitle = videoMetadata?.title || "";
+      const videoDescription = videoMetadata?.description || "";
+      const videoTags = Array.isArray(videoMetadata?.tags) ? videoMetadata.tags : [];
+
       for (let attempt = 1; attempt <= MAX_MODERATION_ATTEMPTS; attempt++) {
         try {
-          result = await contentModerationService.moderate(videoGcsUri, contentType);
+          result = await contentModerationService.moderate(
+            videoGcsUri,
+            contentType,
+            { title: videoTitle, description: videoDescription, tags: videoTags }
+          );
           break;
         } catch (err: any) {
           lastErr = err;
@@ -648,7 +657,15 @@ export const scheduledContentModerationRetry = onSchedule(
 
         try {
           const videoGcsUri = `gs://${BUCKET_NAME}/${videoPath}`;
-          const result = await contentModerationService.moderate(videoGcsUri, contentType);
+          const retryData = doc.data();
+          const retryTitle = retryData?.title || "";
+          const retryDescription = retryData?.description || "";
+          const retryTags = Array.isArray(retryData?.tags) ? retryData.tags : [];
+          const result = await contentModerationService.moderate(
+            videoGcsUri,
+            contentType,
+            { title: retryTitle, description: retryDescription, tags: retryTags }
+          );
 
           const moderationStatus = result.policyAction === "manual_review"
             ? "manual_review"
@@ -708,6 +725,161 @@ export const scheduledContentModerationRetry = onSchedule(
     } catch (err) {
       console.error("[ContentModerationRetry] Scheduled processor error:", err);
     }
+  }
+);
+
+/**
+ * 🔄 RESUBMIT VIDEO FOR MODERATION:
+ * Callable Cloud Function allowing creators to resubmit a rejected video for moderation.
+ * STRICT POLICY: Enforces a maximum of 2 resubmissions per video.
+ */
+export const resubmitVideoForModeration = onCall(
+  {
+    region: REGION,
+    timeoutSeconds: 120,
+    memory: "512MiB",
+    maxInstances: 10,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "User must be authenticated to resubmit video.");
+    }
+
+    const { videoId } = request.data || {};
+    if (!videoId || typeof videoId !== "string" || !/^[a-zA-Z0-9_-]{5,64}$/.test(videoId)) {
+      throw new HttpsError("invalid-argument", "Valid videoId is required.");
+    }
+
+    const callerUid = request.auth.uid;
+    const videoRef = db.collection("videos").doc(videoId);
+    const videoDoc = await videoRef.get();
+
+    if (!videoDoc.exists) {
+      throw new HttpsError("not-found", "Video not found.");
+    }
+
+    const videoData = videoDoc.data();
+    const ownerId = videoData?.ownerId || videoData?.userId || videoData?.uploaderId;
+
+    if (ownerId && ownerId !== callerUid) {
+      const token = request.auth.token;
+      const isAdmin = token?.admin === true || token?.role === "admin";
+      if (!isAdmin) {
+        throw new HttpsError("permission-denied", "Only the video owner can resubmit this video.");
+      }
+    }
+
+    // Verify current status is rejected
+    const currentStatus = String(videoData?.status || "").toLowerCase();
+    const moderationStatus = String(videoData?.moderation?.status || "").toLowerCase();
+    const isRejected = currentStatus === "rejected" ||
+      moderationStatus === "rejected" ||
+      videoData?.geminiApproved === false ||
+      videoData?.isApproved === false;
+
+    if (!isRejected) {
+      throw new HttpsError("failed-precondition", "Only videos rejected by moderation can be resubmitted.");
+    }
+
+    // Strict 2-time maximum limit enforcement
+    const currentResubmitCount = Number(videoData?.resubmitCount || videoData?.moderation?.resubmitCount || 0);
+    if (currentResubmitCount >= 2) {
+      throw new HttpsError("resource-exhausted", "This video has reached the maximum limit of 2 resubmissions.");
+    }
+
+    const nextCount = currentResubmitCount + 1;
+    const now = Date.now();
+
+    console.log(`[ContentModeration] Resubmitting video ${videoId} (Attempt ${nextCount} of 2) by user ${callerUid}`);
+
+    // Update video document in Firestore
+    await videoRef.update({
+      status: "pending_review",
+      resubmitCount: nextCount,
+      resubmittedAt: admin.firestore.FieldValue.serverTimestamp(),
+      "moderation.status": "pending",
+      "moderation.resubmitCount": nextCount,
+      "moderation.resubmittedAt": now,
+      "moderation.policyAction": "pending",
+      "moderation.reason": admin.firestore.FieldValue.delete(),
+      "moderation.policyReason": admin.firestore.FieldValue.delete(),
+      rejectionReason: admin.firestore.FieldValue.delete(),
+      geminiApproved: admin.firestore.FieldValue.delete(),
+      isApproved: admin.firestore.FieldValue.delete(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Update matching video_jobs document if present
+    try {
+      const resolvedJobId = videoData?.jobId || videoId;
+      const jobDocRef = db.collection("video_jobs").doc(resolvedJobId);
+      const jobSnap = await jobDocRef.get();
+      if (jobSnap.exists) {
+        await jobDocRef.update({
+          status: "processing",
+          "stages.moderation.status": "pending",
+          "stages.moderation.progress": 0,
+          "stages.moderation.startedAt": now,
+          updatedAt: now,
+        });
+      }
+    } catch (jobErr) {
+      console.warn(`[ContentModeration] Failed to update video_jobs on resubmit:`, jobErr);
+    }
+
+    // Trigger async moderation pass
+    try {
+      const videoPath = videoData?.storage?.videoPath || `videos/${videoId}/original.mp4`;
+      const contentType = videoData?.contentType || "video/mp4";
+      const videoGcsUri = `gs://${BUCKET_NAME}/${videoPath}`;
+      const title = videoData?.title || "";
+      const description = videoData?.description || "";
+      const tags = Array.isArray(videoData?.tags) ? videoData.tags : [];
+
+      contentModerationService.moderate(
+        videoGcsUri,
+        contentType,
+        { title, description, tags }
+      ).then(async (result) => {
+        const modStatus = result.policyAction === "manual_review"
+          ? "manual_review"
+          : result.approved ? "approved" : "rejected";
+
+        await videoRef.update({
+          "moderation.status": modStatus,
+          "moderation.reason": result.violationReason,
+          "moderation.topic": result.topic,
+          "moderation.intent": result.intent,
+          "moderation.policyAction": result.policyAction,
+          "moderation.riskLevel": result.riskLevel,
+          "moderation.policyReason": result.policyReason,
+          "moderation.explanation": result.explanation,
+          "moderation.violationCategories": result.violationCategories,
+          "moderation.confidenceScore": result.confidenceScore,
+          "moderation.summary": result.summary,
+          "moderation.processingTimeMs": result.processingTimeMs,
+          "moderation.checkedAt": Date.now(),
+          "moderation.model": PIPELINE_CONFIG.GEMINI_MODELS?.moderation || "gemini-2.5-flash",
+          "moderation.version": "v3.0-intent-aware",
+          geminiApproved: result.approved,
+          isApproved: result.approved,
+          status: result.approved ? "ready" : (modStatus === "manual_review" ? "pending_review" : "rejected"),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        console.log(`[ContentModeration] Async resubmit moderation finished for ${videoId}: ${modStatus}`);
+      }).catch((asyncErr) => {
+        console.warn(`[ContentModeration] Async resubmit moderation error:`, asyncErr);
+      });
+    } catch (triggerErr) {
+      console.warn(`[ContentModeration] Triggering moderation pass warning:`, triggerErr);
+    }
+
+    return {
+      success: true,
+      resubmitCount: nextCount,
+      remainingResubmissions: 2 - nextCount,
+      message: `Video resubmitted for moderation review. (Attempt ${nextCount} of 2).`,
+    };
   }
 );
 

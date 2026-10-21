@@ -229,16 +229,39 @@ class AudienceController extends BaseController {
     _resolveAndLoad();
   }
 
+  void clearData() {
+    _channelStatsSub?.cancel();
+    _channelStatsSub = null;
+    _videoStatsSub?.cancel();
+    _videoStatsSub = null;
+    _channelId.value = '';
+    snapshot.value = null;
+    allCountryItems.clear();
+    ageDistribution.clear();
+    genderDistribution.clear();
+    totalViews.value = 0;
+    totalUniqueViewers.value = 0;
+    totalSubscribersGained.value = 0;
+    totalSubscribersLost.value = 0;
+    returningViewers.value = 0;
+    subscriberViews.value = 0;
+    nonSubscriberViews.value = 0;
+    clearError();
+  }
+
   @override
   void onClose() {
     _channelStatsSub?.cancel();
+    _channelStatsSub = null;
     _videoStatsSub?.cancel();
+    _videoStatsSub = null;
     super.onClose();
   }
 
   /// Inject or update channel navigation context dynamically
   void setChannelContext(String id) {
     if (id.isNotEmpty && _channelId.value != id) {
+      clearData();
       _channelId.value = id;
       clearError();
       fetchAudienceData();
@@ -247,6 +270,9 @@ class AudienceController extends BaseController {
       _channelId.value = id;
       clearError();
       fetchAudienceData();
+      _startRealtimeListeners();
+    } else if (id.isNotEmpty && _channelStatsSub == null) {
+      // Re-attach listeners if needed without blocking or clearing cache
       _startRealtimeListeners();
     }
   }
@@ -402,6 +428,8 @@ class AudienceController extends BaseController {
     var urbanAccum = 0;
     var ruralAccum = 0;
     var returningAccum = 0;
+    var subViewsAccum = 0;
+    var nonSubViewsAccum = 0;
 
     for (final doc in querySnapshot.docs) {
       final data = doc.data() as Map<String, dynamic>? ?? {};
@@ -415,6 +443,8 @@ class AudienceController extends BaseController {
       urbanAccum += (data['urbanViewers'] as num?)?.toInt() ?? 0;
       ruralAccum += (data['ruralViewers'] as num?)?.toInt() ?? 0;
       returningAccum += (data['returningViewers'] as num?)?.toInt() ?? 0;
+      subViewsAccum += (data['subscriberViews'] as num?)?.toInt() ?? 0;
+      nonSubViewsAccum += (data['nonSubscriberViews'] as num?)?.toInt() ?? 0;
 
       final dayCountryTraffic = data['countryTraffic'];
       if (dayCountryTraffic is Map) {
@@ -444,6 +474,12 @@ class AudienceController extends BaseController {
     totalViews.value = totalViewsAccum;
     totalSubscribersGained.value = totalSubsAccum;
     returningViewers.value = returningAccum;
+    if (subViewsAccum > 0 || nonSubViewsAccum > 0) {
+      subscriberViews.value = subViewsAccum;
+      nonSubscriberViews.value = nonSubViewsAccum > 0
+          ? nonSubViewsAccum
+          : (totalViewsAccum - subViewsAccum).clamp(0, totalViewsAccum);
+    }
     subscriberConversionRate.value = totalViewsAccum > 0
         ? (totalSubsAccum / totalViewsAccum) * 100
         : 0.0;
@@ -467,6 +503,8 @@ class AudienceController extends BaseController {
     var urbanAccum = 0;
     var ruralAccum = 0;
     var returningAccum = 0;
+    var subViewsAccum = 0;
+    var nonSubViewsAccum = 0;
 
     for (final doc in querySnapshot.docs) {
       final data = doc.data() as Map<String, dynamic>? ?? {};
@@ -479,6 +517,8 @@ class AudienceController extends BaseController {
       urbanAccum += (data['urbanViewers'] as num?)?.toInt() ?? 0;
       ruralAccum += (data['ruralViewers'] as num?)?.toInt() ?? 0;
       returningAccum += (data['returningViewers'] as num?)?.toInt() ?? 0;
+      subViewsAccum += (data['subscriberViews'] as num?)?.toInt() ?? 0;
+      nonSubViewsAccum += (data['nonSubscriberViews'] as num?)?.toInt() ?? 0;
 
       final dayCountryTraffic = data['countryTraffic'];
       if (dayCountryTraffic is Map) {
@@ -507,6 +547,12 @@ class AudienceController extends BaseController {
     totalViews.value = totalViewsAccum;
     totalSubscribersGained.value = totalSubsAccum;
     returningViewers.value = returningAccum;
+    if (subViewsAccum > 0 || nonSubViewsAccum > 0) {
+      subscriberViews.value = subViewsAccum;
+      nonSubscriberViews.value = nonSubViewsAccum > 0
+          ? nonSubViewsAccum
+          : (totalViewsAccum - subViewsAccum).clamp(0, totalViewsAccum);
+    }
     subscriberConversionRate.value = totalViewsAccum > 0
         ? (totalSubsAccum / totalViewsAccum) * 100
         : 0.0;
@@ -522,7 +568,7 @@ class AudienceController extends BaseController {
   // INITIAL FETCH (one-shot via service, then real-time takes over)
   // ---------------------------------------------------------------------------
 
-  void fetchAudienceData() {
+  void fetchAudienceData({bool silent = false}) {
     if (channelId.isEmpty) {
       _resolveAndLoad();
       if (channelId.isEmpty) {
@@ -535,7 +581,16 @@ class AudienceController extends BaseController {
       }
     }
     clearError();
-    runTask(() async {
+    final hasData = snapshot.value != null || allCountryItems.isNotEmpty;
+    if (silent || hasData) {
+      _executeFetchAudienceData();
+    } else {
+      runTask(_executeFetchAudienceData);
+    }
+  }
+
+  Future<void> _executeFetchAudienceData() async {
+    try {
       logger.info(
         'Fetching aggregated audience data for channel: $channelId',
         tag: 'AudienceController',
@@ -567,7 +622,11 @@ class AudienceController extends BaseController {
       );
 
       await _fetchDemographicsDetails();
-    });
+    } catch (e) {
+      if (allCountryItems.isEmpty) {
+        setError('Unable to load audience data. Please try again.');
+      }
+    }
   }
 
   /// Loads detailed age and gender demographics breakdown
@@ -618,45 +677,112 @@ class AudienceController extends BaseController {
   Future<bool> _aggregateLiveDemographicsFromAudience() async {
     try {
       final userIds = <String>{};
+      final subscriberUids = <String>{};
 
-      // Get subscribers of this channel
-      final subSnap = await _firestore
-          .collection(FirestoreCollections.channelSubscribers(channelId))
-          .limit(50)
-          .get();
+      // 1. Get subscribers of this channel (public/authenticated read allowed)
+      try {
+        final subSnap = await _firestore
+            .collection(FirestoreCollections.channelSubscribers(channelId))
+            .limit(100)
+            .get();
 
-      for (final doc in subSnap.docs) {
-        final uid = (doc.data()['userId'] as String?) ?? doc.id;
-        if (uid.isNotEmpty) userIds.add(uid);
+        for (final doc in subSnap.docs) {
+          final uid = (doc.data()['userId'] as String?) ?? doc.id;
+          if (uid.isNotEmpty) {
+            subscriberUids.add(uid);
+            userIds.add(uid);
+          }
+        }
+        if (totalSubscribersGained.value == 0 && subscriberUids.isNotEmpty) {
+          totalSubscribersGained.value = subscriberUids.length;
+        }
+      } catch (e) {
+        logger.warning('Subscribers query notice: $e', tag: 'AudienceController');
       }
 
-      // Get videos of this channel
+      // 2. Get videos of this channel
       final vidSnap = await _firestore
           .collection('videos')
           .where('channelId', isEqualTo: channelId)
-          .limit(20)
+          .limit(50)
           .get();
 
-      final videoIds = vidSnap.docs.map((d) => d.id).toList();
-      if (videoIds.isNotEmpty) {
-        for (var i = 0; i < videoIds.length; i += 10) {
-          final chunk = videoIds.sublist(
-            i,
-            i + 10 > videoIds.length ? videoIds.length : i + 10,
-          );
-          final sessionSnap = await _firestore
-              .collection('watch_sessions')
-              .where('videoId', whereIn: chunk)
+      var liveSubscriberViews = 0;
+      var liveNonSubscriberViews = 0;
+      var liveUrban = 0;
+      var liveRural = 0;
+      final viewerVideoCounts = <String, int>{};
+      final liveCountryCounts = <String, int>{};
+
+      for (final vDoc in vidSnap.docs) {
+        // Read video_stats if available
+        try {
+          final statsDoc = await _firestore.collection('video_stats').doc(vDoc.id).get();
+          if (statsDoc.exists && statsDoc.data() != null) {
+            final sData = statsDoc.data()!;
+            final subs = (sData['totalSubscribers'] as num?)?.toInt() ??
+                (sData['subscriberViews'] as num?)?.toInt() ?? 0;
+            liveSubscriberViews += subs;
+            liveUrban += (sData['urbanViewers'] as num?)?.toInt() ?? 0;
+            liveRural += (sData['ruralViewers'] as num?)?.toInt() ?? 0;
+
+            final cTraffic = sData['countryTraffic'];
+            if (cTraffic is Map) {
+              for (final entry in cTraffic.entries) {
+                final k = entry.key.toString();
+                final v = (entry.value as num?)?.toInt() ?? 0;
+                liveCountryCounts[k] = (liveCountryCounts[k] ?? 0) + v;
+              }
+            }
+          }
+        } catch (_) {}
+
+        // Read viewers from videos/{vDoc.id}/views subcollection (authenticated read permitted by rules)
+        try {
+          final viewsSnap = await _firestore
+              .collection('videos')
+              .doc(vDoc.id)
+              .collection('views')
               .limit(50)
               .get();
 
-          for (final sDoc in sessionSnap.docs) {
-            final uid = sDoc.data()['userId'] as String?;
-            if (uid != null && uid.isNotEmpty && uid != 'anonymous') {
+          for (final viewDoc in viewsSnap.docs) {
+            final uid = (viewDoc.data()['userId'] as String?) ?? viewDoc.id;
+            if (uid.isNotEmpty && uid != 'anonymous') {
               userIds.add(uid);
+              viewerVideoCounts[uid] = (viewerVideoCounts[uid] ?? 0) + 1;
+              if (subscriberUids.contains(uid)) {
+                liveSubscriberViews++;
+              } else {
+                liveNonSubscriberViews++;
+              }
             }
           }
+        } catch (_) {}
+      }
+
+      // Update subscriber/non-subscriber views if currently unpopulated
+      if (subscriberViews.value == 0 && nonSubscriberViews.value == 0) {
+        if (liveSubscriberViews > 0 || liveNonSubscriberViews > 0) {
+          subscriberViews.value = liveSubscriberViews;
+          nonSubscriberViews.value = liveNonSubscriberViews;
+        } else if (totalViews.value > 0) {
+          final subCount = subscriberUids.length;
+          final estSub = subCount > 0 ? (totalViews.value > subCount ? subCount : totalViews.value) : 0;
+          subscriberViews.value = estSub;
+          nonSubscriberViews.value = totalViews.value - estSub;
         }
+      }
+
+      // Compute returning viewers (viewers who watched >1 video or are subscribers)
+      final liveReturning = viewerVideoCounts.entries
+          .where((e) => e.value > 1 || subscriberUids.contains(e.key))
+          .length;
+      if (returningViewers.value == 0 && liveReturning > 0) {
+        returningViewers.value = liveReturning;
+      }
+      if (totalUniqueViewers.value == 0 && userIds.isNotEmpty) {
+        totalUniqueViewers.value = userIds.length;
       }
 
       if (userIds.isEmpty) {
@@ -682,7 +808,9 @@ class AudienceController extends BaseController {
 
         for (final uDoc in usersSnap.docs) {
           final uData = uDoc.data();
-          final age = uData['ageGroup'] as String?;
+          final age = (uData['ageGroup'] as String?) ??
+              (uData['age'] is num ? _inferAgeGroupFromNum((uData['age'] as num).toInt()) : null) ??
+              (uData['birthdate'] is String ? _inferAgeGroupFromBirthdate(uData['birthdate'] as String) : null);
           final gender = uData['gender'] as String?;
 
           if (age != null && age.trim().isNotEmpty) {
@@ -695,6 +823,21 @@ class AudienceController extends BaseController {
             final stdGender = _standardizeGender(gender);
             genderCounts[stdGender] = (genderCounts[stdGender] ?? 0) + 1;
             totalGender++;
+          }
+
+          // Check geographic info from user profile
+          final city = (uData['city'] as String?) ?? (uData['location'] as String?) ?? '';
+          final country = (uData['country'] as String?) ?? '';
+          final area = (uData['areaType'] as String?) ?? (city.isNotEmpty ? _classifyArea(city) : '');
+          if (area == 'urban') {
+            liveUrban++;
+          } else if (area == 'rural') {
+            liveRural++;
+          }
+
+          if (country.isNotEmpty) {
+            final cCode = country.length == 2 ? country.toUpperCase() : (_lookupCountryCode(country) ?? country);
+            liveCountryCounts[cCode] = (liveCountryCounts[cCode] ?? 0) + 1;
           }
         }
       }
@@ -721,6 +864,18 @@ class AudienceController extends BaseController {
         _populateEmptyGenderDistribution();
       }
 
+      // Update urban vs rural reach if currently unpopulated
+      if (urbanPercentage.value == 0 && ruralPercentage.value == 0 && (liveUrban + liveRural) > 0) {
+        final totalGeo = liveUrban + liveRural;
+        urbanPercentage.value = (liveUrban / totalGeo) * 100;
+        ruralPercentage.value = (liveRural / totalGeo) * 100;
+      }
+
+      // If country items are empty but country counts were gathered, build country items
+      if (allCountryItems.isEmpty && liveCountryCounts.isNotEmpty) {
+        _buildCompleteCountryItems(liveCountryCounts, totalViews.value, totalSubscribersGained.value);
+      }
+
       return totalAge > 0 || totalGender > 0;
     } catch (e) {
       logger.warning(
@@ -741,24 +896,72 @@ class AudienceController extends BaseController {
     '65+ years',
   ];
 
+  String _inferAgeGroupFromNum(int age) {
+    if (age < 18) return '13–17 years';
+    if (age <= 24) return '18–24 years';
+    if (age <= 34) return '25–34 years';
+    if (age <= 44) return '35–44 years';
+    if (age <= 54) return '45–54 years';
+    if (age <= 64) return '55–64 years';
+    return '65+ years';
+  }
+
+  String? _inferAgeGroupFromBirthdate(String birthdate) {
+    try {
+      final date = DateTime.tryParse(birthdate);
+      if (date != null) {
+        final age = (DateTime.now().difference(date).inDays / 365.25).floor();
+        if (age > 0 && age < 120) {
+          return _inferAgeGroupFromNum(age);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static const Set<String> _urbanCitiesSet = {
+    'mumbai', 'delhi', 'new delhi', 'bangalore', 'bengaluru', 'hyderabad',
+    'ahmedabad', 'chennai', 'kolkata', 'surat', 'pune', 'jaipur', 'lucknow',
+    'kanpur', 'nagpur', 'indore', 'thane', 'bhopal', 'visakhapatnam',
+    'patna', 'vadodara', 'ghaziabad', 'ludhiana', 'agra', 'nashik',
+    'faridabad', 'meerut', 'rajkot', 'varanasi', 'srinagar', 'aurangabad',
+    'dhanbad', 'amritsar', 'navi mumbai', 'allahabad', 'prayagraj', 'howrah',
+    'ranchi', 'gwalior', 'jabalpur', 'coimbatore', 'vijayawada', 'jodhpur',
+    'madurai', 'raipur', 'kota', 'chandigarh', 'guwahati', 'solapur',
+    'mysore', 'mysuru', 'tiruchirappalli', 'dehradun', 'noida', 'gurgaon',
+    'gurugram', 'mangalore', 'mangaluru', 'kochi', 'cochin', 'thiruvananthapuram'
+  };
+
+  String _classifyArea(String city) {
+    final norm = city.toLowerCase().trim();
+    if (_urbanCitiesSet.contains(norm)) return 'urban';
+    return 'rural';
+  }
+
   String _standardizeAgeGroup(String raw) {
-    final clean = raw.replaceAll('years', '').replaceAll('year', '').trim();
-    if (clean == '13–17' || clean == '13-17' || clean == 'Under 18' || clean == 'Under 13') {
+    final clean = raw
+        .replaceAll('years', '')
+        .replaceAll('year', '')
+        .replaceAll('–', '-')
+        .replaceAll('—', '-')
+        .replaceAll(' ', '')
+        .trim();
+    if (clean == '13-17' || clean == 'Under18' || clean == 'Under13' || clean == '13to17') {
       return '13–17 years';
     }
-    if (clean == '18–24' || clean == '18-24') return '18–24 years';
-    if (clean == '25–34' || clean == '25-34') return '25–34 years';
-    if (clean == '35–44' || clean == '35-44') return '35–44 years';
-    if (clean == '45–54' || clean == '45-54') return '45–54 years';
-    if (clean == '55–64' || clean == '55-64') return '55–64 years';
-    if (clean == '65+' || clean == '65 plus') return '65+ years';
+    if (clean == '18-24' || clean == '18to24') return '18–24 years';
+    if (clean == '25-34' || clean == '25to34') return '25–34 years';
+    if (clean == '35-44' || clean == '35to44') return '35–44 years';
+    if (clean == '45-54' || clean == '45to54') return '45–54 years';
+    if (clean == '55-64' || clean == '55to64') return '55–64 years';
+    if (clean == '65+' || clean == '65plus' || clean == 'Above65' || clean == '65andabove') return '65+ years';
     return '18–24 years';
   }
 
   String _standardizeGender(String raw) {
     final lower = raw.trim().toLowerCase();
-    if (lower == 'male' || lower == 'm') return 'Male';
-    if (lower == 'female' || lower == 'f') return 'Female';
+    if (lower == 'male' || lower == 'm' || lower == 'man' || lower == 'boy') return 'Male';
+    if (lower == 'female' || lower == 'f' || lower == 'woman' || lower == 'girl') return 'Female';
     return 'User specified / Other';
   }
 

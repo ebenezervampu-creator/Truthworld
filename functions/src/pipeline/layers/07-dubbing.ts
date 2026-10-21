@@ -5,7 +5,7 @@
  *
  * ✅ UPGRADED PIPELINE:
  *   - Translation: Google Cloud Translation v3 (TranslationServiceClient) with v2 fallback
- *   - TTS: ElevenLabs v3 (English) / Multilingual v2 (29+ languages) with auto-selection
+ *   - TTS: Google Cloud Text-to-Speech (Neural2 / Journey / Studio / Standard) with ElevenLabs voice cloning & automatic fallback
  *   - Subtitles: Native AssemblyAI subtitles for source lang; custom alignment for translated
  *
  * ✅ ALL PROBLEMS FIXED:
@@ -551,10 +551,11 @@ export class DubbingEngine {
             translatedText: this.normaliseTTS(s.translatedText),
           }));
 
-          // ✅ TTS cache fully wired — checks cache BEFORE calling ElevenLabs
+          // ✅ TTS cache fully wired — checks cache BEFORE calling TTS
           // Tiered Dubbing: Use the speaker-to-voice mapping (Clones or Presets)
+          const isVoiceClone = executionPlan.dubbingMode === "voice_clone";
           const ttsUrls = await this.parallelTTSWithCache(
-            jobId, userId, normalised, targetLang, voiceMapping
+            jobId, userId, normalised, targetLang, voiceMapping, isVoiceClone
           );
 
           const syncInstructions = this.buildSyncInstructions(normalised, ttsUrls);
@@ -755,7 +756,8 @@ export class DubbingEngine {
     userId:       string,
     segments:     DubbingSegment[],
     language:     string,
-    voiceMapping: Record<string, string>
+    voiceMapping: Record<string, string>,
+    preferVoiceCloning: boolean = false
   ): Promise<string[]> {
     const allUrls: string[] = new Array(segments.length).fill("");
 
@@ -779,16 +781,20 @@ export class DubbingEngine {
             return cached;
           }
 
-          // Cache miss → call ElevenLabs
+          // Cache miss → call Hybrid TTS Service
           const result = await ttsService.synthesize({
-            jobId, language,
+            jobId,
+            language,
             text:      seg.translatedText,
             voiceId,
             speakerId: seg.speaker,
+            userId,
+            preferVoiceCloning,
           });
 
-          // ✅ Cost tracking: record ElevenLabs TTS cost for synthesized characters
-          costEngine.recordTTSCost(jobId, userId, seg.translatedText.length).catch(() => {});
+          // ✅ Cost tracking: record TTS cost for synthesized characters
+          const ttsProvider = result.provider === "elevenlabs" ? "elevenlabs" : "google-tts-neural2";
+          costEngine.recordTTSCost(jobId, userId, seg.translatedText.length, ttsProvider).catch(() => {});
 
           // Store in cache for next time
           await this.performanceLayer.cacheTTSResult(

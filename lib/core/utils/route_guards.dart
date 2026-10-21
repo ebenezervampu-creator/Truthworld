@@ -140,7 +140,11 @@ class ChannelCreationGuard extends GetMiddleware {
           return const RouteSettings(name: '/');
         }
       }
-      return const RouteSettings(name: '/studio');
+      final userChannel = auth.userChannel;
+      if (userChannel != null && userChannel.channelRoute.isNotEmpty) {
+        return RouteSettings(name: userChannel.channelRoute);
+      }
+      return const RouteSettings(name: '/');
     }
     return null;
   }
@@ -262,7 +266,13 @@ class WalletRedirectMiddleware extends GetMiddleware {
   RouteSettings? redirect(String? route) {
     final auth = Get.isRegistered<AuthService>() ? AuthService.to : null;
     if (auth != null && auth.hasChannel.value) {
-      return const RouteSettings(name: '/dashboard');
+      if (AppFlavor.isStudio) {
+        return const RouteSettings(name: '/dashboard');
+      }
+      final userChannel = auth.userChannel;
+      if (userChannel != null && userChannel.channelRoute.isNotEmpty) {
+        return RouteSettings(name: userChannel.channelRoute);
+      }
     }
     return const RouteSettings(name: '/');
   }

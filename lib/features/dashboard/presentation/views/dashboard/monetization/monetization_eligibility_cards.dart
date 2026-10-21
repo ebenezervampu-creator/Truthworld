@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/monetization_card_container.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
-/// Policy notice banner highlighting Day 1 instant revenue and monetization rules.
+/// Policy notice banner highlighting Day 1 instant revenue and monetization rules in clean monochrome.
 class PolicyNoticeCard extends StatelessWidget {
   const PolicyNoticeCard({
     required this.isCustom,
@@ -16,11 +16,11 @@ class PolicyNoticeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.brand.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.brand.withValues(alpha: 0.25)),
+        color: const Color(0xFF1E1E1E), // Exact Library cardColor
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -28,8 +28,9 @@ class PolicyNoticeCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.brand.withValues(alpha: 0.2),
+              color: AppColors.bgSurfaceHover,
               shape: BoxShape.circle,
+              border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.1)),
             ),
             child: const Icon(
               Icons.bolt_rounded,
@@ -153,7 +154,7 @@ class PartnerEligibilitySection extends StatelessWidget {
   }
 }
 
-/// Reusable status tile within the partner eligibility section.
+/// Reusable status tile within the partner eligibility section in clean monochrome.
 class EligibilityStatusTile extends StatelessWidget {
   const EligibilityStatusTile({
     required this.icon,
@@ -175,7 +176,7 @@ class EligibilityStatusTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.bgInput,
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.bgDivider),
       ),
@@ -186,13 +187,13 @@ class EligibilityStatusTile extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                color: isUnlocked ? Colors.white : Colors.orange,
+                color: Colors.white,
                 size: 20,
               ),
               const Spacer(),
               Icon(
-                isUnlocked ? Icons.check_circle : Icons.hourglass_top_rounded,
-                color: isUnlocked ? Colors.green : Colors.orange,
+                isUnlocked ? Icons.check_circle_rounded : Icons.hourglass_top_rounded,
+                color: isUnlocked ? Colors.white : AppColors.textSecondary,
                 size: 16,
               ),
             ],

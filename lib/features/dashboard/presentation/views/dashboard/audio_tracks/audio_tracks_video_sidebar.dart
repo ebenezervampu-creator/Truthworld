@@ -6,7 +6,7 @@ import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Video selection sidebar for Audio Tracks & Dubbing Studio.
+/// Clean video selection sidebar matching Channel Creation theme.
 class AudioTracksVideoSidebar extends StatelessWidget {
   const AudioTracksVideoSidebar({
     required this.controller,
@@ -31,8 +31,11 @@ class AudioTracksVideoSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: surfaceColor,
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF161618),
+        border: Border(right: BorderSide(color: Color(0xFF27272A))),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -52,24 +55,27 @@ class AudioTracksVideoSidebar extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: TWTypography.brandFamily,
                     fontFamilyFallback: TWTypography.fallbackFamilies,
-                    fontSize: compact ? 16 : 18,
+                    fontSize: compact ? 15 : 17,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                    color: Colors.white,
                   ),
                 ),
                 const Spacer(),
                 Obx(() => Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
-                    color: AppColors.brand.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
+                    color: const Color(0xFF27272A),
+                    borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
                     '${controller.filteredVideos.length}',
                     style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                      color: Colors.white,
                     ),
                   ),
                 )),
@@ -80,30 +86,53 @@ class AudioTracksVideoSidebar extends StatelessWidget {
           // Search Field
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: TextField(
-              controller: searchController,
-              maxLength: ContentValidator.defaultMaxSearchLength,
-              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
-              inputFormatters: TruthworldTextInputFormatters.withLimit(
-                ContentValidator.defaultMaxSearchLength,
+            child: Container(
+              height: 42,
+              decoration: BoxDecoration(
+                color: const Color(0xFF121212),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF27272A)),
               ),
-              style: TextStyle(fontSize: 13, color: textColor),
-              onChanged: controller.setSearchQuery,
-              decoration: InputDecoration(
-                hintText: 'Filter videos...',
-                hintStyle: TextStyle(color: textSecondaryColor, fontSize: 13),
-                prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Colors.white),
-                filled: true,
-                fillColor: const Color(0xFF1E1E1E),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.bgDivider),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.bgDivider),
-                ),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.search_rounded,
+                    size: 18,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: searchController,
+                      maxLength: ContentValidator.defaultMaxSearchLength,
+                      buildCounter: (
+                        context, {
+                        required currentLength,
+                        required isFocused,
+                        maxLength,
+                      }) =>
+                          null,
+                      inputFormatters: TruthworldTextInputFormatters.withLimit(
+                        ContentValidator.defaultMaxSearchLength,
+                      ),
+                      style: const TextStyle(fontSize: 13, color: Colors.white),
+                      onChanged: controller.setSearchQuery,
+                      decoration: const InputDecoration(
+                        hintText: 'Filter videos...',
+                        hintStyle: TextStyle(
+                          color: AppColors.textTertiary,
+                          fontSize: 13,
+                        ),
+                        isDense: true,
+                        border: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(vertical: 8),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -114,12 +143,15 @@ class AudioTracksVideoSidebar extends StatelessWidget {
             child: Obx(() {
               final videos = controller.filteredVideos;
               if (videos.isEmpty) {
-                return Center(
+                return const Center(
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: EdgeInsets.all(16),
                     child: Text(
                       'No videos match your query',
-                      style: TextStyle(fontSize: 13, color: textSecondaryColor),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -131,7 +163,8 @@ class AudioTracksVideoSidebar extends StatelessWidget {
                 itemCount: videos.length,
                 itemBuilder: (context, index) {
                   final video = videos[index];
-                  final isSelected = controller.selectedVideo.value?.id == video.id;
+                  final isSelected =
+                      controller.selectedVideo.value?.id == video.id;
 
                   return Container(
                     margin: const EdgeInsets.only(bottom: 6),
@@ -139,18 +172,18 @@ class AudioTracksVideoSidebar extends StatelessWidget {
                       color: Colors.transparent,
                       child: InkWell(
                         onTap: () => controller.selectVideo(video),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(8),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 150),
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? AppColors.brand.withValues(alpha: 0.12)
+                                ? const Color(0xFF27272A)
                                 : Colors.transparent,
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                               color: isSelected
-                                  ? AppColors.brand.withValues(alpha: 0.4)
+                                  ? Colors.white.withValues(alpha: 0.25)
                                   : Colors.transparent,
                             ),
                           ),
@@ -166,9 +199,13 @@ class AudioTracksVideoSidebar extends StatelessWidget {
                                       width: compact ? 60 : 76,
                                       height: compact ? 42 : 50,
                                       fit: BoxFit.cover,
-                                      errorWidget: (_, _, _) => Container(
-                                        color: Colors.grey[800],
-                                        child: const Icon(Icons.movie_rounded, color: Colors.white, size: 20),
+                                      errorWidget: (_, _, _) => const ColoredBox(
+                                        color: Color(0xFF121212),
+                                        child: Icon(
+                                          Icons.movie_rounded,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -176,7 +213,10 @@ class AudioTracksVideoSidebar extends StatelessWidget {
                                     bottom: 3,
                                     right: 3,
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 1,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: Colors.black.withValues(alpha: 0.8),
                                         borderRadius: BorderRadius.circular(3),
@@ -206,36 +246,51 @@ class AudioTracksVideoSidebar extends StatelessWidget {
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
                                         fontSize: 13,
-                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                        color: textColor,
+                                        fontWeight: isSelected
+                                            ? FontWeight.bold
+                                            : FontWeight.w500,
+                                        color: Colors.white,
                                       ),
                                     ),
                                     const SizedBox(height: 4),
                                     Row(
                                       children: [
                                         Text(
-                                          DateFormat('MMM d, yyyy').format(video.createdAt.toDate()),
-                                          style: TextStyle(fontSize: 11, color: textSecondaryColor),
+                                          DateFormat('MMM d, yyyy').format(
+                                            video.createdAt.toDate(),
+                                          ),
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: AppColors.textSecondary,
+                                          ),
                                         ),
                                         const Spacer(),
                                         Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 5,
+                                            vertical: 1,
+                                          ),
                                           decoration: BoxDecoration(
-                                            color: isSelected
-                                                ? AppColors.brand.withValues(alpha: 0.2)
-                                                : Colors.grey.withValues(alpha: 0.15),
+                                            color: const Color(0xFF121212),
                                             borderRadius: BorderRadius.circular(4),
+                                            border: Border.all(
+                                              color: const Color(0xFF27272A),
+                                            ),
                                           ),
                                           child: Row(
                                             children: [
-                                              const Icon(Icons.music_note_rounded, size: 10, color: Colors.white),
+                                              const Icon(
+                                                Icons.music_note_rounded,
+                                                size: 10,
+                                                color: Colors.white,
+                                              ),
                                               const SizedBox(width: 2),
                                               Text(
                                                 '${video.audioTracks.length}',
                                                 style: const TextStyle(
                                                   fontSize: 10,
                                                   fontWeight: FontWeight.bold,
-                                                  color: AppColors.textPrimary,
+                                                  color: Colors.white,
                                                 ),
                                               ),
                                             ],

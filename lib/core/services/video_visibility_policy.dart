@@ -85,18 +85,24 @@ class VideoVisibilityPolicy {
 
   /// Primary validity check: video must not be untitled, uploading, processing, draft, deleted, unapproved, or missing media.
   static bool isValidVideo(Video video) {
+    if (video.isRejected) return false;
     if (video.isDraft) return false;
     if (video.isUntitled) return false;
     if (video.isUploadingOrProcessing) return false;
-    if (video.visibility.toLowerCase() == 'draft') return false;
+    final vis = video.visibility.trim().toLowerCase();
+    if (vis == 'draft' || vis == 'rejected' || vis == 'private_draft') return false;
     if (video.status == VideoStatus.deleted ||
-        video.status == VideoStatus.rejected) {
+        video.status == VideoStatus.rejected ||
+        video.status == VideoStatus.flagged ||
+        video.status == VideoStatus.pending_review) {
       return false;
     }
     final statusName = video.status.name.toLowerCase();
     if (statusName == 'deleted' ||
         statusName == 'deletion_pending' ||
         statusName == 'rejected' ||
+        statusName == 'flagged' ||
+        statusName == 'pending_review' ||
         statusName == 'draft' ||
         statusName == 'uploading' ||
         statusName == 'uploaded') {
@@ -150,7 +156,8 @@ class VideoVisibilityPolicy {
         pipelineStage == 'draft' ||
         visibilityStr == 'draft' ||
         visibilityStr == 'private' ||
-        visibilityStr == 'private_draft') {
+        visibilityStr == 'private_draft' ||
+        visibilityStr == 'rejected') {
       return false;
     }
 
@@ -165,17 +172,47 @@ class VideoVisibilityPolicy {
     final moderationMap = data['moderation'] is Map ? data['moderation'] as Map : null;
     final moderationStatus = moderationMap?['status']?.toString().toLowerCase();
     final policyAction = moderationMap?['policyAction']?.toString().toLowerCase();
-    final isModApproved = moderationStatus == 'approved' || policyAction == 'allow';
+    final directModStatus = data['moderationStatus']?.toString().toLowerCase();
+    final stagesMap = data['stages'] is Map ? data['stages'] as Map : null;
+    final stageModStatus = (stagesMap?['moderation'] is Map
+            ? stagesMap!['moderation']['status']
+            : null)
+        ?.toString()
+        .toLowerCase();
 
-    final geminiApproved = data['geminiApproved'] as bool? ??
-        (moderationMap?['geminiApproved'] as bool?) ??
-        (isModApproved ? true : null);
-    final isApproved = data['isApproved'] as bool? ??
-        (moderationMap?['isApproved'] as bool?) ??
-        (isModApproved ? true : null) ??
-        (data['gatewayStatus'] == 'APPROVED' ? true : null) ??
-        (data['isVerified'] == true ? true : null) ??
-        (data['credibilityVerified'] == true ? true : null);
+    final isModRejected = moderationStatus == 'rejected' ||
+        moderationStatus == 'failed' ||
+        moderationStatus == 'blocked' ||
+        policyAction == 'reject' ||
+        policyAction == 'block' ||
+        directModStatus == 'rejected' ||
+        stageModStatus == 'failed' ||
+        (data['rejectionReason'] != null &&
+            data['rejectionReason'].toString().trim().isNotEmpty) ||
+        data['rejected'] == true ||
+        statusStr == 'rejected' ||
+        visibilityStr == 'rejected';
+
+    if (isModRejected) {
+      return false;
+    }
+
+    final isModApproved = !isModRejected &&
+        (moderationStatus == 'approved' || policyAction == 'allow');
+
+    final geminiApproved = isModRejected
+        ? false
+        : (data['geminiApproved'] as bool? ??
+            (moderationMap?['geminiApproved'] as bool?) ??
+            (isModApproved ? true : null));
+    final isApproved = isModRejected
+        ? false
+        : (data['isApproved'] as bool? ??
+            (moderationMap?['isApproved'] as bool?) ??
+            (isModApproved ? true : null) ??
+            (data['gatewayStatus'] == 'APPROVED' ? true : null) ??
+            (data['isVerified'] == true ? true : null) ??
+            (data['credibilityVerified'] == true ? true : null));
     if (geminiApproved == false || isApproved == false) {
       return false;
     }

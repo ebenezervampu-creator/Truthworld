@@ -14,34 +14,19 @@ Widget buildCreatorKycCard(
     final isRejected = controller.isKycRejected;
     final kyc = controller.creatorKyc.value;
 
-    Color badgeBg;
-    Color badgeBorder;
-    Color badgeTextColor;
     String badgeLabel;
     IconData icon;
 
     if (isVerified) {
-      badgeBg = const Color(0xFF10B981).withValues(alpha: 0.15);
-      badgeBorder = const Color(0xFF10B981).withValues(alpha: 0.3);
-      badgeTextColor = const Color(0xFF10B981);
       badgeLabel = 'KYC Verified';
       icon = Icons.verified_rounded;
     } else if (isPending) {
-      badgeBg = const Color(0xFFF59E0B).withValues(alpha: 0.15);
-      badgeBorder = const Color(0xFFF59E0B).withValues(alpha: 0.3);
-      badgeTextColor = const Color(0xFFF59E0B);
       badgeLabel = 'Under Review';
       icon = Icons.hourglass_top_rounded;
     } else if (isRejected) {
-      badgeBg = const Color(0xFFEF4444).withValues(alpha: 0.15);
-      badgeBorder = const Color(0xFFEF4444).withValues(alpha: 0.3);
-      badgeTextColor = const Color(0xFFEF4444);
       badgeLabel = 'Action Required';
       icon = Icons.error_outline_rounded;
     } else {
-      badgeBg = const Color(0xFF3B82F6).withValues(alpha: 0.15);
-      badgeBorder = const Color(0xFF3B82F6).withValues(alpha: 0.3);
-      badgeTextColor = const Color(0xFF60A5FA);
       badgeLabel = 'Verification Needed';
       icon = Icons.assignment_ind_outlined;
     }
@@ -49,13 +34,9 @@ Widget buildCreatorKycCard(
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFF121218),
+        color: const Color(0xFF1E1E1E), // Exact Library cardColor
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isVerified
-              ? const Color(0xFF10B981).withValues(alpha: 0.4)
-              : const Color(0xFF27272A),
-        ),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -65,8 +46,9 @@ Widget buildCreatorKycCard(
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: badgeBg,
+                  color: AppColors.bgSurfaceHover,
                   borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.1)),
                 ),
                 child: Icon(
                   icon,
@@ -100,14 +82,16 @@ Widget buildCreatorKycCard(
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: badgeBg,
+                  color: AppColors.bgSurfaceHover,
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: badgeBorder),
+                  border: Border.all(
+                    color: AppColors.textPrimary.withValues(alpha: isVerified ? 0.3 : 0.15),
+                  ),
                 ),
                 child: Text(
                   badgeLabel,
-                  style: TextStyle(
-                    color: badgeTextColor,
+                  style: const TextStyle(
+                    color: Colors.white,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
@@ -120,9 +104,9 @@ Widget buildCreatorKycCard(
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF09090B),
+                color: AppColors.bgPage,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFF27272A)),
+                border: Border.all(color: AppColors.bgDivider),
               ),
               child: Row(
                 children: [
@@ -143,7 +127,7 @@ Widget buildCreatorKycCard(
                         Text(
                           'Verified ID: ${kyc.identityProofType.displayName} • Payouts Active',
                           style: const TextStyle(
-                            color: Color(0xFF10B981),
+                            color: AppColors.textSecondary,
                             fontSize: 11,
                           ),
                         ),
@@ -154,7 +138,11 @@ Widget buildCreatorKycCard(
                     onPressed: () => CreatorKycDialog.show(context),
                     child: const Text(
                       'Details',
-                      style: TextStyle(color: Color(0xFF10B981), fontSize: 12, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ],
@@ -185,9 +173,10 @@ Widget buildCreatorKycCard(
                       : (isRejected ? 'Resubmit KYC Documents' : 'Complete KYC Verification'),
                 ),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: isRejected ? const Color(0xFFEF4444) : const Color(0xFF3B82F6),
+                  backgroundColor: AppColors.bgSurfaceHover,
+                  foregroundColor: Colors.white,
                   side: BorderSide(
-                    color: (isRejected ? const Color(0xFFEF4444) : const Color(0xFF3B82F6)).withValues(alpha: 0.5),
+                    color: AppColors.textPrimary.withValues(alpha: 0.2),
                   ),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(

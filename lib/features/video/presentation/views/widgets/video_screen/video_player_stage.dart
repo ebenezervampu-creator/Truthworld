@@ -7,7 +7,6 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
-import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
 import 'package:truthworld/features/video/presentation/views/player/tower_custom_player.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -26,9 +25,11 @@ class VideoPlayerStage extends StatelessWidget {
   Widget build(BuildContext context) {
     return SliverToBoxAdapter(
       child: Obx(() {
-        final ratio = controller.video.isShort
-            ? 9 / 16
-            : controller.vpcAspectRatio;
+        final isShort = controller.video.isShort;
+        final rawRatio = isShort ? (9 / 16) : controller.vpcAspectRatio;
+        final validRatio = (!controller.isVpcInitialized && !isShort)
+            ? (16 / 9)
+            : (rawRatio.isFinite && rawRatio > 0 ? rawRatio : 16 / 9);
 
         return LayoutBuilder(
           builder: (context, constraints) {
@@ -47,7 +48,6 @@ class VideoPlayerStage extends StatelessWidget {
                 ? (screenHeight * 0.80).clamp(lowerLimit, upperLimit)
                 : (screenHeight * 0.55).clamp(200.0, upperLimit);
 
-            final validRatio = ratio.isFinite && ratio > 0 ? ratio : 16 / 9;
             final height = maxWidth / validRatio;
             final finalHeight = height > maxHeight ? maxHeight : height;
             final finalWidth = (finalHeight * validRatio).clamp(0.0, maxWidth);
@@ -146,26 +146,27 @@ class VideoPlayerView extends StatelessWidget {
         Get.arguments?['heroTag'] ?? 'video_${controller.video.id}';
     final thumbnailWidget = ColoredBox(
       color: Colors.black,
-      child: Center(
-        child: controller.video.thumbnailUrl.isNotEmpty
-            ? CachedNetworkImage(
-                imageUrl: controller.video.thumbnailUrl.replaceAll(' ', '%20'),
-                fit: BoxFit.contain,
-                placeholder: (context, url) => const SizedBox.shrink(),
-                errorWidget: (context, url, error) => const SizedBox.shrink(),
-              )
-            : Icon(
+      child: controller.video.thumbnailUrl.isNotEmpty
+          ? CachedNetworkImage(
+              imageUrl: controller.video.thumbnailUrl.replaceAll(' ', '%20'),
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+              placeholder: (context, url) => const SizedBox.shrink(),
+              errorWidget: (context, url, error) => const SizedBox.shrink(),
+            )
+          : Center(
+              child: Icon(
                 Icons.video_library_outlined,
                 color: AppColors.textSecondary.withValues(alpha: 0.3),
                 size: 48,
               ),
-      ),
+            ),
     );
 
     return Hero(
       tag: heroTag,
       child: Obx(() {
-        final isLoading = controller.isLoading;
         final isError = controller.videoError.value;
         final vpc = controller.videoPlayerController;
 
@@ -176,12 +177,7 @@ class VideoPlayerView extends StatelessWidget {
           );
         }
 
-        final isHandoff = VideoPlaybackHandoff.isActive(controller.video.id) ||
-            (Get.arguments is Map && Get.arguments['isFromMiniplayer'] == true);
-
-        final isVideoReady = vpc != null && vpc.value.isInitialized;
-
-        if (vpc == null || (!isVideoReady && isLoading && !isHandoff)) {
+        if (vpc == null) {
           return thumbnailWidget;
         }
 
@@ -196,21 +192,17 @@ class VideoPlayerView extends StatelessWidget {
             // Granular Thumbnail / Loading Overlay
             Obx(() {
               final activeVpc = controller.videoPlayerController;
-              final isReady =
-                  activeVpc != null && activeVpc.value.isInitialized;
+              final tpc = Get.isRegistered<TowerPlayerController>(
+                      tag: controller.video.id)
+                  ? Get.find<TowerPlayerController>(tag: controller.video.id)
+                  : null;
+              final isReady = (tpc != null && tpc.isInitialized.value) ||
+                  controller.isPlayerInitialized.value ||
+                  (activeVpc != null && activeVpc.value.isInitialized);
               final isAutoSwitching = controller.isAutoSwitching.value;
-              final isAdShowing = Get.isRegistered<TowerPlayerController>(
-                      tag: controller.video.id) &&
-                  Get.find<TowerPlayerController>(tag: controller.video.id)
-                      .isShowingAd
-                      .value;
-              final isHandoffActive =
-                  VideoPlaybackHandoff.isActive(controller.video.id) ||
-                      (Get.arguments is Map &&
-                          Get.arguments['isFromMiniplayer'] == true);
+              final isAdShowing = tpc?.isShowingAd.value ?? false;
 
-              final showThumbnailOverlay = !isHandoffActive &&
-                  !isAutoSwitching &&
+              final showThumbnailOverlay = !isAutoSwitching &&
                   !controller.isAudioOnly.value &&
                   !isAdShowing &&
                   !isReady;

@@ -5,3 +5,4 @@ export 'dashboard_comments_empty_states.dart';
 export 'dashboard_comments_filter_toolbar.dart';
 export 'dashboard_comments_header_bar.dart';
 export 'dashboard_comments_video_selector.dart';
+export 'dashboard_comments_videos_list_view.dart';

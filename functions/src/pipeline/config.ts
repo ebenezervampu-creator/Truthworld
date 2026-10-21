@@ -38,6 +38,9 @@ export const PIPELINE_CONFIG = {
   get GOOGLE_TRANSLATION_API_KEY(): string {
     return requireEnv("GOOGLE_TRANSLATION_API_KEY");
   },
+  get GOOGLE_TTS_API_KEY(): string {
+    return process.env.GOOGLE_TTS_API_KEY || process.env.GOOGLE_TRANSLATION_API_KEY || "";
+  },
   FFMPEG_SERVICE_URL: process.env.FFMPEG_SERVICE_URL || "https://placeholder.run",
   PUBLIC_FUNCTION_BASE_URL: "https://asia-south1-truthworld-1.cloudfunctions.net",
   VIDEO_BUCKET: "truthworld-1.firebasestorage.app",

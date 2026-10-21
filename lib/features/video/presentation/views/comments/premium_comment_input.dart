@@ -112,7 +112,7 @@ class PremiumCommentInput extends StatelessWidget {
         if (!validation.isValid) {
           AppSnackbar.warning(
             validation.message,
-            title: 'Inappropriate Content',
+
           );
           return;
         }
@@ -794,30 +794,18 @@ class PremiumCommentInput extends StatelessWidget {
                                       await onSubmit(cleanText, false, null);
                                     } else {
                                       final authService = AuthService.to;
-                                      final hasChannel =
-                                          authService.hasChannel.value &&
-                                              authService.userChannel != null;
+                                      final rawName = authService.activeDisplayName;
+                                      final cleanUserName = rawName.startsWith('@')
+                                          ? rawName.substring(1)
+                                          : rawName;
                                       final commentService = CommentService();
                                       await commentService.addComment(
                                         videoId: videoId,
                                         userId: authService.uid,
-                                        userName: authService.activeDisplayName,
+                                        userName: cleanUserName,
                                         userProfilePicUrl:
                                             authService.activePhotoUrl,
-                                        channelId: hasChannel
-                                            ? authService.userChannel!.id
-                                            : authService.uid,
-                                        channelName: hasChannel
-                                            ? (authService.userChannel?.handle
-                                                        .isNotEmpty ==
-                                                    true
-                                                ? authService
-                                                    .userChannel!.handle
-                                                : authService
-                                                    .userChannel!.name)
-                                            : authService.activeDisplayName,
-                                        channelProfilePicUrl:
-                                            authService.activePhotoUrl,
+                                        channelId: authService.uid,
                                         text: cleanText,
                                         donationAmount: amountVal,
                                         donationCurrency: currencySymbol,

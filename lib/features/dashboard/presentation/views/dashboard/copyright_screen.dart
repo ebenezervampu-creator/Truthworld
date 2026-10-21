@@ -1,39 +1,20 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/copyright/copyright_barrel.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/copyright/desktop_copyright_data_table.dart';
+import 'package:truthworld/routes/app_routes.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 export 'package:truthworld/features/dashboard/presentation/views/dashboard/copyright/copyright_barrel.dart';
 
-/// Screen for managing copyright claims, DMCA notices, and content re-upload matches.
+/// Studio screen for managing copyright claims, DMCA notices, and content re-upload matches.
 class CopyrightScreen extends StatelessWidget {
   const CopyrightScreen({super.key, this.channelId});
 
   final String? channelId;
-
-  Widget _buildCopyrightSkeleton() {
-    return Shimmer.fromColors(
-      baseColor: const Color(0xFF1E1E1E),
-      highlightColor: AppColors.bgSurfaceHover,
-      child: ListView.separated(
-        padding: const EdgeInsets.all(16.0),
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: 4,
-        separatorBuilder: (_, _) => const SizedBox(height: 16),
-        itemBuilder: (_, _) => Container(
-          height: 90,
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E1E1E),
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-      ),
-    );
-  }
 
   CopyrightController get controller {
     final ctrl = Get.isRegistered<CopyrightController>()
@@ -51,30 +32,79 @@ class CopyrightScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final ctrl = controller;
+    final primaryTextColor = isDarkMode ? AppColors.textPrimary : Colors.black87;
+    final pageBg = isDarkMode ? AppColors.bgPage : const Color(0xFFF9FAFB);
 
     return Scaffold(
-      backgroundColor: AppColors.bgPage,
+      backgroundColor: pageBg,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Copyright & Content Protection',
           style: TextStyle(
             fontFamily: TWTypography.brandFamily,
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
+            color: primaryTextColor,
           ),
         ),
-        backgroundColor: AppColors.bgPage,
+        backgroundColor: pageBg,
         elevation: 0,
-        iconTheme: const IconThemeData(
-          color: AppColors.textPrimary,
+        iconTheme: IconThemeData(
+          color: primaryTextColor,
         ),
+        actions: [
+          // Education / Policy modal button
+          IconButton(
+            tooltip: 'Copyright Policies & Guidelines',
+            icon: Icon(
+              Icons.help_outline_rounded,
+              color: primaryTextColor,
+            ),
+            onPressed: () => CopyrightDialogs.showCopyrightEducation(
+              context: context,
+              isDarkMode: isDarkMode,
+            ),
+          ),
+          // YouTube Studio-style "+ New Removal Request" button
+          Padding(
+            padding: const EdgeInsets.only(right: 16, top: 8, bottom: 8),
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Get.toNamed(AppRoutes.copyrightComplaint);
+              },
+              icon: const Icon(
+                Icons.add_rounded,
+                size: 16,
+                color: Colors.black,
+              ),
+              label: const Text(
+                'New Removal Request',
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                  color: Colors.black,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.brand,
+                foregroundColor: Colors.black,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+            ),
+          ),
+        ],
         bottom: TabBar(
           controller: ctrl.tabController,
-          indicatorColor: AppColors.brand,
+          indicatorColor: isDarkMode ? AppColors.brand : Colors.black87,
           indicatorWeight: 3,
-          labelColor: AppColors.textPrimary,
-          unselectedLabelColor: AppColors.textSecondary,
+          labelColor: primaryTextColor,
+          unselectedLabelColor:
+              isDarkMode ? AppColors.textSecondary : Colors.black54,
           labelStyle: const TextStyle(
             fontFamily: TWTypography.uiFamily,
             fontSize: 14,
@@ -85,11 +115,11 @@ class CopyrightScreen extends StatelessWidget {
             fontSize: 14,
             fontWeight: FontWeight.normal,
           ),
-          tabs: const [
+          tabs: [
             Tab(
               icon: Icon(
                 Icons.gavel_rounded,
-                color: AppColors.textPrimary,
+                color: primaryTextColor,
                 size: 18,
               ),
               text: 'Claims & Notices',
@@ -97,7 +127,7 @@ class CopyrightScreen extends StatelessWidget {
             Tab(
               icon: Icon(
                 Icons.find_in_page_rounded,
-                color: AppColors.textPrimary,
+                color: primaryTextColor,
                 size: 18,
               ),
               text: 'Copyright Match Tool (Re-upload Finder)',
@@ -121,8 +151,10 @@ class CopyrightScreen extends StatelessWidget {
       return StreamBuilder<QuerySnapshot>(
         stream: ctrl.noticesStream(ctrl.activeChannelId),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return _buildCopyrightSkeleton();
+          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+            return const StudioLoadingIndicator(
+              message: 'Loading copyright claims...',
+            );
           }
 
           if (snapshot.hasError) {
@@ -133,7 +165,7 @@ class CopyrightScreen extends StatelessWidget {
             );
           }
 
-          final docs = (snapshot.data?.docs ?? []).toList()
+          final allDocs = (snapshot.data?.docs ?? []).toList()
             ..sort((a, b) {
               final aData = a.data() as Map<String, dynamic>? ?? {};
               final bData = b.data() as Map<String, dynamic>? ?? {};
@@ -146,6 +178,19 @@ class CopyrightScreen extends StatelessWidget {
               return bDate.compareTo(aDate);
             });
 
+          // Apply search query filter if user typed in search
+          final query = ctrl.searchQuery.value;
+          final docs = query.isEmpty
+              ? allDocs
+              : allDocs.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>? ?? {};
+                  final title =
+                      (data['videoTitle'] ?? data['name'] ?? '').toString().toLowerCase();
+                  final claimant =
+                      (data['claimant'] ?? data['owner'] ?? '').toString().toLowerCase();
+                  return title.contains(query) || claimant.contains(query);
+                }).toList();
+
           return LayoutBuilder(
             builder: (context, constraints) {
               final isDesktopWide = constraints.maxWidth >= 1100;
@@ -154,10 +199,18 @@ class CopyrightScreen extends StatelessWidget {
                 slivers: [
                   SliverToBoxAdapter(
                     child: ClaimsSummaryCard(
-                      totalClaims: docs.length,
+                      totalClaims: allDocs.length,
                       isDarkMode: isDarkMode,
                     ),
                   ),
+                  if (allDocs.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: _buildSearchBar(
+                        ctrl: ctrl,
+                        isDarkMode: isDarkMode,
+                        hintText: 'Search claims by video or rights holder...',
+                      ),
+                    ),
                   if (docs.isEmpty)
                     SliverFillRemaining(
                       hasScrollBody: false,
@@ -168,6 +221,7 @@ class CopyrightScreen extends StatelessWidget {
                       child: DesktopCopyrightDataTable(
                         docs: docs,
                         isDarkMode: isDarkMode,
+                        controller: ctrl,
                       ),
                     )
                   else
@@ -178,7 +232,10 @@ class CopyrightScreen extends StatelessWidget {
                           (context, index) {
                             final data =
                                 docs[index].data()! as Map<String, dynamic>;
-                            return ClaimCard(data: data, isDarkMode: isDarkMode);
+                            return ClaimCard(
+                              data: data,
+                              isDarkMode: isDarkMode,
+                            );
                           },
                           childCount: docs.length,
                         ),
@@ -198,18 +255,20 @@ class CopyrightScreen extends StatelessWidget {
     return StreamBuilder<QuerySnapshot>(
       stream: ctrl.matchedReuploadsStream(ctrl.activeChannelId),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _buildCopyrightSkeleton();
+        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+          return const StudioLoadingIndicator(
+            message: 'Loading matched videos...',
+          );
         }
 
-        final docs = snapshot.data?.docs ?? [];
+        final allDocs = snapshot.data?.docs ?? [];
 
         return CustomScrollView(
           slivers: [
             SliverToBoxAdapter(
               child: MatchToolHeader(isDarkMode: isDarkMode),
             ),
-            if (docs.isEmpty)
+            if (allDocs.isEmpty)
               SliverFillRemaining(
                 hasScrollBody: false,
                 child: MatchToolEmptyState(isDarkMode: isDarkMode),
@@ -220,21 +279,76 @@ class CopyrightScreen extends StatelessWidget {
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
-                      final data = docs[index].data()! as Map<String, dynamic>;
+                      final data =
+                          allDocs[index].data()! as Map<String, dynamic>;
                       return MatchVideoCard(
-                        docId: docs[index].id,
+                        docId: allDocs[index].id,
                         data: data,
                         controller: ctrl,
                         isDarkMode: isDarkMode,
                       );
                     },
-                    childCount: docs.length,
+                    childCount: allDocs.length,
                   ),
                 ),
               ),
           ],
         );
       },
+    );
+  }
+
+  Widget _buildSearchBar({
+    required CopyrightController ctrl,
+    required bool isDarkMode,
+    required String hintText,
+  }) {
+    final primaryTextColor = isDarkMode ? AppColors.textPrimary : Colors.black87;
+    final secondaryTextColor =
+        isDarkMode ? AppColors.textSecondary : Colors.black54;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: TextField(
+        onChanged: ctrl.setSearchQuery,
+        style: TextStyle(
+          fontFamily: TWTypography.uiFamily,
+          fontSize: 13,
+          color: primaryTextColor,
+        ),
+        decoration: InputDecoration(
+          hintText: hintText,
+          hintStyle: TextStyle(
+            fontFamily: TWTypography.uiFamily,
+            fontSize: 13,
+            color: secondaryTextColor,
+          ),
+          prefixIcon: Icon(
+            Icons.search,
+            size: 18,
+            color: secondaryTextColor,
+          ),
+          filled: true,
+          fillColor: isDarkMode ? AppColors.bgInput : Colors.grey.shade100,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(
+              color: isDarkMode ? AppColors.bgDivider : Colors.grey.shade300,
+            ),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(
+              color: isDarkMode ? AppColors.bgDivider : Colors.grey.shade300,
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: AppColors.info),
+          ),
+        ),
+      ),
     );
   }
 }

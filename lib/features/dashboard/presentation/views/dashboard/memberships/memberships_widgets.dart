@@ -1,4 +1,6 @@
 export 'create_or_edit_tier_dialog.dart';
+export 'create_or_edit_tier_page.dart';
+export 'member_avatar_stack.dart';
 export 'members_list_tab.dart';
 export 'membership_fan_preview_modal.dart';
 export 'membership_tier_card.dart';

@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:math' as math;
+
+import 'package:intl/intl.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
@@ -323,6 +326,7 @@ class ChannelWalletService {
         batchTx.update(channelDocRef, updateData);
       });
 
+      ChannelWalletService.invalidateLedgerCache(channelId: channel.id);
       return transaction;
     } catch (e, stackTrace) {
       ErrorHandler.log(
@@ -401,6 +405,7 @@ class ChannelWalletService {
         },
       );
       await txDocRef.set(tx.toMap());
+      ChannelWalletService.invalidateLedgerCache(channelId: channel.id);
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,
@@ -849,6 +854,7 @@ class ChannelWalletService {
         });
       });
 
+      ChannelWalletService.invalidateLedgerCache(channelId: channelId);
       return transaction;
     } catch (e, stackTrace) {
       ErrorHandler.log(
@@ -884,4 +890,346 @@ class ChannelWalletService {
             .map((doc) => WalletTransaction.fromMap(doc.data(), doc.id))
             .toList());
   }
+
+  // ── In-Memory Historical Ledger Cache (Cost-Effective Multi-Tier Caching) ──
+  static final Map<String, _LedgerCacheEntry> _ledgerCache = {};
+  static const Duration _ledgerCacheTtl = Duration(minutes: 5);
+
+  /// Clears the in-memory historical ledger cache, either globally or scoped to a specific channelId.
+  static void invalidateLedgerCache({String? channelId}) {
+    if (channelId == null) {
+      _ledgerCache.clear();
+    } else {
+      _ledgerCache.removeWhere((key, _) => key.startsWith('${channelId}_'));
+    }
+  }
+
+  /// Streams a unified real-time financial activity feed combining:
+  /// 1. Wallet Spends & Deposits (`channel_wallet_transactions`)
+  /// 2. Payout & Cash-out Requests (`payout_requests`)
+  /// 3. Finalized Monthly Revenue Statements (`revenue_statements`)
+  ///
+  /// Uses a lean document limit (default 6) for maximum cost-effectiveness on dashboard cards.
+  Stream<List<UnifiedChannelTransaction>> streamUnifiedTransactions(
+    String channelId, {
+    String? userId,
+    int limit = 6,
+  }) {
+    late StreamController<List<UnifiedChannelTransaction>> controller;
+    StreamSubscription? walletSub;
+    StreamSubscription? payoutSub;
+    StreamSubscription? stmtSub;
+
+    var walletItems = <UnifiedChannelTransaction>[];
+    var payoutItems = <UnifiedChannelTransaction>[];
+    var stmtItems = <UnifiedChannelTransaction>[];
+
+    void emitMerged() {
+      if (controller.isClosed) return;
+      // Deduplicate by ID (payout_requests provides rich real-time status)
+      final map = <String, UnifiedChannelTransaction>{};
+      for (final item in walletItems) {
+        map[item.id] = item;
+      }
+      for (final item in payoutItems) {
+        map[item.id] = item;
+      }
+      for (final item in stmtItems) {
+        map[item.id] = item;
+      }
+
+      final merged = map.values.toList()
+        ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+      if (merged.length > limit) {
+        controller.add(merged.sublist(0, limit));
+      } else {
+        controller.add(merged);
+      }
+    }
+
+    controller = StreamController<List<UnifiedChannelTransaction>>(
+      onListen: () {
+        final resolvedUserId = userId ??
+            (Get.isRegistered<AuthService>() ? AuthService.to.uid : null);
+
+        // 1. Channel Wallet Transactions (Lean limit)
+        try {
+          var walletQuery = _firestore
+              .collection('channel_wallet_transactions')
+              .where('channelId', isEqualTo: channelId);
+          if (resolvedUserId != null && resolvedUserId.isNotEmpty) {
+            walletQuery = walletQuery.where('userId', isEqualTo: resolvedUserId);
+          }
+          walletSub = walletQuery
+              .orderBy('timestamp', descending: true)
+              .limit(limit)
+              .snapshots()
+              .listen(
+            (snapshot) {
+              walletItems = snapshot.docs
+                  .map((d) => UnifiedChannelTransaction.fromWalletTransaction(
+                        WalletTransaction.fromMap(d.data(), d.id),
+                      ))
+                  .toList();
+              emitMerged();
+            },
+            onError: (err, stack) {
+              ErrorHandler.log(
+                err,
+                stackTrace: stack,
+                tag: 'ChannelWalletService.streamUnifiedTransactions.wallet',
+              );
+            },
+          );
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'ChannelWalletService.streamUnifiedTransactions.walletInit');
+        }
+
+        // 2. Payout Requests (Lean limit)
+        try {
+          var payoutQuery = _firestore
+              .collection('payout_requests')
+              .where('channelId', isEqualTo: channelId);
+          if (resolvedUserId != null && resolvedUserId.isNotEmpty) {
+            payoutQuery = payoutQuery.where('userId', isEqualTo: resolvedUserId);
+          }
+          final payoutLimit = (limit / 2).ceil().clamp(2, 5);
+          payoutSub = payoutQuery
+              .orderBy('createdAt', descending: true)
+              .limit(payoutLimit)
+              .snapshots()
+              .listen(
+            (snapshot) {
+              payoutItems = snapshot.docs
+                  .map((d) => UnifiedChannelTransaction.fromPayoutRequest(d.data(), d.id))
+                  .toList();
+              emitMerged();
+            },
+            onError: (err, stack) {
+              ErrorHandler.log(
+                err,
+                stackTrace: stack,
+                tag: 'ChannelWalletService.streamUnifiedTransactions.payout',
+              );
+            },
+          );
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'ChannelWalletService.streamUnifiedTransactions.payoutInit');
+        }
+
+        // 3. Finalized Revenue Statements (Lean limit: 2 statements)
+        try {
+          var stmtQuery = _firestore
+              .collection('revenue_statements')
+              .where('channelId', isEqualTo: channelId);
+          if (resolvedUserId != null && resolvedUserId.isNotEmpty) {
+            stmtQuery = stmtQuery.where('userId', isEqualTo: resolvedUserId);
+          }
+          stmtSub = stmtQuery
+              .limit(2)
+              .snapshots()
+              .listen(
+            (snapshot) {
+              stmtItems = snapshot.docs
+                  .map((d) => UnifiedChannelTransaction.fromRevenueStatement(d.data(), d.id))
+                  .toList();
+              emitMerged();
+            },
+            onError: (err, stack) {
+              ErrorHandler.log(
+                err,
+                stackTrace: stack,
+                tag: 'ChannelWalletService.streamUnifiedTransactions.stmt',
+              );
+            },
+          );
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'ChannelWalletService.streamUnifiedTransactions.stmtInit');
+        }
+      },
+      onCancel: () {
+        walletSub?.cancel();
+        payoutSub?.cancel();
+        stmtSub?.cancel();
+      },
+    );
+
+    return controller.stream;
+  }
+
+  /// 📜 Fetches historical ledger records (credits, debts, withdrawals) across any date range up to the 8-year statutory limit.
+  /// Compliant with Section 128 of the Companies Act 2013, Section 44AA of the Income Tax Act 1961, and IRS 7-year standards.
+  ///
+  /// Cost-Effective Optimization:
+  /// - 5-minute memory cache prevents duplicate Firestore reads on filter clicks.
+  /// - Smart query routing only touches collections relevant to [filterType].
+  /// - Compact default page limit (30 items) with cursor support.
+  Future<List<UnifiedChannelTransaction>> fetchHistoricalLedger({
+    required String channelId,
+    String? userId,
+    DateTime? startDate,
+    DateTime? endDate,
+    UnifiedTransactionType? filterType,
+    int limit = 30,
+    bool forceRefresh = false,
+  }) async {
+    final resolvedUserId = userId ??
+        (Get.isRegistered<AuthService>() ? AuthService.to.uid : null);
+
+    // ── Cache Check ──
+    final cacheKey = '${channelId}_${resolvedUserId ?? ""}_${startDate?.millisecondsSinceEpoch ?? 0}_${endDate?.millisecondsSinceEpoch ?? 0}_${filterType?.name ?? "all"}_$limit';
+
+    if (!forceRefresh && _ledgerCache.containsKey(cacheKey)) {
+      final entry = _ledgerCache[cacheKey]!;
+      if (DateTime.now().difference(entry.timestamp) < _ledgerCacheTtl) {
+        return List<UnifiedChannelTransaction>.from(entry.items);
+      }
+    }
+
+    final map = <String, UnifiedChannelTransaction>{};
+
+    // 1. Fetch channel_wallet_transactions
+    // Skip if caller explicitly filtered for payout or revenue statements only
+    final shouldQueryWallet = filterType == null ||
+        filterType == UnifiedTransactionType.topup ||
+        filterType == UnifiedTransactionType.aiSpend ||
+        filterType == UnifiedTransactionType.planUpgrade;
+
+    if (shouldQueryWallet) {
+      try {
+        var query = _firestore
+            .collection('channel_wallet_transactions')
+            .where('channelId', isEqualTo: channelId);
+        if (resolvedUserId != null && resolvedUserId.isNotEmpty) {
+          query = query.where('userId', isEqualTo: resolvedUserId);
+        }
+        if (startDate != null) {
+          query = query.where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
+        }
+        if (endDate != null) {
+          query = query.where('timestamp', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
+        }
+
+        final snap = await query.orderBy('timestamp', descending: true).limit(limit).get();
+        for (final doc in snap.docs) {
+          final tx = WalletTransaction.fromMap(doc.data(), doc.id);
+          map[doc.id] = UnifiedChannelTransaction.fromWalletTransaction(tx);
+        }
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'ChannelWalletService.fetchHistoricalLedger.wallet');
+      }
+    }
+
+    // 2. Fetch payout_requests
+    // Skip if caller explicitly filtered for wallet spends or deposits
+    final shouldQueryPayout = filterType == null || filterType == UnifiedTransactionType.payout;
+    if (shouldQueryPayout) {
+      try {
+        var query = _firestore
+            .collection('payout_requests')
+            .where('channelId', isEqualTo: channelId);
+        if (resolvedUserId != null && resolvedUserId.isNotEmpty) {
+          query = query.where('userId', isEqualTo: resolvedUserId);
+        }
+        if (startDate != null) {
+          query = query.where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
+        }
+        if (endDate != null) {
+          query = query.where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
+        }
+
+        final snap = await query.orderBy('createdAt', descending: true).limit(limit).get();
+        for (final doc in snap.docs) {
+          map[doc.id] = UnifiedChannelTransaction.fromPayoutRequest(doc.data(), doc.id);
+        }
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'ChannelWalletService.fetchHistoricalLedger.payout');
+      }
+    }
+
+    // 3. Fetch revenue_statements
+    // Skip if caller explicitly filtered for wallet or payout
+    final shouldQueryStmt = filterType == null || filterType == UnifiedTransactionType.revenueEarned;
+    if (shouldQueryStmt) {
+      try {
+        var query = _firestore
+            .collection('revenue_statements')
+            .where('channelId', isEqualTo: channelId);
+        if (resolvedUserId != null && resolvedUserId.isNotEmpty) {
+          query = query.where('userId', isEqualTo: resolvedUserId);
+        }
+
+        // Limit to 12 monthly statements (1 year max per scan) to conserve read costs
+        final snap = await query.limit(12).get();
+        for (final doc in snap.docs) {
+          final item = UnifiedChannelTransaction.fromRevenueStatement(doc.data(), doc.id);
+          if (startDate != null && item.timestamp.isBefore(startDate)) continue;
+          if (endDate != null && item.timestamp.isAfter(endDate)) continue;
+          map[doc.id] = item;
+        }
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'ChannelWalletService.fetchHistoricalLedger.stmt');
+      }
+    }
+
+    final list = map.values.toList()
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    // Save into in-memory ledger cache
+    _ledgerCache[cacheKey] = _LedgerCacheEntry(
+      timestamp: DateTime.now(),
+      items: list,
+    );
+
+    return list;
+  }
+
+  /// 📊 Formats the transactions into a standard RFC-4180 compliant CSV statement.
+  /// Suitable for Chartered Accountants, corporate books, and tax filings.
+  String generateFinancialStatementCSV({
+    required String channelName,
+    required String channelId,
+    required List<UnifiedChannelTransaction> transactions,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) {
+    final sb = StringBuffer();
+    sb.writeln('# TruthWorld Creator Financial Ledger & Audit Statement');
+    sb.writeln('# Channel: $channelName ($channelId)');
+    sb.writeln('# Export Date: ${DateTime.now().toIso8601String()}');
+    sb.writeln('# Retention Standard: Statutory 8-Year Audit Archive (Companies Act 2013 s.128 / IT Act s.44AA / IRS 7-Year)');
+    if (startDate != null && endDate != null) {
+      sb.writeln('# Period: ${DateFormat('yyyy-MM-dd').format(startDate)} to ${DateFormat('yyyy-MM-dd').format(endDate)}');
+    }
+    sb.writeln('');
+    sb.writeln('Date,Transaction ID,Type,Category,Description,Status,Inflow (Credit),Outflow (Debit),Currency');
+
+    for (final tx in transactions) {
+      final dateStr = DateFormat('yyyy-MM-dd HH:mm:ss').format(tx.timestamp);
+      final idStr = tx.id;
+      final typeStr = tx.type.name;
+      final catStr = tx.subtitle.replaceAll(',', ';');
+      final descStr = '"${tx.title.replaceAll('"', '""')}"';
+      final statusStr = tx.status;
+      final creditVal = tx.isCredit ? tx.amount.toStringAsFixed(2) : '0.00';
+      final debitVal = !tx.isCredit ? tx.amount.toStringAsFixed(2) : '0.00';
+      final curr = tx.currency;
+
+      sb.writeln('$dateStr,$idStr,$typeStr,$catStr,$descStr,$statusStr,$creditVal,$debitVal,$curr');
+    }
+
+    return sb.toString();
+  }
+}
+
+/// In-memory cache entry for historical transactions to eliminate duplicate Firestore reads
+class _LedgerCacheEntry {
+  final DateTime timestamp;
+  final List<UnifiedChannelTransaction> items;
+
+  _LedgerCacheEntry({
+    required this.timestamp,
+    required this.items,
+  });
 }

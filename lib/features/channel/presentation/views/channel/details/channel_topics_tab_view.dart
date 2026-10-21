@@ -254,7 +254,11 @@ class ChannelHorizontalVideoCard extends StatelessWidget {
                 ),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
-                onPressed: () => VideoOptionsSheet.show(context, video),
+                onPressed: () => VideoOptionsSheet.show(
+                  context,
+                  video,
+                  isChannelContext: true,
+                ),
               ),
             ],
           ),
@@ -643,7 +647,10 @@ class ChannelTopicVideoSection extends GetView<ChannelController> {
                 itemBuilder: (context, index) {
                   return Container(
                     margin: const EdgeInsets.only(bottom: 12),
-                    child: CommunityPostCard(post: posts[index]),
+                    child: CommunityPostCard(
+                      post: posts[index],
+                      isChannelContext: true,
+                    ),
                   );
                 },
               ),

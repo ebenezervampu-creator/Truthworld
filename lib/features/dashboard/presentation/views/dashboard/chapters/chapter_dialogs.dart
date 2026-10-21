@@ -283,7 +283,7 @@ class ChapterDialogs {
                 maxLength: 10,
                 buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                 inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9:]')),
+                  FilteringTextInputFormatter.allow(RegExp('[0-9:]')),
                   LengthLimitingTextInputFormatter(10),
                 ],
                 style: TextStyle(

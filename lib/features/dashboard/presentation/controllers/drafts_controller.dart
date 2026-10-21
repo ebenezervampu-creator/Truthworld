@@ -18,12 +18,29 @@ class DraftsController extends BaseController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final GetStorage _storage = GetStorage();
 
-  static const String _storageKey = 'user_drafts_v1';
+  String get _storageKey {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    return (uid != null && uid.isNotEmpty)
+        ? 'user_drafts_v1_$uid'
+        : 'user_drafts_v1_anon';
+  }
 
   final RxList<DraftModel> videoDrafts = <DraftModel>[].obs;
   final RxList<DraftModel> communityDrafts = <DraftModel>[].obs;
 
   late final TextEditingController searchController;
+
+  void clearDrafts() {
+    videoDrafts.clear();
+    communityDrafts.clear();
+    rxState.value = ViewState.empty;
+  }
+
+  @override
+  void onClose() {
+    clearDrafts();
+    super.onClose();
+  }
 
   @override
   void onInit() {
@@ -35,14 +52,17 @@ class DraftsController extends BaseController {
   /// Load drafts from local [GetStorage] cache and sync with Firestore collection `user_drafts`
   Future<void> loadDrafts() async {
     rxState.value = ViewState.loading;
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null || userId.isEmpty) {
+      clearDrafts();
+      return;
+    }
     try {
       // 1. Load local drafts from GetStorage for instant display
       _loadLocalDrafts();
 
       // 2. Sync real-time drafts from Firestore user_drafts collection if logged in
-      final userId = FirebaseAuth.instance.currentUser?.uid;
-      if (userId != null && userId.isNotEmpty) {
-        final query = _firestore
+      final query = _firestore
             .collection('user_drafts')
             .where('userId', isEqualTo: userId);
 
@@ -74,11 +94,6 @@ class DraftsController extends BaseController {
         );
 
         trackSubscription(subscription);
-      } else {
-        rxState.value = (videoDrafts.isEmpty && communityDrafts.isEmpty)
-            ? ViewState.empty
-            : ViewState.success;
-      }
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/channel_screen_wizard.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_view_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/sections/sections.dart';
@@ -36,6 +36,18 @@ class DashboardScreen extends StatelessWidget {
               final dashboardController = viewController.dashboardController;
 
               return Obx(() {
+                final mediaQuery = MediaQuery.of(context);
+                final isMobile = mediaQuery.size.width < 600;
+                final isTablet =
+                    mediaQuery.size.width >= 600 && mediaQuery.size.width < 1024;
+                final isDesktop = mediaQuery.size.width >= 1024;
+
+                final horizontalPadding = isDesktop
+                    ? 32.0
+                    : (isTablet ? 24.0 : 16.0);
+
+                final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
                 if (!AuthService.to.isAuthenticated.value) {
                   return DashboardFallbackLogin(
                     onSignIn: () {
@@ -45,9 +57,12 @@ class DashboardScreen extends StatelessWidget {
                 }
 
                 if (viewController.isSelectingDefault.value) {
-                  return Scaffold(
-                    backgroundColor: AppColors.bgPage,
-                    body: _buildDashboardSkeleton(),
+                  return ShimmerDashboard(
+                    isMobile: isMobile,
+                    isTablet: isTablet,
+                    isDesktop: isDesktop,
+                    horizontalPadding: horizontalPadding,
+                    isDarkMode: isDarkMode,
                   );
                 }
 
@@ -68,18 +83,6 @@ class DashboardScreen extends StatelessWidget {
                     AuthService.to.userChannel == null) {
                   return const ChannelScreen();
                 }
-
-                final mediaQuery = MediaQuery.of(context);
-                final isMobile = mediaQuery.size.width < 600;
-                final isTablet =
-                    mediaQuery.size.width >= 600 && mediaQuery.size.width < 1024;
-                final isDesktop = mediaQuery.size.width >= 1024;
-
-                final horizontalPadding = isDesktop
-                    ? 32.0
-                    : (isTablet ? 24.0 : 16.0);
-
-                final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
                 return FocusScope(
                   autofocus: true,
@@ -170,74 +173,6 @@ class DashboardScreen extends StatelessWidget {
             },
           );
         },
-      ),
-    );
-  }
-
-  Widget _buildDashboardSkeleton() {
-    return Shimmer.fromColors(
-      baseColor: const Color(0xFF1E1E1E),
-      highlightColor: AppColors.bgSurfaceHover,
-      child: Column(
-        children: [
-          // AppBar skeleton
-          Container(
-            height: 64,
-            decoration: const BoxDecoration(
-              color: Color(0xFF1E1E1E),
-              border: Border(bottom: BorderSide(color: AppColors.bgDivider)),
-            ),
-          ),
-          Expanded(
-            child: Row(
-              children: [
-                // Sidebar skeleton
-                Container(
-                  width: 240,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF1E1E1E),
-                    border: Border(right: BorderSide(color: AppColors.bgDivider)),
-                  ),
-                ),
-                // Content area skeleton
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      children: [
-                        Container(
-                          height: 120,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1E1E1E),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppColors.bgDivider),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        Row(
-                          children: List.generate(
-                            4,
-                            (index) => Expanded(
-                              child: Container(
-                                height: 100,
-                                margin: EdgeInsets.only(right: index < 3 ? 12 : 0),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF1E1E1E),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: AppColors.bgDivider),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -1,7 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_comments_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -18,37 +18,13 @@ class DashboardCommentsVideoSelectorPane extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      if (controller.isLoadingVideos.value) {
-        return Shimmer.fromColors(
-          baseColor: const Color(0xFF1E1E1E),
-          highlightColor: AppColors.bgSurfaceHover,
+      if (controller.isLoadingVideos.value && controller.videosWithComments.isEmpty) {
+        return const Center(
           child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E1E1E),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: ListView.separated(
-                    itemCount: 6,
-                    separatorBuilder: (_, _) => const SizedBox(height: 8),
-                    itemBuilder: (_, _) => Container(
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E1E1E),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: StudioLoadingIndicator(
+              message: 'Loading selector...',
+              isFullScreen: false,
             ),
           ),
         );

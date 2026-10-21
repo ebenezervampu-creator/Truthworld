@@ -81,11 +81,19 @@ class VideoAnalyticsController extends BaseController {
     if (totalDurationSeconds <= 0 || videoId.isEmpty) return;
     currentVideoId = videoId;
 
-    // Send heartbeat to RTDB live presence tracker
-    VideoPresenceService.to.heartbeat(
-      position: currentPositionSeconds,
-      watchedSeconds: watchTimeSeconds,
-    );
+    // Send heartbeat or restore session to RTDB live presence tracker
+    if (!VideoPresenceService.to.isWatching) {
+      VideoPresenceService.to.startWatching(
+        videoId: videoId,
+        position: currentPositionSeconds,
+        watchedSeconds: watchTimeSeconds,
+      );
+    } else {
+      VideoPresenceService.to.heartbeat(
+        position: currentPositionSeconds,
+        watchedSeconds: watchTimeSeconds,
+      );
+    }
 
     // Calculate true watch progress percentage strictly based on actual elapsed watch time,
     // NEVER on scrubbed playhead position (prevents dragging to end from inflating metrics).

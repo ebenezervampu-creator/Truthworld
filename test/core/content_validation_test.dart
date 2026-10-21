@@ -230,14 +230,12 @@ void main() {
       final resJose = ContentValidator.validate(
         'José Müller',
         fieldName: 'Display Name',
-        checkEnglishOnly: false,
       );
       expect(resJose.isValid, isTrue);
 
       final resFrancois = ContentValidator.validate(
         'François Sébastien',
         fieldName: 'Display Name',
-        checkEnglishOnly: false,
       );
       expect(resFrancois.isValid, isTrue);
 
@@ -245,7 +243,6 @@ void main() {
       final resProfaneJose = ContentValidator.validate(
         'José shit',
         fieldName: 'Display Name',
-        checkEnglishOnly: false,
       );
       expect(resProfaneJose.isValid, isFalse);
       expect(resProfaneJose.message, contains('inappropriate language'));
@@ -254,7 +251,6 @@ void main() {
       final resEmpty = ContentValidator.validate(
         '   ',
         fieldName: 'Display Name',
-        checkEnglishOnly: false,
       );
       expect(resEmpty.isValid, isFalse);
       expect(resEmpty.message, contains('cannot be empty'));

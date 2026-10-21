@@ -8,6 +8,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/network/ssl_pinning_manager.dart';
 import 'package:truthworld/core/security/rasp_security_service.dart';
 import 'package:truthworld/core/security/screen_security_service.dart';
+import 'package:truthworld/core/services/android_installer_detector.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/cashfree/cashfree_adapter.dart';
 import 'package:truthworld/core/services/cashfree/cashfree_country_support.dart';
@@ -54,6 +55,8 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
 
   Completer<CashfreePaymentResult>? _activeCompleter;
   String? _activePaymentLink;
+  String? _activePaymentSessionId;
+  String? _activeEnv;
   String? _activeSubscriptionId;
   bool _isAutoVerifying = false;
   bool _isVerificationPromptOpen = false;
@@ -310,7 +313,9 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
 
     final fallbackUrl = (_activePaymentLink != null && _activePaymentLink!.isNotEmpty)
         ? _activePaymentLink!
-        : 'https://www.truthworld.in/checkout?order_id=${Uri.encodeComponent(orderId)}';
+        : ((_activePaymentSessionId != null && _activePaymentSessionId!.isNotEmpty)
+            ? 'https://www.truthworld.in/checkout?session_id=${Uri.encodeComponent(_activePaymentSessionId!)}&order_id=${Uri.encodeComponent(orderId)}&env=${(_activeEnv ?? 'production').toLowerCase()}'
+            : 'https://www.truthworld.in/checkout?order_id=${Uri.encodeComponent(orderId)}');
 
     if (isInstallerOrIntegrityError) {
       if (kDebugMode) {
@@ -349,6 +354,8 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
     _isVerificationPromptOpen = false;
     isProcessing.value = false;
     _activePaymentLink = null;
+    _activePaymentSessionId = null;
+    _activeEnv = null;
     _activeSubscriptionId = null;
     unawaited(ScreenSecurityService.to.disableSecureMode());
     if (_activeCompleter != null && !_activeCompleter!.isCompleted) {
@@ -487,6 +494,8 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
       final envString = (data['environment'] as String? ?? 'SANDBOX').toUpperCase();
 
       activeOrderId.value = orderId;
+      _activePaymentSessionId = paymentSessionId;
+      _activeEnv = envString;
       _activePaymentLink = paymentLink ??
           (paymentSessionId != null
               ? 'https://www.truthworld.in/checkout?session_id=${Uri.encodeComponent(paymentSessionId)}&order_id=${Uri.encodeComponent(orderId)}&env=${envString.toLowerCase()}'
@@ -542,23 +551,40 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
           enableNativeGateway &&
           paymentSessionId != null &&
           paymentSessionId.isNotEmpty) {
-        // Mobile platforms (Android / iOS): invoke native Cashfree PG SDK
-        try {
-          _initGatewayCallbacks();
-          _cfGateway.doPayment(
-            orderId: orderId,
-            paymentSessionId: paymentSessionId,
-            isProduction: envString == 'PRODUCTION',
-          );
-        } catch (nativeErr, stackTrace) {
-          ErrorHandler.log(
-            nativeErr,
-            stackTrace: stackTrace,
-            tag: 'CashfreePaymentService.nativePayment',
-          );
+        // Proactively inspect installer origin on Android to handle sideloaded builds
+        final isSideloadedAndroid = !kIsWeb &&
+            defaultTargetPlatform == TargetPlatform.android &&
+            await AndroidInstallerDetector.isSideloaded();
+
+        if (isSideloadedAndroid) {
+          if (kDebugMode) {
+            debugPrint(
+              '[CashfreePaymentService] Sideloaded Android APK detected. '
+              'Directing to secure hosted checkout to prevent native installer rejection.',
+            );
+          }
           final fallbackLink = _activePaymentLink ??
               'https://www.truthworld.in/checkout?session_id=${Uri.encodeComponent(paymentSessionId)}&order_id=${Uri.encodeComponent(orderId)}&env=${envString.toLowerCase()}';
           await _launchExternalCheckout(fallbackLink, orderId);
+        } else {
+          // Store installs (Play Store, Galaxy Store, Amazon Appstore) and iOS: invoke native Cashfree PG SDK
+          try {
+            _initGatewayCallbacks();
+            _cfGateway.doPayment(
+              orderId: orderId,
+              paymentSessionId: paymentSessionId,
+              isProduction: envString == 'PRODUCTION',
+            );
+          } catch (nativeErr, stackTrace) {
+            ErrorHandler.log(
+              nativeErr,
+              stackTrace: stackTrace,
+              tag: 'CashfreePaymentService.nativePayment',
+            );
+            final fallbackLink = _activePaymentLink ??
+                'https://www.truthworld.in/checkout?session_id=${Uri.encodeComponent(paymentSessionId)}&order_id=${Uri.encodeComponent(orderId)}&env=${envString.toLowerCase()}';
+            await _launchExternalCheckout(fallbackLink, orderId);
+          }
         }
       } else if (paymentLink != null && paymentLink.isNotEmpty) {
         // Authoritative TruthWorld Hosted Checkout flow (works seamlessly on Android, iOS, Web, and Desktop)

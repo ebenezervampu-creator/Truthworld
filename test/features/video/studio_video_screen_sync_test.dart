@@ -141,7 +141,6 @@ void main() {
 
       final channel = createTestChannel(
         id: 'chan_01',
-        showDislikeCount: true,
       );
       ChannelMemoryCache.set('chan_01', channel);
 
@@ -155,7 +154,6 @@ void main() {
       final video = createTestVideo(
         id: 'vid_02',
         channelId: 'chan_02',
-        showDislikeCount: true,
         dislikeCount: 99,
       );
 
@@ -175,7 +173,6 @@ void main() {
       final video = createTestVideo(
         id: 'vid_03',
         channelId: 'chan_03',
-        showLikeCount: true,
         likeCount: 500,
       );
 

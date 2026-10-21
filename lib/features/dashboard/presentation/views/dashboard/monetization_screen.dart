@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/revenue_analytics_controller.dart';
 import 'package:truthworld/features/analytics/presentation/pages/revenue/revenue_analytics_widgets.dart';
@@ -146,7 +146,9 @@ class MonetizationScreen extends StatelessWidget {
       body: Obx(() {
         if ((controller.rxIsLoading.value || revController.isLoading) &&
             controller.currentChannel.value == null) {
-          return _buildMonetizationSkeleton();
+          return const StudioLoadingIndicator(
+            message: 'Loading monetization dashboard...',
+          );
         }
         final channel = controller.currentChannel.value;
               final isCustom = channel?.channelType == ChannelType.custom;
@@ -157,7 +159,8 @@ class MonetizationScreen extends StatelessWidget {
               final padding = EdgeInsets.all(isMobile ? 16.0 : 20.0);
 
               return RefreshIndicator(
-                color: const Color(0xFFF59E0B),
+                color: Colors.white,
+                backgroundColor: const Color(0xFF1E1E1E),
                 onRefresh: () async {
                   await revController.refreshData();
                   controller.refreshChannelData();
@@ -208,20 +211,19 @@ class MonetizationScreen extends StatelessWidget {
               onTap: () {
                 revController.selectedEarningsTab.value = index;
               },
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(20),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? const Color(0xFF27272A)
-                      : const Color(0xFF161618),
-                  borderRadius: BorderRadius.circular(12),
+                      ? Colors.white
+                      : AppColors.bgSurfaceHover,
+                  borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: isSelected
-                        ? const Color(0xFF3B82F6)
-                        : const Color(0xFF27272A),
-                    width: isSelected ? 1.5 : 1.0,
+                        ? Colors.white
+                        : AppColors.bgDivider,
                   ),
                 ),
                 child: Row(
@@ -230,7 +232,7 @@ class MonetizationScreen extends StatelessWidget {
                     Icon(
                       tab.icon,
                       size: 16,
-                      color: isSelected ? Colors.white : AppColors.textSecondary,
+                      color: isSelected ? Colors.black : AppColors.textSecondary,
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -240,7 +242,7 @@ class MonetizationScreen extends StatelessWidget {
                         fontWeight:
                             isSelected ? FontWeight.bold : FontWeight.w500,
                         color:
-                            isSelected ? Colors.white : AppColors.textSecondary,
+                            isSelected ? Colors.black : AppColors.textSecondary,
                       ),
                     ),
                   ],
@@ -267,17 +269,22 @@ class MonetizationScreen extends StatelessWidget {
         return [
           buildRevenueHeroMetricCard(revController),
           const SizedBox(height: 18),
-          buildWithdrawalThresholdCard(context, revController),
-          const SizedBox(height: 14),
+          if (channel != null) ...[
+            ChannelAccountHubCard(
+              channel: channel,
+              controller: controller,
+              revController: revController,
+            ),
+            const SizedBox(height: 18),
+          ] else ...[
+            buildWithdrawalThresholdCard(context, revController),
+            const SizedBox(height: 14),
+            RevenueWithdrawalSummaryCard(controller: controller),
+            const SizedBox(height: 18),
+          ],
           buildDirectBankAccountCard(context, revController),
           const SizedBox(height: 14),
           buildCreatorKycCard(context, revController),
-          const SizedBox(height: 20),
-          if (channel != null) ...[
-            ChannelWalletCard(channel: channel, controller: controller),
-            const SizedBox(height: 20),
-          ],
-          RevenueWithdrawalSummaryCard(controller: controller),
         ];
 
       case 2:
@@ -333,9 +340,20 @@ class MonetizationScreen extends StatelessWidget {
           buildRevenueHeroMetricCard(revController),
           const SizedBox(height: 18),
 
-          // 2. Withdrawal Threshold & YouTube Payout Window
-          buildWithdrawalThresholdCard(context, revController),
-          const SizedBox(height: 14),
+          // 2. Unified Channel Account Hub (Wallet + Revenue + Cash Out + Activity Feed)
+          if (channel != null) ...[
+            ChannelAccountHubCard(
+              channel: channel,
+              controller: controller,
+              revController: revController,
+            ),
+            const SizedBox(height: 18),
+          ] else ...[
+            buildWithdrawalThresholdCard(context, revController),
+            const SizedBox(height: 14),
+            RevenueWithdrawalSummaryCard(controller: controller),
+            const SizedBox(height: 18),
+          ],
 
           // 3. Direct Bank Account Arrangement
           buildDirectBankAccountCard(context, revController),
@@ -343,19 +361,9 @@ class MonetizationScreen extends StatelessWidget {
 
           // 4. Creator KYC Verification
           buildCreatorKycCard(context, revController),
-          const SizedBox(height: 20),
-
-          // 5. Channel Wallet Card (spendable balance, top-up, AI spending)
-          if (channel != null) ...[
-            ChannelWalletCard(channel: channel, controller: controller),
-            const SizedBox(height: 20),
-          ],
-
-          // 6. Revenue & Withdrawal Summary Card (available vs locked funds)
-          RevenueWithdrawalSummaryCard(controller: controller),
           const SizedBox(height: 24),
 
-          // 7. Ways You Earn (Active Streams)
+          // 5. Ways You Earn (Active Streams)
           buildRevenueSectionHeader(
             title: 'Ways You Earned',
             badge: 'All Active Streams',
@@ -400,43 +408,4 @@ class MonetizationScreen extends StatelessWidget {
     }
   }
 
-  Widget _buildMonetizationSkeleton() {
-    return Shimmer.fromColors(
-      baseColor: const Color(0xFF1E1E1E),
-      highlightColor: AppColors.bgSurfaceHover,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Container(
-              height: 120,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.bgDivider),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Container(
-              height: 140,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.bgDivider),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Container(
-              height: 180,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.bgDivider),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

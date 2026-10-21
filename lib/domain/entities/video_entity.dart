@@ -37,6 +37,7 @@ class VideoEntity {
     this.enableComments = true,
     this.isMonetized = false,
     this.trustScore = 0.0,
+    this.resubmitCount = 0,
   });
   final String id;
   final String title;
@@ -82,6 +83,11 @@ class VideoEntity {
   final bool enableComments;
   final bool isMonetized;
   final double trustScore;
+  final int resubmitCount;
+
+  bool get canResubmit => status == 'rejected' && resubmitCount < 2;
+  int get remainingResubmissions => (2 - resubmitCount).clamp(0, 2);
+  bool get hasReachedMaxResubmissions => status == 'rejected' && resubmitCount >= 2;
 
   @override
   bool operator ==(Object other) =>

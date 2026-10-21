@@ -37,8 +37,8 @@ mixin TowerPlayerAbrMixin on GetxController {
     var ladder = List<ResolutionTier>.from(ResolutionTier.defaultLadder);
 
     try {
-      if (Get.isRegistered<VideoController>(tag: tag)) {
-        final vc = Get.find<VideoController>(tag: tag);
+      final vc = videoController;
+      if (vc != null) {
         if (vc.availableResolutions.isNotEmpty) {
           final complete = VideoResolutionV2.ensureCompleteLadder(
             vc.availableResolutions,
@@ -67,8 +67,8 @@ mixin TowerPlayerAbrMixin on GetxController {
     int? initialTierIdx;
     // Pre-align current tier index with the active resolution before initialize to prevent immediate spurious auto-switch
     try {
-      if (Get.isRegistered<VideoController>(tag: tag)) {
-        final vc = Get.find<VideoController>(tag: tag);
+      final vc = videoController;
+      if (vc != null) {
         final activeRes = vc.currentResolution.value;
         if (activeRes != null && ladder.isNotEmpty) {
           var matchIdx = ladder.indexWhere(
@@ -111,9 +111,8 @@ mixin TowerPlayerAbrMixin on GetxController {
     abr.onTierChanged = (tierIndex, isManual) {
       void applyTierChange() {
         try {
-          if (!Get.isRegistered<VideoController>(tag: tag)) return;
-          final vc = Get.find<VideoController>(tag: tag);
-          if (vc.isClosed) return;
+          final vc = videoController;
+          if (vc == null || vc.isClosed) return;
           if (vc.isSwitchingResolution.value) return;
           if (vc.rxIsOffline.value || isAudioOnly.value) return;
           if (tierIndex >= 0 && tierIndex < abr.resolutionLadder.length) {

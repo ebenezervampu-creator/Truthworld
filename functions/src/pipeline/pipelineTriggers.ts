@@ -100,7 +100,25 @@ export const triggerVideoAIFeatures = onRequest(
       const jobSnap = await jobDocRef.get();
       const jobData = jobSnap.exists ? jobSnap.data() : null;
 
-      const existingLanguages: string[] = jobData?.executionPlan?.languages || [normalizeLanguageCode(videoData.language || "en")];
+      let resolvedPrimaryLang = "";
+      if (videoData.channelId) {
+        try {
+          const chSnap = await admin.firestore().collection("channels").doc(videoData.channelId).get();
+          if (chSnap.exists) {
+            const chLang = chSnap.data()?.language || chSnap.data()?.channelLanguage;
+            if (chLang) {
+              resolvedPrimaryLang = normalizeLanguageCode(chLang);
+            }
+          }
+        } catch (e) {
+          logger.warn("[triggerVideoAIFeatures] Error fetching channel language:", e);
+        }
+      }
+      if (!resolvedPrimaryLang) {
+        resolvedPrimaryLang = normalizeLanguageCode(videoData.language || "en");
+      }
+
+      const existingLanguages: string[] = jobData?.executionPlan?.languages || [resolvedPrimaryLang];
       const languagesSet = new Set([...existingLanguages, ...targetLanguages]);
       const combinedLanguages = Array.from(languagesSet);
 
@@ -114,7 +132,7 @@ export const triggerVideoAIFeatures = onRequest(
       const executionPlan: ExecutionPlan = {
         jobId: videoId,
         languages: combinedLanguages,
-        primaryLanguage: normalizeLanguageCode(videoData.language || "en"),
+        primaryLanguage: resolvedPrimaryLang,
         enablePath1: wantFactCheck || wantSummary || (jobData?.executionPlan?.enablePath1 ?? true),
         enablePath2: wantDubbing || wantSubtitles || (jobData?.executionPlan?.enablePath2 ?? true),
         enableTruthEngine: wantFactCheck || wantSummary || (jobData?.executionPlan?.enableTruthEngine ?? true),
@@ -358,7 +376,7 @@ export const handleCredibility = onMessagePublished(
       const parsedEvent = DistributionLayer.parseMessage(event.data.message);
       logger.info("[handleCredibility] Start", { jobId: parsedEvent.jobId, eventId: parsedEvent.eventId });
 
-      const { executionPlan } = parsedEvent.data as { executionPlan: ExecutionPlan };
+      const { executionPlan, videoUrl } = parsedEvent.data as { executionPlan: ExecutionPlan; videoUrl?: string };
       const geminiKey = PIPELINE_CONFIG.GEMINI_API_KEY;
       const { CredibilityEngine } = require("./layers/06-credibility");
       const engine = new CredibilityEngine(geminiKey);
@@ -368,7 +386,8 @@ export const handleCredibility = onMessagePublished(
         parsedEvent.userId,
         executionPlan,
         parsedEvent.eventId,
-        parsedEvent.traceId
+        parsedEvent.traceId,
+        videoUrl
       );
     } catch (error) {
       logger.error("[handleCredibility] Critical failure", { error: String(error) });

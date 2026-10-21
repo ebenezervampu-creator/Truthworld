@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_comments_controller.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/comments/dashboard_comments_video_selector.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Filter Toolbar for Dashboard Comments
-/// Contains search text field and horizontal filter chips.
+/// Contains clean, horizontal filter chips for fast comment triage.
 class DashboardCommentsFilterToolbar extends StatelessWidget {
   const DashboardCommentsFilterToolbar({
     required this.controller,
@@ -38,69 +35,61 @@ class DashboardCommentsFilterToolbar extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            // Search Input Pill
-            Container(
-              height: 36,
-              width: isMobile ? 180 : 220,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: AppColors.bgDivider,
-                ),
-              ),
-              child: TextField(
-                controller: controller.searchController,
-                maxLength: ContentValidator.defaultMaxSearchLength,
-                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
-                inputFormatters: TruthworldTextInputFormatters.withLimit(
-                  ContentValidator.defaultMaxSearchLength,
-                ),
-                onChanged: controller.setSearchQuery,
-                style: const TextStyle(
-                  fontFamily: TWTypography.uiFamily,
-                  fontFamilyFallback: TWTypography.fallbackFamilies,
-                  fontSize: 13,
-                  color: AppColors.textPrimary,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Search comments...',
-                  hintStyle: const TextStyle(
-                    fontFamily: TWTypography.uiFamily,
-                    fontFamilyFallback: TWTypography.fallbackFamilies,
-                    fontSize: 12,
-                    color: AppColors.textTertiary,
+            // Active Video Filter Chip (if filtering comments for a specific video)
+            Obx(() {
+              final selectedVideo = controller.selectedVideo;
+              if (selectedVideo == null) return const SizedBox.shrink();
+
+              return Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2A2A2A),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: AppColors.brand,
+                      width: 1.2,
+                    ),
                   ),
-                  prefixIcon: const Icon(
-                    Icons.search_rounded,
-                    size: 18,
-                    color: AppColors.textPrimary,
-                  ),
-                  suffixIcon: ValueListenableBuilder<TextEditingValue>(
-                    valueListenable: controller.searchController,
-                    builder: (context, value, child) {
-                      if (value.text.isEmpty) {
-                        return const SizedBox.shrink();
-                      }
-                      return GestureDetector(
-                        onTap: () {
-                          controller.searchController.clear();
-                          controller.setSearchQuery('');
-                        },
-                        child: const Icon(
-                          Icons.clear_rounded,
-                          size: 16,
-                          color: AppColors.textSecondary,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.ondemand_video_rounded,
+                        size: 14,
+                        color: AppColors.textPrimary,
+                      ),
+                      const SizedBox(width: 6),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: isMobile ? 120 : 200),
+                        child: Text(
+                          selectedVideo.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontFamily: TWTypography.uiFamily,
+                            fontFamilyFallback: TWTypography.fallbackFamilies,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
                         ),
-                      );
-                    },
+                      ),
+                      const SizedBox(width: 6),
+                      GestureDetector(
+                        onTap: () => controller.selectVideo(null),
+                        child: const Icon(
+                          Icons.close_rounded,
+                          size: 16,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
                   ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
                 ),
-              ),
-            ),
-            const SizedBox(width: 8),
+              );
+            }),
 
             // Filter Chips
             _buildFilterChip('all', 'All', null),
@@ -118,12 +107,6 @@ class DashboardCommentsFilterToolbar extends StatelessWidget {
               'With Creator Heart',
               Icons.favorite_rounded,
             ),
-
-            // Video Filter Selector Chip for Mobile
-            if (isMobile) ...[
-              const SizedBox(width: 6),
-              DashboardMobileVideoDropdownChip(controller: controller),
-            ],
           ],
         ),
       ),
@@ -164,7 +147,7 @@ class DashboardCommentsFilterToolbar extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: TWTypography.uiFamily,
                   fontFamilyFallback: TWTypography.fallbackFamilies,
-                  fontSize: 12,
+                  fontSize: 12.5,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                   color: isSelected ? Colors.black : AppColors.textPrimary,
                 ),

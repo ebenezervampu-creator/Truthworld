@@ -87,12 +87,12 @@ class DistributedCounterService extends GetxService {
                   .collection(FirestoreCollections.videos)
                   .doc(videoId)
                   .update({'viewCount': FieldValue.increment(1)})
-                  .catchError((_, __) {
+                  .catchError((error, stackTrace) {
                     _firestore
                         .collection(FirestoreCollections.videos)
                         .doc(videoId)
                         .update({'views': FieldValue.increment(1)})
-                        .catchError((_, __) {});
+                        .catchError((err, st) {});
                   });
               ErrorHandler.log(
                 e,
@@ -212,23 +212,6 @@ class DistributedCounterService extends GetxService {
                 tag: 'DistributedCounterService.channelWatchTimeShard',
               );
             });
-
-        if (FirebaseAuth.instance.currentUser != null) {
-          _firestore
-              .collection(FirestoreCollections.channels)
-              .doc(channelId)
-              .update({
-                'totalWatchTimeSeconds': FieldValue.increment(secondsDelta),
-                'metrics.totalWatchTimeMinutes': FieldValue.increment(secondsDelta / 60),
-              })
-              .catchError((e, s) {
-                ErrorHandler.log(
-                  e,
-                  stackTrace: s,
-                  tag: 'DistributedCounterService.channelParentWatchTime',
-                );
-              });
-        }
       }
     } catch (e, stackTrace) {
       ErrorHandler.log(
@@ -236,6 +219,114 @@ class DistributedCounterService extends GetxService {
         stackTrace: stackTrace,
         tag: 'DistributedCounterService.incrementWatchTime',
       );
+    }
+  }
+
+  /// Calculates total real-time watch time for a video by aggregating across all 20 shards.
+  Future<int> getRealtimeVideoWatchTime(String videoId) async {
+    if (videoId.trim().isEmpty) return 0;
+
+    try {
+      final snapshot = await _firestore
+          .collection(FirestoreCollections.videos)
+          .doc(videoId)
+          .collection('shards')
+          .get();
+
+      var total = 0;
+      for (final doc in snapshot.docs) {
+        final sec = (doc.data()['watchTimeSeconds'] as num?)?.toInt() ?? 0;
+        total += sec;
+      }
+      return total;
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'DistributedCounterService.getRealtimeVideoWatchTime',
+      );
+      return 0;
+    }
+  }
+
+  /// Attempts to heal parent video document if its totalWatchTimeSeconds is 0 but shards have recorded watch time.
+  Future<void> healParentVideoWatchTime(String videoId, int currentShardWatchTime) async {
+    if (videoId.trim().isEmpty || currentShardWatchTime <= 0) return;
+    if (FirebaseAuth.instance.currentUser == null) return;
+
+    try {
+      final docRef = _firestore.collection(FirestoreCollections.videos).doc(videoId);
+      final snap = await docRef.get();
+      if (!snap.exists) return;
+      final data = snap.data() ?? {};
+      final rawWatchTime = (data['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0;
+      if (rawWatchTime < currentShardWatchTime) {
+        await docRef.set({
+          'totalWatchTimeSeconds': currentShardWatchTime,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true)).catchError((e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'DistributedCounterService.healParentVideoWatchTime.catch');
+        });
+      }
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'DistributedCounterService.healParentVideoWatchTime');
+    }
+  }
+
+  /// Calculates total real-time watch time for a channel across its distributed shards.
+  Future<int> getRealtimeChannelWatchTime(String channelId) async {
+    if (channelId.trim().isEmpty) return 0;
+
+    try {
+      final snapshot = await _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(channelId)
+          .collection('shards')
+          .get();
+
+      var total = 0;
+      for (final doc in snapshot.docs) {
+        final sec = (doc.data()['watchTimeSeconds'] as num?)?.toInt() ?? 0;
+        total += sec;
+      }
+      return total;
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'DistributedCounterService.getRealtimeChannelWatchTime',
+      );
+      return 0;
+    }
+  }
+
+  /// Attempts to heal parent channel document if its totalWatchTimeSeconds is 0 but shards have recorded watch time.
+  Future<void> healParentChannelWatchTime(String channelId, int currentShardWatchTime) async {
+    if (channelId.trim().isEmpty || currentShardWatchTime <= 0) return;
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) return;
+
+    try {
+      final docRef = _firestore.collection(FirestoreCollections.channels).doc(channelId);
+      final snap = await docRef.get();
+      if (!snap.exists) return;
+      final data = snap.data() ?? {};
+
+      // Client can only update channels they own under Firestore security rules
+      final ownerId = data['ownerId'] as String? ?? data['userId'] as String?;
+      if (ownerId != currentUid) return;
+
+      final rawWatchTime = (data['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0;
+      if (rawWatchTime < currentShardWatchTime) {
+        await docRef.set({
+          'totalWatchTimeSeconds': currentShardWatchTime,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true)).catchError((e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'DistributedCounterService.healParentChannelWatchTime.catch');
+        });
+      }
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'DistributedCounterService.healParentChannelWatchTime');
     }
   }
 

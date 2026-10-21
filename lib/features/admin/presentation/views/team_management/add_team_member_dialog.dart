@@ -210,7 +210,6 @@ void showAddTeamMemberDialog(
                               if (name.isNotEmpty) {
                                 final nameVal = ContentValidator.validate(
                                   name,
-                                  checkEnglishOnly: false,
                                   fieldName: 'Member Name',
                                 );
                                 if (!nameVal.isValid) {

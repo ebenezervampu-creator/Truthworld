@@ -3,13 +3,17 @@ import 'package:truthworld/core/bindings/app_bindings.dart';
 import 'package:truthworld/core/utils/route_guards.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/widgets/deferred_widget.dart';
+import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
+import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 import 'package:truthworld/features/analytics/presentation/bindings/analytics_binding.dart';
 import 'package:truthworld/features/analytics/presentation/pages/creator_analytics_dashboard.dart';
 import 'package:truthworld/features/analytics/presentation/pages/subscribers_page.dart';
 import 'package:truthworld/features/analytics/presentation/pages/views_page.dart';
 import 'package:truthworld/features/analytics/presentation/pages/watch_time_page.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/memberships_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart'
     deferred as dashboard;
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships/create_or_edit_tier_page.dart';
 import 'package:truthworld/features/watchtime/presentation/pages/watchtime_details_page.dart';
 import 'package:truthworld/routes/app_routes.dart';
 
@@ -22,6 +26,7 @@ class StudioRoutes {
       name: AppRoutes.studio,
       page: () => DeferredWidget(
         loader: dashboard.loadLibrary,
+        placeholder: const ShimmerDashboard(),
         builder: () => dashboard.DashboardScreen(),
       ),
       middlewares: [StudioRedirectMiddleware(), StudioAccessGuard()],
@@ -31,6 +36,7 @@ class StudioRoutes {
       name: AppRoutes.dashboard,
       page: () => DeferredWidget(
         loader: dashboard.loadLibrary,
+        placeholder: const ShimmerDashboard(),
         builder: () => dashboard.DashboardScreen(),
       ),
       middlewares: [DashboardRedirectMiddleware(), StudioAccessGuard()],
@@ -40,6 +46,7 @@ class StudioRoutes {
       name: AppRoutes.studioChapters,
       page: () => DeferredWidget(
         loader: dashboard.loadLibrary,
+        placeholder: const StudioLoadingIndicator(),
         builder: () => dashboard.DashboardScreen(),
       ),
       middlewares: [StudioRedirectMiddleware(), StudioAccessGuard()],
@@ -49,6 +56,7 @@ class StudioRoutes {
       name: AppRoutes.studioTrash,
       page: () => DeferredWidget(
         loader: dashboard.loadLibrary,
+        placeholder: const StudioLoadingIndicator(),
         builder: () => dashboard.DashboardScreen(),
       ),
       middlewares: [StudioRedirectMiddleware(), StudioAccessGuard()],
@@ -58,6 +66,17 @@ class StudioRoutes {
       name: AppRoutes.studioDrafts,
       page: () => DeferredWidget(
         loader: dashboard.loadLibrary,
+        placeholder: const StudioLoadingIndicator(),
+        builder: () => dashboard.DashboardScreen(),
+      ),
+      middlewares: [StudioRedirectMiddleware(), StudioAccessGuard()],
+      binding: DashboardBinding(),
+    ),
+    GetPage(
+      name: AppRoutes.studioCommunity,
+      page: () => DeferredWidget(
+        loader: dashboard.loadLibrary,
+        placeholder: const StudioLoadingIndicator(),
         builder: () => dashboard.DashboardScreen(),
       ),
       middlewares: [StudioRedirectMiddleware(), StudioAccessGuard()],
@@ -103,6 +122,23 @@ class StudioRoutes {
       name: AppRoutes.subscribers,
       page: () => const SubscribersPage(),
       binding: AnalyticsBinding(),
+    ),
+    GetPage(
+      name: AppRoutes.studioCreateMembershipTier,
+      page: () {
+        final controller = Get.isRegistered<MembershipsController>()
+            ? Get.find<MembershipsController>()
+            : Get.put(MembershipsController());
+        final tier = Get.arguments is ChannelMembershipTier
+            ? Get.arguments as ChannelMembershipTier
+            : null;
+        return CreateOrEditTierPage(
+          controller: controller,
+          tier: tier,
+          isDarkMode: Get.isDarkMode,
+        );
+      },
+      middlewares: [StudioRedirectMiddleware(), StudioAccessGuard()],
     ),
   ];
 }

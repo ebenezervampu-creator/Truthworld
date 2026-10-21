@@ -63,6 +63,24 @@ class DashboardRepliesStreamSection extends StatelessWidget {
             .map(Reply.fromDocumentSnapshot)
             .toList();
 
+        // Check if any reply is from the creator and inform controller
+        final hasCreatorReply = replies.any((r) {
+          final currentChId = controller.userChannelId.value;
+          final currentChName =
+              controller.userChannelName.value.trim().toLowerCase();
+          return (currentChId.isNotEmpty &&
+                  (r.channelId == currentChId || r.userId == currentChId)) ||
+              (currentChName.isNotEmpty &&
+                  ((r.channelName?.trim().toLowerCase() == currentChName) ||
+                      (r.userName.trim().toLowerCase() == currentChName)));
+        });
+
+        if (hasCreatorReply) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            controller.markCommentAsLocallyAnswered(commentId, targetVid);
+          });
+        }
+
         return DashboardCommentRepliesWidget(
           replies: replies,
           videoId: targetVid,

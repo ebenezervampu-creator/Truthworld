@@ -354,6 +354,8 @@ async function fulfillOrder(
           orderId,
           status: "completed",
           type: purpose,
+          settlementStatus: "clearing",
+          clearAt: admin.firestore.Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
@@ -398,6 +400,7 @@ async function fulfillOrder(
           channelRef,
           {
             superchatRevenueTotal: admin.firestore.FieldValue.increment(amount),
+            pendingRevenueTotal: admin.firestore.FieldValue.increment(amount),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           },
           { merge: true }
@@ -417,6 +420,8 @@ async function fulfillOrder(
           paymentGateway: "cashfree",
           joinedAt: admin.firestore.FieldValue.serverTimestamp(),
           status: "active",
+          settlementStatus: "clearing",
+          clearAt: admin.firestore.Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
         });
 
         // Only increment member count if this user was not already active in the tier
@@ -452,6 +457,7 @@ async function fulfillOrder(
           channelRef,
           {
             membershipRevenueTotal: admin.firestore.FieldValue.increment(amount),
+            pendingRevenueTotal: admin.firestore.FieldValue.increment(amount),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           },
           { merge: true }

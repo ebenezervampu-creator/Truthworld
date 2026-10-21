@@ -97,12 +97,6 @@ export class EdgeLayer {
       if (!validation.valid) {
         return this.rejected(`Invalid config: ${validation.errors.join(", ")}`);
       }
-
-      // 🔒 Language Policy Enforcement: TruthWorld is strictly English-only at this phase
-      if (userConfig.primaryLanguage && normalizeLanguageCode(userConfig.primaryLanguage) !== "en") {
-        return this.rejected("Truthworld currently only supports English content. Non-English videos cannot be accepted at this stage.");
-      }
-
       // ── 2. Pre-flight cost estimate ───────────────────────────────────────────
       const executionPlan = this.inputLayer.createExecutionPlan("__pre__", config);
       const estimatedCost = this.inputLayer.estimateJobCost(executionPlan);

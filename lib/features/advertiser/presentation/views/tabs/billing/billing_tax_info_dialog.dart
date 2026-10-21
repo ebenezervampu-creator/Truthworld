@@ -62,7 +62,7 @@ class BillingTaxInfoDialog extends StatelessWidget {
               buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
               inputFormatters: [
                 LengthLimitingTextInputFormatter(25),
-                FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+                FilteringTextInputFormatter.allow(RegExp('[a-zA-Z0-9]')),
               ],
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(

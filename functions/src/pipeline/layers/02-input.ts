@@ -75,7 +75,8 @@ export class InputLayer {
    */
   normalizeConfig(userId: string, partial: Partial<UserConfig>): UserConfig {
     const channelType = partial.channelType ?? "standard";
-    const langs = normalizeLanguageCodes(partial.languages ?? ["en"]);
+    const primary = partial.primaryLanguage ? normalizeLanguageCode(partial.primaryLanguage) : undefined;
+    const langs = normalizeLanguageCodes(partial.languages ?? (primary ? [primary] : ["en"]));
 
     let validatedDuration: number | undefined = undefined;
     if (partial.duration !== undefined) {
@@ -88,7 +89,8 @@ export class InputLayer {
     return {
       userId,
       channelType,
-      languages: langs.length > 0 ? langs : ["en"],
+      languages: langs.length > 0 ? langs : (primary ? [primary] : ["en"]),
+      primaryLanguage: primary,
       dubbingMode: partial.dubbingMode ?? "none",
       genLangSubs: partial.genLangSubs ?? true,
       generateDubbing: partial.generateDubbing ?? false,

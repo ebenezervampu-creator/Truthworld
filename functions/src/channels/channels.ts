@@ -1,3 +1,5 @@
+import { getVertexAI } from "../pipeline/utils/ai-client";
+import { extractCandidateText } from "../pipeline/utils/ai-utils";
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
@@ -99,15 +101,8 @@ export const createChannel = onCall(
     const rawLanguage = data.language || data.channelLanguage || locale;
     const normalizedLocale = normalizeLanguageCode(locale);
     const normalizedLanguage = normalizeLanguageCode(rawLanguage);
-
-    // 🔒 Language Policy Enforcement: Truthworld is accepting only English channels as of now
-    if (normalizedLocale !== "en" || normalizedLanguage !== "en") {
-      throw new HttpsError(
-        "failed-precondition",
-        "Truthworld is accepting only English channels as of now. All other world languages are invite-only at this stage."
-      );
-    }
-
+    // Language resolution: TruthWorld supports channels across all global languages
+    const resolvedLanguage = normalizedLanguage || normalizedLocale || "en";
     const defaultPlatform = data.defaultPlatform || "youtube";
     const category = data.category || "other";
     const rawCategories = data.categories || data.category;
@@ -139,6 +134,45 @@ export const createChannel = onCall(
 
     if (!name || !slug) {
       throw new HttpsError("invalid-argument", "Name and slug are required.");
+    }
+
+    // 🛡️ Google Cloud Content Moderation Pre-Flight Check for Channels
+    let channelModerationApproved = true;
+    let channelModerationReason = "";
+
+    try {
+      const genAI = getVertexAI();
+      const model = genAI.getGenerativeModel({
+        model: "gemini-2.5-flash",
+        systemInstruction: `You are TruthWorld's Channel Content Moderation Agent powered by Google Cloud Vertex AI.
+Evaluate channel registration details (name, slug/handle, description/bio, tags) for compliance with Community Guidelines.
+Zero tolerance for hate speech, harassment, slurs, adult/pornographic content, scams, or dangerous illegal activities.
+Return strict JSON: {"approved": boolean, "reason": "string (empty if approved)"}`,
+        generationConfig: {
+          responseMimeType: "application/json",
+        },
+      });
+
+      const prompt = `CHANNEL NAME: "${name}"\nCHANNEL HANDLE: "${slug}"\nCHANNEL DESCRIPTION: "${description}"\nCHANNEL TAGS: [${categoriesList.join(", ")}]`;
+      const res = await model.generateContent(prompt);
+      const text = extractCandidateText(res.response?.candidates?.[0]) || res.response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.approved === false) {
+          channelModerationApproved = false;
+          channelModerationReason = parsed.reason || "Channel details violate Community Guidelines.";
+        }
+      }
+    } catch (modErr) {
+      logger.warn("[createChannel] Non-blocking Google Cloud moderation pre-check error:", modErr);
+    }
+
+    if (!channelModerationApproved) {
+      throw new HttpsError(
+        "invalid-argument",
+        `Channel creation rejected: ${channelModerationReason}`
+      );
     }
 
     try {
@@ -230,13 +264,14 @@ export const createChannel = onCall(
           channelName: name.trim(),
           about: description || "",
           description: description || "",
-          type: channelType, 
-          language: "en",
+          type: channelType,
+          language: resolvedLanguage,
           outstandingCosts: 0,
           hasPaidSubscriptionBuyout: false,
           createdAt: now,
           updatedAt: now,
-          status: "underReview",
+          status: "active",
+          geminiApproved: true,
           moderationReason: "",
           category: categoriesList.join(", "),
           categories: categoriesList,

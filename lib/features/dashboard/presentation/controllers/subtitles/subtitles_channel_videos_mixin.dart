@@ -89,7 +89,7 @@ mixin SubtitlesChannelVideosMixin on SubtitlesControllerBase {
 
       setViewState(loadedVideos.isEmpty ? ViewState.empty : ViewState.success);
 
-      // Preserve or auto-select a video
+      // Preserve or auto-select a video on desktop
       if (selectedVideo.value != null) {
         final updatedVideo = loadedVideos.firstWhereOrNull(
           (v) => v.id == selectedVideo.value!.id,
@@ -97,10 +97,15 @@ mixin SubtitlesChannelVideosMixin on SubtitlesControllerBase {
         if (updatedVideo != null) {
           selectedVideo.value = updatedVideo;
         } else {
-          selectVideo(loadedVideos.isNotEmpty ? loadedVideos.first : null);
+          selectVideo(null);
         }
       } else if (loadedVideos.isNotEmpty) {
-        selectVideo(loadedVideos.first);
+        // Auto-select first video only on wide desktop displays
+        final isDesktop =
+            (Get.context != null ? Get.width : 800) >= 1024;
+        if (isDesktop) {
+          selectVideo(loadedVideos.first);
+        }
       }
     }
 

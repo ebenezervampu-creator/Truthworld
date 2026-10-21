@@ -18,11 +18,13 @@ class LibraryProfileHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(() {
       final authService = AuthService.to;
-      final hasChannel = authService.hasChannel.value;
+      final hasChannel = authService.hasChannel.value && authService.userChannel != null;
       final channel = authService.userChannel;
 
       final displayName = authService.activeDisplayName;
-      final handle = authService.activeHandle;
+      final handleOrEmail = hasChannel
+          ? (channel!.handle.startsWith('@') ? channel.handle : '@${channel.handle}')
+          : (authService.user?.email ?? '');
       final avatarUrl = authService.activePhotoUrl;
 
       return Padding(
@@ -60,14 +62,16 @@ class LibraryProfileHeader extends StatelessWidget {
                               color: primaryText,
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            handle,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: secondaryText,
+                          if (handleOrEmail.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              handleOrEmail,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: secondaryText,
+                              ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
                     ),

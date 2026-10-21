@@ -18,9 +18,7 @@ void main() {
     Get.put<ExploreTopicsController>(ExploreTopicsController());
   });
 
-  tearDown(() {
-    Get.reset();
-  });
+  tearDown(Get.reset);
 
   group('ExploreTopicsSearchBar Professional TextField Tests', () {
     testWidgets('Renders professional overview search bar on Mobile with non-clipping hint',
@@ -78,7 +76,7 @@ void main() {
 
     testWidgets('Renders category detail search bar with category title and search icon',
         (tester) async {
-      final businessCategory = TopicCategory(
+      const businessCategory = TopicCategory(
         id: 'business',
         title: 'Business',
         imageUrl: 'https://images.unsplash.com/photo-business',
@@ -88,7 +86,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        GetMaterialApp(
+        const GetMaterialApp(
           home: Scaffold(
             body: ExploreTopicsSearchBar(
               isCategoryView: true,

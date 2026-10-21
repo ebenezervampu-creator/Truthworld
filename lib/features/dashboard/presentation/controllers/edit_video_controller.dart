@@ -21,6 +21,12 @@ class EditVideoController extends BaseController with ContentValidationMixin {
   late final RxBool showLikeCount;
   late final RxBool showDislikeCount;
   late final RxBool autoChaptersEnabled;
+  late final RxInt resubmitCount;
+  final RxBool isResubmitting = false.obs;
+
+  bool get canResubmit => video.isRejected && resubmitCount.value < 2;
+  int get remainingResubmissions => (2 - resubmitCount.value).clamp(0, 2);
+  bool get hasReachedMaxResubmissions => video.isRejected && resubmitCount.value >= 2;
 
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
 
@@ -45,6 +51,84 @@ class EditVideoController extends BaseController with ContentValidationMixin {
     showLikeCount = video.showLikeCount.obs;
     showDislikeCount = video.showDislikeCount.obs;
     autoChaptersEnabled = video.autoChaptersEnabled.obs;
+    resubmitCount = video.resubmitCount.obs;
+  }
+
+  /// Saves updated metadata and resubmits this rejected video for moderation.
+  /// Works strictly up to 2 times.
+  Future<void> resubmitForModeration() async {
+    if (resubmitCount.value >= 2) {
+      AppSnackbar.warning(
+        'This video has reached the maximum limit of 2 resubmissions.',
+        title: 'Resubmission Limit Reached',
+      );
+      return;
+    }
+
+    if (!formKey.currentState!.validate()) return;
+
+    final title = titleController.text.trim();
+    final titleResult = ContentValidator.validate(
+      title,
+      maxLength: 100,
+      fieldName: 'Title',
+    );
+    if (!titleResult.isValid) {
+      AppSnackbar.warning(titleResult.message);
+      return;
+    }
+
+    final description = descriptionController.text.trim();
+    if (description.isNotEmpty) {
+      final descResult = ContentValidator.validate(
+        description,
+        maxLength: 5000,
+        fieldName: 'Description',
+      );
+      if (!descResult.isValid) {
+        AppSnackbar.warning(descResult.message);
+        return;
+      }
+    }
+
+    final tags = tagsController.text
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .take(5)
+        .toList();
+
+    if (tags.isNotEmpty) {
+      final tagsResult = ContentValidator.validateTags(tags);
+      if (!tagsResult.isValid) {
+        AppSnackbar.warning(tagsResult.message);
+        return;
+      }
+    }
+
+    final updatedData = <String, dynamic>{
+      'title': title,
+      'description': description,
+      'tags': tags,
+      'visibility': selectedVisibility.value,
+      'isKidFriendly': isKidFriendly.value,
+      'showLikeCount': showLikeCount.value,
+      'showDislikeCount': showDislikeCount.value,
+      'autoChaptersEnabled': autoChaptersEnabled.value,
+      'aiFeatures': {'autoChapters': autoChaptersEnabled.value},
+    };
+
+    isResubmitting.value = true;
+    try {
+      await videoManagementController.updateVideo(video.id, updatedData);
+      final success = await videoManagementController.resubmitVideoForModeration(video.id);
+      if (success) {
+        resubmitCount.value++;
+        Get.back();
+      }
+    } finally {
+      isResubmitting.value = false;
+    }
   }
 
   void save() {

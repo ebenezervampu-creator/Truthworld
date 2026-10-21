@@ -467,6 +467,8 @@ async function runDistribution(
           withdrawableShare: creatorShareINR,
           paidOutShare: 0,
           payoutStatus: "pending",
+          status: "finalized",
+          finalizedAt: Date.now(),
           createdAt: Date.now(),
           updatedAt: Date.now(),
           metadata: {
@@ -490,15 +492,18 @@ async function runDistribution(
           platformFee: existingPlatformFee + platformFeeINR,
           creatorShare: existingCreatorShare + creatorShareINR,
           withdrawableShare: existingWithdrawable + creatorShareINR,
+          status: "finalized",
+          finalizedAt: Date.now(),
           updatedAt: Date.now(),
           "metadata.distributionRunId": billingMonth,
         });
       }
 
-      // Update channel's cumulative premium subs revenue total
+      // Update channel's cumulative premium subs revenue total & credit cleared balance
       await db.collection("channels").doc(channelId).set(
         {
           premiumSubsRevenueTotal: admin.firestore.FieldValue.increment(creatorShareINR),
+          clearedWithdrawableRevenueTotal: admin.firestore.FieldValue.increment(creatorShareINR),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         },
         { merge: true }

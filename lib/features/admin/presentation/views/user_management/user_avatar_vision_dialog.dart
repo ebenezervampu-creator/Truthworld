@@ -521,7 +521,7 @@ void showRejectAvatarPrompt(
           onPressed: () {
             final reason = reasonController.text.trim();
             if (reason.isNotEmpty) {
-              final val = ContentValidator.validate(reason, checkEnglishOnly: false, fieldName: 'Violation Reason');
+              final val = ContentValidator.validate(reason, fieldName: 'Violation Reason');
               if (!val.isValid) {
                 AppSnackbar.warning(val.message);
                 return;

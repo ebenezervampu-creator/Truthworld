@@ -12,6 +12,8 @@ enum WalletTransactionCategory {
   aiFactcheck,
   aiSummaryChapters,
   aiBundle,
+  payoutWithdrawal,
+  revenueEarned,
 }
 
 class SpendableBalance {
@@ -315,4 +317,149 @@ class ChannelFactCheckAddonTier {
     this.isPopular = false,
   });
 }
+
+/// Category classification for the unified channel financial activity feed.
+enum UnifiedTransactionType {
+  topup,
+  aiSpend,
+  planUpgrade,
+  payout,
+  revenueEarned,
+}
+
+/// Unified model representing any channel financial transaction:
+/// Pre-funded top-ups, AI feature spends, custom plan upgrades, creator bank payouts, and finalized revenue statements.
+class UnifiedChannelTransaction {
+  final String id;
+  final String title;
+  final String subtitle;
+  final double amount;
+  final String currency; // 'USD' or 'INR'
+  final bool isCredit;
+  final UnifiedTransactionType type;
+  final String status; // 'completed', 'pending', 'processing', 'held', 'rejected'
+  final DateTime timestamp;
+  final Map<String, dynamic>? metadata;
+
+  const UnifiedChannelTransaction({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    required this.amount,
+    required this.currency,
+    required this.isCredit,
+    required this.type,
+    required this.timestamp,
+    this.status = 'completed',
+    this.metadata,
+  });
+
+  String get formattedAmount {
+    final prefix = isCredit ? '+' : '-';
+    final symbol = currency.toUpperCase() == 'INR' ? '₹' : r'$';
+    return '$prefix$symbol${amount.toStringAsFixed(2)}';
+  }
+
+  factory UnifiedChannelTransaction.fromWalletTransaction(WalletTransaction tx) {
+    UnifiedTransactionType type;
+    bool isCredit = false;
+    String currency = 'USD';
+
+    switch (tx.category) {
+      case WalletTransactionCategory.walletTopup:
+        type = UnifiedTransactionType.topup;
+        isCredit = true;
+        currency = 'USD';
+        break;
+      case WalletTransactionCategory.payoutWithdrawal:
+        type = UnifiedTransactionType.payout;
+        isCredit = false;
+        currency = 'INR';
+        break;
+      case WalletTransactionCategory.revenueEarned:
+        type = UnifiedTransactionType.revenueEarned;
+        isCredit = true;
+        currency = 'INR';
+        break;
+      case WalletTransactionCategory.customChannelPlan:
+      case WalletTransactionCategory.storageTopup:
+      case WalletTransactionCategory.bandwidthTopup:
+        type = UnifiedTransactionType.planUpgrade;
+        isCredit = false;
+        currency = 'USD';
+        break;
+      case WalletTransactionCategory.aiSubtitles:
+      case WalletTransactionCategory.aiDubbing:
+      case WalletTransactionCategory.aiFactcheck:
+      case WalletTransactionCategory.aiSummaryChapters:
+      case WalletTransactionCategory.aiBundle:
+        type = UnifiedTransactionType.aiSpend;
+        isCredit = false;
+        currency = 'USD';
+        break;
+    }
+
+    final rawStatus = tx.metadata?['status'] as String? ?? 'completed';
+
+    return UnifiedChannelTransaction(
+      id: tx.id,
+      title: tx.description.isNotEmpty ? tx.description : 'Channel Transaction',
+      subtitle: tx.category.name,
+      amount: tx.amount,
+      currency: currency,
+      isCredit: isCredit,
+      type: type,
+      status: rawStatus,
+      timestamp: tx.timestamp,
+      metadata: tx.metadata,
+    );
+  }
+
+  factory UnifiedChannelTransaction.fromPayoutRequest(Map<String, dynamic> data, String docId) {
+    final amount = (data['amount'] as num?)?.toDouble() ?? 0.0;
+    final currency = data['currency'] as String? ?? 'INR';
+    final method = data['paymentMethod'] as String? ?? 'Bank / UPI';
+    final status = (data['status'] as String? ?? 'pending').toLowerCase();
+    final ts = (data['createdAt'] is Timestamp)
+        ? (data['createdAt'] as Timestamp).toDate()
+        : DateTime.now();
+
+    return UnifiedChannelTransaction(
+      id: docId,
+      title: 'Cash Out ($method)',
+      subtitle: 'Payout Request • ${status.toUpperCase()}',
+      amount: amount,
+      currency: currency,
+      isCredit: false,
+      type: UnifiedTransactionType.payout,
+      status: status,
+      timestamp: ts,
+      metadata: data,
+    );
+  }
+
+  factory UnifiedChannelTransaction.fromRevenueStatement(Map<String, dynamic> data, String docId) {
+    final creatorShare = (data['creatorShare'] as num?)?.toDouble() ?? 0.0;
+    final month = data['month'] as String? ?? '';
+    final ts = (data['updatedAt'] is Timestamp)
+        ? (data['updatedAt'] as Timestamp).toDate()
+        : ((data['createdAt'] is Timestamp)
+            ? (data['createdAt'] as Timestamp).toDate()
+            : DateTime.now());
+
+    return UnifiedChannelTransaction(
+      id: docId,
+      title: month.isNotEmpty ? 'Revenue Settlement ($month)' : 'Revenue Settlement',
+      subtitle: 'Verified Creator Earnings Finalized',
+      amount: creatorShare,
+      currency: 'INR',
+      isCredit: true,
+      type: UnifiedTransactionType.revenueEarned,
+      status: 'completed',
+      timestamp: ts,
+      metadata: data,
+    );
+  }
+}
+
 

@@ -72,7 +72,7 @@ class CommunityPostContentInputs
             return TextFormField(
               controller: controller.titleCtrl,
               maxLength: 100,
-              inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+              inputFormatters: TruthworldTextInputFormatters.withLimit(100),
               style: context.twTypography.body.copyWith(
                 color: context.colors.textPrimary,
                 fontSize: 14,
@@ -172,7 +172,7 @@ class CommunityPostContentInputs
                   maxLines: 5,
                   minLines: 4,
                   maxLength: 2000,
-                  inputFormatters: [TruthworldTextInputFormatters.englishOnly],
+                  inputFormatters: TruthworldTextInputFormatters.withLimit(2000),
                   onChanged: (val) => controller.descriptionText.value = val,
                   style: context.twTypography.body.copyWith(
                     color: context.colors.textPrimary,

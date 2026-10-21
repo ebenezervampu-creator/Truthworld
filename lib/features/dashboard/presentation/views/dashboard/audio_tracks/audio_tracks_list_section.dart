@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -37,20 +37,13 @@ class AudioTracksListSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      if (controller.isLoadingTracks.value) {
-        return Shimmer.fromColors(
-          baseColor: const Color(0xFF1E1E1E),
-          highlightColor: AppColors.bgSurfaceHover,
-          child: ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: 4,
-            separatorBuilder: (_, _) => const SizedBox(height: 12),
-            itemBuilder: (_, _) => Container(
-              height: 72,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
-                borderRadius: BorderRadius.circular(12),
-              ),
+      if (controller.isLoadingTracks.value && controller.currentTracks.isEmpty) {
+        return const Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: StudioLoadingIndicator(
+              message: 'Loading audio tracks...',
+              isFullScreen: false,
             ),
           ),
         );
@@ -60,34 +53,60 @@ class AudioTracksListSection extends StatelessWidget {
       final commentaryList = controller.commentaryTracks;
 
       return ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         children: [
-          // Audio Dubbing Section
+          // Audio Dubbing Section Header
           Row(
             children: [
-              const Icon(Icons.record_voice_over_rounded, color: Colors.white, size: 20),
+              const Icon(
+                Icons.record_voice_over_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Audio Dubbing & Voiceover Tracks (${audioList.length})',
+                  'Audio Dubbing & Voiceovers (${audioList.length})',
                   style: const TextStyle(
-                    fontFamily: TWTypography.uiFamily,
+                    fontFamily: TWTypography.brandFamily,
                     fontFamilyFallback: TWTypography.fallbackFamilies,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                    color: Colors.white,
                   ),
                 ),
               ),
               const SizedBox(width: 8),
-              TextButton.icon(
+              OutlinedButton.icon(
                 onPressed: onAddDubTrack,
-                icon: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
-                label: const Text('Add Dub Track', style: TextStyle(color: AppColors.brand, fontWeight: FontWeight.bold)),
+                icon: const Icon(
+                  Icons.add_rounded,
+                  size: 16,
+                  color: Colors.white,
+                ),
+                label: const Text(
+                  'Add Dub Track',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: const Color(0xFF18181B),
+                  side: const BorderSide(color: Color(0xFF27272A)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
 
           if (audioList.isEmpty)
             EmptyTrackCard(
@@ -116,32 +135,58 @@ class AudioTracksListSection extends StatelessWidget {
 
           const SizedBox(height: 24),
 
-          // Commentary & Multi-Video Section
+          // Commentary & Multi-Video Section Header
           Row(
             children: [
-              const Icon(Icons.subtitles_rounded, color: Colors.white, size: 20),
+              const Icon(
+                Icons.subtitles_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Commentary & Alternate Video Tracks (${commentaryList.length})',
+                  'Commentary & Alternate Tracks (${commentaryList.length})',
                   style: const TextStyle(
-                    fontFamily: TWTypography.uiFamily,
+                    fontFamily: TWTypography.brandFamily,
                     fontFamilyFallback: TWTypography.fallbackFamilies,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                    color: Colors.white,
                   ),
                 ),
               ),
               const SizedBox(width: 8),
-              TextButton.icon(
+              OutlinedButton.icon(
                 onPressed: onAddCommentary,
-                icon: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
-                label: const Text('Add Commentary', style: TextStyle(color: AppColors.brand, fontWeight: FontWeight.bold)),
+                icon: const Icon(
+                  Icons.add_rounded,
+                  size: 16,
+                  color: Colors.white,
+                ),
+                label: const Text(
+                  'Add Commentary',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: const Color(0xFF18181B),
+                  side: const BorderSide(color: Color(0xFF27272A)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
 
           if (commentaryList.isEmpty)
             EmptyTrackCard(
@@ -168,7 +213,7 @@ class AudioTracksListSection extends StatelessWidget {
   }
 }
 
-/// Card displaying audio dub track stream metadata and URL controls.
+/// Clean card displaying audio dub track stream metadata and URL controls.
 class AudioTrackCard extends StatelessWidget {
   const AudioTrackCard({
     required this.index,
@@ -199,36 +244,29 @@ class AudioTrackCard extends StatelessWidget {
     final trackUrlController = TextEditingController(text: track.audioUrl);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: surfaceColor,
+        color: const Color(0xFF161618),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isBase ? AppColors.success.withValues(alpha: 0.5) : borderColor,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: const Color(0xFF27272A)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Track Top Header Row
+            // Top Row: Icon + Title & Badge + Action Buttons
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Leading Icon Container
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
-                    color: isBase
-                        ? AppColors.success.withValues(alpha: 0.15)
-                        : AppColors.brand.withValues(alpha: 0.15),
+                    color: const Color(0xFF121212),
                     borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFF27272A)),
                   ),
                   child: Icon(
                     isBase ? Icons.volume_up_rounded : Icons.translate_rounded,
@@ -237,120 +275,187 @@ class AudioTrackCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
+
+                // Title, Badge, and Subtitle (Wrapped to never overflow)
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Text(
                             track.languageName,
                             style: const TextStyle(
-                              fontFamily: TWTypography.uiFamily,
+                              fontFamily: TWTypography.brandFamily,
                               fontFamilyFallback: TWTypography.fallbackFamilies,
-                              fontSize: 16,
+                              fontSize: 15,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
+                              color: Colors.white,
                             ),
                           ),
-                          const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
-                              color: isBase
-                                  ? AppColors.success.withValues(alpha: 0.2)
-                                  : AppColors.info.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(12),
+                              color: const Color(0xFF27272A),
+                              borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
                               isBase ? 'Primary Base Audio' : 'Dubbed Track',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: isBase ? AppColors.success : AppColors.info,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
                               ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 4),
                       Text(
                         isBase
                             ? 'Original video master audio stream'
-                            : 'Multi-Language Audio Voiceover Track Stream',
-                        style: TextStyle(fontSize: 12, color: textSecondaryColor),
+                            : 'Multi-language voiceover stream',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ],
                   ),
                 ),
 
-                // Replace / Upload Audio File Button
-                if (!isBase)
-                  IconButton(
-                    tooltip: 'Upload / Replace Audio File',
-                    icon: const Icon(Icons.cloud_upload_rounded, size: 18, color: Colors.white),
-                    onPressed: onUploadAudioFile,
-                  ),
-
-                // Download Audio Track Button
-                IconButton(
-                  tooltip: 'Download Audio Track',
-                  icon: const Icon(Icons.download_rounded, size: 18, color: Colors.white),
-                  onPressed: () => controller.downloadAudioTrack(track),
+                // Action Icons Row
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!isBase)
+                      IconButton(
+                        tooltip: 'Upload / Replace Audio File',
+                        icon: const Icon(
+                          Icons.cloud_upload_rounded,
+                          size: 18,
+                          color: Colors.white,
+                        ),
+                        onPressed: onUploadAudioFile,
+                        padding: const EdgeInsets.all(6),
+                        constraints: const BoxConstraints(),
+                      ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      tooltip: 'Download Audio Track',
+                      icon: const Icon(
+                        Icons.download_rounded,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                      onPressed: () => controller.downloadAudioTrack(track),
+                      padding: const EdgeInsets.all(6),
+                      constraints: const BoxConstraints(),
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      tooltip: 'Copy Reference Link',
+                      icon: const Icon(
+                        Icons.copy_rounded,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: track.audioUrl));
+                        AppSnackbar.success('Track URL copied to clipboard.');
+                      },
+                      padding: const EdgeInsets.all(6),
+                      constraints: const BoxConstraints(),
+                    ),
+                    if (!isBase) ...[
+                      const SizedBox(width: 4),
+                      IconButton(
+                        tooltip: 'Delete Track',
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          size: 18,
+                          color: Colors.white,
+                        ),
+                        onPressed: () =>
+                            controller.removeDubForLanguage(track.languageCode),
+                        padding: const EdgeInsets.all(6),
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ],
                 ),
-
-                // Copy Reference Link Button
-                IconButton(
-                  tooltip: 'Copy Reference Link',
-                  icon: const Icon(Icons.copy_rounded, size: 18, color: Colors.white),
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: track.audioUrl));
-                    AppSnackbar.success('Track URL copied to clipboard.');
-                  },
-                ),
-
-                // Delete Track Button
-                if (!isBase)
-                  IconButton(
-                    tooltip: 'Delete Track',
-                    icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Colors.white),
-                    onPressed: () => controller.removeDubForLanguage(track.languageCode),
-                  ),
               ],
             ),
+
             const SizedBox(height: 14),
 
-            // Stream URL Input Box
-            Text(
+            // Stream URL Reference
+            const Text(
               'Storage Stream URL Reference:',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textSecondaryColor),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textSecondary,
+              ),
             ),
             const SizedBox(height: 6),
-            TextField(
-              controller: trackUrlController,
-              maxLength: 500,
-              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
-              inputFormatters: [
-                LengthLimitingTextInputFormatter(500),
-                FilteringTextInputFormatter.deny(RegExp(r'\s')),
-              ],
-              style: TextStyle(fontSize: 13, color: textColor, fontFamily: 'monospace'),
-              onChanged: (val) => controller.updateTrackUrl(index, val),
-              decoration: InputDecoration(
-                hintText: 'Provide direct HTTPS audio target file URI e.g. https://...',
-                hintStyle: TextStyle(fontSize: 12, color: textSecondaryColor),
-                prefixIcon: const Icon(Icons.link_rounded, size: 18, color: Colors.white),
-                filled: true,
-                fillColor: const Color(0xFF1E1E1E),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: borderColor),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: borderColor),
-                ),
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF121212),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF27272A)),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.link_rounded,
+                    size: 18,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: trackUrlController,
+                      maxLength: 500,
+                      buildCounter: (
+                        context, {
+                        required currentLength,
+                        required isFocused,
+                        maxLength,
+                      }) =>
+                          null,
+                      inputFormatters: [
+                        LengthLimitingTextInputFormatter(500),
+                        FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                      ],
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.white,
+                        fontFamily: 'monospace',
+                      ),
+                      onChanged: (val) => controller.updateTrackUrl(index, val),
+                      decoration: const InputDecoration(
+                        hintText: 'https://storage.googleapis.com/...',
+                        hintStyle: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textTertiary,
+                        ),
+                        isDense: true,
+                        border: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(vertical: 8),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -360,7 +465,7 @@ class AudioTrackCard extends StatelessWidget {
   }
 }
 
-/// Card displaying commentary audio and alternate video angle track.
+/// Clean card displaying commentary audio and alternate video angle track.
 class CommentaryTrackCard extends StatelessWidget {
   const CommentaryTrackCard({
     required this.track,
@@ -385,19 +490,25 @@ class CommentaryTrackCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: surfaceColor,
+        color: const Color(0xFF161618),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: const Color(0xFF27272A)),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
-              color: AppColors.info.withValues(alpha: 0.15),
+              color: const Color(0xFF121212),
               borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFF27272A)),
             ),
-            child: const Icon(Icons.video_collection_rounded, color: Colors.white, size: 20),
+            child: const Icon(
+              Icons.video_collection_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -407,35 +518,59 @@ class CommentaryTrackCard extends StatelessWidget {
                 Text(
                   track.title,
                   style: const TextStyle(
-                    fontFamily: TWTypography.uiFamily,
+                    fontFamily: TWTypography.brandFamily,
                     fontFamilyFallback: TWTypography.fallbackFamilies,
-                    fontSize: 15,
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                    color: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   'Role: ${track.role} • Lang: ${track.langCode.toUpperCase()}',
-                  style: TextStyle(fontSize: 12, color: textSecondaryColor),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ],
             ),
           ),
           IconButton(
             tooltip: 'Download Track',
-            icon: const Icon(Icons.download_rounded, size: 18, color: Colors.white),
+            icon: const Icon(
+              Icons.download_rounded,
+              size: 18,
+              color: Colors.white,
+            ),
             onPressed: () => controller.downloadCommentaryTrack(track),
+            padding: const EdgeInsets.all(6),
+            constraints: const BoxConstraints(),
           ),
+          const SizedBox(width: 4),
           IconButton(
             tooltip: 'Copy Reference Link',
-            icon: const Icon(Icons.copy_rounded, size: 18, color: Colors.white),
-            onPressed: () => controller.exportTrackLinkToClipboard(track.videoUrl),
+            icon: const Icon(
+              Icons.copy_rounded,
+              size: 18,
+              color: Colors.white,
+            ),
+            onPressed: () =>
+                controller.exportTrackLinkToClipboard(track.videoUrl),
+            padding: const EdgeInsets.all(6),
+            constraints: const BoxConstraints(),
           ),
+          const SizedBox(width: 4),
           IconButton(
             tooltip: 'Delete Track',
-            icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Colors.white),
+            icon: const Icon(
+              Icons.delete_outline_rounded,
+              size: 18,
+              color: Colors.white,
+            ),
             onPressed: () => controller.deleteCommentaryTrack(track.id),
+            padding: const EdgeInsets.all(6),
+            constraints: const BoxConstraints(),
           ),
         ],
       ),
@@ -463,16 +598,16 @@ class EmptyTrackCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       decoration: BoxDecoration(
-        color: surfaceColor,
+        color: const Color(0xFF161618),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: const Color(0xFF27272A)),
       ),
       child: Center(
         child: Text(
           message,
-          style: TextStyle(fontSize: 13, color: textSecondaryColor),
+          style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
           textAlign: TextAlign.center,
         ),
       ),

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/distributed_counter_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/utils/content_validator.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/services/comments/comment_service_base.dart';
 
@@ -51,7 +52,7 @@ mixin CommentCrudMixin on CommentServiceBase {
         'channelId': channelId,
         'channelName': channelName,
         'channelProfilePicUrl': channelProfilePicUrl,
-        'text': text,
+        'text': ContentValidator.cleanProfanity(text.trim()),
         'donationAmount': donationAmount,
         'donationCurrency': donationCurrency,
         'isDonatedComment': isDonatedComment,
@@ -89,7 +90,7 @@ mixin CommentCrudMixin on CommentServiceBase {
           channelId: channelId,
           channelName: channelName,
           channelProfilePicUrl: channelProfilePicUrl,
-          text: text.trim(),
+          text: ContentValidator.cleanProfanity(text.trim()),
           likeCount: 0,
           dislikeCount: 0,
           reportCount: 0,

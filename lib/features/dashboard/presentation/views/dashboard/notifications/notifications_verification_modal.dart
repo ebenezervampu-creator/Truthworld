@@ -103,15 +103,15 @@ class ChannelNotificationsVerificationModal extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.successContainer,
+                      color: AppColors.bgSurfaceHover,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: AppColors.success.withValues(alpha: 0.4),
+                        color: AppColors.bgDivider,
                       ),
                     ),
                     child: const Icon(
                       Icons.verified_user_rounded,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       size: 20,
                     ),
                   ),

@@ -142,15 +142,20 @@ Widget buildAudienceGaugeRow({
       Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: TWTypography.uiFamily,
-              fontSize: 13,
-              color: subtitleColor,
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                fontSize: 13,
+                color: subtitleColor,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
+          const SizedBox(width: 8),
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 NumberFormat.decimalPattern().format(count),

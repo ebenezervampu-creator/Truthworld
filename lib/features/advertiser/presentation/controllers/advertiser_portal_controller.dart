@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
-import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -74,58 +74,47 @@ class AdvertiserPortalController extends BaseController
         case 'overview':
         case '0':
           selectedIndex.value = 0;
-          break;
         case 'campaigns':
         case 'my_campaigns':
         case '1':
           selectedIndex.value = 1;
-          break;
         case 'reports':
         case 'analytics':
         case '2':
           selectedIndex.value = 2;
-          break;
         case 'subtitles':
         case '3':
           selectedIndex.value = 3;
-          break;
         case 'audio_dubs':
         case 'dubs':
         case '4':
           selectedIndex.value = 4;
-          break;
         case 'billing':
         case 'invoices':
         case 'wallet':
         case '5':
           selectedIndex.value = 5;
-          break;
         case 'audience':
         case 'targeting':
         case '6':
           selectedIndex.value = 6;
-          break;
         case 'sponsorships':
         case 'sponsors':
         case '7':
           selectedIndex.value = 7;
-          break;
         case 'creatives':
         case 'creative_assets':
         case 'assets':
         case '8':
           selectedIndex.value = 8;
-          break;
         case 'ab_testing':
         case 'testing':
         case '9':
           selectedIndex.value = 9;
-          break;
         case 'brand':
         case 'settings':
         case '10':
           selectedIndex.value = 10;
-          break;
       }
     }
   }

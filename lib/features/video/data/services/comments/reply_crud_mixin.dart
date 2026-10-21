@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/utils/content_validator.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
 import 'package:truthworld/features/video/data/services/comments/comment_service_base.dart';
 
@@ -32,7 +33,7 @@ mixin ReplyCrudMixin on CommentServiceBase {
         'channelId': channelId,
         'channelName': channelName,
         'channelProfilePicUrl': channelProfilePicUrl,
-        'text': text,
+        'text': ContentValidator.cleanProfanity(text.trim()),
         'isMember': isMember,
       };
       if (memberSince != null) {
@@ -85,7 +86,7 @@ mixin ReplyCrudMixin on CommentServiceBase {
           channelId: channelId,
           channelName: channelName,
           channelProfilePicUrl: channelProfilePicUrl,
-          text: text.trim(),
+          text: ContentValidator.cleanProfanity(text.trim()),
           likeCount: 0,
           dislikeCount: 0,
           reportCount: 0,
@@ -96,6 +97,22 @@ mixin ReplyCrudMixin on CommentServiceBase {
         );
 
         await docRef.set(newReply.toMap());
+
+        final vData = videoDoc.data();
+        final targetChId = (vData?['channelId'] as String?) ??
+            (vData?['userId'] as String?) ??
+            '';
+        final isCreator = (channelId.isNotEmpty && channelId == targetChId) ||
+            (userId.isNotEmpty &&
+                (userId == targetChId || channelId == userId));
+
+        try {
+          await commentDoc.reference.update({
+            if (isCreator) 'hasCreatorReply': true,
+            'replyCount': FieldValue.increment(1),
+          });
+        } catch (_) {}
+
         return docRef.id;
       } catch (firestoreError) {
         logger.error(

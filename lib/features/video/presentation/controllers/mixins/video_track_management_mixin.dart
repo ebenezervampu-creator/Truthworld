@@ -30,6 +30,7 @@ mixin VideoTrackManagementMixin on GetxController {
   RxBool get isAutoSwitching;
   VideoPlayerController? get videoPlayerController;
   bool get isVpcInitialized;
+  RxBool get isPlayerInitialized;
   RxList<SubtitleTrack> get availableSubtitles;
   RxList<AudioTrack> get availableAudioTracks;
   VideoTranscriptController get transcriptController;

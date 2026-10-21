@@ -324,10 +324,10 @@ class ClaimDetailScreen extends StatelessWidget {
     // For opinion claims, ensure the breakdown always explains why it is an opinion and not a fact
     if (verdict.isOpinion) {
       if (responseText.isEmpty ||
-          responseText.contains("personal point of view") ||
-          responseText.contains("subjective content") ||
-          responseText.contains("not subject to factual verification") ||
-          responseText.contains("Why is this an opinion and not a fact?")) {
+          responseText.contains('personal point of view') ||
+          responseText.contains('subjective content') ||
+          responseText.contains('not subject to factual verification') ||
+          responseText.contains('Why is this an opinion and not a fact?')) {
         responseText = ClaimVerdictHelper.formatOpinionExplanation(cleanClaimText);
       }
     }

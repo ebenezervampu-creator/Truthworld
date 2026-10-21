@@ -20,10 +20,7 @@ class CommentAuthorHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final userName = comment.displayName;
-    final formattedUserName = userName.startsWith('@')
-        ? userName
-        : '@$userName';
+    final formattedUserName = comment.displayName;
     final isChannelCreator = comment.channelId.isNotEmpty &&
         comment.channelId == videoChannelId;
 
@@ -133,7 +130,7 @@ class CommentCreatorHeartBadge extends StatelessWidget {
               UserAvatar(
                 radius: 8,
                 photoUrl: channelAvatarUrl,
-                displayName: 'Creator',
+                displayName: creatorHeartName ?? 'Creator',
                 fontSize: 8,
               ),
               const Positioned(

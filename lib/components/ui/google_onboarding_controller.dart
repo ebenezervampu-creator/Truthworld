@@ -6,13 +6,18 @@ import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/cashfree/cashfree_country_support.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
+import 'package:truthworld/core/services/user_languages_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/features/video/data/models/ai_features.dart';
 
 /// Controller managing state and actions for the country, age group & gender selection sheet.
 class GoogleOnboardingController extends BaseController {
   final Rx<String?> selectedCountry = Rx<String?>(null);
   final Rx<String?> selectedAgeGroup = Rx<String?>(null);
   final Rx<String?> selectedGender = Rx<String?>(null);
+  final RxString selectedLanguage = 'English'.obs;
+  late final TextEditingController languageSearchController = trackTextController(TextEditingController());
+  final RxString languageSearchQuery = ''.obs;
   final RxBool isSaving = false.obs;
   late final TextEditingController selfDescribeController = trackTextController(TextEditingController());
   late final TextEditingController usernameController = trackTextController(TextEditingController());
@@ -41,14 +46,87 @@ class GoogleOnboardingController extends BaseController {
   List<String> get ageGroups => ageGroupOptions;
   List<String> get genders => genderOptions;
 
+  /// Filtered languages for primary language onboarding selection.
+  /// English is always positioned first as the canonical platform language.
+  List<TranslationLanguage> get filteredLanguages {
+    final query = languageSearchQuery.value.trim().toLowerCase();
+    final english = supportedLanguages.firstWhere(
+      (l) => l.code == 'en' || l.name.toLowerCase() == 'english',
+      orElse: () => const TranslationLanguage(
+        code: 'en',
+        name: 'English',
+        nativeName: 'English',
+        category: LanguageCategory.global,
+      ),
+    );
+    final nonEnglish = supportedLanguages
+        .where((l) => l.code != 'en' && l.name.toLowerCase() != 'english')
+        .toList();
+
+    if (query.isEmpty) {
+      return [english, ...nonEnglish];
+    }
+
+    final matches = supportedLanguages.where((l) {
+      final nameLower = l.name.toLowerCase();
+      final nativeLower = l.nativeName.toLowerCase();
+      return nameLower.contains(query) || nativeLower.contains(query);
+    }).toList();
+
+    if (matches.any((l) => l.code == 'en')) {
+      matches.removeWhere((l) => l.code == 'en');
+      return [english, ...matches];
+    }
+    return matches;
+  }
+
+
+  /// Complete list of supported languages for onboarding primary language selection,
+  /// with English pinned at the top, followed by all 130+ languages alphabetically.
+  static final List<TranslationLanguage> staticLanguageOptions = _buildLanguageOptions();
+
+  static List<TranslationLanguage> _buildLanguageOptions() {
+    final english = supportedLanguages.firstWhere(
+      (l) => l.code == 'en' || l.name.toLowerCase() == 'english',
+      orElse: () => const TranslationLanguage(
+        code: 'en',
+        name: 'English',
+        nativeName: 'English',
+        category: LanguageCategory.global,
+      ),
+    );
+    final others = supportedLanguages
+        .where((l) => l.code != 'en' && l.name.toLowerCase() != 'english')
+        .toList();
+    others.sort((a, b) => a.name.compareTo(b.name));
+    return List.unmodifiable([english, ...others]);
+  }
+
+  List<TranslationLanguage> get languageOptions => staticLanguageOptions;
+
+  void selectLanguage(String languageName) {
+    selectedLanguage.value = languageName;
+  }
+
+  void updateLanguageSearch(String query) {
+    languageSearchQuery.value = query;
+  }
+
+  void clearLanguageSearch() {
+    languageSearchController.clear();
+    languageSearchQuery.value = '';
+  }
+
   /// List of selectable countries ensuring selected country is always present in items
   List<CashfreeCountryInfo> get countryOptions {
-    final list = List<CashfreeCountryInfo>.from(CashfreeCountrySupport.selectableCountries);
     final cur = selectedCountry.value;
-    if (cur != null && cur.isNotEmpty && !list.any((c) => c.code == cur)) {
+    final all = CashfreeCountrySupport.allCountries;
+    if (cur != null && cur.isNotEmpty && !all.any((c) => c.code == cur)) {
+      final list = List<CashfreeCountryInfo>.from(all);
       list.add(CashfreeCountrySupport.getCountryInfo(cur));
+      return list;
     }
-    return list;
+    return all;
   }
 
   void selectCountry(String? code) {
@@ -121,13 +199,8 @@ class GoogleOnboardingController extends BaseController {
       if (!Get.isRegistered<AuthService>()) return;
       final auth = AuthService.to;
 
-      // 0. Initialize Username if phone user
-      final currentHandle = auth.userHandle.value ?? '';
-      if (currentHandle.isNotEmpty && !currentHandle.startsWith('@user_')) {
-        usernameController.text = currentHandle.replaceAll('@', '');
-      } else {
-        usernameController.text = '';
-      }
+      // 0. Reset username error / controller (standard users do not require a handle)
+      usernameController.text = '';
       usernameError.value = null;
 
       // 1. Initialize Age Group
@@ -177,6 +250,14 @@ class GoogleOnboardingController extends BaseController {
         selectedCountry.value = CurrencyLocalizationService.to.userCountryCode.value;
       } else {
         selectedCountry.value = 'IN';
+      }
+
+      // 4. Initialize Language (Priority: UserLanguagesService -> 'English')
+      if (Get.isRegistered<UserLanguagesService>()) {
+        final lang = UserLanguagesService.to.primaryLanguage.value;
+        if (lang.isNotEmpty) {
+          selectedLanguage.value = lang;
+        }
       }
     } catch (e, stackTrace) {
       ErrorHandler.log(
@@ -263,25 +344,18 @@ class GoogleOnboardingController extends BaseController {
     return null;
   }
 
+  Future<void> save(BuildContext context) => onSave(context);
+
+  Future<void> skip([BuildContext? context]) {
+    if (context != null) return onSkip(context);
+    if (Get.context != null) return onSkip(Get.context!);
+    return Future.value();
+  }
+
   Future<void> onSave(BuildContext context) async {
     final navigator = Navigator.of(context);
 
     try {
-      String? cleanUsername;
-      if (isPhoneUser) {
-        final rawUsername = usernameController.text.trim().replaceAll('@', '');
-        if (rawUsername.isNotEmpty) {
-          final err = validateUsername(rawUsername);
-          if (err != null) {
-            usernameError.value = err;
-            AppSnackbar.warning(err);
-            return;
-          }
-          cleanUsername = ContentValidator.cleanProfanity(rawUsername);
-          usernameError.value = null;
-        }
-      }
-
       String? genderValue;
       final selectedGenderVal = selectedGender.value;
       if (selectedGenderVal != null) {
@@ -308,11 +382,15 @@ class GoogleOnboardingController extends BaseController {
 
       isSaving.value = true;
 
+      if (Get.isRegistered<UserLanguagesService>()) {
+        await UserLanguagesService.to.setPrimaryLanguage(selectedLanguage.value);
+      }
+
       await AuthService.to.updateUserProfileOnboarding(
         country: selectedCountry.value,
         ageGroup: selectedAgeGroup.value,
         gender: genderValue,
-        username: cleanUsername,
+        primaryLanguage: selectedLanguage.value,
       );
 
       if (context.mounted) {

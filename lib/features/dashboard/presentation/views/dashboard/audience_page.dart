@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audience_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audience/audience_components.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -36,8 +36,10 @@ class AudiencePage extends StatelessWidget {
     return Scaffold(
       backgroundColor: backgroundColor,
       body: Obx(() {
-        if (controller.state == ViewState.loading) {
-          return _buildAudienceSkeleton();
+        if (controller.state == ViewState.loading && controller.allCountryItems.isEmpty) {
+          return const StudioLoadingIndicator(
+            message: 'Loading audience insights...',
+          );
         }
 
         if (controller.state == ViewState.error) {
@@ -190,15 +192,18 @@ class AudiencePage extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Global Performance Matrix (Countries)',
-                          style: TextStyle(
-                            fontFamily: TWTypography.brandFamily,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: textColor,
+                        const Expanded(
+                          child: Text(
+                            'Global Performance Matrix (Countries)',
+                            style: TextStyle(
+                              fontFamily: TWTypography.brandFamily,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: textColor,
+                            ),
                           ),
                         ),
+                        const SizedBox(width: 8),
                         Text(
                           countryItems.length == 1
                               ? 'Showing 1 country'
@@ -270,72 +275,6 @@ class AudiencePage extends StatelessWidget {
           ],
         );
       }),
-    );
-  }
-
-  Widget _buildAudienceSkeleton() {
-    return Shimmer.fromColors(
-      baseColor: const Color(0xFF1E1E1E),
-      highlightColor: AppColors.bgSurfaceHover,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header skeleton
-            Container(
-              height: 48,
-              width: 220,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            const SizedBox(height: 24),
-            // Top Summary matrix cards
-            Row(
-              children: List.generate(
-                3,
-                (index) => Expanded(
-                  child: Container(
-                    height: 100,
-                    margin: EdgeInsets.only(right: index < 2 ? 14 : 0),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E1E1E),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.bgDivider),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            // Demographics matrix cards
-            Container(
-              height: 200,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.bgDivider),
-              ),
-            ),
-            const SizedBox(height: 24),
-            // Geography cards
-            ...List.generate(
-              2,
-              (index) => Container(
-                height: 72,
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E1E1E),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.bgDivider),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

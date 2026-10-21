@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/presentation/widgets/video_analysis_bottom_sheet.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -42,11 +43,13 @@ class PipelineArtifactLinksPanel extends StatelessWidget {
                 label: 'Transcript JSON',
                 onPressed: () => _launchURL(video.transcriptionUrl),
               ),
-            if (video.factCheckUrl.isNotEmpty)
+            if (video.factCheckUrl.isNotEmpty || video.hasAiCredibility)
               PipelineActionButton(
                 icon: Icons.fact_check_outlined,
                 label: 'Fact-Check Report',
-                onPressed: () => _launchURL(video.factCheckUrl),
+                onPressed: () {
+                  VideoAnalysisBottomSheet.open(context, video: video);
+                },
               ),
             if (video.mediaSubtitles.isNotEmpty)
               ...video.mediaSubtitles.entries.map((entry) {

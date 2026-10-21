@@ -1,6 +1,11 @@
 package com.cashfree.flutter_cashfree_pg_sdk;
 
 import android.app.Activity;
+import android.content.Context;
+import android.content.pm.InstallSourceInfo;
+import android.os.Build;
+import android.util.Log;
+import com.cashfree.pg.core.api.persistence.CFPersistence;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
@@ -100,6 +105,76 @@ public class FlutterCashfreePgSdkPlugin implements FlutterPlugin, MethodCallHand
   private Activity activity;
   private Handler uiThreadHandler = new Handler(Looper.getMainLooper());
   private final String CF_FL_SDK_VERSION = "2.4.0";
+  private static final String TAG = "FlutterCashfreePlugin";
+
+  /**
+   * Fixes Cashfree Core SDK bug on Android 11+ (API 30+) where Cashfree's CFPackageUtil
+   * only reads pm.getInstallSourceInfo(pkg).getInstallingPackageName().
+   *
+   * On modern Android devices, apps installed from Google Play Store have:
+   *   installingPackageName = "com.google.android.packageinstaller"
+   *   initiatingPackageName = "com.android.vending"
+   *
+   * Cashfree's backend rejects "com.google.android.packageinstaller" with
+   * "installer_package_not_approved". By inspecting both initiatingPackageName
+   * and installingPackageName, and setting CFPersistence.getInstance().setPackageInstaller(...)
+   * to "com.android.vending", genuine Google Play Store installs succeed seamlessly.
+   */
+  private void fixInstallerPackage(Context context) {
+    if (context == null) return;
+    try {
+      PackageManager pm = context.getPackageManager();
+      String pkg = context.getPackageName();
+      String detectedStore = null;
+
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        InstallSourceInfo info = pm.getInstallSourceInfo(pkg);
+        String initiating = info.getInitiatingPackageName();
+        String installing = info.getInstallingPackageName();
+        String originating = info.getOriginatingPackageName();
+
+        if ("com.android.vending".equals(initiating) ||
+            "com.android.vending".equals(installing) ||
+            "com.android.vending".equals(originating) ||
+            ("com.google.android.packageinstaller".equals(installing) &&
+             ("com.android.vending".equals(initiating) || "com.android.vending".equals(originating)))) {
+          detectedStore = "com.android.vending";
+        } else if ("com.sec.android.app.samsungapps".equals(initiating) ||
+                   "com.sec.android.app.samsungapps".equals(installing) ||
+                   "com.sec.android.app.samsungapps".equals(originating)) {
+          detectedStore = "com.sec.android.app.samsungapps";
+        } else if ("com.amazon.venezia".equals(initiating) ||
+                   "com.amazon.venezia".equals(installing) ||
+                   "com.amazon.venezia".equals(originating)) {
+          detectedStore = "com.amazon.venezia";
+        }
+      } else {
+        @SuppressWarnings("deprecation")
+        String installer = pm.getInstallerPackageName(pkg);
+        if ("com.android.vending".equals(installer)) {
+          detectedStore = "com.android.vending";
+        } else if ("com.sec.android.app.samsungapps".equals(installer)) {
+          detectedStore = "com.sec.android.app.samsungapps";
+        } else if ("com.amazon.venezia".equals(installer)) {
+          detectedStore = "com.amazon.venezia";
+        }
+      }
+
+      if (detectedStore != null) {
+        CFPersistence persistence = CFPersistence.getInstance();
+        if (persistence == null) {
+          CFPersistence.initialize(context.getApplicationContext());
+          persistence = CFPersistence.getInstance();
+        }
+        if (persistence != null) {
+          persistence.setPackageInstaller(detectedStore);
+          Log.i(TAG, "Sanitized Cashfree package installer to approved store: " + detectedStore);
+        }
+      }
+    } catch (Throwable t) {
+      Log.w(TAG, "Failed to inspect or sanitize package installer: " + t.getMessage());
+    }
+  }
 
   void FlutterCashfreePgSdkPlugin() {}
 
@@ -112,6 +187,9 @@ public class FlutterCashfreePgSdkPlugin implements FlutterPlugin, MethodCallHand
   @Override
   public void onMethodCall(@NonNull MethodCall call, @NonNull Result result) {
     this.result = result;
+    if (this.activity != null) {
+      fixInstallerPackage(this.activity);
+    }
 
     if(call.method.equals("doNetbankingPayment")) {
       Map<String, Object> request = (Map<String, Object>) call.arguments;
@@ -660,6 +738,7 @@ public class FlutterCashfreePgSdkPlugin implements FlutterPlugin, MethodCallHand
   @Override
   public void onAttachedToActivity(@NonNull ActivityPluginBinding binding) {
     this.activity = binding.getActivity();
+    fixInstallerPackage(this.activity);
     try {
       CFPaymentGatewayService.getInstance().setCheckoutCallback(this);
       if(isSubscriptionFlowEnable()){

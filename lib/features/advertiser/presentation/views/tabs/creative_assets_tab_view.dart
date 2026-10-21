@@ -539,7 +539,7 @@ class CreativeAssetsTabView extends StatelessWidget {
                 AppSnackbar.warning('Please enter an asset title.');
                 return;
               }
-              final val = ContentValidator.validate(title, checkEnglishOnly: false, fieldName: 'Asset Title');
+              final val = ContentValidator.validate(title, fieldName: 'Asset Title');
               if (!val.isValid) {
                 AppSnackbar.warning(val.message);
                 return;

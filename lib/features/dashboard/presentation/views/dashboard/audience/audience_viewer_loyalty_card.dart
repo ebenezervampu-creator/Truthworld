@@ -174,7 +174,9 @@ Widget buildAudienceViewerLoyaltyAndSettingCard({
           ),
         ),
         const SizedBox(height: 16),
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: [
             buildAudienceSmallBadge(
               label:
@@ -182,7 +184,6 @@ Widget buildAudienceViewerLoyaltyAndSettingCard({
               color: AppColors.brandVariant,
               textColor: textColor,
             ),
-            const SizedBox(width: 8),
             buildAudienceSmallBadge(
               label:
                   '${NumberFormat.compact().format(controller.newViewers)} New',
@@ -191,6 +192,39 @@ Widget buildAudienceViewerLoyaltyAndSettingCard({
             ),
           ],
         ),
+        if (urban == 0 && rural == 0) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.bgSurfaceHover,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.bgDivider),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.info_outline_rounded,
+                  size: 16,
+                  color: AppColors.info,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Geographic urban and rural distribution updates automatically from localized IP network routing.',
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      fontSize: 11,
+                      color: subtitleColor,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     ),
   );

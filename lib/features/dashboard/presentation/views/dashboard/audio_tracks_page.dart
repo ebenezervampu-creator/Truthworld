@@ -1,14 +1,13 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/audio_tracks_widgets.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 export 'audio_tracks/audio_tracks_widgets.dart';
 
-/// 100% Responsive, Industry-Standard Creator Studio Multi-Language Audio Tracks & Dubs Page.
+/// Clean, high-contrast Audio Tracks & Dubbing Studio Page
+/// Styled exactly matching Channel Creation Page theme, fonts, and layout.
 class AudioTracksPage extends GetView<AudioTracksController> {
   AudioTracksPage({
     required this.channelId,
@@ -28,117 +27,208 @@ class AudioTracksPage extends GetView<AudioTracksController> {
 
   @override
   Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
-    final width = mediaQuery.size.width;
-    final isDesktop = width >= 1024;
-    final isTablet = width >= 600 && width < 1024;
-
-    final surfaceColor = isDarkMode
-        ? const Color(0xFF1E1E1E)
-        : AppColors.bgSurface;
-    const bgColor = AppColors.bgPage;
-    final textColor = isDarkMode
-        ? AppColors.textPrimary
-        : AppColors.textPrimary;
-    final textSecondaryColor = isDarkMode
-        ? AppColors.textSecondary
-        : AppColors.textSecondary;
-    final borderColor = isDarkMode
-        ? AppColors.bgDivider
-        : const Color(0xFF1E1E1E);
+    const bgColor = Color(0xFF0F0F0F);
+    const surfaceColor = Color(0xFF161618);
+    const textColor = Colors.white;
+    const textSecondaryColor = AppColors.textSecondary;
+    const borderColor = Color(0xFF27272A);
 
     return Scaffold(
       backgroundColor: bgColor,
       body: SafeArea(
-        child: Obx(() {
-          if (controller.isLoading) {
-            return _buildAudioTracksSkeleton();
-          }
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isDesktop = constraints.maxWidth >= 900;
 
-          if (controller.isEmpty) {
-            return _buildEmptyChannelState(textColor, textSecondaryColor);
-          }
+            return Obx(() {
+              if (controller.isLoading) {
+                return const AudioTracksSkeleton();
+              }
 
-          if (isDesktop) {
-            return _buildDesktopLayout(
-              surfaceColor: surfaceColor,
-              textColor: textColor,
-              textSecondaryColor: textSecondaryColor,
-              borderColor: borderColor,
-            );
-          }
+              if (controller.isEmpty) {
+                return _buildEmptyChannelState();
+              }
 
-          if (isTablet) {
-            return _buildTabletLayout(
-              surfaceColor: surfaceColor,
-              textColor: textColor,
-              textSecondaryColor: textSecondaryColor,
-              borderColor: borderColor,
-            );
-          }
-
-          return _buildMobileLayout(
-            context: context,
-            surfaceColor: surfaceColor,
-            textColor: textColor,
-            textSecondaryColor: textSecondaryColor,
-            borderColor: borderColor,
-          );
-        }),
-      ),
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // EMPTY STATE
-  // ---------------------------------------------------------------------------
-  Widget _buildEmptyChannelState(Color textColor, Color textSecondaryColor) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(28),
-              decoration: BoxDecoration(
-                color: AppColors.brand.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.library_music_rounded,
-                size: 64,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'No Audio Workspace Scope Available',
-              style: TextStyle(
-                fontFamily: TWTypography.brandFamily,
-                fontFamilyFallback: TWTypography.fallbackFamilies,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Upload video content to configure multi-language audio dubbing, voiceovers, and commentary tracks.',
-              style: TextStyle(fontSize: 14, color: textSecondaryColor),
-              textAlign: TextAlign.center,
-            ),
-          ],
+              return Column(
+                children: [
+                  _buildTopHeader(context, isDesktop),
+                  Expanded(
+                    child: isDesktop
+                        ? _buildDesktopLayout(
+                            context: context,
+                            surfaceColor: surfaceColor,
+                            textColor: textColor,
+                            textSecondaryColor: textSecondaryColor,
+                            borderColor: borderColor,
+                          )
+                        : _buildMobileLayout(
+                            context: context,
+                            surfaceColor: surfaceColor,
+                            textColor: textColor,
+                            textSecondaryColor: textSecondaryColor,
+                            borderColor: borderColor,
+                          ),
+                  ),
+                ],
+              );
+            });
+          },
         ),
       ),
     );
   }
 
   // ---------------------------------------------------------------------------
-  // DESKTOP LAYOUT (>= 1024px)
+  // TOP HEADER BAR (Matching Channel Wizard Top Header)
+  // ---------------------------------------------------------------------------
+  Widget _buildTopHeader(BuildContext context, bool isDesktop) {
+    final canPop = Navigator.of(context).canPop();
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isDesktop ? 32 : 16,
+        vertical: 14,
+      ),
+      decoration: const BoxDecoration(
+        color: Color(0xFF0F0F0F),
+        border: Border(bottom: BorderSide(color: Color(0xFF27272A))),
+      ),
+      child: Row(
+        children: [
+          if (canPop) ...[
+            IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => Navigator.of(context).pop(),
+              tooltip: 'Back',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+            const SizedBox(width: 12),
+          ],
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Audio Tracks & Dubbing',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Configure multi-language audio dubbing, voiceovers, and commentary.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Obx(() {
+            final isSaving = controller.isSaving.value;
+            final hasChanges = controller.hasUnsavedChanges.value;
+
+            if (!hasChanges && !isSaving) {
+              return const SizedBox.shrink();
+            }
+
+            return ElevatedButton.icon(
+              onPressed: isSaving ? null : controller.saveCurrentAudioTracks,
+              icon: isSaving
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                      ),
+                    )
+                  : const Icon(Icons.save_rounded, size: 16, color: Colors.black),
+              label: Text(
+                isSaving ? 'Saving...' : 'Save Changes',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                  fontSize: 13,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // EMPTY STATE (Clean Channel Creation style)
+  // ---------------------------------------------------------------------------
+  Widget _buildEmptyChannelState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Container(
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: const Color(0xFF161618),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF27272A)),
+          ),
+          child: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.library_music_rounded,
+                size: 52,
+                color: Colors.white,
+              ),
+              SizedBox(height: 16),
+              Text(
+                'No Videos Available for Audio Workspace',
+                style: TextStyle(
+                  fontFamily: TWTypography.brandFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Upload video content first to configure multi-language audio dubbing and voiceovers.',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // DESKTOP LAYOUT (>= 900px)
   // ---------------------------------------------------------------------------
   Widget _buildDesktopLayout({
+    required BuildContext context,
     required Color surfaceColor,
     required Color textColor,
     required Color textSecondaryColor,
@@ -159,9 +249,9 @@ class AudioTracksPage extends GetView<AudioTracksController> {
             isDarkMode: isDarkMode,
           ),
         ),
-        VerticalDivider(width: 1, color: borderColor),
         Expanded(
-          child: _buildMainWorkspaceEditor(
+          child: _buildMainWorkspaceContent(
+            context: context,
             surfaceColor: surfaceColor,
             textColor: textColor,
             textSecondaryColor: textSecondaryColor,
@@ -174,46 +264,7 @@ class AudioTracksPage extends GetView<AudioTracksController> {
   }
 
   // ---------------------------------------------------------------------------
-  // TABLET LAYOUT (600px - 1023px)
-  // ---------------------------------------------------------------------------
-  Widget _buildTabletLayout({
-    required Color surfaceColor,
-    required Color textColor,
-    required Color textSecondaryColor,
-    required Color borderColor,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 270,
-          child: AudioTracksVideoSidebar(
-            controller: controller,
-            searchController: controller.searchController,
-            surfaceColor: surfaceColor,
-            textColor: textColor,
-            textSecondaryColor: textSecondaryColor,
-            borderColor: borderColor,
-            isDarkMode: isDarkMode,
-            compact: true,
-          ),
-        ),
-        VerticalDivider(width: 1, color: borderColor),
-        Expanded(
-          child: _buildMainWorkspaceEditor(
-            surfaceColor: surfaceColor,
-            textColor: textColor,
-            textSecondaryColor: textSecondaryColor,
-            borderColor: borderColor,
-            isMobile: false,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // MOBILE LAYOUT (< 600px)
+  // MOBILE LAYOUT (< 900px)
   // ---------------------------------------------------------------------------
   Widget _buildMobileLayout({
     required BuildContext context,
@@ -222,177 +273,147 @@ class AudioTracksPage extends GetView<AudioTracksController> {
     required Color textSecondaryColor,
     required Color borderColor,
   }) {
-    final selectedVideo = controller.selectedVideo.value;
-
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: surfaceColor,
-            border: Border(bottom: BorderSide(color: borderColor)),
-          ),
-          child: Row(
-            children: [
-              if (selectedVideo != null) ...[
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: CachedNetworkImage(
-                    imageUrl: selectedVideo.thumbnailUrl,
-                    width: 48,
-                    height: 34,
-                    fit: BoxFit.cover,
-                    errorWidget: (_, _, _) => Container(
-                      color: Colors.grey[800],
-                      child: const Icon(Icons.video_library_rounded, size: 16, color: Colors.white),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        selectedVideo.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontFamily: TWTypography.uiFamily,
-                          fontFamilyFallback: TWTypography.fallbackFamilies,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      Text(
-                        'Audio & Dubbing Workspace',
-                        style: TextStyle(fontSize: 11, color: textSecondaryColor),
-                      ),
-                    ],
-                  ),
-                ),
-              ] else
-                const Expanded(
-                  child: Text(
-                    'Select a Video',
-                    style: TextStyle(
-                      fontFamily: TWTypography.brandFamily,
-                      fontFamilyFallback: TWTypography.fallbackFamilies,
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ),
-              TextButton.icon(
-                onPressed: () => AudioTracksDialogs.showMobileVideoPickerSheet(
-                  context: context,
-                  controller: controller,
-                  searchController: controller.searchController,
-                  surfaceColor: surfaceColor,
-                  textColor: textColor,
-                  textSecondaryColor: textSecondaryColor,
-                  borderColor: borderColor,
-                  isDarkMode: isDarkMode,
-                ),
-                icon: const Icon(Icons.swap_horiz_rounded, size: 18, color: Colors.white),
-                label: const Text(
-                  'Change',
-                  style: TextStyle(color: AppColors.brand, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: _buildMainWorkspaceEditor(
-            surfaceColor: surfaceColor,
-            textColor: textColor,
-            textSecondaryColor: textSecondaryColor,
-            borderColor: borderColor,
-            isMobile: true,
-          ),
-        ),
-      ],
+    return _buildMainWorkspaceContent(
+      context: context,
+      surfaceColor: surfaceColor,
+      textColor: textColor,
+      textSecondaryColor: textSecondaryColor,
+      borderColor: borderColor,
+      isMobile: true,
     );
   }
 
   // ---------------------------------------------------------------------------
-  // MAIN WORKSPACE EDITOR (RIGHT PANEL / MOBILE CONTAINER)
+  // MAIN WORKSPACE EDITOR
   // ---------------------------------------------------------------------------
-  Widget _buildMainWorkspaceEditor({
+  Widget _buildMainWorkspaceContent({
+    required BuildContext context,
     required Color surfaceColor,
     required Color textColor,
     required Color textSecondaryColor,
     required Color borderColor,
     required bool isMobile,
   }) {
-    return Builder(builder: (editorContext) {
-      return Obx(() {
-        final video = controller.selectedVideo.value;
-        if (video == null) {
-          return Center(
+    return Obx(() {
+      final video = controller.selectedVideo.value;
+      if (video == null) {
+        return Center(
+          child: Container(
+            margin: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: const Color(0xFF161618),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF27272A)),
+            ),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.touch_app_rounded, size: 48, color: Colors.white),
-                const SizedBox(height: 16),
+                const Icon(
+                  Icons.touch_app_rounded,
+                  size: 44,
+                  color: Colors.white,
+                ),
+                const SizedBox(height: 14),
                 const Text(
                   'Select a Video to Manage Audio Tracks',
                   style: TextStyle(
                     fontFamily: TWTypography.brandFamily,
                     fontFamilyFallback: TWTypography.fallbackFamilies,
-                    fontSize: 18,
+                    fontSize: 17,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                    color: Colors.white,
                   ),
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  'Choose a video from the list to add dubbing, voiceovers, or commentary.',
-                  style: TextStyle(fontSize: 13, color: textSecondaryColor),
+                const Text(
+                  'Choose a video from the library to configure multi-language audio dubbing and voiceovers.',
+                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  textAlign: TextAlign.center,
                 ),
+                if (isMobile) ...[
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () =>
+                        AudioTracksDialogs.showMobileVideoPickerSheet(
+                      context: context,
+                      controller: controller,
+                      searchController: controller.searchController,
+                      surfaceColor: surfaceColor,
+                      textColor: textColor,
+                      textSecondaryColor: textSecondaryColor,
+                      borderColor: borderColor,
+                      isDarkMode: isDarkMode,
+                    ),
+                    icon: const Icon(
+                      Icons.video_library_rounded,
+                      size: 16,
+                      color: Colors.black,
+                    ),
+                    label: const Text(
+                      'Browse Videos',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
-          );
-        }
+          ),
+        );
+      }
 
-        final activeTab = controller.activeTab.value;
-        final showRequests = controller.showRequestsPanel.value;
+      final activeTab = controller.activeTab.value;
+      final showRequests = controller.showRequestsPanel.value;
 
-        return Column(
+      return Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 16 : 24,
+          vertical: isMobile ? 16 : 20,
+        ),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (!isMobile)
-              AudioTracksWorkspaceHeader(
-                video: video,
+            // Active Video Banner & Action Bar
+            AudioTracksWorkspaceHeader(
+              video: video,
+              controller: controller,
+              showPreviewPlayer: _showPreviewPlayer,
+              surfaceColor: surfaceColor,
+              textColor: textColor,
+              textSecondaryColor: textSecondaryColor,
+              borderColor: borderColor,
+              isDarkMode: isDarkMode,
+              onChangeVideo: isMobile
+                  ? () => AudioTracksDialogs.showMobileVideoPickerSheet(
+                        context: context,
+                        controller: controller,
+                        searchController: controller.searchController,
+                        surfaceColor: surfaceColor,
+                        textColor: textColor,
+                        textSecondaryColor: textSecondaryColor,
+                        borderColor: borderColor,
+                        isDarkMode: isDarkMode,
+                      )
+                  : null,
+              onUploadTrack: () => AudioTracksDialogs.showUploadTrackDialog(
+                context: context,
                 controller: controller,
-                showPreviewPlayer: _showPreviewPlayer,
-                surfaceColor: surfaceColor,
-                textColor: textColor,
-                textSecondaryColor: textSecondaryColor,
-                borderColor: borderColor,
                 isDarkMode: isDarkMode,
-                onUploadTrack: () => AudioTracksDialogs.showUploadTrackDialog(
-                  context: editorContext,
-                  controller: controller,
-                  isDarkMode: isDarkMode,
-                ),
               ),
-            if (isMobile)
-              AudioTracksMobileToolbar(
-                video: video,
-                controller: controller,
-                showPreviewPlayer: _showPreviewPlayer,
-                surfaceColor: surfaceColor,
-                borderColor: borderColor,
-                onUploadTrack: () => AudioTracksDialogs.showUploadTrackDialog(
-                  context: editorContext,
-                  controller: controller,
-                  isDarkMode: isDarkMode,
-                ),
-              ),
+            ),
+
+            // Video Preview Player (when activated)
             Obx(() {
               if (!_showPreviewPlayer.value) return const SizedBox.shrink();
               return AudioTracksPreviewPlayer(
@@ -404,6 +425,8 @@ class AudioTracksPage extends GetView<AudioTracksController> {
                 textSecondaryColor: textSecondaryColor,
               );
             }),
+
+            // Workspace Navigation Tab Bar & Quick Language Filter
             AudioTracksTabBar(
               controller: controller,
               surfaceColor: surfaceColor,
@@ -413,11 +436,13 @@ class AudioTracksPage extends GetView<AudioTracksController> {
               isDarkMode: isDarkMode,
               isMobile: isMobile,
               onAddLanguage: () => AudioTracksDialogs.showAddLanguageModal(
-                context: editorContext,
+                context: context,
                 controller: controller,
                 isDarkMode: isDarkMode,
               ),
             ),
+
+            // Tab Content
             Expanded(
               child: showRequests
                   ? AudioTracksRequestsGrid(
@@ -426,8 +451,9 @@ class AudioTracksPage extends GetView<AudioTracksController> {
                       textSecondaryColor: textSecondaryColor,
                       surfaceColor: surfaceColor,
                       borderColor: borderColor,
-                      onUploadDubForRequest: (langCode) => AudioTracksDialogs.showUploadTrackDialog(
-                        context: editorContext,
+                      onUploadDubForRequest: (langCode) =>
+                          AudioTracksDialogs.showUploadTrackDialog(
+                        context: context,
                         controller: controller,
                         isDarkMode: isDarkMode,
                         defaultLangCode: langCode,
@@ -441,8 +467,9 @@ class AudioTracksPage extends GetView<AudioTracksController> {
                           surfaceColor: surfaceColor,
                           borderColor: borderColor,
                           isDarkMode: isDarkMode,
-                          onAddLanguage: () => AudioTracksDialogs.showAddLanguageModal(
-                            context: editorContext,
+                          onAddLanguage: () =>
+                              AudioTracksDialogs.showAddLanguageModal(
+                            context: context,
                             controller: controller,
                             isDarkMode: isDarkMode,
                           ),
@@ -455,75 +482,29 @@ class AudioTracksPage extends GetView<AudioTracksController> {
                           surfaceColor: surfaceColor,
                           borderColor: borderColor,
                           isDarkMode: isDarkMode,
-                          onAddDubTrack: () => AudioTracksDialogs.showUploadTrackDialog(
-                            context: editorContext,
+                          onAddDubTrack: () =>
+                              AudioTracksDialogs.showUploadTrackDialog(
+                            context: context,
                             controller: controller,
                             isDarkMode: isDarkMode,
                           ),
-                          onAddCommentary: () => AudioTracksDialogs.showUploadTrackDialog(
-                            context: editorContext,
+                          onAddCommentary: () =>
+                              AudioTracksDialogs.showUploadTrackDialog(
+                            context: context,
                             controller: controller,
                             isDarkMode: isDarkMode,
                             defaultRole: 'Director Commentary',
                           ),
-                          onPickAndUploadSingleDub: (langCode) => AudioTracksDialogs.pickAndUploadSingleDub(
+                          onPickAndUploadSingleDub: (langCode) =>
+                              AudioTracksDialogs.pickAndUploadSingleDub(
                             controller: controller,
                             langCode: langCode,
                           ),
                         )),
             ),
           ],
-        );
-      });
+        ),
+      );
     });
-  }
-
-  Widget _buildAudioTracksSkeleton() {
-    return Shimmer.fromColors(
-      baseColor: const Color(0xFF1E1E1E),
-      highlightColor: AppColors.bgSurfaceHover,
-      child: Column(
-        children: [
-          // Top header skeleton
-          Container(
-            height: 60,
-            margin: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.bgDivider),
-            ),
-          ),
-          Expanded(
-            child: Row(
-              children: [
-                // Video selector sidebar skeleton
-                Container(
-                  width: 280,
-                  margin: const EdgeInsets.only(left: 16, bottom: 16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E1E1E),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.bgDivider),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                // Main audio tracks workspace skeleton
-                Expanded(
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 16, bottom: 16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E1E1E),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.bgDivider),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

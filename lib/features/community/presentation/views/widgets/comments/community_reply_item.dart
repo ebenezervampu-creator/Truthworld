@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/utils/content_validator.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/community/presentation/views/widgets/comments/community_comment_options_sheet.dart';
 import 'package:truthworld/features/community/presentation/views/widgets/comments/community_reply_item_controller.dart';
@@ -31,26 +32,27 @@ class CommunityReplyItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final replyId = replyData['id'] as String? ?? '';
-    final rName =
-        replyData['channelName']?.toString().isNotEmpty ?? false
-            ? replyData['channelName'].toString()
-            : (replyData['userName']?.toString() ?? 'User');
-    final rImage =
-        replyData['channelProfilePicUrl']?.toString().isNotEmpty ?? false
-            ? replyData['channelProfilePicUrl'].toString()
-            : (replyData['userImage']?.toString() ??
-                replyData['userProfilePicUrl']?.toString() ??
-                '');
-    final rText = replyData['text']?.toString() ?? '';
+    final isChannel = replyData['isChannel'] == true &&
+        (replyData['channelId']?.toString().isNotEmpty ?? false);
+    final rawName = isChannel &&
+            (replyData['channelName']?.toString().isNotEmpty ?? false)
+        ? replyData['channelName'].toString()
+        : (replyData['userName']?.toString() ??
+            replyData['displayName']?.toString() ??
+            replyData['name']?.toString() ??
+            'User');
+    final rName = rawName.startsWith('@') ? rawName.substring(1) : rawName;
+    final rImage = isChannel &&
+            (replyData['channelProfilePicUrl']?.toString().isNotEmpty ?? false)
+        ? replyData['channelProfilePicUrl'].toString()
+        : (replyData['userImage']?.toString() ??
+            replyData['userProfilePicUrl']?.toString() ??
+            '');
+    final rText = ContentValidator.cleanProfanity(replyData['text']?.toString() ?? '');
     final rTs =
         replyData['createdAt'] as Timestamp? ??
         replyData['timestamp'] as Timestamp?;
     final rTimeStr = rTs != null ? timeago.format(rTs.toDate()) : '';
-    final isChannel =
-        (replyData['channelId']?.toString().isNotEmpty ?? false) ||
-        (postOwnerId != null &&
-            (replyData['userId'] == postOwnerId ||
-                replyData['channelId'] == postOwnerId));
 
     return GetBuilder<CommunityReplyItemController>(
       init: CommunityReplyItemController(

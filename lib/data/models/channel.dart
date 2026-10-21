@@ -150,6 +150,19 @@ class ChannelMetricsV2 {
     'totalWatchTimeMinutes': totalWatchTimeMinutes,
     'averageRetention': averageRetention,
   };
+
+  ChannelMetricsV2 copyWith({
+    int? totalViews,
+    int? totalWatchTimeMinutes,
+    double? averageRetention,
+  }) {
+    return ChannelMetricsV2(
+      totalViews: totalViews ?? this.totalViews,
+      totalWatchTimeMinutes:
+          totalWatchTimeMinutes ?? this.totalWatchTimeMinutes,
+      averageRetention: averageRetention ?? this.averageRetention,
+    );
+  }
 }
 
 class Channel {
@@ -205,8 +218,12 @@ class Channel {
     this.membershipRevenueTotal = 0.0,
     this.superchatRevenueTotal = 0.0,
     this.withdrawnRevenueTotal = 0.0,
+    this.clearedWithdrawableRevenueTotal,
+    this.pendingRevenueTotal,
+    this.autoPayoutEnabled = true,
     this.noAdsForMembers = false,
     this.country = 'IN',
+    this.hasMemberships = false,
     this.deletionScheduledAt,
     this.deletionGracePeriodExpiresAt,
   }) : metrics = metrics ?? ChannelMetricsV2();
@@ -396,6 +413,10 @@ class Channel {
           (data['superchatRevenueTotal'] as num?)?.toDouble() ?? 0.0,
       withdrawnRevenueTotal:
           (data['withdrawnRevenueTotal'] as num?)?.toDouble() ?? 0.0,
+      clearedWithdrawableRevenueTotal:
+          (data['clearedWithdrawableRevenueTotal'] as num?)?.toDouble(),
+      pendingRevenueTotal: (data['pendingRevenueTotal'] as num?)?.toDouble(),
+      autoPayoutEnabled: (data['autoPayoutEnabled'] as bool?) ?? true,
       noAdsForMembers: (data['noAdsForMembers'] as bool?) ??
           (data['monetizationSettings'] is Map
               ? ((data['monetizationSettings']['noAdsForMembers'] as bool?) ??
@@ -405,6 +426,7 @@ class Channel {
       country: (data['country'] as String?)?.trim().isNotEmpty == true
           ? (data['country'] as String).trim()
           : 'IN',
+      hasMemberships: (data['hasMemberships'] as bool?) ?? false,
       deletionScheduledAt: data['deletionScheduledAt'] != null
           ? TimestampUtils.parse(data['deletionScheduledAt'])
           : null,
@@ -508,11 +530,15 @@ class Channel {
     double? membershipRevenueTotal,
     double? superchatRevenueTotal,
     double? withdrawnRevenueTotal,
+    double? clearedWithdrawableRevenueTotal,
+    double? pendingRevenueTotal,
+    bool? autoPayoutEnabled,
     bool? noAdsForMembers,
     String? ownerId,
     Timestamp? createdAt,
     Timestamp? updatedAt,
     String? country,
+    bool? hasMemberships,
     Timestamp? deletionScheduledAt,
     Timestamp? deletionGracePeriodExpiresAt,
   }) {
@@ -569,11 +595,16 @@ class Channel {
           superchatRevenueTotal ?? this.superchatRevenueTotal,
       withdrawnRevenueTotal:
           withdrawnRevenueTotal ?? this.withdrawnRevenueTotal,
+      clearedWithdrawableRevenueTotal:
+          clearedWithdrawableRevenueTotal ?? this.clearedWithdrawableRevenueTotal,
+      pendingRevenueTotal: pendingRevenueTotal ?? this.pendingRevenueTotal,
+      autoPayoutEnabled: autoPayoutEnabled ?? this.autoPayoutEnabled,
       noAdsForMembers: noAdsForMembers ?? this.noAdsForMembers,
       ownerId: ownerId ?? this.ownerId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       country: country ?? this.country,
+      hasMemberships: hasMemberships ?? this.hasMemberships,
       deletionScheduledAt: deletionScheduledAt ?? this.deletionScheduledAt,
       deletionGracePeriodExpiresAt:
           deletionGracePeriodExpiresAt ?? this.deletionGracePeriodExpiresAt,
@@ -621,6 +652,7 @@ class Channel {
   final bool showSubscriberCount;
   final bool allowComments;
   final String country;
+  final bool hasMemberships;
   final String? moderationReason;
   final Timestamp? deletionScheduledAt;
   final Timestamp? deletionGracePeriodExpiresAt;
@@ -636,7 +668,32 @@ class Channel {
   final double membershipRevenueTotal;
   final double superchatRevenueTotal;
   final double withdrawnRevenueTotal;
+  final double? clearedWithdrawableRevenueTotal;
+  final double? pendingRevenueTotal;
+  final bool autoPayoutEnabled;
   final bool noAdsForMembers;
+
+  /// Computed cleared withdrawable balance in INR (defaults to lifetime total if not yet populated)
+  double get clearedBalanceINR =>
+      clearedWithdrawableRevenueTotal ??
+      (adsRevenueTotal +
+          premiumSubsRevenueTotal +
+          membershipRevenueTotal +
+          superchatRevenueTotal);
+
+  /// Computed pending in-flight revenue in INR
+  double get pendingBalanceINR => pendingRevenueTotal ?? 0.0;
+
+  /// Total estimated lifetime earnings in INR
+  double get totalEstimatedRevenueINR =>
+      adsRevenueTotal +
+      premiumSubsRevenueTotal +
+      membershipRevenueTotal +
+      superchatRevenueTotal;
+
+  /// Available withdrawable cash balance after deducting prior withdrawals
+  double get availableWithdrawableINR =>
+      (clearedBalanceINR - withdrawnRevenueTotal).clamp(0.0, double.infinity);
 
   // Billing Cycle Lock & Scheduled Tier Switch
   final ChannelType? pendingChannelType;
@@ -659,6 +716,7 @@ class Channel {
   int get viewCount => metrics.totalViews;
   String get channelId => id;
   String get channelName => name;
+  String get userId => ownerId;
   String get bannerImageUrl => bannerUrl;
   bool get isArchived => status == ChannelStatus.deleted;
   bool get isDeleted => status == ChannelStatus.deleted;
@@ -752,6 +810,7 @@ class Channel {
       'showSubscriberCount': showSubscriberCount,
       'allowComments': allowComments,
       'country': country,
+      'hasMemberships': hasMemberships,
       'monetizationTier': monetizationTier.name,
       'monetizationSettings': monetizationSettings,
       'channelType': channelType.name,
@@ -763,6 +822,9 @@ class Channel {
       'membershipRevenueTotal': membershipRevenueTotal,
       'superchatRevenueTotal': superchatRevenueTotal,
       'withdrawnRevenueTotal': withdrawnRevenueTotal,
+      'clearedWithdrawableRevenueTotal': clearedWithdrawableRevenueTotal,
+      'pendingRevenueTotal': pendingRevenueTotal,
+      'autoPayoutEnabled': autoPayoutEnabled,
       'noAdsForMembers': noAdsForMembers,
       'pendingChannelType': pendingChannelType?.name,
       'pendingTypeEffectiveDate': pendingTypeEffectiveDate,

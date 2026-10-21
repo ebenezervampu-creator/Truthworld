@@ -33,6 +33,7 @@ import { videoGatewayService } from "../services/videoGatewayService";
 import { copyrightDetectionService } from "../services/copyrightDetection";
 import { copyrightClaimsService } from "../services/copyrightClaims";
 import { getVertexAI } from "../utils/ai-client";
+import { normalizeToGcsUri } from "../utils/ai-utils";
 import { extractCandidateText } from "../utils/ai-utils";
 import { notifyUser } from "../../notifications/notifications";
 import { normalizeLanguageCode } from "../../shared/language-normalizer";
@@ -83,6 +84,40 @@ export class TranscriptionLayer {
     let transcriptionFinished = false;
 
     try {
+      // 0. Google Cloud Content Moderation Pre-check (Cost Guard & Language Detection)
+      // If the video was already evaluated and rejected by Google Cloud Content Moderation,
+      // halt immediately and do NOT call speech transcription — saving 100% of speech-to-text fees.
+      let preDetectedLanguage: string | undefined;
+      const preCheckVideoId = executionPlan.videoId || jobId;
+      try {
+        const videoDoc = await db().collection("videos").doc(preCheckVideoId).get();
+        if (videoDoc.exists) {
+          const modStatus = videoDoc.data()?.moderation?.status;
+          if (modStatus === "rejected") {
+            const rejectionReason = videoDoc.data()?.moderation?.reason || "Content violates Community Guidelines";
+            logger.warn("[Transcription] Video rejected by Google Cloud Content Moderation — skipping speech transcription", {
+              jobId,
+              videoId: preCheckVideoId,
+              reason: rejectionReason,
+            });
+            await EdgeLayer.updateStageSync(jobId, "transcription", {
+              status: "failed",
+              error: `Video rejected by Content Moderation: ${rejectionReason}`,
+            });
+            return { submitted: false };
+          }
+          preDetectedLanguage = videoDoc.data()?.moderation?.detectedLanguage || videoDoc.data()?.language;
+          if (!preDetectedLanguage && videoDoc.data()?.channelId) {
+            const chDoc = await db().collection("channels").doc(videoDoc.data()!.channelId).get();
+            if (chDoc.exists && chDoc.data()?.language) {
+              preDetectedLanguage = chDoc.data()!.language;
+            }
+          }
+        }
+      } catch (preCheckErr) {
+        logger.warn("[Transcription] Non-blocking moderation pre-check error:", preCheckErr);
+      }
+
       const apiKey = PIPELINE_CONFIG.ASSEMBLYAI_KEY;
 
       // 1. Extract audio
@@ -102,7 +137,29 @@ export class TranscriptionLayer {
       let transcriptId: string | null = null;
       let attempts = 0;
 
-      if (apiKey) {
+      // ── Language Routing Policy: AssemblyAI Universal-3 Pro vs. Google Cloud Speech-to-Text ──
+      // AssemblyAI Universal-3 Pro supports Tier 1 core languages: en, es, fr, de, it, pt, nl
+      // For all languages that do NOT have Universal Pro in AssemblyAI (e.g. Telugu, Hindi, Tamil, Kannada,
+      // Malayalam, Marathi, Bengali, Gujarati, Punjabi, Arabic, Russian, Japanese, etc.), use Google Cloud Speech-to-Text directly.
+      const ASSEMBLYAI_UNIVERSAL_PRO_LANGUAGES = new Set(["en", "es", "fr", "de", "it", "pt", "nl"]);
+
+      const targetJobSnap = await db().collection("video_jobs").doc(jobId).get().catch(() => null);
+      const targetJobData = targetJobSnap?.exists ? targetJobSnap.data() : {};
+      const resolvedTargetLang = normalizeLanguageCode(
+        preDetectedLanguage || executionPlan.primaryLanguage || targetJobData?.language || ""
+      );
+
+      const hasUniversalPro = resolvedTargetLang ? ASSEMBLYAI_UNIVERSAL_PRO_LANGUAGES.has(resolvedTargetLang) : true;
+      let usedProvider: "assemblyai" | "google-speech" = "assemblyai";
+
+      if (!hasUniversalPro) {
+        logger.info(`[Transcription] Language '${resolvedTargetLang}' does not have Universal Pro in AssemblyAI. Routing to Google Cloud Speech-to-Text directly.`, {
+          jobId,
+          language: resolvedTargetLang,
+        });
+        usedProvider = "google-speech";
+        enhanced = await this.transcribeWithGoogleSpeech(jobId, userId, accessibleUrl, executionPlan, resolvedTargetLang);
+      } else if (apiKey) {
         try {
           const headers = { authorization: apiKey, "content-type": "application/json" };
 
@@ -110,7 +167,7 @@ export class TranscriptionLayer {
           const shouldDiarize = await this.shouldEnableDiarization(jobId, userId, executionPlan);
           logger.info("[Transcription] Diarization decision", { jobId, shouldDiarize });
 
-          // 3. Submit to AssemblyAI (Universal-3 Pro with automatic language detection)
+          // 3. Submit to AssemblyAI (Universal-3 Pro)
           const isAccuracyMode = executionPlan.priorityMode === "accuracy";
           const speechModels = ["universal-3-pro"];
 
@@ -120,18 +177,18 @@ export class TranscriptionLayer {
               audio_url: accessibleUrl,
               speech_models: speechModels,
               speaker_labels: shouldDiarize,
-              language_detection: true, // Automatic language detection to detect Telugu / non-English
+              language_detection: true,
               punctuate: true,
               format_text: true,
-              boost_param: isAccuracyMode ? "high" : "default",   // v7.2 Priority Mode
-              entity_detection: isAccuracyMode,                  // v7.2: Depth in accuracy mode
-              content_safety: (executionPlan.sensitiveTopics?.length ?? 0) > 0, // Enable safety detection if topics selected
+              boost_param: isAccuracyMode ? "high" : "default",
+              entity_detection: isAccuracyMode,
+              content_safety: (executionPlan.sensitiveTopics?.length ?? 0) > 0,
             },
             { headers }
           );
 
           transcriptId = sub.data.id;
-          logger.info("[Transcription] Job submitted, starting polling", { jobId, transcriptId });
+          logger.info("[Transcription] Job submitted to AssemblyAI Universal-3 Pro, starting polling", { jobId, transcriptId });
 
           attempts = 0;
           const maxAttempts = 160; 
@@ -149,7 +206,6 @@ export class TranscriptionLayer {
               throw new Error(`AssemblyAI job failed: ${res.error}`);
             }
 
-            // Simple progress simulation (30% -> 90%)
             const progress = Math.min(30 + attempts * 2, 90);
             await EdgeLayer.updateStageSync(jobId, "transcription", { status: "running", progress });
 
@@ -160,64 +216,79 @@ export class TranscriptionLayer {
             throw new Error("Transcription timed out after 8 minutes");
           }
 
-          // 4. Transform Result
-          const utterances = assemblyResult.utterances && assemblyResult.utterances.length > 0
-            ? assemblyResult.utterances.map((u, idx) => ({
-                index: idx,
-                text: u.text,
-                start: u.start,
-                end: u.end,
-                duration: u.end - u.start,
-                speaker: u.speaker,
-                words: (u.words || []).map(w => ({
-                  text: w.text, start: w.start, end: w.end, confidence: w.confidence
-                }))
-              }))
-            : this.buildSegmentsFromWords(assemblyResult.words ?? []);
-
-          if (utterances.length === 0 && assemblyResult.text) {
-            logger.warn("[Transcription] No utterances/words found. Creating virtual fallback segment.", { jobId });
-            utterances.push({
-              index: 0,
-              text: assemblyResult.text,
-              start: 0,
-              end: (assemblyResult.audio_duration || 0) * 1000,
-              duration: (assemblyResult.audio_duration || 0) * 1000,
-              speaker: "speaker_0",
-              words: []
+          // If AssemblyAI detected a language that does not have Universal Pro, upgrade to Google Cloud Speech-to-Text
+          const detectedAssemblyLang = normalizeLanguageCode(assemblyResult.language_code || "");
+          if (detectedAssemblyLang && !ASSEMBLYAI_UNIVERSAL_PRO_LANGUAGES.has(detectedAssemblyLang)) {
+            logger.info(`[Transcription] AssemblyAI detected '${detectedAssemblyLang}' which does not have Universal Pro. Upgrading to Google Cloud Speech-to-Text.`, {
+              jobId,
+              detectedAssemblyLang,
             });
-          }
+            usedProvider = "google-speech";
+            transcriptId = null;
+            enhanced = await this.transcribeWithGoogleSpeech(jobId, userId, accessibleUrl, executionPlan, detectedAssemblyLang);
+          } else {
+            // 4. Transform Result from AssemblyAI Universal-3 Pro
+            const utterances = assemblyResult.utterances && assemblyResult.utterances.length > 0
+              ? assemblyResult.utterances.map((u, idx) => ({
+                  index: idx,
+                  text: u.text,
+                  start: u.start,
+                  end: u.end,
+                  duration: u.end - u.start,
+                  speaker: u.speaker,
+                  words: (u.words || []).map(w => ({
+                    text: w.text, start: w.start, end: w.end, confidence: w.confidence
+                  }))
+                }))
+              : this.buildSegmentsFromWords(assemblyResult.words ?? []);
 
-          enhanced = {
-            jobId,
-            language: assemblyResult.language_code ?? "en",
-            detectedLanguage: assemblyResult.language_code ?? "en",
-            text: assemblyResult.text ?? "",
-            confidence: assemblyResult.confidence ?? 0.95,
-            speakerConfidence: this.calculateSpeakerConfidence(assemblyResult),
-            words: (assemblyResult.words ?? []).map(w => ({
-              text: w.text, start: w.start, end: w.end, confidence: w.confidence, speaker: w.speaker
-            })),
-            segments: utterances,
-            speakers: this.extractSpeakersFromUtterances(assemblyResult.utterances ?? []),
-            chapters: (assemblyResult.chapters ?? []).map(c => ({
-              startTimeMs: c.start,
-              endTimeMs: c.end,
-              title: c.headline,
-              summary: c.summary
-            })),
-            duration: assemblyResult.audio_duration ?? 0,
-          };
+            if (utterances.length === 0 && assemblyResult.text) {
+              logger.warn("[Transcription] No utterances/words found. Creating virtual fallback segment.", { jobId });
+              utterances.push({
+                index: 0,
+                text: assemblyResult.text,
+                start: 0,
+                end: (assemblyResult.audio_duration || 0) * 1000,
+                duration: (assemblyResult.audio_duration || 0) * 1000,
+                speaker: "speaker_0",
+                words: []
+              });
+            }
+
+            enhanced = {
+              jobId,
+              language: assemblyResult.language_code ?? "en",
+              detectedLanguage: assemblyResult.language_code ?? "en",
+              text: assemblyResult.text ?? "",
+              confidence: assemblyResult.confidence ?? 0.95,
+              speakerConfidence: this.calculateSpeakerConfidence(assemblyResult),
+              words: (assemblyResult.words ?? []).map(w => ({
+                text: w.text, start: w.start, end: w.end, confidence: w.confidence, speaker: w.speaker
+              })),
+              segments: utterances,
+              speakers: this.extractSpeakersFromUtterances(assemblyResult.utterances ?? []),
+              chapters: (assemblyResult.chapters ?? []).map(c => ({
+                startTimeMs: c.start,
+                endTimeMs: c.end,
+                title: c.headline,
+                summary: c.summary
+              })),
+              duration: assemblyResult.audio_duration ?? 0,
+            };
+          }
         } catch (assemblyError) {
-          logger.warn("[Transcription] AssemblyAI failed — falling back to Gemini 2.5 Flash transcription", {
+          logger.warn("[Transcription] AssemblyAI failed or language unsupported on Universal Pro — routing to Google Cloud Speech-to-Text", {
             jobId,
             error: String(assemblyError),
           });
-          enhanced = await this.transcribeWithGeminiFallback(jobId, userId, accessibleUrl, executionPlan);
+          usedProvider = "google-speech";
+          transcriptId = null;
+          enhanced = await this.transcribeWithGoogleSpeech(jobId, userId, accessibleUrl, executionPlan, resolvedTargetLang);
         }
       } else {
-        logger.info("[Transcription] No AssemblyAI key configured — using Gemini 2.5 Flash transcription", { jobId });
-        enhanced = await this.transcribeWithGeminiFallback(jobId, userId, accessibleUrl, executionPlan);
+        logger.info("[Transcription] No AssemblyAI key configured — using Google Cloud Speech-to-Text", { jobId });
+        usedProvider = "google-speech";
+        enhanced = await this.transcribeWithGoogleSpeech(jobId, userId, accessibleUrl, executionPlan, resolvedTargetLang);
       }
 
       logger.info("[Transcription] Transformation complete", {
@@ -232,7 +303,7 @@ export class TranscriptionLayer {
       await this.storeTranscript(jobId, userId, enhanced, resolvedVideoId);
       
       // Native Subtitles
-      if (transcriptId && apiKey) {
+      if (transcriptId && apiKey && usedProvider === "assemblyai") {
         await this.fetchAndStoreNativeSubtitles(jobId, transcriptId, enhanced.detectedLanguage, apiKey);
       } else {
         await this.generateAndStoreNativeSubtitlesFromSegments(jobId, enhanced.detectedLanguage, enhanced.segments);
@@ -440,6 +511,19 @@ export class TranscriptionLayer {
 
       const bucketName = admin.storage().bucket().name;
       const directTranscriptUrl = `https://storage.googleapis.com/${bucketName}/transcripts/${jobId}/full.json`;
+      let resolvedVideoLang = normalizeLanguageCode(enhanced.detectedLanguage || existingVideoData.language || "");
+      if (!resolvedVideoLang || resolvedVideoLang === "en") {
+        if (existingVideoData.channelId) {
+          try {
+            const chDoc = await db().collection("channels").doc(existingVideoData.channelId).get();
+            if (chDoc.exists && chDoc.data()?.language) {
+              resolvedVideoLang = normalizeLanguageCode(chDoc.data()!.language);
+            }
+          } catch (e) {}
+        }
+      }
+      if (!resolvedVideoLang) resolvedVideoLang = "en";
+      // Fact-checking is available across all supported languages via Google Cloud
       const isFactCheckingEnabled = !!(executionPlan.enablePath1 || executionPlan.enableTruthEngine);
       const directFactCheckUrl = isFactCheckingEnabled
         ? `https://storage.googleapis.com/${bucketName}/factchecks/${jobId}/report.json`
@@ -712,22 +796,23 @@ export class TranscriptionLayer {
 
       // ── AFTER STEP 4: TRIGGER ONLY FEATURES REQUESTED BY THE CHANNEL ──
 
-      // 1. Credibility Feature (Fact Checking & 3D Trust Score)
-      const shouldRunCredibility = !!(
+      // 1. Credibility Feature (Fact Checking & 3D Trust Score) - Available across all supported languages
+      const isCredibilityRequested = !!(
         executionPlan.enablePath1 ||
         executionPlan.enableTruthEngine ||
         (executionPlan as any).enableCredibility ||
         (executionPlan as any).enableFactChecking
       );
+      const shouldRunCredibility = isCredibilityRequested;
 
       if (shouldRunCredibility) {
-        logger.info(`[Transcription Gateway] Channel requested CREDIBILITY feature for job ${jobId} — launching fact-processing`);
+        logger.info(`[Transcription Gateway] Channel requested CREDIBILITY feature for job ${jobId} — launching fact-processing for language ${resolvedVideoLang}`);
         fanoutTasks.push(this.distribution.publish("fact-processing", {
           eventId: `fact_${jobId}`,
           eventType: "fact-processing",
           jobId, userId,
           timestamp: Date.now(),
-          data: { executionPlan },
+          data: { executionPlan, videoUrl },
           retryCount: 0,
           source: "transcription-polling"
         }));
@@ -1280,18 +1365,34 @@ export class TranscriptionLayer {
     return Number((sum / res.utterances.length).toFixed(2));
   }
 
-  private async transcribeWithGeminiFallback(
+  public async transcribeWithGeminiFallback(
     jobId: string,
     userId: string,
     accessibleUrl: string,
-    executionPlan: ExecutionPlan
+    executionPlan: ExecutionPlan,
+    targetLanguage?: string
   ): Promise<EnhancedTranscriptionResult> {
-    logger.info("[Transcription] Running Gemini 2.5 Flash transcription fallback", { jobId });
+    return this.transcribeWithGoogleSpeech(jobId, userId, accessibleUrl, executionPlan, targetLanguage);
+  }
+
+  /**
+   * 🌐 Google Cloud Speech-to-Text & Multimodal Audio Transcription
+   * Used for all languages that do not have Universal Pro in AssemblyAI (e.g. Telugu, Hindi, Tamil, Kannada, Marathi, etc.)
+   * or when AssemblyAI is unavailable.
+   */
+  public async transcribeWithGoogleSpeech(
+    jobId: string,
+    userId: string,
+    accessibleUrl: string,
+    executionPlan: ExecutionPlan,
+    targetLanguage?: string
+  ): Promise<EnhancedTranscriptionResult> {
+    logger.info("[Transcription] Running Google Cloud Speech-to-Text transcription", { jobId, targetLanguage });
     try {
       const vertex = getVertexAI();
       const model = vertex.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-      let gcsUri = accessibleUrl;
+      let gcsUri = normalizeToGcsUri(accessibleUrl) || accessibleUrl;
       const bucketName = admin.storage().bucket().name;
       if (!gcsUri.startsWith("gs://")) {
         const match = accessibleUrl.match(/\/([^\/?#]+)\/([^\?]+)/);
@@ -1403,7 +1504,18 @@ Return STRICT JSON:
               duration: Number(s.duration || 4000),
               speaker: s.speaker || "speaker_0",
               text: s.text || "",
-              words: [],
+              words: (s.text || "").split(/\s+/).filter(Boolean).map((w: string, wIdx: number, arr: string[]) => {
+                const segDur = Number(s.duration || 4000);
+                const segStart = Number(s.start || idx * 4000);
+                const wDur = Math.round(segDur / Math.max(1, arr.length));
+                return {
+                  text: w,
+                  start: segStart + (wIdx * wDur),
+                  end: segStart + ((wIdx + 1) * wDur),
+                  confidence: 0.95,
+                  speaker: s.speaker || "speaker_0",
+                };
+              }),
             }))
           : [
               {
@@ -1524,7 +1636,7 @@ Return STRICT JSON:
             vttPath: `gs://${bucket.name}/${vttPath}`,
             jsonPath: `gs://${bucket.name}/${jsonPath}`,
             format: "native",
-            provider: "gemini-flash-subtitles",
+            provider: "google-cloud-speech",
             createdAt: Date.now(),
           }
         }

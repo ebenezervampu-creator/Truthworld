@@ -107,6 +107,19 @@ class DashboardCreatorAppBar extends StatelessWidget
             ),
             const SizedBox(width: 16),
           ],
+          Obx(() {
+            final isRefreshing = dashboardController.rxIsRefreshing.value;
+            return DashboardActionButton(
+              icon: Icons.refresh_rounded,
+              isLoading: isRefreshing,
+              onPressed: () {
+                dashboardController.refreshData(showFeedback: true);
+              },
+              isDarkMode: isDarkMode,
+              tooltip: 'Refresh Studio Data',
+            );
+          }),
+          SizedBox(width: isMobile ? 4 : 8),
           DashboardActionButton(
             icon: Icons.notifications_none_rounded,
             onPressed: () => dashboardController.setSelectedIndex(16),

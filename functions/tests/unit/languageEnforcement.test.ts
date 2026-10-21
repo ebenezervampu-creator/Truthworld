@@ -17,6 +17,7 @@ jest.mock('../../src/pipeline/utils/ai-client', () => ({
                       englishPercentage: 95,
                       status: 'APPROVED',
                       violatingPolicies: [],
+                      summary: 'Video approved across all languages in TruthWorld.',
                     }),
                   },
                 ],
@@ -29,7 +30,7 @@ jest.mock('../../src/pipeline/utils/ai-client', () => ({
   })),
 }));
 
-describe('Language Enforcement (Phase 1: 90% Primary English / 10% Secondary Allowance)', () => {
+describe('Language Support (Universal Global Languages Across TruthWorld)', () => {
   const dummyExecutionPlan: ExecutionPlan = {
     jobId: 'job_test_lang_123',
     videoId: 'video_test_lang_123',
@@ -49,8 +50,8 @@ describe('Language Enforcement (Phase 1: 90% Primary English / 10% Secondary All
     skipCache: false,
   };
 
-  describe('VideoGatewayService Spoken Language Policy (90/10 Rule)', () => {
-    it('1. Strictly REJECTS Telugu ("te") videos immediately with UNSUPPORTED_LANGUAGE policy', async () => {
+  describe('VideoGatewayService Open Language Policy', () => {
+    it('1. Welcomes Telugu ("te") videos without UNSUPPORTED_LANGUAGE policy rejection', async () => {
       const decision = await videoGatewayService.evaluateVideo(
         'job_telugu_1',
         'నమస్కారం, ఇది తెలుగు వీడియో వివరణ.',
@@ -59,13 +60,11 @@ describe('Language Enforcement (Phase 1: 90% Primary English / 10% Secondary All
         'te' // Telugu detected
       );
 
-      expect(decision.status).toBe('REJECTED');
-      expect(decision.rejectionReason).toContain('Truthworld currently only supports English channels and content');
-      expect(decision.rejectionReason).toContain('TE');
-      expect(decision.violatingPolicies).toContain('UNSUPPORTED_LANGUAGE');
+      expect(decision.status).toBe('APPROVED');
+      expect(decision.violatingPolicies).not.toContain('UNSUPPORTED_LANGUAGE');
     });
 
-    it('2. Strictly REJECTS Telugu when passed as full name ("telugu" or "Telugu")', async () => {
+    it('2. Welcomes Telugu when passed as full name ("telugu" or "Telugu")', async () => {
       const decision = await videoGatewayService.evaluateVideo(
         'job_telugu_2',
         'తెలుగు వార్తలు మరియు సమాచారం.',
@@ -74,27 +73,26 @@ describe('Language Enforcement (Phase 1: 90% Primary English / 10% Secondary All
         'Telugu'
       );
 
-      expect(decision.status).toBe('REJECTED');
-      expect(decision.rejectionReason).toContain('Truthworld currently only supports English channels and content');
-      expect(decision.violatingPolicies).toContain('UNSUPPORTED_LANGUAGE');
+      expect(decision.status).toBe('APPROVED');
+      expect(decision.violatingPolicies).not.toContain('UNSUPPORTED_LANGUAGE');
     });
 
-    it('3. Strictly REJECTS Hindi ("hi"), Spanish ("es"), and other non-English languages when < 90% English', async () => {
+    it('3. Welcomes Hindi ("hi"), Spanish ("es"), and other global languages without rejection', async () => {
       for (const lang of ['hi', 'es', 'fr', 'ta', 'kn', 'bn']) {
         const decision = await videoGatewayService.evaluateVideo(
           `job_${lang}`,
-          'Non-English video sample transcript',
+          'Non-English video sample transcript with sufficient content',
           [],
           dummyExecutionPlan,
           lang
         );
 
-        expect(decision.status).toBe('REJECTED');
-        expect(decision.violatingPolicies).toContain('UNSUPPORTED_LANGUAGE');
+        expect(decision.status).toBe('APPROVED');
+        expect(decision.violatingPolicies).not.toContain('UNSUPPORTED_LANGUAGE');
       }
     });
 
-    it('4. Rejects when executionPlan primaryLanguage is Telugu even if detectedLanguage is undefined', async () => {
+    it('4. Accepts videos when executionPlan primaryLanguage is Telugu', async () => {
       const teluguPlan: ExecutionPlan = {
         ...dummyExecutionPlan,
         primaryLanguage: 'te',
@@ -107,20 +105,17 @@ describe('Language Enforcement (Phase 1: 90% Primary English / 10% Secondary All
         teluguPlan
       );
 
-      expect(decision.status).toBe('REJECTED');
-      expect(decision.violatingPolicies).toContain('UNSUPPORTED_LANGUAGE');
+      expect(decision.status).toBe('APPROVED');
+      expect(decision.violatingPolicies).not.toContain('UNSUPPORTED_LANGUAGE');
     });
 
-    it('5. ALLOWS Ground News English videos (>90% English) that include short <=10% Hindi or Telugu street interviews', async () => {
+    it('5. Allows Ground News English videos with multilingual interviews', async () => {
       const groundNewsTranscript =
         'Hello everyone and welcome back to our ground news report from New Delhi. ' +
         'Today we are investigating the impact of the new solar grid infrastructure on local shopkeepers and daily commuters across the city. ' +
         'We spoke with a resident at the market who told us in Hindi: "यह बिजली बहुत अच्छी है" ' +
         'which means this new power system is working very well for their small business. ' +
         'Let us now examine the official energy ministry data and see how grid stability has improved over the last six months.';
-
-      const pct = estimateEnglishPercentage(groundNewsTranscript, 'en');
-      expect(pct).toBeGreaterThanOrEqual(90);
 
       const decision = await videoGatewayService.evaluateVideo(
         'job_ground_news_en_hi',
@@ -134,24 +129,21 @@ describe('Language Enforcement (Phase 1: 90% Primary English / 10% Secondary All
       expect(decision.violatingPolicies).not.toContain('UNSUPPORTED_LANGUAGE');
     });
 
-    it('6. REJECTS mixed videos where non-English exceeds 10% (e.g., 50% English / 50% Telugu)', async () => {
+    it('6. Allows mixed and multilingual videos without rejection', async () => {
       const halfTeluguTranscript =
         'Hello everyone welcome to our video today we are talking about news. ' +
         'ఈరోజు మనం హైదరాబాద్ లోని కొత్త మెట్రో రైలు గురించి మాట్లాడుకుంటున్నాము మరియు ప్రజల అభిప్రాయాలు తెలుసుకుంటున్నాము.';
-
-      const pct = estimateEnglishPercentage(halfTeluguTranscript, 'en');
-      expect(pct).toBeLessThan(90);
 
       const decision = await videoGatewayService.evaluateVideo(
         'job_half_telugu',
         halfTeluguTranscript,
         [],
         dummyExecutionPlan,
-        'en'
+        'te'
       );
 
-      expect(decision.status).toBe('REJECTED');
-      expect(decision.violatingPolicies).toContain('UNSUPPORTED_LANGUAGE');
+      expect(decision.status).toBe('APPROVED');
+      expect(decision.violatingPolicies).not.toContain('UNSUPPORTED_LANGUAGE');
     });
   });
 
@@ -163,7 +155,7 @@ describe('Language Enforcement (Phase 1: 90% Primary English / 10% Secondary All
       jest.spyOn((edgeLayer as any).distribution, 'publish').mockResolvedValue('mock-msg-id');
     });
 
-    it('7. Strictly rejects video submission if primaryLanguage is Telugu ("te")', async () => {
+    it('7. Accepts video submission when primaryLanguage is Telugu ("te")', async () => {
       const res = await edgeLayer.submitVideo(
         'user_123',
         'https://storage.googleapis.com/truthworld-1.firebasestorage.app/videos/v1/original.mp4',
@@ -174,8 +166,8 @@ describe('Language Enforcement (Phase 1: 90% Primary English / 10% Secondary All
         }
       );
 
-      expect(res.status).toBe('rejected');
-      expect(res.message).toContain('Truthworld currently only supports English content');
+      expect(res.status).toBe('accepted');
+      expect(res.jobId).toBeDefined();
     });
 
     it('8. Accepts video submission when primaryLanguage is English ("en")', async () => {
@@ -185,6 +177,20 @@ describe('Language Enforcement (Phase 1: 90% Primary English / 10% Secondary All
         'sample_english.mp4',
         {
           primaryLanguage: 'en',
+          channelType: 'standard',
+        }
+      );
+
+      expect(res.status).toBe('accepted');
+      expect(res.jobId).toBeDefined();
+    });
+
+    it('9. Accepts video submission without requiring source language per video (inherits from channel)', async () => {
+      const res = await edgeLayer.submitVideo(
+        'user_123',
+        'https://storage.googleapis.com/truthworld-1.firebasestorage.app/videos/v1/original.mp4',
+        'sample_video_no_lang.mp4',
+        {
           channelType: 'standard',
         }
       );

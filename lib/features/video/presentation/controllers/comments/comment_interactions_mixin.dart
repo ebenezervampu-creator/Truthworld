@@ -234,7 +234,7 @@ mixin CommentInteractionsMixin on CommentsStateBase {
       severity: NotificationSeverity.info,
       title: 'Comment Liked',
       message:
-          '${authService.activeHandle} liked your comment: "${comment.text}"',
+          '${currentUserName.startsWith('@') ? currentUserName.substring(1) : currentUserName} liked your comment: "${comment.text}"',
       actionUrl: '/watch?v=${video!.id}',
       metadata: {
         'videoId': video!.id,

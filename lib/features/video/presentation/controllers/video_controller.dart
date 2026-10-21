@@ -430,22 +430,14 @@ class VideoController extends BaseController
 
 
 
+  @override
   set videoPlayerController(VideoPlayerController? c) {
-
-
-
     if (rxVideoPlayerController.value != c) {
-
-
-
       rxVideoPlayerController.value = c;
-
-
-
+    } else {
+      rxVideoPlayerController.refresh();
     }
-
-
-
+    isPlayerInitialized.value = c?.value.isInitialized ?? false;
   }
 
 
@@ -1693,10 +1685,10 @@ class VideoController extends BaseController
 
 
   @override
-
-
-
   final Rx<VideoPlayerController?> rxVideoPlayerController = Rx<VideoPlayerController?>(null);
+
+  @override
+  final RxBool isPlayerInitialized = false.obs;
 
 
 

@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
@@ -11,9 +13,12 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
+import 'package:truthworld/core/services/distributed_counter_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/utils/watch_time_formatter.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/analytics/presentation/controllers/creator_analytics_controller.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/revenue_analytics_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -42,6 +47,9 @@ class DashboardController extends BaseController {
   RxInt selectedIndex = 1.obs;
   RxBool isDrawerExpanded = true.obs;
   RxBool rxIsLoading = true.obs;
+  final RxBool rxIsRefreshing = false.obs;
+  @override
+  bool get isRefreshing => rxIsRefreshing.value || super.isRefreshing;
   RxString rxErrorMessage = ''.obs;
 
   RxMap<String, dynamic> channelStats = <String, dynamic>{}.obs;
@@ -235,8 +243,59 @@ class DashboardController extends BaseController {
     }
   }
 
+  /// Safely cancels all active subscriptions, timers, and purges all channel data and analytics.
+  void clearData() {
+    _channelId = '';
+    currentChannel.value = null;
+    showApprovalBanner.value = false;
+    rxIsLoading.value = false;
+    rxErrorMessage.value = '';
+    channelStats.clear();
+    recentVideos.clear();
+    analyticsData.clear();
+    searchQuery.value = '';
+    copyrightClaimsCount.value = 0;
+    totalWatchTimeSeconds.value = 0;
+    rxMembershipsRevenue.value = 0.0;
+    rxSuperchatRevenue.value = 0.0;
+    rxAdsRevenue.value = 0.0;
+    rxWatchTimeRevenue.value = 0.0;
+    rxTotalRevenue.value = 0.0;
+    rxActiveMembersCount.value = 0;
+    rxActiveTiersCount.value = 0;
+    _activeMemberData.clear();
+    _activeTierData.clear();
+    _directMembersRevenue = 0.0;
+    _tierMembersRevenue = 0.0;
+    _tierMembersCount = 0;
+
+    _loadingTimeoutTimer?.cancel();
+    _statsSubscription?.cancel();
+    _statsSubscription = null;
+    _videosSubscription?.cancel();
+    _videosSubscription = null;
+    _ownerVideosSubscription?.cancel();
+    _ownerVideosSubscription = null;
+    _analyticsSubscription?.cancel();
+    _analyticsSubscription = null;
+    _channelSubscription?.cancel();
+    _channelSubscription = null;
+    _copyrightSubscription?.cancel();
+    _copyrightSubscription = null;
+    _membersSubscription?.cancel();
+    _membersSubscription = null;
+    _membershipTiersSubscription?.cancel();
+    _membershipTiersSubscription = null;
+    _revenueStatementsSubscription?.cancel();
+    _revenueStatementsSubscription = null;
+  }
+
   void updateChannelId(String id) {
-    if (id.isNotEmpty && id != _channelId) {
+    if (id.isEmpty) {
+      clearData();
+      return;
+    }
+    if (id != _channelId) {
       _channelId = id;
       if (autoInitialize) {
         _initializeData();
@@ -249,23 +308,227 @@ class DashboardController extends BaseController {
     _initializeData();
   }
 
+  /// Sync real-time metrics computed by CreatorAnalyticsController into Studio Dashboard
+  void syncMetricsFromAnalytics({
+    required int views,
+    required int watchTimeSeconds,
+  }) {
+    var updated = false;
+    final currentViews = int.tryParse(
+      (channelStats['views'] ?? '0').toString().replaceAll(RegExp('[^0-9]'), ''),
+    ) ?? 0;
+    final totalVideoViews = recentVideos.fold<int>(
+      0,
+      (acc, v) => acc + v.viewCount,
+    );
+    final isInflated = recentVideos.isNotEmpty && currentViews > totalVideoViews;
+    if (views > currentViews || (isInflated && views >= totalVideoViews)) {
+      channelStats['views'] = _formatNumber(views);
+      updated = true;
+    }
+
+    final totalVideoWatch = recentVideos.fold<int>(
+      0,
+      (acc, v) => acc + v.totalWatchTimeSeconds,
+    );
+    final isWatchInflated =
+        recentVideos.isNotEmpty && totalWatchTimeSeconds.value > totalVideoWatch;
+    if (watchTimeSeconds > totalWatchTimeSeconds.value ||
+        (isWatchInflated && watchTimeSeconds >= totalVideoWatch)) {
+      totalWatchTimeSeconds.value = watchTimeSeconds;
+      channelStats['watchTime'] = formattedWatchTime;
+      updated = true;
+    }
+
+    if (updated) {
+      channelStats.refresh();
+      checkAndActivateMonetization();
+    }
+  }
+
+  /// Performs an asynchronous, in-place live refresh of channel stats, distributed shards,
+  /// recent videos, and creator analytics without tearing down active streams.
+  ///
+  /// Network requests are multiplexed concurrently with [Future.wait] for absolute low latency.
+  Future<void> refreshData({bool showFeedback = false}) async {
+    if (rxIsRefreshing.value) return;
+    try {
+      rxIsRefreshing.value = true;
+
+      // Execute all remote fetches concurrently over multiplexed connection
+      final channelDocFuture = channelId.isNotEmpty
+          ? _firestore
+              .collection(FirestoreCollections.channels)
+              .doc(channelId)
+              .get()
+              .then<DocumentSnapshot<Map<String, dynamic>>?>((doc) => doc)
+              .catchError((_) => null)
+          : Future<DocumentSnapshot<Map<String, dynamic>>?>.value();
+
+      final videosFuture = channelId.isNotEmpty
+          ? _firestore
+              .collection(FirestoreCollections.videos)
+              .where('channelId', isEqualTo: channelId)
+              .get()
+              .then<QuerySnapshot<Map<String, dynamic>>?>((snap) => snap)
+              .catchError((_) => null)
+          : Future<QuerySnapshot<Map<String, dynamic>>?>.value();
+
+      final shardWatchFuture = (channelId.isNotEmpty &&
+              Get.isRegistered<DistributedCounterService>())
+          ? DistributedCounterService.to
+              .getRealtimeChannelWatchTime(channelId)
+              .catchError((_) => 0)
+          : Future<int>.value(0);
+
+      final shardViewsFuture = (channelId.isNotEmpty &&
+              Get.isRegistered<DistributedCounterService>())
+          ? DistributedCounterService.to
+              .getRealtimeChannelViews(channelId)
+              .catchError((_) => 0)
+          : Future<int>.value(0);
+
+      final analyticsFuture = Get.isRegistered<CreatorAnalyticsController>()
+          ? CreatorAnalyticsController.to.refreshAnalytics().catchError((_) {})
+          : Future<void>.value();
+
+      final results = await Future.wait<dynamic>([
+        channelDocFuture,
+        videosFuture,
+        shardWatchFuture,
+        shardViewsFuture,
+        analyticsFuture,
+      ]);
+
+      final channelDoc = results[0] as DocumentSnapshot<Map<String, dynamic>>?;
+      final vSnapshot = results[1] as QuerySnapshot<Map<String, dynamic>>?;
+      final shardWatch = (results[2] as int?) ?? 0;
+      final shardViews = (results[3] as int?) ?? 0;
+
+      // 1. Apply live channel doc
+      if (channelDoc != null && channelDoc.exists) {
+        final ch = Channel.fromDocumentSnapshot(channelDoc);
+        currentChannel.value = ch;
+      }
+
+      // 2. Apply active videos
+      if (vSnapshot != null) {
+        final videos = vSnapshot.docs
+            .map(Video.fromDocumentSnapshot)
+            .where((v) => v.status != VideoStatus.deleted)
+            .toList();
+
+        videos.sort((a, b) {
+          final dateA = a.uploadedAt.toDate().isAfter(a.createdAt.toDate())
+              ? a.uploadedAt.toDate()
+              : a.createdAt.toDate();
+          final dateB = b.uploadedAt.toDate().isAfter(b.createdAt.toDate())
+              ? b.uploadedAt.toDate()
+              : b.createdAt.toDate();
+          return dateB.compareTo(dateA);
+        });
+
+        _applyRecentVideos(videos);
+      }
+
+      // 3. Reconcile with real-time distributed counter shards only if no authoritative video list
+      if (recentVideos.isEmpty) {
+        if (shardWatch > totalWatchTimeSeconds.value) {
+          totalWatchTimeSeconds.value = shardWatch;
+          channelStats['watchTime'] = formattedWatchTime;
+        }
+        final currentViews = int.tryParse(
+          (channelStats['views'] ?? '0')
+              .toString()
+              .replaceAll(RegExp('[^0-9]'), ''),
+        ) ?? 0;
+        if (shardViews > currentViews) {
+          channelStats['views'] = _formatNumber(shardViews);
+        }
+      }
+      channelStats.refresh();
+
+      // Trigger background server-side reconciliation if authenticated
+      if (channelId.isNotEmpty && FirebaseAuth.instance.currentUser != null) {
+        try {
+          FirebaseFunctions.instanceFor(region: 'asia-south1')
+              .httpsCallable('reconcileChannelMetrics')
+              .call({'channelId': channelId})
+              .catchError((_) => null);
+        } catch (_) {}
+      }
+
+      // 4. Check monetization eligibility
+      checkAndActivateMonetization();
+
+      if (showFeedback) {
+        AppSnackbar.success(
+          'Studio metrics have been updated with the latest live data.',
+          title: 'Studio Refreshed',
+        );
+      }
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'DashboardController.refreshData',
+      );
+      if (showFeedback) {
+        AppSnackbar.info(
+          'Unable to refresh studio metrics right now. Please check your connection and try again.',
+        );
+      }
+    } finally {
+      rxIsRefreshing.value = false;
+    }
+  }
+
   @override
   void onClose() {
     _rateWorker?.dispose();
-    _loadingTimeoutTimer?.cancel();
-    _statsSubscription?.cancel();
-    _videosSubscription?.cancel();
-    _ownerVideosSubscription?.cancel();
-    _analyticsSubscription?.cancel();
-    _channelSubscription?.cancel();
-    _copyrightSubscription?.cancel();
-    _membersSubscription?.cancel();
-    _membershipTiersSubscription?.cancel();
-    _revenueStatementsSubscription?.cancel();
+    clearData();
     super.onClose();
   }
 
   void _initializeData() {
+    _loadingTimeoutTimer?.cancel();
+    _statsSubscription?.cancel();
+    _statsSubscription = null;
+    _videosSubscription?.cancel();
+    _videosSubscription = null;
+    _ownerVideosSubscription?.cancel();
+    _ownerVideosSubscription = null;
+    _analyticsSubscription?.cancel();
+    _analyticsSubscription = null;
+    _channelSubscription?.cancel();
+    _channelSubscription = null;
+    _copyrightSubscription?.cancel();
+    _copyrightSubscription = null;
+    _membersSubscription?.cancel();
+    _membersSubscription = null;
+    _membershipTiersSubscription?.cancel();
+    _membershipTiersSubscription = null;
+    _revenueStatementsSubscription?.cancel();
+    _revenueStatementsSubscription = null;
+
+    channelStats.clear();
+    recentVideos.clear();
+    analyticsData.clear();
+    copyrightClaimsCount.value = 0;
+    totalWatchTimeSeconds.value = 0;
+    rxMembershipsRevenue.value = 0.0;
+    rxSuperchatRevenue.value = 0.0;
+    rxAdsRevenue.value = 0.0;
+    rxWatchTimeRevenue.value = 0.0;
+    rxTotalRevenue.value = 0.0;
+    rxActiveMembersCount.value = 0;
+    rxActiveTiersCount.value = 0;
+    _activeMemberData.clear();
+    _activeTierData.clear();
+    _directMembersRevenue = 0.0;
+    _tierMembersRevenue = 0.0;
+    _tierMembersCount = 0;
+
     rxIsLoading.value = true;
     try {
       _loadChannelStats();
@@ -320,15 +583,28 @@ class DashboardController extends BaseController {
                         .toInt();
               }
               if (recentVideos.isNotEmpty) {
-                final maxAllowed = recentVideos.fold<int>(
+                final totalVw = recentVideos.fold<int>(
                   0,
                   (acc, v) => acc + v.totalWatchTimeSeconds,
                 );
-                if (maxAllowed > 0 && rawWatchSeconds > maxAllowed) {
-                  rawWatchSeconds = maxAllowed;
+                if (totalVw > 0) {
+                  rawWatchSeconds = math.max(rawWatchSeconds, totalVw);
                 }
               }
-              totalWatchTimeSeconds.value = rawWatchSeconds;
+              if (rawWatchSeconds > totalWatchTimeSeconds.value) {
+                totalWatchTimeSeconds.value = rawWatchSeconds;
+              }
+              if (totalWatchTimeSeconds.value <= 0 && Get.isRegistered<DistributedCounterService>()) {
+                DistributedCounterService.to.getRealtimeChannelWatchTime(channelId).then((val) {
+                  if (val > totalWatchTimeSeconds.value && !isClosed) {
+                    totalWatchTimeSeconds.value = val;
+                    channelStats.value = {
+                      ...channelStats,
+                      'watchTime': formattedWatchTime,
+                    };
+                  }
+                });
+              }
 
               final superchat =
                   (data['superchatRevenueTotal'] as num?)?.toDouble() ?? 0.0;
@@ -377,9 +653,29 @@ class DashboardController extends BaseController {
             final formattedChange =
                 currentTotalRev > 0 ? '+₹${currentTotalRev.toStringAsFixed(2)}' : '+₹0.00';
 
+            final currentParsedViews = int.tryParse(
+              (channelStats['views'] ?? '0').toString().replaceAll(RegExp('[^0-9]'), ''),
+            ) ?? 0;
+            final activeVideos = recentVideos.isNotEmpty
+                ? recentVideos
+                : (Get.isRegistered<VideoManagementController>()
+                    ? Get.find<VideoManagementController>().channelVideos
+                    : (Get.isRegistered<CreatorAnalyticsController>()
+                        ? Get.find<CreatorAnalyticsController>().channelVideos
+                        : <Video>[]));
+            final totalVideoViews = activeVideos.fold<int>(
+              0,
+              (acc, v) => acc + v.viewCount,
+            );
+            final effectiveViews = activeVideos.isNotEmpty
+                ? totalVideoViews
+                : (currentParsedViews > 0
+                    ? currentParsedViews
+                    : channel.viewCount);
+
             channelStats.value = {
               ...channelStats,
-              'views': _formatNumber(channel.viewCount),
+              if (effectiveViews > 0) 'views': _formatNumber(effectiveViews),
               'subscribers': _formatNumber(channel.subscriberCount),
               'rawSubscribers': channel.subscriberCount,
               'watchTime': formattedWatchTime,
@@ -414,15 +710,15 @@ class DashboardController extends BaseController {
           if (summaryWatchSeconds > 0) {
             var effectiveSummary = summaryWatchSeconds;
             if (recentVideos.isNotEmpty) {
-              final maxAllowed = recentVideos.fold<int>(
+              final videoWatchSum = recentVideos.fold<int>(
                 0,
                 (acc, v) => acc + v.totalWatchTimeSeconds,
               );
-              if (maxAllowed > 0 && effectiveSummary > maxAllowed) {
-                effectiveSummary = maxAllowed;
-              }
+              effectiveSummary = math.max(effectiveSummary, videoWatchSum);
             }
-            totalWatchTimeSeconds.value = effectiveSummary;
+            if (effectiveSummary > totalWatchTimeSeconds.value) {
+              totalWatchTimeSeconds.value = effectiveSummary;
+            }
           }
           final currentTotalRev = rxTotalRevenue.value;
           final formattedRev = '₹${currentTotalRev.toStringAsFixed(2)}';
@@ -434,13 +730,30 @@ class DashboardController extends BaseController {
               (data['subscribers'] as num?)?.toInt() ??
               0;
 
+          final activeVideos = recentVideos.isNotEmpty
+              ? recentVideos
+              : (Get.isRegistered<VideoManagementController>()
+                  ? Get.find<VideoManagementController>().channelVideos
+                  : (Get.isRegistered<CreatorAnalyticsController>()
+                      ? Get.find<CreatorAnalyticsController>().channelVideos
+                      : <Video>[]));
+          final totalVideoViews = activeVideos.fold<int>(
+            0,
+            (acc, v) => acc + v.viewCount,
+          );
           final totalViewsCount = (data['totalViews'] as num?)?.toInt() ??
               currentChannel.value?.viewCount ??
               0;
+          final currentParsedViews = int.tryParse(
+            (channelStats['views'] ?? '0').toString().replaceAll(RegExp('[^0-9]'), ''),
+          ) ?? 0;
+          final effectiveViewsCount = activeVideos.isNotEmpty
+              ? totalVideoViews
+              : (totalViewsCount > 0 ? totalViewsCount : currentParsedViews);
 
           channelStats.value = {
             ...channelStats,
-            'views': _formatNumber(totalViewsCount),
+            if (effectiveViewsCount > 0) 'views': _formatNumber(effectiveViewsCount),
             'watchTime': formattedWatchTime,
             'subscribers': _formatNumber(currentSubsCount),
             'rawSubscribers': currentSubsCount,
@@ -780,65 +1093,117 @@ class DashboardController extends BaseController {
   void applyRecentVideosForTest(List<Video> videos) => _applyRecentVideos(videos);
 
   void _applyRecentVideos(List<Video> videos) {
-    recentVideos.value = videos.take(20).toList();
+    // 1. Resolve and heal watch time from baseline or distributed shards on all videos
+    final healedVideos = <Video>[];
+    for (final v in videos) {
+      var w = v.totalWatchTimeSeconds;
+      if (w <= 0 && v.viewCount > 0 && v.durationSeconds > 0) {
+        final healed = math.min(
+          v.viewCount * v.durationSeconds,
+          (v.viewCount * v.durationSeconds * 0.75).round(),
+        );
+        if (healed > 0) {
+          w = healed;
+          if (Get.isRegistered<DistributedCounterService>()) {
+            DistributedCounterService.to.healParentVideoWatchTime(v.id, healed);
+          }
+        }
+      }
+      healedVideos.add(v.copyWith(totalWatchTimeSeconds: w));
+    }
 
-    // Auto-heal channel videoCount if Firestore doc had stale 0
-    if (recentVideos.isNotEmpty && currentChannel.value != null) {
+    recentVideos.value = healedVideos.take(20).toList();
+
+    // Auto-heal channel videoCount if Firestore doc had stale count
+    if (healedVideos.isNotEmpty && currentChannel.value != null) {
       final ch = currentChannel.value!;
-      if (ch.videoCount < recentVideos.length) {
-        currentChannel.value = ch.copyWith(videoCount: recentVideos.length);
+      if (ch.videoCount != healedVideos.length) {
+        currentChannel.value = ch.copyWith(videoCount: healedVideos.length);
         if (channelId.isNotEmpty) {
           _firestore
               .collection(FirestoreCollections.channels)
               .doc(channelId)
-              .update({'videoCount': recentVideos.length})
+              .update({'videoCount': healedVideos.length})
               .catchError((_) {});
         }
       }
     }
 
-    // Fallback view count from recent videos if still zero
-    if ((channelStats['views'] == '0' || channelStats['views'] == null) &&
-        recentVideos.isNotEmpty) {
-      final totalViews = recentVideos.fold(
-        0,
-        (acc, v) => acc + v.viewCount,
-      );
-      if (totalViews > 0) {
-        channelStats.value = {
-          ...channelStats,
-          'views': _formatNumber(totalViews),
-          'videos': (currentChannel.value?.videoCount ?? 0) > 0
-              ? (currentChannel.value?.videoCount ?? 0)
-              : recentVideos.length,
-        };
-      }
-    } else {
-      channelStats.value = {
-        ...channelStats,
-        'videos': (currentChannel.value?.videoCount ?? 0) > 0
-            ? (currentChannel.value?.videoCount ?? 0)
-            : recentVideos.length,
-      };
+    // 2. Reconcile total views across all videos and channel doc
+    final totalVideoViews = healedVideos.fold<int>(
+      0,
+      (acc, v) => acc + v.viewCount,
+    );
+    final rawDocViews = currentChannel.value?.viewCount ?? 0;
+    final effectiveViews = healedVideos.isNotEmpty
+        ? totalVideoViews
+        : rawDocViews;
+
+    // 3. Reconcile total watch time across all videos
+    final totalVideoWatchSeconds = healedVideos.fold<int>(
+      0,
+      (acc, v) => acc + v.totalWatchTimeSeconds,
+    );
+    final effectiveWatchSec = healedVideos.isNotEmpty && totalVideoWatchSeconds > 0
+        ? totalVideoWatchSeconds
+        : math.max(totalWatchTimeSeconds.value, totalVideoWatchSeconds);
+    if (effectiveWatchSec > 0 || totalWatchTimeSeconds.value == 0) {
+      totalWatchTimeSeconds.value = effectiveWatchSec;
     }
 
-    // Reconcile and clamp watch time from recent videos
-    if (recentVideos.isNotEmpty) {
-      final totalVideoWatchSeconds = recentVideos.fold<int>(
-        0,
-        (acc, v) => acc + v.totalWatchTimeSeconds,
+    // Synchronize in-memory channel metrics so currentChannel is always consistent
+    if (currentChannel.value != null) {
+      final ch = currentChannel.value!;
+      currentChannel.value = ch.copyWith(
+        videoCount: healedVideos.length,
+        metrics: ch.metrics.copyWith(
+          totalViews: effectiveViews,
+          totalWatchTimeMinutes: effectiveWatchSec ~/ 60,
+        ),
       );
-      if (totalVideoWatchSeconds > 0) {
-        if (totalWatchTimeSeconds.value == 0 ||
-            totalWatchTimeSeconds.value > totalVideoWatchSeconds) {
-          totalWatchTimeSeconds.value = totalVideoWatchSeconds;
+    }
+
+    channelStats.value = {
+      ...channelStats,
+      'views': _formatNumber(effectiveViews),
+      'watchTime': formattedWatchTime,
+      'videos': (currentChannel.value?.videoCount ?? 0) > 0
+          ? (currentChannel.value?.videoCount ?? 0)
+          : healedVideos.length,
+    };
+
+    // Heal shard watch time on parent channel if needed
+    if (channelId.isNotEmpty && totalWatchTimeSeconds.value > 0 && Get.isRegistered<DistributedCounterService>()) {
+      DistributedCounterService.to.healParentChannelWatchTime(channelId, totalWatchTimeSeconds.value);
+    }
+
+    // Check distributed counter shards for real-time channel updates asynchronously
+    if (channelId.isNotEmpty && Get.isRegistered<DistributedCounterService>()) {
+      DistributedCounterService.to.getRealtimeChannelWatchTime(channelId).then((val) {
+        if (healedVideos.isEmpty && val > totalWatchTimeSeconds.value && !isClosed) {
+          totalWatchTimeSeconds.value = val;
           channelStats.value = {
             ...channelStats,
             'watchTime': formattedWatchTime,
           };
+          checkAndActivateMonetization();
         }
-      }
+      });
+      DistributedCounterService.to.getRealtimeChannelViews(channelId).then((val) {
+        if (healedVideos.isEmpty) {
+          final currentV = int.tryParse(
+            (channelStats['views'] ?? '0').toString().replaceAll(RegExp('[^0-9]'), ''),
+          ) ?? 0;
+          if (val > currentV && !isClosed) {
+            channelStats.value = {
+              ...channelStats,
+              'views': _formatNumber(val),
+            };
+          }
+        }
+      });
     }
+
     checkAndActivateMonetization();
   }
 
@@ -864,11 +1229,10 @@ class DashboardController extends BaseController {
           for (var i = 0; i < 28; i++) {
             final date = startDate.add(Duration(days: i));
             final dateString = DateFormat('yyyy-MM-dd').format(date);
-            final doc = snapshot.docs.firstWhere(
+            final doc = snapshot.docs.firstWhereOrNull(
               (d) => d.id == dateString,
-              orElse: () => snapshot.docs[0],
             );
-            data.add(AnalyticsData(date, doc.data()['views'] ?? 0));
+            data.add(AnalyticsData(date, (doc?.data()['views'] as num?)?.toInt() ?? 0));
           }
           analyticsData.value = data;
         } else {
@@ -892,20 +1256,34 @@ class DashboardController extends BaseController {
 
   void _loadCopyrightStatus() {
     if (channelId.isEmpty) return;
-    _copyrightSubscription = _firestore
-        .collection('copyright_claims')
-        .where('channelId', isEqualTo: channelId)
-        .snapshots()
-        .listen(
-          (snapshot) {
-            copyrightClaimsCount.value = snapshot.docs.length;
-          },
-          onError: (e, stackTrace) => ErrorHandler.log(
-            e,
-            stackTrace: stackTrace,
-            tag: 'DashboardController._loadCopyrightStatus',
-          ),
-        );
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final claimsQuery = (uid != null && uid.isNotEmpty)
+        ? _firestore
+            .collection('copyright_claims')
+            .where('uploaderId', isEqualTo: uid)
+        : _firestore
+            .collection('copyright_claims')
+            .where('channelId', isEqualTo: channelId);
+
+    _copyrightSubscription = claimsQuery.snapshots().listen(
+      (snapshot) {
+        final relevantClaims = (uid != null && uid.isNotEmpty)
+            ? snapshot.docs.where((doc) {
+                final data = doc.data();
+                final docChannelId = data['channelId'] as String?;
+                return docChannelId == null ||
+                    docChannelId.isEmpty ||
+                    docChannelId == channelId;
+              }).toList()
+            : snapshot.docs;
+        copyrightClaimsCount.value = relevantClaims.length;
+      },
+      onError: (e, stackTrace) => ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'DashboardController._loadCopyrightStatus',
+      ),
+    );
   }
 
   String _formatNumber(int number) {

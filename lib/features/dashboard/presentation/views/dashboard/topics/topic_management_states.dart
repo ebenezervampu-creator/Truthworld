@@ -1,48 +1,27 @@
 import 'package:flutter/material.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
+import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/topic_management_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Shimmer placeholder grid shown while channel topics are loading.
-class TopicShimmerGrid extends StatelessWidget {
-  const TopicShimmerGrid({super.key});
+/// Lightweight loading indicator matching TopicGridView's responsive architecture.
+class TopicLoadingGrid extends StatelessWidget {
+  const TopicLoadingGrid({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final isDesktop = size.width >= 1024;
-    final isTablet = size.width >= 600 && size.width < 1024;
-    final crossAxisCount = isDesktop ? 3 : (isTablet ? 2 : 1);
-    const childAspectRatio = 16 / 9;
-
-    return Shimmer.fromColors(
-      baseColor: const Color(0xFF1E1E1E),
-      highlightColor: AppColors.bgSurfaceHover,
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: crossAxisCount,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: childAspectRatio,
-        ),
-        itemCount: 6,
-        itemBuilder: (context, index) {
-          return Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.bgDivider),
-            ),
-          );
-        },
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 40),
+      child: StudioLoadingIndicator(
+        message: 'Loading topics...',
+        isFullScreen: false,
       ),
     );
   }
 }
+
+// Backward-compatible alias
+typedef TopicShimmerGrid = TopicLoadingGrid;
 
 /// Empty state when the channel has not yet created any topics.
 class TopicEmptyState extends StatelessWidget {

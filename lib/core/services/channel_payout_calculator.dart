@@ -83,6 +83,26 @@ class ChannelPayoutCalculator {
     return hasQualifiedVideo && isKycVerified;
   }
 
+  /// Two-Phase Settlement helpers:
+  /// Evaluates available cleared withdrawable cash balance for a channel.
+  static double calculateClearedWithdrawableBalance({
+    required Channel channel,
+    double extraClearedRevenue = 0.0,
+  }) {
+    final clearedRev = channel.clearedBalanceINR + extraClearedRevenue;
+    final walletUSD = channel.walletBalanceUSD;
+    final walletINR = walletUSD * 84.0;
+    final totalCleared = clearedRev + walletINR;
+    return max(0.0, totalCleared - channel.withdrawnRevenueTotal);
+  }
+
+  /// Evaluates pending in-flight revenue currently in 7-day clearing hold or awaiting month-end finalization.
+  static double calculatePendingClearingRevenue({
+    required Channel channel,
+  }) {
+    return channel.pendingBalanceINR;
+  }
+
   /// Calculates revenue payout for a Standard Channel:
   /// - Ad Revenue: 70% Creator / 30% Platform
   /// - Premium Subscriptions: 70% Creator / 30% Platform

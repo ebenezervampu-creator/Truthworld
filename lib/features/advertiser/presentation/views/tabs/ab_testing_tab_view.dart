@@ -637,14 +637,14 @@ class AbTestingTabView extends StatelessWidget {
                 AppSnackbar.warning('Please enter an experiment name.');
                 return;
               }
-              final titleVal = ContentValidator.validate(title, checkEnglishOnly: false, fieldName: 'Experiment Name');
+              final titleVal = ContentValidator.validate(title, fieldName: 'Experiment Name');
               if (!titleVal.isValid) {
                 AppSnackbar.warning(titleVal.message);
                 return;
               }
               final camp = campaignController.text.trim();
               if (camp.isNotEmpty) {
-                final campVal = ContentValidator.validate(camp, checkEnglishOnly: false, fieldName: 'Target Campaign');
+                final campVal = ContentValidator.validate(camp, fieldName: 'Target Campaign');
                 if (!campVal.isValid) {
                   AppSnackbar.warning(campVal.message);
                   return;
@@ -652,7 +652,7 @@ class AbTestingTabView extends StatelessWidget {
               }
               final varA = variantAController.text.trim();
               if (varA.isNotEmpty) {
-                final varAVal = ContentValidator.validate(varA, checkEnglishOnly: false, fieldName: 'Variant A');
+                final varAVal = ContentValidator.validate(varA, fieldName: 'Variant A');
                 if (!varAVal.isValid) {
                   AppSnackbar.warning(varAVal.message);
                   return;
@@ -660,7 +660,7 @@ class AbTestingTabView extends StatelessWidget {
               }
               final varB = variantBController.text.trim();
               if (varB.isNotEmpty) {
-                final varBVal = ContentValidator.validate(varB, checkEnglishOnly: false, fieldName: 'Variant B');
+                final varBVal = ContentValidator.validate(varB, fieldName: 'Variant B');
                 if (!varBVal.isValid) {
                   AppSnackbar.warning(varBVal.message);
                   return;

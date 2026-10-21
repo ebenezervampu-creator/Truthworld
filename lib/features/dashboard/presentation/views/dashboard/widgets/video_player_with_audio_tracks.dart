@@ -2,7 +2,6 @@ import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/multi_audio_player_controller.dart';
 import 'package:truthworld/theme/app_colors.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -134,16 +133,15 @@ class _VideoPlayerWithAudioTracksState
       if (_ctrl.isInitializing.value) {
         return AspectRatio(
           aspectRatio: widget.aspectRatio,
-          child: Shimmer.fromColors(
-            baseColor: const Color(0xFF1E1E1E),
-            highlightColor: AppColors.bgSurfaceHover,
-            child: const ColoredBox(
-              color: Color(0xFF1E1E1E),
-              child: Center(
-                child: Icon(
-                  Icons.play_circle_outline_rounded,
-                  size: 48,
-                  color: AppColors.bgSurfaceHover,
+          child: const ColoredBox(
+            color: Color(0xFF1E1E1E),
+            child: Center(
+              child: SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
                 ),
               ),
             ),

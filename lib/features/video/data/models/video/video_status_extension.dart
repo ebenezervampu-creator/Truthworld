@@ -2,16 +2,31 @@ import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Extension providing lifecycle, draft, and moderation approval status evaluation for [Video].
 extension VideoStatusExtension on Video {
+  /// Returns true if video is rejected by moderation or admin review.
+  bool get isRejected {
+    if (status == VideoStatus.pending_review ||
+        status == VideoStatus.processing ||
+        status == VideoStatus.uploading) {
+      return false;
+    }
+    if (status == VideoStatus.rejected) return true;
+    final vis = visibility.trim().toLowerCase();
+    if (vis == 'rejected') return true;
+    if (geminiApproved == false || isApproved == false) return true;
+    return false;
+  }
+
   /// Returns true if video is approved by Gemini AI moderation or manual admin review.
   bool get isApprovedByGeminiOrManual {
-    if (geminiApproved == false || isApproved == false) return false;
-    if (status == VideoStatus.rejected ||
-        status == VideoStatus.flagged ||
+    if (isRejected) return false;
+    if (status == VideoStatus.flagged ||
         status == VideoStatus.pending_review ||
         status == VideoStatus.draft ||
         status == VideoStatus.uploading) {
       return false;
     }
+    final vis = visibility.trim().toLowerCase();
+    if (vis == 'rejected' || vis == 'draft' || vis == 'private_draft') return false;
     if (geminiApproved == true || isApproved == true) return true;
     if (status == VideoStatus.ready) return true;
     final hasPlayable = videoUrl.trim().isNotEmpty ||

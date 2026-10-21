@@ -68,7 +68,7 @@ class ShiftTimingsDialog {
               buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
               inputFormatters: [
                 LengthLimitingTextInputFormatter(8),
-                FilteringTextInputFormatter.allow(RegExp(r'^-?[0-9]*')),
+                FilteringTextInputFormatter.allow(RegExp('^-?[0-9]*')),
               ],
               decoration: const InputDecoration(
                 labelText: 'Custom Offset (Milliseconds)',

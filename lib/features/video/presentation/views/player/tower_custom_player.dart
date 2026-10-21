@@ -53,10 +53,11 @@ class TowerCustomPlayer extends StatelessWidget {
       init: ctrl,
       tag: tag,
       builder: (c) {
-        if (c.videoPlayerController != videoPlayerController) {
+        if (c.videoPlayerController != videoPlayerController ||
+            (!c.isInitialized.value &&
+                videoPlayerController.value.isInitialized)) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!c.isClosed &&
-                c.videoPlayerController != videoPlayerController) {
+            if (!c.isClosed) {
               c.sync(videoPlayerController);
             }
           });
@@ -360,7 +361,6 @@ class TowerCustomPlayer extends StatelessWidget {
                                       c.animateZoomTo(
                                         targetScale: 1.0,
                                         targetPan: Offset.zero,
-                                        fill: false,
                                       );
                                       c.showToast('Original');
                                     } else if ((c.zoomScale.value - fillScale)
@@ -387,7 +387,6 @@ class TowerCustomPlayer extends StatelessWidget {
                                       c.animateZoomTo(
                                         targetScale: c.zoomScale.value,
                                         targetPan: targetPan,
-                                        fill: false,
                                         duration:
                                             const Duration(milliseconds: 140),
                                       );

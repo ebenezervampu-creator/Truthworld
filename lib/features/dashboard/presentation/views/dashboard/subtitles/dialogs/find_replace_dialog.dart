@@ -60,11 +60,11 @@ class FindReplaceDialog {
               final find = findCtrl.text;
               final replace = replaceCtrl.text;
               if (replace.isNotEmpty) {
-                final isEn = controller.selectedLanguage.value == 'en';
+
                 final v = ContentValidator.validate(
                   replace,
                   fieldName: 'Replacement Text',
-                  checkEnglishOnly: isEn,
+
                 );
                 if (!v.isValid) {
                   controller.showWarning(v.message);

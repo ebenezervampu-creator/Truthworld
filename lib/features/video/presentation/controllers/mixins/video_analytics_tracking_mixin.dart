@@ -25,6 +25,7 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
   int get lastPingWatchSeconds;
   set lastPingWatchSeconds(int val);
   bool get isVpcInitialized;
+  RxBool get isPlayerInitialized;
   VideoPlayerController? get videoPlayerController;
   RxBool get isSubscribed;
   String get trafficSource;

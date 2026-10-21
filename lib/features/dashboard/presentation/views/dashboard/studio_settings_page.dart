@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
+import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/studio_settings_controller.dart';
 import 'package:truthworld/features/settings/presentation/views/settings/widgets/settings_section_card.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -44,29 +44,26 @@ class StudioSettingsPage extends StatelessWidget {
             color: context.colors.textPrimary,
           ),
         ),
+        actions: [
+          Obx(
+            () => controller.userData.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(
+                      Icons.logout_rounded,
+                      color: AppColors.error,
+                    ),
+                    tooltip: 'Log Out',
+                    onPressed: () => _showLogoutDialog(context, controller),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
       ),
       body: Obx(
         () {
           if (controller.isLoadingData.value) {
-            return Shimmer.fromColors(
-              baseColor: const Color(0xFF1E1E1E),
-              highlightColor: AppColors.bgSurfaceHover,
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(spacing),
-                child: Column(
-                  children: List.generate(
-                    3,
-                    (_) => Container(
-                      height: 180,
-                      margin: EdgeInsets.only(bottom: spacing),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E1E1E),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+            return const StudioLoadingIndicator(
+              message: 'Loading studio settings...',
             );
           }
 
@@ -117,6 +114,8 @@ class StudioSettingsPage extends StatelessWidget {
                 _buildPrivacySection(context, controller),
                 SizedBox(height: spacing),
                 _buildAdvancedSection(context, controller),
+                SizedBox(height: spacing),
+                _buildAccountSection(context, controller),
                 SizedBox(height: spacing),
                 _buildDangerZoneSection(context, controller),
               ],
@@ -444,6 +443,78 @@ class StudioSettingsPage extends StatelessWidget {
     );
   }
 
+  // ===== ACCOUNT & SESSION SECTION =====
+  Widget _buildAccountSection(
+    BuildContext context,
+    StudioSettingsController controller,
+  ) {
+    final email = controller.userData['email'] as String? ?? '';
+    final name = controller.userData['displayName'] as String? ?? 'Creator';
+
+    return SettingsSectionCard(
+      title: 'Account & Session',
+      children: [
+        ListTile(
+          leading: Icon(
+            Icons.account_circle_outlined,
+            color: context.colors.textPrimary,
+            size: 24,
+          ),
+          title: Text(
+            name,
+            style: TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              color: context.colors.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          subtitle: email.isNotEmpty
+              ? Text(
+                  email,
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    color: context.colors.textSecondary,
+                    fontSize: 13,
+                  ),
+                )
+              : null,
+        ),
+        _buildDivider(context),
+        ListTile(
+          leading: const Icon(
+            Icons.logout_rounded,
+            color: AppColors.error,
+            size: 22,
+          ),
+          title: const Text(
+            'Log Out',
+            style: TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              color: AppColors.error,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          subtitle: Text(
+            'Sign out of Truthworld Studio on this device',
+            style: TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              color: context.colors.textSecondary,
+              fontSize: 13,
+            ),
+          ),
+          trailing: const Icon(
+            Icons.chevron_right_rounded,
+            color: AppColors.error,
+            size: 20,
+          ),
+          onTap: () => _showLogoutDialog(context, controller),
+        ),
+      ],
+    );
+  }
+
   // ===== DANGER ZONE SECTION =====
   Widget _buildDangerZoneSection(
     BuildContext context,
@@ -611,7 +682,7 @@ class StudioSettingsPage extends StatelessWidget {
               buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
               inputFormatters: [
                 LengthLimitingTextInputFormatter(10),
-                FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z]')),
+                FilteringTextInputFormatter.allow(RegExp('[a-zA-Z]')),
               ],
               style: TextStyle(
                 fontFamily: TWTypography.uiFamily,
@@ -684,6 +755,99 @@ class StudioSettingsPage extends StatelessWidget {
                 ),
               ),
               child: const Text('Delete Channel'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLogoutDialog(
+    BuildContext context,
+    StudioSettingsController controller,
+  ) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: context.colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: context.radius.lg,
+          side: BorderSide(color: context.colors.divider),
+        ),
+        title: Row(
+          children: [
+            const Icon(
+              Icons.logout_rounded,
+              color: AppColors.error,
+              size: 24,
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'Log Out',
+              style: TextStyle(
+                fontFamily: TWTypography.brandFamily,
+                color: context.colors.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to log out of Truthworld Studio? You will need to sign in again to access and manage your channel.',
+          style: TextStyle(
+            fontFamily: TWTypography.uiFamily,
+            color: context.colors.textSecondary,
+            fontSize: 14,
+            height: 1.4,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: context.colors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Obx(
+            () => ElevatedButton(
+              onPressed: controller.isLoggingOut.value
+                  ? null
+                  : () async {
+                      Navigator.of(dialogContext).pop();
+                      await controller.handleSignOut();
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error,
+                disabledBackgroundColor: AppColors.error.withValues(alpha: 0.3),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: context.radius.md,
+                ),
+                elevation: 0,
+              ),
+              child: controller.isLoggingOut.value
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text(
+                      'Log Out',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
             ),
           ),
         ],

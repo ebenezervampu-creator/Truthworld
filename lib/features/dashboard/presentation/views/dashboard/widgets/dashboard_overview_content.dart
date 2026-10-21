@@ -33,20 +33,29 @@ class DashboardOverviewContent extends StatelessWidget {
     final currentCh =
         dashboardController.currentChannel.value ?? viewController.channel;
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(horizontalPadding),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          DashboardHeader(
-            isDarkMode: isDarkMode,
-            isMobile: isMobile,
-            channel: currentCh,
-            channelName: viewController.getChannelName(currentCh),
-            searchController: viewController.searchController,
-            onSearchChanged: dashboardController.setSearchQuery,
-            onSearchClear: () => dashboardController.setSearchQuery(''),
-          ),
+    return RefreshIndicator(
+      color: Colors.white,
+      backgroundColor: const Color(0xFF1E1E1E),
+      onRefresh: () => dashboardController.refreshData(showFeedback: true),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.all(horizontalPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Obx(
+              () => DashboardHeader(
+                isDarkMode: isDarkMode,
+                isMobile: isMobile,
+                channel: currentCh,
+                channelName: viewController.getChannelName(currentCh),
+                searchController: viewController.searchController,
+                onSearchChanged: dashboardController.setSearchQuery,
+                onSearchClear: () => dashboardController.setSearchQuery(''),
+                onRefresh: () => dashboardController.refreshData(showFeedback: true),
+                isRefreshing: dashboardController.rxIsRefreshing.value,
+              ),
+            ),
           Obx(
             () => DashboardChannelStatsGrid(
               isDarkMode: isDarkMode,
@@ -126,6 +135,7 @@ class DashboardOverviewContent extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }

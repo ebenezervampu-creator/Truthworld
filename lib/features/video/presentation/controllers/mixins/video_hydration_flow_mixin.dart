@@ -571,11 +571,16 @@ mixin VideoHydrationFlowMixin on GetxController {
       initialSeekPosition = VideoPlaybackHandoff.peekPosition(video.id);
     }
     if (VideoPlaybackHandoff.isActive(video.id) || args?['isFromMiniplayer'] == true) {
-      rxIsLoading.value = false;
-      showThumbnail.value = false;
       final prewarmed = VideoPlaybackHandoff.peekController(video.id);
       if (prewarmed != null) {
         videoPlayerController = prewarmed;
+        if (prewarmed.value.isInitialized) {
+          rxIsLoading.value = false;
+          showThumbnail.value = false;
+        } else {
+          rxIsLoading.value = true;
+          showThumbnail.value = true;
+        }
       }
     }
     final overrideUrl = args?['overrideUrl'] as String?;

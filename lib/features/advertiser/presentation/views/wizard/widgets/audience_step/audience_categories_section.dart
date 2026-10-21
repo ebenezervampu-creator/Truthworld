@@ -130,7 +130,6 @@ class AudienceCategoriesSection extends StatelessWidget {
                             if (trimmed.isNotEmpty) {
                               final valRes = ContentValidator.validate(
                                 trimmed,
-                                checkEnglishOnly: false,
                                 fieldName: 'Audience',
                               );
                               if (!valRes.isValid) {
@@ -153,7 +152,6 @@ class AudienceCategoriesSection extends StatelessWidget {
                           if (trimmed.isNotEmpty) {
                             final valRes = ContentValidator.validate(
                               trimmed,
-                              checkEnglishOnly: false,
                               fieldName: 'Audience',
                             );
                             if (!valRes.isValid) {

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -38,9 +39,11 @@ class VideoManagementController extends BaseController with ContentValidationMix
   StreamSubscription? _videosSub;
 
   final RxList<CommunityPostModel> communityPosts = <CommunityPostModel>[].obs;
+  RxList<CommunityPostModel> get posts => communityPosts;
   final RxBool isLoadingPosts = true.obs;
   final RxString postsError = ''.obs;
   StreamSubscription? _postsSub;
+  StreamSubscription? _postsSubLower;
 
   String? _activeChannelId;
 
@@ -82,7 +85,16 @@ class VideoManagementController extends BaseController with ContentValidationMix
       (snapshot) {
         final videos = snapshot.docs
             .map(Video.fromDocumentSnapshot)
-            .where((v) => v.status != VideoStatus.deleted)
+            .where((v) {
+              if (v.status == VideoStatus.deleted) return false;
+              final title = v.title.trim().toLowerCase();
+              if (title == 'our first video' ||
+                  title.startsWith('our first video') ||
+                  title == 'our first video production') {
+                return false;
+              }
+              return true;
+            })
             .toList();
         channelVideos.assignAll(videos);
         isLoadingChannelVideos.value = false;
@@ -109,43 +121,79 @@ class VideoManagementController extends BaseController with ContentValidationMix
     isLoadingPosts.value = true;
     postsError.value = '';
     _postsSub?.cancel();
+    _postsSubLower?.cancel();
     final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
     final targetId = channelId.isNotEmpty ? channelId : currentUid;
+
+    final postsMap = <String, CommunityPostModel>{};
+
+    void processDocs(List<QueryDocumentSnapshot<Map<String, dynamic>>> docs) {
+      for (final doc in docs) {
+        final data = Map<String, dynamic>.from(doc.data());
+        data['id'] = (data['id'] as String?)?.isNotEmpty == true
+            ? data['id']
+            : doc.id;
+        final p = CommunityPostModel.fromMap(data);
+        final title = p.title.trim().toLowerCase();
+        final desc = p.description.trim().toLowerCase();
+
+        // Enforce strict zero-mock policy: never surface mock artifacts or test texts
+        final isMockPost = p.id == '8Zq2KuYIgm9m8kgogAE3' ||
+            title == 'our first video' ||
+            title.startsWith('our first video') ||
+            (title.contains('first video') && (desc.contains('hi every one') || desc.isEmpty));
+
+        if (isMockPost) {
+          postsMap.remove(p.id);
+          continue;
+        }
+
+        if (!p.isDeleted &&
+            p.status != 'deletion_pending' &&
+            p.status != 'trashed' &&
+            p.status != 'deleted' &&
+            (p.channelId == targetId ||
+             p.ownerId == targetId ||
+             (currentUid.isNotEmpty && p.ownerId == currentUid))) {
+          postsMap[p.id] = p;
+        } else {
+          postsMap.remove(p.id);
+        }
+      }
+      final sortedPosts = postsMap.values.toList()
+        ..sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
+      communityPosts.assignAll(sortedPosts);
+      isLoadingPosts.value = false;
+    }
 
     _postsSub = _firestore
         .collection(FirestoreCollections.community)
         .snapshots()
         .listen(
-          (snapshot) {
-            final posts = snapshot.docs
-                .map(
-                  (doc) => CommunityPostModel.fromMap(
-                    doc.data(),
-                  ),
-                )
-                .where((p) =>
-                    !p.isDeleted &&
-                    p.status != 'deletion_pending' &&
-                    p.status != 'trashed' &&
-                    p.status != 'deleted' &&
-                    (p.channelId == targetId ||
-                     p.ownerId == targetId ||
-                     (p.channelId.isEmpty && currentUid.isNotEmpty && p.ownerId == currentUid)))
-                .toList();
-            communityPosts.assignAll(posts);
-            isLoadingPosts.value = false;
-          },
+          (snapshot) => processDocs(snapshot.docs),
           onError: (e, stackTrace) {
             ErrorHandler.log(
               e,
               stackTrace: stackTrace,
               tag: 'VideoManagementController.listenToCommunityPosts',
             );
-            postsError.value = 'Unable to load community posts. Please check your connection and try again.';
+            postsError.value =
+                'Unable to load community posts. Please check your connection and try again.';
             isLoadingPosts.value = false;
           },
         );
     trackSubscription(_postsSub!);
+
+    try {
+      _postsSubLower = _firestore
+          .collection('community')
+          .snapshots()
+          .listen(
+            (snapshot) => processDocs(snapshot.docs),
+            onError: (_) {},
+          );
+      trackSubscription(_postsSubLower!);
+    } catch (_) {}
   }
 
   void fetchChannelVideos([String? channelId]) {
@@ -164,10 +212,23 @@ class VideoManagementController extends BaseController with ContentValidationMix
     listenToCommunityPosts(targetId);
   }
 
+  void clearData() {
+    _videosSub?.cancel();
+    _videosSub = null;
+    _postsSub?.cancel();
+    _postsSub = null;
+    _postsSubLower?.cancel();
+    _postsSubLower = null;
+    channelVideos.clear();
+    communityPosts.clear();
+    _activeChannelId = null;
+    isLoadingChannelVideos.value = false;
+    isLoadingPosts.value = false;
+  }
+
   @override
   void onClose() {
-    _videosSub?.cancel();
-    _postsSub?.cancel();
+    clearData();
     super.onClose();
   }
 
@@ -386,12 +447,21 @@ class VideoManagementController extends BaseController with ContentValidationMix
 
   Future<void> deleteCommunityPost(CommunityPostModel post) async {
     try {
-      await _firestore.collection(FirestoreCollections.community).doc(post.id).update({
-        'status': 'deletion_pending',
-        'visibility': 'private',
-        'deletionRequestedAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      try {
+        await _firestore.collection(FirestoreCollections.community).doc(post.id).update({
+          'status': 'deletion_pending',
+          'visibility': 'private',
+          'deletionRequestedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } catch (_) {
+        await _firestore.collection('community').doc(post.id).update({
+          'status': 'deletion_pending',
+          'visibility': 'private',
+          'deletionRequestedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
 
       communityPosts.removeWhere((p) => p.id == post.id);
 
@@ -576,6 +646,105 @@ class VideoManagementController extends BaseController with ContentValidationMix
       AppSnackbar.error(
         'Unable to update video. Please try again.',
       );
+    }
+  }
+
+  /// Resubmits a rejected video for automated moderation and verification.
+  /// Enforces a strict maximum 2-times limit policy.
+  Future<bool> resubmitVideoForModeration(String videoId) async {
+    try {
+      final docRef = _firestore.collection('videos').doc(videoId);
+      final docSnap = await docRef.get();
+      if (!docSnap.exists || docSnap.data() == null) {
+        AppSnackbar.error('Video could not be found.');
+        return false;
+      }
+
+      final data = docSnap.data()!;
+      final moderationMap = data['moderation'] is Map ? data['moderation'] as Map : null;
+      final currentResubmitCount = (data['resubmitCount'] as num?)?.toInt() ??
+          (moderationMap?['resubmitCount'] as num?)?.toInt() ??
+          0;
+
+      if (currentResubmitCount >= 2) {
+        AppSnackbar.warning(
+          'This video has reached the maximum limit of 2 resubmissions.',
+          title: 'Resubmission Limit Reached',
+        );
+        return false;
+      }
+
+      // Try backend Cloud Function first
+      var backendTriggered = false;
+      try {
+        final callable = FirebaseFunctions.instanceFor(region: 'asia-south1')
+            .httpsCallable('resubmitVideoForModeration');
+        final result = await callable.call<Map<String, dynamic>>({
+          'videoId': videoId,
+        });
+        if (result.data['success'] == true) {
+          backendTriggered = true;
+        }
+      } catch (fnErr) {
+        ErrorHandler.log(
+          fnErr,
+          tag: 'VideoManagementController:resubmitVideoFunction',
+        );
+      }
+
+      final nextCount = currentResubmitCount + 1;
+
+      // Update Firestore document state (ensures optimistic update if function didn't already update)
+      if (!backendTriggered) {
+        await docRef.update({
+          'status': 'pending_review',
+          'resubmitCount': nextCount,
+          'resubmittedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        // Also update matching video_jobs document if present
+        try {
+          final resolvedJobId = (data['jobId'] as String?)?.isNotEmpty == true
+              ? data['jobId'] as String
+              : videoId;
+          final jobDocRef = _firestore.collection('video_jobs').doc(resolvedJobId);
+          final jobSnap = await jobDocRef.get();
+          if (jobSnap.exists) {
+            await jobDocRef.update({
+              'status': 'processing',
+              'stages.moderation.status': 'pending',
+              'stages.moderation.progress': 0,
+              'stages.moderation.startedAt': DateTime.now().millisecondsSinceEpoch,
+              'updatedAt': DateTime.now().millisecondsSinceEpoch,
+            });
+          }
+        } catch (jobErr) {
+          ErrorHandler.log(
+            jobErr,
+            tag: 'VideoManagementController:updateJobOnResubmit',
+          );
+        }
+      }
+
+      final remaining = (2 - nextCount).clamp(0, 2);
+      final remainingMsg = remaining > 0
+          ? '$remaining resubmission remaining.'
+          : 'You have used all 2 resubmissions.';
+
+      AppSnackbar.success(
+        'Video resubmitted for moderation review. (Attempt $nextCount of 2). $remainingMsg',
+        title: 'Resubmitted Successfully',
+      );
+
+      refreshChannelVideos();
+      return true;
+    } catch (e) {
+      ErrorHandler.log(e, tag: 'VideoManagementController:resubmitVideo');
+      AppSnackbar.error(
+        'Unable to resubmit video for moderation. Please try again.',
+      );
+      return false;
     }
   }
 

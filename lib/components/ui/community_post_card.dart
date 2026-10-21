@@ -18,11 +18,13 @@ class CommunityPostCard extends StatelessWidget {
     super.key,
     this.onTap,
     this.isFullWidth = true,
+    this.isChannelContext = false,
   });
 
   final CommunityPostModel post;
   final VoidCallback? onTap;
   final bool isFullWidth;
+  final bool isChannelContext;
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +33,13 @@ class CommunityPostCard extends StatelessWidget {
         : Get.put(CommunityPostController(post: post), tag: post.id);
 
     return Obx(() {
-      if (controller.isHidden.value) {
+      final isHidden = controller.isHidden.value;
+      final isOwner = controller.currentUid != null &&
+          (controller.currentUid == post.ownerId || controller.currentUid == post.channelId);
+
+      // On channel details page, studio dashboard, saved posts, or if user is the creator,
+      // NEVER hide the post from view!
+      if (!isChannelContext && !isOwner && isHidden) {
         return const SizedBox.shrink();
       }
 
@@ -57,9 +65,30 @@ class CommunityPostCard extends StatelessWidget {
                 context,
                 post,
                 controller,
+                isChannelContext: isChannelContext,
               ),
             ),
             const SizedBox(height: 12),
+
+            // Post Title (if distinct from description)
+            if (post.title.trim().isNotEmpty &&
+                post.title.trim().toLowerCase() != 'community post' &&
+                post.title.trim().toLowerCase() != post.description.trim().toLowerCase()) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  post.title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                    fontFamily: TWTypography.brandFamily,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
 
             // Description Text
             CommunityPostContent(

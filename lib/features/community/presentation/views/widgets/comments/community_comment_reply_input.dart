@@ -29,7 +29,7 @@ class CommunityCommentReplyInput extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Replying to @$userName',
+            'Replying to ${userName.startsWith('@') ? userName.substring(1) : userName}',
             style: const TextStyle(color: Colors.white54, fontSize: 11),
           ),
           const SizedBox(height: 4),

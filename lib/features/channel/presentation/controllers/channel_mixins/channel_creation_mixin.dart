@@ -2,13 +2,18 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/constants/platform_limits.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/studio_launcher.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_mixins/channel_controller_base.dart';
+import 'package:truthworld/theme/app_colors.dart';
 
 mixin ChannelCreationMixin on ChannelControllerBase {
   Future<void> createChannel() async {
@@ -45,7 +50,12 @@ mixin ChannelCreationMixin on ChannelControllerBase {
             'You already have a channel. Only one channel is allowed per Google account.',
           );
           isSubmitting.value = false;
-          Get.offAllNamed('/studio', arguments: {'channel': existing});
+          if (AppFlavor.isStudio) {
+            Get.offAllNamed('/studio', arguments: {'channel': existing});
+          } else {
+            final target = existing.channelRoute.isNotEmpty ? existing.channelRoute : '/';
+            Get.offAllNamed(target, arguments: {'channel': existing});
+          }
           return;
         }
       } catch (e, s) {
@@ -76,7 +86,12 @@ mixin ChannelCreationMixin on ChannelControllerBase {
               'You already have a channel. Only one channel is allowed per Google account.',
             );
             isSubmitting.value = false;
-            Get.offAllNamed('/studio', arguments: {'channel': existingCh});
+            if (AppFlavor.isStudio) {
+              Get.offAllNamed('/studio', arguments: {'channel': existingCh});
+            } else {
+              final target = existingCh.channelRoute.isNotEmpty ? existingCh.channelRoute : '/';
+              Get.offAllNamed(target, arguments: {'channel': existingCh});
+            }
             return;
           } else {
             // Orphaned/stale channel reference on user doc — clean it up so creation can proceed
@@ -267,16 +282,6 @@ mixin ChannelCreationMixin on ChannelControllerBase {
         selectedPlan.value = 'standard';
       }
       planSelectionError.value = false;
-
-      // 🔒 Language Policy Enforcement: Truthworld is accepting only English channels as of now
-      if (language.value.trim().toLowerCase() != 'en') {
-        showErrorSnackbar(
-          'Truthworld currently accepts channel creation only in English. All other languages are invite-only at this stage.',
-        );
-        isSubmitting.value = false;
-        return;
-      }
-
       if (!agreeTerms.value || !agreeGuidelines.value) {
         showErrorSnackbar('Please agree to both Terms & Conditions and Community Guidelines.');
         isSubmitting.value = false;
@@ -426,7 +431,7 @@ mixin ChannelCreationMixin on ChannelControllerBase {
         'isVerified': false,
         'subscriberCount': 0,
         'videoCount': 0,
-        'language': 'en',
+        'language': language.value.trim().isEmpty ? 'en' : language.value.trim().toLowerCase(),
         'country': country.value,
         'channelTypeCategory': channelTypeCategory.value,
         'entityType': channelTypeCategory.value,
@@ -538,7 +543,6 @@ mixin ChannelCreationMixin on ChannelControllerBase {
       AuthService.to.rxUserChannel.value = createdChannel;
       channels.assignAll([createdChannel]);
 
-      showSuccessSnackbar('Channel "$channelNameText" created successfully!');
       if (kDebugMode) {
         debugPrint('✅ Channel created with ID: $newChannelId');
         debugPrint('📌 Channel name: $channelNameText');
@@ -546,10 +550,22 @@ mixin ChannelCreationMixin on ChannelControllerBase {
 
       resetForm();
 
-      // Navigate directly to Creator Studio with the resolved channel
-      Get.offAllNamed('/studio', arguments: {
-        'channel': createdChannel,
-      });
+      if (AppFlavor.isStudio) {
+        showSuccessSnackbar('Channel "$channelNameText" created successfully!');
+        Get.offAllNamed('/studio', arguments: {
+          'channel': createdChannel,
+        });
+      } else {
+        // In Consumer app, do not open Studio dashboard or any of its tabs.
+        final targetRoute = createdChannel.channelRoute.isNotEmpty
+            ? createdChannel.channelRoute
+            : '/';
+        Get.offAllNamed(targetRoute, arguments: {
+          'channel': createdChannel,
+        });
+
+        _showChannelCreatedConsumerSuccess();
+      }
     } on FirebaseException catch (e, stackTrace) {
       ErrorHandler.log(e, stackTrace: stackTrace, tag: 'ChannelCreationMixin.createChannel.firebase');
       channels.clear();
@@ -618,6 +634,119 @@ mixin ChannelCreationMixin on ChannelControllerBase {
         ErrorHandler.log(e, stackTrace: s, tag: 'ChannelCreationMixin._incrementTagUsageCounts');
       }
     }
+  }
+
+  void _showChannelCreatedConsumerSuccess() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final isInstalled = await StudioLauncher.isStudioInstalled();
+
+      AppSnackbar.success(
+        'Your channel successfully created. Open it from Studio App in browser or download Studio app for accessing Studio.',
+        title: 'Channel Created',
+        actionLabel: isInstalled ? 'Open Studio App' : 'Open Studio',
+        onAction: StudioLauncher.openStudio,
+        duration: const Duration(seconds: 8),
+      );
+
+      if (Get.context != null) {
+        Get.dialog(
+          AlertDialog(
+            backgroundColor: const Color(0xFF18181B),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Color(0xFF10B981), size: 28),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Channel Created',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: const Text(
+              'Your channel successfully created. Open it from Studio App in browser or download Studio app for accessing Studio.',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+                height: 1.5,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  if (Get.isDialogOpen ?? false) Get.back();
+                },
+                child: const Text(
+                  'Stay in App',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+              ),
+              if (!isInstalled)
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Color(0xFF3F3F46)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onPressed: () {
+                    if (Get.isDialogOpen ?? false) Get.back();
+                    StudioLauncher.downloadStudioApp();
+                  },
+                  icon: const Icon(
+                    Icons.download_rounded,
+                    size: 18,
+                    color: Colors.white,
+                  ),
+                  label: const Text(
+                    'Download App',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: () {
+                  if (Get.isDialogOpen ?? false) Get.back();
+                  StudioLauncher.openStudio();
+                },
+                icon: Icon(
+                  isInstalled
+                      ? Icons.launch_rounded
+                      : Icons.open_in_browser_rounded,
+                  size: 18,
+                  color: Colors.black,
+                ),
+                label: Text(
+                  isInstalled ? 'Open Studio App' : 'Open in Browser',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    });
   }
 
 }

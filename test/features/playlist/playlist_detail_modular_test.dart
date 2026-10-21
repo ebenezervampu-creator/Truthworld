@@ -228,7 +228,6 @@ void main() {
         ownerId: 'u1',
         channelId: '',
         name: 'Empty Playlist',
-        videoIds: const [],
       );
       expect(p1.videoCount, equals(0));
       expect(p1.effectiveVideoCount, equals(0));

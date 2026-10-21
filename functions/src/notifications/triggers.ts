@@ -199,8 +199,11 @@ export const onCommentCreated = onDocumentCreated(
         actionUrl: `/video/${event.params.videoId}`,
         metadata: { 
           videoId: event.params.videoId, 
+          videoTitle: (videoData?.title || "").trim(),
+          thumbnailUrl: (videoData?.thumbnailUrl || "").trim(),
           commentId: event.params.commentId,
           commentAuthorId,
+          commenterName: displayName,
           avatarUrl,
         }
       });
@@ -216,8 +219,11 @@ export const onCommentCreated = onDocumentCreated(
       message: `${displayName} mentioned you: "${commentText.slice(0, 30)}..."`,
       metadata: {
         videoId: event.params.videoId,
+        videoTitle: (videoData?.title || "").trim(),
+        thumbnailUrl: (videoData?.thumbnailUrl || "").trim(),
         commentId: event.params.commentId,
         commentAuthorId,
+        commenterName: displayName,
         avatarUrl,
       }
     });

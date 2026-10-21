@@ -23,6 +23,7 @@ mixin VideoEngagementActionsMixin on GetxController {
   Video get video;
   set video(Video v);
   VideoPlayerController? get videoPlayerController;
+  RxBool get isPlayerInitialized;
   Rx<VideoClip?> get activeClip;
   RxBool get isPlayingRx;
   RxBool get showThumbnail;
@@ -57,8 +58,8 @@ mixin VideoEngagementActionsMixin on GetxController {
   void handleVideoCompletion(VideoPlayerValue value);
 
   static const List<int> _milestoneThresholds = [25, 50, 75, 100];
-  // Industry Standard: 120-second telemetry pulse (cuts network calls & invocations by 50% while capturing 100% of watch time on pause/exit via flushRemainingWatchTime)
-  static const int _watchPingIntervalSeconds = 120;
+  // Industry Standard: 10-second telemetry pulse (YouTube-style heartbeat for real-time watch time tracking)
+  static const int _watchPingIntervalSeconds = 10;
   static const int _crossDeviceResumeIntervalSeconds = 45;
 
   void videoListener() {
@@ -74,6 +75,19 @@ mixin VideoEngagementActionsMixin on GetxController {
     if (value.isInitialized && value.aspectRatio > 0) {
       if ((rxAspectRatio.value - value.aspectRatio).abs() > 0.001) {
         rxAspectRatio.value = value.aspectRatio;
+      }
+    }
+
+    if (isPlayerInitialized.value != value.isInitialized) {
+      if (WidgetsBinding.instance.schedulerPhase ==
+          SchedulerPhase.persistentCallbacks) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!isClosed && isPlayerInitialized.value != value.isInitialized) {
+            isPlayerInitialized.value = value.isInitialized;
+          }
+        });
+      } else {
+        isPlayerInitialized.value = value.isInitialized;
       }
     }
 

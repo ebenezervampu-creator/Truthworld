@@ -16,6 +16,8 @@ export const RATE_CARDS = {
   assemblyai: { perMinute: 0.039 },
   "google-translate-v3": { perCharacter: 0.000020 },
   elevenlabs: { perCharacter: 0.000030 },
+  "google-tts-neural2": { perCharacter: 0.000016 },
+  "google-tts-standard": { perCharacter: 0.000004 },
   storage: { perGBMonth: 0.020 },
   ffmpeg: { perSecond: 0.0001 },
   // ─── Gemini AI (Vertex AI pricing, USD per token) ───────────────────────
@@ -411,9 +413,15 @@ export class CostEngine {
     await this.recordCost(jobId, userId, "translation", "google-translate-v3", cost, "characters", chars);
   }
 
-  async recordTTSCost(jobId: string, userId: string, chars: number): Promise<void> {
-    const cost = chars * RATE_CARDS.elevenlabs.perCharacter;
-    await this.recordCost(jobId, userId, "tts", "elevenlabs", cost, "characters", chars);
+  async recordTTSCost(
+    jobId: string,
+    userId: string,
+    chars: number,
+    provider: "elevenlabs" | "google-tts-neural2" | "google-tts-standard" = "google-tts-neural2"
+  ): Promise<void> {
+    const rateCard = (RATE_CARDS as any)[provider] ?? RATE_CARDS["google-tts-neural2"];
+    const cost = chars * rateCard.perCharacter;
+    await this.recordCost(jobId, userId, "tts", provider, cost, "characters", chars);
   }
 
   async recordMediaCost(jobId: string, userId: string, seconds: number): Promise<void> {

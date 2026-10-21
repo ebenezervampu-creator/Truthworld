@@ -65,6 +65,92 @@ class ChannelNotificationsController extends BaseController {
   final RxList<ChannelVideoStatusItem> disputedVideos =
       <ChannelVideoStatusItem>[].obs;
 
+  /// Reactive cache for video titles to guarantee zero raw video UUIDs in notifications
+  final RxMap<String, String> videoTitlesCache = <String, String>{}.obs;
+  final Set<String> _pendingVideoFetches = <String>{};
+
+  /// Cleanly resolves video title from metadata, in-memory status lists, or Firestore doc.
+  /// Never displays raw UUID strings.
+  String getVideoTitle(String videoId, {String? initialTitle}) {
+    // Touch reactive cache so Obx observers always have an active dependency
+    final _ = videoTitlesCache.length;
+
+    if (videoTitlesCache.containsKey(videoId)) {
+      final cached = videoTitlesCache[videoId]!;
+      if (cached.isNotEmpty && !_isRawId(cached)) {
+        return cached;
+      }
+    }
+
+    if (initialTitle != null && initialTitle.trim().isNotEmpty && !_isRawId(initialTitle)) {
+      return initialTitle.trim();
+    }
+    if (videoId.isEmpty) return 'Video';
+
+    for (final v in rejectedVideos) {
+      if (v.id == videoId && v.title.isNotEmpty) {
+        videoTitlesCache[videoId] = v.title;
+        return v.title;
+      }
+    }
+    for (final v in manualReviewVideos) {
+      if (v.id == videoId && v.title.isNotEmpty) {
+        videoTitlesCache[videoId] = v.title;
+        return v.title;
+      }
+    }
+    for (final v in processingVideos) {
+      if (v.id == videoId && v.title.isNotEmpty) {
+        videoTitlesCache[videoId] = v.title;
+        return v.title;
+      }
+    }
+    for (final v in failedVideos) {
+      if (v.id == videoId && v.title.isNotEmpty) {
+        videoTitlesCache[videoId] = v.title;
+        return v.title;
+      }
+    }
+
+    _fetchVideoTitle(videoId);
+    return 'Your Video';
+  }
+
+  bool _isRawId(String text) {
+    final trimmed = text.trim();
+    if (trimmed.length > 36) return true;
+    final uuidRegex = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+    );
+    final shortHexRegex = RegExp(r'^[0-9a-fA-F]{8,32}$');
+    return uuidRegex.hasMatch(trimmed) || shortHexRegex.hasMatch(trimmed);
+  }
+
+  Future<void> _fetchVideoTitle(String videoId) async {
+    if (videoId.isEmpty || _pendingVideoFetches.contains(videoId)) return;
+    _pendingVideoFetches.add(videoId);
+    try {
+      final doc = await _firestore
+          .collection(FirestoreCollections.videos)
+          .doc(videoId)
+          .get();
+      if (doc.exists) {
+        final title = (doc.data()?['title'] as String?)?.trim() ?? '';
+        if (title.isNotEmpty && title != 'Uploading...') {
+          videoTitlesCache[videoId] = title;
+        } else {
+          videoTitlesCache[videoId] = 'Untitled Video';
+        }
+      } else {
+        videoTitlesCache[videoId] = 'Video';
+      }
+    } catch (_) {
+      videoTitlesCache[videoId] = 'Video';
+    } finally {
+      _pendingVideoFetches.remove(videoId);
+    }
+  }
+
   StreamSubscription? _channelSubscription;
   StreamSubscription? _copyrightSubscription;
   StreamSubscription? _videosSubscription;
@@ -83,11 +169,35 @@ class ChannelNotificationsController extends BaseController {
     _listenToChannelVideos();
   }
 
+  void clearData() {
+    _channelSubscription?.cancel();
+    _channelSubscription = null;
+    _copyrightSubscription?.cancel();
+    _copyrightSubscription = null;
+    _videosSubscription?.cancel();
+    _videosSubscription = null;
+    notifications.clear();
+    currentChannel.value = null;
+    rejectedVideos.clear();
+    manualReviewVideos.clear();
+    failedVideos.clear();
+    processingVideos.clear();
+    disputedVideos.clear();
+    unreadCount.value = 0;
+    copyrightClaimsCount.value = 0;
+    videoTitlesCache.clear();
+    _pendingVideoFetches.clear();
+    rxIsLoading.value = false;
+  }
+
   @override
   void onClose() {
     _channelSubscription?.cancel();
+    _channelSubscription = null;
     _copyrightSubscription?.cancel();
+    _copyrightSubscription = null;
     _videosSubscription?.cancel();
+    _videosSubscription = null;
     super.onClose();
   }
 
@@ -255,7 +365,7 @@ class ChannelNotificationsController extends BaseController {
                 title: title,
                 status: status,
                 reason:
-                    'Undergoing Truthworld AI transcription, primary English verification (90% rule), and safety checks.',
+                    'Undergoing Truthworld AI transcription, content processing, and safety checks.',
                 detectedLanguage: detectedLang,
                 isLanguageRejection: false,
                 thumbnailUrl: thumbUrl,
@@ -574,9 +684,71 @@ class ChannelNotificationsController extends BaseController {
 
     if (selectedCategory.value != 'all') {
       final cat = selectedCategory.value.toLowerCase();
-      if (cat == 'critical') {
+      if (cat == 'comments') {
         result = result
-            .where((n) => n.priority == NotificationPriority.critical)
+            .where((n) =>
+                n.type.contains('comment') ||
+                n.type.contains('mention') ||
+                n.category == 'comment' ||
+                n.category == 'community' ||
+                n.title.toLowerCase().contains('comment') ||
+                n.title.toLowerCase().contains('mention') ||
+                n.message.toLowerCase().contains('commented:'))
+            .toList();
+      } else if (cat == 'subscribers') {
+        result = result
+            .where((n) =>
+                n.type.contains('subscriber') ||
+                n.type.contains('follower') ||
+                n.type.contains('subscription') ||
+                n.category == 'growth' ||
+                n.category == 'subscribers' ||
+                n.title.toLowerCase().contains('subscriber') ||
+                n.message.toLowerCase().contains('subscribed to your channel'))
+            .toList();
+      } else if (cat == 'critical') {
+        result = result
+            .where((n) =>
+                n.priority == NotificationPriority.critical ||
+                n.severity == NotificationSeverity.priority ||
+                n.severity == NotificationSeverity.warning ||
+                n.type.contains('reject') ||
+                n.type.contains('flag') ||
+                n.type.contains('policy') ||
+                n.type.contains('claim'))
+            .toList();
+      } else if (cat == 'videos') {
+        result = result
+            .where((n) =>
+                n.type.contains('video') ||
+                n.category == 'video' ||
+                n.category == 'pipeline' ||
+                n.metadata?['itemType'] == 'video' ||
+                (n.metadata?['videoId'] != null &&
+                    (n.metadata?['videoId'] as String).isNotEmpty))
+            .toList();
+      } else if (cat == 'verification') {
+        result = result
+            .where(
+              (n) =>
+                  n.category == 'verification' ||
+                  n.type.contains('verification') ||
+                  n.type.contains('fact_check') ||
+                  n.type.contains('factcheck') ||
+                  n.verificationReportId != null,
+            )
+            .toList();
+      } else if (cat == 'growth' || cat == 'milestones' || cat == 'milestone') {
+        result = result
+            .where(
+              (n) =>
+                  n.category == 'growth' ||
+                  n.category == 'milestone' ||
+                  n.type.contains('milestone') ||
+                  n.type.contains('growth') ||
+                  n.type.contains('subscriber') ||
+                  n.type.contains('follower'),
+            )
             .toList();
       } else if (cat == 'monetization') {
         result = result
@@ -588,27 +760,24 @@ class ChannelNotificationsController extends BaseController {
                   n.type.contains('payout'),
             )
             .toList();
-      } else if (cat == 'verification') {
-        result = result
-            .where(
-              (n) =>
-                  n.category == 'verification' ||
-                  n.type.contains('verification') ||
-                  n.type.contains('fact_check'),
-            )
-            .toList();
       } else if (cat == 'performance') {
         result = result
             .where(
               (n) =>
                   n.category == 'analytics' ||
                   n.type.contains('performance') ||
-                  n.type.contains('retention'),
+                  n.type.contains('retention') ||
+                  n.type.contains('spike') ||
+                  n.analyticsSnapshot != null,
             )
             .toList();
       } else if (cat == 'coach') {
         result = result
-            .where((n) => n.category == 'education' || n.type.contains('coach'))
+            .where((n) =>
+                n.category == 'education' ||
+                n.category == 'coach' ||
+                n.type.contains('coach') ||
+                n.type.contains('tip'))
             .toList();
       }
     }

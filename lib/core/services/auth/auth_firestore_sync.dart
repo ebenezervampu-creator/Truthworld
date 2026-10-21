@@ -74,6 +74,8 @@ class AuthFirestoreSync {
         debugPrint(
           'AuthFirestoreSync: No document found by UID. Checking for legacy/duplicate accounts...',
         );
+        // Immediately notify that onboarding is needed for this new user so the UI is never delayed
+        onNeedsOnboardingChanged(true);
 
         final legacyData = await _consolidateLegacyUserAccounts(
           user: user,
@@ -161,7 +163,7 @@ class AuthFirestoreSync {
           );
         }
 
-        await userDoc.set(createMap);
+        await userDoc.set(createMap, SetOptions(merge: true));
         debugPrint(
           'AuthFirestoreSync: NEW user record created successfully (legacy data consolidated if present)',
         );
@@ -591,77 +593,73 @@ class AuthFirestoreSync {
     final legacyDocs = <DocumentSnapshot<Map<String, dynamic>>>[];
     final seenDocIds = <String>{currentUid};
 
-    // 1. Search by email
+    // Execute parallel lookups for email and phone numbers to eliminate sequential query latency
+    final searchTasks = <Future<void>>[];
     final email = user.email;
     if (email != null && email.isNotEmpty) {
-      try {
-        final emailQuery = await firestore
-            .collection(FirestoreCollections.users)
-            .where('email', isEqualTo: email)
-            .limit(5)
-            .get()
-            .timeout(const Duration(seconds: 2));
-        for (final doc in emailQuery.docs) {
-          if (!seenDocIds.contains(doc.id)) {
-            seenDocIds.add(doc.id);
-            legacyDocs.add(doc);
+      searchTasks.add(() async {
+        try {
+          final emailQuery = await firestore
+              .collection(FirestoreCollections.users)
+              .where('email', isEqualTo: email)
+              .limit(5)
+              .get()
+              .timeout(const Duration(seconds: 2));
+          for (final doc in emailQuery.docs) {
+            if (!seenDocIds.contains(doc.id)) {
+              seenDocIds.add(doc.id);
+              legacyDocs.add(doc);
+            }
           }
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'AuthFirestoreSync.legacyEmailQuery');
         }
-      } catch (e, s) {
-        ErrorHandler.log(
-          e,
-          stackTrace: s,
-          tag: 'AuthFirestoreSync.legacyEmailQuery',
-        );
-      }
+      }());
     }
 
-    // 2. Search by phoneNumber
     final phone = user.phoneNumber;
     if (phone != null && phone.isNotEmpty) {
-      // 2a. Root-level phoneNumber
-      try {
-        final phoneQuery = await firestore
-            .collection(FirestoreCollections.users)
-            .where('phoneNumber', isEqualTo: phone)
-            .limit(5)
-            .get()
-            .timeout(const Duration(seconds: 2));
-        for (final doc in phoneQuery.docs) {
-          if (!seenDocIds.contains(doc.id)) {
-            seenDocIds.add(doc.id);
-            legacyDocs.add(doc);
+      searchTasks.add(() async {
+        try {
+          final phoneQuery = await firestore
+              .collection(FirestoreCollections.users)
+              .where('phoneNumber', isEqualTo: phone)
+              .limit(5)
+              .get()
+              .timeout(const Duration(seconds: 2));
+          for (final doc in phoneQuery.docs) {
+            if (!seenDocIds.contains(doc.id)) {
+              seenDocIds.add(doc.id);
+              legacyDocs.add(doc);
+            }
           }
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'AuthFirestoreSync.legacyPhoneQuery');
         }
-      } catch (e, s) {
-        ErrorHandler.log(
-          e,
-          stackTrace: s,
-          tag: 'AuthFirestoreSync.legacyPhoneQuery',
-        );
-      }
+      }());
 
-      // 2b. Map-level metadata.phoneNumber
-      try {
-        final metaPhoneQuery = await firestore
-            .collection(FirestoreCollections.users)
-            .where('metadata.phoneNumber', isEqualTo: phone)
-            .limit(5)
-            .get()
-            .timeout(const Duration(seconds: 2));
-        for (final doc in metaPhoneQuery.docs) {
-          if (!seenDocIds.contains(doc.id)) {
-            seenDocIds.add(doc.id);
-            legacyDocs.add(doc);
+      searchTasks.add(() async {
+        try {
+          final metaPhoneQuery = await firestore
+              .collection(FirestoreCollections.users)
+              .where('metadata.phoneNumber', isEqualTo: phone)
+              .limit(5)
+              .get()
+              .timeout(const Duration(seconds: 2));
+          for (final doc in metaPhoneQuery.docs) {
+            if (!seenDocIds.contains(doc.id)) {
+              seenDocIds.add(doc.id);
+              legacyDocs.add(doc);
+            }
           }
+        } catch (e, s) {
+          ErrorHandler.log(e, stackTrace: s, tag: 'AuthFirestoreSync.legacyMetaPhoneQuery');
         }
-      } catch (e, s) {
-        ErrorHandler.log(
-          e,
-          stackTrace: s,
-          tag: 'AuthFirestoreSync.legacyMetaPhoneQuery',
-        );
-      }
+      }());
+    }
+
+    if (searchTasks.isNotEmpty) {
+      await Future.wait(searchTasks);
     }
 
     if (legacyDocs.isEmpty) return null;

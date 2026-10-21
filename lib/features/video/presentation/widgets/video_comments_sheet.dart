@@ -169,29 +169,10 @@ class VideoCommentsSheet {
                   videoTitle: controller.video.title,
                   onSubmit: (text, postAsChannel, channelId) async {
                     try {
-                      final authService = AuthService.to;
-                      final hasChannel = authService.hasChannel.value;
-                      final channel = authService.userChannel;
-
-                      final shouldPostAsChannel = postAsChannel || hasChannel;
-                      final targetChannelId = shouldPostAsChannel
-                          ? (channelId ?? channel?.id)
-                          : null;
-                      final targetChannelName = shouldPostAsChannel
-                          ? (channel?.handle.isNotEmpty ?? false
-                                ? channel?.handle
-                                : channel?.name)
-                          : null;
-                      final targetChannelAvatar = shouldPostAsChannel
-                          ? channel?.avatarUrl
-                          : null;
                       final targetUserAvatar = AuthService.to.activePhotoUrl;
 
                       await commentsController.submitComment(
                         text: text,
-                        channelId: targetChannelId,
-                        channelName: targetChannelName,
-                        channelProfilePicUrl: targetChannelAvatar,
                         userProfilePicUrl: targetUserAvatar,
                       );
                       AppSnackbar.success('Comment posted');
@@ -604,31 +585,11 @@ class VideoCommentsSheet {
                         videoId: controller.video.id,
                         onSubmit: (text, postAsChannel, channelId) async {
                           try {
-                            final authService = AuthService.to;
-                            final hasChannel = authService.hasChannel.value;
-                            final channel = authService.userChannel;
-
-                            final shouldPostAsChannel =
-                                postAsChannel || hasChannel;
-                            final targetChannelId = shouldPostAsChannel
-                                ? (channelId ?? channel?.id)
-                                : null;
-                            final targetChannelName = shouldPostAsChannel
-                                ? (channel?.handle.isNotEmpty ?? false
-                                      ? channel?.handle
-                                      : channel?.name)
-                                : null;
-                            final targetChannelAvatar = shouldPostAsChannel
-                                ? channel?.avatarUrl
-                                : null;
                             final targetUserAvatar =
                                 AuthService.to.activePhotoUrl;
 
                             await commentsController.submitComment(
                               text: text,
-                              channelId: targetChannelId,
-                              channelName: targetChannelName,
-                              channelProfilePicUrl: targetChannelAvatar,
                               userProfilePicUrl: targetUserAvatar,
                             );
                           } catch (e, s) {

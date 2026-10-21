@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/offline.dart';
@@ -245,6 +246,17 @@ class DownloadsController extends BaseController {
   }) async {
     if (!DownloadPipelineExecutor.validateDownloadSettings()) return false;
 
+    // Content moderation and policy validation check
+    if (video.isRejected ||
+        video.status == VideoStatus.rejected ||
+        !video.isApprovedByGeminiOrManual ||
+        !VideoVisibilityPolicy.canViewVideo(video)) {
+      AppSnackbar.warning(
+        'This video is unavailable for offline viewing.',
+      );
+      return false;
+    }
+
     // 1. Check if already downloaded
     if (isVideoDownloaded(video.id)) {
       AppSnackbar.info(
@@ -419,6 +431,17 @@ class DownloadsController extends BaseController {
     Function(VideoResolutionV2 resolution)? onResolutionSelected,
     VoidCallback? onAudioSelected,
   }) {
+    // Content moderation and policy validation check
+    if (video.isRejected ||
+        video.status == VideoStatus.rejected ||
+        !video.isApprovedByGeminiOrManual ||
+        !VideoVisibilityPolicy.canViewVideo(video)) {
+      AppSnackbar.warning(
+        'This video is unavailable for offline viewing.',
+      );
+      return;
+    }
+
     DownloadQualityDialog.show(
       context,
       video,

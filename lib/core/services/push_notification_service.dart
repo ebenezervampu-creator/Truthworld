@@ -451,7 +451,6 @@ class PushNotificationService extends GetxService {
 
     Get.rawSnackbar(
       snackPosition: SnackPosition.TOP,
-      snackStyle: SnackStyle.FLOATING,
       dismissDirection: DismissDirection.up,
       margin: EdgeInsets.only(
         top: topPadding + 10,
@@ -489,7 +488,6 @@ class PushNotificationService extends GetxService {
       backgroundColor: AppColors.bgSurface,
       borderRadius: 14,
       borderColor: AppColors.bgDivider,
-      borderWidth: 1,
       boxShadows: [
         BoxShadow(
           color: Colors.black.withValues(alpha: 0.4),
@@ -509,7 +507,7 @@ class PushNotificationService extends GetxService {
   Future<void> subscribeToChannelTopic(String channelId) async {
     if (!_isSupportedPlatform || channelId.trim().isEmpty) return;
     try {
-      final sanitizedId = channelId.trim().replaceAll(RegExp(r'[^a-zA-Z0-9-_.~%]'), '_');
+      final sanitizedId = channelId.trim().replaceAll(RegExp('[^a-zA-Z0-9-_.~%]'), '_');
       await FirebaseMessaging.instance.subscribeToTopic('channel_$sanitizedId');
     } catch (e) {
       logger.warning(
@@ -523,7 +521,7 @@ class PushNotificationService extends GetxService {
   Future<void> unsubscribeFromChannelTopic(String channelId) async {
     if (!_isSupportedPlatform || channelId.trim().isEmpty) return;
     try {
-      final sanitizedId = channelId.trim().replaceAll(RegExp(r'[^a-zA-Z0-9-_.~%]'), '_');
+      final sanitizedId = channelId.trim().replaceAll(RegExp('[^a-zA-Z0-9-_.~%]'), '_');
       await FirebaseMessaging.instance.unsubscribeFromTopic('channel_$sanitizedId');
     } catch (e) {
       logger.warning(

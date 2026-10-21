@@ -29,6 +29,7 @@ class AuthBottomSheet extends StatelessWidget {
 
   static bool _isOpen = false;
   static bool get isOpen => _isOpen;
+  static void markClosed() => _isOpen = false;
 
   /// Displays the authentication bottom sheet modally without requiring [context].
   static Future<void> prompt({
@@ -68,6 +69,7 @@ class AuthBottomSheet extends StatelessWidget {
     final controller = Get.isRegistered<AuthSheetController>()
         ? Get.find<AuthSheetController>()
         : Get.put(AuthSheetController());
+    controller.onCloseCallback = () => _isOpen = false;
     if (initialStep != null) {
       controller.currentStep.value = initialStep;
     }
@@ -101,7 +103,7 @@ class AuthBottomSheet extends StatelessWidget {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (Get.isRegistered<AuthService>()) {
           final auth = AuthService.to;
-          if (auth.isAuthenticated.value && auth.needsOnboarding.value) {
+          if (auth.isAuthenticated.value && (auth.needsOnboarding.value || auth.hasPendingOnboardingPrompt)) {
             auth.checkAndPromptOnboarding();
           }
         }
@@ -114,6 +116,7 @@ class AuthBottomSheet extends StatelessWidget {
     final controller = Get.isRegistered<AuthSheetController>()
         ? Get.find<AuthSheetController>()
         : Get.put(AuthSheetController());
+    controller.onCloseCallback = () => _isOpen = false;
 
     if (initialStep != null) {
       controller.currentStep.value = initialStep!;
@@ -222,7 +225,7 @@ class AuthBottomSheet extends StatelessWidget {
               SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'TruthWorld currently consists exclusively of English channels and content. We are currently accepting English users while actively preparing support for more languages.',
+                  'TruthWorld welcomes creators and users from all languages and backgrounds worldwide. Select your primary language to personalize your experience.',
                   style: TextStyle(
                     fontSize: 13,
                     color: AppColors.textSecondary,
@@ -366,55 +369,62 @@ class AuthBottomSheet extends StatelessWidget {
                       ],
                     ],
                   ),
-                  trailing: isEnglish
-                      ? Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.textPrimary,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.check_rounded,
-                                color: Colors.black,
-                                size: 14,
-                              ),
-                              SizedBox(width: 4),
-                              Text(
-                                'Available',
-                                style: TextStyle(
-                                  color: Colors.black,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF272727),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: AppColors.bgDivider),
-                          ),
-                          child: const Text(
-                            'Request',
-                            style: TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
+                  trailing: Obx(() {
+                    final currentLang = controller.selectedLanguage.value;
+                    final isSelected = currentLang != null
+                        ? currentLang.toLowerCase() == lang.name.toLowerCase()
+                        : isEnglish;
+                    if (isSelected) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
                         ),
+                        decoration: BoxDecoration(
+                          color: AppColors.textPrimary,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.check_rounded,
+                              color: Colors.black,
+                              size: 14,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Selected',
+                              style: TextStyle(
+                                color: Colors.black,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF272727),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: AppColors.bgDivider),
+                      ),
+                      child: const Text(
+                        'Select',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    );
+                  }),
                   onTap: () => controller.selectPrimaryLanguage(lang.name),
                 );
               },
@@ -516,6 +526,12 @@ class AuthBottomSheet extends StatelessWidget {
             TextField(
               controller: controller.requestEmailController,
               keyboardType: TextInputType.emailAddress,
+              maxLength: 254,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(254),
+                FilteringTextInputFormatter.deny(RegExp(r'\s')),
+              ],
               style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
               decoration: InputDecoration(
                 hintText: 'Email address (optional, for notifications)',
@@ -711,66 +727,7 @@ class AuthBottomSheet extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 18),
-
-        // Primary Language confirmation card with change option
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: const Color(0xFF272727),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.bgDivider),
-          ),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.check_circle_rounded,
-                color: AppColors.textPrimary,
-                size: 18,
-              ),
-              const SizedBox(width: 10),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Primary Language: English',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      'TruthWorld English Channels Active',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              TextButton(
-                onPressed: controller.goToLanguageSelection,
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: const Text(
-                  'Change',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 24),
 
         // iPhone / Apple: Apple Sign-In ONLY.
         // Android and Web: Google Sign-In ONLY.

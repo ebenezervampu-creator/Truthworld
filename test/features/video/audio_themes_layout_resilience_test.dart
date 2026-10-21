@@ -94,7 +94,7 @@ void main() {
                       fit: StackFit.expand,
                       children: [
                         ...previousChildren,
-                        if (currentChild != null) currentChild,
+                        ?currentChild,
                       ],
                     ),
                     child: KeyedSubtree(

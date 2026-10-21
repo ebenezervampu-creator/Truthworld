@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/base/base_repository.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/network/result.dart';
+import 'package:truthworld/core/utils/content_validator.dart';
 import 'package:truthworld/domain/entities/comment_entity.dart';
 import 'package:truthworld/domain/entities/community_post_entity.dart';
 import 'package:truthworld/domain/repositories/community_repository.dart';
@@ -152,7 +153,7 @@ class CommunityRepositoryImpl extends BaseRepository
         'userId': comment.userId,
         'userName': comment.userName,
         'userAvatarUrl': comment.userAvatarUrl,
-        'text': comment.text,
+        'text': ContentValidator.cleanProfanity(comment.text),
         'likeCount': 0,
         'replyCount': 0,
         'isPinned': false,
@@ -173,7 +174,7 @@ class CommunityRepositoryImpl extends BaseRepository
         userId: comment.userId,
         userName: comment.userName,
         userAvatarUrl: comment.userAvatarUrl,
-        text: comment.text,
+        text: ContentValidator.cleanProfanity(comment.text),
         createdAt: DateTime.now(), // or from doc if parsed
         updatedAt: DateTime.now(),
       );
@@ -207,7 +208,7 @@ class CommunityRepositoryImpl extends BaseRepository
           userId: data['userId'] ?? '',
           userName: data['userName'] ?? '',
           userAvatarUrl: data['userAvatarUrl'] ?? '',
-          text: data['text'] ?? '',
+          text: ContentValidator.cleanProfanity(data['text'] ?? ''),
           likeCount: data['likeCount'] ?? 0,
           replyCount: data['replyCount'] ?? 0,
           createdAt:

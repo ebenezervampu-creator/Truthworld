@@ -166,6 +166,13 @@ export interface TTSRequest {
   text: string;
   voiceId?: string;
   speakerId?: string;
+  userId?: string;
+  provider?: "google-cloud-tts" | "elevenlabs" | "auto";
+  preferVoiceCloning?: boolean;
+  voiceCloneId?: string;
+  gender?: "MALE" | "FEMALE" | "NEUTRAL";
+  speakingRate?: number;
+  pitch?: number;
 }
 
 export interface TTSResult {
@@ -174,6 +181,8 @@ export interface TTSResult {
   audioUrl: string;
   duration: number;
   format: string;
+  provider?: "google-cloud-tts" | "elevenlabs";
+  voiceName?: string;
 }
 
 export interface MediaMergeRequest {
@@ -976,9 +985,19 @@ export const GeminiExtractionSchema = z.object({
     isVerifiableEvent: z.boolean().optional().default(true),
     honestyWashingRisk: z.boolean().optional().default(false),
     assertiveness: z.string().optional().default('moderate'),
-    claimStrength: z.string().optional().default('moderate')
+    claimStrength: z.string().optional().default('moderate'),
+    start: z.number().optional(),
+    end: z.number().optional(),
+    speaker: z.string().optional(),
   })),
-  summary: z.string()
+  summary: z.string().optional().default(""),
+  detectedLanguage: z.string().optional(),
+  domain: z.string().optional(),
+  stance: z.string().optional(),
+  cautionLevel: z.string().optional(),
+  isLaunchNews: z.boolean().optional(),
+  primaryIntent: z.string().optional(),
+  isSensitive: z.boolean().optional(),
 });
 
 export const GeminiIntelligenceSchema = z.object({

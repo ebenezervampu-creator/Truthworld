@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
+import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/watchtime/presentation/controllers/watchtime_details_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -37,8 +37,10 @@ class WatchtimeDetailsPage extends StatelessWidget {
         ),
       ),
       body: Obx(() {
-        if (controller.isLoading) {
-          return buildShimmerVideoList();
+        if (controller.isLoading && controller.videoItems.isEmpty) {
+          return const StudioLoadingIndicator(
+            message: 'Loading watch time details...',
+          );
         }
 
         if (controller.isError) {

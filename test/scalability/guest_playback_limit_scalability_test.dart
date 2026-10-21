@@ -13,12 +13,12 @@ void main() {
   group('Scalability: Guest Playback Limit Engine (Millions of Viewers)', () {
     test('1. Adaptive Pulse Throttling reduces API load by 97.8% over 10-minute preview', () {
       // Simulates client ticker pulse generation across a full 600-second session
-      int remainingSeconds = 600;
-      int unreportedSeconds = 0;
-      int totalPulsesEmitted = 0;
-      final List<int> emittedPulsePayloads = [];
+      var remainingSeconds = 600;
+      var unreportedSeconds = 0;
+      var totalPulsesEmitted = 0;
+      final emittedPulsePayloads = <int>[];
 
-      for (int second = 1; second <= 600; second++) {
+      for (var second = 1; second <= 600; second++) {
         remainingSeconds--;
         unreportedSeconds++;
 
@@ -55,10 +55,10 @@ void main() {
     });
 
     test('2. Local storage debouncing eliminates 80% of flash storage writes', () {
-      int simulatedWatchedSeconds = 0;
-      int diskWriteCount = 0;
+      var simulatedWatchedSeconds = 0;
+      var diskWriteCount = 0;
 
-      for (int s = 1; s <= 600; s++) {
+      for (var s = 1; s <= 600; s++) {
         simulatedWatchedSeconds++;
         // Debounce: persist locally only every 5 seconds
         if (simulatedWatchedSeconds % 5 == 0) {
@@ -73,10 +73,10 @@ void main() {
 
     test('3. Monotonic Clock Benchmark: 50,000 delta evaluations execute with P99 < 0.05ms', () {
       final stopwatch = Stopwatch()..start();
-      int lastStopwatchMillis = 0;
+      var lastStopwatchMillis = 0;
       final latenciesUs = <int>[];
 
-      for (int i = 0; i < 50000; i++) {
+      for (var i = 0; i < 50000; i++) {
         final iterStart = stopwatch.elapsedMicroseconds;
 
         // Monotonic math simulation from GuestPlaybackLimitService._startTicker
@@ -100,10 +100,10 @@ void main() {
 
     test('4. Date-partitioned IP Hash simulation for 50,000 concurrent sessions', () {
       final generatedPartitionKeys = <String>{};
-      final today = '2026-10-15';
+      const today = '2026-10-15';
 
       final sw = Stopwatch()..start();
-      for (int i = 0; i < 50000; i++) {
+      for (var i = 0; i < 50000; i++) {
         final mockHash = (i ^ 0x5DEECE66D).toRadixString(16).padLeft(16, '0');
         final key = '${mockHash}_$today';
         generatedPartitionKeys.add(key);

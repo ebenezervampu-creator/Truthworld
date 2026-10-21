@@ -33,7 +33,19 @@ export const rollupDailyStats = onSchedule(
       let batch = db.batch();
       let ops = 0;
 
-      const channelAcc = new Map<string, { views: number; watchSeconds: number }>();
+      interface ChannelAccItem {
+        views: number;
+        watchSeconds: number;
+        subscriberViews: number;
+        nonSubscriberViews: number;
+        returningViewers: number;
+        urbanViewers: number;
+        ruralViewers: number;
+        stateTraffic: Record<string, number>;
+        cityTraffic: Record<string, number>;
+        countryTraffic: Record<string, number>;
+      }
+      const channelAcc = new Map<string, ChannelAccItem>();
 
       for (const doc of videoStatsSnap.docs) {
         const videoId = doc.id;
@@ -44,11 +56,21 @@ export const rollupDailyStats = onSchedule(
         const videoData = videoDoc.data() ?? {};
         const channelId = videoData.channelId ?? null;
 
+        const subViews = stats.subscriberViews ?? stats.totalSubscribers ?? 0;
+        const totalV = stats.totalViews ?? 0;
+        const nonSubViews = stats.nonSubscriberViews ?? Math.max(0, totalV - subViews);
+        const returningViewers = stats.returningViewers ?? Math.max(0, totalV - (stats.uniqueUsers ?? totalV));
+        const urbanViewers = stats.urbanViewers ?? 0;
+        const ruralViewers = stats.ruralViewers ?? 0;
+        const stateTraffic = (stats.stateTraffic && typeof stats.stateTraffic === "object") ? stats.stateTraffic : {};
+        const cityTraffic = (stats.cityTraffic && typeof stats.cityTraffic === "object") ? stats.cityTraffic : {};
+        const countryTraffic = (stats.countryTraffic && typeof stats.countryTraffic === "object") ? stats.countryTraffic : {};
+
         const dailyData = {
           date: dateKey,
           dateKey: dateKeyUnderscored,
-          views: stats.totalViews ?? 0,
-          totalViews: stats.totalViews ?? 0,
+          views: totalV,
+          totalViews: totalV,
           totalWatchSeconds: stats.totalWatchSeconds ?? 0,
           totalWatchTimeSeconds: stats.totalWatchSeconds ?? 0,
           uniqueUsers: stats.uniqueUsers ?? 0,
@@ -58,6 +80,14 @@ export const rollupDailyStats = onSchedule(
           retention: videoData.retention ?? {},
           geo: videoData.geo ?? {},
           demographics: videoData.demographics ?? {},
+          subscriberViews: subViews,
+          nonSubscriberViews: nonSubViews,
+          returningViewers: returningViewers,
+          urbanViewers: urbanViewers,
+          ruralViewers: ruralViewers,
+          stateTraffic,
+          cityTraffic,
+          countryTraffic,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         };
 
@@ -83,9 +113,34 @@ export const rollupDailyStats = onSchedule(
 
         // Accumulate channel stats
         if (channelId) {
-          const existing = channelAcc.get(channelId) ?? { views: 0, watchSeconds: 0 };
-          existing.views += stats.totalViews ?? 0;
+          const existing = channelAcc.get(channelId) ?? {
+            views: 0,
+            watchSeconds: 0,
+            subscriberViews: 0,
+            nonSubscriberViews: 0,
+            returningViewers: 0,
+            urbanViewers: 0,
+            ruralViewers: 0,
+            stateTraffic: {},
+            cityTraffic: {},
+            countryTraffic: {},
+          };
+          existing.views += totalV;
           existing.watchSeconds += stats.totalWatchSeconds ?? 0;
+          existing.subscriberViews += subViews;
+          existing.nonSubscriberViews += nonSubViews;
+          existing.returningViewers += returningViewers;
+          existing.urbanViewers += urbanViewers;
+          existing.ruralViewers += ruralViewers;
+          for (const [k, v] of Object.entries(stateTraffic)) {
+            existing.stateTraffic[k] = (existing.stateTraffic[k] ?? 0) + Number(v);
+          }
+          for (const [k, v] of Object.entries(cityTraffic)) {
+            existing.cityTraffic[k] = (existing.cityTraffic[k] ?? 0) + Number(v);
+          }
+          for (const [k, v] of Object.entries(countryTraffic)) {
+            existing.countryTraffic[k] = (existing.countryTraffic[k] ?? 0) + Number(v);
+          }
           channelAcc.set(channelId, existing);
         }
       }
@@ -107,6 +162,14 @@ export const rollupDailyStats = onSchedule(
             totalViews: acc.views,
             totalWatchSeconds: acc.watchSeconds,
             totalWatchTimeSeconds: acc.watchSeconds,
+            subscriberViews: acc.subscriberViews,
+            nonSubscriberViews: acc.nonSubscriberViews,
+            returningViewers: acc.returningViewers,
+            urbanViewers: acc.urbanViewers,
+            ruralViewers: acc.ruralViewers,
+            stateTraffic: acc.stateTraffic,
+            cityTraffic: acc.cityTraffic,
+            countryTraffic: acc.countryTraffic,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
           }
         );
@@ -123,6 +186,14 @@ export const rollupDailyStats = onSchedule(
             totalViews: acc.views,
             totalWatchSeconds: acc.watchSeconds,
             totalWatchTimeSeconds: acc.watchSeconds,
+            subscriberViews: acc.subscriberViews,
+            nonSubscriberViews: acc.nonSubscriberViews,
+            returningViewers: acc.returningViewers,
+            urbanViewers: acc.urbanViewers,
+            ruralViewers: acc.ruralViewers,
+            stateTraffic: acc.stateTraffic,
+            cityTraffic: acc.cityTraffic,
+            countryTraffic: acc.countryTraffic,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
           }
         );

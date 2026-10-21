@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/content_validator.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/community/presentation/views/widgets/comments/community_comment_item_controller.dart';
 import 'package:truthworld/features/community/presentation/views/widgets/comments/community_comment_options_sheet.dart';
@@ -29,17 +30,23 @@ class CommunityCommentItemWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final commentId = commentData['id'] as String? ?? '';
-    final userName =
-        commentData['channelName']?.toString().isNotEmpty ?? false
-            ? commentData['channelName'].toString()
-            : (commentData['userName']?.toString() ?? 'User');
-    final userImage =
-        commentData['channelProfilePicUrl']?.toString().isNotEmpty ?? false
-            ? commentData['channelProfilePicUrl'].toString()
-            : (commentData['userImage']?.toString() ??
-                commentData['userProfilePicUrl']?.toString() ??
-                '');
-    final text = commentData['text']?.toString() ?? '';
+    final isChannel = commentData['isChannel'] == true;
+    final rawName = isChannel &&
+            (commentData['channelName']?.toString().isNotEmpty ?? false)
+        ? commentData['channelName'].toString()
+        : (commentData['userName']?.toString() ??
+            commentData['displayName']?.toString() ??
+            commentData['name']?.toString() ??
+            'User');
+    final userName = rawName.startsWith('@') ? rawName.substring(1) : rawName;
+    final userImage = isChannel &&
+            (commentData['channelProfilePicUrl']?.toString().isNotEmpty ??
+                false)
+        ? commentData['channelProfilePicUrl'].toString()
+        : (commentData['userImage']?.toString() ??
+            commentData['userProfilePicUrl']?.toString() ??
+            '');
+    final text = ContentValidator.cleanProfanity(commentData['text']?.toString() ?? '');
     final ts =
         commentData['createdAt'] as Timestamp? ??
         commentData['timestamp'] as Timestamp?;

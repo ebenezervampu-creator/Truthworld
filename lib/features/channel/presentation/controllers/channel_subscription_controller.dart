@@ -1,28 +1,26 @@
 import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
-import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/services/algorithm/user_signal_tracker.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/distributed_counter_service.dart';
 import 'package:truthworld/core/services/push_notification_service.dart';
-import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
-import 'package:truthworld/domain/usecases/channel/toggle_subscription_usecase.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/memberships_controller.dart';
 import 'package:truthworld/features/discover/presentation/controllers/discover_channels_controller.dart';
 import 'package:truthworld/features/subscriptions/presentation/controllers/subscription_controller.dart';
 
 class ChannelSubscriptionController extends BaseController {
-  ChannelSubscriptionController({
-    ToggleSubscriptionUseCase? toggleSubscriptionUseCase,
-  });
+  ChannelSubscriptionController();
 
   static ChannelSubscriptionController get to {
     if (Get.isRegistered<ChannelSubscriptionController>()) {
@@ -69,6 +67,10 @@ class ChannelSubscriptionController extends BaseController {
   final RxBool isChannelMember = false.obs;
   final Rxn<ChannelMember> currentMembership = Rxn<ChannelMember>();
   StreamSubscription? _membershipListener;
+
+  // Channel Memberships availability reactive state
+  final RxBool hasChannelMemberships = false.obs;
+  StreamSubscription? _membershipTiersListener;
 
   // Track channels subscribed to during this app session for "new subscriber" analytics
   final Set<String> _sessionSubscribedChannels = {};
@@ -351,6 +353,7 @@ class ChannelSubscriptionController extends BaseController {
   void listenSubscription(String channelId) {
     if (channelId.isEmpty) return;
     listenMembership(channelId);
+    listenMembershipTiers(channelId);
     if (!AuthService.to.isAuthenticated.value) {
       isSubscribed.value = false;
       isLoadingSubscription.value = false;
@@ -533,6 +536,47 @@ class ChannelSubscriptionController extends BaseController {
           isChannelMember.value = false;
           currentMembership.value = null;
         });
+  }
+
+  void listenMembershipTiers(String channelId) {
+    _membershipTiersListener?.cancel();
+    if (channelId.isEmpty) {
+      hasChannelMemberships.value = false;
+      return;
+    }
+
+    try {
+      _membershipTiersListener = _firestore
+          .collection(_channelsCol)
+          .doc(channelId)
+          .collection('membership_tiers')
+          .snapshots()
+          .listen(
+            (snapshot) {
+              final hasActive = snapshot.docs.any((doc) {
+                final data = doc.data();
+                return (data['isEnabled'] ?? true) == true;
+              });
+              hasChannelMemberships.value = hasActive;
+            },
+            onError: (error, stackTrace) {
+              ErrorHandler.log(
+                error,
+                stackTrace: stackTrace,
+                tag: 'ChannelSubscriptionController.listenMembershipTiers',
+              );
+              hasChannelMemberships.value = false;
+            },
+          );
+      trackSubscription(_membershipTiersListener!);
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'ChannelSubscriptionController.listenMembershipTiers',
+      );
+      hasChannelMemberships.value = false;
+    }
   }
 
   Future<void> updateNotificationPreference(
@@ -796,6 +840,8 @@ class ChannelSubscriptionController extends BaseController {
     _subscriptionListener = null;
     _membershipListener?.cancel();
     _membershipListener = null;
+    _membershipTiersListener?.cancel();
+    _membershipTiersListener = null;
     _countListener?.cancel();
     _countListener = null;
     super.onClose();

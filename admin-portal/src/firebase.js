@@ -5,7 +5,7 @@ import { getFunctions } from "firebase/functions";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAHx1SakaXmaPSbE25DOtTdP4Db4m6ES7E",
-  authDomain: "www.truthworld.in",
+  authDomain: "truthworld-1.firebaseapp.com",
   projectId: "truthworld-1",
   storageBucket: "truthworld-1.firebasestorage.app",
   messagingSenderId: "768266102263",

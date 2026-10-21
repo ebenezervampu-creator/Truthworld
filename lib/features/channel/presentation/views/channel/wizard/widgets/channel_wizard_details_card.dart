@@ -791,23 +791,18 @@ class ChannelWizardDetailsCard extends StatelessWidget {
       case AvailabilityStatus.checking:
         statusColor = const Color(0xFFF59E0B);
         statusIcon = Icons.hourglass_top_rounded;
-        break;
       case AvailabilityStatus.available:
         statusColor = AppColors.success;
         statusIcon = Icons.check_circle_outline_rounded;
-        break;
       case AvailabilityStatus.taken:
         statusColor = AppColors.error;
         statusIcon = Icons.cancel_outlined;
-        break;
       case AvailabilityStatus.invalid:
         statusColor = const Color(0xFFF59E0B);
         statusIcon = Icons.info_outline_rounded;
-        break;
       case AvailabilityStatus.error:
         statusColor = AppColors.error;
         statusIcon = Icons.error_outline_rounded;
-        break;
       case AvailabilityStatus.unknown:
         return const SizedBox.shrink();
     }

@@ -240,7 +240,7 @@ Future<void> openSourceUrl(String? url, {String? title, String? domain}) async {
           lowerClaim.contains('mobile data') ||
           (lowerClaim.contains('2012') && lowerClaim.contains('network'))) {
         rawResponse =
-            'In 2012, phone internet in India was mostly slow 2G with patchy 3G and expensive data plans. Fast 4G didn\'t arrive until Reliance Jio launched in late 2016.';
+            "In 2012, phone internet in India was mostly slow 2G with patchy 3G and expensive data plans. Fast 4G didn't arrive until Reliance Jio launched in late 2016.";
       } else if (lowerClaim.contains('internet access') ||
           (lowerClaim.contains('2012') && lowerClaim.contains('internet'))) {
         rawResponse =

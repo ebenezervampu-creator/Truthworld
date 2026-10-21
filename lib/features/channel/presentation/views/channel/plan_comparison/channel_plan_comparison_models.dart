@@ -84,12 +84,10 @@ class ChannelPlanComparisonData {
         ),
         PlanComparisonFeature(
           title: 'Cash-Out / Payout Rule',
-          standardValue: '1,000 Views & 10h Watch Time (Min ₹100 / \$10)',
-          customValue: '1,000 Views & 10h Watch Time (Min ₹100 / \$10)',
+          standardValue: r'1,000 Views & 10h Watch Time (Min ₹100 / $10)',
+          customValue: r'1,000 Views & 10h Watch Time (Min ₹100 / $10)',
           details:
-              'Payout rule is identical for Custom and Standard channels: earnings unlock per video once 1,000 views and 10 hours watch time are met. Minimum withdrawal is ₹100 for Indian channels and \$10 for other countries in their currencies.',
-          customWins: false,
-          standardWins: false,
+              r'Payout rule is identical for Custom and Standard channels: earnings unlock per video once 1,000 views and 10 hours watch time are met. Minimum withdrawal is ₹100 for Indian channels and $10 for other countries in their currencies.',
           icon: Icons.account_balance_wallet_outlined,
         ),
       ],

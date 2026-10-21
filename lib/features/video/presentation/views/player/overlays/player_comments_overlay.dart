@@ -355,27 +355,10 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
       if (!AuthService.to.isAuthenticated.value) {
         throw Exception('Please sign in to comment');
       }
-      final authService = AuthService.to;
-      final hasChannel = authService.hasChannel.value;
-      final channel = authService.userChannel;
-
-      final shouldPostAsChannel = hasChannel;
-      final targetChannelId = shouldPostAsChannel ? channel?.id : null;
-      final targetChannelName = shouldPostAsChannel
-          ? (channel?.handle.isNotEmpty ?? false
-                ? channel?.handle
-                : channel?.name)
-          : null;
-      final targetChannelAvatar = shouldPostAsChannel
-          ? channel?.avatarUrl
-          : null;
       final targetUserAvatar = AuthService.to.activePhotoUrl;
 
       await widget.commentsController.submitComment(
         text: text,
-        channelId: targetChannelId,
-        channelName: targetChannelName,
-        channelProfilePicUrl: targetChannelAvatar,
         userProfilePicUrl: targetUserAvatar,
       );
       _textCtrl.clear();
@@ -522,11 +505,7 @@ class FloatingAutoPlayCommentOverlay extends StatelessWidget {
 
       final hasChannel =
           comment.channelName != null && comment.channelName!.trim().isNotEmpty;
-      final authorHandle = hasChannel
-          ? (comment.channelName!.startsWith('@')
-                ? comment.channelName!
-                : '@${comment.channelName}')
-          : comment.userName;
+      final authorDisplayName = comment.displayName;
 
       return Positioned(
         top: ctrl.isFullScreen.value ? 48 : 16,
@@ -588,7 +567,7 @@ class FloatingAutoPlayCommentOverlay extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          authorHandle,
+                          authorDisplayName,
                           style: TextStyle(
                             color: hasChannel
                                 ? AppColors.brandHover

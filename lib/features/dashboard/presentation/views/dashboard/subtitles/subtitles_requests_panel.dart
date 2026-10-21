@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
@@ -89,22 +89,10 @@ class SubtitlesRequestsPanel extends StatelessWidget {
               final reqs = controller.languageRequests
                   .where((r) => r.type == 'subtitle')
                   .toList();
-              if (controller.isLoadingRequests.value) {
-                return Shimmer.fromColors(
-                  baseColor: const Color(0xFF1E1E1E),
-                  highlightColor: AppColors.bgSurfaceHover,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: 4,
-                    separatorBuilder: (_, _) => const SizedBox(height: 12),
-                    itemBuilder: (_, _) => Container(
-                      height: 80,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E1E1E),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
+              if (controller.isLoadingRequests.value && reqs.isEmpty) {
+                return const StudioLoadingIndicator(
+                  message: 'Loading subtitle requests...',
+                  isFullScreen: false,
                 );
               }
               if (reqs.isEmpty) {

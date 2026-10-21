@@ -93,11 +93,11 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
     for (var i = 0; i < currentCues.length; i++) {
       final cue = currentCues[i];
       if (cue.text.trim().isNotEmpty) {
-        final isEn = lang.toLowerCase() == 'en';
+
         final v = ContentValidator.validate(
           cue.text,
           fieldName: 'Subtitle Cue ${i + 1}',
-          checkEnglishOnly: isEn,
+
         );
         if (!v.isValid) {
           showWarning(v.message);
@@ -248,8 +248,9 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
       final bucket = FirebaseStorage.instance.ref().bucket;
       final gsUrl = 'gs://$bucket/$storagePath';
 
+      final trackKey = languageCode.isNotEmpty ? languageCode : title;
       final updatedSubs = Map<String, String>.from(video.mediaSubtitles);
-      updatedSubs[title] = gsUrl;
+      updatedSubs[trackKey] = gsUrl;
 
       await firestore
           .collection(FirestoreCollections.videos)
@@ -269,13 +270,13 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
 
       selectedVideo.refresh();
 
-      if (!availableLanguages.contains(title)) {
-        availableLanguages.add(title);
+      if (!availableLanguages.contains(trackKey)) {
+        availableLanguages.add(trackKey);
       }
-      selectedLanguage.value = title;
+      selectedLanguage.value = trackKey;
       hasUnsavedChanges.value = false;
-      if (updatedSubs.containsKey(title)) {
-        parseCuesForLanguage(title, updatedSubs[title]);
+      if (updatedSubs.containsKey(trackKey)) {
+        parseCuesForLanguage(trackKey, updatedSubs[trackKey]);
       }
 
       showSuccess('Subtitle track "$title" uploaded successfully!');

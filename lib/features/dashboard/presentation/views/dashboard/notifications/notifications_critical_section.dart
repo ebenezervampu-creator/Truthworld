@@ -30,7 +30,7 @@ class ChannelNotificationsCriticalSection extends StatelessWidget {
         color: AppColors.bgSurface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: AppColors.error.withValues(alpha: 0.5),
+          color: AppColors.error.withValues(alpha: 0.35),
         ),
       ),
       child: Column(
@@ -39,17 +39,17 @@ class ChannelNotificationsCriticalSection extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(6),
+                padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
-                  color: AppColors.errorContainer,
-                  borderRadius: BorderRadius.circular(6),
+                  color: AppColors.bgSurfaceHover,
+                  borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: AppColors.error.withValues(alpha: 0.4),
+                    color: AppColors.error.withValues(alpha: 0.3),
                   ),
                 ),
                 child: const Icon(
                   Icons.warning_rounded,
-                  color: Colors.white,
+                  color: Color(0xFFF87171),
                   size: 16,
                 ),
               ),
@@ -59,14 +59,16 @@ class ChannelNotificationsCriticalSection extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: TWTypography.uiFamily,
                   fontFamilyFallback: TWTypography.fallbackFamilies,
-                  fontSize: 13,
+                  fontSize: 12,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.1,
-                  color: AppColors.error,
+                  color: Color(0xFFF87171),
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          const Divider(height: 1, color: AppColors.bgDivider),
           const SizedBox(height: 12),
           ...criticalItems.map(
             (n) => ChannelNotificationsNotificationCard(

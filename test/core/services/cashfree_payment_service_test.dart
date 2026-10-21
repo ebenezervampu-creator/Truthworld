@@ -190,8 +190,8 @@ void main() {
 
     test('Direct Cashfree portal URLs construct valid endpoints for sandbox and production', () {
       const sessionId = 'session_test_999888';
-      final prodUrl = 'https://payments.cashfree.com/order/#$sessionId';
-      final sandUrl = 'https://payments-test.cashfree.com/order/#$sessionId';
+      const prodUrl = 'https://payments.cashfree.com/order/#$sessionId';
+      const sandUrl = 'https://payments-test.cashfree.com/order/#$sessionId';
 
       final prodUri = Uri.parse(prodUrl);
       final sandUri = Uri.parse(sandUrl);
@@ -206,7 +206,7 @@ void main() {
   group('Debug (Sandbox) Mode Payment Flow Verification', () {
     test('Debug environment creates sandbox checkout URL and flags isProduction as false', () {
       const envString = 'SANDBOX';
-      final isProduction = envString == 'PRODUCTION';
+      const isProduction = envString == 'PRODUCTION';
       expect(isProduction, isFalse);
 
       const sessionId = 'session_debug_abc123';
@@ -269,7 +269,7 @@ void main() {
   group('Production Mode Payment Flow Verification', () {
     test('Production environment creates production checkout URL and flags isProduction as true', () {
       const envString = 'PRODUCTION';
-      final isProduction = envString == 'PRODUCTION';
+      const isProduction = envString == 'PRODUCTION';
       expect(isProduction, isTrue);
 
       const sessionId = 'session_prod_live_456';
@@ -340,6 +340,91 @@ void main() {
       }
     });
   });
+
+  group('Android 11+ Installer Resolution & Fallback Verification', () {
+    test('Android 11+ (API 30+) initiating package identification logic resolves Play Store accurately', () {
+      // Simulating InstallSourceInfo on Android 11+ where:
+      // initiating = "com.android.vending" (Play Store)
+      // installing = "com.google.android.packageinstaller" (System Package Installer)
+      String resolveStore(String? initiating, String? installing, String? originating) {
+        if (initiating == 'com.android.vending' ||
+            installing == 'com.android.vending' ||
+            originating == 'com.android.vending' ||
+            (installing == 'com.google.android.packageinstaller' &&
+                (initiating == 'com.android.vending' || originating == 'com.android.vending'))) {
+          return 'com.android.vending';
+        }
+        if (initiating == 'com.sec.android.app.samsungapps' ||
+            installing == 'com.sec.android.app.samsungapps' ||
+            originating == 'com.sec.android.app.samsungapps') {
+          return 'com.sec.android.app.samsungapps';
+        }
+        if (initiating == 'com.amazon.venezia' ||
+            installing == 'com.amazon.venezia' ||
+            originating == 'com.amazon.venezia') {
+          return 'com.amazon.venezia';
+        }
+        return 'sideloaded';
+      }
+
+      // Case 1: Standard Play Store install on Android 11-15 (Pixel, Samsung, Xiaomi)
+      expect(
+        resolveStore('com.android.vending', 'com.google.android.packageinstaller', 'com.android.vending'),
+        equals('com.android.vending'),
+      );
+
+      // Case 2: Originating is null on some Android 12 OEM builds
+      expect(
+        resolveStore('com.android.vending', 'com.google.android.packageinstaller', null),
+        equals('com.android.vending'),
+      );
+
+      // Case 3: Direct Play Store installingPackageName on older OEM ROMs
+      expect(
+        resolveStore('com.android.vending', 'com.android.vending', null),
+        equals('com.android.vending'),
+      );
+
+      // Case 4: Samsung Galaxy Store on Android 11+
+      expect(
+        resolveStore('com.sec.android.app.samsungapps', 'com.google.android.packageinstaller', null),
+        equals('com.sec.android.app.samsungapps'),
+      );
+
+      // Case 5: Amazon Appstore
+      expect(
+        resolveStore('com.amazon.venezia', 'com.google.android.packageinstaller', null),
+        equals('com.amazon.venezia'),
+      );
+
+      // Case 6: True sideload via ADB or Chrome APK download
+      expect(
+        resolveStore(null, 'com.google.android.packageinstaller', null),
+        equals('sideloaded'),
+      );
+      expect(
+        resolveStore('com.android.chrome', 'com.google.android.packageinstaller', null),
+        equals('sideloaded'),
+      );
+    });
+
+    test('Hosted checkout fallback preserves session_id, order_id, and env parameters', () {
+      const orderId = 'cf_order_playstore_live_999';
+      const sessionId = 'session_prod_secure_abc123';
+      const env = 'production';
+
+      final fallbackUrl =
+          'https://www.truthworld.in/checkout?session_id=${Uri.encodeComponent(sessionId)}&order_id=${Uri.encodeComponent(orderId)}&env=$env';
+
+      final uri = Uri.parse(fallbackUrl);
+      expect(uri.scheme, equals('https'));
+      expect(uri.host, equals('www.truthworld.in'));
+      expect(uri.path, equals('/checkout'));
+      expect(uri.queryParameters['session_id'], equals(sessionId));
+      expect(uri.queryParameters['order_id'], equals(orderId));
+      expect(uri.queryParameters['env'], equals('production'));
+      // Ensure required session_id parameter for Cashfree JS SDK v3 is non-empty
+      expect(uri.queryParameters['session_id']?.isNotEmpty, isTrue);
+    });
+  });
 }
-
-

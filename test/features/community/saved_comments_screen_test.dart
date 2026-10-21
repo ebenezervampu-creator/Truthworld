@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/community/data/models/saved_comment_model.dart';
-import 'package:truthworld/features/community/presentation/controllers/saved_comments_controller.dart';
 import 'package:truthworld/features/community/presentation/views/saved_comments_screen.dart';
 import '../../test_helpers/mock_firebase.dart';
 

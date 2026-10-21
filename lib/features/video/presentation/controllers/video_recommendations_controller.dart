@@ -14,6 +14,7 @@ import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
+import 'package:truthworld/features/community/presentation/controllers/community_interaction_cache.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
@@ -490,7 +491,7 @@ class VideoRecommendationsController extends BaseController {
         await _fetchFlipRecommendations(video);
       } else {
         // STEP 2: CONCURRENT CHANNEL & GENERAL VIDEO QUERIES (Parallelized via Future.wait)
-        final channelFuture = fetchChannelVideos(setTabLoading: false);
+        final channelFuture = fetchChannelVideos();
 
         // Only query general candidates from network if pool cache is cold or expired
         final generalFuture = isCandidatePoolWarm
@@ -509,7 +510,7 @@ class VideoRecommendationsController extends BaseController {
                 });
 
         final results = await Future.wait([channelFuture, generalFuture]);
-        final channelVideos = results[0] as List<Video>;
+        final channelVideos = results[0]! as List<Video>;
         final generalSnapshot = results[1] as QuerySnapshot<Map<String, dynamic>>?;
 
         if (generalSnapshot != null && generalSnapshot.docs.isNotEmpty) {
@@ -960,13 +961,30 @@ class VideoRecommendationsController extends BaseController {
       final postsSnapshot = await FirebaseFirestore.instance
           .collection(FirestoreCollections.community)
           .where('visibility', isEqualTo: 'Public')
-          .limit(15)
+          .limit(20)
           .getCacheFirst();
       final posts = postsSnapshot.docs
           .map((doc) => CommunityPostModel.fromMap(doc.data()))
           .toList();
       posts.sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
-      communityPosts.assignAll(posts.take(5));
+
+      final currentUid = Get.isRegistered<AuthService>()
+          ? AuthService.to.currentUser.value?.uid
+          : null;
+      if (currentUid != null) {
+        await CommunityInteractionCache.ensureInitialized(currentUid);
+      }
+
+      final visiblePosts = posts.where((p) {
+        if (!p.isValid || p.isDraft) return false;
+        // Creator always sees their own post
+        if (currentUid != null && (currentUid == p.ownerId || currentUid == p.channelId)) {
+          return true;
+        }
+        return !CommunityInteractionCache.isFeedHidden(p.id, p.channelId);
+      }).toList();
+
+      communityPosts.assignAll(visiblePosts.take(5));
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'VideoRecommendationsController.fetchCommunityPosts');
     }

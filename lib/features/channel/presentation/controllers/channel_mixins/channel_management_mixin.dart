@@ -83,6 +83,9 @@ mixin ChannelManagementMixin on ChannelControllerBase {
   @override
   Rxn<ChannelMember> get currentMembership => subController.currentMembership;
 
+  @override
+  RxBool get hasChannelMemberships => subController.hasChannelMemberships;
+
   RxBool isSubscribedTo(String channelId) => subController.isSubscribedTo(channelId);
 
   @override

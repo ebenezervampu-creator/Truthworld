@@ -2,7 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
-import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 import 'package:truthworld/features/analytics/presentation/pages/creator_analytics_dashboard.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/recommendation_card_widget.dart';
@@ -33,50 +33,9 @@ class AnalyticsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: bgPage,
       body: Obx(() {
-        if (controller.rxIsLoading.value) {
-          return Shimmer.fromColors(
-            baseColor: const Color(0xFF1E1E1E),
-            highlightColor: AppColors.bgSurfaceHover,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    height: 48,
-                    width: 280,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E1E1E),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    children: List.generate(
-                      4,
-                      (_) => Expanded(
-                        child: Container(
-                          height: 110,
-                          margin: const EdgeInsets.symmetric(horizontal: 6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1E1E1E),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Container(
-                    height: 260,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E1E1E),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+        if (controller.rxIsLoading.value && controller.topVideos.isEmpty) {
+          return const StudioLoadingIndicator(
+            message: 'Loading channel analytics...',
           );
         }
         if (controller.rxErrorMessage.value.isNotEmpty) {
@@ -102,17 +61,18 @@ class AnalyticsScreen extends StatelessWidget {
           );
         }
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Title & Subtitle Header Banner with responsive wrapping
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final isMobile = constraints.maxWidth < 650;
+
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Column(
+                  // Title & Subtitle Header Banner with responsive wrapping
+                  if (isMobile)
+                    Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
@@ -131,198 +91,255 @@ class AnalyticsScreen extends StatelessWidget {
                             color: textSecondary,
                           ),
                         ),
+                        const SizedBox(height: 14),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _buildLiveSubscribersButton(isDarkMode),
+                            _buildFullDashboardButton(),
+                          ],
+                        ),
+                      ],
+                    )
+                  else
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Channel Analytics',
+                                style: AppTextStyles.pageTitle.copyWith(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Real-time overview of channel performance and content insights',
+                                style: AppTextStyles.caption.copyWith(
+                                  fontSize: 13,
+                                  color: textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          alignment: WrapAlignment.end,
+                          children: [
+                            _buildLiveSubscribersButton(isDarkMode),
+                            _buildFullDashboardButton(),
+                          ],
+                        ),
                       ],
                     ),
+                  const SizedBox(height: 24),
+
+                  // ── Real-Time Recommendation Intelligence ──
+                  RecommendationCardWidget(
+                    isDarkMode: isDarkMode,
+                    channelId: channelId,
                   ),
-                  const SizedBox(width: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      // Live Subscribers of Channel Action Button
-                      InkWell(
-                        onTap: () {
-                          Get.to<dynamic>(
-                            () => LiveSubscribersScreen(
-                              isDarkMode: isDarkMode,
-                              channelId: channelId,
-                            ),
-                          );
-                        },
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.error.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: AppColors.error.withValues(alpha: 0.4),
-                            ),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.sensors_rounded,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                              SizedBox(width: 8),
-                              Text(
-                                'Live Subscribers of channel',
-                                style: TextStyle(
-                                  color: AppColors.error,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                ),
-                              ),
-                              SizedBox(width: 4),
-                              Icon(
-                                Icons.arrow_forward_ios_rounded,
-                                color: Colors.white,
-                                size: 11,
-                              ),
-                            ],
+                  const SizedBox(height: 28),
+
+                  // ── Top Performing Videos Section ──
+                  _buildTopVideosSection(
+                    controller.topVideos,
+                    textPrimary,
+                    textSecondary,
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Bottom View Analytics Banner
+                  Center(
+                    child: InkWell(
+                      onTap: () {
+                        Get.to<dynamic>(
+                          () => const CreatorAnalyticsDashboard(),
+                          arguments: {
+                            'channelId': channelId,
+                            'channelName': 'My Channel',
+                          },
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        width: isMobile ? double.infinity : null,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.brand.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.brand.withValues(alpha: 0.3),
                           ),
                         ),
-                      ),
-                      // Full Dashboard Button
-                      InkWell(
-                        onTap: () {
-                          Get.to<dynamic>(
-                            () => const CreatorAnalyticsDashboard(),
-                            arguments: {
-                              'channelId': channelId,
-                              'channelName': 'My Channel',
-                            },
-                          );
-                        },
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.brand,
-                            borderRadius: BorderRadius.circular(10),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.brand.withValues(alpha: 0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.analytics_rounded,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Full Dashboard',
+                        child: Row(
+                          mainAxisSize: isMobile ? MainAxisSize.max : MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.query_stats_rounded,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                'View Detailed Creator Analytics Dashboard',
                                 style: AppTextStyles.buttonText.copyWith(
-                                  color: Colors.black,
+                                  color: AppColors.brand,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13,
                                 ),
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              const SizedBox(width: 4),
-                              const Icon(
-                                Icons.arrow_forward_ios_rounded,
-                                color: Colors.white,
-                                size: 12,
-                              ),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(width: 6),
+                            const Icon(
+                              Icons.arrow_forward_rounded,
+                              color: Colors.white,
+                              size: 14,
+                            ),
+                          ],
                         ),
                       ),
-                    ],
+                    ),
                   ),
+                  const SizedBox(height: 32),
                 ],
               ),
-              const SizedBox(height: 24),
-
-              // ── Real-Time Recommendation Intelligence ──
-              RecommendationCardWidget(
-                isDarkMode: isDarkMode,
-                channelId: channelId,
-              ),
-              const SizedBox(height: 28),
-
-              // ── Top Performing Videos Section ──
-              _buildTopVideosSection(
-                controller.topVideos,
-                textPrimary,
-                textSecondary,
-              ),
-              const SizedBox(height: 24),
-
-              // Bottom View Analytics Banner
-              Center(
-                child: InkWell(
-                  onTap: () {
-                    Get.to<dynamic>(
-                      () => const CreatorAnalyticsDashboard(),
-                      arguments: {
-                        'channelId': channelId,
-                        'channelName': 'My Channel',
-                      },
-                    );
-                  },
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.brand.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: AppColors.brand.withValues(alpha: 0.3),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.query_stats_rounded,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'View Detailed Creator Analytics Dashboard',
-                          style: AppTextStyles.buttonText.copyWith(
-                            color: AppColors.brand,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Icon(
-                          Icons.arrow_forward_rounded,
-                          color: Colors.white,
-                          size: 14,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
-            ],
-          ),
+            );
+          },
         );
       }),
+    );
+  }
+
+  Widget _buildLiveSubscribersButton(bool isDarkMode) {
+    return InkWell(
+      onTap: () {
+        Get.to<dynamic>(
+          () => LiveSubscribersScreen(
+            isDarkMode: isDarkMode,
+            channelId: channelId,
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 10,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.error.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: AppColors.error.withValues(alpha: 0.4),
+          ),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.sensors_rounded,
+              color: Colors.white,
+              size: 16,
+            ),
+            SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                'Live Subscribers',
+                style: TextStyle(
+                  color: AppColors.error,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            SizedBox(width: 4),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              color: Colors.white,
+              size: 11,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFullDashboardButton() {
+    return InkWell(
+      onTap: () {
+        Get.to<dynamic>(
+          () => const CreatorAnalyticsDashboard(),
+          arguments: {
+            'channelId': channelId,
+            'channelName': 'My Channel',
+          },
+        );
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 10,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.brand,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.brand.withValues(alpha: 0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.analytics_rounded,
+              color: Colors.black,
+              size: 16,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                'Full Dashboard',
+                style: AppTextStyles.buttonText.copyWith(
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(
+              Icons.arrow_forward_ios_rounded,
+              color: Colors.black,
+              size: 12,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -347,12 +364,15 @@ class AnalyticsScreen extends StatelessWidget {
             children: [
               const Icon(Icons.stars_rounded, color: Colors.white, size: 22),
               const SizedBox(width: 10),
-              Text(
-                'Top Performing Videos (by views)',
-                style: AppTextStyles.titleMedium.copyWith(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: textPrimary,
+              Expanded(
+                child: Text(
+                  'Top Performing Videos (by views)',
+                  style: AppTextStyles.titleMedium.copyWith(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -384,24 +404,27 @@ class AnalyticsScreen extends StatelessWidget {
                     color: Colors.transparent,
                     child: ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: AspectRatio(
-                        aspectRatio: 16 / 9,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: topVideos[index].thumbnailUrl.isNotEmpty
-                              ? CachedNetworkImage(
-                                  imageUrl: topVideos[index].thumbnailUrl,
-                                  fit: BoxFit.cover,
-                                  errorWidget: (context, url, err) =>
-                                      const ColoredBox(
-                                        color: AppColors.bgInput,
-                                        child: Icon(
-                                          Icons.play_circle_outline,
-                                          color: Colors.white,
+                      leading: SizedBox(
+                        width: 80,
+                        child: AspectRatio(
+                          aspectRatio: 16 / 9,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: topVideos[index].thumbnailUrl.isNotEmpty
+                                ? CachedNetworkImage(
+                                    imageUrl: topVideos[index].thumbnailUrl,
+                                    fit: BoxFit.cover,
+                                    errorWidget: (context, url, err) =>
+                                        const ColoredBox(
+                                          color: AppColors.bgInput,
+                                          child: Icon(
+                                            Icons.play_circle_outline,
+                                            color: Colors.white,
+                                          ),
                                         ),
-                                      ),
-                                )
-                              : const ColoredBox(color: AppColors.bgInput),
+                                  )
+                                : const ColoredBox(color: AppColors.bgInput),
+                          ),
                         ),
                       ),
                       title: Text(

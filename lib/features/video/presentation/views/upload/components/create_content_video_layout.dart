@@ -52,6 +52,59 @@ class CreateContentVideoLayout extends StatelessWidget {
                               uploadController: uploadController,
                               isDesktop: isWide,
                             ),
+                            const SizedBox(height: 16),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF161618),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.08),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Icon(
+                                      Icons.public,
+                                      color: Colors.white70,
+                                      size: 18,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: RichText(
+                                      text: TextSpan(
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 12,
+                                          height: 1.4,
+                                        ),
+                                        children: [
+                                          const TextSpan(
+                                            text: 'All languages are supported for channel uploads. ',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          TextSpan(
+                                            text: 'Global Fact-Checking, Subtitles, and Dubbing now fully active across all languages.',
+                                            style: TextStyle(
+                                              color: Colors.white.withValues(alpha: 0.6),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                             const SizedBox(height: 24),
                             if (isWide)
                               Row(
@@ -76,10 +129,6 @@ class CreateContentVideoLayout extends StatelessWidget {
                                         ),
                                         const SizedBox(height: 20),
                                         CreateContentCategorySection(
-                                          uploadController: uploadController,
-                                        ),
-                                        const SizedBox(height: 20),
-                                        CreateContentLanguageLockSection(
                                           uploadController: uploadController,
                                         ),
                                         const SizedBox(height: 20),
@@ -141,10 +190,6 @@ class CreateContentVideoLayout extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 20),
                                   CreateContentCategorySection(
-                                    uploadController: uploadController,
-                                  ),
-                                  const SizedBox(height: 20),
-                                  CreateContentLanguageLockSection(
                                     uploadController: uploadController,
                                   ),
                                   const SizedBox(height: 20),

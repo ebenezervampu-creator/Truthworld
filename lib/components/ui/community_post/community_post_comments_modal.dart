@@ -341,43 +341,30 @@ void showCommunityCommentsModal(
                                 if (!validation.isValid) {
                                   AppSnackbar.warning(
                                     validation.message,
-                                    title: 'Inappropriate Content',
+
                                   );
                                   return;
                                 }
                                 textController.clear();
                                 try {
                                   final authService = AuthService.to;
-                                  final hasChannel =
-                                      authService.hasChannel.value;
-                                  final channel = authService.userChannel;
-
-                                  final channelId =
-                                      hasChannel ? channel?.id : null;
-                                  final channelName = hasChannel
-                                      ? (channel?.handle.isNotEmpty ?? false
-                                            ? channel?.handle
-                                            : channel?.name)
-                                      : null;
-                                  final channelAvatar =
-                                      hasChannel ? channel?.avatarUrl : null;
                                   final userAvatar =
                                       authService.activePhotoUrl;
-                                  final userName =
+                                  final rawName =
                                       authService.activeDisplayName;
+                                  final userName = rawName.startsWith('@')
+                                      ? rawName.substring(1)
+                                      : rawName;
 
                                   final postDoc = FirebaseFirestore.instance
                                       .collection(FirestoreCollections.community)
                                       .doc(post.id);
                                   await postDoc.collection('comments').add({
-                                    'text': text,
+                                    'text': ContentValidator.cleanProfanity(text),
                                     'userId': uid,
                                     'userName': userName,
                                     'userImage': userAvatar,
                                     'userProfilePicUrl': userAvatar,
-                                    'channelId': channelId,
-                                    'channelName': channelName,
-                                    'channelProfilePicUrl': channelAvatar,
                                     'createdAt': FieldValue.serverTimestamp(),
                                     'timestamp': FieldValue.serverTimestamp(),
                                     'likeCount': 0,

@@ -71,9 +71,9 @@ class AuthChannelManager {
     _userChannel.value = null;
     _hasChannel.value = false;
     _deletedChannel.value = null;
+    _fallbackResolvedUids.clear();
     if (uid != null) {
       GetStorage().write('hasChannel_$uid', false);
-      _fallbackResolvedUids.remove(uid);
     }
   }
 

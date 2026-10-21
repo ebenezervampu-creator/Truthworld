@@ -552,51 +552,60 @@ class ChannelHeaderWidget extends StatelessWidget {
                     },
             );
           }),
-          const SizedBox(width: 8),
           // Join / Joined Channel Membership Button
           Obx(() {
+            final currentChannel = controller.selectedChannel.value ?? channel;
+            final hasMemberships = controller.hasChannelMemberships.value || currentChannel.hasMemberships;
             final isJoined = controller.isChannelMember.value;
-            return Container(
-              height: 36,
-              decoration: BoxDecoration(
-                color: isJoined ? const Color(0xFF1B382B) : ytSurfaceLight,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: isJoined
-                      ? const Color(0xFF10B981)
-                      : ytTextPrimary.withValues(alpha: 0.3),
-                  width: isJoined ? 1.2 : 1.0,
-                ),
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () => ChannelMembershipJoinSheet.show(
-                    context,
-                    channelId: channel.channelId,
-                    channel: channel,
-                  ),
+
+            if (!hasMemberships && !isJoined) {
+              return const SizedBox.shrink();
+            }
+
+            return Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Container(
+                height: 36,
+                decoration: BoxDecoration(
+                  color: isJoined ? const Color(0xFF1B382B) : ytSurfaceLight,
                   borderRadius: BorderRadius.circular(18),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.stars_rounded,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          isJoined ? 'Joined' : 'Join',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: isJoined ? const Color(0xFF34D399) : ytTextPrimary,
+                  border: Border.all(
+                    color: isJoined
+                        ? const Color(0xFF10B981)
+                        : ytTextPrimary.withValues(alpha: 0.3),
+                    width: isJoined ? 1.2 : 1.0,
+                  ),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => ChannelMembershipJoinSheet.show(
+                      context,
+                      channelId: channel.channelId,
+                      channel: channel,
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.stars_rounded,
+                            color: Colors.white,
+                            size: 18,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 6),
+                          Text(
+                            isJoined ? 'Joined' : 'Join',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: isJoined ? const Color(0xFF34D399) : ytTextPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

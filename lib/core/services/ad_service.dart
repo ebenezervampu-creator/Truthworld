@@ -44,6 +44,7 @@ class AdService extends GetxService
   void onClose() {
     _adRefreshTimer?.cancel();
     _authWorker?.dispose();
+    dispose();
     super.onClose();
   }
 

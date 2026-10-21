@@ -155,13 +155,19 @@ describe('Scalability & High Concurrency: Guest Watch Limit Engine (Millions of 
         'fe80::1, 127.0.0.1, 198.51.100.99',
       ];
 
+      // Validate extraction correctness before high-throughput benchmarking
+      for (const header of complexHeaders) {
+        expect(getClientIp({ headers: { 'x-forwarded-for': header } })).toBeTruthy();
+      }
+
       const start = Date.now();
+      let lastIp = '';
       for (let i = 0; i < 25000; i++) {
         const header = complexHeaders[i % complexHeaders.length];
-        const clientIp = getClientIp({ headers: { 'x-forwarded-for': header } });
-        expect(clientIp).toBeTruthy();
+        lastIp = getClientIp({ headers: { 'x-forwarded-for': header } });
       }
       const duration = Date.now() - start;
+      expect(lastIp).toBeTruthy();
 
       // 25,000 extractions with RegExp and string manipulations in < 2000ms (< 80 microseconds per extraction)
       expect(duration).toBeLessThan(2000);

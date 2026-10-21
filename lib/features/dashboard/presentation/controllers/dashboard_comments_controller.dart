@@ -45,16 +45,20 @@ class DashboardCommentsController extends BaseController {
   final Map<String, List<Comment>> _commentsByVideo = {};
   final List<StreamSubscription<dynamic>> _commentSubscriptions = [];
 
-  /// Comments state
-  final RxInt selectedTab = 0.obs; // 0 = Published, 1 = Held for review
+  /// Comments state: 0 = Videos, 1 = Published, 2 = Held for review
+  final RxInt selectedTab = 1.obs;
   final selectedVideoId = Rxn<String>(); // null means all videos
   final allComments = RxList<Comment>();
   final answeredComments = RxList<Comment>();
   final unansweredComments = RxList<Comment>();
   final commentsFilter = RxString('all'); // 'all', 'unanswered', 'answered', 'hearted'
   final searchQuery = RxString('');
+  final RxBool isSearchExpanded = false.obs;
   final RxBool isLoadingComments = false.obs;
   final commentsError = Rx<String?>(null);
+
+  /// Tracks comment IDs that have authentic creator replies (self-healing local reactive state)
+  final RxSet<String> creatorAnsweredCommentIds = <String>{}.obs;
 
   // Cursor Pagination (Industry Standard 25 per page)
   static const int commentsPerPage = 25;
@@ -80,6 +84,36 @@ class DashboardCommentsController extends BaseController {
   /// Filter chip alias pointing to commentsFilter
   RxString get selectedFilterChip => commentsFilter;
 
+  /// Get currently selected video model if filtering by specific video
+  CreatorVideoWithComments? get selectedVideo {
+    final vId = selectedVideoId.value;
+    if (vId == null || vId.isEmpty) return null;
+    return videosWithComments.firstWhereOrNull((v) => v.videoId == vId);
+  }
+
+  /// Determines whether the creator has responded to a comment
+  bool hasCreatorResponded(Comment comment) {
+    if (comment.hasCreatorReply) return true;
+    if (creatorAnsweredCommentIds.contains(comment.id)) return true;
+    return false;
+  }
+
+  /// Marks comment as answered in local memory, re-filters, and persists to Firestore
+  void markCommentAsLocallyAnswered(String commentId, String videoId) {
+    if (!creatorAnsweredCommentIds.contains(commentId)) {
+      creatorAnsweredCommentIds.add(commentId);
+      final idx = allComments.indexWhere((c) => c.id == commentId);
+      if (idx != -1 && !allComments[idx].hasCreatorReply) {
+        allComments[idx] = allComments[idx].copyWith(hasCreatorReply: true);
+      }
+      _filterComments();
+
+      if (videoId.isNotEmpty && videoId != 'channel_all') {
+        _commentService.markCommentAsAnswered(videoId, commentId).catchError((_) {});
+      }
+    }
+  }
+
   TextEditingController getReplyController(String commentId) {
     if (!replyControllers.containsKey(commentId)) {
       replyControllers[commentId] = TextEditingController();
@@ -102,6 +136,14 @@ class DashboardCommentsController extends BaseController {
     expandedReplies[commentId] = !(expandedReplies[commentId] ?? false);
   }
 
+  void toggleSearch() {
+    isSearchExpanded.value = !isSearchExpanded.value;
+    if (!isSearchExpanded.value) {
+      searchController.clear();
+      setSearchQuery('');
+    }
+  }
+
   void setSearchQuery(String query) {
     searchQuery.value = query;
     _filterComments();
@@ -110,6 +152,12 @@ class DashboardCommentsController extends BaseController {
   void setSelectedTab(int tabIndex) {
     selectedTab.value = tabIndex;
     _filterComments();
+  }
+
+  /// Handler when a video is selected from the Videos tab
+  void onVideoSelectedFromList(String? videoId) {
+    selectVideo(videoId);
+    setSelectedTab(1); // Switch to Published tab to view this video's comments
   }
 
   void loadCommentsForChannel() => _loadAllCommentsForChannel();
@@ -132,13 +180,32 @@ class DashboardCommentsController extends BaseController {
     _initializeUser();
   }
 
+  void clearData() {
+    for (final sub in _commentSubscriptions) {
+      sub.cancel();
+    }
+    _commentSubscriptions.clear();
+    _commentsByVideo.clear();
+    videosWithComments.clear();
+    allComments.clear();
+    answeredComments.clear();
+    unansweredComments.clear();
+    userCommentInteractions.clear();
+    userChannelId.value = '';
+    userChannelName.value = '';
+    userChannelAvatar.value = '';
+    selectedVideoId.value = null;
+    selectedTab.value = 1;
+    isSearchExpanded.value = false;
+    creatorAnsweredCommentIds.clear();
+  }
+
   @override
   void onClose() {
     for (final sub in _commentSubscriptions) {
       sub.cancel();
     }
     _commentSubscriptions.clear();
-    userCommentInteractions.clear();
     for (final c in replyControllers.values) {
       c.dispose();
     }
@@ -551,6 +618,54 @@ class DashboardCommentsController extends BaseController {
     combined.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     allComments.value = combined;
     _filterComments();
+    _checkUnansweredCommentsForReplies(combined);
+  }
+
+  /// Asynchronously verifies if comments without hasCreatorReply actually have creator replies
+  Future<void> _checkUnansweredCommentsForReplies(List<Comment> comments) async {
+    final currentChId = userChannelId.value;
+    final currentUid = _auth.currentUser?.uid ?? '';
+    final currentChName = userChannelName.value.trim().toLowerCase();
+    if (currentChId.isEmpty && currentUid.isEmpty && currentChName.isEmpty) return;
+
+    for (final comment in comments) {
+      if (hasCreatorResponded(comment)) continue;
+      if (comment.videoId.isEmpty || comment.videoId == 'channel_all') continue;
+
+      try {
+        final snap = await _firestore
+            .collection(FirestoreCollections.videos)
+            .doc(comment.videoId)
+            .collection('comments')
+            .doc(comment.id)
+            .collection('replies')
+            .get();
+
+        if (snap.docs.isEmpty) continue;
+
+        final hasReply = snap.docs.any((d) {
+          final data = d.data();
+          final rChId = (data['channelId'] as String?) ?? '';
+          final rUid = (data['userId'] as String?) ?? '';
+          final rChName =
+              ((data['channelName'] as String?) ?? '').trim().toLowerCase();
+          final rName =
+              ((data['userName'] as String?) ?? '').trim().toLowerCase();
+
+          return (currentChId.isNotEmpty && rChId == currentChId) ||
+              (currentUid.isNotEmpty &&
+                  (rUid == currentUid || rChId == currentUid)) ||
+              (currentChName.isNotEmpty &&
+                  (rChName == currentChName || rName == currentChName));
+        });
+
+        if (hasReply) {
+          markCommentAsLocallyAnswered(comment.id, comment.videoId);
+        }
+      } catch (_) {
+        // Non-blocking background verification
+      }
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -586,12 +701,12 @@ class DashboardCommentsController extends BaseController {
                 .where((c) => c.videoId == selectedVideoId.value)
                 .toList();
 
-      // Filter by tab (Published vs Held for review)
-      if (selectedTab.value == 1) {
+      // Filter by tab: 0 = Videos, 1 = Published, 2 = Held for review
+      if (selectedTab.value == 2) {
         // Held for review: comments reported or flagged
         baseList = baseList.where((c) => c.reportCount > 0).toList();
       } else {
-        // Published: regular comments (not reported)
+        // Published & Videos: regular comments (not reported)
         baseList = baseList.where((c) => c.reportCount == 0).toList();
       }
 
@@ -607,11 +722,11 @@ class DashboardCommentsController extends BaseController {
       }
 
       answeredComments.value = baseList
-          .where((c) => c.hasCreatorReply)
+          .where(hasCreatorResponded)
           .toList();
 
       unansweredComments.value = baseList
-          .where((c) => !c.hasCreatorReply)
+          .where((c) => !hasCreatorResponded(c))
           .toList();
 
       logger.info(
@@ -634,8 +749,8 @@ class DashboardCommentsController extends BaseController {
         ? allComments.toList()
         : allComments.where((c) => c.videoId == selectedVideoId.value).toList();
 
-    // Filter by tab (Published vs Held for review)
-    if (selectedTab.value == 1) {
+    // Filter by tab: 0 = Videos, 1 = Published, 2 = Held for review
+    if (selectedTab.value == 2) {
       baseList = baseList.where((c) => c.reportCount > 0).toList();
     } else {
       baseList = baseList.where((c) => c.reportCount == 0).toList();
@@ -654,9 +769,9 @@ class DashboardCommentsController extends BaseController {
 
     switch (commentsFilter.value) {
       case 'answered':
-        return baseList.where((c) => c.hasCreatorReply).toList();
+        return baseList.where(hasCreatorResponded).toList();
       case 'unanswered':
-        return baseList.where((c) => !c.hasCreatorReply).toList();
+        return baseList.where((c) => !hasCreatorResponded(c)).toList();
       case 'hearted':
         return baseList.where((c) => c.isHeartedByCreator).toList();
       default:

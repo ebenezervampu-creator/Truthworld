@@ -317,7 +317,7 @@ class LiveChatController extends BaseController {
           ? 'Superchat on $safeTitle (\$$chargeAmount USD)'
           : 'Superchat on $safeTitle';
 
-      String tierColor = '#1E88E5';
+      var tierColor = '#1E88E5';
       if (amountINR >= 2000) {
         tierColor = '#D50000';
       } else if (amountINR >= 1000) {

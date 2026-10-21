@@ -96,6 +96,7 @@ class DashboardActionButton extends StatelessWidget {
   final bool isDarkMode;
   final String label;
   final bool isPrimary;
+  final bool isLoading;
   final String? tooltip;
 
   const DashboardActionButton({
@@ -104,6 +105,7 @@ class DashboardActionButton extends StatelessWidget {
     required this.isDarkMode,
     this.label = '',
     this.isPrimary = false,
+    this.isLoading = false,
     this.tooltip,
     super.key,
   });
@@ -126,15 +128,26 @@ class DashboardActionButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(10),
             child: InkWell(
               borderRadius: BorderRadius.circular(10),
-              onTap: () {
-                onPressed();
-                HapticFeedback.lightImpact();
-              },
+              onTap: isLoading
+                  ? null
+                  : () {
+                      onPressed();
+                      HapticFeedback.lightImpact();
+                    },
               child: Container(
                 width: 40,
                 height: 40,
                 alignment: Alignment.center,
-                child: Icon(icon, color: iconColor, size: 20),
+                child: isLoading
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(iconColor),
+                        ),
+                      )
+                    : Icon(icon, color: iconColor, size: 20),
               ),
             ),
           ),
@@ -152,16 +165,28 @@ class DashboardActionButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           child: InkWell(
             borderRadius: BorderRadius.circular(20),
-            onTap: () {
-              onPressed();
-              HapticFeedback.lightImpact();
-            },
+            onTap: isLoading
+                ? null
+                : () {
+                    onPressed();
+                    HapticFeedback.lightImpact();
+                  },
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(icon, color: iconColor, size: 18),
+                  if (isLoading)
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(iconColor),
+                      ),
+                    )
+                  else
+                    Icon(icon, color: iconColor, size: 18),
                   const SizedBox(width: 8),
                   Text(
                     label,

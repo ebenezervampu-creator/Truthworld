@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
-import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/features/community/presentation/controllers/saved_comments_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 

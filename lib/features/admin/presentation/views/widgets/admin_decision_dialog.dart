@@ -91,7 +91,7 @@ void showAdminDecisionDialog(
             onPressed: () async {
               final reason = textCtrl.text.trim();
               if (reason.isNotEmpty) {
-                final val = ContentValidator.validate(reason, checkEnglishOnly: false, fieldName: 'Review Reason');
+                final val = ContentValidator.validate(reason, fieldName: 'Review Reason');
                 if (!val.isValid) {
                   AppSnackbar.warning(val.message);
                   return;

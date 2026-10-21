@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
@@ -94,16 +95,31 @@ class ChannelWizardViewController extends GetxController {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!Get.isRegistered<AuthService>()) return;
       if (AuthService.to.hasChannel.value && AuthService.to.userChannel != null) {
-        Get.offAllNamed('/studio', arguments: {
-          'channel': AuthService.to.userChannel,
-        });
+        if (AppFlavor.isStudio) {
+          Get.offAllNamed('/studio', arguments: {
+            'channel': AuthService.to.userChannel,
+          });
+        } else {
+          final channel = AuthService.to.userChannel!;
+          final target = channel.channelRoute.isNotEmpty ? channel.channelRoute : '/';
+          Get.offAllNamed(target, arguments: {
+            'channel': channel,
+          });
+        }
         return;
       }
       final ch = await AuthService.to.ensureChannelLoaded();
       if (ch != null) {
-        Get.offAllNamed('/studio', arguments: {
-          'channel': ch,
-        });
+        if (AppFlavor.isStudio) {
+          Get.offAllNamed('/studio', arguments: {
+            'channel': ch,
+          });
+        } else {
+          final target = ch.channelRoute.isNotEmpty ? ch.channelRoute : '/';
+          Get.offAllNamed(target, arguments: {
+            'channel': ch,
+          });
+        }
       }
     });
   }
@@ -256,6 +272,7 @@ class ChannelWizardViewController extends GetxController {
           TextButton(
             onPressed: () async {
               await channelController.saveDraft();
+              if (!context.mounted) return;
               isExiting.value = true;
               Get.back();
               if (Navigator.of(context).canPop()) {

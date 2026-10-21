@@ -298,7 +298,7 @@ class ClaimVerdictHelper {
         icon: Icons.psychology_rounded,
         category: 'Contextual',
         summaryTakeaway:
-            "Classified as an opinion because it shares a personal perspective or value judgment rather than a measurable fact.",
+            'Classified as an opinion because it shares a personal perspective or value judgment rather than a measurable fact.',
         microTakeaway: 'Personal viewpoint, not a testable fact',
         confidenceText: confStr,
         confidenceVal: confidence,
@@ -325,7 +325,7 @@ class ClaimVerdictHelper {
         rawStatus.contains('inconclusive')) {
       label = 'INCONCLUSIVE';
       takeaway =
-          'We can\'t be sure yet. There isn\'t enough solid proof either way.';
+          "We can't be sure yet. There isn't enough solid proof either way.";
       micro = 'Not enough solid proof yet';
     } else if (rawStatus == 'unsupported' ||
         rawStatus.contains('unsupported') ||
@@ -383,11 +383,11 @@ class ClaimVerdictHelper {
       final thoughtMatch = RegExp(r'\b(feel|think|believe|prefer|love|hate|like)\b').firstMatch(lower);
       if (thoughtMatch != null) {
         final word = thoughtMatch.group(1);
-        return "Classified as an opinion because the speaker shares what they personally $word. A personal perspective belongs to the speaker, so it cannot be tested or proven wrong from the outside.";
+        return 'Classified as an opinion because the speaker shares what they personally $word. A personal perspective belongs to the speaker, so it cannot be tested or proven wrong from the outside.';
       }
     }
 
-    return "Classified as an opinion because this statement shares a personal viewpoint or feeling rather than a measurable fact that can be proven true or false.";
+    return 'Classified as an opinion because this statement shares a personal viewpoint or feeling rather than a measurable fact that can be proven true or false.';
   }
 
   /// Cleans technical pipeline tags like `[RECOVERY PASS]` and clinical emojis
@@ -622,9 +622,9 @@ class ClaimVerdictHelper {
     // Mixed / Caution-heavy (more caution than verified)
     if (totalCaution > totalVerified) {
       if (subject.isNotEmpty) {
-        return '$subject The documented events and real-world milestones highlighted in the video are fully confirmed by trusted records; however, many of the presenter\'s wider conclusions rely on speculative estimates, uncorroborated projections, and missing historical context. Viewers can confidently trust the factual background, but should treat forward-looking predictions and subjective interpretations as open possibilities rather than settled truth.';
+        return "$subject The documented events and real-world milestones highlighted in the video are fully confirmed by trusted records; however, many of the presenter's wider conclusions rely on speculative estimates, uncorroborated projections, and missing historical context. Viewers can confidently trust the factual background, but should treat forward-looking predictions and subjective interpretations as open possibilities rather than settled truth.";
       }
-      return 'The documented events and real-world milestones highlighted in this video are fully confirmed by trusted records; however, many of the presenter\'s wider conclusions rely on speculative estimates, uncorroborated projections, and missing historical context. Viewers can confidently trust the factual background, but should treat forward-looking predictions and subjective interpretations as open possibilities rather than settled truth.';
+      return "The documented events and real-world milestones highlighted in this video are fully confirmed by trusted records; however, many of the presenter's wider conclusions rely on speculative estimates, uncorroborated projections, and missing historical context. Viewers can confidently trust the factual background, but should treat forward-looking predictions and subjective interpretations as open possibilities rather than settled truth.";
     }
 
     // Solidly Verified / High Trust
@@ -657,7 +657,7 @@ class ClaimVerdictHelper {
       final trustLevel = (sanitized['trustLevel'] ?? '').toString().toLowerCase().trim();
       final type = (sanitized['type'] ?? sanitized['sourceType'] ?? '').toString().toLowerCase().trim();
 
-      int score = 0;
+      var score = 0;
       if (trustLevel == 'high' || trustLevel == 'very high') score += 100;
       if (trustLevel == 'medium') score += 30;
       if (type == 'primary' || type.contains('official')) score += 50;

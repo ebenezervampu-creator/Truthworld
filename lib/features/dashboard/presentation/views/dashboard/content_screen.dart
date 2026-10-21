@@ -33,53 +33,81 @@ class ContentScreen extends StatelessWidget {
     return DefaultTabController(
       length: 5,
       initialIndex: initialIndex,
-      child: Scaffold(
-        backgroundColor: AppColors.bgPage,
-        appBar: AppBar(
-          backgroundColor: AppColors.bgPage,
-          elevation: 0,
-          toolbarHeight: 0, // Hide the app bar title portion, only keep TabBar
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(52),
-            child: Container(
+      child: ColoredBox(
+        color: AppColors.bgPage,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
               decoration: const BoxDecoration(
+                color: AppColors.bgPage,
                 border: Border(
-                  bottom: BorderSide(color: AppColors.bgDivider),
+                  bottom: BorderSide(
+                    color: AppColors.bgDivider,
+                  ),
                 ),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 12.0),
-              child: TabBar(
+              child: const TabBar(
                 isScrollable: true,
+                tabAlignment: TabAlignment.start,
                 indicatorColor: AppColors.brand,
-                indicatorWeight: 3,
+                indicatorWeight: 3.0,
+                indicatorSize: TabBarIndicatorSize.label,
                 labelColor: AppColors.textPrimary,
                 unselectedLabelColor: AppColors.textSecondary,
-                indicatorSize: TabBarIndicatorSize.label,
-                labelStyle: AppTextStyles.titleMedium.copyWith(
-                  fontWeight: FontWeight.bold,
+                labelPadding: EdgeInsets.symmetric(horizontal: 16.0),
+                labelStyle: TextStyle(
                   fontFamily: TWTypography.brandFamily,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.2,
                 ),
-                unselectedLabelStyle: AppTextStyles.titleMedium.copyWith(
-                  fontWeight: FontWeight.normal,
+                unselectedLabelStyle: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: -0.2,
                 ),
-                tabs: const [
-                  Tab(text: 'Videos'),
-                  Tab(text: 'Posts'),
-                  Tab(text: 'Drafts'),
-                  Tab(text: 'Scheduled'),
-                  Tab(text: 'Trash'),
+                tabs: [
+                  Tab(text: 'Videos', height: 46),
+                  Tab(text: 'Community', height: 46),
+                  Tab(text: 'Drafts', height: 46),
+                  Tab(text: 'Scheduled', height: 46),
+                  Tab(text: 'Trash', height: 46),
                 ],
               ),
             ),
-          ),
-        ),
-        body: TabBarView(
-          children: [
-            VideosTab(controller: controller, isDarkMode: isDarkMode, searchQuery: searchQuery),
-            PostsTab(controller: controller, searchQuery: searchQuery),
-            DraftsTab(channelId: channelId, isDarkMode: isDarkMode, controller: controller, searchQuery: searchQuery),
-            ScheduledTab(controller: controller, searchQuery: searchQuery),
-            TrashTab(channelId: channelId, isDarkMode: isDarkMode, searchQuery: searchQuery),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  VideosTab(
+                    controller: controller,
+                    isDarkMode: isDarkMode,
+                    searchQuery: searchQuery,
+                  ),
+                  PostsTab(
+                    controller: controller,
+                    searchQuery: searchQuery,
+                  ),
+                  DraftsTab(
+                    channelId: channelId,
+                    isDarkMode: isDarkMode,
+                    controller: controller,
+                    searchQuery: searchQuery,
+                  ),
+                  ScheduledTab(
+                    controller: controller,
+                    searchQuery: searchQuery,
+                  ),
+                  TrashTab(
+                    channelId: channelId,
+                    isDarkMode: isDarkMode,
+                    searchQuery: searchQuery,
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),

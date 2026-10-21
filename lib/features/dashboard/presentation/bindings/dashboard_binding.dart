@@ -1,11 +1,10 @@
 import 'package:get/get.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
-import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/wizard/widgets/channel_wizard_view_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audience_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
-import 'package:truthworld/features/dashboard/presentation/controllers/chapters_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/channel_notifications_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/chapters_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/customization_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_comments_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';

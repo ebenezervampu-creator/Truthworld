@@ -61,6 +61,7 @@ export {
   onVideoUploadedForModeration,
   moderateVideoManual,
   scheduledVideoModerationRetry,
+  resubmitVideoForModeration,
 } from "./moderation/contentModeration";
 export {
   ingestUploadedImage,
@@ -95,7 +96,7 @@ export {
   aggregateVideoViews,
   cleanupOldViews,
 } from "./analytics/impressions";
-export { rollupVideoCounterShards } from "./analytics/counterRollup";
+export { rollupVideoCounterShards, reconcileChannelMetrics } from "./analytics/counterRollup";
 
 // ─── Live Chat & Social Features ──────────────────────────────────────────────
 export {
@@ -227,7 +228,11 @@ export {
   cashfreeWebhook,
   cashfreeHostedCheckout,
 } from "./economy/cashfreeFunctions";
-export { onPayoutRequestCreated } from "./economy/payouts";
+export {
+  onPayoutRequestCreated,
+  autoDisburseMonthlyPayoutsScheduler,
+  triggerMonthlyAutoDisbursementManual,
+} from "./economy/payouts";
 export { detectRevenueAnomalies, reviewFraudFlag } from "./economy/fraudDetection";
 export {
   detectViewFraud,
@@ -242,6 +247,10 @@ export {
 } from "./economy/premiumRevenueDistribution";
 export { spendChannelWallet } from "./economy/spendWallet";
 export { monthlyZeroWasteRollover } from "./economy/monthlyRollover";
+export {
+  reconcilePendingSettlementsScheduler,
+  reconcileChannelSettlementCallable,
+} from "./economy/settlementService";
 
 // ─── Edge Feed CDN Server ───────────────────────────────────────────────────
 export { publicFeedServer } from "./feed/publicFeedServer";

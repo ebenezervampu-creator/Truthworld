@@ -95,7 +95,7 @@ void showUserActionDialog({
           onPressed: () {
             final reason = reasonController.text.trim();
             if (reason.isNotEmpty) {
-              final val = ContentValidator.validate(reason, checkEnglishOnly: false, fieldName: 'Reason');
+              final val = ContentValidator.validate(reason, fieldName: 'Reason');
               if (!val.isValid) {
                 AppSnackbar.warning(val.message);
                 return;

@@ -739,7 +739,7 @@ class AdsTab extends StatelessWidget {
       onConfirm: () {
         final reason = reasonController.text.trim();
         if (reason.isNotEmpty) {
-          final val = ContentValidator.validate(reason, checkEnglishOnly: false, fieldName: 'Rejection Reason');
+          final val = ContentValidator.validate(reason, fieldName: 'Rejection Reason');
           if (!val.isValid) {
             AppSnackbar.warning(val.message);
             return;

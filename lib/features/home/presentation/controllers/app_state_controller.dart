@@ -14,6 +14,7 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart'
     as app_exceptions;
+import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/core/utils/download_helper.dart';
 import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -134,7 +135,10 @@ class AppStateController extends BaseController {
         .snapshots()
         .map((snapshot) {
           try {
-            return snapshot.docs.map(Video.fromDocumentSnapshot).toList();
+            return snapshot.docs
+                .map(Video.fromDocumentSnapshot)
+                .where(VideoVisibilityPolicy.isValidVideo)
+                .toList();
           } catch (e, s) {
             ErrorHandler.log(
               e,

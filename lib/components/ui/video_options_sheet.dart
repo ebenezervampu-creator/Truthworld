@@ -6,6 +6,7 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/user_preferences_service.dart';
+import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
@@ -22,6 +23,7 @@ class VideoOptionsSheet extends StatelessWidget {
   const VideoOptionsSheet({
     required this.video,
     super.key,
+    this.isChannelContext = false,
     this.onRemoveFromHistory,
     this.onRemoveFromWatchLater,
     this.onSaveToWatchLater,
@@ -33,6 +35,7 @@ class VideoOptionsSheet extends StatelessWidget {
     this.onReport,
   });
   final Video video;
+  final bool isChannelContext;
   final VoidCallback? onRemoveFromHistory;
   final VoidCallback? onRemoveFromWatchLater;
   final VoidCallback? onSaveToWatchLater;
@@ -46,6 +49,7 @@ class VideoOptionsSheet extends StatelessWidget {
   static void show(
     BuildContext context,
     Video video, {
+    bool isChannelContext = false,
     VoidCallback? onRemoveFromHistory,
     VoidCallback? onRemoveFromWatchLater,
     VoidCallback? onSaveToWatchLater,
@@ -59,6 +63,7 @@ class VideoOptionsSheet extends StatelessWidget {
     Get.bottomSheet(
       VideoOptionsSheet(
         video: video,
+        isChannelContext: isChannelContext,
         onRemoveFromHistory: onRemoveFromHistory,
         onRemoveFromWatchLater: onRemoveFromWatchLater,
         onSaveToWatchLater: onSaveToWatchLater,
@@ -78,6 +83,17 @@ class VideoOptionsSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isOwner = VideoVisibilityPolicy.isOwner(video);
+    final userPrefs = Get.isRegistered<UserPreferencesService>()
+        ? UserPreferencesService.to
+        : null;
+    final isVideoHidden = userPrefs?.isVideoHidden(video.id) ?? false;
+    final isChannelBlocked = userPrefs?.isChannelBlocked(
+          video.channelId,
+          channelName: video.channelName,
+        ) ??
+        false;
+
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -89,9 +105,10 @@ class VideoOptionsSheet extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                   if (onRemoveFromHistory != null)
                     _buildMenuItem(
                       context,
@@ -240,123 +257,174 @@ class VideoOptionsSheet extends StatelessWidget {
                       );
                     },
                   ),
-                  _buildMenuItem(
-                    context,
-                    icon: const Icon(
-                      Icons.block_outlined,
-                      color: AppColors.textPrimary,
-                      size: 24,
-                    ),
-                    title: 'Not interested',
-                    onTap: () {
-                      Get.back();
-                      UserPreferencesService.to.hideVideo(video.id);
-                      _removeVideoFromControllers(video.id);
-                      AppSnackbar.show(
-                        'Not interested',
-                        "We won't recommend this video anymore.",
-                        snackPosition: SnackPosition.BOTTOM,
-                        backgroundColor: AppColors.bgSurfaceHover,
-                        colorText: AppColors.textPrimary,
-                        margin: const EdgeInsets.all(20),
-                        borderRadius: 16,
-                        mainButton: TextButton(
-                          onPressed: () {
-                            if (Get.isSnackbarOpen) Get.back();
-                            UserPreferencesService.to.unhideVideo(video.id);
-                            if (Get.isRegistered<HomeController>()) {
-                              Get.find<HomeController>().fetchInitialVideos();
-                            }
-                            AppSnackbar.show(
-                              'Restored',
-                              'Video recommendation restored.',
-                              snackPosition: SnackPosition.BOTTOM,
-                            );
-                          },
-                          child: const Text(
-                            'Undo',
-                            style: TextStyle(
-                              color: AppColors.brand,
-                              fontWeight: FontWeight.bold,
+                  if (!isOwner && !isChannelContext) ...[
+                    _buildMenuItem(
+                      context,
+                      icon: const Icon(
+                        Icons.block_outlined,
+                        color: AppColors.textPrimary,
+                        size: 24,
+                      ),
+                      title: 'Not interested',
+                      onTap: () {
+                        Get.back();
+                        UserPreferencesService.to.hideVideo(video.id);
+                        _removeVideoFromControllers(video.id);
+                        AppSnackbar.show(
+                          'Not interested',
+                          "We won't recommend this video anymore.",
+                          snackPosition: SnackPosition.BOTTOM,
+                          backgroundColor: AppColors.bgSurfaceHover,
+                          colorText: AppColors.textPrimary,
+                          margin: const EdgeInsets.all(20),
+                          borderRadius: 16,
+                          mainButton: TextButton(
+                            onPressed: () {
+                              if (Get.isSnackbarOpen) Get.back();
+                              UserPreferencesService.to.unhideVideo(video.id);
+                              if (Get.isRegistered<HomeController>()) {
+                                Get.find<HomeController>().fetchInitialVideos();
+                              }
+                              AppSnackbar.show(
+                                'Restored',
+                                'Video recommendation restored.',
+                                snackPosition: SnackPosition.BOTTOM,
+                              );
+                            },
+                            child: const Text(
+                              'Undo',
+                              style: TextStyle(
+                                color: AppColors.brand,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildMenuItem(
-                    context,
-                    icon: const Icon(
-                      Icons.no_accounts_outlined,
-                      color: AppColors.textPrimary,
-                      size: 24,
+                        );
+                      },
                     ),
-                    title: "Don't recommend channel",
-                    onTap: () {
-                      Get.back();
-                      UserPreferencesService.to.blockChannel(
-                        video.channelId,
-                        channelName: video.channelName,
-                      );
-                      _removeChannelFromControllers(
-                        video.channelId,
-                        video.channelName,
-                      );
-                      AppSnackbar.show(
-                        "Don't recommend channel",
-                        "We won't recommend videos from ${video.channelName} anymore.",
-                        snackPosition: SnackPosition.BOTTOM,
-                        backgroundColor: AppColors.bgSurfaceHover,
-                        colorText: AppColors.textPrimary,
-                        margin: const EdgeInsets.all(20),
-                        borderRadius: 16,
-                        mainButton: TextButton(
-                          onPressed: () {
-                            if (Get.isSnackbarOpen) Get.back();
-                            UserPreferencesService.to.unblockChannel(
-                              video.channelId,
-                              channelName: video.channelName,
-                            );
-                            if (Get.isRegistered<HomeController>()) {
-                              Get.find<HomeController>().fetchInitialVideos();
-                            }
-                            AppSnackbar.show(
-                              'Restored',
-                              'Channel recommendations restored.',
-                              snackPosition: SnackPosition.BOTTOM,
-                            );
-                          },
-                          child: const Text(
-                            'Undo',
-                            style: TextStyle(
-                              color: AppColors.brand,
-                              fontWeight: FontWeight.bold,
+                    _buildMenuItem(
+                      context,
+                      icon: const Icon(
+                        Icons.no_accounts_outlined,
+                        color: AppColors.textPrimary,
+                        size: 24,
+                      ),
+                      title: "Don't recommend channel",
+                      onTap: () {
+                        Get.back();
+                        UserPreferencesService.to.blockChannel(
+                          video.channelId,
+                          channelName: video.channelName,
+                        );
+                        _removeChannelFromControllers(
+                          video.channelId,
+                          video.channelName,
+                        );
+                        AppSnackbar.show(
+                          "Don't recommend channel",
+                          "We won't recommend videos from ${video.channelName} anymore.",
+                          snackPosition: SnackPosition.BOTTOM,
+                          backgroundColor: AppColors.bgSurfaceHover,
+                          colorText: AppColors.textPrimary,
+                          margin: const EdgeInsets.all(20),
+                          borderRadius: 16,
+                          mainButton: TextButton(
+                            onPressed: () {
+                              if (Get.isSnackbarOpen) Get.back();
+                              UserPreferencesService.to.unblockChannel(
+                                video.channelId,
+                                channelName: video.channelName,
+                              );
+                              if (Get.isRegistered<HomeController>()) {
+                                Get.find<HomeController>().fetchInitialVideos();
+                              }
+                              AppSnackbar.show(
+                                'Restored',
+                                'Channel recommendations restored.',
+                                snackPosition: SnackPosition.BOTTOM,
+                              );
+                            },
+                            child: const Text(
+                              'Undo',
+                              style: TextStyle(
+                                color: AppColors.brand,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildMenuItem(
-                    context,
-                    icon: const Icon(
-                      Icons.flag_outlined,
-                      color: AppColors.textPrimary,
-                      size: 24,
+                        );
+                      },
                     ),
-                    title: 'Report',
-                    onTap: () {
-                      Get.back();
-                      _showReportDialog(context);
-                    },
-                  ),
+                  ],
+                  if (!isOwner && isChannelContext) ...[
+                    if (isVideoHidden)
+                      _buildMenuItem(
+                        context,
+                        icon: const Icon(
+                          Icons.restore_rounded,
+                          color: AppColors.textPrimary,
+                          size: 24,
+                        ),
+                        title: 'Restore video recommendation',
+                        onTap: () {
+                          Get.back();
+                          UserPreferencesService.to.unhideVideo(video.id);
+                          if (Get.isRegistered<HomeController>()) {
+                            Get.find<HomeController>().fetchInitialVideos();
+                          }
+                          AppSnackbar.success(
+                            'Video recommendations have been restored.',
+                            title: 'Recommendation Restored',
+                          );
+                        },
+                      ),
+                    if (isChannelBlocked)
+                      _buildMenuItem(
+                        context,
+                        icon: const Icon(
+                          Icons.notifications_active_outlined,
+                          color: AppColors.textPrimary,
+                          size: 24,
+                        ),
+                        title: 'Turn on recommendations from this channel',
+                        onTap: () {
+                          Get.back();
+                          UserPreferencesService.to.unblockChannel(
+                            video.channelId,
+                            channelName: video.channelName,
+                          );
+                          if (Get.isRegistered<HomeController>()) {
+                            Get.find<HomeController>().fetchInitialVideos();
+                          }
+                          AppSnackbar.success(
+                            'Channel recommendations have been restored.',
+                            title: 'Recommendations Restored',
+                          );
+                        },
+                      ),
+                  ],
+                  if (!isOwner)
+                    _buildMenuItem(
+                      context,
+                      icon: const Icon(
+                        Icons.flag_outlined,
+                        color: AppColors.textPrimary,
+                        size: 24,
+                      ),
+                      title: 'Report',
+                      onTap: () {
+                        Get.back();
+                        _showReportDialog(context);
+                      },
+                    ),
                 ],
               ),
             ),
           ),
         ),
-      );
-    }
+      ),
+    );
+  }
 
   Widget _buildMenuItem(
     BuildContext context, {
@@ -376,12 +444,14 @@ class VideoOptionsSheet extends StatelessWidget {
             children: [
               icon,
               const SizedBox(width: 20),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w400,
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w400,
+                  ),
                 ),
               ),
             ],

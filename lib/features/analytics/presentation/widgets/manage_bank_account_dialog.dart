@@ -41,10 +41,10 @@ class ManageBankAccountDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: const Color(0xFF18181B),
+      backgroundColor: const Color(0xFF1E1E1E),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: Color(0xFF27272A)),
+        side: const BorderSide(color: AppColors.bgDivider),
       ),
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: ConstrainedBox(
@@ -64,8 +64,9 @@ class ManageBankAccountDialog extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                          color: AppColors.bgSurfaceHover,
                           shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.1)),
                         ),
                         child: const Icon(
                           Icons.account_balance_rounded,
@@ -108,9 +109,9 @@ class ManageBankAccountDialog extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withValues(alpha: 0.08),
+                  color: AppColors.bgSurfaceHover,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.2)),
+                  border: Border.all(color: AppColors.bgDivider),
                 ),
                 child: const Row(
                   children: [
@@ -120,7 +121,7 @@ class ManageBankAccountDialog extends StatelessWidget {
                       child: Text(
                         'Your bank information is encrypted and only used to credit earnings directly to your account.',
                         style: TextStyle(
-                          color: Color(0xFFD1FAE5),
+                          color: AppColors.textSecondary,
                           fontSize: 11.5,
                           height: 1.35,
                         ),
@@ -183,7 +184,7 @@ class ManageBankAccountDialog extends StatelessWidget {
                 maxLength: 11,
                 inputFormatters: [
                   LengthLimitingTextInputFormatter(11),
-                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+                  FilteringTextInputFormatter.allow(RegExp('[a-zA-Z0-9]')),
                 ],
                 onChanged: (val) {
                   final inferred = CreatorBankAccount.inferBankName(val);
@@ -293,7 +294,7 @@ class ManageBankAccountDialog extends StatelessWidget {
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF10B981),
+                      backgroundColor: Colors.white,
                       foregroundColor: Colors.black,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
@@ -368,7 +369,7 @@ class ManageBankAccountDialog extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFF10B981)),
+          borderSide: const BorderSide(color: Colors.white),
         ),
       ),
     );
@@ -382,21 +383,21 @@ class ManageBankAccountDialog extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 12),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF10B981).withValues(alpha: 0.15) : const Color(0xFF09090B),
+          color: isSelected ? Colors.white : const Color(0xFF09090B),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isSelected ? const Color(0xFF10B981) : const Color(0xFF27272A),
+            color: isSelected ? Colors.white : const Color(0xFF27272A),
           ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: Colors.white, size: 16),
+            Icon(icon, color: isSelected ? Colors.black : Colors.white, size: 16),
             const SizedBox(width: 8),
             Text(
               type,
               style: TextStyle(
-                color: isSelected ? const Color(0xFF10B981) : AppColors.textSecondary,
+                color: isSelected ? Colors.black : AppColors.textSecondary,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 fontSize: 13,
               ),

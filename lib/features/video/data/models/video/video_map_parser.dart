@@ -112,20 +112,45 @@ class VideoMapParser {
     final policyAction = moderationMap?['policyAction']
         ?.toString()
         .toLowerCase();
-    final isModApproved =
-        moderationStatus == 'approved' || policyAction == 'allow';
+    final directModStatus = data['moderationStatus']?.toString().toLowerCase();
+    final stagesMap = data['stages'] is Map ? data['stages'] as Map : null;
+    final stageModStatus = (stagesMap?['moderation'] is Map
+            ? stagesMap!['moderation']['status']
+            : null)
+        ?.toString()
+        .toLowerCase();
+    final rawStatusLower = (data['status'] as String?)?.toLowerCase() ?? '';
+    final rawVisibilityLower = (data['visibility'] as String?)?.toLowerCase() ?? '';
 
-    final parsedGeminiApproved =
-        data['geminiApproved'] as bool? ??
-        (moderationMap?['geminiApproved'] as bool?) ??
-        (isModApproved ? true : null);
-    final parsedIsApproved =
-        data['isApproved'] as bool? ??
-        (moderationMap?['isApproved'] as bool?) ??
-        (isModApproved ? true : null) ??
-        (data['gatewayStatus'] == 'APPROVED' ? true : null) ??
-        (data['isVerified'] == true ? true : null) ??
-        (data['credibilityVerified'] == true ? true : null);
+    final isModRejected = moderationStatus == 'rejected' ||
+        moderationStatus == 'failed' ||
+        moderationStatus == 'blocked' ||
+        policyAction == 'reject' ||
+        policyAction == 'block' ||
+        directModStatus == 'rejected' ||
+        stageModStatus == 'failed' ||
+        (data['rejectionReason'] != null &&
+            data['rejectionReason'].toString().trim().isNotEmpty) ||
+        data['rejected'] == true ||
+        rawStatusLower == 'rejected' ||
+        rawVisibilityLower == 'rejected';
+
+    final isModApproved = !isModRejected &&
+        (moderationStatus == 'approved' || policyAction == 'allow');
+
+    final parsedGeminiApproved = isModRejected
+        ? false
+        : (data['geminiApproved'] as bool? ??
+            (moderationMap?['geminiApproved'] as bool?) ??
+            (isModApproved ? true : null));
+    final parsedIsApproved = isModRejected
+        ? false
+        : (data['isApproved'] as bool? ??
+            (moderationMap?['isApproved'] as bool?) ??
+            (isModApproved ? true : null) ??
+            (data['gatewayStatus'] == 'APPROVED' ? true : null) ??
+            (data['isVerified'] == true ? true : null) ??
+            (data['credibilityVerified'] == true ? true : null));
 
     final modMap = data['moderation'] is Map ? data['moderation'] as Map : null;
     final modSummary = (modMap?['summary'] as String?)?.trim() ?? '';
@@ -316,7 +341,13 @@ class VideoMapParser {
             rawStatus == 'trashed') {
           return VideoStatus.deleted;
         }
-        if (rawStatus == 'rejected') return VideoStatus.rejected;
+        if (isModRejected || rawStatus == 'rejected') return VideoStatus.rejected;
+        if (moderationStatus == 'manual_review' ||
+            moderationStatus == 'pending_review' ||
+            rawStatus == 'pending_review' ||
+            targetStatus == 'pending_review') {
+          return VideoStatus.pending_review;
+        }
         if (rawStatus == 'private') return VideoStatus.private;
         if (rawStatus == 'scheduled') return VideoStatus.scheduled;
         if (rawStatus == 'flagged') return VideoStatus.flagged;
@@ -496,6 +527,9 @@ class VideoMapParser {
           : null,
       coinBattlePairVideoId: data['coinBattlePairVideoId'] as String?,
       coinBattleStance: data['coinBattleStance'] as String?,
+      resubmitCount: (data['resubmitCount'] as num?)?.toInt() ??
+          (moderationMap?['resubmitCount'] as num?)?.toInt() ??
+          0,
       embedding: () {
         final raw = data['embedding'];
         if (raw == null) return null;

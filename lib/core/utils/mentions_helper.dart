@@ -70,16 +70,16 @@ class MentionsHelper {
             if (commentId != null) {
               if (replyId != null) {
                 title = 'Mentioned in a reply';
-                message = '@$currentUserName mentioned you in a reply: "$text"';
+                message = '$currentUserName mentioned you in a reply: "$text"';
               } else {
                 title = 'Mentioned in a comment';
                 message =
-                    '@$currentUserName mentioned you in a comment: "$text"';
+                    '$currentUserName mentioned you in a comment: "$text"';
               }
             } else {
               title = 'Mentioned in a video';
               message =
-                  '@$currentUserName mentioned you in the video: "$videoTitle"';
+                  '$currentUserName mentioned you in the video: "$videoTitle"';
             }
 
             await notificationService.createNotification(

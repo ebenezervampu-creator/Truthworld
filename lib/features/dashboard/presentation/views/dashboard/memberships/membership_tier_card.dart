@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:truthworld/features/channel/data/models/channel_loyalty_badge.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/memberships_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships/member_avatar_stack.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Interactive Card displaying an individual Channel Membership Tier.
@@ -12,6 +13,7 @@ class MembershipTierCard extends StatelessWidget {
     required this.onDuplicate,
     required this.onDelete,
     this.isDarkMode = true,
+    this.members = const [],
     super.key,
   });
 
@@ -21,6 +23,7 @@ class MembershipTierCard extends StatelessWidget {
   final VoidCallback onToggleStatus;
   final VoidCallback onDuplicate;
   final VoidCallback onDelete;
+  final List<ChannelMember> members;
 
   @override
   Widget build(BuildContext context) {
@@ -38,11 +41,11 @@ class MembershipTierCard extends StatelessWidget {
         ),
       ),
       child: Padding(
-        padding: EdgeInsets.all(isMobile ? 14 : 20),
+        padding: EdgeInsets.all(isMobile ? 14 : 18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top Header Row
+            // Row 1: Badge + Name + Paused Pill + Menu
             Row(
               children: [
                 ChannelLoyaltyBadgeWidget(
@@ -50,7 +53,7 @@ class MembershipTierCard extends StatelessWidget {
                   tierName: tier.name,
                   compact: true,
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Row(
                     children: [
@@ -58,7 +61,7 @@ class MembershipTierCard extends StatelessWidget {
                         child: Text(
                           tier.name,
                           style: TextStyle(
-                            fontSize: 18,
+                            fontSize: 17,
                             fontWeight: FontWeight.bold,
                             color: isDarkMode
                                 ? AppColors.textPrimary
@@ -71,7 +74,7 @@ class MembershipTierCard extends StatelessWidget {
                         const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
+                            horizontal: 7,
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
@@ -91,10 +94,126 @@ class MembershipTierCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                PopupMenuButton<String>(
+                  icon: Icon(
+                    Icons.more_vert_rounded,
+                    color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+                    size: 20,
+                  ),
+                  color: isDarkMode ? AppColors.bgSurfaceHigh : Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: TWRadius.mdBorderRadius,
+                  ),
+                  onSelected: (val) {
+                    if (val == 'edit') {
+                      onEdit();
+                    } else if (val == 'toggle') {
+                      onToggleStatus();
+                    } else if (val == 'duplicate') {
+                      onDuplicate();
+                    } else if (val == 'delete') {
+                      onDelete();
+                    }
+                  },
+                  itemBuilder: (ctx) => [
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.edit_outlined,
+                            color: isDarkMode ? Colors.white : Colors.black87,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Edit Tier',
+                            style: TextStyle(
+                              color: isDarkMode
+                                  ? AppColors.textPrimary
+                                  : Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'toggle',
+                      child: Row(
+                        children: [
+                          Icon(
+                            tier.isEnabled
+                                ? Icons.pause_circle_outline
+                                : Icons.play_circle_outline,
+                            color: isDarkMode ? Colors.white : Colors.black87,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            tier.isEnabled ? 'Pause Tier' : 'Enable Tier',
+                            style: TextStyle(
+                              color: isDarkMode
+                                  ? AppColors.textPrimary
+                                  : Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'duplicate',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.copy_rounded,
+                            color: isDarkMode ? Colors.white : Colors.black87,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Duplicate Tier',
+                            style: TextStyle(
+                              color: isDarkMode
+                                  ? AppColors.textPrimary
+                                  : Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.delete_outline,
+                            color: AppColors.error,
+                            size: 18,
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            'Delete Tier',
+                            style: TextStyle(color: AppColors.error),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            // Row 2: Price, Net Share, Rec Price Tooltip, and Members Pill
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
+                    horizontal: 9,
+                    vertical: 3.5,
                   ),
                   decoration: BoxDecoration(
                     color: Colors.green.withValues(alpha: 0.15),
@@ -103,17 +222,16 @@ class MembershipTierCard extends StatelessWidget {
                   child: Text(
                     '${tier.formattedPrice} / mo',
                     style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: Colors.green,
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
-                    vertical: 4,
+                    vertical: 3.5,
                   ),
                   decoration: BoxDecoration(
                     color: tier.includesPremiumBundle
@@ -158,8 +276,7 @@ class MembershipTierCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (tier.isBelowRecommendedBundlePrice) ...[
-                  const SizedBox(width: 6),
+                if (tier.isBelowRecommendedBundlePrice)
                   Tooltip(
                     message:
                         'Recommend pricing at ${ChannelMembershipTier.recommendedBundlePriceLabel(tier.currency)}+ to comfortably cover 2K streaming CDN bandwidth.',
@@ -201,113 +318,52 @@ class MembershipTierCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                ],
-                const SizedBox(width: 12),
-                PopupMenuButton<String>(
-                  icon: const Icon(
-                    Icons.more_vert_rounded,
-                    color: AppColors.textPrimary,
-                    size: 20,
+                // Enrolled members avatar stack & badge
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
                   ),
-                  color: isDarkMode ? AppColors.bgSurfaceHigh : Colors.white,
-                  shape: RoundedRectangleBorder(
+                  decoration: BoxDecoration(
+                    color: isDarkMode
+                        ? AppColors.bgSurfaceHigh
+                        : Colors.grey.shade100,
                     borderRadius: TWRadius.mdBorderRadius,
+                    border: Border.all(
+                      color: isDarkMode
+                          ? AppColors.bgDivider
+                          : Colors.grey.shade300,
+                    ),
                   ),
-                  onSelected: (val) {
-                    if (val == 'edit') {
-                      onEdit();
-                    } else if (val == 'toggle') {
-                      onToggleStatus();
-                    } else if (val == 'duplicate') {
-                      onDuplicate();
-                    } else if (val == 'delete') {
-                      onDelete();
-                    }
-                  },
-                  itemBuilder: (ctx) => [
-                    PopupMenuItem(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.edit_outlined,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            'Edit Tier',
-                            style: TextStyle(
-                              color: isDarkMode
-                                  ? AppColors.textPrimary
-                                  : Colors.black87,
-                            ),
-                          ),
-                        ],
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (members.isNotEmpty) ...[
+                        MemberAvatarStack(
+                          members: members,
+                          avatarRadius: 8.5,
+                          maxDisplay: 3,
+                          isDarkMode: isDarkMode,
+                          borderWidth: 1,
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      Text(
+                        members.isNotEmpty
+                            ? '${members.length} ${members.length == 1 ? 'member' : 'members'}'
+                            : (tier.memberCount > 0
+                                ? '${tier.memberCount} ${tier.memberCount == 1 ? 'member' : 'members'}'
+                                : '0 members'),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: isDarkMode
+                              ? AppColors.textSecondary
+                              : Colors.black54,
+                        ),
                       ),
-                    ),
-                    PopupMenuItem(
-                      value: 'toggle',
-                      child: Row(
-                        children: [
-                          Icon(
-                            tier.isEnabled
-                                ? Icons.pause_circle_outline
-                                : Icons.play_circle_outline,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            tier.isEnabled ? 'Pause Tier' : 'Enable Tier',
-                            style: TextStyle(
-                              color: isDarkMode
-                                  ? AppColors.textPrimary
-                                  : Colors.black87,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'duplicate',
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.copy_rounded,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            'Duplicate Tier',
-                            style: TextStyle(
-                              color: isDarkMode
-                                  ? AppColors.textPrimary
-                                  : Colors.black87,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.delete_outline,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          SizedBox(width: 10),
-                          Text(
-                            'Delete Tier',
-                            style: TextStyle(color: AppColors.error),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -385,20 +441,23 @@ class MembershipTierCard extends StatelessWidget {
                           size: 15,
                         ),
                         const SizedBox(width: 6),
-                        Text(
-                          perk,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: isPremiumBundle
-                                ? (isDarkMode
-                                    ? const Color(0xFFA5B4FC)
-                                    : const Color(0xFF4338CA))
-                                : (isDarkMode
-                                    ? AppColors.textPrimary
-                                    : Colors.black87),
-                            fontWeight: isPremiumBundle
-                                ? FontWeight.bold
-                                : FontWeight.w500,
+                        Flexible(
+                          child: Text(
+                            perk,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isPremiumBundle
+                                  ? (isDarkMode
+                                      ? const Color(0xFFA5B4FC)
+                                      : const Color(0xFF4338CA))
+                                  : (isDarkMode
+                                      ? AppColors.textPrimary
+                                      : Colors.black87),
+                              fontWeight: isPremiumBundle
+                                  ? FontWeight.bold
+                                  : FontWeight.w500,
+                            ),
                           ),
                         ),
                       ],

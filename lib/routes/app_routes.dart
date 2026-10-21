@@ -34,7 +34,9 @@ abstract class AppRoutes {
   static const dashboard = '/dashboard';
   static const studioChapters = '/studio/chapters';
   static const studioDrafts = '/studio/drafts';
+  static const studioCommunity = '/studio/community';
   static const studioTrash = '/studio/trash';
+  static const studioCreateMembershipTier = '/studio/memberships/create';
   static const analytics = '/analytics';
   static const watchtime = '/watchtime';
   static const watchtimePage = '/WatchTimePage';

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/channel_notifications_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/notifications/channel_notifications_widgets.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
@@ -21,14 +21,14 @@ class ChannelNotificationsPage extends StatelessWidget {
 
   Widget _buildSectionHeader(String title) {
     return Padding(
-      padding: const EdgeInsets.only(top: 20, bottom: 10),
+      padding: const EdgeInsets.only(top: 18, bottom: 8),
       child: Text(
         title,
         style: const TextStyle(
           fontFamily: TWTypography.uiFamily,
           fontFamilyFallback: TWTypography.fallbackFamilies,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
           letterSpacing: 1.2,
           color: AppColors.textTertiary,
         ),
@@ -38,6 +38,9 @@ class ChannelNotificationsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    final horizontalPadding = isMobile ? 16.0 : 24.0;
+
     final controller = Get.put(
       ChannelNotificationsController(
         channelId: channelId,
@@ -62,27 +65,12 @@ class ChannelNotificationsPage extends StatelessWidget {
 
           // ── Main Content List ──
           Obx(() {
-            if (controller.isLoading) {
-              return SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                sliver: SliverToBoxAdapter(
-                  child: Shimmer.fromColors(
-                    baseColor: const Color(0xFF1E1E1E),
-                    highlightColor: AppColors.bgSurfaceHover,
-                    child: Column(
-                      children: List.generate(
-                        4,
-                        (_) => Container(
-                          height: 84,
-                          margin: const EdgeInsets.only(bottom: 12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1E1E1E),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+            if (controller.isLoading && controller.notifications.isEmpty) {
+              return const SliverFillRemaining(
+                hasScrollBody: false,
+                child: StudioLoadingIndicator(
+                  message: 'Loading notifications...',
+                  isFullScreen: false,
                 ),
               );
             }
@@ -97,7 +85,10 @@ class ChannelNotificationsPage extends StatelessWidget {
             }
 
             return SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding,
+                vertical: 12,
+              ),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
                   // Truthworld Issues & Channel Health Section

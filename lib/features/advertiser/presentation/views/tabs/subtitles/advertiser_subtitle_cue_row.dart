@@ -134,7 +134,7 @@ class AdvertiserTimeInputField extends StatelessWidget {
               buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
               inputFormatters: [
                 LengthLimitingTextInputFormatter(15),
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9:.]')),
+                FilteringTextInputFormatter.allow(RegExp('[0-9:.]')),
               ],
               style: const TextStyle(
                 fontFamily: TWTypography.uiFamily,

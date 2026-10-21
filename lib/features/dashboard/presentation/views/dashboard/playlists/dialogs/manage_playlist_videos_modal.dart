@@ -3,8 +3,8 @@ import 'dart:ui' show lerpDouble;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/playlists_management_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/playlists/dialogs/video_picker_sheet.dart';
@@ -162,19 +162,13 @@ class ManagePlaylistVideosModal extends StatelessWidget {
           // Reorderable Video List
           Expanded(
             child: Obx(() {
-              if (isLoadingVideos.value) {
-                return Shimmer.fromColors(
-                  baseColor: const Color(0xFF1E1E1E),
-                  highlightColor: AppColors.bgSurfaceHover,
-                  child: ListView.separated(
-                    itemCount: 5,
-                    separatorBuilder: (_, _) => const SizedBox(height: 8),
-                    itemBuilder: (_, _) => Container(
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E1E1E),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+              if (isLoadingVideos.value && rxLoadedVideos.isEmpty) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 40),
+                    child: StudioLoadingIndicator(
+                      message: 'Loading playlist videos...',
+                      isFullScreen: false,
                     ),
                   ),
                 );

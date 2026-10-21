@@ -472,7 +472,7 @@ class NotificationNavigationHandler {
 
     // ── APP FLAVOR 1: Admin & Moderation (com.truthworld.admin) ──
     if (targetFlavor == AppFlavor.admin) {
-      String adminTab = 'dashboard';
+      var adminTab = 'dashboard';
       if (typeLower.contains('video') ||
           typeLower == 'content_flagged' ||
           typeLower == 'moderation_escalation') {
@@ -499,21 +499,21 @@ class NotificationNavigationHandler {
         isAdmin: true,
         arguments: {
           'tab': adminTab,
-          if (videoId != null) 'videoId': videoId,
-          if (channelId != null) 'channelId': channelId,
-          if (topicId != null) 'topicId': topicId,
+          'videoId': ?videoId,
+          'channelId': ?channelId,
+          'topicId': ?topicId,
           if (payload['reportId'] != null) 'reportId': payload['reportId'],
         },
         parameters: {
           'tab': adminTab,
-          if (videoId != null) 'videoId': videoId,
+          'videoId': ?videoId,
         },
       );
     }
 
     // ── APP FLAVOR 2: Advertiser Portal (com.truthworld.advertiser) ──
     if (targetFlavor == AppFlavor.advertiser) {
-      int adTabIndex = 0;
+      var adTabIndex = 0;
       if (typeLower.contains('campaign')) {
         adTabIndex = 1; // My Campaigns
       } else if (typeLower.contains('report') || typeLower.contains('performance')) {
@@ -574,11 +574,11 @@ class NotificationNavigationHandler {
           arguments: {
             'tab': 15, // TruthVerificationDashboardPage
             'filter': 'fact_check',
-            if (videoId != null) 'videoId': videoId,
+            'videoId': ?videoId,
           },
           parameters: {
             'tab': 'verification',
-            if (videoId != null) 'videoId': videoId,
+            'videoId': ?videoId,
           },
         );
       }
@@ -591,11 +591,11 @@ class NotificationNavigationHandler {
           isStudio: true,
           arguments: {
             'tab': 9, // CopyrightScreen
-            if (videoId != null) 'videoId': videoId,
+            'videoId': ?videoId,
           },
           parameters: {
             'tab': 'copyright',
-            if (videoId != null) 'videoId': videoId,
+            'videoId': ?videoId,
           },
         );
       }
@@ -614,7 +614,7 @@ class NotificationNavigationHandler {
           isStudio: true,
           arguments: {
             'tab': 12, // AudiencePage
-            if (channelId != null) 'channelId': channelId,
+            'channelId': ?channelId,
           },
           parameters: {
             'tab': 'audience',
@@ -724,7 +724,6 @@ class NotificationNavigationHandler {
     if (typeLower == 'perspective_flip' && videoId != null && videoId.isNotEmpty) {
       return NotificationNavigationTarget(
         route: '/watch?v=$videoId',
-        targetApp: AppFlavor.app,
         isPerspectiveFlip: true,
         arguments: {
           'videoId': videoId,
@@ -752,24 +751,23 @@ class NotificationNavigationHandler {
 
       return NotificationNavigationTarget(
         route: '/watch?v=$videoId',
-        targetApp: AppFlavor.app,
         arguments: {
           'videoId': videoId,
           'autoplay': true,
           'fromNotification': true,
           'fromPush': true,
-          if (commentId != null) 'commentId': commentId,
-          if (replyId != null) 'replyId': replyId,
-          if (channelId != null) 'channelId': channelId,
-          if (topicId != null) 'topicId': topicId,
+          'commentId': ?commentId,
+          'replyId': ?replyId,
+          'channelId': ?channelId,
+          'topicId': ?topicId,
           if (isTopicOrigin) 'fromTopic': true,
           if (payload['thumbnailUrl'] != null) 'thumbnailUrl': payload['thumbnailUrl'],
         },
         parameters: {
           'v': videoId,
           'autoplay': 'true',
-          if (commentId != null) 'commentId': commentId,
-          if (replyId != null) 'replyId': replyId,
+          'commentId': ?commentId,
+          'replyId': ?replyId,
         },
       );
     }
@@ -779,7 +777,6 @@ class NotificationNavigationHandler {
       if (postId != null && postId.isNotEmpty) {
         return NotificationNavigationTarget(
           route: '/post/$postId',
-          targetApp: AppFlavor.app,
           arguments: {
             'postId': postId,
             'channelId': ?channelId,
@@ -789,7 +786,6 @@ class NotificationNavigationHandler {
       if (channelId != null && channelId.isNotEmpty) {
         return NotificationNavigationTarget(
           route: '/channel/$channelId',
-          targetApp: AppFlavor.app,
         );
       }
     }
@@ -798,7 +794,6 @@ class NotificationNavigationHandler {
     if (topicId != null && topicId.isNotEmpty) {
       return NotificationNavigationTarget(
         route: '/topic/$topicId',
-        targetApp: AppFlavor.app,
       );
     }
 
@@ -806,7 +801,6 @@ class NotificationNavigationHandler {
     if (channelId != null && channelId.isNotEmpty) {
       return NotificationNavigationTarget(
         route: '/channel/$channelId',
-        targetApp: AppFlavor.app,
       );
     }
 
@@ -815,13 +809,11 @@ class NotificationNavigationHandler {
       if (actionUrl.startsWith('/')) {
         return NotificationNavigationTarget(
           route: actionUrl,
-          targetApp: AppFlavor.app,
         );
       } else if (actionUrl.startsWith('http://') ||
           actionUrl.startsWith('https://')) {
         return NotificationNavigationTarget(
           route: actionUrl,
-          targetApp: AppFlavor.app,
           isExternalUrl: true,
         );
       }
@@ -830,7 +822,6 @@ class NotificationNavigationHandler {
     // 7. Universal Fallback to In-App Notification Center
     return const NotificationNavigationTarget(
       route: '/notifications',
-      targetApp: AppFlavor.app,
     );
   }
 

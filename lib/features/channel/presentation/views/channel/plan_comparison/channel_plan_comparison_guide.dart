@@ -226,7 +226,7 @@ class PlanComparisonFaqWidget extends StatelessWidget {
       {
         'q': 'How does cash withdrawal work for each plan?',
         'a':
-            'Cash-out and payout rules are identical for both Standard and Custom channels. Per-video earnings unlock for cash withdrawal once that specific video reaches 1,000 views and 10 hours of watch time. The minimum withdrawal threshold is ₹100 for Indian channels and \$10 for other countries in their local currencies. Locked or unwithdrawn earnings can also be spent immediately anytime on AI Subtitles and Dubbing without waiting!',
+            r'Cash-out and payout rules are identical for both Standard and Custom channels. Per-video earnings unlock for cash withdrawal once that specific video reaches 1,000 views and 10 hours of watch time. The minimum withdrawal threshold is ₹100 for Indian channels and $10 for other countries in their local currencies. Locked or unwithdrawn earnings can also be spent immediately anytime on AI Subtitles and Dubbing without waiting!',
       },
     ];
 

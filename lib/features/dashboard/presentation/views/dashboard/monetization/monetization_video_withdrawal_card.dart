@@ -16,6 +16,7 @@ const double kCashOutWatchHoursThreshold = 10.0;
 const int kCashOutViewsThreshold = 1000;
 
 /// Section showing per-video progress toward the 1,000 views and 10-hour cash-out threshold.
+/// Styled with exact Library theme and monochrome metrics.
 class PerVideoWithdrawalSection extends StatelessWidget {
   const PerVideoWithdrawalSection({
     required this.controller,
@@ -108,7 +109,7 @@ class VideoWithdrawalRow extends StatelessWidget {
               child: Container(
                 width: 50,
                 height: 35,
-                color: AppColors.bgInput,
+                color: AppColors.bgPage,
                 child: video.thumbnailUrl.isNotEmpty
                     ? CachedNetworkImage(
                         imageUrl: video.thumbnailUrl,
@@ -116,7 +117,7 @@ class VideoWithdrawalRow extends StatelessWidget {
                         width: 50,
                         height: 35,
                         placeholder: (context, url) =>
-                            const ColoredBox(color: AppColors.bgInput),
+                            const ColoredBox(color: AppColors.bgPage),
                         errorWidget: (context, url, error) => const Icon(
                           Icons.play_circle_fill_rounded,
                           color: Colors.white,
@@ -161,13 +162,13 @@ class VideoWithdrawalRow extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: isEligibleForCashOut
-                    ? Colors.green.withValues(alpha: 0.15)
-                    : Colors.orange.withValues(alpha: 0.15),
+                    ? Colors.white.withValues(alpha: 0.12)
+                    : AppColors.bgSurfaceHover,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isEligibleForCashOut
-                      ? Colors.green.withValues(alpha: 0.4)
-                      : Colors.orange.withValues(alpha: 0.4),
+                      ? Colors.white.withValues(alpha: 0.3)
+                      : AppColors.bgDivider,
                 ),
               ),
               child: Text(
@@ -181,7 +182,7 @@ class VideoWithdrawalRow extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
-                  color: isEligibleForCashOut ? Colors.green : Colors.orange,
+                  color: isEligibleForCashOut ? Colors.white : AppColors.textSecondary,
                 ),
               ),
             ),
@@ -194,10 +195,8 @@ class VideoWithdrawalRow extends StatelessWidget {
               child: LinearPercentIndicator(
                 lineHeight: 6,
                 percent: progress,
-                progressColor: isEligibleForCashOut
-                    ? Colors.green
-                    : AppColors.brand,
-                backgroundColor: AppColors.bgInput,
+                progressColor: Colors.white,
+                backgroundColor: const Color(0xFF27272A),
                 barRadius: const Radius.circular(3),
                 padding: EdgeInsets.zero,
               ),
@@ -206,23 +205,27 @@ class VideoWithdrawalRow extends StatelessWidget {
             InkWell(
               onTap: () =>
                   SpendRevenueBottomSheet.show(context, controller, video),
-              child: const Row(
-                children: [
-                  Icon(
-                    Icons.auto_awesome_rounded,
-                    color: Colors.white,
-                    size: 14,
-                  ),
-                  SizedBox(width: 4),
-                  Text(
-                    'Use for AI Tools',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.brand,
+              borderRadius: BorderRadius.circular(6),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.auto_awesome_rounded,
+                      color: Colors.white,
+                      size: 14,
                     ),
-                  ),
-                ],
+                    SizedBox(width: 4),
+                    Text(
+                      'Use for AI Tools',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/dialogs/add_language_dialog.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/pages/add_subtitle_track_page.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class SubtitlesLanguageRibbon extends StatelessWidget {
@@ -49,8 +49,45 @@ class SubtitlesLanguageRibbon extends StatelessWidget {
             child: Obx(() {
               return ListView.builder(
                 scrollDirection: Axis.horizontal,
-                itemCount: controller.availableLanguages.length,
+                itemCount: controller.availableLanguages.length + 1,
                 itemBuilder: (context, index) {
+                  // Last item is "+ Add Track" button
+                  if (index == controller.availableLanguages.length) {
+                    return Padding(
+                      padding: const EdgeInsets.only(
+                        right: 8,
+                        top: 8,
+                        bottom: 8,
+                      ),
+                      child: ActionChip(
+                        avatar: const Icon(
+                          Icons.add_rounded,
+                          size: 15,
+                          color: Colors.white,
+                        ),
+                        label: Text(
+                          'Add Track',
+                          style: AppTextStyles.labelMedium.copyWith(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        backgroundColor: AppColors.bgSurfaceHover,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(
+                            color: AppColors.brand.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        onPressed: () => Get.to(() => AddSubtitleTrackPage(
+                              controller: controller,
+                              isDarkMode: isDarkMode,
+                            )),
+                      ),
+                    );
+                  }
+
                   final code = controller.availableLanguages[index];
                   final isSelected =
                       controller.selectedLanguage.value == code;
@@ -76,7 +113,9 @@ class SubtitlesLanguageRibbon extends StatelessWidget {
                             style: AppTextStyles.labelMedium.copyWith(
                               color: isSelected ? Colors.black : textColor,
                               fontSize: 13,
-                              fontWeight: FontWeight.w500,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.w500,
                             ),
                           ),
                           if (isPending && !isSelected) ...[
@@ -151,17 +190,6 @@ class SubtitlesLanguageRibbon extends StatelessWidget {
               },
             );
           }),
-          IconButton(
-            icon: const Icon(Icons.add_circle_outline_rounded),
-            color: Colors.white,
-            tooltip: 'Add Language Track',
-            onPressed: () => AddLanguageDialog.show(
-              context,
-              controller,
-              isDarkMode: isDarkMode,
-              isMobile: isMobile,
-            ),
-          ),
         ],
       ),
     );

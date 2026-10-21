@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_comments_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/comments/dashboard_comments_widgets.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
@@ -25,7 +26,7 @@ void main() {
 
     tearDown(Get.reset);
 
-    testWidgets('DashboardCommentsHeaderBar renders title, subtitle, and switches tabs', (tester) async {
+    testWidgets('DashboardCommentsHeaderBar renders title, subtitle, search action, and switches tabs', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -39,20 +40,40 @@ void main() {
 
       expect(find.text('Channel comments'), findsOneWidget);
       expect(find.text('Manage and reply to viewer comments across all your videos'), findsOneWidget);
+      expect(find.text('Videos'), findsOneWidget);
       expect(find.text('Published'), findsOneWidget);
       expect(find.text('Held for review'), findsOneWidget);
 
-      expect(controller.selectedTab.value, equals(0));
-
-      await tester.tap(find.text('Held for review'));
-      await tester.pumpAndSettle();
-
+      // Default tab is Published (index 1)
       expect(controller.selectedTab.value, equals(1));
 
+      // Tap Videos tab (index 0)
+      await tester.tap(find.text('Videos'));
+      await tester.pumpAndSettle();
+      expect(controller.selectedTab.value, equals(0));
+
+      // Tap Held for review (index 2)
+      await tester.tap(find.text('Held for review'));
+      await tester.pumpAndSettle();
+      expect(controller.selectedTab.value, equals(2));
+
+      // Tap Published (index 1)
       await tester.tap(find.text('Published'));
       await tester.pumpAndSettle();
+      expect(controller.selectedTab.value, equals(1));
 
-      expect(controller.selectedTab.value, equals(0));
+      // Search button toggle expands search field in header
+      expect(find.byIcon(Icons.search_rounded), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.search_rounded));
+      await tester.pumpAndSettle();
+
+      expect(controller.isSearchExpanded.value, isTrue);
+      expect(find.byType(TextField), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), 'testing query');
+      await tester.pumpAndSettle();
+
+      expect(controller.searchQuery.value, equals('testing query'));
     });
 
     testWidgets('DashboardCommentsFilterToolbar renders filter chips and triggers filter changes', (tester) async {
@@ -81,11 +102,111 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(controller.commentsFilter.value, equals('answered'));
+    });
 
-      await tester.enterText(find.byType(TextField), 'testing query');
+    test('Filter logic correctly segregates Responded vs Unanswered comments', () {
+      final commentAnsweredDirectly = Comment(
+        id: 'c_answered',
+        videoId: 'v1',
+        userId: 'u1',
+        userName: 'User 1',
+        userProfilePicUrl: '',
+        channelId: 'ch1',
+        text: 'Great video!',
+        likeCount: 0,
+        dislikeCount: 0,
+        reportCount: 0,
+        hasCreatorReply: true,
+        createdAt: Timestamp.now(),
+      );
+
+      final commentAnsweredViaLocalCheck = Comment(
+        id: 'c_answered_local',
+        videoId: 'v1',
+        userId: 'u2',
+        userName: 'User 2',
+        userProfilePicUrl: '',
+        channelId: 'ch2',
+        text: 'Informative!',
+        likeCount: 0,
+        dislikeCount: 0,
+        reportCount: 0,
+        hasCreatorReply: false, // In Firestore it was false initially
+        createdAt: Timestamp.now(),
+      );
+
+      final commentUnanswered = Comment(
+        id: 'c_unanswered',
+        videoId: 'v1',
+        userId: 'u3',
+        userName: 'User 3',
+        userProfilePicUrl: '',
+        channelId: 'ch3',
+        text: 'Need help with this',
+        likeCount: 0,
+        dislikeCount: 0,
+        reportCount: 0,
+        hasCreatorReply: false,
+        createdAt: Timestamp.now(),
+      );
+
+      controller.allComments.value = [
+        commentAnsweredDirectly,
+        commentAnsweredViaLocalCheck,
+        commentUnanswered,
+      ];
+
+      // Mark the second comment as locally answered (simulating creator reply detected in stream)
+      controller.markCommentAsLocallyAnswered('c_answered_local', 'v1');
+
+      // Test "Responded" filter
+      controller.setCommentFilter('answered');
+      final answered = controller.getFilteredComments();
+      expect(answered.map((c) => c.id), containsAll(['c_answered', 'c_answered_local']));
+      expect(answered.map((c) => c.id), isNot(contains('c_unanswered')));
+
+      // Test "I haven't responded" filter
+      controller.setCommentFilter('unanswered');
+      final unanswered = controller.getFilteredComments();
+      expect(unanswered.map((c) => c.id), contains('c_unanswered'));
+      expect(unanswered.map((c) => c.id), isNot(contains('c_answered')));
+      expect(unanswered.map((c) => c.id), isNot(contains('c_answered_local')));
+    });
+
+    testWidgets('DashboardCommentsVideosListView renders videos and switches to Published comments on tap', (tester) async {
+      controller.videosWithComments.value = [
+        CreatorVideoWithComments(
+          videoId: 'v_zomato',
+          title: "Zomato's Big Transformation",
+          thumbnail: '',
+          duration: '4:20',
+          viewCount: 1500,
+          commentCount: 3,
+          createdAt: DateTime.now(),
+        ),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DashboardCommentsVideosListView(
+              controller: controller,
+              isMobile: false,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('All Videos'), findsOneWidget);
+      expect(find.text("Zomato's Big Transformation"), findsOneWidget);
+      expect(find.text('3 comments'), findsOneWidget);
+
+      // Tapping video selects video and switches tab to Published (index 1)
+      await tester.tap(find.text("Zomato's Big Transformation"));
       await tester.pumpAndSettle();
 
-      expect(controller.searchQuery.value, equals('testing query'));
+      expect(controller.selectedVideoId.value, equals('v_zomato'));
+      expect(controller.selectedTab.value, equals(1));
     });
 
     testWidgets('DashboardCommentsEmptyState renders context-aware empty state', (tester) async {
@@ -114,7 +235,7 @@ void main() {
       expect(find.byIcon(Icons.rate_review_outlined), findsOneWidget);
     });
 
-    testWidgets('DashboardCommentsLoadingSkeleton renders shimmer placeholder', (tester) async {
+    testWidgets('DashboardCommentsLoadingSkeleton renders loading placeholder without shimmer', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
@@ -123,7 +244,8 @@ void main() {
         ),
       );
 
-      expect(find.byType(Shimmer), findsWidgets);
+      expect(find.byType(StudioLoadingIndicator), findsOneWidget);
+      expect(find.byType(Shimmer), findsNothing);
     });
 
     testWidgets('DashboardCommentReplyDrawer populates text with quick suggestions', (tester) async {

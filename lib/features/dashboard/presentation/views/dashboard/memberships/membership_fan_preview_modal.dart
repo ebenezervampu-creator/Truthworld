@@ -147,25 +147,31 @@ void showFanPreviewModal({
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Row(
-                                  children: [
-                                    ChannelLoyaltyBadgeWidget(
-                                      milestone:
-                                          ChannelLoyaltyMilestone.newMember,
-                                      tierName: tier.name,
-                                      compact: true,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      tier.name,
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.textPrimary,
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      ChannelLoyaltyBadgeWidget(
+                                        milestone:
+                                            ChannelLoyaltyMilestone.newMember,
+                                        tierName: tier.name,
+                                        compact: true,
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 8),
+                                      Flexible(
+                                        child: Text(
+                                          tier.name,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
+                                const SizedBox(width: 8),
                                 Text(
                                   '${tier.formattedPrice} / month',
                                   style: const TextStyle(

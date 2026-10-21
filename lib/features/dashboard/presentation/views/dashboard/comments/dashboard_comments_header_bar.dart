@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_comments_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Studio Header Bar for Channel Comments
-/// Displays header title, subtitle, and reactive tabs (Published vs Held for review).
+/// Displays header title, search toggle, and reactive tabs (Videos vs Published vs Held for review).
 class DashboardCommentsHeaderBar extends StatelessWidget {
   const DashboardCommentsHeaderBar({
     required this.controller,
@@ -29,7 +30,7 @@ class DashboardCommentsHeaderBar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Studio Title Row
+          // Studio Title Row with Search Action
           Padding(
             padding: EdgeInsets.symmetric(
               horizontal: isMobile ? 16 : 24,
@@ -85,11 +86,105 @@ class DashboardCommentsHeaderBar extends StatelessWidget {
                     ],
                   ),
                 ),
+                // Search Toggle Icon Button
+                Obx(() {
+                  final isExpanded = controller.isSearchExpanded.value;
+                  return IconButton(
+                    icon: Icon(
+                      isExpanded ? Icons.close_rounded : Icons.search_rounded,
+                      color: AppColors.textPrimary,
+                      size: 22,
+                    ),
+                    tooltip: isExpanded ? 'Close search' : 'Search comments',
+                    onPressed: controller.toggleSearch,
+                  );
+                }),
               ],
             ),
           ),
 
-          // Tabs (Published vs Held for Review)
+          // In-Header Expandable Search Bar
+          Obx(() {
+            if (!controller.isSearchExpanded.value &&
+                controller.searchQuery.value.isEmpty) {
+              return const SizedBox.shrink();
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: isMobile ? 16 : 24,
+                right: isMobile ? 16 : 24,
+                bottom: 12,
+              ),
+              child: Container(
+                height: 38,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(19),
+                  border: Border.all(
+                    color: AppColors.bgDivider,
+                  ),
+                ),
+                child: TextField(
+                  controller: controller.searchController,
+                  autofocus: controller.isSearchExpanded.value,
+                  maxLength: ContentValidator.defaultMaxSearchLength,
+                  buildCounter: (context,
+                          {required currentLength,
+                          required isFocused,
+                          maxLength}) =>
+                      null,
+                  inputFormatters: TruthworldTextInputFormatters.withLimit(
+                    ContentValidator.defaultMaxSearchLength,
+                  ),
+                  onChanged: controller.setSearchQuery,
+                  style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
+                    fontSize: 13,
+                    color: AppColors.textPrimary,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Search comments...',
+                    hintStyle: const TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      fontFamilyFallback: TWTypography.fallbackFamilies,
+                      fontSize: 12,
+                      color: AppColors.textTertiary,
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.search_rounded,
+                      size: 18,
+                      color: AppColors.textPrimary,
+                    ),
+                    suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: controller.searchController,
+                      builder: (context, value, child) {
+                        if (value.text.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+                        return GestureDetector(
+                          onTap: () {
+                            controller.searchController.clear();
+                            controller.setSearchQuery('');
+                          },
+                          child: const Icon(
+                            Icons.clear_rounded,
+                            size: 16,
+                            color: AppColors.textSecondary,
+                          ),
+                        );
+                      },
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ),
+            );
+          }),
+
+          // Tabs: Videos vs Published vs Held for Review
           Padding(
             padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24),
             child: Align(
@@ -100,15 +195,21 @@ class DashboardCommentsHeaderBar extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _buildTabButton(
-                      title: 'Published',
+                      title: 'Videos',
                       isSelected: currentTab == 0,
                       onTap: () => controller.setSelectedTab(0),
                     ),
                     const SizedBox(width: 24),
                     _buildTabButton(
-                      title: 'Held for review',
+                      title: 'Published',
                       isSelected: currentTab == 1,
                       onTap: () => controller.setSelectedTab(1),
+                    ),
+                    const SizedBox(width: 24),
+                    _buildTabButton(
+                      title: 'Held for review',
+                      isSelected: currentTab == 2,
+                      onTap: () => controller.setSelectedTab(2),
                     ),
                   ],
                 );

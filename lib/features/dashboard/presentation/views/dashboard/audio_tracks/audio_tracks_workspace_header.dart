@@ -5,7 +5,7 @@ import 'package:truthworld/features/dashboard/presentation/controllers/audio_tra
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Active video header banner and action toolbar for desktop & tablet.
+/// Clean, high-contrast video header and action toolbar matching Channel Creation style.
 class AudioTracksWorkspaceHeader extends StatelessWidget {
   const AudioTracksWorkspaceHeader({
     required this.video,
@@ -17,6 +17,7 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
     required this.borderColor,
     required this.isDarkMode,
     required this.onUploadTrack,
+    this.onChangeVideo,
     super.key,
   });
 
@@ -29,12 +30,14 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
   final Color borderColor;
   final bool isDarkMode;
   final VoidCallback onUploadTrack;
+  final VoidCallback? onChangeVideo;
 
-  Widget _buildSaveButton({bool isMobile = false}) {
+  Widget _buildSaveButton({bool compact = false}) {
     return Obx(() {
+      final isSaving = controller.isSaving.value;
       return ElevatedButton.icon(
-        onPressed: controller.isSaving.value ? null : controller.saveCurrentAudioTracks,
-        icon: controller.isSaving.value
+        onPressed: isSaving ? null : controller.saveCurrentAudioTracks,
+        icon: isSaving
             ? const SizedBox(
                 width: 14,
                 height: 14,
@@ -45,17 +48,22 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
               )
             : const Icon(Icons.save_rounded, size: 16, color: Colors.black),
         label: Text(
-          controller.isSaving.value ? 'Saving...' : 'Save Changes',
-          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
+          isSaving ? 'Saving...' : 'Save',
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.black,
+            fontSize: 13,
+          ),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.brand,
+          backgroundColor: Colors.white,
           foregroundColor: Colors.black,
+          elevation: 0,
           padding: EdgeInsets.symmetric(
-            horizontal: isMobile ? 12 : 16,
-            vertical: isMobile ? 8 : 10,
+            horizontal: compact ? 12 : 16,
+            vertical: compact ? 8 : 10,
           ),
-          shape: RoundedRectangleBorder(borderRadius: TWRadius.mdBorderRadius),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       );
     });
@@ -63,41 +71,39 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final isMobile = width < 600;
-
     return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 12 : 20,
-        vertical: isMobile ? 10 : 14,
-      ),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: surfaceColor,
-        border: Border(bottom: BorderSide(color: borderColor)),
+        color: const Color(0xFF161618),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF27272A)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top Row: Video Thumbnail + Full-Width Title & Metadata + Save Button
+          // Top Row: Thumbnail + Title + Metadata + Optional Change Video
           Row(
             children: [
-              // Video Thumbnail
               ClipRRect(
-                borderRadius: TWRadius.mdBorderRadius,
+                borderRadius: BorderRadius.circular(8),
                 child: CachedNetworkImage(
                   imageUrl: video.thumbnailUrl,
-                  width: isMobile ? 56 : 72,
-                  height: isMobile ? 38 : 48,
+                  width: 64,
+                  height: 44,
                   fit: BoxFit.cover,
                   errorWidget: (_, _, _) => Container(
-                    color: Colors.grey[800],
-                    child: const Icon(Icons.video_library_rounded, color: Colors.white, size: 22),
+                    width: 64,
+                    height: 44,
+                    color: const Color(0xFF121212),
+                    child: const Icon(
+                      Icons.video_library_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(width: 14),
-
-              // Title & Badges
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -107,180 +113,203 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
                       video.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: TWTypography.brandFamily,
                         fontFamilyFallback: TWTypography.fallbackFamilies,
-                        fontSize: isMobile ? 15 : 17,
+                        fontSize: 15,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                        color: Colors.white,
                       ),
                     ),
-                    const SizedBox(height: 5),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          Obx(() {
-                            final count = controller.availableLanguages.length;
-                            return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: AppColors.brand.withValues(alpha: 0.15),
-                                borderRadius: TWRadius.mdBorderRadius,
-                              ),
-                              child: Text(
-                                '$count Dub Languages',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                            );
-                          }),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Obx(() {
+                          final count = controller.availableLanguages.length;
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
-                              color: Colors.grey.withValues(alpha: 0.15),
-                              borderRadius: TWRadius.mdBorderRadius,
+                              color: const Color(0xFF27272A),
+                              borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              'Original: English',
-                              style: TextStyle(
+                              '$count Dub Languages',
+                              style: const TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
-                                color: textSecondaryColor,
+                                color: Colors.white,
                               ),
                             ),
+                          );
+                        }),
+                        Text(
+                          'Duration: ${video.duration}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '• Duration: ${video.duration}',
-                            style: TextStyle(fontSize: 11, color: textSecondaryColor),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-              if (!isMobile) ...[
-                const SizedBox(width: 16),
-                _buildSaveButton(),
+              if (onChangeVideo != null) ...[
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: onChangeVideo,
+                  icon: const Icon(
+                    Icons.swap_horiz_rounded,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                  label: const Text(
+                    'Change',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    side: const BorderSide(color: Color(0xFF27272A)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
               ],
             ],
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
+          const Divider(height: 1, color: Color(0xFF27272A)),
+          const SizedBox(height: 14),
 
-          // Bottom Row: Action Toolbar
+          // Actions Row: Clean toolbar matching channel creation actions
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                if (isMobile) ...[
-                  _buildSaveButton(isMobile: true),
-                  const SizedBox(width: 8),
-                ],
-                // Preview Player Toggle Button
-                Obx(() => OutlinedButton.icon(
-                  onPressed: () => showPreviewPlayer.value = !showPreviewPlayer.value,
-                  icon: Icon(
-                    showPreviewPlayer.value ? Icons.visibility_off_rounded : Icons.play_circle_outline_rounded,
-                    size: 16,
-                    color: Colors.white,
-                  ),
-                  label: Text(
-                    showPreviewPlayer.value ? 'Hide Preview' : 'Preview Sync',
-                    style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    side: BorderSide(
-                      color: showPreviewPlayer.value
-                          ? AppColors.brand
-                          : AppColors.bgDivider,
-                    ),
-                    shape: RoundedRectangleBorder(borderRadius: TWRadius.mdBorderRadius),
-                  ),
-                )),
-                const SizedBox(width: 8),
-
-                // Upload Track Button
+                // Primary: Upload Track
                 ElevatedButton.icon(
                   onPressed: onUploadTrack,
-                  icon: const Icon(Icons.cloud_upload_rounded, size: 16, color: Colors.white),
-                  label: const Text('Upload Track', style: TextStyle(fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.bgSurfaceHover,
-                    foregroundColor: AppColors.textPrimary,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: TWRadius.mdBorderRadius),
+                  icon: const Icon(
+                    Icons.cloud_upload_rounded,
+                    size: 16,
+                    color: Colors.black,
                   ),
-                ),
-                const SizedBox(width: 8),
-
-                // Download Audio Button
-                OutlinedButton.icon(
-                  onPressed: () {
-                    final tracks = controller.currentTracks;
-                    if (tracks.isNotEmpty) {
-                      controller.downloadAudioTrack(tracks.first);
-                    } else {
-                      controller.showError('No audio track available to download.');
-                    }
-                  },
-                  icon: const Icon(Icons.download_rounded, size: 16, color: Colors.white),
                   label: const Text(
-                    'Download Audio',
-                    style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+                    'Upload Track',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                      fontSize: 13,
+                    ),
                   ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    side: const BorderSide(color: AppColors.bgDivider),
-                    shape: RoundedRectangleBorder(borderRadius: TWRadius.mdBorderRadius),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 9,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
 
-                // Viewer Requests Button
+                // Preview Toggle Button
                 Obx(() {
-                  final hasReqs = controller.languageRequests.where((r) => r.type == 'audio').isNotEmpty;
-                  final showRequests = controller.showRequestsPanel.value;
-                  final reqCount = controller.languageRequests.where((r) => r.type == 'audio').length;
-
-                  return Badge(
-                    isLabelVisible: hasReqs && !showRequests,
-                    label: Text('$reqCount'),
-                    backgroundColor: AppColors.brand,
-                    textColor: Colors.black,
-                    child: OutlinedButton.icon(
-                      onPressed: controller.toggleRequestsPanel,
-                      icon: const Icon(
-                        Icons.mark_chat_unread_rounded,
-                        size: 16,
+                  final isShowing = showPreviewPlayer.value;
+                  return OutlinedButton.icon(
+                    onPressed: () => showPreviewPlayer.value = !isShowing,
+                    icon: Icon(
+                      isShowing
+                          ? Icons.visibility_off_rounded
+                          : Icons.play_circle_outline_rounded,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                    label: Text(
+                      isShowing ? 'Hide Preview' : 'Preview Sync',
+                      style: const TextStyle(
                         color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
                       ),
-                      label: Text(
-                        showRequests ? 'Close Requests' : 'Requests ($reqCount)',
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: isShowing
+                          ? const Color(0xFF27272A)
+                          : const Color(0xFF18181B),
+                      side: const BorderSide(color: Color(0xFF27272A)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 9,
                       ),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        side: BorderSide(
-                          color: showRequests
-                              ? AppColors.brand
-                              : AppColors.bgDivider,
-                        ),
-                        shape: RoundedRectangleBorder(borderRadius: TWRadius.mdBorderRadius),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
                       ),
                     ),
                   );
                 }),
+                const SizedBox(width: 8),
+
+                // Requests Button
+                Obx(() {
+                  final showRequests = controller.showRequestsPanel.value;
+                  final reqCount = controller.languageRequests
+                      .where((r) => r.type == 'audio')
+                      .length;
+
+                  return OutlinedButton.icon(
+                    onPressed: controller.toggleRequestsPanel,
+                    icon: const Icon(
+                      Icons.mark_chat_unread_rounded,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                    label: Text(
+                      showRequests ? 'Close Requests' : 'Requests ($reqCount)',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: showRequests
+                          ? const Color(0xFF27272A)
+                          : const Color(0xFF18181B),
+                      side: const BorderSide(color: Color(0xFF27272A)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 9,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  );
+                }),
+                const SizedBox(width: 8),
+
+                // Save Button
+                _buildSaveButton(compact: true),
               ],
             ),
           ),
@@ -290,7 +319,7 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
   }
 }
 
-/// Mobile responsive action toolbar for quick upload, preview, and save.
+/// Mobile responsive action toolbar matching the clean theme.
 class AudioTracksMobileToolbar extends StatelessWidget {
   const AudioTracksMobileToolbar({
     required this.video,
@@ -299,6 +328,7 @@ class AudioTracksMobileToolbar extends StatelessWidget {
     required this.surfaceColor,
     required this.borderColor,
     required this.onUploadTrack,
+    this.onChangeVideo,
     super.key,
   });
 
@@ -308,73 +338,21 @@ class AudioTracksMobileToolbar extends StatelessWidget {
   final Color surfaceColor;
   final Color borderColor;
   final VoidCallback onUploadTrack;
+  final VoidCallback? onChangeVideo;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        border: Border(bottom: BorderSide(color: borderColor)),
-      ),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          ElevatedButton.icon(
-            onPressed: onUploadTrack,
-            icon: const Icon(Icons.cloud_upload_rounded, size: 16, color: Colors.black),
-            label: const Text('Upload Track'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.brand,
-              foregroundColor: Colors.black,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: TWRadius.mdBorderRadius),
-            ),
-          ),
-          Obx(() => OutlinedButton.icon(
-            onPressed: () => showPreviewPlayer.value = !showPreviewPlayer.value,
-            icon: const Icon(Icons.play_circle_outline_rounded, size: 16, color: Colors.white),
-            label: Text(showPreviewPlayer.value ? 'Hide Preview' : 'Preview'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.textPrimary,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: TWRadius.mdBorderRadius),
-            ),
-          )),
-          Obx(() {
-            final showRequests = controller.showRequestsPanel.value;
-            final reqCount = controller.languageRequests.where((r) => r.type == 'audio').length;
-            return OutlinedButton.icon(
-              onPressed: controller.toggleRequestsPanel,
-              icon: const Icon(Icons.mark_chat_unread_rounded, size: 16, color: Colors.white),
-              label: Text(showRequests ? 'Close Requests' : 'Requests ($reqCount)'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.textPrimary,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                shape: RoundedRectangleBorder(borderRadius: TWRadius.mdBorderRadius),
-              ),
-            );
-          }),
-          ElevatedButton.icon(
-            onPressed: controller.isSaving.value ? null : controller.saveCurrentAudioTracks,
-            icon: controller.isSaving.value
-                ? const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
-                  )
-                : const Icon(Icons.save_rounded, size: 16, color: Colors.black),
-            label: Text(controller.isSaving.value ? 'Saving' : 'Save'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.brand,
-              foregroundColor: Colors.black,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: TWRadius.mdBorderRadius),
-            ),
-          ),
-        ],
-      ),
+    return AudioTracksWorkspaceHeader(
+      video: video,
+      controller: controller,
+      showPreviewPlayer: showPreviewPlayer,
+      surfaceColor: surfaceColor,
+      textColor: Colors.white,
+      textSecondaryColor: AppColors.textSecondary,
+      borderColor: borderColor,
+      isDarkMode: true,
+      onUploadTrack: onUploadTrack,
+      onChangeVideo: onChangeVideo,
     );
   }
 }

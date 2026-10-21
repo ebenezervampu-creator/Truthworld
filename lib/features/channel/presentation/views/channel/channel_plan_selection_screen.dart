@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_plan_selection_controller.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/plan_selection/channel_plan_card.dart';
@@ -16,7 +17,12 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     if (AuthService.to.hasChannel.value) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        Get.offAllNamed('/studio');
+        if (AppFlavor.isStudio) {
+          Get.offAllNamed('/studio');
+        } else {
+          final userChannel = AuthService.to.userChannel;
+          Get.offAllNamed(userChannel?.channelRoute ?? '/');
+        }
       });
       return const Scaffold(
         body: Center(

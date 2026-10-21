@@ -30,43 +30,45 @@ class AudioTracksPreviewPlayer extends StatelessWidget {
     final playerTracks = AudioTrackBuilder.fromVideo(video);
 
     return Container(
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(top: 14),
       decoration: BoxDecoration(
-        color: surfaceColor,
+        color: const Color(0xFF161618),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.brand.withValues(alpha: 0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: const Color(0xFF27272A)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Preview Player Header
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
-                const Icon(Icons.graphic_eq_rounded, size: 18, color: Colors.white),
+                const Icon(
+                  Icons.graphic_eq_rounded,
+                  size: 18,
+                  color: Colors.white,
+                ),
                 const SizedBox(width: 8),
-                const Text(
-                  'Multi-Language Synchronized Audio Player Preview',
-                  style: TextStyle(
-                    fontFamily: TWTypography.brandFamily,
-                    fontFamilyFallback: TWTypography.fallbackFamilies,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                const Expanded(
+                  child: Text(
+                    'Multi-Language Synchronized Audio Preview',
+                    style: TextStyle(
+                      fontFamily: TWTypography.brandFamily,
+                      fontFamilyFallback: TWTypography.fallbackFamilies,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
-                const Spacer(),
                 IconButton(
                   tooltip: 'Close Preview',
-                  icon: const Icon(Icons.close_rounded, size: 18, color: Colors.white),
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    size: 18,
+                    color: Colors.white,
+                  ),
                   onPressed: () => showPreviewPlayer.value = false,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
@@ -74,13 +76,13 @@ class AudioTracksPreviewPlayer extends StatelessWidget {
               ],
             ),
           ),
-          const Divider(height: 1),
+          const Divider(height: 1, color: Color(0xFF27272A)),
 
           // Player Container
           ClipRRect(
             borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
             child: SizedBox(
-              height: 260,
+              height: 240,
               width: double.infinity,
               child: VideoPlayerWithAudioTracks(
                 videoUrl: video.videoUrl,
@@ -121,63 +123,60 @@ class AudioTracksTabBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        border: Border(bottom: BorderSide(color: borderColor)),
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Obx(() {
-                final activeTab = controller.activeTab.value;
-                return Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    AudioTracksTabPill(
-                      id: 'tracks',
-                      label: 'Audio & Video Tracks',
-                      icon: Icons.graphic_eq_rounded,
-                      isActive: activeTab == 'tracks',
-                      textColor: textColor,
-                      textSecondaryColor: textSecondaryColor,
-                      onTap: () => controller.setActiveTab('tracks'),
-                    ),
-                    AudioTracksTabPill(
-                      id: 'languages',
-                      label: 'Languages & Layers (${controller.availableLanguages.length})',
-                      icon: Icons.language_rounded,
-                      isActive: activeTab == 'languages',
-                      textColor: textColor,
-                      textSecondaryColor: textSecondaryColor,
-                      onTap: () => controller.setActiveTab('languages'),
-                    ),
-                  ],
-                );
-              }),
-            ],
+          // Tab selection buttons (scrollable to guarantee zero horizontal overflow)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Obx(() {
+              final activeTab = controller.activeTab.value;
+              return Row(
+                children: [
+                  AudioTracksTabPill(
+                    id: 'tracks',
+                    label: 'Audio & Video Tracks',
+                    icon: Icons.graphic_eq_rounded,
+                    isActive: activeTab == 'tracks',
+                    textColor: textColor,
+                    textSecondaryColor: textSecondaryColor,
+                    onTap: () => controller.setActiveTab('tracks'),
+                  ),
+                  const SizedBox(width: 8),
+                  AudioTracksTabPill(
+                    id: 'languages',
+                    label: 'Languages & Layers (${controller.availableLanguages.length})',
+                    icon: Icons.language_rounded,
+                    isActive: activeTab == 'languages',
+                    textColor: textColor,
+                    textSecondaryColor: textSecondaryColor,
+                    onTap: () => controller.setActiveTab('languages'),
+                  ),
+                ],
+              );
+            }),
           ),
 
           // Scrollable Quick Language Filter Bar (for tracks tab)
           Obx(() {
-            if (controller.activeTab.value != 'tracks') return const SizedBox.shrink();
+            if (controller.activeTab.value != 'tracks') {
+              return const SizedBox.shrink();
+            }
             final activeCode = controller.selectedLanguage.value;
 
             return Padding(
-              padding: const EdgeInsets.only(top: 10),
+              padding: const EdgeInsets.only(top: 12),
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    Text(
+                    const Text(
                       'Language:',
                       style: TextStyle(
                         fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: textSecondaryColor,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -187,35 +186,69 @@ class AudioTracksTabBar extends StatelessWidget {
 
                       return Padding(
                         padding: const EdgeInsets.only(right: 6),
-                        child: ChoiceChip(
-                          label: Text(name),
-                          selected: isChosen,
-                          onSelected: (_) => controller.switchLanguageTrack(langCode),
-                          selectedColor: AppColors.brand,
-                          backgroundColor: const Color(0xFF1E1E1E),
-                          labelStyle: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: isChosen ? Colors.black : AppColors.textPrimary,
+                        child: InkWell(
+                          onTap: () => controller.switchLanguageTrack(langCode),
+                          borderRadius: BorderRadius.circular(8),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isChosen ? Colors.white : const Color(0xFF161618),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isChosen
+                                    ? Colors.white
+                                    : const Color(0xFF27272A),
+                              ),
+                            ),
+                            child: Text(
+                              name,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: isChosen ? Colors.black : Colors.white,
+                              ),
+                            ),
                           ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            side: const BorderSide(color: AppColors.bgDivider),
-                          ),
-                          showCheckmark: false,
                         ),
                       );
                     }),
                     // Quick Add Language Button
-                    ActionChip(
-                      avatar: const Icon(Icons.add_rounded, size: 14, color: Colors.white),
-                      label: const Text('Add Language'),
-                      labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                      backgroundColor: const Color(0xFF1E1E1E),
-                      onPressed: onAddLanguage,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        side: const BorderSide(color: AppColors.bgDivider),
+                    InkWell(
+                      onTap: onAddLanguage,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF121212),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFF27272A)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.add_rounded,
+                              size: 14,
+                              color: Colors.white,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Add Language',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -229,7 +262,7 @@ class AudioTracksTabBar extends StatelessWidget {
   }
 }
 
-/// Custom tab pill button with active indicator state.
+/// Custom tab pill button with monochrome high-contrast styling matching Channel Creation.
 class AudioTracksTabPill extends StatelessWidget {
   const AudioTracksTabPill({
     required this.id,
@@ -259,23 +292,27 @@ class AudioTracksTabPill extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? AppColors.brand.withValues(alpha: 0.15) : Colors.transparent,
+          color: isActive ? Colors.white : const Color(0xFF161618),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isActive ? AppColors.brand : Colors.transparent,
+            color: isActive ? Colors.white : const Color(0xFF27272A),
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: Colors.white),
+            Icon(
+              icon,
+              size: 16,
+              color: isActive ? Colors.black : Colors.white,
+            ),
             const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
-                color: isActive ? textColor : textSecondaryColor,
+                color: isActive ? Colors.black : Colors.white,
               ),
             ),
           ],

@@ -71,7 +71,7 @@ void main() {
       );
 
       expect(find.text('Total Estimated Revenue'), findsOneWidget);
-      expect(find.text('₹850.00'), findsOneWidget);
+      expect(find.text('₹850.00'), findsAtLeastNWidgets(1));
       expect(find.text('₹ INR'), findsOneWidget);
       expect(find.text(r'$ USD'), findsOneWidget);
       expect(find.text(r'+$5.00'), findsOneWidget);

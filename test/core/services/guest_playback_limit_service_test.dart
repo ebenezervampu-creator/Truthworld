@@ -25,9 +25,7 @@ void main() {
     storage.erase();
   });
 
-  tearDown(() {
-    Get.reset();
-  });
+  tearDown(Get.reset);
 
   group('GuestPlaybackLimitService', () {
     test('initializes with 10-minute (600s) default quota for guest user', () {

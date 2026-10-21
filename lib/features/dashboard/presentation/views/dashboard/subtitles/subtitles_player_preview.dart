@@ -222,93 +222,140 @@ class SubtitlesVideoControlsBar extends StatelessWidget {
           ),
 
           // Action Buttons Bar
-          Row(
-            children: [
-              // Play/Pause
-              IconButton(
-                onPressed: controller.togglePlayPause,
-                icon: Icon(
-                  isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                  size: 20,
-                  color: Colors.white,
-                ),
-                tooltip: isPlaying ? 'Pause' : 'Play',
-              ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isVeryCompact = constraints.maxWidth < 360;
+              final isCompact = constraints.maxWidth < 480;
 
-              // Skip -5s
-              IconButton(
-                onPressed: () {
-                  final target = pos - const Duration(seconds: 5);
-                  controller.seekTo(
-                    target < Duration.zero ? Duration.zero : target,
-                  );
-                },
-                icon: const Icon(
-                  Icons.replay_5_rounded,
-                  size: 18,
-                  color: Colors.white,
-                ),
-                tooltip: 'Rewind 5s',
-              ),
+              final posStr = SubtitlesController.formatDurationToTimecode(pos)
+                  .split('.')
+                  .first;
+              final durStr = SubtitlesController.formatDurationToTimecode(dur)
+                  .split('.')
+                  .first;
 
-              // Skip +5s
-              IconButton(
-                onPressed: () {
-                  final target = pos + const Duration(seconds: 5);
-                  controller.seekTo(
-                    target > dur ? dur : target,
-                  );
-                },
-                icon: const Icon(
-                  Icons.forward_5_rounded,
-                  size: 18,
-                  color: Colors.white,
-                ),
-                tooltip: 'Forward 5s',
-              ),
-
-              const SizedBox(width: 8),
-
-              // Timecode display
-              Text(
-                '${SubtitlesController.formatDurationToTimecode(pos).split('.').first} / ${SubtitlesController.formatDurationToTimecode(dur).split('.').first}',
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 12,
-                  color: Colors.white70,
-                ),
-              ),
-
-              const Spacer(),
-
-              // Add Cue at Current Playhead
-              OutlinedButton.icon(
-                onPressed: controller.addCueAtCurrentTime,
-                icon: const Icon(
-                  Icons.add_circle_outline_rounded,
-                  size: 14,
-                  color: Colors.white,
-                ),
-                label: const Text(
-                  '+ Cue at Playhead',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+              return Row(
+                children: [
+                  // Play/Pause
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.all(6),
+                    constraints: const BoxConstraints(),
+                    onPressed: controller.togglePlayPause,
+                    icon: Icon(
+                      isPlaying
+                          ? Icons.pause_rounded
+                          : Icons.play_arrow_rounded,
+                      size: 22,
+                      color: Colors.white,
+                    ),
+                    tooltip: isPlaying ? 'Pause' : 'Play',
                   ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.3),
+                  const SizedBox(width: 4),
+
+                  // Skip -5s
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.all(6),
+                    constraints: const BoxConstraints(),
+                    onPressed: () {
+                      final target = pos - const Duration(seconds: 5);
+                      controller.seekTo(
+                        target < Duration.zero ? Duration.zero : target,
+                      );
+                    },
+                    icon: const Icon(
+                      Icons.replay_5_rounded,
+                      size: 18,
+                      color: Colors.white,
+                    ),
+                    tooltip: 'Rewind 5s',
                   ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
+                  const SizedBox(width: 4),
+
+                  // Skip +5s
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.all(6),
+                    constraints: const BoxConstraints(),
+                    onPressed: () {
+                      final target = pos + const Duration(seconds: 5);
+                      controller.seekTo(
+                        target > dur ? dur : target,
+                      );
+                    },
+                    icon: const Icon(
+                      Icons.forward_5_rounded,
+                      size: 18,
+                      color: Colors.white,
+                    ),
+                    tooltip: 'Forward 5s',
                   ),
-                ),
-              ),
-            ],
+
+                  const SizedBox(width: 8),
+
+                  // Timecode display
+                  Flexible(
+                    child: Text(
+                      isVeryCompact ? posStr : '$posStr / $durStr',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 6),
+
+                  // Add Cue at Current Playhead
+                  if (isCompact)
+                    Tooltip(
+                      message: 'Add cue at current playhead ($posStr)',
+                      child: IconButton(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.all(6),
+                        constraints: const BoxConstraints(),
+                        onPressed: controller.addCueAtCurrentTime,
+                        icon: const Icon(
+                          Icons.add_circle_outline_rounded,
+                          size: 20,
+                          color: AppColors.brand,
+                        ),
+                      ),
+                    )
+                  else
+                    OutlinedButton.icon(
+                      onPressed: controller.addCueAtCurrentTime,
+                      icon: const Icon(
+                        Icons.add_circle_outline_rounded,
+                        size: 14,
+                        color: Colors.white,
+                      ),
+                      label: const Text(
+                        '+ Cue at Playhead',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.3),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
         ],
       );

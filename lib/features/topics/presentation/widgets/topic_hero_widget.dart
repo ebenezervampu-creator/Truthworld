@@ -117,7 +117,6 @@ class TopicHeroWidget extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
                                   _buildArtworkCard(
                                     currentTopic,

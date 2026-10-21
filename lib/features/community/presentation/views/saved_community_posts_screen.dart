@@ -177,6 +177,7 @@ class SavedCommunityPostsScreen
               return CommunityPostCard(
                 key: ValueKey(post.id),
                 post: post,
+                isChannelContext: true,
               );
             },
           ),

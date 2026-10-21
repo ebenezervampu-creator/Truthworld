@@ -8,14 +8,15 @@ import 'package:truthworld/features/dashboard/presentation/controllers/drafts_co
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audience_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks_page.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/chapters_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/channel_notifications_page.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/chapters_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_comments_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/drafts_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/trash_restore_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification_dashboard_page.dart';
+
 import '../test_helpers/mock_firebase.dart';
 import 'page_test_harness.dart';
 

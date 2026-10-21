@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/channel_plan_selection_screen.dart';
 import 'package:truthworld/features/channel/presentation/views/channel_monetization_dashboard_view.dart';
@@ -9,6 +10,7 @@ import 'package:truthworld/features/dashboard/presentation/views/dashboard/monet
 import 'package:truthworld/theme/app_colors.dart';
 
 /// Top header section displaying channel monetization title and active status.
+/// Styled with exact Library theme and channel avatar profile styling.
 class MonetizationHeaderSection extends StatelessWidget {
   const MonetizationHeaderSection({
     required this.channel,
@@ -24,23 +26,35 @@ class MonetizationHeaderSection extends StatelessWidget {
     final channelType = channel?.channelType ?? ChannelType.standard;
     final isCustom = channelType == ChannelType.custom;
     final active = isMonetized ?? true;
+    final channelName = channel?.name.isNotEmpty == true ? channel!.name : 'Channel Monetization';
+    final handle = channel?.handle.isNotEmpty == true
+        ? (channel!.handle.startsWith('@') ? channel!.handle : '@${channel!.handle}')
+        : '';
 
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
+        UserAvatar(
+          radius: 28,
+          photoUrl: channel?.avatarUrl ?? '',
+          displayName: channelName,
+          backgroundColor: AppColors.bgSurfaceHover,
+          textColor: AppColors.textPrimary,
+          fontSize: 22,
+        ),
+        const SizedBox(width: 14),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Wrap(
                 crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 10,
-                runSpacing: 6,
+                spacing: 8,
+                runSpacing: 4,
                 children: [
-                  const Text(
-                    'Channel Monetization',
-                    style: TextStyle(
-                      fontSize: 26,
+                  Text(
+                    channelName,
+                    style: const TextStyle(
+                      fontSize: 22,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textPrimary,
                     ),
@@ -48,31 +62,29 @@ class MonetizationHeaderSection extends StatelessWidget {
                   ChannelTypeBadge(type: channelType),
                 ],
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 3),
               Text(
-                isCustom
-                    ? 'Custom Channel Infrastructure & Direct Earnings'
-                    : 'Day 1 Creator Monetization Program',
+                handle.isNotEmpty
+                    ? '$handle • ${isCustom ? 'Custom Infra & Direct Earnings' : 'Day 1 Monetization Program'}'
+                    : (isCustom
+                        ? 'Custom Channel Infrastructure & Direct Earnings'
+                        : 'Day 1 Creator Monetization Program'),
                 style: const TextStyle(
-                  fontSize: 14,
+                  fontSize: 13,
                   color: AppColors.textSecondary,
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
-            color: active
-                ? Colors.green.withValues(alpha: 0.15)
-                : Colors.orange.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(20),
+            color: AppColors.bgSurfaceHover,
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: active
-                  ? Colors.green.withValues(alpha: 0.5)
-                  : Colors.orange.withValues(alpha: 0.5),
+              color: AppColors.textPrimary.withValues(alpha: 0.2),
             ),
           ),
           child: Row(
@@ -82,16 +94,17 @@ class MonetizationHeaderSection extends StatelessWidget {
                 active
                     ? Icons.check_circle_rounded
                     : Icons.hourglass_top_rounded,
-                color: active ? Colors.green : Colors.orange,
-                size: 16,
+                color: Colors.white,
+                size: 14,
               ),
               const SizedBox(width: 6),
               Text(
-                active ? 'ACTIVE' : 'QUALIFICATION PENDING',
-                style: TextStyle(
-                  color: active ? Colors.green : Colors.orange,
+                active ? 'ACTIVE' : 'PENDING',
+                style: const TextStyle(
+                  color: Colors.white,
                   fontWeight: FontWeight.bold,
-                  fontSize: 12,
+                  fontSize: 11,
+                  letterSpacing: 0.5,
                 ),
               ),
             ],
@@ -102,7 +115,7 @@ class MonetizationHeaderSection extends StatelessWidget {
   }
 }
 
-/// Badge indicating whether the channel is Custom or Standard.
+/// Badge indicating whether the channel is Custom or Standard in clean monochrome.
 class ChannelTypeBadge extends StatelessWidget {
   const ChannelTypeBadge({
     required this.type,
@@ -114,30 +127,31 @@ class ChannelTypeBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCustom = type == ChannelType.custom;
-    final badgeColor = isCustom ? AppColors.warning : AppColors.info;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: badgeColor.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: badgeColor.withValues(alpha: 0.5)),
+        color: AppColors.bgSurfaceHover,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.textPrimary.withValues(alpha: 0.15),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
             isCustom ? Icons.stars_rounded : Icons.layers_rounded,
-            color: badgeColor,
-            size: 14,
+            color: Colors.white,
+            size: 13,
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 5),
           Text(
             isCustom ? 'CUSTOM CHANNEL' : 'STANDARD CHANNEL',
-            style: TextStyle(
-              color: badgeColor,
+            style: const TextStyle(
+              color: Colors.white,
               fontWeight: FontWeight.bold,
-              fontSize: 11,
+              fontSize: 10,
               letterSpacing: 0.5,
             ),
           ),
@@ -147,7 +161,7 @@ class ChannelTypeBadge extends StatelessWidget {
   }
 }
 
-/// Infrastructure tier card with detailed quotas and action button.
+/// Infrastructure tier card with detailed quotas and action button in clean monochrome.
 class ChannelTypeCard extends StatelessWidget {
   const ChannelTypeCard({
     required this.channel,
@@ -169,31 +183,14 @@ class ChannelTypeCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Container(
-                      width: 4,
-                      height: 18,
-                      decoration: BoxDecoration(
-                        color: isCustom
-                            ? AppColors.warning
-                            : AppColors.brand,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Channel Type & Infrastructure Tier',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ),
-                  ],
+              const Expanded(
+                child: Text(
+                  'Channel Type & Infrastructure Tier',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -259,9 +256,9 @@ class ChannelTypeCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.1),
+                color: AppColors.bgSurfaceHover,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+                border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.15)),
               ),
               child: Row(
                 children: [
@@ -277,7 +274,7 @@ class ChannelTypeCard extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: Colors.amber,
+                        color: Colors.white,
                       ),
                     ),
                   ),
@@ -320,8 +317,9 @@ class ChannelTypeCard extends StatelessWidget {
                 ),
               ),
               style: OutlinedButton.styleFrom(
+                backgroundColor: AppColors.bgSurfaceHover,
                 foregroundColor: AppColors.textPrimary,
-                side: BorderSide(color: AppColors.brand.withValues(alpha: 0.6)),
+                side: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.2)),
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
@@ -353,7 +351,7 @@ class ChannelTypeDetailTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: AppColors.bgInput,
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.bgDivider),
       ),

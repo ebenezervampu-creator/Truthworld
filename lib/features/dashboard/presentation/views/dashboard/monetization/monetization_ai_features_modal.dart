@@ -536,7 +536,7 @@ class AiFeatureOptionTile extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: Colors.green,
+                color: Colors.white,
               ),
             ),
           ],

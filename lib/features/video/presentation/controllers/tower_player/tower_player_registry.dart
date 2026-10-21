@@ -34,14 +34,14 @@ class TowerPlayerRegistry {
         Get.isRegistered<TowerPlayerController>(tag: tag)) {
       return Get.find<TowerPlayerController>(tag: tag);
     }
+    if (tag != null && tag.isNotEmpty && _activePlayers.isNotEmpty) {
+      final match = _activePlayers.firstWhereOrNull((p) => p.tag == tag);
+      if (match != null) return match;
+    }
     if (Get.isRegistered<TowerPlayerController>()) {
       return Get.find<TowerPlayerController>();
     }
     if (_activePlayers.isNotEmpty) {
-      if (tag != null && tag.isNotEmpty) {
-        final match = _activePlayers.firstWhereOrNull((p) => p.tag == tag);
-        if (match != null) return match;
-      }
       return _activePlayers.last;
     }
     return null;

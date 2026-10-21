@@ -39,11 +39,13 @@ mixin VideoPlaybackFlowMixin on GetxController {
   VideoPlayerController? get videoPlayerController;
   set videoPlayerController(VideoPlayerController? c);
   Rx<VideoPlayerController?> get rxVideoPlayerController;
+  RxBool get isPlayerInitialized;
   final RxDouble rxAspectRatio = (16 / 9).obs;
   ChewieController? get chewieController;
   set chewieController(ChewieController? c);
   Stopwatch get watchStopwatch;
   bool get isVpcInitialized;
+  bool get canStreamHighResolution;
 
   Future<void> initializeOfflinePlayback();
   Future<void> fetchAvailableResolutions();
@@ -60,10 +62,14 @@ mixin VideoPlaybackFlowMixin on GetxController {
   Future<void> syncWatchHistory(int watchSeconds, int totalDuration);
 
   double get vpcAspectRatio {
-    // 1. Sync from active TowerPlayerController if available
+    // 1. Sync from active TowerPlayerController if available for this specific video
     try {
-      final tpc = TowerPlayerRegistry.getForTagOrActive(video.id);
-      if (tpc != null && tpc.aspectRatio.value > 0) {
+      final tpc = (video.id.isNotEmpty && Get.isRegistered<TowerPlayerController>(tag: video.id))
+          ? Get.find<TowerPlayerController>(tag: video.id)
+          : TowerPlayerRegistry.getForTagOrActive(video.id);
+      if (tpc != null &&
+          tpc.aspectRatio.value > 0 &&
+          (tpc.tag == null || tpc.tag == video.id)) {
         if ((rxAspectRatio.value - tpc.aspectRatio.value).abs() > 0.001) {
           rxAspectRatio.value = tpc.aspectRatio.value;
         }
@@ -367,6 +373,10 @@ mixin VideoPlaybackFlowMixin on GetxController {
       return;
     }
 
+    if (!isVpcInitialized) {
+      rxAspectRatio.value = video.isShort ? (9 / 16) : (16 / 9);
+    }
+
     // Populate initial resolutions and currentResolution immediately from in-memory video model
     if (availableResolutions.isEmpty && video.adaptiveResolutions.isNotEmpty) {
       final modelResolutions = video.adaptiveResolutions
@@ -444,9 +454,13 @@ mixin VideoPlaybackFlowMixin on GetxController {
               return;
             }
           }
-          final best = availableResolutions.firstWhereOrNull(
+          final eligible = canStreamHighResolution
+              ? availableResolutions
+              : availableResolutions.where((r) => r.height <= 1040).toList();
+          final candidateList = eligible.isNotEmpty ? eligible : availableResolutions;
+          final best = candidateList.firstWhereOrNull(
             (r) => r.url.isNotEmpty && !r.url.contains('.m3u8'),
-          ) ?? availableResolutions.first;
+          ) ?? candidateList.first;
           if (currentResolution.value?.url != best.url) {
             currentResolution.value = best;
           }
@@ -492,7 +506,10 @@ mixin VideoPlaybackFlowMixin on GetxController {
         metadataFuture.then((_) {
           if (isClosed) return;
           if (availableResolutions.isNotEmpty) {
-            final best = availableResolutions.first;
+            final eligible = canStreamHighResolution
+                ? availableResolutions
+                : availableResolutions.where((r) => r.height <= 1040).toList();
+            final best = eligible.isNotEmpty ? eligible.first : availableResolutions.first;
             if (currentResolution.value?.url != best.url) {
               currentResolution.value = best;
             }
@@ -598,13 +615,17 @@ mixin VideoPlaybackFlowMixin on GetxController {
               currentResolution.value = lowRes;
             }
           } else {
-            final mp4Res = availableResolutions.firstWhereOrNull(
+            final eligible = canStreamHighResolution
+                ? availableResolutions
+                : availableResolutions.where((r) => r.height <= 1040).toList();
+            final candidateList = eligible.isNotEmpty ? eligible : availableResolutions;
+            final mp4Res = candidateList.firstWhereOrNull(
               (r) =>
                   r.url.isNotEmpty &&
                   (!kIsWeb || !r.url.contains('.m3u8')) &&
                   !r.url.endsWith('original.mp4'),
             );
-            final best = mp4Res ?? availableResolutions.first;
+            final best = mp4Res ?? candidateList.first;
             if (currentResolution.value == null ||
                 currentResolution.value?.url != best.url) {
               currentResolution.value = best;

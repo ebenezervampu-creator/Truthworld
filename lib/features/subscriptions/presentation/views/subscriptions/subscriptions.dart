@@ -327,6 +327,7 @@ class SubscriptionsPage extends GetView<SubscriptionController> {
           video: content.video!,
           isGrid: true,
           heroPrefix: 'subs',
+          isChannelContext: true,
         );
       case ContentType.playlist:
         return PlaylistCard(
@@ -335,6 +336,7 @@ class SubscriptionsPage extends GetView<SubscriptionController> {
       case ContentType.communityPost:
         return CommunityPostCard(
           post: content.communityPost!,
+          isChannelContext: true,
         );
       case ContentType.topic:
         return TopicCardWidget(

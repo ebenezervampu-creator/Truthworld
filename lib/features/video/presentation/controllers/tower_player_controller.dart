@@ -49,7 +49,13 @@ class TowerPlayerController extends BaseController
     try {
       rxValue = videoPlayerController.value.obs;
       isInitialized.value = videoPlayerController.value.isInitialized;
-      aspectRatio.value = videoPlayerController.value.aspectRatio;
+      if (videoPlayerController.value.isInitialized &&
+          videoPlayerController.value.aspectRatio > 0) {
+        aspectRatio.value = videoPlayerController.value.aspectRatio;
+      } else {
+        final isShort = videoController?.video.isShort ?? false;
+        aspectRatio.value = isShort ? (9 / 16) : (16 / 9);
+      }
       isPlaying.value = videoPlayerController.value.isPlaying;
       hasError.value = false;
       errorDescription.value =
@@ -374,8 +380,12 @@ class TowerPlayerController extends BaseController
 
       if (isInitialized.value != val.isInitialized) {
         isInitialized.value = val.isInitialized;
+        update();
+        rxVideoPlayerController.refresh();
       }
-      if (aspectRatio.value != val.aspectRatio) {
+      if (val.isInitialized &&
+          val.aspectRatio > 0 &&
+          aspectRatio.value != val.aspectRatio) {
         aspectRatio.value = val.aspectRatio;
         updateAutoPip(isPlaying.value);
       }
@@ -557,7 +567,20 @@ class TowerPlayerController extends BaseController
     errorDebounceTimer?.cancel();
     hasShownNearEndMoreVideos = false;
     showMoreVideos.value = false;
-    if (videoPlayerController == vpc && videoPlaybackSource != null) return;
+    if (videoPlayerController == vpc && videoPlaybackSource != null) {
+      final isInit = vpc.value.isInitialized;
+      if (isInitialized.value != isInit || rxValue.value != vpc.value) {
+        rxValue.value = vpc.value;
+        isInitialized.value = isInit;
+        if (isInit && vpc.value.aspectRatio > 0) {
+          aspectRatio.value = vpc.value.aspectRatio;
+        }
+        isPlaying.value = !isShowingAd.value && vpc.value.isPlaying;
+        update();
+        rxVideoPlayerController.refresh();
+      }
+      return;
+    }
 
     final (source, isInit) = TowerPlayerLifecycleHelper.syncController(
       currentVpc: videoPlayerController,
@@ -582,10 +605,14 @@ class TowerPlayerController extends BaseController
     try {
       rxValue.value = vpc.value;
       isInitialized.value = isInit;
-      aspectRatio.value = vpc.value.aspectRatio;
+      if (isInit && vpc.value.aspectRatio > 0) {
+        aspectRatio.value = vpc.value.aspectRatio;
+      }
       isPlaying.value = !isShowingAd.value && vpc.value.isPlaying;
       hasError.value = false;
       errorDescription.value = '';
+      update();
+      rxVideoPlayerController.refresh();
       if (tag != null && Get.isRegistered<VideoController>(tag: tag)) {
         final vc = Get.find<VideoController>(tag: tag);
         isAudioOnly.value = vc.isAudioOnly.value;

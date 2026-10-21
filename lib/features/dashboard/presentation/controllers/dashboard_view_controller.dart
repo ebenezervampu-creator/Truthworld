@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
@@ -18,6 +20,7 @@ import 'package:truthworld/features/dashboard/presentation/controllers/topic_man
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/studio_shortcuts_modal.dart';
 import 'package:truthworld/features/topics/presentation/widgets/create_topic_dialog.dart';
+import 'package:truthworld/routes/app_routes.dart';
 
 /// Presentation view controller managing animation controllers, responsive drawers,
 /// channel resolution, and navigation routes for [DashboardScreen].
@@ -27,6 +30,7 @@ class DashboardViewController extends BaseController
   FocusNode _searchFocusNode = FocusNode();
   bool _isSearchControllerDisposed = false;
   bool _isSearchFocusNodeDisposed = false;
+  bool _isDisposed = false;
 
   TextEditingController get searchController {
     if (_isSearchControllerDisposed) {
@@ -68,32 +72,45 @@ class DashboardViewController extends BaseController
 
   DashboardController get dashboardController {
     if (Get.isRegistered<DashboardController>()) {
-      return Get.find<DashboardController>();
+      final ctrl = Get.find<DashboardController>();
+      final chId = getChannelId(channel);
+      if (chId.isNotEmpty && ctrl.channelId != chId) {
+        ctrl.updateChannelId(chId);
+      } else if (chId.isEmpty && ctrl.channelId.isNotEmpty) {
+        ctrl.clearData();
+      }
+      return ctrl;
     }
     return Get.put(DashboardController(channelId: getChannelId(channel)));
   }
 
   dynamic get channel {
+    final currentUser = FirebaseAuth.instance.currentUser;
     final args = Get.arguments;
     if (args is Map && args['channel'] != null) {
       final ch = args['channel'];
-      if (ch is Channel) return ch;
-      if (ch is Map) {
-        return Channel.fromMap(
+      Channel? parsedChannel;
+      if (ch is Channel) {
+        parsedChannel = ch;
+      } else if (ch is Map) {
+        parsedChannel = Channel.fromMap(
           Map<String, dynamic>.from(ch),
           (ch['id'] ?? '').toString(),
         );
       }
-      return ch;
-    }
-    if (Get.isRegistered<DashboardController>()) {
-      final activeCtrl = Get.find<DashboardController>();
-      if (activeCtrl.currentChannel.value != null) {
-        return activeCtrl.currentChannel.value;
+      if (parsedChannel != null) {
+        if (currentUser == null ||
+            parsedChannel.ownerId == currentUser.uid) {
+          return parsedChannel;
+        }
       }
     }
-    if (AuthService.to.userChannel != null) {
-      return AuthService.to.userChannel;
+    if (Get.isRegistered<AuthService>() && AuthService.to.userChannel != null) {
+      final authCh = AuthService.to.userChannel!;
+      if (currentUser == null ||
+          authCh.ownerId == currentUser.uid) {
+        return authCh;
+      }
     }
     return null;
   }
@@ -148,15 +165,30 @@ class DashboardViewController extends BaseController
     unawaited(resolveChannelAndInit());
 
     _authWorker = ever(AuthService.to.isAuthenticated, (isAuth) {
-      if (isAuth && !isSelectingDefault.value && channel == null) {
+      if (!isAuth) {
+        channelPendingDeletion.value = null;
+        isChannelInDeletionGracePeriod.value = false;
+        isSelectingDefault.value = false;
+        if (Get.isRegistered<DashboardController>()) {
+          Get.find<DashboardController>().clearData();
+        }
+      } else {
+        if (Get.isRegistered<DashboardController>()) {
+          Get.find<DashboardController>().clearData();
+        }
         unawaited(resolveChannelAndInit());
       }
     });
 
     _channelWorker = ever(AuthService.to.rxUserChannel, (ch) {
-      if (ch != null) {
+      if (ch == null) {
+        if (Get.isRegistered<DashboardController>()) {
+          dashboardController.clearData();
+        }
+      } else {
         if (Get.isRegistered<DashboardController>()) {
           dashboardController.currentChannel.value = ch;
+          dashboardController.updateChannelId(ch.id);
         }
       }
     });
@@ -228,6 +260,7 @@ class DashboardViewController extends BaseController
   }
 
   void startAnimations() {
+    if (isClosed || _isDisposed) return;
     if (!staggeredAnimationController.isAnimating &&
         !staggeredAnimationController.isCompleted) {
       staggeredAnimationController.forward();
@@ -252,6 +285,9 @@ class DashboardViewController extends BaseController
 
     if (!authService.isAuthenticated.value && user == null) {
       isSelectingDefault.value = false;
+      if (Get.isRegistered<DashboardController>()) {
+        dashboardController.clearData();
+      }
       return;
     }
 
@@ -361,6 +397,9 @@ class DashboardViewController extends BaseController
           !authService.hasChannel.value &&
           authService.isAuthenticated.value) {
         isSelectingDefault.value = false;
+        if (Get.isRegistered<DashboardController>()) {
+          dashboardController.clearData();
+        }
         return;
       }
 
@@ -368,17 +407,19 @@ class DashboardViewController extends BaseController
       final ctrl = dashboardController;
       if (channelId.isNotEmpty && ctrl.channelId != channelId) {
         ctrl.updateChannelId(channelId);
+      } else if (channelId.isEmpty) {
+        ctrl.clearData();
       }
 
-      if (ctrl.currentChannel.value == null) {
-        if (resolvedChannel is Channel) {
-          ctrl.currentChannel.value = resolvedChannel;
-        } else if (resolvedChannel is Map) {
-          ctrl.currentChannel.value = Channel.fromMap(
-            Map<String, dynamic>.from(resolvedChannel),
-            (resolvedChannel['id'] ?? channelId).toString(),
-          );
-        }
+      if (resolvedChannel is Channel) {
+        ctrl.currentChannel.value = resolvedChannel;
+      } else if (resolvedChannel is Map) {
+        ctrl.currentChannel.value = Channel.fromMap(
+          Map<String, dynamic>.from(resolvedChannel),
+          (resolvedChannel['id'] ?? channelId).toString(),
+        );
+      } else {
+        ctrl.currentChannel.value = null;
       }
 
       final args = Get.arguments;
@@ -399,6 +440,11 @@ class DashboardViewController extends BaseController
         } else if (currentRoute.contains('/drafts') ||
             tabParam == 'drafts' ||
             tabParam == '20') {
+          ctrl.selectedIndex.value = 2;
+        } else if (currentRoute.contains('/community') ||
+            tabParam == 'community' ||
+            tabParam == 'posts' ||
+            tabParam == '19') {
           ctrl.selectedIndex.value = 2;
         } else if (tabParam == 'verification' ||
             tabParam == 'fact_check' ||
@@ -450,9 +496,11 @@ class DashboardViewController extends BaseController
         Get.put(VideoManagementController());
       }
     } finally {
-      isSelectingDefault.value = false;
-      if (AuthService.to.isAuthenticated.value) {
-        startAnimations();
+      if (!isClosed && !_isDisposed) {
+        isSelectingDefault.value = false;
+        if (AuthService.to.isAuthenticated.value) {
+          startAnimations();
+        }
       }
     }
   }
@@ -489,8 +537,21 @@ class DashboardViewController extends BaseController
 
   Future<void> handleSignOut() async {
     try {
+      if (Get.isRegistered<DashboardController>()) {
+        Get.find<DashboardController>().clearData();
+      }
       await AuthService.to.signOut();
       AppSnackbar.success('You have been successfully signed out.');
+      final isStudioContext = AppFlavor.isStudio ||
+          Get.currentRoute.toLowerCase().startsWith('/studio') ||
+          (kIsWeb &&
+              (Uri.base.host.toLowerCase().startsWith('studio') ||
+                  Uri.base.path.toLowerCase().startsWith('/studio')));
+      if (isStudioContext) {
+        Get.offAllNamed(AppRoutes.studio);
+      } else {
+        Get.offAllNamed('/');
+      }
     } catch (e) {
       ErrorHandler.log(e);
       AppSnackbar.error('Unable to sign out. Please try again.');
@@ -684,6 +745,7 @@ class DashboardViewController extends BaseController
 
   @override
   void onClose() {
+    _isDisposed = true;
     HardwareKeyboard.instance.removeHandler(_handleGlobalHardwareKeyEvent);
     _authWorker?.dispose();
     _channelWorker?.dispose();

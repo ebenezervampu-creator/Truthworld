@@ -2,6 +2,8 @@ export 'dialogs/add_language_dialog.dart';
 export 'dialogs/find_replace_dialog.dart';
 export 'dialogs/generate_ai_subtitles_modal.dart';
 export 'dialogs/shift_timings_dialog.dart';
+export 'pages/add_subtitle_track_page.dart';
+export 'pages/generate_ai_subtitles_page.dart';
 export 'subtitles_ai_progress_banner.dart';
 export 'subtitles_cues_editor.dart';
 export 'subtitles_language_ribbon.dart';

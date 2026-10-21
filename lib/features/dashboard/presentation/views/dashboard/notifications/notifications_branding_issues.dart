@@ -36,13 +36,13 @@ class ChannelNotificationsBrandingIssues {
               },
               icon: const Icon(
                 Icons.edit_rounded,
-                color: Colors.white,
+                color: Colors.black,
                 size: 15,
               ),
               label: const Text('Change Avatar'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.error,
-                foregroundColor: Colors.white,
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
@@ -56,6 +56,7 @@ class ChannelNotificationsBrandingIssues {
                   fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
+                  color: Colors.black,
                 ),
               ),
             ),
@@ -63,12 +64,12 @@ class ChannelNotificationsBrandingIssues {
               onPressed: controller.requestAvatarManualReview,
               icon: const Icon(
                 Icons.rate_review_rounded,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 size: 15,
               ),
               label: const Text('Request Manual Review'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
+                foregroundColor: AppColors.textPrimary,
                 side: const BorderSide(color: AppColors.bgDivider),
                 backgroundColor: AppColors.bgSurfaceHover,
                 padding: const EdgeInsets.symmetric(
@@ -83,23 +84,6 @@ class ChannelNotificationsBrandingIssues {
                   fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            TextButton.icon(
-              onPressed: controller.bypassAvatarVerification,
-              icon: const Icon(
-                Icons.flash_on_rounded,
-                color: Colors.white,
-                size: 15,
-              ),
-              label: const Text('Bypass (Debug)'),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.textSecondary,
-                textStyle: const TextStyle(
-                  fontFamily: TWTypography.uiFamily,
-                  fontFamilyFallback: TWTypography.fallbackFamilies,
-                  fontSize: 12,
                 ),
               ),
             ),
@@ -124,13 +108,13 @@ class ChannelNotificationsBrandingIssues {
               },
               icon: const Icon(
                 Icons.edit_rounded,
-                color: Colors.white,
+                color: Colors.black,
                 size: 15,
               ),
               label: const Text('Change Avatar'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.warning,
-                foregroundColor: Colors.white,
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
@@ -144,6 +128,7 @@ class ChannelNotificationsBrandingIssues {
                   fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
+                  color: Colors.black,
                 ),
               ),
             ),
@@ -151,12 +136,12 @@ class ChannelNotificationsBrandingIssues {
               onPressed: controller.requestAvatarManualReview,
               icon: const Icon(
                 Icons.rate_review_rounded,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 size: 15,
               ),
               label: const Text('Request Manual Review'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
+                foregroundColor: AppColors.textPrimary,
                 side: const BorderSide(color: AppColors.bgDivider),
                 backgroundColor: AppColors.bgSurfaceHover,
                 padding: const EdgeInsets.symmetric(
@@ -189,32 +174,13 @@ class ChannelNotificationsBrandingIssues {
       );
     } else if (ch.avatarStatus == 'PENDING') {
       issueCards.add(
-        ChannelNotificationsIssueCard(
+        const ChannelNotificationsIssueCard(
           title: 'Avatar Verification Pending',
           description:
               'Google Vision AI is validating your channel avatar image.',
           statusType: 'PENDING',
           icon: Icons.sync_rounded,
           isLoading: true,
-          actions: [
-            TextButton.icon(
-              onPressed: controller.bypassAvatarVerification,
-              icon: const Icon(
-                Icons.flash_on_rounded,
-                color: Colors.white,
-                size: 15,
-              ),
-              label: const Text('Bypass (Debug)'),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.textSecondary,
-                textStyle: const TextStyle(
-                  fontFamily: TWTypography.uiFamily,
-                  fontFamilyFallback: TWTypography.fallbackFamilies,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          ],
         ),
       );
     } else if (ch.avatarStatus == 'APPROVED') {
@@ -260,13 +226,13 @@ class ChannelNotificationsBrandingIssues {
               },
               icon: const Icon(
                 Icons.edit_rounded,
-                color: Colors.white,
+                color: Colors.black,
                 size: 15,
               ),
               label: const Text('Change Banner'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.error,
-                foregroundColor: Colors.white,
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
@@ -280,6 +246,7 @@ class ChannelNotificationsBrandingIssues {
                   fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
+                  color: Colors.black,
                 ),
               ),
             ),
@@ -287,12 +254,12 @@ class ChannelNotificationsBrandingIssues {
               onPressed: controller.requestBannerManualReview,
               icon: const Icon(
                 Icons.rate_review_rounded,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 size: 15,
               ),
               label: const Text('Request Manual Review'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
+                foregroundColor: AppColors.textPrimary,
                 side: const BorderSide(color: AppColors.bgDivider),
                 backgroundColor: AppColors.bgSurfaceHover,
                 padding: const EdgeInsets.symmetric(
@@ -307,23 +274,6 @@ class ChannelNotificationsBrandingIssues {
                   fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            TextButton.icon(
-              onPressed: controller.bypassBannerVerification,
-              icon: const Icon(
-                Icons.flash_on_rounded,
-                color: Colors.white,
-                size: 15,
-              ),
-              label: const Text('Bypass (Debug)'),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.textSecondary,
-                textStyle: const TextStyle(
-                  fontFamily: TWTypography.uiFamily,
-                  fontFamilyFallback: TWTypography.fallbackFamilies,
-                  fontSize: 12,
                 ),
               ),
             ),
@@ -348,13 +298,13 @@ class ChannelNotificationsBrandingIssues {
               },
               icon: const Icon(
                 Icons.edit_rounded,
-                color: Colors.white,
+                color: Colors.black,
                 size: 15,
               ),
               label: const Text('Change Banner'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.warning,
-                foregroundColor: Colors.white,
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
@@ -368,6 +318,7 @@ class ChannelNotificationsBrandingIssues {
                   fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
+                  color: Colors.black,
                 ),
               ),
             ),
@@ -375,12 +326,12 @@ class ChannelNotificationsBrandingIssues {
               onPressed: controller.requestBannerManualReview,
               icon: const Icon(
                 Icons.rate_review_rounded,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 size: 15,
               ),
               label: const Text('Request Manual Review'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
+                foregroundColor: AppColors.textPrimary,
                 side: const BorderSide(color: AppColors.bgDivider),
                 backgroundColor: AppColors.bgSurfaceHover,
                 padding: const EdgeInsets.symmetric(
@@ -413,32 +364,13 @@ class ChannelNotificationsBrandingIssues {
       );
     } else if (ch.bannerStatus == 'PENDING') {
       issueCards.add(
-        ChannelNotificationsIssueCard(
+        const ChannelNotificationsIssueCard(
           title: 'Banner Verification Pending',
           description:
               'Google Vision AI is validating your channel banner image.',
           statusType: 'PENDING',
           icon: Icons.sync_rounded,
           isLoading: true,
-          actions: [
-            TextButton.icon(
-              onPressed: controller.bypassBannerVerification,
-              icon: const Icon(
-                Icons.flash_on_rounded,
-                color: Colors.white,
-                size: 15,
-              ),
-              label: const Text('Bypass (Debug)'),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.textSecondary,
-                textStyle: const TextStyle(
-                  fontFamily: TWTypography.uiFamily,
-                  fontFamilyFallback: TWTypography.fallbackFamilies,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          ],
         ),
       );
     } else if (ch.bannerStatus == 'APPROVED') {

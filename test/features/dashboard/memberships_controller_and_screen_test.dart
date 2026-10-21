@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/create_tier_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/memberships_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships_screen.dart';
 import '../../test_helpers/mock_firebase.dart';
@@ -176,7 +177,7 @@ void main() {
         currency: 'INR',
       );
       controller.tiers.assignAll([inrTier]);
-      expect(controller.primaryCurrencySymbol, equals('₹'));
+      expect(controller.primaryCurrencySymbol, equals('\u20B9'));
 
       // Active INR member
       final inrMember = ChannelMember(
@@ -189,7 +190,7 @@ void main() {
         currency: 'INR',
       );
       controller.members.assignAll([inrMember]);
-      expect(controller.primaryCurrencySymbol, equals('₹'));
+      expect(controller.primaryCurrencySymbol, equals('\u20B9'));
     });
 
     test('noAdsForMembers applies 70/30 MRR split when enabled and 100/0 when disabled', () {
@@ -222,7 +223,6 @@ void main() {
         name: 'Standard Tier',
         price: 5.0,
         perks: const ['VIP Discord Access', 'Exclusive Badges'],
-        hasPremiumBundle: false,
       );
       expect(standardTier.includesPremiumBundle, isFalse);
       expect(standardTier.platformCutPercentage, equals(0.0));
@@ -244,19 +244,18 @@ void main() {
       expect(copy.platformCutPercentage, equals(0.30));
       expect(copy.creatorSharePercentage, equals(0.70));
 
-      // Recommended Bundle Pricing Checks ($5 USD / ₹150 INR)
+      // Recommended Bundle Pricing Checks ($5 USD / â‚¹150 INR)
       expect(ChannelMembershipTier.recommendedBundlePriceUSD, equals(5.0));
       expect(ChannelMembershipTier.recommendedBundlePriceINR, equals(150.0));
       expect(ChannelMembershipTier.recommendedBundlePriceFor('USD'), equals(5.0));
       expect(ChannelMembershipTier.recommendedBundlePriceFor('INR'), equals(150.0));
       expect(ChannelMembershipTier.recommendedBundlePriceLabel('USD'), equals(r'$5'));
-      expect(ChannelMembershipTier.recommendedBundlePriceLabel('INR'), equals('₹150'));
+      expect(ChannelMembershipTier.recommendedBundlePriceLabel('INR'), equals('\u20B9150'));
 
       final cheapUsdBundleTier = ChannelMembershipTier(
         id: 'tier_cheap_usd',
         name: 'Cheap Bundle',
         price: 2.0,
-        currency: 'USD',
         perks: const [ChannelMembershipTier.premiumBundlePerkTitle],
         hasPremiumBundle: true,
       );
@@ -266,7 +265,6 @@ void main() {
         id: 'tier_healthy_usd',
         name: 'Healthy Bundle',
         price: 5.0,
-        currency: 'USD',
         perks: const [ChannelMembershipTier.premiumBundlePerkTitle],
         hasPremiumBundle: true,
       );
@@ -300,7 +298,6 @@ void main() {
         price: 10.0,
         perks: const ['Standard Perk'],
         memberCount: 1,
-        hasPremiumBundle: false,
       );
       final premiumTier = ChannelMembershipTier(
         id: 't_premium',
@@ -533,6 +530,248 @@ void main() {
 
       // Check buttons reflecting 3/3 capacity
       expect(find.text('3/3 Tiers'), findsWidgets);
+    });
+
+    testWidgets('MembershipsScreen renders cleanly on mobile screen (360x780) with zero overflow', (tester) async {
+      tester.view.physicalSize = const Size(360, 780);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final controller = Get.put(MembershipsController(initialChannelId: 'test_channel_mobile'));
+      controller.isLoadingTiers.value = false;
+
+      // Add a tier
+      final tier = ChannelMembershipTier(
+        id: 'tier_supporter',
+        name: 'Supporter VIP',
+        price: 5.0,
+        perks: const [
+          ChannelMembershipTier.premiumBundlePerkTitle,
+          'Exclusive Discord VIP Role',
+        ],
+        hasPremiumBundle: true,
+      );
+      controller.tiers.assignAll([tier]);
+
+      // Add members with avatars
+      final m1 = ChannelMember(
+        userId: 'm1',
+        userName: 'Elena Rostova',
+        userAvatarUrl: 'https://example.com/avatar1.jpg',
+        tierId: 'tier_supporter',
+        tierName: 'Supporter VIP',
+        price: 5.0,
+        joinedAt: DateTime(2026, 2, 10),
+      );
+      final m2 = ChannelMember(
+        userId: 'm2',
+        userName: 'David Miller',
+        userAvatarUrl: '',
+        tierId: 'tier_supporter',
+        tierName: 'Supporter VIP',
+        price: 5.0,
+        joinedAt: DateTime(2026, 3),
+      );
+      controller.members.assignAll([m1, m2]);
+
+      await tester.pumpWidget(
+        const GetMaterialApp(
+          home: MembershipsScreen(
+            channelId: 'test_channel_mobile',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Ensure no flutter overflow exceptions occurred
+      expect(tester.takeException(), isNull);
+
+      // Verify mobile responsive header title
+      expect(find.text('Memberships'), findsOneWidget);
+
+      // Verify KPIs and avatar facepile
+      expect(find.text('Active Members'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+      expect(find.text('Monthly Fan Income'), findsOneWidget);
+      expect(find.text('Active Tiers'), findsOneWidget);
+      expect(find.text('Platform Fee Rate'), findsOneWidget);
+
+      // Verify Tier card renders with member count and perks without overflow
+      expect(find.text('Supporter VIP'), findsWidgets);
+      expect(find.text('70% Net (30% Cut)'), findsWidgets);
+
+      // Switch to Members & Community tab on mobile
+      await tester.tap(find.text('Members & Community'));
+      await tester.pumpAndSettle();
+
+      // Ensure no overflow
+      expect(tester.takeException(), isNull);
+      expect(find.text('Subscribed Channel Members'), findsOneWidget);
+      expect(find.text('Elena Rostova'), findsOneWidget);
+      expect(find.text('David Miller'), findsOneWidget);
+
+      // Switch to Analytics & Payouts tab on mobile
+      await tester.tap(find.text('Analytics & Payouts'));
+      await tester.pumpAndSettle();
+
+      // Ensure no overflow
+      expect(tester.takeException(), isNull);
+      expect(find.text('Creator Payout Terms'), findsOneWidget);
+    });
+  });
+
+  group('CreateTierController Unit Tests', () {
+    late MembershipsController membershipsController;
+    late CreateTierController createTierController;
+
+    setUp(() {
+      Get.reset();
+      membershipsController = MembershipsController(initialChannelId: '');
+      createTierController = CreateTierController(
+        membershipsController: membershipsController,
+      );
+      createTierController.onInit();
+    });
+
+    tearDown(() {
+      createTierController.onClose();
+    });
+
+    test('Initial default state is correct for new tier', () {
+      expect(createTierController.isEditing, isFalse);
+      expect(createTierController.selectedCurrency.value, equals('USD'));
+      expect(createTierController.priceRx.value, equals(5.0));
+      expect(createTierController.priceController.text, equals('5'));
+      expect(createTierController.hasPremiumBundle.value, isFalse);
+      expect(createTierController.activePerks.isNotEmpty, isTrue);
+      expect(createTierController.selectedColorHex.value, equals('0xFF10B981'));
+    });
+
+    test('Switching currency adjusts price to currency bounds', () {
+      createTierController.selectCurrency('INR');
+      expect(createTierController.selectedCurrency.value, equals('INR'));
+      expect(createTierController.priceRx.value, greaterThanOrEqualTo(50.0));
+
+      createTierController.selectCurrency('USD');
+      expect(createTierController.selectedCurrency.value, equals('USD'));
+      expect(createTierController.priceRx.value, greaterThanOrEqualTo(1.0));
+    });
+
+    test('Toggling Premium Bundle adjusts recommended minimum price', () {
+      createTierController.selectCurrency('USD');
+      createTierController.selectPrice(2.0);
+
+      createTierController.togglePremiumBundle(true);
+      expect(createTierController.hasPremiumBundle.value, isTrue);
+      expect(createTierController.priceRx.value, greaterThanOrEqualTo(5.0));
+      expect(
+        createTierController.activePerks.contains(ChannelMembershipTier.premiumBundlePerkTitle),
+        isTrue,
+      );
+
+      createTierController.togglePremiumBundle(false);
+      expect(createTierController.hasPremiumBundle.value, isFalse);
+      expect(
+        createTierController.activePerks.contains(ChannelMembershipTier.premiumBundlePerkTitle),
+        isFalse,
+      );
+    });
+
+    test('Adding and removing custom perks works correctly', () {
+      createTierController.addCustomPerk('Custom VIP Discord Channel');
+      expect(createTierController.activePerks.contains('Custom VIP Discord Channel'), isTrue);
+
+      createTierController.removePerk('Custom VIP Discord Channel');
+      expect(createTierController.activePerks.contains('Custom VIP Discord Channel'), isFalse);
+    });
+
+    test('Color selection updates selectedColorHex', () {
+      createTierController.selectColor('0xFF8B5CF6');
+      expect(createTierController.selectedColorHex.value, equals('0xFF8B5CF6'));
+    });
+  });
+
+  group('CreateOrEditTierPage Responsive Widget Tests', () {
+    tearDown(Get.reset);
+
+    testWidgets('Renders cleanly on mobile device (360x780) with zero overflow', (tester) async {
+      tester.view.physicalSize = const Size(360, 780);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final membershipsController = Get.put(MembershipsController(initialChannelId: ''));
+      membershipsController.isLoadingTiers.value = false;
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: CreateOrEditTierPage(
+            controller: membershipsController,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify zero overflow exceptions
+      expect(tester.takeException(), isNull);
+
+      // Verify AppBar title and tier capacity indicator
+      expect(find.text('Create Membership Tier'), findsOneWidget);
+      expect(find.text('1/3 Tiers'), findsOneWidget);
+
+      // Verify Form inputs and sections are present
+      expect(find.text('TIER NAME'), findsOneWidget);
+      expect(find.text('BADGE ACCENT COLOR'), findsOneWidget);
+      expect(find.text('Monthly Subscription Price'), findsOneWidget);
+      expect(find.text('Channel Premium Bundle'), findsOneWidget);
+      expect(find.text('YouTube-Grade Loyalty Badges'), findsOneWidget);
+      expect(find.text('Tier Perks & Benefits'), findsOneWidget);
+      expect(find.text('LIVE FAN PREVIEW'), findsOneWidget);
+
+      // Verify Quick price pills render without overflow
+      expect(find.text(r'$1'), findsWidgets);
+      expect(find.text(r'$5'), findsWidgets);
+      expect(find.text(r'$25'), findsWidgets);
+
+      // Verify bottom action buttons render
+      expect(find.text('Cancel'), findsWidgets);
+      expect(find.text('Create Tier'), findsWidgets);
+    });
+
+    testWidgets('Renders cleanly on desktop device (1280x900) in 2-column layout', (tester) async {
+      tester.view.physicalSize = const Size(1280, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final membershipsController = Get.put(MembershipsController(initialChannelId: ''));
+      membershipsController.isLoadingTiers.value = false;
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: CreateOrEditTierPage(
+            controller: membershipsController,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify zero overflow exceptions
+      expect(tester.takeException(), isNull);
+
+      // Verify 2-column elements
+      expect(find.text('Create Membership Tier'), findsOneWidget);
+      expect(find.text('Configure New Tier'), findsOneWidget);
+      expect(find.text('LIVE FAN PREVIEW'), findsOneWidget);
+      expect(find.text('INCLUDED PERKS'), findsOneWidget);
+      expect(find.text('Join Tier'), findsOneWidget);
+
+      // Test typing a tier name updates live fan preview
+      await tester.enterText(find.byType(TextField).first, 'Master Patron');
+      await tester.pump();
+
+      expect(find.text('Master Patron'), findsWidgets);
     });
   });
 }

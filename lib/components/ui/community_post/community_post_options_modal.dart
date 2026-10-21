@@ -12,8 +12,9 @@ import 'package:truthworld/theme/app_theme.dart';
 void showCommunityPostOptionsMenu(
   BuildContext context,
   CommunityPostModel post,
-  CommunityPostController controller,
-) {
+  CommunityPostController controller, {
+  bool isChannelContext = false,
+}) {
   showModalBottomSheet<void>(
     context: context,
     backgroundColor: const Color(0xFF1E1E1E),
@@ -22,10 +23,14 @@ void showCommunityPostOptionsMenu(
     ),
     builder: (context) {
       final currentUid = controller.currentUid;
+      final isOwner = currentUid != null &&
+          (currentUid == post.ownerId || currentUid == post.channelId);
+
       return SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             Center(
               child: Container(
                 width: 40,
@@ -55,50 +60,108 @@ void showCommunityPostOptionsMenu(
                 },
               ),
             ),
-            ListTile(
-              leading: const Icon(
-                Icons.visibility_off_outlined,
-                color: Colors.white, // Rule compliance: white icon
+            if (!isOwner && !isChannelContext) ...[
+              ListTile(
+                leading: const Icon(
+                  Icons.block_outlined,
+                  color: Colors.white, // Rule compliance: white icon
+                ),
+                title: const Text(
+                  'Not interested',
+                  style: TextStyle(color: Colors.white, fontSize: 15),
+                ),
+                subtitle: const Text(
+                  "We won't recommend this post in your feed",
+                  style: TextStyle(color: Colors.white60, fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  controller.hidePost();
+                },
               ),
-              title: const Text(
-                'Hide post',
-                style: TextStyle(color: Colors.white, fontSize: 15),
+              ListTile(
+                leading: const Icon(
+                  Icons.notifications_off_outlined,
+                  color: Colors.white, // Rule compliance: white icon
+                ),
+                title: const Text(
+                  "Don't recommend posts from this channel",
+                  style: TextStyle(color: Colors.white, fontSize: 15),
+                ),
+                subtitle: Text(
+                  "We won't recommend posts from ${post.channelName}",
+                  style: const TextStyle(color: Colors.white60, fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  controller.turnOffChannelPosts();
+                },
               ),
-              onTap: () {
-                Navigator.pop(context);
-                controller.hidePost();
-              },
-            ),
-            ListTile(
-              leading: const Icon(
-                Icons.notifications_off_outlined,
-                color: Colors.white, // Rule compliance: white icon
+            ],
+            if (!isOwner && isChannelContext) ...[
+              Obx(() {
+                if (controller.isPostHiddenInFeed.value) {
+                  return ListTile(
+                    leading: const Icon(
+                      Icons.visibility_outlined,
+                      color: Colors.white, // Rule compliance: white icon
+                    ),
+                    title: const Text(
+                      'Restore post recommendation',
+                      style: TextStyle(color: Colors.white, fontSize: 15),
+                    ),
+                    subtitle: const Text(
+                      'Unhide this post in your feed recommendations',
+                      style: TextStyle(color: Colors.white60, fontSize: 12),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      controller.unhidePost();
+                    },
+                  );
+                }
+                return const SizedBox.shrink();
+              }),
+              Obx(() {
+                if (controller.isChannelMutedInFeed.value) {
+                  return ListTile(
+                    leading: const Icon(
+                      Icons.notifications_active_outlined,
+                      color: Colors.white, // Rule compliance: white icon
+                    ),
+                    title: const Text(
+                      'Turn on community posts from this channel',
+                      style: TextStyle(color: Colors.white, fontSize: 15),
+                    ),
+                    subtitle: Text(
+                      'Allow posts from ${post.channelName} in your feed',
+                      style: const TextStyle(color: Colors.white60, fontSize: 12),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      controller.unmuteChannelPosts();
+                    },
+                  );
+                }
+                return const SizedBox.shrink();
+              }),
+            ],
+            if (!isOwner)
+              ListTile(
+                leading: const Icon(
+                  Icons.person_remove_outlined,
+                  color: Colors.white, // Rule compliance: white icon
+                ),
+                title: const Text(
+                  'Unsubscribe',
+                  style: TextStyle(color: Colors.white, fontSize: 15),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  controller.unsubscribeChannel();
+                },
               ),
-              title: const Text(
-                'Off community posts from this channel',
-                style: TextStyle(color: Colors.white, fontSize: 15),
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                controller.turnOffChannelPosts();
-              },
-            ),
-            ListTile(
-              leading: const Icon(
-                Icons.person_remove_outlined,
-                color: Colors.white, // Rule compliance: white icon
-              ),
-              title: const Text(
-                'Unsubscribe',
-                style: TextStyle(color: Colors.white, fontSize: 15),
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                controller.unsubscribeChannel();
-              },
-            ),
-            if (currentUid != null &&
-                (currentUid == post.ownerId || currentUid == post.channelId)) ...[
+            if (isOwner) ...[
               ListTile(
                 leading: const Icon(
                   Icons.thumbs_up_down_outlined,
@@ -132,22 +195,24 @@ void showCommunityPostOptionsMenu(
                 },
               ),
             ],
-            ListTile(
-              leading: const Icon(
-                Icons.flag_outlined,
-                color: Colors.white, // Rule compliance: white icon
+            if (!isOwner)
+              ListTile(
+                leading: const Icon(
+                  Icons.flag_outlined,
+                  color: Colors.white, // Rule compliance: white icon
+                ),
+                title: const Text(
+                  'Report',
+                  style: TextStyle(color: Colors.white, fontSize: 15),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  showCommunityPostReportModal(context, post, controller);
+                },
               ),
-              title: const Text(
-                'Report',
-                style: TextStyle(color: Colors.white, fontSize: 15),
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                showCommunityPostReportModal(context, post, controller);
-              },
-            ),
             const SizedBox(height: 8),
           ],
+        ),
         ),
       );
     },

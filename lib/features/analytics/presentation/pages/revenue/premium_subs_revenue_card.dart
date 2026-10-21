@@ -43,9 +43,8 @@ class _PremiumSubsCard extends StatelessWidget {
     required this.amountFormatted,
   });
 
-  static const Color _accentColor = Color(0xFF7C3AED); // purple
-  static const Color _cardBg = Color(0xFF121218);
-  static const Color _borderColor = Color(0xFF27272A);
+  static const Color _cardBg = Color(0xFF1E1E1E); // Exact Library cardColor
+  static const Color _borderColor = AppColors.bgDivider;
 
   @override
   Widget build(BuildContext context) {
@@ -68,10 +67,10 @@ class _PremiumSubsCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: _accentColor.withValues(alpha: 0.15),
+                  color: AppColors.bgSurfaceHover,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: _accentColor.withValues(alpha: 0.3),
+                    color: AppColors.textPrimary.withValues(alpha: 0.1),
                   ),
                 ),
                 child: const Icon(
@@ -121,13 +120,16 @@ class _PremiumSubsCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: _accentColor.withValues(alpha: 0.12),
+              color: AppColors.bgSurfaceHover,
               borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: AppColors.textPrimary.withValues(alpha: 0.15),
+              ),
             ),
             child: const Text(
               '70% Creator Split · Watch-Time Proportional',
               style: TextStyle(
-                color: _accentColor,
+                color: Colors.white,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
               ),
@@ -173,7 +175,7 @@ class _PremiumSubsCard extends StatelessWidget {
                       const Text(
                         'How is this calculated?',
                         style: TextStyle(
-                          color: _accentColor,
+                          color: Colors.white,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -183,7 +185,7 @@ class _PremiumSubsCard extends StatelessWidget {
                         isExpanded
                             ? Icons.keyboard_arrow_up_rounded
                             : Icons.keyboard_arrow_down_rounded,
-                        color: _accentColor,
+                        color: Colors.white,
                         size: 18,
                       ),
                     ],
@@ -194,10 +196,10 @@ class _PremiumSubsCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: _accentColor.withValues(alpha: 0.06),
+                      color: AppColors.bgSurfaceHover,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: _accentColor.withValues(alpha: 0.2),
+                        color: AppColors.bgDivider,
                       ),
                     ),
                     child: Column(
@@ -276,25 +278,25 @@ class _PremiumSubsCard extends StatelessWidget {
     required String label,
     required String value,
     bool isBold = false,
-    bool isGreen = false,
   }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: isBold ? AppColors.textPrimary : AppColors.textSecondary,
-            fontSize: 12,
-            fontWeight: isBold ? FontWeight.w600 : FontWeight.normal,
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isBold ? AppColors.textPrimary : AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: isBold ? FontWeight.w600 : FontWeight.normal,
+            ),
           ),
         ),
+        const SizedBox(width: 8),
         Text(
           value,
           style: TextStyle(
-            color: isGreen
-                ? const Color(0xFF10B981)
-                : (isBold ? AppColors.textPrimary : AppColors.textSecondary),
+            color: isBold ? AppColors.textPrimary : AppColors.textSecondary,
             fontSize: 13,
             fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
           ),
@@ -316,13 +318,14 @@ class _PremiumSubsCard extends StatelessWidget {
           height: 22,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: _accentColor.withValues(alpha: 0.2),
+            color: AppColors.bgPage,
             shape: BoxShape.circle,
+            border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.2)),
           ),
           child: Text(
             step,
             style: const TextStyle(
-              color: _accentColor,
+              color: Colors.white,
               fontSize: 11,
               fontWeight: FontWeight.bold,
             ),

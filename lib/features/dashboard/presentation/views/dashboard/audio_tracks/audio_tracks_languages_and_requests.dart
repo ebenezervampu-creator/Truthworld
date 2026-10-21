@@ -27,10 +27,17 @@ class AudioTracksLanguagesManager extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       children: [
+        // Header
         Row(
           children: [
+            const Icon(
+              Icons.language_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
             const Expanded(
               child: Text(
                 'Configured Language Dub Layers',
@@ -39,41 +46,85 @@ class AudioTracksLanguagesManager extends StatelessWidget {
                   fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+                  color: Colors.white,
                 ),
               ),
             ),
             const SizedBox(width: 8),
             ElevatedButton.icon(
               onPressed: onAddLanguage,
-              icon: const Icon(Icons.add_rounded, size: 16, color: Colors.black),
-              label: const Text('Add Language Layer'),
+              icon: const Icon(
+                Icons.add_rounded,
+                size: 16,
+                color: Colors.black,
+              ),
+              label: const Text(
+                'Add Language',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                  fontSize: 12,
+                ),
+              ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.brand,
+                backgroundColor: Colors.white,
                 foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        Text(
-          'Manage available language streams for viewer audio track switching.',
-          style: TextStyle(fontSize: 13, color: textSecondaryColor),
+        const SizedBox(height: 4),
+        const Text(
+          'Manage available language audio streams for viewer track switching.',
+          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
         ),
         const SizedBox(height: 16),
+
+        // Configured Language Pills
         Obx(() {
           final langs = controller.availableLanguages;
           return Wrap(
-            spacing: 10,
-            runSpacing: 10,
+            spacing: 8,
+            runSpacing: 8,
             children: langs.map((code) {
               final name = controller.getLanguageName(code);
-              return Chip(
-                avatar: const Icon(Icons.language_rounded, size: 16, color: Colors.white),
-                label: Text(name, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
-                backgroundColor: surfaceColor,
-                side: BorderSide(color: borderColor),
+              return Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF161618),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF27272A)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.language_rounded,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
               );
             }).toList(),
           );
@@ -87,7 +138,7 @@ class AudioTracksLanguagesManager extends StatelessWidget {
             fontFamilyFallback: TWTypography.fallbackFamilies,
             fontSize: 15,
             fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
+            color: Colors.white,
           ),
         ),
         const SizedBox(height: 12),
@@ -95,24 +146,10 @@ class AudioTracksLanguagesManager extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: controller.supportedLanguages.map((lang) {
-            final isConfigured = controller.availableLanguages.contains(lang.code);
-            return ActionChip(
-              avatar: Icon(
-                isConfigured ? Icons.check_circle_rounded : Icons.add_circle_outline_rounded,
-                size: 16,
-                color: Colors.white,
-              ),
-              label: Text(lang.name),
-              backgroundColor: isConfigured
-                  ? AppColors.brand.withValues(alpha: 0.15)
-                  : const Color(0xFF1E1E1E),
-              side: const BorderSide(color: AppColors.bgDivider),
-              labelStyle: TextStyle(
-                fontSize: 12,
-                fontWeight: isConfigured ? FontWeight.bold : FontWeight.normal,
-                color: isConfigured ? AppColors.textPrimary : AppColors.textPrimary,
-              ),
-              onPressed: () {
+            final isConfigured =
+                controller.availableLanguages.contains(lang.code);
+            return InkWell(
+              onTap: () {
                 if (!isConfigured) {
                   controller.addLanguageLayer(lang.code);
                 } else {
@@ -120,6 +157,46 @@ class AudioTracksLanguagesManager extends StatelessWidget {
                   controller.setActiveTab('tracks');
                 }
               },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: isConfigured
+                      ? const Color(0xFF27272A)
+                      : const Color(0xFF121212),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isConfigured
+                        ? Colors.white.withValues(alpha: 0.2)
+                        : const Color(0xFF27272A),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isConfigured
+                          ? Icons.check_circle_rounded
+                          : Icons.add_circle_outline_rounded,
+                      size: 14,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      lang.name,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight:
+                            isConfigured ? FontWeight.bold : FontWeight.w500,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             );
           }).toList(),
         ),
@@ -150,18 +227,28 @@ class AudioTracksRequestsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final reqs = controller.languageRequests.where((r) => r.type == 'audio').toList();
+      final reqs = controller.languageRequests
+          .where((r) => r.type == 'audio')
+          .toList();
       if (reqs.isEmpty) {
         return Center(
-          child: Text(
-            'No pending dubbing requests from viewers.',
-            style: TextStyle(fontSize: 14, color: textSecondaryColor),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF161618),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF27272A)),
+            ),
+            child: const Text(
+              'No pending dubbing requests from viewers.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
           ),
         );
       }
 
       return ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         children: [
           const Text(
             'Viewer Audio Dubbing Requests',
@@ -170,7 +257,7 @@ class AudioTracksRequestsGrid extends StatelessWidget {
               fontFamilyFallback: TWTypography.fallbackFamilies,
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+              color: Colors.white,
             ),
           ),
           const SizedBox(height: 12),
@@ -180,37 +267,76 @@ class AudioTracksRequestsGrid extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: surfaceColor,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: borderColor),
+                color: const Color(0xFF161618),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF27272A)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.mark_chat_unread_rounded, color: Colors.white, size: 20),
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF121212),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFF27272A)),
+                    ),
+                    child: const Icon(
+                      Icons.mark_chat_unread_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Language: $langName',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: textColor),
+                          langName,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
+                        const SizedBox(height: 2),
                         Text(
                           'Requested by ${req.count} viewers',
-                          style: TextStyle(fontSize: 12, color: textSecondaryColor),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                       ],
                     ),
                   ),
                   ElevatedButton.icon(
                     onPressed: () => onUploadDubForRequest(req.language),
-                    icon: const Icon(Icons.add_rounded, size: 14, color: Colors.black),
-                    label: const Text('Add Dub'),
+                    icon: const Icon(
+                      Icons.add_rounded,
+                      size: 14,
+                      color: Colors.black,
+                    ),
+                    label: const Text(
+                      'Add Dub',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                        fontSize: 12,
+                      ),
+                    ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.brand,
+                      backgroundColor: Colors.white,
                       foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                   ),
                 ],

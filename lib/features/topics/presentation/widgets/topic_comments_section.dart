@@ -207,6 +207,16 @@ class _TopicCommentInputBar extends StatelessWidget {
         final text = inputCtrl.textController.text.trim();
         if (text.isEmpty || inputCtrl.isSubmitting.value) return;
 
+        final validation = ContentValidator.validate(
+          text,
+          fieldName: 'Comment',
+          maxLength: ContentValidator.defaultMaxCommentLength,
+        );
+        if (!validation.isValid) {
+          AppSnackbar.warning(validation.message);
+          return;
+        }
+
         inputCtrl.isSubmitting.value = true;
         try {
           await onSubmit(text);

@@ -565,6 +565,22 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (video.isRejected) ...[
+          _buildActionIconButton(
+            icon: Icons.refresh_rounded,
+            tooltip: video.resubmitCount < 2
+                ? 'Resubmit for Moderation (${2 - video.resubmitCount} left)'
+                : 'Resubmission Limit Reached (2/2)',
+            onTap: () {
+              showResubmitModerationDialog(
+                context,
+                video,
+                widget.controller,
+              );
+            },
+          ),
+          const SizedBox(width: 6),
+        ],
         _buildActionIconButton(
           icon: Icons.edit_outlined,
           tooltip: 'Details',
@@ -697,28 +713,67 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
   }
 
   Widget _buildRestrictionsCell(Video video) {
-    final isClean = video.status != VideoStatus.rejected;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          isClean ? Icons.check_circle_outline_rounded : Icons.warning_amber_rounded,
-          size: 14,
-          color: isClean ? AppColors.textSecondary : AppColors.error,
-        ),
-        const SizedBox(width: 6),
-        Flexible(
-          child: Text(
-            isClean ? 'None' : 'Notice',
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: isClean ? AppColors.textSecondary : AppColors.error,
-              fontSize: 12,
-              fontFamily: TWTypography.uiFamily,
+    final isClean = !video.isRejected && video.status != VideoStatus.rejected;
+    if (isClean) {
+      return const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.check_circle_outline_rounded,
+            size: 14,
+            color: AppColors.textSecondary,
+          ),
+          SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              'None',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                fontFamily: TWTypography.uiFamily,
+              ),
             ),
           ),
+        ],
+      );
+    }
+
+    final attemptsText = video.resubmitCount >= 2
+        ? 'Rejected (2/2)'
+        : 'Rejected (${video.resubmitCount}/2)';
+
+    return InkWell(
+      onTap: () => showResubmitModerationDialog(context, video, widget.controller),
+      borderRadius: BorderRadius.circular(4),
+      child: Tooltip(
+        message: video.resubmitCount < 2
+            ? 'Rejected by Moderation. Click to resubmit (${2 - video.resubmitCount} left).'
+            : 'Rejected by Moderation. Maximum resubmissions (2/2) reached.',
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.warning_amber_rounded,
+              size: 14,
+              color: AppColors.error,
+            ),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                attemptsText,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.error,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: TWTypography.uiFamily,
+                ),
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 

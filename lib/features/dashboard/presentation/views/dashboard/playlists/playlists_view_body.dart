@@ -20,7 +20,7 @@ class PlaylistsViewBody extends GetView<PlaylistsManagementController> {
       stream: controller.fetchChannelPlaylists(channelId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const PlaylistsShimmerGrid();
+          return const PlaylistsLoadingGrid();
         }
 
         if (snapshot.hasError) {

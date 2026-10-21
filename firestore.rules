@@ -114,6 +114,8 @@ service cloud.firestore {
                        (!('withdrawnRevenueTotal' in request.resource.data) || request.resource.data.withdrawnRevenueTotal == 0) &&
                        (!('walletBalanceUSD' in request.resource.data) || request.resource.data.walletBalanceUSD == 0) &&
                        (!('walletBalance' in request.resource.data) || request.resource.data.walletBalance == 0) &&
+                       (!('clearedWithdrawableRevenueTotal' in request.resource.data) || request.resource.data.clearedWithdrawableRevenueTotal == 0) &&
+                       (!('pendingRevenueTotal' in request.resource.data) || request.resource.data.pendingRevenueTotal == 0) &&
                        (!('strikes' in request.resource.data) || request.resource.data.strikes == 0) &&
                        (!('strikeCount' in request.resource.data) || request.resource.data.strikeCount == 0) &&
                        (!('isBanned' in request.resource.data) || request.resource.data.isBanned == false) &&
@@ -134,6 +136,7 @@ service cloud.firestore {
                           'isVerified', 'geminiApproved', 'status', 'monetizationTier', 'superchatRevenueTotal',
                           'adsRevenueTotal', 'membershipRevenueTotal', 'membershipsRevenueTotal', 'premiumSubsRevenueTotal',
                           'walletBalanceUSD', 'walletBalance', 'withdrawnRevenueTotal',
+                          'clearedWithdrawableRevenueTotal', 'pendingRevenueTotal',
                           'infraConfig', 'channelType', 'isMonetized', 'monetizationStatus', 'monetizationEnabled',
                           'payoutsBlocked', 'fraudReviewFlag', 'viewFraudReviewFlag', 'botViewSuspected',
                           'allowAnytimePayout', 'qualifiedViewCount', 'totalWatchTimeMinutes',
@@ -180,6 +183,12 @@ service cloud.firestore {
       match /daily_stats/{docId} {
         allow read: if isAuthenticated();
         allow write: if false; // System only
+      }
+
+      // Demographics subcollection (age, gender, geography metrics)
+      match /demographics/{docId} {
+        allow read: if isAuthenticated();
+        allow write: if false; // System / Cloud Functions only
       }
 
       match /moderators/{userId} {
@@ -378,7 +387,7 @@ service cloud.firestore {
            'views', 'viewCount', 'playCount', 'credibilityVerified', 'isVerified'
          ])) ||
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'likeCount', 'dislikeCount', 'likes', 'dislikes', 'views', 'viewCount', 'shareCount', 'playCount', 'engagement', 'languageRequestsCount', 'commentCount', 'commentsCount'
+          'likeCount', 'dislikeCount', 'likes', 'dislikes', 'views', 'viewCount', 'shareCount', 'playCount', 'engagement', 'languageRequestsCount', 'commentCount', 'commentsCount', 'totalWatchTimeSeconds'
         ]) &&
         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['likeCount']) ||
          request.resource.data.likeCount == resource.data.likeCount + 1 ||
@@ -399,7 +408,10 @@ service cloud.firestore {
          ('views' in resource.data && (
            request.resource.data.views == resource.data.views + 1 ||
            request.resource.data.views == resource.data.views
-         ))))
+         ))) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['totalWatchTimeSeconds']) ||
+         (!('totalWatchTimeSeconds' in resource.data) && request.resource.data.totalWatchTimeSeconds >= 0) ||
+         ('totalWatchTimeSeconds' in resource.data && request.resource.data.totalWatchTimeSeconds >= resource.data.totalWatchTimeSeconds)))
       );
       
       // Allow owners to delete their videos
@@ -914,6 +926,11 @@ service cloud.firestore {
       // User In-App Notifications subcollection
       match /notifications/{docId} {
         allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      // User Payout Settings subcollection (e.g., creator bank account fallback)
+      match /payout_settings/{settingId} {
+        allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
       }
     }
 
@@ -1444,22 +1461,51 @@ service cloud.firestore {
 
     // Copyright Claims Collection
     match /copyright_claims/{claimId} {
-      allow read: if isAuthenticated() && (
-        resource.data.uploaderId == request.auth.uid ||
-        resource.data.ownerId == request.auth.uid ||
-        resource.data.channelId == request.auth.uid ||
-        resource.data.ownerChannelId == request.auth.uid ||
-        resource.data.userId == request.auth.uid ||
-        resource.data.claimantId == request.auth.uid ||
+      allow list: if isAuthenticated();
+      allow get: if isAuthenticated() && (
+        ('uploaderId' in resource.data && resource.data.uploaderId == request.auth.uid) ||
+        ('ownerId' in resource.data && resource.data.ownerId == request.auth.uid) ||
+        ('userId' in resource.data && resource.data.userId == request.auth.uid) ||
+        ('claimantId' in resource.data && resource.data.claimantId == request.auth.uid) ||
+        ('channelId' in resource.data && (
+          resource.data.channelId == request.auth.uid ||
+          (exists(/databases/$(database)/documents/channels/$(resource.data.channelId)) &&
+           (('ownerId' in get(/databases/$(database)/documents/channels/$(resource.data.channelId)).data &&
+             get(/databases/$(database)/documents/channels/$(resource.data.channelId)).data.ownerId == request.auth.uid) ||
+            ('userId' in get(/databases/$(database)/documents/channels/$(resource.data.channelId)).data &&
+             get(/databases/$(database)/documents/channels/$(resource.data.channelId)).data.userId == request.auth.uid)))
+        )) ||
+        ('ownerChannelId' in resource.data && (
+          resource.data.ownerChannelId == request.auth.uid ||
+          (exists(/databases/$(database)/documents/channels/$(resource.data.ownerChannelId)) &&
+           (('ownerId' in get(/databases/$(database)/documents/channels/$(resource.data.ownerChannelId)).data &&
+             get(/databases/$(database)/documents/channels/$(resource.data.ownerChannelId)).data.ownerId == request.auth.uid) ||
+            ('userId' in get(/databases/$(database)/documents/channels/$(resource.data.ownerChannelId)).data &&
+             get(/databases/$(database)/documents/channels/$(resource.data.ownerChannelId)).data.userId == request.auth.uid)))
+        )) ||
         isAdmin()
       );
       allow create: if isAuthenticated() && (
-        request.resource.data.uploaderId == request.auth.uid ||
-        request.resource.data.ownerId == request.auth.uid ||
-        request.resource.data.channelId == request.auth.uid ||
-        request.resource.data.ownerChannelId == request.auth.uid ||
-        request.resource.data.userId == request.auth.uid ||
-        request.resource.data.claimantId == request.auth.uid ||
+        ('uploaderId' in request.resource.data && request.resource.data.uploaderId == request.auth.uid) ||
+        ('ownerId' in request.resource.data && request.resource.data.ownerId == request.auth.uid) ||
+        ('userId' in request.resource.data && request.resource.data.userId == request.auth.uid) ||
+        ('claimantId' in request.resource.data && request.resource.data.claimantId == request.auth.uid) ||
+        ('channelId' in request.resource.data && (
+          request.resource.data.channelId == request.auth.uid ||
+          (exists(/databases/$(database)/documents/channels/$(request.resource.data.channelId)) &&
+           (('ownerId' in get(/databases/$(database)/documents/channels/$(request.resource.data.channelId)).data &&
+             get(/databases/$(database)/documents/channels/$(request.resource.data.channelId)).data.ownerId == request.auth.uid) ||
+            ('userId' in get(/databases/$(database)/documents/channels/$(request.resource.data.channelId)).data &&
+             get(/databases/$(database)/documents/channels/$(request.resource.data.channelId)).data.userId == request.auth.uid)))
+        )) ||
+        ('ownerChannelId' in request.resource.data && (
+          request.resource.data.ownerChannelId == request.auth.uid ||
+          (exists(/databases/$(database)/documents/channels/$(request.resource.data.ownerChannelId)) &&
+           (('ownerId' in get(/databases/$(database)/documents/channels/$(request.resource.data.ownerChannelId)).data &&
+             get(/databases/$(database)/documents/channels/$(request.resource.data.ownerChannelId)).data.ownerId == request.auth.uid) ||
+            ('userId' in get(/databases/$(database)/documents/channels/$(request.resource.data.ownerChannelId)).data &&
+             get(/databases/$(database)/documents/channels/$(request.resource.data.ownerChannelId)).data.userId == request.auth.uid)))
+        )) ||
         isAdmin()
       );
       allow update, delete: if false; // Only backend can update or delete claims
@@ -1467,16 +1513,17 @@ service cloud.firestore {
 
     // Copyright Appeals Collection
     match /copyright_appeals/{appealId} {
-      allow read: if isAuthenticated() && (
-        resource.data.appellantId == request.auth.uid ||
-        resource.data.claimantId == request.auth.uid ||
-        resource.data.userId == request.auth.uid ||
+      allow list: if isAuthenticated();
+      allow get: if isAuthenticated() && (
+        ('appellantId' in resource.data && resource.data.appellantId == request.auth.uid) ||
+        ('claimantId' in resource.data && resource.data.claimantId == request.auth.uid) ||
+        ('userId' in resource.data && resource.data.userId == request.auth.uid) ||
         isAdmin()
       );
       allow create: if isAuthenticated() && (
-        request.resource.data.appellantId == request.auth.uid ||
-        request.resource.data.claimantId == request.auth.uid ||
-        request.resource.data.userId == request.auth.uid ||
+        ('appellantId' in request.resource.data && request.resource.data.appellantId == request.auth.uid) ||
+        ('claimantId' in request.resource.data && request.resource.data.claimantId == request.auth.uid) ||
+        ('userId' in request.resource.data && request.resource.data.userId == request.auth.uid) ||
         isAdmin()
       );
       allow update, delete: if false; // Only backend can update or delete appeals
@@ -1871,7 +1918,7 @@ service cloud.firestore {
 
     // Creator KYC Master Identity & Document Records
     match /creator_kyc/{channelId} {
-      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid || request.auth.uid == channelId || isAdmin());
       allow create: if isAuthenticated() && (
         (request.resource.data.userId == request.auth.uid &&
          (!('kycStatus' in request.resource.data) || request.resource.data.kycStatus == 'pending') &&

@@ -1,9 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/playlists_management_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -156,19 +155,13 @@ class VideoPickerSheet extends StatelessWidget {
           const SizedBox(height: 16),
           Expanded(
             child: Obx(() {
-              if (isLoading.value) {
-                return Shimmer.fromColors(
-                  baseColor: const Color(0xFF1E1E1E),
-                  highlightColor: AppColors.bgSurfaceHover,
-                  child: ListView.separated(
-                    itemCount: 6,
-                    separatorBuilder: (_, _) => const SizedBox(height: 6),
-                    itemBuilder: (_, _) => Container(
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E1E1E),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+              if (isLoading.value && allChannelVideos.isEmpty) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 40),
+                    child: StudioLoadingIndicator(
+                      message: 'Loading channel videos...',
+                      isFullScreen: false,
                     ),
                   ),
                 );

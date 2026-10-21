@@ -8,22 +8,25 @@ Widget buildRevenueSectionHeader({
   return Row(
     mainAxisAlignment: MainAxisAlignment.spaceBetween,
     children: [
-      Text(
-        title,
-        style: const TextStyle(
-          color: AppColors.textPrimary,
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          letterSpacing: -0.2,
+      Expanded(
+        child: Text(
+          title,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            letterSpacing: -0.2,
+          ),
         ),
       ),
-      if (badge != null)
+      if (badge != null) ...[
+        const SizedBox(width: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFF1E293B),
+            color: AppColors.bgSurfaceHover,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF334155)),
+            border: Border.all(color: AppColors.bgDivider),
           ),
           child: Text(
             badge,
@@ -34,6 +37,7 @@ Widget buildRevenueSectionHeader({
             ),
           ),
         ),
+      ],
     ],
   );
 }

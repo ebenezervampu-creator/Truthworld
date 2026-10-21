@@ -161,7 +161,6 @@ mixin TowerPlayerPlaybackControlMixin on GetxController {
       animateZoomTo(
         targetScale: 1.0,
         targetPan: Offset.zero,
-        fill: false,
       );
     } else {
       cancelZoomAnimation();
@@ -240,7 +239,6 @@ mixin TowerPlayerPlaybackControlMixin on GetxController {
           animateZoomTo(
             targetScale: scale,
             targetPan: targetPan,
-            fill: false,
           );
         } else {
           cancelZoomAnimation();

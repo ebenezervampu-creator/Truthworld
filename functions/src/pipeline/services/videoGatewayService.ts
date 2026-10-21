@@ -1,3 +1,4 @@
+import * as admin from "firebase-admin";
 import type { VertexAI } from "@google-cloud/vertexai";
 import { logger } from "../utils/logger";
 import { withAiRetry, extractCandidateText } from "../utils/ai-utils";
@@ -139,51 +140,121 @@ export class VideoGatewayService {
    * - Primary language must be English (>= 90% of video in English).
    * - Up to 10% can be other languages (e.g., Hindi/Telugu ground reporting interviews, quotes, phrases).
    */
+    /**
+   * Evaluates video safety & community guidelines using Google Cloud Vertex AI.
+   *
+   * ⚡ COST-EFFECTIVE ARCHITECTURE:
+   *   - Content moderation is NOT based on or dependent on an AssemblyAI transcript.
+   *   - Reuses Google Cloud Content Moderation records from GCS URI multimodal analysis if already run.
+   *   - Otherwise evaluates directly with Google Cloud Vertex AI Gemini 2.5 Flash on metadata & media.
+   *   - Never flags or sends empty/silent audio to manual review.
+   */
   async evaluateVideo(
     jobId: string,
-    transcriptText: string,
-    utterances: TimedSegment[],
-    executionPlan: ExecutionPlan,
-    detectedLanguage?: string
+    transcriptTextOrPlan?: string | ExecutionPlan,
+    utterancesOrPlan?: TimedSegment[] | ExecutionPlan,
+    planOrDetectedLang?: ExecutionPlan | string,
+    detectedLang?: string
   ): Promise<VideoGatewayDecision> {
-    logger.info(`[VideoGateway] Starting video evaluation gateway for job: ${jobId}`, { detectedLanguage });
+    let transcriptText = "";
+    let utterances: TimedSegment[] = [];
+    let executionPlan: ExecutionPlan = {
+      jobId,
+      videoId: jobId,
+      title: "",
+      channelId: "",
+      channelName: "",
+      category: "General",
+      tags: [],
+      languages: ["en"],
+      primaryLanguage: "en",
+      enablePath1: false,
+      enablePath2: false,
+      enableTruthEngine: false,
+      enableReachEngine: false,
+      enableAuxiliary: false,
+      dubbingMode: "none",
+      generateDubbing: false,
+      genLangSubs: false,
+      channelType: "standard",
+      maxClaims: 10,
+      priority: "normal",
+      skipCache: false,
+    };
+    let detectedLanguage: string | undefined;
+
+    if (transcriptTextOrPlan && typeof transcriptTextOrPlan === "object" && "jobId" in transcriptTextOrPlan) {
+      executionPlan = transcriptTextOrPlan as ExecutionPlan;
+      transcriptText = typeof utterancesOrPlan === "string" ? utterancesOrPlan : "";
+      utterances = Array.isArray(planOrDetectedLang) ? planOrDetectedLang : [];
+      detectedLanguage = typeof detectedLang === "string" ? detectedLang : undefined;
+    } else {
+      transcriptText = typeof transcriptTextOrPlan === "string" ? transcriptTextOrPlan : "";
+      utterances = Array.isArray(utterancesOrPlan) ? utterancesOrPlan : [];
+      if (planOrDetectedLang && typeof planOrDetectedLang === "object") {
+        executionPlan = planOrDetectedLang as ExecutionPlan;
+      }
+      detectedLanguage = detectedLang;
+    }
 
     const resolvedLang = detectedLanguage
       ? normalizeLanguageCode(detectedLanguage)
       : (executionPlan.primaryLanguage ? normalizeLanguageCode(executionPlan.primaryLanguage) : "en");
 
-    const localEnglishPct = estimateEnglishPercentage(transcriptText, resolvedLang || undefined);
+    logger.info(`[VideoGateway] Starting Google Cloud content moderation gateway for job: ${jobId}`, {
+      detectedLanguage,
+      resolvedLang,
+      hasTranscript: Boolean(transcriptText && transcriptText.trim().length > 0)
+    });
 
-    // 🔒 PLATFORM LANGUAGE POLICY ENFORCEMENT (90% PRIMARY ENGLISH RULE)
-    // Reject immediately if the video is < 90% English (e.g. a full Telugu/Hindi video or majority non-English).
-    // If the video is >= 90% English (such as an English Ground News report with a brief <= 10% Hindi/Telugu clip), allow it!
-    if (localEnglishPct < MIN_ENGLISH_CONTENT_PERCENTAGE && (resolvedLang !== "en" || localEnglishPct < 80)) {
-      const langUpper = (resolvedLang && resolvedLang !== "en" ? resolvedLang : "NON-EN").toUpperCase();
-      logger.warn(
-        `[VideoGateway] Video below 90% English threshold (${localEnglishPct}% English, primary detected: ${langUpper}) for job: ${jobId} — REJECTING per platform policy.`
-      );
-      return {
-        status: "REJECTED",
-        confidence: 0.99,
-        evaluatedAt: Date.now(),
-        rejectionReason: `Truthworld currently only supports English channels and content (at least 90% of the video must be in English; up to 10% in other languages is allowed for quotes or ground reporting). This video was detected in a non-English language (${langUpper}, ${localEnglishPct}% English) and cannot be accepted at this stage.`,
-        violatingPolicies: ["UNSUPPORTED_LANGUAGE"],
-        violatingClaims: [],
-        sensitiveTopics: [],
-        flaggedTimestamps: []
-      };
-    }
+    const targetVideoId = executionPlan.videoId || jobId;
 
-    if (!transcriptText || transcriptText.trim().length === 0) {
-      logger.warn(`[VideoGateway] Empty transcript for job: ${jobId} — sending to MANUAL_REVIEW`);
-      return {
-        status: "MANUAL_REVIEW",
-        confidence: 0.5,
-        evaluatedAt: Date.now(),
-        reviewReason: "Empty or silent audio transcript detected. Requires human inspection.",
-        sensitiveTopics: ["EMPTY_AUDIO"],
-        flaggedTimestamps: []
-      };
+    // ─── STEP 1: Check existing Google Cloud Content Moderation records in Firestore ───
+    try {
+      const videoDoc = await admin.firestore().collection("videos").doc(targetVideoId).get();
+      if (videoDoc.exists) {
+        const videoData = videoDoc.data() || {};
+        const mod = videoData.moderation;
+        if (mod && (mod.status === "approved" || mod.status === "rejected")) {
+          logger.info(`[VideoGateway] Utilizing existing Google Cloud Content Moderation result for ${targetVideoId}`, {
+            status: mod.status,
+            model: mod.model || "gemini-2.5-flash",
+          });
+          if (mod.status === "approved") {
+            return {
+              status: "APPROVED",
+              confidence: typeof mod.confidenceScore === "number" ? mod.confidenceScore : 0.95,
+              evaluatedAt: mod.checkedAt ?? Date.now(),
+              summary: mod.summary || videoData.summary || videoData.moderationSummary || undefined,
+              category: mod.category || videoData.category || "General",
+              tags: Array.isArray(videoData.tags) && videoData.tags.length > 0
+                ? videoData.tags
+                : (executionPlan.tags && executionPlan.tags.length > 0 ? executionPlan.tags : ["truthworld"]),
+              autoChapters: [],
+              violatingPolicies: [],
+              violatingClaims: [],
+              sensitiveTopics: [],
+              flaggedTimestamps: [],
+            };
+          } else if (mod.status === "rejected") {
+            return {
+              status: "REJECTED",
+              confidence: typeof mod.confidenceScore === "number" ? mod.confidenceScore : 0.95,
+              evaluatedAt: mod.checkedAt ?? Date.now(),
+              rejectionReason: mod.reason || mod.policyReason || "Content violates Community Guidelines",
+              violatingPolicies: Array.isArray(mod.violationCategories) && mod.violationCategories.length > 0
+                ? mod.violationCategories
+                : ["COMMUNITY_GUIDELINES_VIOLATION"],
+              violatingClaims: [],
+              autoChapters: [],
+              tags: [],
+              category: "General",
+            };
+          }
+        }
+      }
+    } catch (checkErr) {
+      logger.warn(`[VideoGateway] Non-blocking Firestore lookup error for video moderation:`, checkErr);
     }
 
     const channelRequestedAutoChapters = !!(
@@ -192,54 +263,54 @@ export class VideoGatewayService {
       (executionPlan as any).enableChapters
     );
 
-    const prompt = `ROLE: TruthWorld Content Moderation & Metadata Gateway.
-OBJECTIVE: Evaluate the provided video transcript to determine if the video should be APPROVED, REJECTED, or sent for MANUAL_REVIEW for Content Moderation.
+    const title = executionPlan.title || "Video";
+    const description = executionPlan.description || "";
+    const category = executionPlan.category || executionPlan.videoCategory || "General";
+    const tags = executionPlan.tags || [];
 
-IMPORTANT: You are checking CONTENT MODERATION (safety, decorum, language policy). You are NOT the Credibility Engine.
-Factual verification, claim testing, and source checking are handled downstream by the Credibility Engine; do NOT reject videos for controversial or disputed claims.
+    // ─── STEP 2: Evaluate using Google Cloud Vertex AI Gemini (NOT Transcript-dependent) ───
+    const prompt = `ROLE: TruthWorld Content Moderation & Safety Gateway (Google Cloud AI).
+OBJECTIVE: Evaluate the provided video metadata and content for Community Guidelines and Safety compliance.
+NOTE: Content moderation is strictly based on safety, decorum, illegal content, harassment, hate speech, and dangerous materials. It is NOT based on speech-to-text transcripts or controversial opinions. TruthWorld welcomes all languages.
 
-LANGUAGE POLICY (90% PRIMARY ENGLISH / 10% SECONDARY ALLOWANCE):
-- TruthWorld requires the primary language of every video to be English: at least 90% of the spoken video content must be in English.
-- Up to 10% of the video MAY contain words, phrases, quotes, or brief interviews in other languages (for example: Ground News reporting where an English presenter speaks or interviews locals in Hindi, Telugu, Spanish, etc. for a few moments). Do NOT reject a video if it is >= 90% English!
-- If MORE than 10% of the video is in a non-English language (i.e. less than 90% English, or primarily in Telugu, Hindi, Tamil, Spanish, etc.), you MUST output status "REJECTED" with violatingPolicies ["UNSUPPORTED_LANGUAGE"].
+METADATA TO EVALUATE:
+- Title: "${title}"
+- Description: "${description}"
+- Category: "${category}"
+- Tags: [${tags.join(", ")}]
+${transcriptText && transcriptText.trim().length > 0 ? `- Supplemental Audio Context (optional): "${transcriptText.substring(0, 4000)}"` : "- Audio/Video: Standard media stream without required transcript."}
+${utterances.length > 0 ? `- Utterance Samples: ${utterances.slice(0, 10).map(u => `"${u.text}"`).join(", ")}` : ""}
+
+GLOBAL LANGUAGE POLICY:
+- TruthWorld welcomes and accepts content in all world languages.
+- Spoken language is NEVER grounds for rejection.
 
 DECISION CRITERIA:
 1. REJECTED:
-   - Violates the 90% Primary English Policy (less than 90% of the video is in English). Output status "REJECTED", rejectionReason "Truthworld currently only supports English channels and content (at least 90% of the video must be in English). This video exceeded the 10% non-English allowance and cannot be accepted at this stage.", and violatingPolicies ["UNSUPPORTED_LANGUAGE"].
    - Contains severe illegal content, dangerous violence, hate speech, severe harassment, or explicit dangerous medical misinformation.
    - You MUST output status "REJECTED".
-   - You MUST provide a clear "rejectionReason" explaining why the video was rejected.
-   - You MUST list "violatingPolicies" (e.g., ["UNSUPPORTED_LANGUAGE", "HATE_SPEECH", "SEVERE_MEDICAL_MISINFO"]).
-   - You MUST list specific "violatingClaims" with exact quote text and timestamps if available.
+   - You MUST provide a clear "rejectionReason".
+   - You MUST list "violatingPolicies" (e.g. ["HATE_SPEECH", "VIOLENCE", "HARASSMENT"]).
 
 2. MANUAL_REVIEW:
-   - Contains high-stakes, unverified electoral claims, active conflict escalation, or ambiguous sensitive topics that require human judgment.
+   - High-stakes, unverified electoral claims, active conflict escalation, or ambiguous sensitive topics that require human judgment.
    - You MUST output status "MANUAL_REVIEW".
-   - You MUST provide a clear "reviewReason" explaining why human review is required.
-   - You MUST list "sensitiveTopics" (e.g., ["ELECTION_INTEGRITY", "UNVERIFIED_HEALTH_CLAIM"]).
-   - You MUST list "flaggedTimestamps" with time ranges and reasons.
+   - You MUST provide a clear "reviewReason" and "sensitiveTopics".
 
 3. APPROVED:
-   - Safe, educational, informational, news, ground reporting, political commentary, entertainment, or historical content where at least 90% of the video is in English (up to 10% secondary language quotes/interviews permitted).
+   - Safe, educational, informational, news, ground reporting, political commentary, entertainment, music, or creative content in any language.
    - You MUST output status "APPROVED".
-   - You MUST provide a concise, engaging "summary" of the video content (2-3 sentences).
-   - You MUST assign a primary "category" (e.g., "Education", "Science", "Politics", "History", "News", "Technology", "Entertainment").
+   - You MUST provide a concise, engaging "summary" (2-3 sentences).
+   - You MUST assign a primary "category".
    - You MUST provide 5-8 relevant "tags".
    ${channelRequestedAutoChapters 
      ? '- Channel explicitly requested AI Auto-Chapters: Provide 3-8 logical "autoChapters" with startMs, endMs, title, and summary.' 
-     : '- Channel DID NOT request auto-chapters: Set autoChapters to an empty array []. DO NOT generate auto-chapters.'}
-
-TRANSCRIPT TO EVALUATE:
-${transcriptText.substring(0, 15000)}
-
-UTTERANCES WITH TIMESTAMPS:
-${utterances.slice(0, 50).map(u => `[${u.start}ms - ${u.end}ms] (${u.speaker || 'Speaker'}): "${u.text}"`).join('\n')}
+     : '- Set autoChapters to [].'}
 
 RETURN STRICT JSON FORMAT ONLY:
 {
   "status": "APPROVED" | "REJECTED" | "MANUAL_REVIEW",
-  "detectedLanguage": "string (primary ISO 639-1 code e.g. en, te, hi)",
-  "englishPercentage": number (0 to 100, percentage of video content in English),
+  "detectedLanguage": "${resolvedLang}",
   "confidence": number (0.0 to 1.0),
   "summary": "string (for APPROVED)",
   "category": "string (for APPROVED)",
@@ -284,39 +355,13 @@ RETURN STRICT JSON FORMAT ONLY:
 
         const parsed = JSON.parse(jsonMatch[0]);
 
-        const geminiLang = parsed.detectedLanguage ? normalizeLanguageCode(parsed.detectedLanguage) : "en";
-        const geminiEnglishPct = typeof parsed.englishPercentage === "number"
-          ? parsed.englishPercentage
-          : localEnglishPct;
-
-        // Enforce the 90% Primary English Policy
-        if (geminiEnglishPct < MIN_ENGLISH_CONTENT_PERCENTAGE) {
-          const langLabel = (geminiLang !== "en" ? geminiLang : resolvedLang || "NON-EN").toUpperCase();
-          logger.warn(`[VideoGateway] Gemini detected ${geminiEnglishPct}% English (< 90% required, language: ${langLabel}) for job: ${jobId} — REJECTING.`);
-          return {
-            status: "REJECTED" as GatewayDecisionStatus,
-            confidence: 0.95,
-            evaluatedAt: Date.now(),
-            rejectionReason: `Truthworld currently only supports English channels and content (at least 90% of the video must be in English; up to 10% in other languages is allowed for quotes or ground reporting). This video was detected with ${geminiEnglishPct}% English (${langLabel}) and cannot be accepted at this stage.`,
-            violatingPolicies: ["UNSUPPORTED_LANGUAGE"],
-            violatingClaims: [],
-            sensitiveTopics: [],
-            flaggedTimestamps: []
-          };
-        }
-
-        // Protect videos that meet the >= 90% English requirement from false-positive language rejections
-        if (
-          parsed.status === "REJECTED" &&
-          geminiEnglishPct >= MIN_ENGLISH_CONTENT_PERCENTAGE &&
-          Array.isArray(parsed.violatingPolicies) &&
-          parsed.violatingPolicies.length === 1 &&
-          parsed.violatingPolicies[0] === "UNSUPPORTED_LANGUAGE"
-        ) {
-          logger.info(`[VideoGateway] Approving video with ${geminiEnglishPct}% English (>= 90% rule satisfied) for job: ${jobId}`);
-          parsed.status = "APPROVED";
-          parsed.violatingPolicies = [];
-          delete parsed.rejectionReason;
+        // Filter out any lingering UNSUPPORTED_LANGUAGE policy
+        if (Array.isArray(parsed.violatingPolicies)) {
+          parsed.violatingPolicies = parsed.violatingPolicies.filter((p: string) => p !== "UNSUPPORTED_LANGUAGE");
+          if (parsed.status === "REJECTED" && parsed.violatingPolicies.length === 0) {
+            parsed.status = "APPROVED";
+            delete parsed.rejectionReason;
+          }
         }
 
         const status: GatewayDecisionStatus = 
@@ -328,8 +373,8 @@ RETURN STRICT JSON FORMAT ONLY:
           confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.9,
           evaluatedAt: Date.now(),
           summary: parsed.summary || undefined,
-          category: parsed.category || "General",
-          tags: Array.isArray(parsed.tags) ? parsed.tags : [],
+          category: parsed.category || category || "General",
+          tags: Array.isArray(parsed.tags) && parsed.tags.length > 0 ? parsed.tags : tags,
           autoChapters: channelRequestedAutoChapters && Array.isArray(parsed.autoChapters) ? parsed.autoChapters : [],
           rejectionReason: parsed.rejectionReason || undefined,
           violatingPolicies: Array.isArray(parsed.violatingPolicies) ? parsed.violatingPolicies : [],
@@ -342,37 +387,25 @@ RETURN STRICT JSON FORMAT ONLY:
         return result;
       }, chain, { maxAttempts: 2, instanceId: "VideoGatewayService" });
 
-      logger.info(`[VideoGateway] Gateway Decision for job ${jobId}: ${decision.status}`, { decision });
+      logger.info(`[VideoGateway] Google Cloud Gateway Decision for job ${jobId}: ${decision.status}`, { decision });
       return decision;
     } catch (error) {
-      logger.warn(`[VideoGateway] Evaluation failed for job ${jobId} — evaluating language fallback`, { error });
+      logger.warn(`[VideoGateway] Google Cloud AI Evaluation fallback for job ${jobId}`, { error });
 
-      if (localEnglishPct < MIN_ENGLISH_CONTENT_PERCENTAGE) {
-        const langUpper = (resolvedLang && resolvedLang !== "en" ? resolvedLang : "NON-EN").toUpperCase();
-        return {
-          status: "REJECTED",
-          confidence: 0.95,
-          evaluatedAt: Date.now(),
-          rejectionReason: `Truthworld currently only supports English channels and content (at least 90% of the video must be in English; up to 10% in other languages is allowed for quotes or ground reporting). This video was detected in a non-English language (${langUpper}, ${localEnglishPct}% English) and cannot be accepted at this stage.`,
-          violatingPolicies: ["UNSUPPORTED_LANGUAGE"],
-          violatingClaims: [],
-          sensitiveTopics: [],
-          flaggedTimestamps: []
-        };
-      }
-
-      // NEVER leak or slice raw transcripts as an AI summary
       let fallbackSummary: string | undefined = undefined;
       try {
         const summaryModel = this.genAI.getGenerativeModel({
           model: "gemini-2.5-flash",
           generationConfig: { maxOutputTokens: 150, temperature: 0.2 } as any,
         });
+        const summaryInput = (transcriptText && transcriptText.length > 20)
+          ? transcriptText.substring(0, 4000)
+          : `Title: ${title}. Description: ${description}`;
         const summaryRes = await summaryModel.generateContent(
-          `Provide a concise 2-3 sentence AI summary of the following video transcript. Focus on the core topic, arguments, and key takeaways. Do NOT quote or repeat the transcript verbatim:\n\n${transcriptText.substring(0, 6000)}`
+          `Provide a concise 2-3 sentence AI summary of this video content based on: ${summaryInput}`
         );
         const candidateText = extractCandidateText(summaryRes.response?.candidates?.[0])?.trim();
-        if (candidateText && candidateText.length > 20 && !transcriptText.startsWith(candidateText.replace(/\.{3}$/, '').trim())) {
+        if (candidateText && candidateText.length > 20) {
           fallbackSummary = candidateText;
         }
       } catch (sumErr) {
@@ -381,10 +414,10 @@ RETURN STRICT JSON FORMAT ONLY:
 
       return {
         status: "APPROVED",
-        confidence: 0.8,
+        confidence: 0.85,
         evaluatedAt: Date.now(),
-        category: executionPlan.videoCategory || executionPlan.category || "General",
-        summary: fallbackSummary,
+        category: executionPlan.videoCategory || executionPlan.category || category || "General",
+        summary: fallbackSummary || (description ? description.substring(0, 200) : "Video published on TruthWorld."),
         tags: executionPlan.tags && executionPlan.tags.length > 0 ? executionPlan.tags : ["truthworld", "video"],
         autoChapters: [],
         violatingPolicies: [],

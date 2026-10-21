@@ -8,10 +8,10 @@ import 'package:truthworld/features/category/presentation/bindings/category_bind
 import 'package:truthworld/features/category/presentation/views/category/category_page.dart';
 import 'package:truthworld/features/trending/presentation/bindings/trending_binding.dart';
 import 'package:truthworld/features/trending/presentation/views/trending/trending_page.dart';
+import 'package:truthworld/features/video/presentation/views/claim_detail_screen.dart';
 import 'package:truthworld/features/video/presentation/views/clips/clips_page.dart';
 import 'package:truthworld/features/video/presentation/views/downloadpage/download_page.dart'
     deferred as downloads;
-import 'package:truthworld/features/video/presentation/views/claim_detail_screen.dart';
 import 'package:truthworld/features/video/presentation/views/video_analysis_screen.dart';
 import 'package:truthworld/features/video/presentation/views/video_screen.dart'
     deferred as video_screen;

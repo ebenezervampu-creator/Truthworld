@@ -259,59 +259,6 @@ export const onVideoPublished = onDocumentUpdated(
         });
         return;
       }
-
-      // 🔒 Language Policy Enforcement: TruthWorld is strictly English-only at this phase
-      const videoLang = normalizeLanguageCode(afterData.language || "en");
-      if (videoLang !== "en") {
-        logger.warn("[PublishGate] Video rejected — non-English language on English-only platform", {
-          videoId,
-          language: afterData.language,
-        });
-        const rejectionReason = `Truthworld currently only supports English channels and content (minimum 90% English). Non-English videos (${videoLang.toUpperCase()}) cannot be published at this stage.`;
-        await db.collection("videos").doc(videoId).set({
-          status: "rejected",
-          rejectionReason,
-          rejectionNotified: true,
-          moderation: {
-            status: "rejected",
-            reason: rejectionReason,
-            detectedLanguage: videoLang,
-            violatingPolicies: ["UNSUPPORTED_LANGUAGE"],
-          },
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true });
-
-        const uploaderId = afterData.userId || afterData.ownerId || afterData.uploaderId;
-        if (uploaderId) {
-          const channelId = afterData.channelId || `channel_${uploaderId}`;
-          const videoTitle = afterData.title && afterData.title !== "Uploading..." ? afterData.title : "Untitled Video";
-          notifyUser({
-            userId: uploaderId,
-            type: "verification_result",
-            severity: "priority",
-            title: `Video Not Accepted (Language Policy): "${videoTitle}"`,
-            message: `Your video "${videoTitle}" was not accepted: ${rejectionReason}`,
-            actionUrl: "/studio",
-            metadata: {
-              videoId,
-              channelId,
-              videoTitle,
-              thumbnailUrl: afterData.thumbnailUrl || "",
-              reason: rejectionReason,
-              violatingPolicies: ["UNSUPPORTED_LANGUAGE"],
-              detectedLanguage: videoLang,
-              itemType: "video",
-              status: "rejected",
-              priority: "critical",
-              category: "verification",
-            },
-          }).catch((err: any) =>
-            logger.warn("[PublishGate] Rejection notification failed", { videoId, err: String(err) })
-          );
-        }
-        return;
-      }
-
       logger.info("[PublishGate] First publish — SPECULATIVE pipeline start (moderation runs in parallel)", {
         videoId,
         moderationStatus: moderationStatus || "pending",
@@ -372,8 +319,26 @@ export const onVideoPublished = onDocumentUpdated(
       const enableAutoChapters = (aiFeatures.autoChapters ?? aiFeatures.chapters) ?? false;
       const enablePath2 = enableDubbing || enableGenLangSubs || hasTargetLanguages;
 
-      // Resolve the channel's designated source language (never falls back to "en" blindly)
-      const channelLang = normalizeLanguageCode(afterData.language || "en");
+      // Resolve the channel's designated source language directly from the channel doc (established at channel creation)
+      let channelLang = "";
+      const channelId = afterData.channelId || "";
+      if (channelId) {
+        try {
+          const chSnap = await db.collection("channels").doc(channelId).get();
+          if (chSnap.exists) {
+            const chData = chSnap.data();
+            const chLang = chData?.language || chData?.channelLanguage;
+            if (chLang) {
+              channelLang = normalizeLanguageCode(chLang);
+            }
+          }
+        } catch (err) {
+          logger.warn("[PublishGate] Failed to fetch channel language for channel", { channelId, err });
+        }
+      }
+      if (!channelLang) {
+        channelLang = normalizeLanguageCode(afterData.language || "en");
+      }
 
       const ttsConfig = aiFeatures.tts || {};
       const voiceType = ttsConfig.voiceType || "standard";
@@ -502,6 +467,7 @@ export const onVideoPublished = onDocumentUpdated(
           batch.set(db.collection("video_jobs").doc(jobId), jobData);
           batch.update(db.collection("videos").doc(videoId), {
             jobId,
+            language: channelLang,
             factCheckTier,
             enableFactCheck: enableFactChecking,
             factChecking: enableFactChecking,
@@ -552,7 +518,7 @@ export const onVideoPublished = onDocumentUpdated(
         type: "verification_result",
         severity: "info",
         title: `Video Processing Started: "${title}"`,
-        message: `Your video "${title}" is now undergoing Truthworld AI transcription, primary English language verification (90% threshold), and safety checks.`,
+        message: `Your video "${title}" is now undergoing Truthworld AI transcription, processing, and safety checks.`,
         actionUrl: "/studio",
         metadata: {
           videoId,
@@ -620,7 +586,23 @@ export const onVideoPublished = onDocumentUpdated(
 
       const rawRelangs = getTranslationLangs(afterData);
       const normRelangs = normalizeLanguageCodes(rawRelangs);
-      const scenarioBChannelLang = normalizeLanguageCode(afterData.language || "en");
+      let scenarioBChannelLang = "";
+      if (afterData.channelId) {
+        try {
+          const chSnap = await db.collection("channels").doc(afterData.channelId).get();
+          if (chSnap.exists) {
+            const chLang = chSnap.data()?.language || chSnap.data()?.channelLanguage;
+            if (chLang) {
+              scenarioBChannelLang = normalizeLanguageCode(chLang);
+            }
+          }
+        } catch (err) {
+          logger.warn("[PublishGate] Failed to fetch channel language in Scenario B", { channelId: afterData.channelId, err });
+        }
+      }
+      if (!scenarioBChannelLang) {
+        scenarioBChannelLang = normalizeLanguageCode(afterData.language || jobData.executionPlan?.primaryLanguage || "en");
+      }
       const updatedPlan: ExecutionPlan = {
         ...jobData.executionPlan,
         languages: Array.from(new Set([scenarioBChannelLang, ...normRelangs])),

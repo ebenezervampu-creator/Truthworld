@@ -130,6 +130,25 @@ mixin RevenueAnalyticsStreamsMixin on RevenueAnalyticsStateBase {
             withdrawalHoldReason.value = '';
           }
 
+          final withdrawnTotal =
+              (data['withdrawnRevenueTotal'] as num?)?.toDouble() ?? 0.0;
+          withdrawnRevenue.value = withdrawnTotal;
+
+          final clearedTotal = (data['clearedWithdrawableRevenueTotal'] as num?)?.toDouble() ??
+              (superchats + ads + membershipTotal + premiumSubsRevenue.value);
+          clearedRevenue.value = clearedTotal;
+          clearedRevenueUSD.value =
+              clearedTotal / RevenueAnalyticsStateBase.usdToInrRate;
+
+          final pendingTotal =
+              (data['pendingRevenueTotal'] as num?)?.toDouble() ?? 0.0;
+          pendingRevenue.value = pendingTotal;
+          pendingRevenueUSD.value =
+              pendingTotal / RevenueAnalyticsStateBase.usdToInrRate;
+
+          final autoPayout = (data['autoPayoutEnabled'] as bool?) ?? true;
+          autoPayoutEnabled.value = autoPayout;
+
           recalculateTotal();
         }
         rxIsLoading.value = false;

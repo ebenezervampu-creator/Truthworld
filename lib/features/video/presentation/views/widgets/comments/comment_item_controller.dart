@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/content_validator.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 import 'package:truthworld/features/video/presentation/views/widgets/comments/comment_action_handler.dart';
@@ -64,6 +65,16 @@ class CommentItemController extends GetxController {
       return;
     }
 
+    final validation = ContentValidator.validate(
+      text,
+      fieldName: 'Reply',
+      maxLength: ContentValidator.defaultMaxReplyLength,
+    );
+    if (!validation.isValid) {
+      AppSnackbar.warning(validation.message);
+      return;
+    }
+
     try {
       final tag = 'video_$videoId';
       final commentsController = Get.isRegistered<CommentsController>(tag: tag)
@@ -71,26 +82,11 @@ class CommentItemController extends GetxController {
           : Get.put(CommentsController(), tag: tag);
 
       final authService = AuthService.to;
-      final hasChannel = authService.hasChannel.value;
-      final channel = authService.userChannel;
-
-      final targetChannelId = hasChannel ? channel?.id : null;
-      final targetChannelName = hasChannel
-          ? (channel?.handle.isNotEmpty ?? false
-                ? channel?.handle
-                : channel?.name)
-          : null;
-      final targetChannelAvatar = authService.activePhotoUrl.isNotEmpty
-          ? authService.activePhotoUrl
-          : null;
       final targetUserAvatar = authService.activePhotoUrl;
 
       await commentsController.submitReply(
         commentId: commentId,
         text: text,
-        channelId: targetChannelId,
-        channelName: targetChannelName,
-        channelProfilePicUrl: targetChannelAvatar,
         userProfilePicUrl: targetUserAvatar,
         commentAuthorId: commentAuthorId,
       );

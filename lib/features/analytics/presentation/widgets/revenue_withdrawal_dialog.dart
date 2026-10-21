@@ -63,10 +63,10 @@ class RevenueWithdrawalDialog extends StatelessWidget {
         : (isIndian ? '100.00' : '10.00');
 
     return Dialog(
-      backgroundColor: const Color(0xFF18181B),
+      backgroundColor: const Color(0xFF1E1E1E),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: Color(0xFF27272A)),
+        side: const BorderSide(color: AppColors.bgDivider),
       ),
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: ConstrainedBox(
@@ -86,8 +86,8 @@ class RevenueWithdrawalDialog extends StatelessWidget {
                       children: [
                         Container(
                           padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                          decoration: const BoxDecoration(
+                            color: AppColors.bgSurfaceHover,
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
@@ -136,9 +136,9 @@ class RevenueWithdrawalDialog extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF09090B),
+                  color: AppColors.bgSurfaceHover,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF27272A)),
+                  border: Border.all(color: AppColors.bgDivider),
                 ),
                 child: Column(
                   children: [
@@ -178,13 +178,14 @@ class RevenueWithdrawalDialog extends StatelessWidget {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                              color: AppColors.bgPage,
                               borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: AppColors.bgDivider),
                             ),
                             child: Text(
                               isIndian ? '₹100 (100 Rupees Minimum)' : r'$10 (10 Dollars Minimum)',
                               style: const TextStyle(
-                                color: Color(0xFFF59E0B),
+                                color: AppColors.textPrimary,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 12,
                               ),
@@ -210,15 +211,16 @@ class RevenueWithdrawalDialog extends StatelessWidget {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                              color: AppColors.bgPage,
                               borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: AppColors.bgDivider),
                             ),
                             child: Text(
                               controller.isTodayPayoutDay
                                   ? (controller.isTodayGraceDay ? 'Grace Period (Day 2)' : 'Window Open (1st)')
                                   : '1st of Month (${RevenueAnalyticsStateBase.nextPayoutShortMonth})',
                               style: const TextStyle(
-                                color: Color(0xFF60A5FA),
+                                color: AppColors.textSecondary,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 12,
                               ),
@@ -263,25 +265,25 @@ class RevenueWithdrawalDialog extends StatelessWidget {
                 decoration: InputDecoration(
                   prefixText: isIndian ? '₹ ' : r'$ ',
                   prefixStyle: const TextStyle(
-                    color: Color(0xFF10B981),
+                    color: Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
                   hintText: isIndian ? '100.00' : '10.00',
-                  hintStyle: const TextStyle(color: Color(0xFF71717A)),
+                  hintStyle: const TextStyle(color: AppColors.textTertiary),
                   filled: true,
-                  fillColor: const Color(0xFF09090B),
+                  fillColor: AppColors.bgSurfaceHover,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Color(0xFF27272A)),
+                    borderSide: const BorderSide(color: AppColors.bgDivider),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Color(0xFF27272A)),
+                    borderSide: const BorderSide(color: AppColors.bgDivider),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Color(0xFF10B981)),
+                    borderSide: const BorderSide(color: Colors.white),
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   suffixIcon: TextButton(
@@ -291,7 +293,7 @@ class RevenueWithdrawalDialog extends StatelessWidget {
                     child: const Text(
                       'MAX',
                       style: TextStyle(
-                        color: Color(0xFF10B981),
+                        color: Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
                       ),
@@ -386,18 +388,18 @@ class RevenueWithdrawalDialog extends StatelessWidget {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () => CreatorKycDialog.show(context),
-                      icon: const Icon(Icons.verified_user_outlined, color: Colors.white, size: 18),
+                      icon: const Icon(Icons.verified_user_outlined, color: Colors.black, size: 18),
                       label: const Text(
                         'Complete KYC to Unlock Withdrawals',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: Colors.black,
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2563EB),
-                        foregroundColor: Colors.white,
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
@@ -424,10 +426,8 @@ class RevenueWithdrawalDialog extends StatelessWidget {
                             _handleWithdrawalSubmit();
                           },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: isPayoutDay
-                          ? const Color(0xFF10B981)
-                          : const Color(0xFF3B82F6),
-                      foregroundColor: isPayoutDay ? Colors.black : Colors.white,
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -449,6 +449,7 @@ class RevenueWithdrawalDialog extends StatelessWidget {
                                     ? (controller.isTodayGraceDay ? 'Withdraw (Grace Period Day 2)' : 'Withdraw Directly to Bank Account')
                                     : (isIndian ? 'Confirm UPI Withdrawal' : 'Confirm PayPal Withdrawal')),
                             style: const TextStyle(
+                              color: Colors.black,
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
                             ),
@@ -471,9 +472,9 @@ class RevenueWithdrawalDialog extends StatelessWidget {
       margin: const EdgeInsets.only(top: 12),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+        color: AppColors.bgSurfaceHover,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.3)),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -487,7 +488,7 @@ class RevenueWithdrawalDialog extends StatelessWidget {
                 const Text(
                   'YouTube-Style Monthly Payout & Rollover',
                   style: TextStyle(
-                    color: Color(0xFFBFDBFE),
+                    color: AppColors.textPrimary,
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
                   ),
@@ -519,9 +520,9 @@ class RevenueWithdrawalDialog extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
-            color: const Color(0xFF27272A),
+            color: AppColors.bgSurfaceHover,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+            border: Border.all(color: AppColors.bgDivider),
           ),
           alignment: Alignment.center,
           child: Text(
@@ -544,34 +545,22 @@ class RevenueWithdrawalDialog extends StatelessWidget {
       final isRejected = controller.isKycRejected;
       final kyc = controller.creatorKyc.value;
 
-      Color bgColor;
-      Color borderColor;
-      Color textColor;
       IconData icon;
       String title;
       String subtitle;
       Widget? action;
 
       if (isVerified) {
-        bgColor = const Color(0xFF10B981).withValues(alpha: 0.12);
-        borderColor = const Color(0xFF10B981).withValues(alpha: 0.3);
-        textColor = const Color(0xFFD1FAE5);
         icon = Icons.verified_rounded;
         title = 'Identity & Bank Verified (KYC Complete)';
         subtitle = kyc != null && kyc.panNumber.isNotEmpty
             ? 'PAN: ${kyc.maskedPan} • Direct bank payouts are unlocked'
             : 'Your creator identity is verified for direct payouts';
       } else if (isPending) {
-        bgColor = const Color(0xFFF59E0B).withValues(alpha: 0.12);
-        borderColor = const Color(0xFFF59E0B).withValues(alpha: 0.3);
-        textColor = const Color(0xFFFEF3C7);
         icon = Icons.hourglass_top_rounded;
         title = 'KYC Verification Under Review';
         subtitle = 'Your PAN and identity proofs are being reviewed. Payouts will unlock upon verification.';
       } else if (isRejected) {
-        bgColor = const Color(0xFFEF4444).withValues(alpha: 0.12);
-        borderColor = const Color(0xFFEF4444).withValues(alpha: 0.3);
-        textColor = const Color(0xFFFEE2E2);
         icon = Icons.error_outline_rounded;
         title = 'KYC Verification Action Required';
         subtitle = kyc?.rejectionReason ?? 'Document verification check failed. Please re-upload your valid government ID.';
@@ -580,9 +569,6 @@ class RevenueWithdrawalDialog extends StatelessWidget {
           child: const Text('Update KYC', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         );
       } else {
-        bgColor = const Color(0xFF3B82F6).withValues(alpha: 0.12);
-        borderColor = const Color(0xFF3B82F6).withValues(alpha: 0.3);
-        textColor = const Color(0xFFBFDBFE);
         icon = Icons.assignment_ind_outlined;
         title = 'KYC Document Verification Required';
         subtitle = 'Financial compliance requires PAN & ID verification before withdrawing funds.';
@@ -595,9 +581,9 @@ class RevenueWithdrawalDialog extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: bgColor,
+          color: AppColors.bgSurfaceHover,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: borderColor),
+          border: Border.all(color: AppColors.bgDivider),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -610,8 +596,8 @@ class RevenueWithdrawalDialog extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: TextStyle(
-                      color: textColor,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
                     ),
@@ -639,9 +625,9 @@ class RevenueWithdrawalDialog extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF10B981).withValues(alpha: 0.08),
+        color: AppColors.bgSurfaceHover,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -668,7 +654,7 @@ class RevenueWithdrawalDialog extends StatelessWidget {
                 child: const Text(
                   'Change Bank',
                   style: TextStyle(
-                    color: Color(0xFF10B981),
+                    color: Colors.white,
                     fontWeight: FontWeight.w600,
                     fontSize: 12,
                   ),
@@ -711,7 +697,7 @@ class RevenueWithdrawalDialog extends StatelessWidget {
                 onTap: () => isEditingBankDetails.value = false,
                 child: const Text(
                   'Use Saved Account',
-                  style: TextStyle(color: Color(0xFF10B981), fontSize: 12, fontWeight: FontWeight.w600),
+                  style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
                 ),
               ),
           ],
@@ -755,7 +741,7 @@ class RevenueWithdrawalDialog extends StatelessWidget {
           maxLength: isIndian ? 11 : 20,
           inputFormatters: [
             LengthLimitingTextInputFormatter(isIndian ? 11 : 20),
-            FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+            FilteringTextInputFormatter.allow(RegExp('[a-zA-Z0-9]')),
           ],
           onChanged: (val) {
             if (isIndian) {
@@ -783,7 +769,7 @@ class RevenueWithdrawalDialog extends StatelessWidget {
               Checkbox(
                 value: saveBankForFuture.value,
                 onChanged: (val) => saveBankForFuture.value = val ?? true,
-                activeColor: const Color(0xFF10B981),
+                activeColor: Colors.white,
                 checkColor: Colors.black,
               ),
               const Expanded(
@@ -859,21 +845,21 @@ class RevenueWithdrawalDialog extends StatelessWidget {
       decoration: InputDecoration(
         prefixIcon: Icon(icon, color: Colors.white, size: 18),
         filled: true,
-        fillColor: const Color(0xFF09090B),
+        fillColor: AppColors.bgSurfaceHover,
         hintText: hint,
-        hintStyle: const TextStyle(color: Color(0xFF71717A), fontSize: 13),
+        hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFF27272A)),
+          borderSide: const BorderSide(color: AppColors.bgDivider),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFF27272A)),
+          borderSide: const BorderSide(color: AppColors.bgDivider),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFF10B981)),
+          borderSide: const BorderSide(color: Colors.white),
         ),
       ),
     );
@@ -888,10 +874,10 @@ class RevenueWithdrawalDialog extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF10B981).withValues(alpha: 0.1) : const Color(0xFF09090B),
+          color: isSelected ? AppColors.bgSurfaceHover : AppColors.bgPage,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isSelected ? const Color(0xFF10B981) : const Color(0xFF27272A),
+            color: isSelected ? Colors.white : AppColors.bgDivider,
           ),
         ),
         child: Row(

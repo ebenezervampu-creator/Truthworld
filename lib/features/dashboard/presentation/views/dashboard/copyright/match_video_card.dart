@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/copyright_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/copyright/copyright_dialogs.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/copyright/copyright_formatters.dart';
@@ -29,19 +30,35 @@ class MatchVideoCard extends StatelessWidget {
     final uploadedAt = CopyrightFormatters.formatDate(
       data['uploadedAt'] ?? data['createdAt'],
     );
+    final originalVideoTitle = (data['originalVideoTitle'] ?? '').toString();
+
+    final cardBg = isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
+    final primaryTextColor = isDarkMode ? AppColors.textPrimary : Colors.black87;
+    final secondaryTextColor =
+        isDarkMode ? AppColors.textSecondary : Colors.black54;
+    final borderColor =
+        isDarkMode ? AppColors.bgDivider : Colors.grey.shade300;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.bgDivider),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDarkMode ? 0.2 : 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Top Row: Match percentage pill + Uploaded date + Options menu
             Row(
               children: [
                 Container(
@@ -69,38 +86,107 @@ class MatchVideoCard extends StatelessWidget {
                 const Spacer(),
                 Text(
                   'Uploaded: $uploadedAt',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: TWTypography.uiFamily,
                     fontSize: 12,
-                    color: AppColors.textTertiary,
+                    color: isDarkMode
+                        ? AppColors.textTertiary
+                        : Colors.grey.shade600,
                   ),
+                ),
+                const SizedBox(width: 6),
+                PopupMenuButton<String>(
+                  icon: Icon(
+                    Icons.more_vert,
+                    size: 18,
+                    color: isDarkMode
+                        ? AppColors.textTertiary
+                        : Colors.grey.shade600,
+                  ),
+                  onSelected: (val) {
+                    if (val == 'archive') {
+                      controller.archiveMatch(docId);
+                      AppSnackbar.info('Match moved to archive.');
+                    }
+                  },
+                  itemBuilder: (ctx) => [
+                    const PopupMenuItem(
+                      value: 'archive',
+                      child: Row(
+                        children: [
+                          Icon(Icons.archive_outlined, size: 16),
+                          SizedBox(width: 8),
+                          Text('Archive Match'),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
             const SizedBox(height: 10),
+
+            // Video Title & Match Comparison
             Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: TWTypography.brandFamily,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
+                color: primaryTextColor,
               ),
             ),
+            if (originalVideoTitle.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Icon(
+                    Icons.compare_arrows_rounded,
+                    size: 14,
+                    color: isDarkMode
+                        ? AppColors.textTertiary
+                        : Colors.grey.shade600,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      'Matches your video: $originalVideoTitle',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic,
+                        color: isDarkMode
+                            ? AppColors.textSecondary
+                            : Colors.black54,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 4),
             Text(
               'Re-uploaded on channel: $channelName • $views views',
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: TWTypography.uiFamily,
                 fontSize: 13,
-                color: AppColors.textSecondary,
+                color: secondaryTextColor,
               ),
             ),
             const SizedBox(height: 16),
-            const Divider(height: 1, color: AppColors.bgDivider),
+            Divider(
+              height: 1,
+              color: isDarkMode ? AppColors.bgDivider : Colors.grey.shade200,
+            ),
             const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+
+            // Action Buttons
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 10,
+              runSpacing: 8,
               children: [
                 OutlinedButton.icon(
                   onPressed: () => CopyrightDialogs.showContactUploader(
@@ -109,9 +195,9 @@ class MatchVideoCard extends StatelessWidget {
                     videoTitle: title,
                     isDarkMode: isDarkMode,
                   ),
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.email_outlined,
-                    color: AppColors.textPrimary,
+                    color: primaryTextColor,
                     size: 16,
                   ),
                   label: const Text(
@@ -122,14 +208,17 @@ class MatchVideoCard extends StatelessWidget {
                     ),
                   ),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.textPrimary,
-                    side: const BorderSide(color: AppColors.bgDivider),
+                    foregroundColor: primaryTextColor,
+                    side: BorderSide(
+                      color: isDarkMode
+                          ? AppColors.bgDivider
+                          : Colors.grey.shade400,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
                 ElevatedButton.icon(
                   onPressed: () => CopyrightDialogs.showRequestRemoval(
                     context: context,

@@ -316,7 +316,7 @@ void main() {
         expect(ChannelPayoutCalculator.minWithdrawalAmountUSD, equals(10.0));
 
         expect(
-          ChannelPayoutCalculator.getMinimumWithdrawalThreshold(isIndian: true),
+          ChannelPayoutCalculator.getMinimumWithdrawalThreshold(),
           equals(100.0),
         );
         expect(
@@ -325,7 +325,7 @@ void main() {
         );
 
         expect(
-          ChannelPayoutCalculator.getMinimumWithdrawalFormatted(isIndian: true),
+          ChannelPayoutCalculator.getMinimumWithdrawalFormatted(),
           equals('₹100'),
         );
         expect(

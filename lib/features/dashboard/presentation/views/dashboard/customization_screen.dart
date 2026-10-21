@@ -3,8 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/customization_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -127,7 +127,9 @@ class _CustomizationView extends StatelessWidget {
       ),
       body: Obx(() {
         if (controller.isLoading) {
-          return _buildCustomizationSkeleton();
+          return const StudioLoadingIndicator(
+            message: 'Loading channel customization...',
+          );
         } else {
           return Form(
             key: controller.formKey,
@@ -1107,10 +1109,8 @@ class _CustomizationView extends StatelessWidget {
       imageWidget = CachedNetworkImage(
         imageUrl: cleanUrl,
         fit: BoxFit.cover,
-        placeholder: (context, url) => Shimmer.fromColors(
-          baseColor: const Color(0xFF1E1E1E),
-          highlightColor: AppColors.bgSurfaceHover,
-          child: const ColoredBox(color: Color(0xFF1E1E1E)),
+        placeholder: (context, url) => const ColoredBox(
+          color: Color(0xFF1E1E1E),
         ),
         errorWidget: (context, url, error) {
           if (kIsWeb) {
@@ -1332,43 +1332,4 @@ class _CustomizationView extends StatelessWidget {
     );
   }
 
-  Widget _buildCustomizationSkeleton() {
-    return Shimmer.fromColors(
-      baseColor: const Color(0xFF1E1E1E),
-      highlightColor: AppColors.bgSurfaceHover,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              height: 48,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Container(
-              height: 160,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.bgDivider),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Container(
-              height: 120,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.bgDivider),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

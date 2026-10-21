@@ -35,16 +35,19 @@ class MembershipsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = _controller;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
 
     return Scaffold(
       backgroundColor: isDarkMode ? AppColors.bgPage : Colors.grey.shade50,
       appBar: AppBar(
         title: Text(
-          'Channel Memberships & Fan Funding',
+          isMobile ? 'Memberships' : 'Channel Memberships & Fan Funding',
           style: AppTextStyles.pageTitle.copyWith(
-            fontSize: 20,
+            fontSize: isMobile ? 18 : 20,
             color: isDarkMode ? AppColors.textPrimary : Colors.black87,
           ),
+          overflow: TextOverflow.ellipsis,
         ),
         backgroundColor: isDarkMode ? AppColors.bgSurface : Colors.white,
         elevation: 0,
@@ -66,7 +69,7 @@ class MembershipsScreen extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.only(right: 16, left: 8),
+            padding: EdgeInsets.only(right: isMobile ? 10 : 16, left: 4),
             child: Obx(() {
               final atMax = controller.hasReachedMaxTiers;
               return Tooltip(
@@ -92,7 +95,7 @@ class MembershipsScreen extends StatelessWidget {
                     color: atMax
                         ? (isDarkMode ? Colors.white60 : Colors.black54)
                         : Colors.black,
-                    size: 18,
+                    size: 17,
                   ),
                   label: Text(atMax ? '3/3 Tiers' : 'Add Tier'),
                   style: ElevatedButton.styleFrom(
@@ -102,13 +105,16 @@ class MembershipsScreen extends StatelessWidget {
                     foregroundColor: atMax
                         ? (isDarkMode ? AppColors.textSecondary : Colors.black54)
                         : Colors.black,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 10 : 16,
+                      vertical: isMobile ? 8 : 10,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    textStyle: const TextStyle(
+                    textStyle: TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 13,
+                      fontSize: isMobile ? 12 : 13,
                     ),
                   ),
                 ),
@@ -118,7 +124,7 @@ class MembershipsScreen extends StatelessWidget {
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(isMobile ? 14 : 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

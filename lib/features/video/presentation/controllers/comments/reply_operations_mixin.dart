@@ -33,7 +33,7 @@ mixin ReplyOperationsMixin on CommentsStateBase {
     );
     if (!validation.isValid) {
       commentError.value = validation.message;
-      return;
+      throw Exception(validation.message);
     }
 
     try {
@@ -41,19 +41,20 @@ mixin ReplyOperationsMixin on CommentsStateBase {
       commentError.value = null;
 
       final authService = AuthService.to;
-      final hasChannel =
-          authService.hasChannel.value && authService.userChannel != null;
-
-      final finalUserName = authService.activeDisplayName;
+      final rawName = authService.activeDisplayName;
+      final finalUserName =
+          rawName.startsWith('@') ? rawName.substring(1) : rawName;
       final finalUserProfilePicUrl = authService.activePhotoUrl;
-      final finalChannelId =
-          hasChannel ? authService.userChannel!.id : channelId;
-      final finalChannelName = hasChannel
-          ? (authService.userChannel?.handle.isNotEmpty == true
-                ? authService.userChannel!.handle
-                : authService.userChannel!.name)
-          : authService.activeDisplayName;
-      final finalChannelProfilePicUrl = authService.activePhotoUrl;
+      final finalChannelId = (channelId != null && channelId.isNotEmpty)
+          ? channelId
+          : null;
+      final finalChannelName = (channelName != null && channelName.isNotEmpty)
+          ? channelName
+          : null;
+      final finalChannelProfilePicUrl =
+          (channelName != null && channelName.isNotEmpty)
+              ? channelProfilePicUrl
+              : null;
 
       // Channel Membership & Loyalty Badge lookup
       var isMember = false;
@@ -92,28 +93,34 @@ mixin ReplyOperationsMixin on CommentsStateBase {
         channelId: finalChannelId ?? currentUserId,
         channelName: finalChannelName,
         channelProfilePicUrl: finalChannelProfilePicUrl,
-        text: text.trim(),
+        text: ContentValidator.cleanProfanity(text.trim()),
         isMember: isMember,
         memberSince: memberSince,
         memberTierName: memberTierName,
       );
 
+      final isCreator = (video?.channelId != null && video!.channelId == authService.userChannel?.id) ||
+                        (video?.userId != null && video!.userId == currentUserId) ||
+                        (video?.ownerId != null && video!.ownerId == currentUserId);
+      if (isCreator) {
+        await commentService.markCommentAsAnswered(video!.id, commentId).catchError((_) {});
+      }
+
       if (commentAuthorId != null &&
           commentAuthorId.isNotEmpty &&
           commentAuthorId != currentUserId) {
         final notificationService = UserNotificationService();
-        final displayHandle = hasChannel
-            ? authService.activeHandle
-            : (currentUserName.startsWith('@')
-                  ? currentUserName
-                  : '@$currentUserName');
+        final rawName = currentUserName;
+        final displayUserName = rawName.startsWith('@')
+            ? rawName.substring(1)
+            : rawName;
 
         notificationService.createNotification(
           userId: commentAuthorId,
           type: 'comment_reply',
           severity: NotificationSeverity.info,
           title: 'New Reply',
-          message: '$displayHandle replied to your comment: "${text.trim()}"',
+          message: '$displayUserName replied to your comment: "${ContentValidator.cleanProfanity(text.trim())}"',
           actionUrl: '/watch?v=${video!.id}',
           metadata: {
             'videoId': video!.id,
@@ -128,7 +135,7 @@ mixin ReplyOperationsMixin on CommentsStateBase {
 
       try {
         await MentionsHelper.processAndNotifyMentions(
-          text: text.trim(),
+          text: ContentValidator.cleanProfanity(text.trim()),
           videoId: video!.id,
           videoTitle: video!.title,
           videoThumbnailUrl: video!.thumbnailUrl,
@@ -314,7 +321,7 @@ mixin ReplyOperationsMixin on CommentsStateBase {
       severity: NotificationSeverity.info,
       title: 'Reply Liked',
       message:
-          '${authService.activeHandle} liked your reply: "${replyText ?? ''}"',
+          '${currentUserName.startsWith('@') ? currentUserName.substring(1) : currentUserName} liked your reply: "${replyText ?? ''}"',
       actionUrl: '/watch?v=${video!.id}',
       metadata: {
         'videoId': video!.id,

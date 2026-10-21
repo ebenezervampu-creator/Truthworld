@@ -389,7 +389,7 @@ class AppealsTab extends StatelessWidget {
               void submitDecision(String action) {
                 final reason = _reasonController.text.trim();
                 if (reason.isNotEmpty) {
-                  final val = ContentValidator.validate(reason, checkEnglishOnly: false, fieldName: 'Decision Reason');
+                  final val = ContentValidator.validate(reason, fieldName: 'Decision Reason');
                   if (!val.isValid) {
                     AppSnackbar.warning(val.message);
                     return;

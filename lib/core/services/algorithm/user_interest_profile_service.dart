@@ -101,8 +101,34 @@ class UserInterestProfileService extends GetxService {
     _saveToCache(updated);
   }
 
+  /// Check if the user is authenticated and authorized to persist data to Firestore
+  bool _canSyncToFirestore(String? userId) {
+    if (userId == null ||
+        userId.isEmpty ||
+        userId == 'guest' ||
+        userId == 'guest_user' ||
+        userId.startsWith('guest_')) {
+      return false;
+    }
+    if (Get.isRegistered<AuthService>()) {
+      if (!AuthService.to.isAuthenticated.value || AuthService.to.uid != userId) {
+        return false;
+      }
+    } else {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null || currentUser.isAnonymous || currentUser.uid != userId) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   /// Load profile for authenticated user
   Future<void> loadProfile(String userId) async {
+    if (!_canSyncToFirestore(userId)) {
+      profile.value = _loadGuestProfile();
+      return;
+    }
     if (_isLoading) return;
     _isLoading = true;
 
@@ -457,7 +483,7 @@ class UserInterestProfileService extends GetxService {
     profile.refresh();
 
     final userId = p.userId;
-    if (userId.isNotEmpty && userId != 'guest_user') {
+    if (_canSyncToFirestore(userId)) {
       _firestore.collection(FirestoreCollections.users).doc(userId).set({
         'recentSearchQueries': newRecentSearches,
         'searchTopicCounts': newSearchTopicCounts,
@@ -504,7 +530,7 @@ class UserInterestProfileService extends GetxService {
     profile.refresh();
 
     final userId = p.userId;
-    if (userId.isNotEmpty && userId != 'guest_user') {
+    if (_canSyncToFirestore(userId)) {
       _firestore.collection(FirestoreCollections.users).doc(userId).set({
         'exploredTopicSlugs': newExplored.toList(),
         'topicExploreCounts': newExploreCounts,
@@ -543,7 +569,7 @@ class UserInterestProfileService extends GetxService {
     profile.refresh();
 
     final userId = p.userId;
-    if (userId.isNotEmpty && userId != 'guest_user') {
+    if (_canSyncToFirestore(userId)) {
       _firestore.collection(FirestoreCollections.users).doc(userId).set({
         'discoveredChannelIds': newDiscovered.toList(),
         'channelExploreCounts': newExploreCounts,
@@ -615,7 +641,7 @@ class UserInterestProfileService extends GetxService {
     profile.refresh();
 
     final userId = p.userId;
-    if (userId.isNotEmpty && userId != 'guest_user' && userId != 'guest') {
+    if (_canSyncToFirestore(userId)) {
       _firestore.collection(FirestoreCollections.users).doc(userId).set({
         'categoryAffinities': newCategoryAffinities,
         'topicAffinities': newTopicAffinities,
@@ -677,7 +703,7 @@ class UserInterestProfileService extends GetxService {
     profile.refresh();
 
     final userId = p.userId;
-    if (userId.isNotEmpty && userId != 'guest_user' && userId != 'guest') {
+    if (_canSyncToFirestore(userId)) {
       _firestore.collection(FirestoreCollections.users).doc(userId).set({
         'categoryAffinities': newCategoryAffinities,
         'dislikedCategories': newDislikedCategories.toList(),
@@ -749,7 +775,7 @@ class UserInterestProfileService extends GetxService {
     profile.refresh();
 
     final userId = p.userId;
-    if (userId.isNotEmpty && userId != 'guest_user' && userId != 'guest') {
+    if (_canSyncToFirestore(userId)) {
       _firestore.collection(FirestoreCollections.users).doc(userId).set({
         'notInterestedVideoIds': FieldValue.arrayUnion([videoId]),
         'recentSignals': newRecentSignals.map((e) => e.toMap()).toList(),
@@ -787,7 +813,7 @@ class UserInterestProfileService extends GetxService {
     profile.refresh();
 
     final userId = p.userId;
-    if (userId.isNotEmpty && userId != 'guest_user' && userId != 'guest') {
+    if (_canSyncToFirestore(userId)) {
       _firestore.collection(FirestoreCollections.users).doc(userId).set({
         'blockedChannelIds': FieldValue.arrayUnion([channelId]),
         'channelAffinities': newChannelAffinities,
@@ -807,7 +833,7 @@ class UserInterestProfileService extends GetxService {
     profile.refresh();
 
     final userId = p.userId;
-    if (userId.isNotEmpty && userId != 'guest_user') {
+    if (_canSyncToFirestore(userId)) {
       _firestore
           .collection(FirestoreCollections.users)
           .doc(userId)
@@ -816,9 +842,11 @@ class UserInterestProfileService extends GetxService {
             'lastFlipSurface': surface,
             'lastFlippedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true))
-          .catchError((e) {
-            debugPrint(
-              '[UserInterestProfileService] Error updating flipCoinCount: $e',
+          .catchError((e, s) {
+            ErrorHandler.log(
+              e,
+              stackTrace: s,
+              tag: 'UserInterestProfileService.onFlipCoinTapped',
             );
           });
     }

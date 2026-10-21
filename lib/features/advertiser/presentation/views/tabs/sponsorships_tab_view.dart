@@ -725,14 +725,14 @@ class SponsorshipsTabView extends StatelessWidget {
                 AppSnackbar.warning('Please enter a campaign name.');
                 return;
               }
-              final campVal = ContentValidator.validate(campaign, checkEnglishOnly: false, fieldName: 'Campaign Name');
+              final campVal = ContentValidator.validate(campaign, fieldName: 'Campaign Name');
               if (!campVal.isValid) {
                 AppSnackbar.warning(campVal.message);
                 return;
               }
               final note = noteController.text.trim();
               if (note.isNotEmpty) {
-                final noteVal = ContentValidator.validate(note, checkEnglishOnly: false, fieldName: 'Pitch Note');
+                final noteVal = ContentValidator.validate(note, fieldName: 'Pitch Note');
                 if (!noteVal.isValid) {
                   AppSnackbar.warning(noteVal.message);
                   return;

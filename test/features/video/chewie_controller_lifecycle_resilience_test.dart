@@ -87,7 +87,7 @@ void main() {
       towerCtrl.chewieController = disposedChewie;
 
       // setupChewieListeners should safely execute with zero assertions or errors
-      expect(() => towerCtrl.setupChewieListeners(), returnsNormally);
+      expect(towerCtrl.setupChewieListeners, returnsNormally);
 
       // Clean up
       TowerPlayerRegistry.unregister(towerCtrl);
@@ -117,7 +117,7 @@ void main() {
       expect(towerCtrl.chewieController, isNot(equals(oldChewie)));
 
       // Call setupChewieListeners again to ensure zero crashes
-      expect(() => towerCtrl.setupChewieListeners(), returnsNormally);
+      expect(towerCtrl.setupChewieListeners, returnsNormally);
 
       TowerPlayerRegistry.unregister(towerCtrl);
       await vpc1.dispose();
@@ -137,7 +137,7 @@ void main() {
       towerCtrl.chewieController?.dispose();
 
       // onClose must run completely and safely
-      expect(() => towerCtrl.onClose(), returnsNormally);
+      expect(towerCtrl.onClose, returnsNormally);
 
       TowerPlayerRegistry.unregister(towerCtrl);
       await vpc.dispose();

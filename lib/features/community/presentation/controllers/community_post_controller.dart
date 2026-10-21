@@ -6,9 +6,12 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/community/presentation/controllers/community_interaction_cache.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_recommendations_controller.dart';
 
 class CommunityPostReactionState {
   const CommunityPostReactionState({
@@ -116,11 +119,19 @@ class CommunityPostController extends BaseController with ContentValidationMixin
   final RxInt commentCount = 0.obs;
   final RxBool isSaved = false.obs;
   final RxBool isHidden = false.obs;
+  final RxBool isPostHiddenInFeed = false.obs;
+  final RxBool isChannelMutedInFeed = false.obs;
+  final RxBool isReported = false.obs;
 
   final TextEditingController commentController = TextEditingController();
 
   String? get currentUid =>
       Get.isRegistered<AuthService>() ? AuthService.to.currentUser.value?.uid : null;
+
+  bool get isCurrentUserOwner {
+    final uid = currentUid;
+    return uid != null && (uid == post.ownerId || uid == post.channelId);
+  }
 
   @override
   void onInit() {
@@ -164,8 +175,15 @@ class CommunityPostController extends BaseController with ContentValidationMixin
     if (uid == null) return;
     try {
       await CommunityInteractionCache.ensureInitialized(uid);
-      if (CommunityInteractionCache.isHidden(post.id, post.channelId)) {
-        isHidden.value = true;
+      isPostHiddenInFeed.value = CommunityInteractionCache.isPostHidden(post.id);
+      isChannelMutedInFeed.value = CommunityInteractionCache.isChannelMuted(post.channelId);
+      isReported.value = CommunityInteractionCache.isReported(post.id);
+
+      // Creator/owner must never have their own post hidden
+      if (isCurrentUserOwner) {
+        isHidden.value = false;
+      } else {
+        isHidden.value = CommunityInteractionCache.isFeedHidden(post.id, post.channelId);
       }
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'CommunityPostController._checkHiddenStatus');
@@ -369,7 +387,10 @@ class CommunityPostController extends BaseController with ContentValidationMixin
 
   Future<void> hidePost() async {
     isHidden.value = true;
+    isPostHiddenInFeed.value = true;
     CommunityInteractionCache.markHidden(post.id);
+    _removePostFromActiveFeeds(post.id);
+
     final uid = currentUid;
     if (uid != null) {
       try {
@@ -380,18 +401,48 @@ class CommunityPostController extends BaseController with ContentValidationMixin
             .doc(post.id)
             .set({
               'postId': post.id,
+              'channelId': post.channelId,
               'hiddenAt': FieldValue.serverTimestamp(),
             });
       } catch (e, s) {
         ErrorHandler.log(e, stackTrace: s, tag: 'CommunityPostController.hidePost');
       }
     }
-    showSuccess('Post hidden from your feed');
+    AppSnackbar.show(
+      'Not interested',
+      "We won't recommend this post anymore.",
+      actionLabel: 'UNDO',
+      onAction: unhidePost,
+    );
+  }
+
+  Future<void> unhidePost() async {
+    isHidden.value = false;
+    isPostHiddenInFeed.value = false;
+    CommunityInteractionCache.unmarkHidden(post.id);
+
+    final uid = currentUid;
+    if (uid != null) {
+      try {
+        await FirebaseFirestore.instance
+            .collection(FirestoreCollections.users)
+            .doc(uid)
+            .collection('hiddenCommunityPosts')
+            .doc(post.id)
+            .delete();
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'CommunityPostController.unhidePost');
+      }
+    }
+    showSuccess('Post restored to your feed.');
   }
 
   Future<void> turnOffChannelPosts() async {
     isHidden.value = true;
+    isChannelMutedInFeed.value = true;
     CommunityInteractionCache.markChannelMuted(post.channelId);
+    _removePostFromActiveFeeds(null, channelId: post.channelId);
+
     final uid = currentUid;
     if (uid != null) {
       try {
@@ -409,7 +460,56 @@ class CommunityPostController extends BaseController with ContentValidationMixin
         ErrorHandler.log(e, stackTrace: s, tag: 'CommunityPostController.turnOffChannelPosts');
       }
     }
-    showSuccess('Community posts from ${post.channelName} turned off');
+    AppSnackbar.show(
+      "Don't recommend channel",
+      "We won't recommend posts from ${post.channelName} anymore.",
+      actionLabel: 'UNDO',
+      onAction: unmuteChannelPosts,
+    );
+  }
+
+  Future<void> unmuteChannelPosts() async {
+    isHidden.value = false;
+    isChannelMutedInFeed.value = false;
+    CommunityInteractionCache.unmarkChannelMuted(post.channelId);
+
+    final uid = currentUid;
+    if (uid != null) {
+      try {
+        await FirebaseFirestore.instance
+            .collection(FirestoreCollections.users)
+            .doc(uid)
+            .collection('mutedCommunityChannels')
+            .doc(post.channelId)
+            .delete();
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'CommunityPostController.unmuteChannelPosts');
+      }
+    }
+    showSuccess('Community posts from ${post.channelName} turned on.');
+  }
+
+  void _removePostFromActiveFeeds(String? postId, {String? channelId}) {
+    try {
+      if (Get.isRegistered<VideoRecommendationsController>()) {
+        final recController = Get.find<VideoRecommendationsController>();
+        if (channelId != null) {
+          recController.communityPosts.removeWhere((p) => p.channelId == channelId);
+        } else if (postId != null) {
+          recController.communityPosts.removeWhere((p) => p.id == postId);
+        }
+      }
+    } catch (_) {}
+    try {
+      if (Get.isRegistered<HomeController>()) {
+        final homeController = Get.find<HomeController>();
+        if (channelId != null) {
+          homeController.communityPosts.removeWhere((p) => p.channelId == channelId);
+        } else if (postId != null) {
+          homeController.communityPosts.removeWhere((p) => p.id == postId);
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> unsubscribeChannel() async {
@@ -565,10 +665,11 @@ class CommunityPostController extends BaseController with ContentValidationMixin
         .collection(FirestoreCollections.community)
         .doc(post.id);
 
-    final activeDisplayName = AuthService.to.activeDisplayName;
+    final rawDisplayName = AuthService.to.activeDisplayName;
+    final cleanUserName = rawDisplayName.startsWith('@')
+        ? rawDisplayName.substring(1)
+        : rawDisplayName;
     final activePhotoUrl = AuthService.to.activePhotoUrl;
-    final activeHandle = AuthService.to.activeHandle;
-    final isChannel = AuthService.to.hasChannel.value;
 
     batch.set(commentRef, {
       'id': commentRef.id,
@@ -578,12 +679,8 @@ class CommunityPostController extends BaseController with ContentValidationMixin
       'likes': 0,
       'dislikes': 0,
       'repliesCount': 0,
-      'userName': activeDisplayName,
+      'userName': cleanUserName,
       'userImage': activePhotoUrl,
-      'userHandle': activeHandle,
-      'isChannel': isChannel,
-      if (isChannel && AuthService.to.userChannel != null)
-        'channelId': AuthService.to.userChannel!.id,
     });
 
     batch.update(postRef, {'commentCount': FieldValue.increment(1)});

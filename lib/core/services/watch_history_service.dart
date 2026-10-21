@@ -46,17 +46,26 @@ class WatchHistoryService extends GetxService {
     _handleAuthChanged(AuthService.to.user);
   }
 
-  void clearHistorySubscriptions() {
-    _historySubscription?.cancel();
+  Future<void> clearHistorySubscriptions() async {
+    final histSub = _historySubscription;
+    final rtdbSub = _rtdbResumeSubscription;
     _historySubscription = null;
-    _rtdbResumeSubscription?.cancel();
     _rtdbResumeSubscription = null;
+
+    final cancellations = <Future<void>>[];
+    if (histSub != null) cancellations.add(histSub.cancel());
+    if (rtdbSub != null) cancellations.add(rtdbSub.cancel());
+
+    if (cancellations.isNotEmpty) {
+      await Future.wait(cancellations);
+    }
+
     _watchProgress.clear();
     _lastPositions.clear();
   }
 
   void _handleAuthChanged(dynamic user) {
-    clearHistorySubscriptions();
+    unawaited(clearHistorySubscriptions());
 
     if (user != null) {
       final userId = AuthService.to.uid;

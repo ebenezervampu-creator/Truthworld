@@ -95,7 +95,7 @@ const HARMFUL_INTENTS = new Set(["promotional", "instructional_harmful"]);
 
 const MODERATION_SYSTEM_PROMPT = `You are TruthWorld's Content Moderation agent.
 Your role is strictly CONTENT MODERATION (safety and decorum). You are NOT the Credibility Engine / Fact-Checking System.
-Focus primarily on the AUDIO TRACK and spoken content. If visible text or visual elements are apparent, factor those in as well.
+Focus on the AUDIO TRACK, SPOKEN CONTENT, VISUAL ELEMENTS, and VIDEO METADATA (Title, Description, Tags) across all languages.
 
 ## ABSOLUTE RULE: DO NOT CONFUSE CONTENT MODERATION WITH THE CREDIBILITY SYSTEM
 
@@ -216,7 +216,7 @@ If genuinely uncertain, set policyAction to "manual_review".
 ### RULE 1: Profanity & Vulgar Language
 THE TEST: Could this be said on a family TV news debate show without getting bleeped? If YES → ALLOW. If it would get bleeped → REJECT.
 
-REJECT: Explicit curse words (f-word, s-word, b-word, etc.), vulgar sexual language, casteist/racial/religious slurs, Hindi profanity (MC/BC and equivalents), or any language that would be bleeped on family television.
+REJECT: Explicit curse words (f-word, s-word, b-word, etc.), vulgar sexual language, casteist/racial/religious slurs, Hindi/Indic profanity (MC/BC, chutiya, and equivalents across Telugu, Tamil, Kannada, Malayalam, Bengali, etc.), or any language/script profanity in the audio track, visual frames, or video title/description that would be bleeped on family television.
 ALLOW: Strong insults, rude metaphors, heated accusations, and passionate debate — as long as no actual curse words or slurs are used.
 
 ALLOWED examples (rude but clean — would NOT be bleeped on TV):
@@ -244,7 +244,7 @@ ALLOW: ALL verbal/audio discussion of violence, war history, crime news, documen
 
 ### RULE 4: Intense Romantic/Lustful Content
 REJECT: Heavy romantic/sexual focus, dating/hookup promotion, physical intimacy designed to arouse, lustful behavior
-ALLOW: Healthy marriage content, wedding celebrations, moderate affection appropriate for family audiences
+ALLOW: Healthy marriage content, wedding celebrations, moderate affection appropriate for family audiences, comedy sketches, arranged marriage matchmaking narratives (e.g. Pelli Choopulu), and relationship humor delivered cleanly without nudity or profanity
 
 ### RULE 5: Child Exploitation (Legal Requirement — Zero Tolerance)
 REJECT: Any content involving minors in sexual, exploitative, or abusive contexts. This is an absolute legal requirement.
@@ -370,7 +370,7 @@ When approving controversial content, explain that the Credibility Engine handle
 
 You MUST return a JSON object matching this exact schema:
 {
-  "approved": boolean,
+  "approved": boolean (MUST be true if policyAction is "allow", false if policyAction is "reject" or "manual_review"),
   "detectedLanguage": "ISO 639-1 language code of the primary spoken language (e.g. \"en\", \"hi\", \"te\", \"es\")",
   "topic": "concise_topic_label",
   "intent": "one of: news_reporting, documentary, educational, commentary, review, satire, personal_experience, entertainment, promotional, instructional_harmful",
@@ -379,12 +379,16 @@ You MUST return a JSON object matching this exact schema:
   "confidenceScore": 0.0 to 1.0,
   "policyReason": "Delivery-focused explanation of the decision",
   "explanation": "One-sentence summary of your reasoning chain",
-  "violationCategories": ["category1"] or [],
+  "violationCategories": ["category1"] or [] (MUST be empty [] if policyAction is "allow" or riskLevel is "safe"),
   "summary": "Concise 2-3 sentence summary of the video content for users to read",
   "category": "One category from the valid list below"
 }
 
-Valid violation categories: "profanity", "sexual_content", "graphic_violence", "romantic_content", "child_exploitation", "gambling_promotion", "dangerous_instructions", "violent_game_glorification", "non_english_content"
+CRITICAL RULES:
+- When content has clean, family-friendly delivery (e.g. comedy sketches, arranged marriage narratives, matrimonial humor), you MUST set "policyAction": "allow", "approved": true, "riskLevel": "safe", and "violationCategories": [].
+- NEVER set policyAction to "reject" or approved to false when the delivery is family-friendly and has no community guidelines violations.
+
+Valid violation categories: "profanity", "sexual_content", "graphic_violence", "romantic_content", "child_exploitation", "gambling_promotion", "dangerous_instructions", "violent_game_glorification"
 
 Valid content categories (must match casing exactly, default is 'Other'):
 'News', 'Politics', 'Business & Finance', 'Technology', 'Science', 'Health & Fitness', 'History', 'Education', 'Entertainment', 'Music', 'Sports', 'Gaming', 'Travel', 'Lifestyle', 'Comedy', 'Documentary', 'Movies', 'TV Shows', 'Vlogs', 'DIY & How-to', 'Fashion & Beauty', 'Food & Cooking', 'Business & Finance', 'Animation', 'Short Films', 'Motivation', 'History', 'Art & Design', 'Automotive', 'Animals & Pets', 'Spirituality', 'Nature & Wildlife', 'Kids & Family', 'Other'
@@ -559,7 +563,11 @@ export class ContentModerationService {
    * @param mimeType - MIME type of the file (e.g., "video/mp4", "audio/mpeg")
    * @returns Moderation result with approve/reject/manual_review decision
    */
-  async moderate(gcsUri: string, mimeType: string = "video/mp4"): Promise<ContentModerationResult> {
+  async moderate(
+    gcsUri: string,
+    mimeType: string = "video/mp4",
+    metadata?: { title?: string; description?: string; tags?: string[] }
+  ): Promise<ContentModerationResult> {
     const t0 = Date.now();
     const MAX_RETRIES = 4;
     const BACKOFF_BASE_MS = 3000;
@@ -592,7 +600,11 @@ export class ContentModerationService {
                     },
                   },
                   {
-                    text: "Analyze this content following the moderation pipeline. STEP 0 FIRST: Detect the primary spoken language and set detectedLanguage (e.g. 'en', 'es', 'hi', 'fr', etc.). Then proceed through STEP 1–4 (Topic & Category → Intent → Risk → Decision). Focus on audio/speech and delivery decorum. Do NOT evaluate factual truth. Return your analysis as JSON.",
+                    text: `Analyze this content following the moderation pipeline. STEP 0 FIRST: Detect the primary spoken language and set detectedLanguage (e.g. 'en', 'es', 'hi', 'fr', 'te', etc.). Then proceed through STEP 1–4 (Topic & Category → Intent → Risk → Decision). Focus on audio/speech, visual frames, and video metadata (title, description, tags) across all languages. Do NOT evaluate factual truth. Return your analysis as JSON.${
+                      (metadata?.title || metadata?.description || (metadata?.tags && metadata.tags.length > 0))
+                        ? `\n\n--- VIDEO METADATA TO MODERATE (TITLE, DESCRIPTION, TAGS) ---\nTITLE: ${JSON.stringify(metadata.title || "")}\nDESCRIPTION: ${JSON.stringify(metadata.description || "")}\nTAGS: ${JSON.stringify(metadata.tags || [])}\n--- END VIDEO METADATA ---\nNote: Check BOTH the media (audio track, visuals) AND the metadata (title, description, tags) for Community Guidelines violations across all languages.`
+                        : ""
+                    }`,
                   },
                 ],
               },
@@ -747,7 +759,29 @@ export class ContentModerationService {
    * └─────────────────────────┴──────────────────┴────────────────┘
    */
   private applyReviewPolicy(raw: GeminiModerationOutput): { approved: boolean; policyAction: string } {
-    // ─── If Gemini itself is uncertain, respect that ───────────────────
+    // ─── 0. Contradiction Resolution & True Safety Guard ──────────────
+    // If risk level is safe, or if there are zero violation categories AND the policy reason
+    // explicitly states there are no violations / clean delivery / family-friendly / healthy marriage comedy,
+    // this is a clear false-positive rejection by the LLM or boolean schema inversion.
+    const hasZeroViolations = !raw.violationCategories || raw.violationCategories.length === 0;
+    const isExplicitlySafe = raw.riskLevel === "safe" || (hasZeroViolations && raw.riskLevel !== "critical" && raw.riskLevel !== "high");
+
+    const reasonIndicatesClean =
+      /without any violations|no violations?|clean delivery|family-friendly|appropriate for family|healthy marriage/i.test(
+        `${raw.policyReason || ""} ${raw.explanation || ""}`
+      );
+
+    if (isExplicitlySafe && (reasonIndicatesClean || raw.policyAction === "allow" || hasZeroViolations)) {
+      console.log("[ContentModeration] Clean/Safe content verified — approving without false positive rejection", {
+        topic: raw.topic,
+        intent: raw.intent,
+        riskLevel: raw.riskLevel,
+        policyReason: raw.policyReason,
+      });
+      return { approved: true, policyAction: "allow" };
+    }
+
+    // ─── 1. If Gemini itself requested manual review ───────────────────
     if (raw.policyAction === "manual_review") {
       console.log("[ContentModeration] Gemini flagged for manual review", {
         topic: raw.topic,
@@ -757,35 +791,47 @@ export class ContentModerationService {
       return { approved: false, policyAction: "manual_review" };
     }
 
-    // ─── CASE 1: Gemini says REJECT ───────────────────────────────────
-    if (!raw.approved || raw.policyAction === "reject") {
-      // High-confidence rejection on harmful intent → auto-reject
+    // ─── 2. If Gemini explicitly said allow ───────────────────────────
+    if (raw.policyAction === "allow" && (hasZeroViolations || raw.riskLevel !== "critical")) {
+      return { approved: true, policyAction: "allow" };
+    }
+
+    // ─── 3. Evaluate Rejections ───────────────────────────────────────
+    // Only treat as rejection if policyAction is explicitly "reject" OR (approved is false AND policyAction is NOT "allow")
+    const isGeminiReject = raw.policyAction === "reject" || (!raw.approved && raw.policyAction !== "allow");
+
+    if (isGeminiReject) {
+      // Must have actual violation categories or high risk to auto-reject
+      const hasRealViolations = (raw.violationCategories || []).length > 0;
+
+      // High-confidence rejection on harmful intent with actual violations
       if (HARMFUL_INTENTS.has(raw.intent) && raw.confidenceScore >= 0.80) {
         return { approved: false, policyAction: "reject" };
       }
 
-      // Rejection but journalistic/educational intent → likely false positive → manual review
-      if (JOURNALISTIC_INTENTS.has(raw.intent)) {
-        console.log("[ContentModeration] Override: journalistic intent detected on rejection → manual_review", {
-          topic: raw.topic,
-          intent: raw.intent,
-          confidence: raw.confidenceScore,
-        });
-        return { approved: false, policyAction: "manual_review" };
+      // Rejection on journalistic/educational/entertainment/satire intent → route to manual_review if no critical risk
+      if (
+        JOURNALISTIC_INTENTS.has(raw.intent) ||
+        raw.intent === "entertainment" ||
+        raw.intent === "satire" ||
+        raw.intent === "personal_experience"
+      ) {
+        if (!hasRealViolations || raw.riskLevel !== "critical") {
+          console.log("[ContentModeration] Override: creative/journalistic intent detected on rejection without critical risk → manual_review", {
+            topic: raw.topic,
+            intent: raw.intent,
+            confidence: raw.confidenceScore,
+            riskLevel: raw.riskLevel,
+          });
+          return { approved: false, policyAction: "manual_review" };
+        }
       }
 
-      // Low confidence rejection (< 0.75) → manual review
-      if (raw.confidenceScore < 0.75) {
-        console.log("[ContentModeration] Override: low confidence rejection → manual_review", {
+      // Low confidence rejection (< 0.75) or missing violation categories → manual review
+      if (raw.confidenceScore < 0.75 || !hasRealViolations) {
+        console.log("[ContentModeration] Override: low confidence or missing violation categories → manual_review", {
           confidence: raw.confidenceScore,
-        });
-        return { approved: false, policyAction: "manual_review" };
-      }
-
-      // Entertainment intent with medium confidence (0.50–0.80) → manual review
-      if (raw.intent === "entertainment" && raw.confidenceScore < 0.80) {
-        console.log("[ContentModeration] Override: entertainment intent with medium confidence → manual_review", {
-          confidence: raw.confidenceScore,
+          violationCategories: raw.violationCategories,
         });
         return { approved: false, policyAction: "manual_review" };
       }
@@ -794,8 +840,7 @@ export class ContentModerationService {
       return { approved: false, policyAction: "reject" };
     }
 
-    // ─── CASE 2: Gemini says APPROVE ──────────────────────────────────
-    // Trust approvals — the prompt is designed to be permissive on journalistic content
+    // ─── 4. Default: trust approval ───────────────────────────────────
     return { approved: true, policyAction: "allow" };
   }
 }

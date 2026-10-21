@@ -180,7 +180,7 @@ class TopicRedirectMiddleware extends GetMiddleware {
   @override
   RouteSettings? redirect(String? route) {
     if (route == null) return null;
-    final normalizedRoute = route.split('?').first.replaceAll(RegExp(r'/+'), '/');
+    final normalizedRoute = route.split('?').first.replaceAll(RegExp('/+'), '/');
 
     // Prevent infinite redirect loop if we are already on a canonical '/T/' route
     if (normalizedRoute.startsWith('/T/') && !route.startsWith('//')) {

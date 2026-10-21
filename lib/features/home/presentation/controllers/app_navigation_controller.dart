@@ -209,6 +209,18 @@ class AppNavigationController extends BaseController {
       final userId = (currentUser != null && !currentUser.isAnonymous) ? currentUser.uid : null;
       final sessionId = "session_${videoId}_${userId ?? 'anon'}";
 
+      // Increment distributed counter shards and parent documents in Firestore (authenticated users only)
+      if (userId != null && (watchTimeSecondsDelta ?? 0) > 0) {
+        final counterService = Get.isRegistered<DistributedCounterService>()
+            ? DistributedCounterService.to
+            : Get.put(DistributedCounterService());
+        counterService.incrementWatchTime(
+          videoId: videoId,
+          secondsDelta: watchTimeSecondsDelta!,
+          channelId: channelId,
+        );
+      }
+
       final timestampMs = DateTime.now().millisecondsSinceEpoch;
       final eventId = '${sessionId}_${position}_${eventType}_$timestampMs';
 

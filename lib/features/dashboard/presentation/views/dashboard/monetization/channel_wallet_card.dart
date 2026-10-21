@@ -14,6 +14,7 @@ import 'package:truthworld/theme/app_colors.dart';
 import 'package:truthworld/theme/tw_radius.dart';
 
 /// Interactive card presenting the channel's wallet balance, top-up actions, and live transaction stream.
+/// Styled with exact Library theme in clean monochrome.
 class ChannelWalletCard extends StatelessWidget {
   const ChannelWalletCard({
     required this.channel,
@@ -61,47 +62,30 @@ class ChannelWalletCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 4,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: isCustom ? AppColors.warning : AppColors.brand,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Channel Wallet',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ],
+              const Text(
+                'Channel Wallet',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: isCustom
-                      ? AppColors.warning.withValues(alpha: 0.15)
-                      : AppColors.brand.withValues(alpha: 0.15),
+                  color: AppColors.bgSurfaceHover,
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
-                    color: isCustom
-                        ? AppColors.warning.withValues(alpha: 0.4)
-                        : AppColors.brand.withValues(alpha: 0.4),
+                    color: AppColors.textPrimary.withValues(alpha: 0.15),
                   ),
                 ),
                 child: Text(
                   isCustom ? 'CUSTOM WALLET' : 'STANDARD WALLET',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 0.5,
-                    color: isCustom ? AppColors.warning : Colors.white,
+                    color: Colors.white,
                   ),
                 ),
               ),
@@ -114,7 +98,7 @@ class ChannelWalletCard extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.bgInput,
+              color: AppColors.bgPage,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.bgDivider),
             ),
@@ -165,7 +149,6 @@ class ChannelWalletCard extends StatelessWidget {
                         label: 'Deposited Funds',
                         amount: '\$${spendable.fundedBalance.toStringAsFixed(2)}',
                         icon: Icons.account_balance_wallet_outlined,
-                        color: Colors.white,
                       ),
                     ),
                     if (isCustom && spendable.rolloverCredit > 0) ...[
@@ -175,7 +158,6 @@ class ChannelWalletCard extends StatelessWidget {
                           label: 'Rollover Safe',
                           amount: '\$${spendable.rolloverCredit.toStringAsFixed(2)}',
                           icon: Icons.savings_rounded,
-                          color: AppColors.info,
                         ),
                       ),
                     ],
@@ -185,7 +167,6 @@ class ChannelWalletCard extends StatelessWidget {
                         label: 'Earned Revenue',
                         amount: '\$${spendable.totalRevenue.toStringAsFixed(2)}',
                         icon: Icons.trending_up_rounded,
-                        color: AppColors.brand,
                       ),
                     ),
                   ],
@@ -212,20 +193,24 @@ class ChannelWalletCard extends StatelessWidget {
                   icon: const Icon(
                     Icons.add_circle_outline_rounded,
                     color: Colors.black,
-                    size: 18,
+                    size: 16,
                   ),
-                  label: const Text(
-                    'Add Money',
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                  label: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      'Add Money',
+                      maxLines: 1,
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.brand,
+                    backgroundColor: Colors.white,
                     foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: TWRadius.mdBorderRadius,
                     ),
@@ -251,21 +236,27 @@ class ChannelWalletCard extends StatelessWidget {
                   icon: const Icon(
                     Icons.auto_awesome_rounded,
                     color: Colors.white,
-                    size: 18,
+                    size: 16,
                   ),
-                  label: const Text(
-                    'Spend on Features',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                  label: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      'Spend on Features',
+                      maxLines: 1,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white,
-                    side: const BorderSide(color: AppColors.bgDivider),
-                    backgroundColor: AppColors.bgInput,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    backgroundColor: AppColors.bgSurfaceHover,
+                    side: BorderSide(
+                      color: AppColors.textPrimary.withValues(alpha: 0.2),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: TWRadius.mdBorderRadius,
                     ),
@@ -322,8 +313,9 @@ class ChannelWalletCard extends StatelessWidget {
                     margin: const EdgeInsets.only(top: 8),
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: AppColors.bgInput,
+                      color: AppColors.bgPage,
                       borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.bgDivider),
                     ),
                     child: const Text(
                       'Unable to load activity right now. Please check your connection and try again.',
@@ -343,7 +335,7 @@ class ChannelWalletCard extends StatelessWidget {
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
-                          color: AppColors.brand,
+                          color: Colors.white,
                           strokeWidth: 2,
                         ),
                       ),
@@ -358,8 +350,9 @@ class ChannelWalletCard extends StatelessWidget {
                     margin: const EdgeInsets.only(top: 8),
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: AppColors.bgInput,
+                      color: AppColors.bgPage,
                       borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.bgDivider),
                     ),
                     child: const Text(
                       'No wallet transactions yet. Funds added or spent for AI features will appear here.',
@@ -391,16 +384,15 @@ class ChannelWalletCard extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: isTopup
-                                  ? Colors.green.withValues(alpha: 0.15)
-                                  : AppColors.bgSurfaceHover,
+                              color: AppColors.bgSurfaceHover,
                               shape: BoxShape.circle,
+                              border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.1)),
                             ),
                             child: Icon(
                               isTopup
                                   ? Icons.add_rounded
                                   : Icons.remove_rounded,
-                              color: isTopup ? Colors.green : Colors.white70,
+                              color: Colors.white,
                               size: 16,
                             ),
                           ),
@@ -434,10 +426,10 @@ class ChannelWalletCard extends StatelessWidget {
                             isTopup
                                 ? '+\$${tx.amount.toStringAsFixed(2)}'
                                 : '-\$${tx.amount.toStringAsFixed(2)}',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
-                              color: isTopup ? Colors.green : Colors.white,
+                              color: Colors.white,
                             ),
                           ),
                         ],
@@ -457,12 +449,11 @@ class ChannelWalletCard extends StatelessWidget {
     required String label,
     required String amount,
     required IconData icon,
-    required Color color,
   }) {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: AppColors.bgSurface,
+        color: AppColors.bgSurfaceHover,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: AppColors.bgDivider),
       ),
@@ -471,7 +462,7 @@ class ChannelWalletCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, color: color, size: 14),
+              Icon(icon, color: Colors.white, size: 14),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
@@ -489,10 +480,10 @@ class ChannelWalletCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             amount,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.bold,
-              color: color,
+              color: Colors.white,
             ),
           ),
         ],

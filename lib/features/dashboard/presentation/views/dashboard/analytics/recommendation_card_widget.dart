@@ -180,19 +180,19 @@ class RecommendationCardWidget extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 8,
-                      runSpacing: 4,
+                    Row(
                       children: [
-                        Text(
-                          'Real-Time Recommendation Intelligence',
-                          style: AppTextStyles.titleMedium.copyWith(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: textPrimary,
+                        Flexible(
+                          child: Text(
+                            'Real-Time Recommendation Intelligence',
+                            style: AppTextStyles.titleMedium.copyWith(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: textPrimary,
+                            ),
                           ),
                         ),
+                        const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
@@ -263,42 +263,36 @@ class RecommendationCardWidget extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    list[index].title,
-                                    style: AppTextStyles.titleMedium.copyWith(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                      color: textPrimary,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 3,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: list[index].badgeColor.withValues(
-                                      alpha: 0.15,
-                                    ),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    list[index].impactScore,
-                                    style: AppTextStyles.labelSmall.copyWith(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: list[index].badgeColor,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                            Text(
+                              list[index].title,
+                              style: AppTextStyles.titleMedium.copyWith(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: textPrimary,
+                              ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: list[index].badgeColor.withValues(
+                                  alpha: 0.15,
+                                ),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                list[index].impactScore,
+                                style: AppTextStyles.labelSmall.copyWith(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: list[index].badgeColor,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
                             Text(
                               list[index].description,
                               style: AppTextStyles.bodyMedium.copyWith(

@@ -52,7 +52,7 @@ class AuthSheetController extends BaseController {
     return isWeb ?? kIsWeb;
   }
 
-  final Rx<AuthStep> currentStep = AuthStep.languageSelection.obs;
+  final Rx<AuthStep> currentStep = AuthStep.options.obs;
   final RxnString selectedLanguage = RxnString();
   final RxString languageSearchQuery = ''.obs;
   final RxBool isSubmittingLanguageRequest = false.obs;
@@ -89,6 +89,7 @@ class AuthSheetController extends BaseController {
   final RxBool canResend = false.obs;
   Timer? _countdownTimer;
   bool _isClosing = false;
+  VoidCallback? onCloseCallback;
 
   /// Global authoritative country calling codes for phone authentication.
   static const List<CountryDialCode> supportedCountries = CountryDialCodes.all;
@@ -164,25 +165,11 @@ class AuthSheetController extends BaseController {
   }
 
   void selectPrimaryLanguage(String languageName) {
-    if (languageName.trim().toLowerCase() == 'english') {
-      selectedLanguage.value = 'English';
-      if (Get.isRegistered<UserLanguagesService>()) {
-        UserLanguagesService.to.setPrimaryLanguage('English');
-      }
-      currentStep.value = AuthStep.options;
-    } else {
-      selectedLanguage.value = languageName;
-      final key = languageName.toLowerCase();
-      var alreadyRequested = requestedLanguages.contains(key);
-      if (!alreadyRequested) {
-        try {
-          final box = GetStorage();
-          alreadyRequested = box.read<bool>('lang_req_$key') ?? false;
-        } catch (_) {}
-      }
-      isLanguageRequestSubmitted.value = alreadyRequested;
-      currentStep.value = AuthStep.languageNotice;
+    selectedLanguage.value = languageName;
+    if (Get.isRegistered<UserLanguagesService>()) {
+      UserLanguagesService.to.setPrimaryLanguage(languageName);
     }
+    currentStep.value = AuthStep.options;
   }
 
   void continueWithEnglish() {
@@ -500,6 +487,7 @@ class AuthSheetController extends BaseController {
     if (_isClosing) return;
     _isClosing = true;
     _stopCountdown();
+    onCloseCallback?.call();
     try {
       final ctx = Get.key.currentContext ?? Get.context;
       if (ctx != null) {

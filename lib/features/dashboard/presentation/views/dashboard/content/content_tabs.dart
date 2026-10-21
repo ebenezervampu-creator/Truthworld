@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
+import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/content/desktop_content_data_table.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/content/draft_scheduled_cards.dart';
@@ -12,22 +12,10 @@ import 'package:truthworld/features/dashboard/presentation/views/dashboard/video
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-Widget buildContentShimmerSkeleton() {
-  return Shimmer.fromColors(
-    baseColor: const Color(0xFF1E1E1E),
-    highlightColor: AppColors.bgSurfaceHover,
-    child: ListView.separated(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      itemCount: 7,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (_, _) => Container(
-        height: 72,
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-    ),
+Widget buildContentLoadingIndicator() {
+  return const StudioLoadingIndicator(
+    message: 'Loading studio content...',
+    isFullScreen: false,
   );
 }
 
@@ -46,8 +34,8 @@ class VideosTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      if (controller.isLoadingChannelVideos.value) {
-        return buildContentShimmerSkeleton();
+      if (controller.isLoadingChannelVideos.value && controller.channelVideos.isEmpty) {
+        return buildContentLoadingIndicator();
       }
       if (controller.channelVideosError.value.isNotEmpty) {
         return Center(
@@ -120,7 +108,8 @@ class VideosTab extends StatelessWidget {
                 v.status.name != 'deletion_pending' &&
                 v.status.name != 'trashed' &&
                 v.visibility.toLowerCase() != 'draft' &&
-                v.visibility.toLowerCase() != 'scheduled',
+                v.visibility.toLowerCase() != 'scheduled' &&
+                !v.title.trim().toLowerCase().startsWith('our first video'),
           )
           .toList();
 
@@ -211,8 +200,8 @@ class PostsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      if (controller.isLoadingPosts.value) {
-        return buildContentShimmerSkeleton();
+      if (controller.isLoadingPosts.value && controller.communityPosts.isEmpty) {
+        return buildContentLoadingIndicator();
       }
       if (controller.postsError.value.isNotEmpty) {
         return Center(
@@ -253,7 +242,9 @@ class PostsTab extends StatelessWidget {
                 !p.isDeleted &&
                 p.status != 'deletion_pending' &&
                 p.status != 'trashed' &&
-                p.status != 'deleted',
+                p.status != 'deleted' &&
+                p.id != '8Zq2KuYIgm9m8kgogAE3' &&
+                !p.title.trim().toLowerCase().startsWith('our first video'),
           )
           .toList();
 
@@ -277,21 +268,27 @@ class PostsTab extends StatelessWidget {
       posts.sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
 
       return ListView.builder(
-        padding: const EdgeInsets.only(bottom: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         itemCount: posts.length,
         itemBuilder: (context, index) {
           final post = posts[index];
-          return CommunityPostCard(
-            key: ValueKey(post.id),
-            post: post,
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: CommunityPostCard(
+                key: ValueKey(post.id),
+                post: post,
+                isChannelContext: true,
+              ),
+            ),
           );
         },
       );
     });
   }
-
-
 }
+
+typedef CommunityTab = PostsTab;
 
 class NoPostsYetWidget extends StatelessWidget {
   const NoPostsYetWidget({this.isSearchFiltered = false, super.key});
@@ -354,9 +351,10 @@ class DraftsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      if (controller.isLoadingChannelVideos.value ||
-          controller.isLoadingPosts.value) {
-        return buildContentShimmerSkeleton();
+      if ((controller.isLoadingChannelVideos.value ||
+              controller.isLoadingPosts.value) &&
+          controller.channelVideos.isEmpty) {
+        return buildContentLoadingIndicator();
       }
 
       final draftVideos = controller.channelVideos
@@ -381,6 +379,8 @@ class DraftsTab extends StatelessWidget {
                 p.status != 'deletion_pending' &&
                 p.status != 'trashed' &&
                 p.status != 'deleted' &&
+                p.id != '8Zq2KuYIgm9m8kgogAE3' &&
+                !p.title.trim().toLowerCase().startsWith('our first video') &&
                 (p.isDraft ||
                     p.visibility.toLowerCase() == 'draft' ||
                     p.selectedCategory.toLowerCase() == 'draft'),
@@ -522,6 +522,7 @@ class DraftsTab extends StatelessWidget {
                   return CommunityPostCard(
                     key: ValueKey((item as CommunityPostModel).id),
                     post: item,
+                    isChannelContext: true,
                   );
                 }
               },
@@ -548,9 +549,10 @@ class ScheduledTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      if (controller.isLoadingChannelVideos.value ||
-          controller.isLoadingPosts.value) {
-        return buildContentShimmerSkeleton();
+      if ((controller.isLoadingChannelVideos.value ||
+              controller.isLoadingPosts.value) &&
+          controller.channelVideos.isEmpty) {
+        return buildContentLoadingIndicator();
       }
 
       final scheduledVideos = controller.channelVideos
@@ -574,6 +576,8 @@ class ScheduledTab extends StatelessWidget {
                 p.status != 'deletion_pending' &&
                 p.status != 'trashed' &&
                 p.status != 'deleted' &&
+                p.id != '8Zq2KuYIgm9m8kgogAE3' &&
+                !p.title.trim().toLowerCase().startsWith('our first video') &&
                 p.scheduledTime != null,
           )
           .toList();
@@ -635,6 +639,7 @@ class ScheduledTab extends StatelessWidget {
             return CommunityPostCard(
               key: ValueKey((item as CommunityPostModel).id),
               post: item,
+              isChannelContext: true,
             );
           }
         },

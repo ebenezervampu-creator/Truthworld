@@ -57,6 +57,10 @@ class ChannelPostsTabView extends GetView<ChannelController> {
               ),
             )
             .where((post) {
+              if (post.id == '8Zq2KuYIgm9m8kgogAE3' ||
+                  post.title.trim().toLowerCase().startsWith('our first video')) {
+                return false;
+              }
               if (isOwner) return true;
               final vis = post.visibility.toLowerCase();
               if (vis == 'public') return true;
@@ -98,6 +102,7 @@ class ChannelPostsTabView extends GetView<ChannelController> {
               itemBuilder: (context, index) {
                 return CommunityPostCard(
                   post: posts[index],
+                  isChannelContext: true,
                 );
               },
             ),

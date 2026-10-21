@@ -336,5 +336,191 @@ void main() {
         expect(controller.channelStats['revenue'], equals('₹9.60'));
       },
     );
+
+    test(
+      'channelStats reconciles views and watch time to match authentic video sums (15 views, 35 mins)',
+      () {
+        // Initial state: channel document has stale 5 views and 4 mins (240s) watch time
+        controller.channelStats.value = {
+          'views': '5',
+          'watchTime': '4 mins',
+        };
+        controller.totalWatchTimeSeconds.value = 240;
+
+        // Active videos have 10 views (1200s) and 5 views (900s) -> total 15 views, 2100s (35 mins)
+        final v1 = Video(
+          id: 'v_sync_1',
+          title: 'Truth Fact Check',
+          description: '',
+          thumbnailUrl: '',
+          ownerId: 'u1',
+          channelId: 'test_channel_123',
+          channelName: 'Truth Channel',
+          category: 'News',
+          tags: const ['news'],
+          views: 10,
+          viewCount: 10,
+          totalWatchTimeSeconds: 1200, // 20 mins
+        );
+        final v2 = Video(
+          id: 'v_sync_2',
+          title: 'Dubbed Video',
+          description: '',
+          thumbnailUrl: '',
+          ownerId: 'u1',
+          channelId: 'test_channel_123',
+          channelName: 'Truth Channel',
+          category: 'News',
+          tags: const ['news'],
+          views: 5,
+          viewCount: 5,
+          totalWatchTimeSeconds: 900, // 15 mins
+        );
+
+        controller.applyRecentVideosForTest([v1, v2]);
+
+        // Dashboard overview must now reflect true 15 views and 35 mins, not stale 5 and 4 mins
+        expect(controller.channelStats['views'], equals('15'));
+        expect(controller.channelStats['watchTime'], equals('35 mins'));
+        expect(controller.totalWatchTimeSeconds.value, equals(2100));
+      },
+    );
+
+    test(
+      'syncMetricsFromAnalytics updates views and watch time and never downgrades',
+      () {
+        controller.channelStats.value = {
+          'views': '5',
+          'watchTime': '4 mins',
+        };
+        controller.totalWatchTimeSeconds.value = 240;
+
+        controller.syncMetricsFromAnalytics(views: 15, watchTimeSeconds: 2100);
+
+        expect(controller.channelStats['views'], equals('15'));
+        expect(controller.channelStats['watchTime'], equals('35 mins'));
+        expect(controller.totalWatchTimeSeconds.value, equals(2100));
+
+        // If an older/stale event sends lower numbers, it must never downgrade
+        controller.syncMetricsFromAnalytics(views: 3, watchTimeSeconds: 100);
+        expect(controller.channelStats['views'], equals('15'));
+        expect(controller.channelStats['watchTime'], equals('35 mins'));
+        expect(controller.totalWatchTimeSeconds.value, equals(2100));
+      },
+    );
+
+    test(
+      'channelStats reconciles down from inflated 27 views to authentic 15 views (8 + 7 views)',
+      () {
+        // Initial state: channel document or stale counter has 27 views
+        controller.channelStats.value = {
+          'views': '27',
+          'watchTime': '50 mins',
+        };
+        controller.totalWatchTimeSeconds.value = 3000;
+
+        // Active videos have 8 views and 7 views -> total 15 views
+        final v1 = Video(
+          id: 'v_bug_1',
+          title: 'Truth World Video 1',
+          description: '',
+          thumbnailUrl: '',
+          ownerId: 'u1',
+          channelId: 'test_channel_123',
+          channelName: 'Truth Channel',
+          category: 'News',
+          tags: const ['news'],
+          views: 8,
+          viewCount: 8,
+          totalWatchTimeSeconds: 960, // 16 mins
+        );
+        final v2 = Video(
+          id: 'v_bug_2',
+          title: 'Truth World Video 2',
+          description: '',
+          thumbnailUrl: '',
+          ownerId: 'u1',
+          channelId: 'test_channel_123',
+          channelName: 'Truth Channel',
+          category: 'News',
+          tags: const ['news'],
+          views: 7,
+          viewCount: 7,
+          totalWatchTimeSeconds: 840, // 14 mins
+        );
+
+        controller.applyRecentVideosForTest([v1, v2]);
+
+        // Dashboard overview must now display authentic 15 views, NOT stale 27 views
+        expect(controller.channelStats['views'], equals('15'));
+        expect(controller.channelStats['watchTime'], equals('30 mins'));
+        expect(controller.totalWatchTimeSeconds.value, equals(1800));
+      },
+    );
+
+    test(
+      'syncMetricsFromAnalytics reconciles down from inflated 27 views to authentic 15 views',
+      () {
+        // Active videos have 8 and 7 views (sum = 15 views)
+        final v1 = Video(
+          id: 'v_sync_1',
+          title: 'Video 1',
+          description: '',
+          thumbnailUrl: '',
+          ownerId: 'u1',
+          channelId: 'test_channel_123',
+          channelName: 'Truth Channel',
+          category: 'News',
+          tags: const [],
+          views: 8,
+          viewCount: 8,
+          totalWatchTimeSeconds: 1000,
+        );
+        final v2 = Video(
+          id: 'v_sync_2',
+          title: 'Video 2',
+          description: '',
+          thumbnailUrl: '',
+          ownerId: 'u1',
+          channelId: 'test_channel_123',
+          channelName: 'Truth Channel',
+          category: 'News',
+          tags: const [],
+          views: 7,
+          viewCount: 7,
+          totalWatchTimeSeconds: 800,
+        );
+        controller.recentVideos.assignAll([v1, v2]);
+
+        // Channel overview is currently inflated to 27 views
+        controller.channelStats.value = {
+          'views': '27',
+          'watchTime': '50 mins',
+        };
+        controller.totalWatchTimeSeconds.value = 3000;
+
+        // Analytics reports authentic 15 views (matching total active video views)
+        controller.syncMetricsFromAnalytics(views: 15, watchTimeSeconds: 1800);
+
+        // Dashboard overview must now reconcile down to 15 views
+        expect(controller.channelStats['views'], equals('15'));
+        expect(controller.channelStats['watchTime'], equals('30 mins'));
+
+        // Stale out-of-order lower events below total video views are still rejected
+        controller.syncMetricsFromAnalytics(views: 5, watchTimeSeconds: 600);
+        expect(controller.channelStats['views'], equals('15'));
+        expect(controller.channelStats['watchTime'], equals('30 mins'));
+      },
+    );
+
+    test(
+      'refreshData executes and safely resets isRefreshing flag',
+      () async {
+        expect(controller.isRefreshing, isFalse);
+        final refreshFuture = controller.refreshData();
+        await refreshFuture;
+        expect(controller.isRefreshing, isFalse);
+      },
+    );
   });
 }

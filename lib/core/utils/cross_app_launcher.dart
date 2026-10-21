@@ -235,6 +235,31 @@ class CrossAppLauncher {
     }
   }
 
+  /// Checks whether the target flavor's standalone mobile app is installed on the device.
+  static Future<bool> isFlavorInstalled(AppFlavor targetFlavor) async {
+    if (kIsWeb) return false;
+    try {
+      final scheme = getScheme(targetFlavor);
+      final customUri = Uri.parse('$scheme://studio');
+      if (await canLaunchUrl(customUri)) {
+        return true;
+      }
+      final rootUri = Uri.parse('$scheme://');
+      if (await canLaunchUrl(rootUri)) {
+        return true;
+      }
+      final package = getPackageName(targetFlavor);
+      final androidAppUri = Uri.parse('android-app://$package');
+      if (await canLaunchUrl(androidAppUri)) {
+        return true;
+      }
+    } catch (_) {
+      // Platform handler not present or not supported (e.g. unit test runtime)
+      return false;
+    }
+    return false;
+  }
+
   /// Builds a clean route string including query parameters from args and params.
   static String _normalizeRoute(
     String? route,

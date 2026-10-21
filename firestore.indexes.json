@@ -597,6 +597,14 @@
       ]
     },
     {
+      "collectionGroup": "topics",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "videoCount", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "resolution_jobs",
       "queryScope": "COLLECTION",
       "fields": [
@@ -619,6 +627,39 @@
         { "fieldPath": "channelId", "order": "ASCENDING" },
         { "fieldPath": "userId", "order": "ASCENDING" },
         { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "video_stats_hourly",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "videoId", "order": "ASCENDING" },
+        { "fieldPath": "hourKey", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "video_stats_hourly",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "videoId", "order": "ASCENDING" },
+        { "fieldPath": "hourKey", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "payout_requests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "channelId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "payout_requests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "channelId", "order": "ASCENDING" },
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     }
   ],

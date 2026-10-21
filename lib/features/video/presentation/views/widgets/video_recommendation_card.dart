@@ -35,9 +35,11 @@ class RecommendationVideoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasPlayable = VideoVisibilityPolicy.hasPlayableMedia(video);
     final isExplicitlyHidden = video.isDraft ||
+        video.isRejected ||
         video.status == VideoStatus.deleted ||
         video.status == VideoStatus.rejected ||
         video.visibility.trim().toLowerCase() == 'draft' ||
+        video.visibility.trim().toLowerCase() == 'rejected' ||
         (video.isPrivate && !VideoVisibilityPolicy.isOwner(video)) ||
         !hasPlayable;
 

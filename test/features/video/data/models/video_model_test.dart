@@ -195,5 +195,86 @@ void main() {
       expect(serialized['label'], '1080p');
       expect(serialized['width'], 1920);
     });
+
+    group('Moderation Resubmission Limits', () {
+      test('defaults resubmitCount to 0 and allows resubmissions for rejected video', () {
+        final map = Map<String, dynamic>.from(validVideoMap)..['status'] = 'rejected';
+        final video = Video.fromMap(map, 'test-resubmit-0');
+        expect(video.resubmitCount, 0);
+        expect(video.isRejected, isTrue);
+        expect(video.canResubmit, isTrue);
+        expect(video.remainingResubmissions, 2);
+        expect(video.hasReachedMaxResubmissions, isFalse);
+      });
+
+      test('resubmitCount 1 allows 1 remaining resubmission for rejected video', () {
+        final map = Map<String, dynamic>.from(validVideoMap)
+          ..['status'] = 'rejected'
+          ..['resubmitCount'] = 1;
+        final video = Video.fromMap(map, 'test-resubmit-1');
+        expect(video.resubmitCount, 1);
+        expect(video.isRejected, isTrue);
+        expect(video.canResubmit, isTrue);
+        expect(video.remainingResubmissions, 1);
+        expect(video.hasReachedMaxResubmissions, isFalse);
+      });
+
+      test('non-rejected video cannot be resubmitted', () {
+        final readyVideo = Video.fromMap(validVideoMap, 'test-ready');
+        expect(readyVideo.isRejected, isFalse);
+        expect(readyVideo.canResubmit, isFalse);
+      });
+
+      test('resubmitCount 2 or greater blocks further resubmissions (max 2 limit)', () {
+        final map = Map<String, dynamic>.from(validVideoMap)
+          ..['status'] = 'rejected'
+          ..['resubmitCount'] = 2;
+        final video = Video.fromMap(map, 'test-resubmit-2');
+        expect(video.resubmitCount, 2);
+        expect(video.canResubmit, isFalse);
+        expect(video.remainingResubmissions, 0);
+        expect(video.hasReachedMaxResubmissions, isTrue);
+
+        final mapOver = Map<String, dynamic>.from(validVideoMap)
+          ..['status'] = 'rejected'
+          ..['resubmitCount'] = 3;
+        final videoOver = Video.fromMap(mapOver, 'test-resubmit-3');
+        expect(videoOver.canResubmit, isFalse);
+        expect(videoOver.remainingResubmissions, 0);
+        expect(videoOver.hasReachedMaxResubmissions, isTrue);
+      });
+
+      test('parses resubmitCount from moderation map if present', () {
+        final map = Map<String, dynamic>.from(validVideoMap)
+          ..['moderation'] = {'status': 'rejected', 'resubmitCount': 1};
+        final video = Video.fromMap(map, 'test-resubmit-mod');
+        expect(video.resubmitCount, 1);
+        expect(video.remainingResubmissions, 1);
+      });
+
+      test('serializes resubmitCount in toMap()', () {
+        final map = Map<String, dynamic>.from(validVideoMap)..['resubmitCount'] = 1;
+        final video = Video.fromMap(map, 'test-resubmit-ser');
+        final output = video.toMap();
+        expect(output['resubmitCount'], 1);
+      });
+
+      test('isRejected accurately reflects status', () {
+        final rejectedVideo = Video.fromMap(
+          Map<String, dynamic>.from(validVideoMap)
+            ..['status'] = 'rejected',
+          'test-rejected',
+        );
+        expect(rejectedVideo.isRejected, isTrue);
+
+        final pendingVideo = Video.fromMap(
+          Map<String, dynamic>.from(validVideoMap)
+            ..['status'] = 'pending_review'
+            ..['resubmitCount'] = 1,
+          'test-pending',
+        );
+        expect(pendingVideo.isRejected, isFalse);
+      });
+    });
   });
 }

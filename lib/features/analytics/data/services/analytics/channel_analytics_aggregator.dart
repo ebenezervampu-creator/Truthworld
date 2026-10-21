@@ -123,10 +123,13 @@ class ChannelAnalyticsAggregator {
     var subViews = 0;
     var nonSubViews = 0;
     var subGained = 0;
+    var subLost = 0;
+    var returning = 0;
     var urban = 0;
     var rural = 0;
     final stateTraffic = <String, int>{};
     final cityTraffic = <String, int>{};
+    final countryTraffic = <String, int>{};
     final trafficSources = <String, int>{};
     final videoIds = <String>{};
     final dailySubscribers = <DateTime, int>{};
@@ -138,6 +141,8 @@ class ChannelAnalyticsAggregator {
       subViews += day.subscriberViews;
       nonSubViews += day.nonSubscriberViews;
       subGained += day.subscribersGained;
+      subLost += day.subscribersLost;
+      returning += day.returningViewers;
       urban += day.urbanViewers;
       rural += day.ruralViewers;
       videoIds.add(day.videoId);
@@ -148,6 +153,7 @@ class ChannelAnalyticsAggregator {
 
       VideoAnalyticsAggregator.mergeInto(stateTraffic, day.stateTraffic);
       VideoAnalyticsAggregator.mergeInto(cityTraffic, day.cityTraffic);
+      VideoAnalyticsAggregator.mergeInto(countryTraffic, day.countryTraffic);
       VideoAnalyticsAggregator.mergeInto(trafficSources, day.trafficSourceBreakdown);
     }
 
@@ -161,6 +167,12 @@ class ChannelAnalyticsAggregator {
     final cityPct = <String, double>{};
     for (final e in cityTraffic.entries) {
       cityPct[e.key] = cityTotal > 0 ? (e.value / cityTotal) * 100 : 0;
+    }
+
+    final countryTotal = countryTraffic.values.fold<int>(0, (a, b) => a + b);
+    final countryPct = <String, double>{};
+    for (final e in countryTraffic.entries) {
+      countryPct[e.key] = countryTotal > 0 ? (e.value / countryTotal) * 100 : 0;
     }
 
     return ChannelAnalyticsSnapshot(
@@ -177,6 +189,8 @@ class ChannelAnalyticsAggregator {
       stateTrafficPercentage: statePct,
       cityTraffic: cityTraffic,
       cityTrafficPercentage: cityPct,
+      countryTraffic: countryTraffic,
+      countryTrafficPercentage: countryPct,
       urbanViewers: urban,
       ruralViewers: rural,
       trafficSourceBreakdown: trafficSources,
@@ -186,7 +200,9 @@ class ChannelAnalyticsAggregator {
       totalEngagementScore: 0,
       subscriberViews: subViews,
       nonSubscriberViews: nonSubViews,
+      returningViewers: returning,
       subscribersGained: subGained,
+      subscribersLost: subLost,
       liveViewerCount: liveViewerCount,
     );
   }

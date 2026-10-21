@@ -70,8 +70,10 @@ mixin SessionCommentManagementMixin on BaseController {
           ? (authService.userChannel?.handle.isNotEmpty == true
                 ? authService.userChannel!.handle
                 : authService.userChannel!.name)
-          : authService.activeDisplayName;
-      final finalChannelProfilePicUrl = authService.activePhotoUrl;
+          : null;
+      final finalChannelProfilePicUrl = hasChannel
+          ? authService.userChannel?.avatarUrl
+          : null;
 
       final comment = Comment(
         id: docRef.id,
@@ -166,8 +168,10 @@ mixin SessionCommentManagementMixin on BaseController {
           ? (authService.userChannel?.handle.isNotEmpty == true
                 ? authService.userChannel!.handle
                 : authService.userChannel!.name)
-          : authService.activeDisplayName;
-      final finalChannelProfilePicUrl = authService.activePhotoUrl;
+          : null;
+      final finalChannelProfilePicUrl = hasChannel
+          ? authService.userChannel?.avatarUrl
+          : null;
 
       final reply = Reply(
         id: docRef.id,

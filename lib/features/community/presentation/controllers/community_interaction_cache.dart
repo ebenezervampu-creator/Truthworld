@@ -83,11 +83,31 @@ class CommunityInteractionCache {
     }
   }
 
-  /// Checks if a post should be hidden based on hidden posts, muted channels, or reported posts.
-  static bool isHidden(String postId, String channelId) {
+  /// Checks if a specific post was marked hidden by the user in feeds.
+  static bool isPostHidden(String postId) {
+    return _hiddenPostIds.contains(postId);
+  }
+
+  /// Checks if a channel's community posts were muted by the user in feeds.
+  static bool isChannelMuted(String channelId) {
+    return _mutedChannelIds.contains(channelId);
+  }
+
+  /// Checks if a post has been reported by the user.
+  static bool isReported(String postId) {
+    return _reportedPostIds.contains(postId);
+  }
+
+  /// Checks if a post should be filtered from recommendation/discovery feeds.
+  static bool isFeedHidden(String postId, String channelId) {
     return _hiddenPostIds.contains(postId) ||
         _mutedChannelIds.contains(channelId) ||
         _reportedPostIds.contains(postId);
+  }
+
+  /// Backward-compatible alias for isFeedHidden.
+  static bool isHidden(String postId, String channelId) {
+    return isFeedHidden(postId, channelId);
   }
 
   /// Checks if a post is saved by the user.
@@ -103,6 +123,16 @@ class CommunityInteractionCache {
   /// Optimistically marks a channel as muted.
   static void markChannelMuted(String channelId) {
     _mutedChannelIds.add(channelId);
+  }
+
+  /// Optimistically unmarks a post as hidden.
+  static void unmarkHidden(String postId) {
+    _hiddenPostIds.remove(postId);
+  }
+
+  /// Optimistically unmarks a channel as muted.
+  static void unmarkChannelMuted(String channelId) {
+    _mutedChannelIds.remove(channelId);
   }
 
   /// Optimistically marks a post as reported.

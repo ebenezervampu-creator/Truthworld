@@ -2,7 +2,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/services/video_sanitizer.dart';
+import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
@@ -406,22 +409,21 @@ class DownloadsPage extends GetView<DownloadsController> {
     final mainController = Get.find<MainController>();
 
     return Obx(() {
-      final allVideos = mainController.filteredVideos.isNotEmpty
+      final rawCandidates = mainController.filteredVideos.isNotEmpty
           ? mainController.filteredVideos
           : mainController.videos;
+
+      // Filter exclusively to approved, public, recommended videos (excluding moderation rejected)
+      final cleanVideos = VideoSanitizer.sanitizeForRecommendation(rawCandidates);
 
       final downloadedIds = controller.videos.map((v) => v.id).toSet();
       final downloadingIds = controller.activeDownloads.keys.toSet();
       final excludedIds = {...downloadedIds, ...downloadingIds};
 
-      final recommended = allVideos
+      final displayList = cleanVideos
           .where((v) => !excludedIds.contains(v.id))
           .take(10)
           .toList();
-
-      final displayList = recommended.isNotEmpty
-          ? recommended
-          : allVideos.where((v) => !downloadedIds.contains(v.id)).take(10).toList();
 
       if (displayList.isEmpty) {
         return const SizedBox.shrink();
@@ -488,6 +490,16 @@ class DownloadsPage extends GetView<DownloadsController> {
     BuildContext context, {
     bool isAudioOnly = false,
   }) async {
+    if (video.isRejected ||
+        video.status == VideoStatus.rejected ||
+        !video.isApprovedByGeminiOrManual ||
+        !VideoVisibilityPolicy.canViewVideo(video)) {
+      AppSnackbar.warning(
+        'This video is unavailable for offline viewing.',
+      );
+      return;
+    }
+
     if (isAudioOnly) {
       await controller.downloadAudioOffline(
         context: context,
@@ -798,8 +810,8 @@ class _DownloadVideoListCard extends StatelessWidget {
   }
 }
 
-class _RecommendedDownloadCard extends StatefulWidget {
-  const _RecommendedDownloadCard({
+class _RecommendedDownloadCard extends StatelessWidget {
+  _RecommendedDownloadCard({
     required this.video,
     required this.isDownloaded,
     required this.onDownload,
@@ -811,34 +823,34 @@ class _RecommendedDownloadCard extends StatefulWidget {
   final bool isDownloaded;
   final bool isDownloading;
   final Future<void> Function() onDownload;
-
-  @override
-  State<_RecommendedDownloadCard> createState() =>
-      _RecommendedDownloadCardState();
-}
-
-class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
-  bool _isInitiating = false;
+  final RxBool _isInitiating = false.obs;
 
   @override
   Widget build(BuildContext context) {
-    final active = widget.isDownloading || _isInitiating;
-
     return InkWell(
       onTap: () async {
-        if (widget.isDownloaded) {
+        if (video.isRejected ||
+            video.status == VideoStatus.rejected ||
+            !video.isApprovedByGeminiOrManual ||
+            !VideoVisibilityPolicy.canViewVideo(video)) {
+          AppSnackbar.warning(
+            'This video is unavailable for playback.',
+          );
+          return;
+        }
+        if (isDownloaded) {
           final downloadsCtrl = Get.isRegistered<DownloadsController>()
               ? Get.find<DownloadsController>()
               : Get.put(DownloadsController());
           var offline = downloadsCtrl.videos
-              .firstWhereOrNull((v) => v.id == widget.video.id);
-          offline ??= await downloadsCtrl.getOfflineVideo(widget.video.id);
+              .firstWhereOrNull((v) => v.id == video.id);
+          offline ??= await downloadsCtrl.getOfflineVideo(video.id);
           if (offline != null) {
             downloadsCtrl.playVideo(offline);
             return;
           }
         }
-        MiniplayerNavigationHelper.navigateToVideoScreen(video: widget.video);
+        MiniplayerNavigationHelper.navigateToVideoScreen(video: video);
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -850,7 +862,7 @@ class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
               child: Stack(
                 children: [
                   CachedNetworkImage(
-                    imageUrl: widget.video.thumbnailUrl,
+                    imageUrl: video.thumbnailUrl,
                     width: 140,
                     height: 80,
                     fit: BoxFit.cover,
@@ -859,7 +871,7 @@ class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
                     errorWidget: (context, url, error) =>
                         Container(color: AppColors.bgSurfaceHover),
                   ),
-                  if (widget.video.duration.isNotEmpty)
+                  if (video.duration.isNotEmpty)
                     Positioned(
                       bottom: 4,
                       right: 4,
@@ -873,7 +885,7 @@ class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          widget.video.duration,
+                          video.duration,
                           style: const TextStyle(
                             color: AppColors.textPrimary,
                             fontSize: 10,
@@ -891,7 +903,7 @@ class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    widget.video.title,
+                    video.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -902,7 +914,7 @@ class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${widget.video.channelName} • ${FormatUtils.formatCount(widget.video.views)} ${widget.video.views == 1 ? 'view' : 'views'}',
+                    '${video.channelName} • ${FormatUtils.formatCount(video.views)} ${video.views == 1 ? 'view' : 'views'}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -914,38 +926,37 @@ class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
               ),
             ),
             const SizedBox(width: 8),
-            IconButton(
-              onPressed: (widget.isDownloaded || active)
-                  ? null
-                  : () async {
-                      if (mounted) {
-                        setState(() => _isInitiating = true);
-                      }
-                      try {
-                        await widget.onDownload();
-                      } finally {
-                        if (mounted) {
-                          setState(() => _isInitiating = false);
+            Obx(() {
+              final active = isDownloading || _isInitiating.value;
+              return IconButton(
+                onPressed: (isDownloaded || active)
+                    ? null
+                    : () async {
+                        _isInitiating.value = true;
+                        try {
+                          await onDownload();
+                        } finally {
+                          _isInitiating.value = false;
                         }
-                      }
-                    },
-              icon: active
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.brand,
+                      },
+                icon: active
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.brand,
+                        ),
+                      )
+                    : Icon(
+                        isDownloaded
+                            ? Icons.download_done_rounded
+                            : Icons.download_for_offline_outlined,
+                        color: AppColors.textPrimary,
+                        size: 26,
                       ),
-                    )
-                  : Icon(
-                      widget.isDownloaded
-                          ? Icons.download_done_rounded
-                          : Icons.download_for_offline_outlined,
-                      color: AppColors.textPrimary,
-                      size: 26,
-                    ),
-            ),
+              );
+            }),
           ],
         ),
       ),

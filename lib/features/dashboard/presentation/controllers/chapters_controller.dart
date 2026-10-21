@@ -55,7 +55,9 @@ class ChaptersController extends BaseController with ContentValidationMixin {
 
   Future<void> _initializeContext() async {
     try {
-      setViewState(ViewState.loading);
+      if (videos.isEmpty) {
+        setViewState(ViewState.loading);
+      }
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
         setError('User not authenticated');

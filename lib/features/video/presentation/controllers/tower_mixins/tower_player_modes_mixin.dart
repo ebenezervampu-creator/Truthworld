@@ -329,8 +329,8 @@ mixin TowerPlayerModesMixin on GetxController {
   void onOuterChewieChanged() {}
 
   Future<void> togglePiP() async {
-    bool hasNext = true;
-    bool hasPrev = false;
+    var hasNext = true;
+    var hasPrev = false;
     try {
       final dyn = this as dynamic;
       hasNext = dyn.hasNextVideo as bool? ?? true;
@@ -357,8 +357,8 @@ mixin TowerPlayerModesMixin on GetxController {
   }
 
   void updateAutoPip(bool isPlaying) {
-    bool hasNext = true;
-    bool hasPrev = false;
+    var hasNext = true;
+    var hasPrev = false;
     try {
       final dyn = this as dynamic;
       hasNext = dyn.hasNextVideo as bool? ?? true;

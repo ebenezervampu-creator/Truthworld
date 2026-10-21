@@ -18,17 +18,33 @@ mixin AdSocialMixin on AdCampaignMixin {
   StreamSubscription? _likesSubscription;
   StreamSubscription? _savesSubscription;
 
-  void clearUserInteractions() {
-    _likesSubscription?.cancel();
+  Future<void> clearUserInteractions() async {
+    final likesSub = _likesSubscription;
+    final savesSub = _savesSubscription;
     _likesSubscription = null;
-    _savesSubscription?.cancel();
     _savesSubscription = null;
+
+    final cancellations = <Future<void>>[];
+    if (likesSub != null) cancellations.add(likesSub.cancel());
+    if (savesSub != null) cancellations.add(savesSub.cancel());
+
+    if (cancellations.isNotEmpty) {
+      await Future.wait(cancellations);
+    }
+
     likedAdIds.clear();
     savedAdIds.clear();
   }
 
+  void dispose() {
+    _likesSubscription?.cancel();
+    _savesSubscription?.cancel();
+    _likesSubscription = null;
+    _savesSubscription = null;
+  }
+
   void listenToUserInteractions() {
-    clearUserInteractions();
+    unawaited(clearUserInteractions());
 
     final uid = AuthService.to.uid;
     if (uid.isEmpty) return;
@@ -44,7 +60,7 @@ mixin AdSocialMixin on AdCampaignMixin {
             );
           },
           onError: (err) {
-            if (err.toString().contains('permission-denied')) {
+            if (err.toString().toLowerCase().contains('permission-denied')) {
               debugPrint(
                 '[AdService] ad_likes stream restricted by Firestore security rules. Local memory state active.',
               );
@@ -65,7 +81,7 @@ mixin AdSocialMixin on AdCampaignMixin {
             );
           },
           onError: (err) {
-            if (err.toString().contains('permission-denied')) {
+            if (err.toString().toLowerCase().contains('permission-denied')) {
               debugPrint(
                 '[AdService] ad_saves stream restricted by Firestore security rules. Local memory state active.',
               );

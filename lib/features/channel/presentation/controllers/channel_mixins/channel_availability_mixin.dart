@@ -62,7 +62,7 @@ mixin ChannelAvailabilityMixin on ChannelControllerBase {
       '${normalized}101',
       '${normalized}_vsp',
       '${normalized}777',
-      'real_${normalized}',
+      'real_$normalized',
     ];
     final validSuggestions = candidates
         .where((s) => s.length <= ChannelControllerBase.maxCustomUrlLength)
@@ -199,7 +199,7 @@ mixin ChannelAvailabilityMixin on ChannelControllerBase {
       // Discard stale responses
       if (requestId != _channelNameRequestId) return;
 
-      bool isTaken = false;
+      var isTaken = false;
       if (snapshot.docs.isNotEmpty) {
         final docData = snapshot.docs.first.data();
         final status = (docData['status'] as String? ?? 'active').toLowerCase();
@@ -324,7 +324,7 @@ mixin ChannelAvailabilityMixin on ChannelControllerBase {
       // Discard stale responses
       if (requestId != _customUrlRequestId) return;
 
-      bool isTaken = false;
+      var isTaken = false;
 
       if (handleDoc.exists) {
         final data = handleDoc.data();

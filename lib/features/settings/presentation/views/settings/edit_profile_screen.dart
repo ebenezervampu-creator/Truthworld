@@ -10,7 +10,7 @@ import 'package:truthworld/core/services/location/verified_location.dart';
 import 'package:truthworld/features/settings/presentation/controllers/edit_profile_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Dedicated screen for editing user profile details, avatar, handle, age, and location.
+/// Dedicated screen for editing user profile details, avatar, display name, bio, age, and location.
 class EditProfileScreen extends GetView<EditProfileController> {
   const EditProfileScreen({super.key});
 
@@ -176,36 +176,7 @@ class EditProfileScreen extends GetView<EditProfileController> {
             ),
             const SizedBox(height: 16),
 
-            // Handle
-            TextField(
-              controller: controller.handleController,
-              maxLength: ContentValidator.defaultMaxHandleLength,
-              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
-              inputFormatters: TruthworldTextInputFormatters.withLimit(
-                ContentValidator.defaultMaxHandleLength,
-              ),
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: InputDecoration(
-                labelText: 'Handle',
-                labelStyle: const TextStyle(color: AppColors.textSecondary),
-                prefixText: '@',
-                prefixStyle: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.bold,
-                ),
-                filled: true,
-                fillColor: AppColors.bgInput,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.bgDivider),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.white),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
+
 
             // Bio
             TextField(

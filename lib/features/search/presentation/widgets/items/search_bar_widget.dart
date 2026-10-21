@@ -43,7 +43,7 @@ class SearchBarController extends GetxController {
   }
 }
 
-/// Search bar widget with English text formatter, voice search trigger, and GetX reactivity.
+/// Search bar widget with multi-language text formatter, voice search trigger, and GetX reactivity.
 class SearchBar extends StatelessWidget {
   const SearchBar({
     required this.controller,

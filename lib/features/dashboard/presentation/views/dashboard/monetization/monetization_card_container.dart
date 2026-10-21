@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
-import 'package:truthworld/theme/tw_radius.dart';
-
 /// Reusable card container used throughout the Monetization screens.
+/// Styled with exact Library theme cardColor and subtle border.
 class MonetizationCardContainer extends StatelessWidget {
   const MonetizationCardContainer({
     required this.child,
@@ -18,33 +17,26 @@ class MonetizationCardContainer extends StatelessWidget {
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isMobile = width < 600;
-    final effectivePadding = padding ?? EdgeInsets.all(isMobile ? 12.0 : 20.0);
+    final effectivePadding = padding ?? EdgeInsets.all(isMobile ? 14.0 : 20.0);
 
     return Container(
       padding: effectivePadding,
       decoration: BoxDecoration(
-        color: AppColors.bgSurface,
-        borderRadius: TWRadius.xlBorderRadius,
+        color: const Color(0xFF1E1E1E), // Exact Library cardColor
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.bgDivider),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
       ),
       child: child,
     );
   }
 }
 
-/// Reusable section title bar with a colored vertical accent pill.
+/// Reusable section title bar with clean typography matching Library page.
 class MonetizationSectionTitle extends StatelessWidget {
   const MonetizationSectionTitle({
     required this.title,
     super.key,
-    this.accentColor = AppColors.brand,
+    this.accentColor = Colors.white,
     this.trailing,
   });
 
@@ -58,28 +50,13 @@ class MonetizationSectionTitle extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Expanded(
-          child: Row(
-            children: [
-              Container(
-                width: 4,
-                height: 18,
-                decoration: BoxDecoration(
-                  color: accentColor,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ),
-            ],
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
           ),
         ),
         ?trailing,

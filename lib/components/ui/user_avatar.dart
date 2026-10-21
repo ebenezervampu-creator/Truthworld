@@ -47,11 +47,8 @@ class UserAvatar extends StatelessWidget {
           final userName = currentUser.displayName;
 
           final isCurrentUserDetails =
-              (photoUrl == userPhoto) ||
-              (displayName == userName) ||
-              (displayName == 'User') ||
-              (displayName == 'Anonymous User') ||
-              (photoUrl == null && displayName == null);
+              (photoUrl != null && userPhoto != null && photoUrl == userPhoto) ||
+              (displayName != null && userName != null && displayName == userName);
 
           if (isCurrentUserDetails) {
             if (authService.activePhotoUrl.isNotEmpty) {
@@ -71,12 +68,24 @@ class UserAvatar extends StatelessWidget {
       );
     }
 
-    final initial = (effectiveDisplayName != null &&
-            effectiveDisplayName.isNotEmpty &&
-            effectiveDisplayName != 'User' &&
-            effectiveDisplayName != 'Anonymous User')
-        ? effectiveDisplayName[0].toUpperCase()
-        : '';
+    final cleanDisplayName = effectiveDisplayName
+        ?.replaceFirst(RegExp('^@+'), '')
+        .trim();
+    var initial = '';
+    if (cleanDisplayName != null &&
+        cleanDisplayName.isNotEmpty &&
+        cleanDisplayName != 'User' &&
+        cleanDisplayName != 'Anonymous User') {
+      final match = RegExp('[a-zA-Z0-9]').firstMatch(cleanDisplayName);
+      if (match != null) {
+        initial = match.group(0)!.toUpperCase();
+      } else {
+        final firstChar = cleanDisplayName.characters.first;
+        if (!RegExp(r'[@#\$%^&*()_+=\[\]{}|\\:;"<>,.?/~`]').hasMatch(firstChar)) {
+          initial = firstChar.toUpperCase();
+        }
+      }
+    }
 
     return Container(
       width: radius * 2,

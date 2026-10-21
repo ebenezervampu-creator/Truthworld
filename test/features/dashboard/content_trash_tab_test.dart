@@ -77,7 +77,7 @@ void main() {
 
       // Verify all 5 tab texts exist
       expect(find.text('Videos'), findsOneWidget);
-      expect(find.text('Posts'), findsOneWidget);
+      expect(find.text('Community'), findsOneWidget);
       expect(find.text('Drafts'), findsOneWidget);
       expect(find.text('Scheduled'), findsOneWidget);
       expect(find.text('Trash'), findsOneWidget);

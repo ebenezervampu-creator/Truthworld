@@ -10,6 +10,8 @@ class DashboardHeader extends StatelessWidget {
   final TextEditingController searchController;
   final ValueChanged<String>? onSearchChanged;
   final VoidCallback? onSearchClear;
+  final VoidCallback? onRefresh;
+  final bool isRefreshing;
 
   const DashboardHeader({
     required this.isDarkMode,
@@ -19,6 +21,8 @@ class DashboardHeader extends StatelessWidget {
     required this.searchController,
     this.onSearchChanged,
     this.onSearchClear,
+    this.onRefresh,
+    this.isRefreshing = false,
     super.key,
   });
 
@@ -56,42 +60,98 @@ class DashboardHeader extends StatelessWidget {
                 ),
               ],
             ),
-            if (channel != null)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E1E1E),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.bgDivider),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.verified_rounded,
-                      color: AppColors.textPrimary,
-                      size: 16,
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (channel != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 6,
                     ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        channelName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontFamily: TWTypography.uiFamily,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E1E1E),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.bgDivider),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.verified_rounded,
                           color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            channelName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (onRefresh != null) ...[
+                  const SizedBox(width: 8),
+                  Material(
+                    color: const Color(0xFF1E1E1E),
+                    borderRadius: BorderRadius.circular(20),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: isRefreshing ? null : onRefresh,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppColors.bgDivider),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isRefreshing)
+                              const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            else
+                              const Icon(
+                                Icons.refresh_rounded,
+                                color: AppColors.textPrimary,
+                                size: 16,
+                              ),
+                            const SizedBox(width: 6),
+                            const Text(
+                              'Refresh',
+                              style: TextStyle(
+                                fontFamily: TWTypography.uiFamily,
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  ],
-                ),
-              ),
+                  ),
+                ],
+              ],
+            ),
           ],
         ),
         if (isMobile) ...[

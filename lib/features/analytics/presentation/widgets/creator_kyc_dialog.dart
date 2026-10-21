@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -82,10 +81,10 @@ class CreatorKycDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: const Color(0xFF18181B),
+      backgroundColor: const Color(0xFF1E1E1E),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: Color(0xFF27272A)),
+        side: const BorderSide(color: AppColors.bgDivider),
       ),
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: ConstrainedBox(
@@ -105,8 +104,8 @@ class CreatorKycDialog extends StatelessWidget {
                       children: [
                         Container(
                           padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                          decoration: const BoxDecoration(
+                            color: AppColors.bgSurfaceHover,
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
@@ -155,9 +154,9 @@ class CreatorKycDialog extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF3B82F6).withValues(alpha: 0.08),
+                  color: AppColors.bgSurfaceHover,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.2)),
+                  border: Border.all(color: AppColors.bgDivider),
                 ),
                 child: const Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -168,7 +167,7 @@ class CreatorKycDialog extends StatelessWidget {
                       child: Text(
                         'Financial regulations require PAN and identity proof before releasing creator payouts. All documents are encrypted and accessible only to verification compliance officers.',
                         style: TextStyle(
-                          color: Color(0xFFBFDBFE),
+                          color: AppColors.textSecondary,
                           fontSize: 11,
                           height: 1.4,
                         ),
@@ -326,24 +325,24 @@ class CreatorKycDialog extends StatelessWidget {
                                 height: 18,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: Colors.white,
+                                  color: Colors.black,
                                 ),
                               )
                             : const Icon(
                                 Icons.check_circle_outline_rounded,
-                                color: Colors.white,
+                                color: Colors.black,
                                 size: 18,
                               ),
                         label: Text(
                           isSubmitting ? 'Uploading Documents ($progress%)...' : 'Submit for Verification',
                           style: const TextStyle(
-                            color: Colors.white,
+                            color: Colors.black,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2563EB),
-                          foregroundColor: Colors.white,
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.black,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
@@ -396,7 +395,7 @@ class CreatorKycDialog extends StatelessWidget {
         (isPan
             ? [
                 LengthLimitingTextInputFormatter(10),
-                FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+                FilteringTextInputFormatter.allow(RegExp('[a-zA-Z0-9]')),
               ]
             : TruthworldTextInputFormatters.internationalWithLimit(effectiveLimit));
 
@@ -412,10 +411,18 @@ class CreatorKycDialog extends StatelessWidget {
         hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
         prefixIcon: Icon(icon, color: Colors.white, size: 18),
         filled: true,
-        fillColor: const Color(0xFF27272A),
+        fillColor: AppColors.bgSurfaceHover,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide.none,
+          borderSide: const BorderSide(color: AppColors.bgDivider),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.bgDivider),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Colors.white),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       ),
@@ -447,8 +454,9 @@ class CreatorKycDialog extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFF27272A),
+            color: AppColors.bgSurfaceHover,
             borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.bgDivider),
           ),
           child: Row(
             children: [
@@ -474,13 +482,14 @@ class CreatorKycDialog extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFF27272A),
+        color: AppColors.bgSurfaceHover,
         borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<IdentityProofType>(
           value: selectedProofType.value,
-          dropdownColor: const Color(0xFF27272A),
+          dropdownColor: const Color(0xFF1E1E1E),
           isExpanded: true,
           icon: const Icon(Icons.arrow_drop_down_rounded, color: Colors.white),
           items: IdentityProofType.values.map((type) {
@@ -515,9 +524,9 @@ class CreatorKycDialog extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: const Color(0xFF10B981).withValues(alpha: 0.08),
+          color: AppColors.bgSurfaceHover,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
+          border: Border.all(color: AppColors.bgDivider),
         ),
         child: Row(
           children: [
@@ -570,7 +579,7 @@ class CreatorKycDialog extends StatelessWidget {
                   ),
                   const Text(
                     'Ready for verification upload',
-                    style: TextStyle(color: Color(0xFF10B981), fontSize: 11),
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
                   ),
                 ],
               ),
@@ -592,9 +601,9 @@ class CreatorKycDialog extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
         decoration: BoxDecoration(
-          color: const Color(0xFF27272A),
+          color: AppColors.bgSurfaceHover,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFF3F3F46)),
+          border: Border.all(color: AppColors.bgDivider),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -625,8 +634,9 @@ class CreatorKycDialog extends StatelessWidget {
         return Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: const Color(0xFF27272A),
+            color: AppColors.bgSurfaceHover,
             borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.bgDivider),
           ),
           child: const Row(
             children: [
@@ -651,15 +661,9 @@ class CreatorKycDialog extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isHighConfidence
-              ? const Color(0xFF10B981).withValues(alpha: 0.1)
-              : const Color(0xFFF59E0B).withValues(alpha: 0.1),
+          color: AppColors.bgSurfaceHover,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isHighConfidence
-                ? const Color(0xFF10B981).withValues(alpha: 0.3)
-                : const Color(0xFFF59E0B).withValues(alpha: 0.3),
-          ),
+          border: Border.all(color: AppColors.bgDivider),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -675,8 +679,8 @@ class CreatorKycDialog extends StatelessWidget {
                 Expanded(
                   child: Text(
                     isHighConfidence ? 'Bank Name Match: High Confidence' : 'Bank Name Discrepancy Check',
-                    style: TextStyle(
-                      color: isHighConfidence ? const Color(0xFFD1FAE5) : const Color(0xFFFEF3C7),
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),

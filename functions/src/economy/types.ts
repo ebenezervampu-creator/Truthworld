@@ -1,15 +1,36 @@
 export type PayoutStatus = "pending" | "processing" | "paid" | "failed" | "held";
 
+/**
+ * ⏳ TWO-PHASE SETTLEMENT LIFECYCLE
+ * - "clearing": In-flight transaction held in rolling anti-chargeback escrow (T+7 days).
+ * - "cleared": Fully settled funds unlocked and ready for cash payout.
+ * - "held": Manually or automatically paused pending fraud/risk review.
+ * - "disputed": Subject to bank chargeback or dispute clawback.
+ */
+export type SettlementStatus = "clearing" | "cleared" | "held" | "disputed";
+
+/**
+ * Industry standard anti-chargeback clearing window for direct fan payments (Superchats, Memberships).
+ * Standard across Stripe Connect, Twitch, Patreon (T+7 rolling clearing hold).
+ */
+export const SETTLEMENT_CLEARING_DAYS = 7;
+export const SETTLEMENT_CLEARING_MS = SETTLEMENT_CLEARING_DAYS * 24 * 60 * 60 * 1000;
+
 export interface RevenueStatement {
   id: string;          // month_userId (e.g. 2026-04_user123)
   userId: string;
   month: string;       // YYYY-MM
   grossAdsRevenue: number;
   grossSubsRevenue: number;
+  grossPremiumSubsRevenue?: number;
   platformFee: number;
   infrastructureCosts: number; // For Custom channels
   creatorShare: number;
+  withdrawableShare?: number;
+  paidOutShare?: number;
   payoutStatus: PayoutStatus;
+  status?: "accruing" | "finalized";
+  finalizedAt?: number;
   payoutMethod?: string;
   paidAt?: number;
   createdAt: number;
@@ -18,6 +39,7 @@ export interface RevenueStatement {
     totalViews: number;
     avgRPM: number;
     trustBonus: number;
+    [key: string]: any;
   };
 }
 
@@ -84,4 +106,3 @@ export const TYPE_REVENUE_SHARE = {
   standard: { ads: 0.70, premiumSubs: 0.70, superchats: 1.00, members: 1.00 },
   custom: { ads: 1.00, premiumSubs: 1.00, superchats: 1.00, members: 1.00 },
 };
-

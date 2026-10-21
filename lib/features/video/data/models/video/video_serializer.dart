@@ -69,6 +69,7 @@ class VideoSerializer {
       'coinBattlePairVideoId': video.coinBattlePairVideoId,
       'coinBattleStance': video.coinBattleStance,
       'moderationSummary': video.moderationSummary,
+      'resubmitCount': video.resubmitCount,
       if (video.embedding != null) 'embedding': video.embedding,
     };
   }

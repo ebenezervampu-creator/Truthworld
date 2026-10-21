@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:multi_lang_bad_words_filter/multi_lang_bad_words_filter.dart';
 import 'package:profanity_filter/profanity_filter.dart';
+import 'package:truthworld/core/services/moderation/multilingual_profanity_lexicon.dart';
 import 'package:truthworld/data/models/channel.dart';
 
 /// Result of a content validation check.
@@ -229,6 +230,7 @@ class ContentValidator {
   static String cleanProfanity(String text) {
     if (text.isEmpty) return text;
     var cleaned = _multiLangFilter.filterText(text);
+    cleaned = MultilingualProfanityLexicon.censor(cleaned);
     cleaned = _profanityFilter.censor(cleaned);
     final allBadWords = {
       ..._profanityFilter.wordsToFilterOutList,
@@ -250,6 +252,12 @@ class ContentValidator {
     final normalized = normalizeObfuscation(raw);
     final collapsed = collapseRepeatedChars(normalized);
 
+    if (MultilingualProfanityLexicon.hasProfanity(raw) ||
+        MultilingualProfanityLexicon.hasProfanity(normalized) ||
+        MultilingualProfanityLexicon.hasProfanity(collapsed)) {
+      return true;
+    }
+
     if (_profanityFilter.hasProfanity(raw) ||
         _profanityFilter.hasProfanity(normalized) ||
         _profanityFilter.hasProfanity(collapsed)) {
@@ -270,6 +278,13 @@ class ContentValidator {
     }
 
     return false;
+  }
+
+  /// Validates whether a given string is a valid HTTP or HTTPS URL.
+  static bool isValidHttpUrl(String? url) {
+    if (url == null || url.trim().isEmpty) return false;
+    final uri = Uri.tryParse(url.trim());
+    return uri != null && (uri.scheme == 'http' || uri.scheme == 'https') && uri.hasAuthority;
   }
 
   static TextInputFormatter get englishOnlyFormatter => TruthworldTextInputFormatters.englishOnly;
@@ -307,7 +322,7 @@ class ContentValidator {
     String text, {
     String fieldName = 'Content',
     bool checkPhoneNumbers = false,
-    bool checkEnglishOnly = true,
+    bool checkEnglishOnly = false,
     int? minLength,
     int? maxLength,
   }) {
@@ -337,7 +352,7 @@ class ContentValidator {
 
     final raw = text.trim();
 
-    // LAYER 0: English Language Only Check (skippable for user names/international identity)
+    // LAYER 0: English Language Only Check (disabled by default; all languages are allowed like YouTube)
     if (checkEnglishOnly && !isEnglishOnly(raw)) {
       return ContentValidationResult(
         isValid: false,
@@ -359,7 +374,16 @@ class ContentValidator {
       );
     }
 
-    // LAYER 2: Multi-Language Bad Words Filter
+    // LAYER 2: Multi-Language Bad Words & Native Script Lexicon Filter
+    if (MultilingualProfanityLexicon.hasProfanity(raw) ||
+        MultilingualProfanityLexicon.hasProfanity(normalized) ||
+        MultilingualProfanityLexicon.hasProfanity(collapsed)) {
+      return ContentValidationResult(
+        isValid: false,
+        message: 'Your $fieldName contains inappropriate or offensive content.',
+      );
+    }
+
     final multiFilteredRaw = _multiLangFilter.filterText(raw);
     final multiFilteredNorm = _multiLangFilter.filterText(normalized);
     final multiFilteredCol = _multiLangFilter.filterText(collapsed);
@@ -456,7 +480,7 @@ class ContentValidator {
     int? minLength,
     int? maxLength,
     bool checkPhoneNumbers = false,
-    bool checkEnglishOnly = true,
+    bool checkEnglishOnly = false,
   }) {
     return (value) {
       final text = value ?? '';
@@ -630,7 +654,7 @@ mixin ContentValidationMixin {
     String text, {
     String fieldName = 'Content',
     bool checkPhoneNumbers = false,
-    bool checkEnglishOnly = true,
+    bool checkEnglishOnly = false,
     int? minLength,
     int? maxLength,
   }) async {
@@ -649,7 +673,7 @@ mixin ContentValidationMixin {
     String text, {
     String fieldName = 'Content',
     bool checkPhoneNumbers = false,
-    bool checkEnglishOnly = true,
+    bool checkEnglishOnly = false,
     int? minLength,
     int? maxLength,
   }) {
@@ -689,22 +713,21 @@ mixin ContentValidationMixin {
       ContentValidator.profanitySanitizingFormatter;
 }
 
-/// A [TextInputFormatter] that restricts input strictly to English characters.
-///
-/// Permits standard English Latin letters (A-Z, a-z), digits (0-9), standard whitespace,
-/// and standard English punctuation / keyboard symbols. Non-English scripts and accents
-/// are immediately blocked upon typing or pasting.
-class EnglishOnlyTextInputFormatter extends FilteringTextInputFormatter {
-  EnglishOnlyTextInputFormatter({bool allowEmojis = true})
-      : super(
-          RegExp(
-            allowEmojis
-                ? r'''[a-zA-Z0-9\s!@#\$%^&*()_+\-=\[\]{}|;':",.<>/?`~’‘“”–—…\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}]'''
-                : r'''[a-zA-Z0-9\s!@#\$%^&*()_+\-=\[\]{}|;':",.<>/?`~’‘“”–—…]''',
-            unicode: true,
-          ),
-          allow: true,
-        );
+/// A [TextInputFormatter] that permits all characters and international scripts
+/// without restricting to English only (exactly like YouTube).
+/// Retained for backward compatibility.
+class EnglishOnlyTextInputFormatter extends TextInputFormatter {
+  EnglishOnlyTextInputFormatter({this.allowEmojis = true});
+
+  final bool allowEmojis;
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return newValue;
+  }
 }
 
 /// A [TextInputFormatter] that sanitizes and filters profanity as words are entered or pasted.
@@ -759,16 +782,17 @@ class TruthworldTextInputFormatters {
   static const TextInputFormatter profanityFilter =
       ProfanitySanitizingTextInputFormatter();
 
-  /// Standard formatters combination: English only and profanity sanitization.
+  /// Standard formatters combination: profanity sanitization.
+  /// All languages and international scripts are allowed across all text fields (like YouTube).
   static List<TextInputFormatter> get standard => [
-        englishOnly,
         profanityFilter,
       ];
 
   /// Standard formatters combination with length limiting and profanity sanitization.
+  /// All languages and international scripts are allowed across all text fields (like YouTube).
   static List<TextInputFormatter> withLimit(
     int maxLength, {
-    bool englishOnly = true,
+    bool englishOnly = false,
   }) =>
       [
         if (englishOnly) TruthworldTextInputFormatters.englishOnly,
@@ -781,4 +805,15 @@ class TruthworldTextInputFormatters {
         profanityFilter,
         LengthLimitingTextInputFormatter(maxLength),
       ];
+
+  /// Formatter that restricts input to a single line with length limit.
+  static TextInputFormatter strictSingleLineFormatter({int maxLength = 500}) =>
+      LengthLimitingTextInputFormatter(maxLength);
+
+  /// Formatter for content descriptions with length limit.
+  static TextInputFormatter contentDescriptionFormatter({int maxLength = 1000}) =>
+      LengthLimitingTextInputFormatter(maxLength);
 }
+
+/// Backward-compatible alias for TruthworldTextInputFormatters.
+typedef TruthWorldTextInputFormatters = TruthworldTextInputFormatters;

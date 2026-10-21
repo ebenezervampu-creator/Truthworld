@@ -34,9 +34,7 @@ class CommentReplyItem extends StatelessWidget {
     final isReplyDisliked = commentsController.isReplyDislikedByUser(reply.id);
     final isCreator = reply.channelId.isNotEmpty &&
         reply.channelId == videoChannelId;
-    final formattedHandle = reply.displayName.startsWith('@')
-        ? reply.displayName
-        : '@${reply.displayName}';
+    final authorDisplayName = reply.displayName;
 
     return IntrinsicHeight(
       child: Row(
@@ -108,7 +106,7 @@ class CommentReplyItem extends StatelessWidget {
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
                                             Text(
-                                              formattedHandle,
+                                              authorDisplayName,
                                               style: const TextStyle(
                                                 fontWeight: FontWeight.bold,
                                                 fontSize: 11,
@@ -128,7 +126,7 @@ class CommentReplyItem extends StatelessWidget {
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Text(
-                                            formattedHandle,
+                                            authorDisplayName,
                                             style: const TextStyle(
                                               fontWeight: FontWeight.bold,
                                               fontSize: 12,

@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/memberships_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships/member_avatar_stack.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// 0% Platform Commission Guarantee Banner OR 30% Platform Cut Banner for Creators.
@@ -132,48 +133,84 @@ class MembershipsMetricsSummary extends StatelessWidget {
               ? '≈ ₹${(mrr * rate).toStringAsFixed(2)} Payout'
               : '100% Direct Payout');
 
-      return Row(
-        children: [
-          Expanded(
-            child: MembershipMetricTile(
-              title: 'Active Members',
-              value: activeMembers.toString(),
-              subtitle: 'Direct Supporters',
-              icon: Icons.people_alt_rounded,
-              isDarkMode: isDarkMode,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: MembershipMetricTile(
-              title: 'Monthly Fan Income',
-              value: currencyFormat.format(displayMrr),
-              subtitle: incomeSubtitle,
-              icon: Icons.account_balance_wallet_rounded,
-              isDarkMode: isDarkMode,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: MembershipMetricTile(
-              title: 'Active Tiers',
-              value: '$activeTiers Tiers',
-              subtitle: 'Published & Live',
-              icon: Icons.workspace_premium_rounded,
-              isDarkMode: isDarkMode,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: MembershipMetricTile(
-              title: 'Platform Fee Rate',
-              value: '0.0%',
-              subtitle: 'Zero Commission',
-              icon: Icons.verified_rounded,
-              isDarkMode: isDarkMode,
-            ),
-          ),
-        ],
+      final activeMemberList = controller.members
+          .where((m) => m.status.toLowerCase() == 'active')
+          .toList();
+
+      final activeMembersTile = MembershipMetricTile(
+        title: 'Active Members',
+        value: activeMembers.toString(),
+        subtitle: activeMembers == 1 ? '1 Active Supporter' : 'Direct Supporters',
+        icon: Icons.people_alt_rounded,
+        isDarkMode: isDarkMode,
+        members: activeMemberList,
+        onTap: () => controller.selectedTab.value = 1,
+      );
+
+      final monthlyIncomeTile = MembershipMetricTile(
+        title: 'Monthly Fan Income',
+        value: currencyFormat.format(displayMrr),
+        subtitle: incomeSubtitle,
+        icon: Icons.account_balance_wallet_rounded,
+        isDarkMode: isDarkMode,
+        onTap: () => controller.selectedTab.value = 2,
+      );
+
+      final activeTiersTile = MembershipMetricTile(
+        title: 'Active Tiers',
+        value: '$activeTiers Tiers',
+        subtitle: 'Published & Live',
+        icon: Icons.workspace_premium_rounded,
+        isDarkMode: isDarkMode,
+        onTap: () => controller.selectedTab.value = 0,
+      );
+
+      final platformFeeTile = MembershipMetricTile(
+        title: 'Platform Fee Rate',
+        value: isNoAds ? '30.0%' : '0.0%',
+        subtitle: isNoAds ? 'Channel Premium' : 'Zero Commission',
+        icon: Icons.verified_rounded,
+        isDarkMode: isDarkMode,
+        onTap: () => controller.selectedTab.value = 2,
+      );
+
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final isMobile = constraints.maxWidth < 640;
+          if (isMobile) {
+            return Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(child: activeMembersTile),
+                    const SizedBox(width: 10),
+                    Expanded(child: monthlyIncomeTile),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(child: activeTiersTile),
+                    const SizedBox(width: 10),
+                    Expanded(child: platformFeeTile),
+                  ],
+                ),
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: activeMembersTile),
+              const SizedBox(width: 12),
+              Expanded(child: monthlyIncomeTile),
+              const SizedBox(width: 12),
+              Expanded(child: activeTiersTile),
+              const SizedBox(width: 12),
+              Expanded(child: platformFeeTile),
+            ],
+          );
+        },
       );
     });
   }
@@ -187,6 +224,8 @@ class MembershipMetricTile extends StatelessWidget {
     required this.subtitle,
     required this.icon,
     this.isDarkMode = true,
+    this.members,
+    this.onTap,
     super.key,
   });
 
@@ -195,58 +234,102 @@ class MembershipMetricTile extends StatelessWidget {
   final String subtitle;
   final IconData icon;
   final bool isDarkMode;
+  final List<ChannelMember>? members;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
+    final tileContent = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
         color: isDarkMode ? AppColors.bgSurface : Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: isDarkMode
               ? AppColors.bgDivider
-              : Colors.grey.withValues(alpha: 0.2),
+              : Colors.grey.withValues(alpha: 0.25),
         ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isDarkMode ? AppColors.textSecondary : Colors.black54,
-                  fontWeight: FontWeight.w500,
+              Expanded(
+                child: Text(
+                  title,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDarkMode ? AppColors.textSecondary : Colors.black54,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-              Icon(icon, color: isDarkMode ? Colors.white : Colors.black87, size: 18),
+              const SizedBox(width: 6),
+              Icon(
+                icon,
+                color: isDarkMode ? Colors.white : Colors.black87,
+                size: 17,
+              ),
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: isDarkMode ? AppColors.textPrimary : Colors.black87,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Flexible(
+                child: Text(
+                  value,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ),
+              if (members != null && members!.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                MemberAvatarStack(
+                  members: members!,
+                  avatarRadius: 10,
+                  maxDisplay: 3,
+                  isDarkMode: isDarkMode,
+                  borderWidth: 1.5,
+                ),
+              ],
+            ],
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 3),
           Text(
             subtitle,
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
             style: const TextStyle(
               fontSize: 11,
               color: AppColors.success,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
       ),
     );
+
+    if (onTap != null) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: tileContent,
+      );
+    }
+    return tileContent;
   }
 }
 
@@ -289,7 +372,7 @@ class MembershipsSubTabBar extends StatelessWidget {
                 onTap: () => controller.selectedTab.value = index,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
                   decoration: BoxDecoration(
                     color: isSelected
                         ? (isDarkMode ? AppColors.bgSurfaceHigh : Colors.white)
@@ -307,22 +390,23 @@ class MembershipsSubTabBar extends StatelessWidget {
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
                         item['icon'] as IconData,
-                        size: 16,
+                        size: 15,
                         color: isDarkMode
                             ? AppColors.textPrimary
                             : (isSelected ? Colors.black87 : Colors.black54),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Flexible(
                         child: Text(
                           item['title'] as String,
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: 12,
                             fontWeight: isSelected
                                 ? FontWeight.bold
                                 : FontWeight.w500,

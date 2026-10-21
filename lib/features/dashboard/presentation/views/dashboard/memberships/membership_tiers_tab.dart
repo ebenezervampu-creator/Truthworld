@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/memberships_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships/membership_tier_card.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -25,209 +25,261 @@ class MembershipTiersTab extends StatelessWidget {
   final void Function(ChannelMembershipTier tier) onEditTier;
   final void Function(ChannelMembershipTier tier) onDeleteTier;
 
+  Widget _buildCapacityBadge() {
+    return Obx(() {
+      final atMax = controller.hasReachedMaxTiers;
+      final count = controller.tiers.length;
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: atMax
+              ? Colors.amber.withValues(alpha: 0.2)
+              : (isDarkMode ? AppColors.bgSurfaceHigh : Colors.grey.shade200),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: atMax
+                ? (isDarkMode ? Colors.amber.shade700 : Colors.amber.shade400)
+                : (isDarkMode ? AppColors.bgDivider : Colors.grey.shade300),
+          ),
+        ),
+        child: Text(
+          atMax ? '3/3 Tiers (Max)' : '$count/3 Tiers',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: atMax
+                ? (isDarkMode ? Colors.amber.shade300 : Colors.amber.shade800)
+                : (isDarkMode ? AppColors.textSecondary : Colors.black87),
+          ),
+        ),
+      );
+    });
+  }
+
+  Widget _buildStarterTemplatesButton({bool isMobile = false}) {
+    return OutlinedButton.icon(
+      onPressed: onOpenStarterBundles,
+      icon: Icon(
+        Icons.auto_awesome_rounded,
+        color: isDarkMode ? Colors.white : Colors.black87,
+        size: 15,
+      ),
+      label: const Text('Starter Templates'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: isDarkMode ? AppColors.textPrimary : Colors.black87,
+        side: BorderSide(
+          color: isDarkMode ? AppColors.bgDivider : Colors.grey.shade300,
+        ),
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 10 : 14,
+          vertical: 9,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        textStyle: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: isMobile ? 12 : 13,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNewTierButton({bool isMobile = false}) {
+    return Obx(() {
+      final atMax = controller.hasReachedMaxTiers;
+      return Tooltip(
+        message: atMax
+            ? 'Channels can have up to 3 membership tiers only'
+            : 'Create a new tier (${controller.remainingTierSlots} slots remaining)',
+        child: ElevatedButton.icon(
+          onPressed: () {
+            if (atMax) {
+              AppSnackbar.warning(
+                'Channels can have up to 3 membership tiers only. Please edit or remove an existing tier to add a new one.',
+              );
+              return;
+            }
+            onOpenCreateTier();
+          },
+          icon: Icon(
+            atMax ? Icons.lock_outline_rounded : Icons.add_rounded,
+            color: atMax
+                ? (isDarkMode ? Colors.white60 : Colors.black54)
+                : Colors.black,
+            size: 16,
+          ),
+          label: Text(atMax ? '3/3 Tiers' : 'New Tier'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: atMax
+                ? (isDarkMode ? AppColors.bgSurfaceHigh : Colors.grey.shade200)
+                : AppColors.brand,
+            foregroundColor: atMax
+                ? (isDarkMode ? AppColors.textSecondary : Colors.black54)
+                : Colors.black,
+            padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 10 : 14,
+              vertical: 9,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            textStyle: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: isMobile ? 12 : 13,
+            ),
+          ),
+        ),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 640;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            if (isMobile) ...[
+              // Mobile Header: Stacked cleanly to prevent horizontal overflow
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  Expanded(
+                    child: Text(
+                      'Membership Levels & Perks',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _buildCapacityBadge(),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Manage tier pricing, benefits, and loyalty badges offered to fans (up to 3 tiers).',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDarkMode ? AppColors.textSecondary : Colors.black54,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: _buildStarterTemplatesButton(isMobile: true)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _buildNewTierButton(isMobile: true)),
+                ],
+              ),
+            ] else ...[
+              // Desktop/Tablet Header: side-by-side
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Membership Levels & Perks',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            _buildCapacityBadge(),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Manage tier pricing, benefits, and loyalty badges offered to fans (up to 3 tiers).',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDarkMode ? AppColors.textSecondary : Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
                   Row(
                     children: [
-                      Text(
-                        'Membership Levels & Perks',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: isDarkMode ? AppColors.textPrimary : Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Obx(() {
-                        final atMax = controller.hasReachedMaxTiers;
-                        final count = controller.tiers.length;
-                        return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: atMax
-                                ? Colors.amber.withValues(alpha: 0.2)
-                                : (isDarkMode ? AppColors.bgSurfaceHigh : Colors.grey.shade200),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: atMax
-                                  ? (isDarkMode ? Colors.amber.shade700 : Colors.amber.shade400)
-                                  : (isDarkMode ? AppColors.bgDivider : Colors.grey.shade300),
-                            ),
-                          ),
-                          child: Text(
-                            atMax ? '3/3 Tiers (Max)' : '$count/3 Tiers',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: atMax
-                                  ? (isDarkMode ? Colors.amber.shade300 : Colors.amber.shade800)
-                                  : (isDarkMode ? AppColors.textSecondary : Colors.black87),
-                            ),
-                          ),
-                        );
-                      }),
+                      _buildStarterTemplatesButton(),
+                      const SizedBox(width: 10),
+                      _buildNewTierButton(),
                     ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Manage tier pricing, benefits, and loyalty badges offered to fans (up to 3 tiers).',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isDarkMode
-                          ? AppColors.textSecondary
-                          : Colors.black54,
-                    ),
                   ),
                 ],
               ),
+            ],
+            const SizedBox(height: 16),
+            // Channel Member Ad-Free Playback Feature Card
+            MemberAdFreeFeatureCard(
+              controller: controller,
+              isDarkMode: isDarkMode,
             ),
-            const SizedBox(width: 12),
-            Row(
-              children: [
-                OutlinedButton.icon(
-                  onPressed: onOpenStarterBundles,
-                  icon: const Icon(
-                    Icons.auto_awesome_rounded,
-                    color: Colors.white,
-                    size: 16,
-                  ),
-                  label: const Text('Starter Templates'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: isDarkMode
-                        ? AppColors.textPrimary
-                        : Colors.black87,
-                    side: BorderSide(
-                      color: isDarkMode
-                          ? AppColors.bgDivider
-                          : Colors.grey.shade300,
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Obx(() {
-                  final atMax = controller.hasReachedMaxTiers;
-                  return Tooltip(
-                    message: atMax
-                        ? 'Channels can have up to 3 membership tiers only'
-                        : 'Create a new tier (${controller.remainingTierSlots} slots remaining)',
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        if (atMax) {
-                          AppSnackbar.warning(
-                            'Channels can have up to 3 membership tiers only. Please edit or remove an existing tier to add a new one.',
-                          );
-                          return;
-                        }
-                        onOpenCreateTier();
-                      },
-                      icon: Icon(
-                        atMax ? Icons.lock_outline_rounded : Icons.add_rounded,
-                        color: atMax
-                            ? (isDarkMode ? Colors.white60 : Colors.black54)
-                            : Colors.black,
-                        size: 16,
-                      ),
-                      label: Text(atMax ? '3/3 Tiers' : 'New Tier'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: atMax
-                            ? (isDarkMode ? AppColors.bgSurfaceHigh : Colors.grey.shade200)
-                            : AppColors.brand,
-                        foregroundColor: atMax
-                            ? (isDarkMode ? AppColors.textSecondary : Colors.black54)
-                            : Colors.black,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 8,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        textStyle: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ],
-            ),
-          ],
-        ),
-        // Channel Member Ad-Free Playback Feature Card
-        MemberAdFreeFeatureCard(
-          controller: controller,
-          isDarkMode: isDarkMode,
-        ),
-        const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-        Obx(() {
-          if (controller.isLoadingTiers.value) {
-            return Shimmer.fromColors(
-              baseColor: const Color(0xFF1E1E1E),
-              highlightColor: AppColors.bgSurfaceHover,
-              child: ListView.separated(
+            Obx(() {
+              if (controller.isLoadingTiers.value && controller.tiers.isEmpty) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 40),
+                    child: StudioLoadingIndicator(
+                      message: 'Loading membership tiers...',
+                      isFullScreen: false,
+                    ),
+                  ),
+                );
+              }
+
+              final tiers = controller.tiers;
+              if (tiers.isEmpty) {
+                return EmptyTiersView(
+                  isDarkMode: isDarkMode,
+                  onApplyStarterBundles: onOpenStarterBundles,
+                  onCreateTier: onOpenCreateTier,
+                );
+              }
+
+              return ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: 3,
-                separatorBuilder: (_, _) => const SizedBox(height: 12),
-                itemBuilder: (_, _) => Container(
-                  height: 120,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E1E1E),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-              ),
-            );
-          }
-
-          final tiers = controller.tiers;
-          if (tiers.isEmpty) {
-            return EmptyTiersView(
-              isDarkMode: isDarkMode,
-              onApplyStarterBundles: onOpenStarterBundles,
-              onCreateTier: onOpenCreateTier,
-            );
-          }
-
-          return ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: tiers.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 16),
-            itemBuilder: (ctx, index) {
-              final tier = tiers[index];
-              return MembershipTierCard(
-                tier: tier,
-                isDarkMode: isDarkMode,
-                onEdit: () => onEditTier(tier),
-                onToggleStatus: () =>
-                    controller.toggleTierStatus(tier.id, !tier.isEnabled),
-                onDuplicate: () => controller.duplicateTier(tier),
-                onDelete: () => onDeleteTier(tier),
+                itemCount: tiers.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 16),
+                itemBuilder: (ctx, index) {
+                  final tier = tiers[index];
+                  final tierMembers = controller.members
+                      .where((m) => m.tierId == tier.id)
+                      .toList();
+                  return MembershipTierCard(
+                    tier: tier,
+                    isDarkMode: isDarkMode,
+                    members: tierMembers,
+                    onEdit: () => onEditTier(tier),
+                    onToggleStatus: () =>
+                        controller.toggleTierStatus(tier.id, !tier.isEnabled),
+                    onDuplicate: () => controller.duplicateTier(tier),
+                    onDelete: () => onDeleteTier(tier),
+                  );
+                },
               );
-            },
-          );
-        }),
-      ],
+            }),
+          ],
+        );
+      },
     );
   }
 }
@@ -250,7 +302,7 @@ class MemberAdFreeFeatureCard extends StatelessWidget {
       final isUpdating = controller.isUpdatingSettings.value;
 
       return Container(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isDarkMode ? AppColors.bgSurface : Colors.white,
           borderRadius: BorderRadius.circular(14),
@@ -273,11 +325,11 @@ class MemberAdFreeFeatureCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Top Row: Icon + Title & Badge + Switch
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: isEnabled
                         ? Colors.amber.withValues(alpha: 0.15)
@@ -289,86 +341,49 @@ class MemberAdFreeFeatureCard extends StatelessWidget {
                     color: isEnabled
                         ? (isDarkMode ? Colors.amber.shade300 : Colors.amber.shade800)
                         : (isDarkMode ? Colors.white : Colors.black87),
-                    size: 22,
+                    size: 20,
                   ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              'Channel Premium (No Ads & Up to 2K for Members)',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: isDarkMode ? AppColors.textPrimary : Colors.black87,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: isEnabled
-                                  ? Colors.amber.withValues(alpha: 0.2)
-                                  : Colors.green.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              isEnabled ? '30% Platform Cut • Channel Premium' : '0% Commission',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: isEnabled
-                                    ? (isDarkMode ? Colors.amber.shade300 : Colors.amber.shade900)
-                                    : (isDarkMode ? Colors.green.shade400 : Colors.green.shade800),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
                       Text(
-                        'Transform channel memberships into a Channel Premium subscription for your audience. Active members unlock zero ads across your channel and high resolutions up to 2K (1440p QHD) video streaming for entire channel videos. TruthWorld takes a 30% platform cut on tiers with this bundle (Creator receives 70%). Tiers without the bundle receive 100% of revenue with 0% platform commission.',
+                        'Channel Premium (No Ads & Up to 2K for Members)',
                         style: TextStyle(
-                          fontSize: 12,
-                          color: isDarkMode ? AppColors.textSecondary : Colors.black54,
-                          height: 1.35,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.bold,
+                          color: isDarkMode ? AppColors.textPrimary : Colors.black87,
                         ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          _buildPremiumChip(
-                            icon: Icons.block_rounded,
-                            label: 'Zero Ads on Channel',
-                            isDarkMode: isDarkMode,
-                            isEnabled: isEnabled,
+                      const SizedBox(height: 2),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isEnabled
+                              ? Colors.amber.withValues(alpha: 0.2)
+                              : Colors.green.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          isEnabled ? '30% Platform Cut • Channel Premium' : '0% Commission',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.bold,
+                            color: isEnabled
+                                ? (isDarkMode ? Colors.amber.shade300 : Colors.amber.shade900)
+                                : (isDarkMode ? Colors.green.shade400 : Colors.green.shade800),
                           ),
-                          _buildPremiumChip(
-                            icon: Icons.high_quality_rounded,
-                            label: 'Up to 2K (1440p QHD)',
-                            isDarkMode: isDarkMode,
-                            isEnabled: isEnabled,
-                          ),
-                          _buildPremiumChip(
-                            icon: Icons.percent_rounded,
-                            label: '70% Creator / 30% Platform Cut',
-                            isDarkMode: isDarkMode,
-                            isEnabled: isEnabled,
-                          ),
-                        ],
+                        ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 if (isUpdating)
                   const SizedBox(
                     width: 24,
@@ -384,6 +399,40 @@ class MemberAdFreeFeatureCard extends StatelessWidget {
                     activeColor: isDarkMode ? Colors.amber.shade400 : Colors.amber.shade700,
                     onChanged: controller.toggleNoAdsForMembers,
                   ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Transform channel memberships into a Channel Premium subscription for your audience. Active members unlock zero ads across your channel and high resolutions up to 2K (1440p QHD) video streaming for entire channel videos. TruthWorld takes a 30% platform cut on tiers with this bundle (Creator receives 70%). Tiers without the bundle receive 100% of revenue with 0% platform commission.',
+              style: TextStyle(
+                fontSize: 12,
+                color: isDarkMode ? AppColors.textSecondary : Colors.black54,
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                _buildPremiumChip(
+                  icon: Icons.block_rounded,
+                  label: 'Zero Ads on Channel',
+                  isDarkMode: isDarkMode,
+                  isEnabled: isEnabled,
+                ),
+                _buildPremiumChip(
+                  icon: Icons.high_quality_rounded,
+                  label: 'Up to 2K (1440p QHD)',
+                  isDarkMode: isDarkMode,
+                  isEnabled: isEnabled,
+                ),
+                _buildPremiumChip(
+                  icon: Icons.percent_rounded,
+                  label: '70% Creator / 30% Platform Cut',
+                  isDarkMode: isDarkMode,
+                  isEnabled: isEnabled,
+                ),
               ],
             ),
           ],
@@ -426,12 +475,15 @@ class MemberAdFreeFeatureCard extends StatelessWidget {
             color: isDarkMode ? Colors.white : Colors.black87,
           ),
           const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+          Flexible(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+              ),
             ),
           ),
         ],

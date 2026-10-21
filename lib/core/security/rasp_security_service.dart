@@ -122,7 +122,7 @@ class RaspSecurityService extends GetxService {
       isScanning.value = true;
       final result = await _channel
           .invokeMethod<Map<dynamic, dynamic>>('checkSecurityThreats')
-          .timeout(const Duration(seconds: 4));
+          .timeout(const Duration(seconds: 10));
 
       if (result != null) {
         final assessment = RaspThreatAssessment.fromMap(result);

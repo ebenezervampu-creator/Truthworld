@@ -72,6 +72,7 @@ Widget buildAudienceSubscribersWatchShareCard({
         buildAudienceSubscriptionShareRow(
           label: 'Not subscribed',
           percentage: notSubPct,
+          count: controller.nonSubscriberViews.value,
           color: AppColors.warning,
           textColor: textColor,
           subtitleColor: subtitleColor,
@@ -83,6 +84,7 @@ Widget buildAudienceSubscribersWatchShareCard({
         buildAudienceSubscriptionShareRow(
           label: 'Subscribed',
           percentage: subPct,
+          count: controller.subscriberViews.value,
           color: AppColors.success,
           textColor: textColor,
           subtitleColor: subtitleColor,
@@ -139,6 +141,7 @@ Widget buildAudienceSubscriptionShareRow({
   required Color textColor,
   required Color subtitleColor,
   required bool isDominant,
+  int? count,
 }) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -146,36 +149,56 @@ Widget buildAudienceSubscriptionShareRow({
       Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
+          Expanded(
+            child: Row(
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      fontSize: 14,
+                      fontWeight: isDominant ? FontWeight.bold : FontWeight.w500,
+                      color: textColor,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
               Text(
-                label,
+                '${percentage.toStringAsFixed(1)}%',
                 style: TextStyle(
                   fontFamily: TWTypography.uiFamily,
-                  fontSize: 14,
-                  fontWeight: isDominant ? FontWeight.bold : FontWeight.w500,
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
                   color: textColor,
                 ),
               ),
+              if (count != null && count > 0)
+                Text(
+                  count == 1 ? '1 view' : '$count views',
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontSize: 11,
+                    color: subtitleColor,
+                  ),
+                ),
             ],
-          ),
-          Text(
-            '${percentage.toStringAsFixed(1)}%',
-            style: TextStyle(
-              fontFamily: TWTypography.uiFamily,
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: textColor,
-            ),
           ),
         ],
       ),

@@ -156,9 +156,7 @@ mixin SubscriptionContentIngestionMixin on SubscriptionStateBase {
               }
             }),
           );
-          for (final perChannelDocs in perChannelResults) {
-            docs.addAll(perChannelDocs);
-          }
+          perChannelResults.forEach(docs.addAll);
         }
         return docs;
       }),
@@ -240,9 +238,7 @@ mixin SubscriptionContentIngestionMixin on SubscriptionStateBase {
               }
             }),
           );
-          for (final perChannelDocs in perChannelResults) {
-            docs.addAll(perChannelDocs);
-          }
+          perChannelResults.forEach(docs.addAll);
         }
         return docs;
       }),
@@ -324,9 +320,7 @@ mixin SubscriptionContentIngestionMixin on SubscriptionStateBase {
               }
             }),
           );
-          for (final perChannelDocs in perChannelResults) {
-            docs.addAll(perChannelDocs);
-          }
+          perChannelResults.forEach(docs.addAll);
         }
         return docs;
       }),
@@ -416,9 +410,7 @@ mixin SubscriptionContentIngestionMixin on SubscriptionStateBase {
               }
             }),
           );
-          for (final perChannelDocs in perChannelResults) {
-            docs.addAll(perChannelDocs);
-          }
+          perChannelResults.forEach(docs.addAll);
         }
         return docs;
       }),
