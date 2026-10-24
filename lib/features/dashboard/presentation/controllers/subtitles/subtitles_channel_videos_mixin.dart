@@ -6,6 +6,7 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles/subtitles_controller_base.dart';
+import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
@@ -180,6 +181,8 @@ mixin SubtitlesChannelVideosMixin on SubtitlesControllerBase {
     hasUnsavedChanges.value = false;
     requestsSubscription?.cancel();
     if (video == null) {
+      aiJobSubscription?.cancel();
+      isGeneratingAI.value = false;
       disposeVideoPlayer();
       availableLanguages.clear();
       selectedLanguage.value = '';
@@ -190,17 +193,25 @@ mixin SubtitlesChannelVideosMixin on SubtitlesControllerBase {
 
     logger.info('Selected video for subtitles: ${video.title}', tag: SubtitlesControllerBase.subtitlesTag);
 
+    unawaited(checkAndResumeAIJob(video.id));
     listenToLanguageRequests(video.id);
 
     // Lazy-load localization from subcollection first
-    await VideoMediaService().getLocalization(video.id);
+    final loc = await VideoMediaService().getLocalization(video.id);
 
     // Parse existing mediaSubtitles map
-    final subs = video.mediaSubtitles;
+    final subs = Map<String, String>.from(video.mediaSubtitles);
+    if (loc.subtitles.isNotEmpty) {
+      subs.addAll(loc.subtitles);
+    }
 
     final orderedLangs = <String>[];
 
-    // Always add 'en' first
+    // Always add primary video language first if defined, then 'en'
+    final primaryLang = video.language.trim().isNotEmpty ? video.language.trim().toLowerCase() : 'en';
+    if (!orderedLangs.contains(primaryLang)) {
+      orderedLangs.add(primaryLang);
+    }
     if (!orderedLangs.contains('en')) {
       orderedLangs.add('en');
     }
@@ -212,31 +223,13 @@ mixin SubtitlesChannelVideosMixin on SubtitlesControllerBase {
       }
     }
 
-    // Add pending translation languages from video.languages
-    final langNameToCode = <String, String>{
-      'tamil': 'ta',
-      'hindi': 'hi',
-      'telugu': 'te',
-      'kannada': 'kn',
-      'malayalam': 'ml',
-      'spanish': 'es',
-      'french': 'fr',
-      'arabic': 'ar',
-      'portuguese': 'pt',
-      'german': 'de',
-      'japanese': 'ja',
-      'korean': 'ko',
-      'chinese': 'zh',
-      'bengali': 'bn',
-      'marathi': 'mr',
-      'gujarati': 'gu',
-      'punjabi': 'pa',
-      'urdu': 'ur',
-    };
-
+    // Add pending translation languages from video.languages using comprehensive supportedLanguages
     for (final langName in video.languages) {
-      final code =
-          langNameToCode[langName.toLowerCase()] ?? langName.toLowerCase();
+      final match = supportedLanguages.firstWhereOrNull((l) =>
+          l.name.toLowerCase() == langName.toLowerCase() ||
+          l.nativeName.toLowerCase() == langName.toLowerCase() ||
+          l.code.toLowerCase() == langName.toLowerCase());
+      final code = match?.code ?? langName.toLowerCase();
       if (!orderedLangs.contains(code) && !orderedLangs.contains(langName)) {
         orderedLangs.add(code);
       }

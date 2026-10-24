@@ -30,6 +30,16 @@ abstract class SubtitlesControllerBase extends BaseController
   final Map<String, Video> ownerVideosMap = {};
   final Map<String, Video> channelVideosMap = {};
 
+  // UI Navigation, Tabs & Preview States
+  final RxInt selectedMainTab = 0.obs; // 0 = Subtitles, 1 = Transcripts
+  final RxBool isCcEnabled = true.obs;
+  final RxDouble cueZoomScale = 1.0.obs;
+  final RxBool isCuesSearchExpanded = false.obs;
+  final RxSet<String> selectedCueIds = <String>{}.obs;
+
+  void toggleCc() => isCcEnabled.toggle();
+  void toggleCuesSearch() => isCuesSearchExpanded.toggle();
+
   // Selected video and subtitle preview state
   final Rxn<Video> selectedVideo = Rxn<Video>();
   final RxList<String> availableLanguages = <String>[].obs;
@@ -38,6 +48,94 @@ abstract class SubtitlesControllerBase extends BaseController
   final RxBool isSaving = false.obs;
   final RxBool hasUnsavedChanges = false.obs;
   final RxBool isUploadingFile = false.obs;
+
+  // Undo / Redo History Stacks
+  final RxList<List<SubtitleCue>> undoStack = <List<SubtitleCue>>[].obs;
+  final RxList<List<SubtitleCue>> redoStack = <List<SubtitleCue>>[].obs;
+  bool get canUndo => undoStack.isNotEmpty;
+  bool get canRedo => redoStack.isNotEmpty;
+
+  void recordSnapshot() {
+    final snapshot = currentCues
+        .map((c) => SubtitleCue(
+              id: c.id,
+              startTime: c.startTime,
+              endTime: c.endTime,
+              text: c.text,
+            ))
+        .toList();
+    undoStack.add(snapshot);
+    if (undoStack.length > 50) {
+      undoStack.removeAt(0);
+    }
+    redoStack.clear();
+  }
+
+  void undo() {
+    if (undoStack.isEmpty) return;
+    final currentSnapshot = currentCues
+        .map((c) => SubtitleCue(
+              id: c.id,
+              startTime: c.startTime,
+              endTime: c.endTime,
+              text: c.text,
+            ))
+        .toList();
+    redoStack.add(currentSnapshot);
+    final previous = undoStack.removeLast();
+    currentCues.assignAll(previous);
+    hasUnsavedChanges.value = true;
+    currentCues.refresh();
+  }
+
+  void redo() {
+    if (redoStack.isEmpty) return;
+    final currentSnapshot = currentCues
+        .map((c) => SubtitleCue(
+              id: c.id,
+              startTime: c.startTime,
+              endTime: c.endTime,
+              text: c.text,
+            ))
+        .toList();
+    undoStack.add(currentSnapshot);
+    final next = redoStack.removeLast();
+    currentCues.assignAll(next);
+    hasUnsavedChanges.value = true;
+    currentCues.refresh();
+  }
+
+  SubtitleTrackStatus getLanguageStatus(String code) {
+    final video = selectedVideo.value;
+    if (video == null) return SubtitleTrackStatus.notAdded;
+    final subs = video.mediaSubtitles;
+    if (subs.containsKey(code) && (subs[code]?.isNotEmpty ?? false)) {
+      return SubtitleTrackStatus.published;
+    }
+    if (availableLanguages.contains(code)) {
+      return SubtitleTrackStatus.draft;
+    }
+    return SubtitleTrackStatus.notAdded;
+  }
+
+  List<String> get displayLanguages {
+    final list = <String>[...availableLanguages];
+    final video = selectedVideo.value;
+    if (video != null) {
+      for (final l in video.languages) {
+        final code = l.toLowerCase();
+        if (!list.contains(code)) {
+          list.add(code);
+        }
+      }
+    }
+    for (final l in ['en', 'te', 'hi', 'ta', 'kn']) {
+      if (!list.contains(l)) {
+        list.add(l);
+      }
+    }
+    return list;
+  }
 
   // Video Player Preview & Sync
   VideoPlayerController? videoPlayerController;
@@ -52,7 +150,25 @@ abstract class SubtitlesControllerBase extends BaseController
   final RxBool isGeneratingAI = false.obs;
   final RxInt aiJobProgress = 0.obs;
   final RxString aiJobStatus = ''.obs;
+  final RxList<String> aiTargetLanguages = <String>[].obs;
+  final RxMap<String, String> aiLanguageStatuses = <String, String>{}.obs;
+  final RxInt aiQueuePosition = 1.obs;
+  final RxInt aiQueueTotal = 1.obs;
+  final RxString aiCurrentStageName = 'Speech Extraction & Transcription'.obs;
+  final RxInt aiElapsedSeconds = 0.obs;
+  final RxBool isAiJobPaused = false.obs;
+  final RxBool isCancellingAI = false.obs;
+  final RxBool isPausingAI = false.obs;
+  final RxBool isRegeneratingAI = false.obs;
   StreamSubscription<DocumentSnapshot>? aiJobSubscription;
+  StreamSubscription<DocumentSnapshot>? aiVideoSubscription;
+  StreamSubscription<QuerySnapshot>? aiQueueSubscription;
+  Timer? aiElapsedTimer;
+
+  Future<void> checkAndResumeAIJob(String videoId) async {}
+  Future<void> cancelAIJob() async {}
+  Future<void> togglePauseAIJob() async {}
+  Future<void> regenerateAIJob() async {}
 
   // Cues Search & Filtering
   final RxString searchQueryInCues = ''.obs;
@@ -141,5 +257,8 @@ abstract class SubtitlesControllerBase extends BaseController
     channelVideosSubscription?.cancel();
     requestsSubscription?.cancel();
     aiJobSubscription?.cancel();
+    aiVideoSubscription?.cancel();
+    aiQueueSubscription?.cancel();
+    aiElapsedTimer?.cancel();
   }
 }

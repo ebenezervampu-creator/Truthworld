@@ -243,7 +243,9 @@ export enum ClaimNature {
   BELIEF = 'BELIEF',                     // Bucket 3: Faith/Scripture/Miracle
   ESTIMATION = 'ESTIMATION',             // Bucket 4: Projection/Prediction
   PREDICTION = 'PREDICTION',
-  SATIRE = 'SATIRE'
+  SATIRE = 'SATIRE',
+  NOVEL_HYPOTHESIS = 'NOVEL_HYPOTHESIS',
+  RHETORICAL_EXAGGERATION = 'RHETORICAL_EXAGGERATION'
 }
 
 export enum FramingStyle {
@@ -392,7 +394,9 @@ export type ClaimStatus =
   | "unverifiable"
   | "faith_based_claim"
   | "contested_interpretation"
-  | "not_historically_verifiable";
+  | "not_historically_verifiable"
+  | "novel_hypothesis"
+  | "developing_story";
 
 export interface VerifiedClaim extends FilteredClaim {
   status: ClaimStatus; // Pipeline state
@@ -530,12 +534,9 @@ export interface TraceabilityMap {
 export interface UIReport {
   summary: {
     rating: number | null;
-    honestyScore?: number | null;    // v10.0
-    rationalityScore?: number | null; // v10.0
     label: string;
     confidence: 'high' | 'medium' | 'low';
     confidenceInterpretation: string; // v8.5
-    rationalityContributedToComposite?: boolean; // v10.0
     analysisState: VerificationState | ErrorState; // v10.0: Migration from AnalysisState
     verificationState?: VerificationState; // v10.0
     evidenceCoverage: {
@@ -633,8 +634,6 @@ export interface FactCheckResult {
   uiReport?: UIReport;               // v8.3: Human-friendly UI format
   
   trustScore: number | null;         // 0-100 institutional score (null = not evaluated)
-  honestyScore?: number | null;      // v8.5 Public Honesty score (0-100)
-  rationalityScore?: number | null;  // v8.5 Public Rationality score (0-100)
   structuralReliabilityScore?: number | null; // v10.0: Structural-only composite
   compositeRating?: number | null;   // v8.5 Normalized public rating (0-10)
   
@@ -731,7 +730,6 @@ export interface FactCheckResult {
   // v8.0: Category-Aware Epistemic Scoring
   videoCategory?: string;                         // from upload metadata
   categoryWeightProfile?: Record<string, number>;  // which weights were used
-  honestyBreakdown?: HonestyBreakdown;             // sub-components of honesty dimension
   contextualFlags?: ContextualFlag[];              // multi-perspective debated topics
   harmCapApplied?: boolean;                        // whether safety cap was enforced
   harmCapReason?: string;                          // explanation for the cap
@@ -880,8 +878,6 @@ export interface InstitutionalTrustFactors {
   expertise: number;    // Creator credentials for the domain
   freshness: number;    // Information recency
   safety: number;       // Harm potential (inverted — 100 = safe)
-  honesty: number;      // v8.0: Framing transparency (belief as belief, opinion as opinion)
-  rationality?: number;  // v8.5: Internal logic and manipulation resistance
   reputation?: number;   // v8.8: Historical reliability score
   intentToMislead?: number; // v8.1: System exploitation/manipulation detection (0-100)
 }
@@ -921,15 +917,6 @@ export interface ContextualFlag {
   confidence?: number;
 }
 
-export interface HonestyBreakdown {
-  score: number;                      // 0–100 (v8.8 synchronized)
-  opinionLabeledOpinion: number;      // count of correctly framed opinions
-  beliefLabeledBelief: number;        // count of correctly framed beliefs
-  beliefPresentedAsFact: number;      // count of violations (belief → authoritative)
-  opinionPresentedAsFact: number;     // count of violations
-  speculationLabeledSpeculation: number;
-  assertivenessMismatchPenalty: number; // total points lost from mismatches
-}
 
 export interface HarmCapResult {
   applied: boolean;
@@ -1198,6 +1185,7 @@ export interface ExecutionPlan {
   enableDiarization?: boolean;
   diarization?: boolean;
   dubbingLanguages?: string[];
+  subtitleLanguages?: string[];
 
   duration?: number;
   maxClaims: number;
@@ -1537,7 +1525,6 @@ export interface CredibilityResult {
   // v8.0: Category-Aware Epistemic Scoring
   videoCategory?: string;
   categoryWeightProfile?: Record<string, number>;
-  honestyBreakdown?: HonestyBreakdown;
   contextualFlags?: ContextualFlag[];
   harmCapApplied?: boolean;
   harmCapReason?: string;

@@ -1,3 +1,21 @@
+/// Status of a subtitle language track
+enum SubtitleTrackStatus {
+  published,
+  draft,
+  notAdded;
+
+  String get label {
+    switch (this) {
+      case SubtitleTrackStatus.published:
+        return 'Published';
+      case SubtitleTrackStatus.draft:
+        return 'Draft';
+      case SubtitleTrackStatus.notAdded:
+        return 'Not added';
+    }
+  }
+}
+
 /// Internal Cue Representation for visual preview and editing
 class SubtitleCue {
   SubtitleCue({

@@ -28,7 +28,7 @@ export const triggerVideoAIFeatures = onRequest(
     maxInstances: 5,
     timeoutSeconds: 300,
     memory: "512MiB",
-    secrets: ["GEMINI_API_KEY", "ASSEMBLYAI_KEY"],
+    secrets: ["GEMINI_API_KEY", "ASSEMBLYAI_KEY", "ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY"],
   },
   async (req, res) => {
     try {
@@ -129,6 +129,9 @@ export const triggerVideoAIFeatures = onRequest(
       const wantChapters = features.includes("chapters");
       const wantDiarization = features.includes("diarization") || features.includes("speaker_diarization") || (jobData?.executionPlan?.enableDiarization ?? false);
 
+      const existingDubLangs: string[] = jobData?.executionPlan?.dubbingLanguages || [];
+      const mergedDubLangs = Array.from(new Set([...existingDubLangs, ...targetLanguages]));
+
       const executionPlan: ExecutionPlan = {
         jobId: videoId,
         languages: combinedLanguages,
@@ -140,6 +143,7 @@ export const triggerVideoAIFeatures = onRequest(
         enableAuxiliary: true,
         enableDiarization: wantDiarization,
         diarization: wantDiarization,
+        subtitleLanguages: wantSubtitles ? targetLanguages : (jobData?.executionPlan?.subtitleLanguages || []),
         dubbingLanguages: wantDubbing ? targetLanguages : (jobData?.executionPlan?.dubbingLanguages || []),
         dubbingMode: "standard",
         generateDubbing: wantDubbing,
@@ -159,6 +163,20 @@ export const triggerVideoAIFeatures = onRequest(
       const now = Date.now();
       const eventId = `ondemand_${videoId}_${now}`;
 
+      const targetTranscriptId = videoData.jobId || videoId;
+      let transcriptSnap = await admin.firestore().collection("transcripts").doc(targetTranscriptId).get();
+      if (!transcriptSnap.exists && targetTranscriptId !== videoId) {
+        transcriptSnap = await admin.firestore().collection("transcripts").doc(videoId).get();
+      }
+      const hasExistingTranscriptOrSubs = transcriptSnap.exists ||
+        Boolean(videoData.transcript && videoData.transcript.trim().length > 0) ||
+        Boolean(videoData.subtitles && Object.keys(videoData.subtitles).length > 0) ||
+        Boolean(videoData.media?.subtitles && Object.keys(videoData.media?.subtitles).length > 0) ||
+        Boolean(videoData.mediaSubtitles && Object.keys(videoData.mediaSubtitles).length > 0) ||
+        Boolean(videoData.transcriptionUrl && videoData.transcriptionUrl.trim().length > 0) ||
+        videoData.status === "published";
+      const transcriptionCompleted = hasExistingTranscriptOrSubs;
+
       await jobDocRef.set({
         jobId: videoId,
         videoId: videoId,
@@ -167,17 +185,33 @@ export const triggerVideoAIFeatures = onRequest(
         videoUrl: videoUrl,
         fileName: videoData.title || "video.mp4",
         status: "processing",
-        executionPlan: executionPlan,
+        executionPlan: {
+          ...executionPlan,
+          subtitleLanguages: wantSubtitles ? targetLanguages : (jobData?.executionPlan?.subtitleLanguages || []),
+          dubbingLanguages: wantDubbing ? mergedDubLangs : (jobData?.executionPlan?.dubbingLanguages || []),
+        },
         updatedAt: now,
         createdAt: jobData?.createdAt || now,
         linkedVideoIds: admin.firestore.FieldValue.arrayUnion(videoId),
         stages: {
           ...(jobData?.stages || {}),
+          ...(transcriptionCompleted ? {
+            transcription: {
+              status: "completed",
+              progress: 100,
+              completedAt: now,
+            },
+            subtitles: {
+              status: "running",
+              progress: 35,
+              startedAt: now,
+            },
+          } : {}),
           onDemandAI: {
             status: "running",
-            progress: 10,
+            progress: transcriptionCompleted ? 35 : 10,
             requestedFeatures: features,
-            requestedLanguages: targetLanguages,
+            requestedLanguages: Array.from(new Set([...(jobData?.stages?.onDemandAI?.requestedLanguages || []), ...targetLanguages])),
             startedAt: now,
           }
         }
@@ -194,13 +228,6 @@ export const triggerVideoAIFeatures = onRequest(
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
       }
-
-      const targetTranscriptId = videoData.jobId || videoId;
-      let transcriptSnap = await admin.firestore().collection("transcripts").doc(targetTranscriptId).get();
-      if (!transcriptSnap.exists && targetTranscriptId !== videoId) {
-        transcriptSnap = await admin.firestore().collection("transcripts").doc(videoId).get();
-      }
-      const transcriptionCompleted = transcriptSnap.exists;
 
       try {
         const { DistributionLayer } = require("./layers/04-distribution");
@@ -253,12 +280,16 @@ export const triggerVideoAIFeatures = onRequest(
           await Promise.all(publishTasks);
         }
       } catch (pubSubError) {
-        logger.warn("[triggerVideoAIFeatures] Pub/Sub dispatch warning (falling back to Firestore job queue):", pubSubError);
+        logger.error("[triggerVideoAIFeatures] Pub/Sub dispatch failure:", pubSubError);
+        const { EdgeLayer } = require("./layers/01-edge");
+        await EdgeLayer.failJob(videoId, "onDemandAI", "Pub/Sub message broker unavailable to queue AI job").catch(() => {});
+        res.status(503).json({
+          error: "Unable to schedule background AI pipeline. Please try again.",
+        });
+        return;
       }
 
       await jobDocRef.update({
-        "stages.onDemandAI.status": "queued",
-        "stages.onDemandAI.progress": 25,
         "stages.onDemandAI.dispatchedAt": Date.now(),
       });
 
@@ -433,7 +464,7 @@ export const handleCredibilitySynthesis = onMessagePublished(
 /**
  * 🌍 Handle dubbing processing (Path 2)
  *
- * CONFIG: minInstances=0, maxInstances=5, 1GiB, 540s timeout
+ * CONFIG: minInstances=0, maxInstances=10, 2GiB, 540s timeout
  */
 export const handleDubbing = onMessagePublished(
   {
@@ -442,9 +473,9 @@ export const handleDubbing = onMessagePublished(
     timeoutSeconds: 540,
     memory: "2GiB",
     minInstances: 0,
-    maxInstances: 2,
+    maxInstances: 10,
     retry: true,
-    secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY"],
+    secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY", "GEMINI_API_KEY"],
   },
   async (event) => {
     try {

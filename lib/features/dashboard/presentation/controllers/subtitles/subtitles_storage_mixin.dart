@@ -13,6 +13,7 @@ import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/network/app_http_client.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/utils/isolate_compute_utils.dart';
+import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/utils/subtitle_parser.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles/subtitle_cue_model.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles/subtitles_controller_base.dart';
@@ -32,33 +33,55 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
 
     if (urlOrData.startsWith('gs://') ||
         urlOrData.startsWith('http://') ||
-        urlOrData.startsWith('https://')) {
+        urlOrData.startsWith('https://') ||
+        urlOrData.startsWith('subtitles/') ||
+        urlOrData.startsWith('videos/')) {
       try {
         setViewState(ViewState.loading);
-        var downloadUrl = urlOrData;
 
-        if (urlOrData.startsWith('gs://')) {
-          downloadUrl = await FirebaseStorage.instance
-              .refFromURL(urlOrData)
-              .getDownloadURL();
+        // 1. Direct authenticated Firebase Storage SDK download (evaluates storage.rules)
+        Uint8List? rawBytes;
+        final ref = StorageUtils.getStorageRef(urlOrData);
+        if (ref != null) {
+          try {
+            rawBytes = await ref.getData();
+          } catch (storageErr) {
+            logger.info(
+              'ref.getData fallback to resolved download URL: $storageErr',
+              tag: SubtitlesControllerBase.subtitlesTag,
+            );
+          }
         }
 
-        final response = await AppHttpClient.get(Uri.parse(downloadUrl));
-        if (response.statusCode == 200) {
-          contentToParse = response.body;
+        if (rawBytes != null && rawBytes.isNotEmpty) {
+          contentToParse = utf8.decode(rawBytes, allowMalformed: true);
         } else {
-          logger.error(
-            'Failed to download subtitle file from $downloadUrl, status: ${response.statusCode}',
-            tag: SubtitlesControllerBase.subtitlesTag,
+          // 2. Fallback: Resolve HTTP/CDN tokenized download URL
+          final downloadUrl = await StorageUtils.resolveUrl(urlOrData);
+          final targetUrl = downloadUrl.isNotEmpty ? downloadUrl : urlOrData;
+          final headers = await StorageUtils.getMediaHeaders();
+
+          final response = await AppHttpClient.get(
+            Uri.parse(targetUrl),
+            headers: headers.isNotEmpty ? headers : null,
           );
-          currentCues.clear();
-          setViewState(ViewState.success);
-          return;
+          if (response.statusCode == 200) {
+            contentToParse = response.body;
+          } else {
+            logger.error(
+              'Failed to download subtitle file from $targetUrl, status: ${response.statusCode}',
+              tag: SubtitlesControllerBase.subtitlesTag,
+            );
+            currentCues.clear();
+            setViewState(ViewState.success);
+            return;
+          }
         }
-      } catch (e) {
+      } catch (e, stack) {
         logger.error(
           'Error downloading/resolving remote subtitle link: $urlOrData',
           error: e,
+          stackTrace: stack,
           tag: SubtitlesControllerBase.subtitlesTag,
         );
         currentCues.clear();
@@ -126,8 +149,7 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
           existingValue.startsWith('https://');
 
       if (currentCues.isNotEmpty || !isAlreadyUrl) {
-        final jobId = video.id;
-        final storagePath = 'subtitles/$jobId/$lang.vtt';
+        final storagePath = 'videos/${video.id}/subtitles/$lang.vtt';
         final storageRef = FirebaseStorage.instance.ref().child(storagePath);
         final vttBytes = vttContent.codeUnits;
         final currentUid = FirebaseAuth.instance.currentUser?.uid;

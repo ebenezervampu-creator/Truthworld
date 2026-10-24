@@ -47,7 +47,7 @@ import { normalizeLanguageCode } from "../../shared/language-normalizer";
 const db = () => admin.firestore();
 
 /** Max segments processed concurrently per TTS batch */
-const TTS_BATCH_SIZE = 10;
+const TTS_BATCH_SIZE = 25;
 
 /** Words per second assumed for TTS timing estimation */
 const TTS_WPS = 2.5;
@@ -92,10 +92,55 @@ export class DubbingEngine {
 
     // ── Transcription Gate ───────────────────────────────────────────────────
     const jobDoc = await db().collection("video_jobs").doc(jobId).get();
-    const stages = jobDoc.exists ? jobDoc.data()?.stages : {};
+    let stages = jobDoc.exists ? jobDoc.data()?.stages : {};
     if (stages?.transcription?.status !== "completed") {
-        logger.warn("[Dubbing] Gate: Transcription not completed — aborting", { jobId });
+      const vDoc = await db().collection("videos").doc(jobId).get();
+      const origJobId = vDoc.data()?.jobId;
+      if (origJobId && origJobId !== jobId) {
+        const origJobDoc = await db().collection("video_jobs").doc(origJobId).get();
+        if (origJobDoc.data()?.stages?.transcription?.status === "completed") {
+          stages = { ...origJobDoc.data()?.stages, ...stages };
+        }
+      }
+      const transDoc = await db().collection("transcripts").doc(jobId).get();
+      if (transDoc.exists) {
+        stages = { ...(stages || {}), transcription: { status: "completed" } };
+      } else if (origJobId) {
+        const origTransDoc = await db().collection("transcripts").doc(origJobId).get();
+        if (origTransDoc.exists) {
+          stages = { ...(stages || {}), transcription: { status: "completed" } };
+        }
+      }
+    }
+    if (stages?.transcription?.status !== "completed") {
+      const vDoc = await db().collection("videos").doc(jobId).get();
+      const vData = vDoc.data();
+      const hasSubs = (vData?.subtitles && Object.keys(vData.subtitles).length > 0) ||
+        (vData?.media?.subtitles && Object.keys(vData.media?.subtitles).length > 0) ||
+        (vData?.mediaSubtitles && Object.keys(vData.mediaSubtitles).length > 0);
+      const hasTranscript = Boolean(vData?.transcript && vData.transcript.trim().length > 0) ||
+        Boolean(vData?.transcriptionUrl && vData.transcriptionUrl.trim().length > 0);
+      if (hasSubs || hasTranscript || vData?.status === "published") {
+        stages = { ...(stages || {}), transcription: { status: "completed" } };
+      }
+    }
+    if (stages?.transcription?.status !== "completed") {
+      logger.warn("[Dubbing] Gate: Transcription not completed — attempting auto-transcription fallback", { jobId });
+      try {
+        const { TranscriptionLayer } = require("./05-transcription");
+        const transLayer = new TranscriptionLayer();
+        await transLayer.submitTranscription(jobId, userId, videoUrl, executionPlan, eventId);
+        stages = { ...(stages || {}), transcription: { status: "completed" } };
+      } catch (autoTransErr) {
+        logger.error("[Dubbing] Auto-transcription failed:", { jobId, err: String(autoTransErr) });
         throw new Error("Transcription must be completed before starting Dubbing Engine");
+      }
+    }
+
+    if (executionPlan.genLangSubs || (executionPlan.languages && executionPlan.languages.length > 0)) {
+      await EdgeLayer.updateStageSync(jobId, "subtitles", {
+        status: "running", progress: 35, startedAt: Date.now(),
+      }).catch(() => {});
     }
 
     if (executionPlan.generateDubbing) {
@@ -104,9 +149,49 @@ export class DubbingEngine {
       });
     }
 
+    let timeoutTimer: NodeJS.Timeout | null = null;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutTimer = setTimeout(async () => {
+        logger.error("[Dubbing] Cloud timeout guard reached (480s)", { jobId });
+        await EdgeLayer.failJob(jobId, "dubbing", "Dubbing processing reached maximum cloud engine duration (480s)").catch(() => {});
+        reject(new Error("Dubbing processing reached maximum cloud engine duration (480s)"));
+      }, 480_000);
+    });
+
+    try {
+      return await Promise.race([
+        this.executeDubbingPipeline(jobId, userId, videoUrl, executionPlan, eventId, t0),
+        timeoutPromise,
+      ]);
+    } finally {
+      if (timeoutTimer) {
+        clearTimeout(timeoutTimer);
+      }
+    }
+  }
+
+  private async executeDubbingPipeline(
+    jobId:         string,
+    userId:        string,
+    videoUrl:      string,
+    executionPlan: ExecutionPlan,
+    eventId:       string,
+    t0:            number
+  ): Promise<DubbingResult[]> {
     try {
       // 1. Load transcript segments
-      const transcript = await this.loadTranscript(jobId);
+      let transcript = await this.loadTranscript(jobId);
+      if (!transcript) {
+        logger.warn("[Dubbing] Transcript not found immediately — attempting auto-transcription fallback", { jobId });
+        try {
+          const { TranscriptionLayer } = require("./05-transcription");
+          const transLayer = new TranscriptionLayer();
+          await transLayer.submitTranscription(jobId, userId, videoUrl, executionPlan, eventId);
+          transcript = await this.loadTranscript(jobId);
+        } catch (autoErr) {
+          logger.error("[Dubbing] Auto-transcription fallback failed:", { jobId, err: String(autoErr) });
+        }
+      }
       if (!transcript) throw new Error(`Transcript not found for job ${jobId}`);
 
       // 1.2. Stitch incomplete segments (Phase 3 Premium Polish)
@@ -128,7 +213,11 @@ export class DubbingEngine {
       }));
       logger.info("[Dubbing] Segments stitched & Hooks marked", { jobId, original: rawSegments.length, stitched: segments.length });
 
-      await EdgeLayer.updateStage(jobId, "dubbing", { progress: 15 });
+      if (executionPlan.generateDubbing) {
+        await EdgeLayer.updateStage(jobId, "dubbing", { progress: 15 });
+      }
+      await EdgeLayer.updateStageSync(jobId, "subtitles", { status: "running", progress: 45 }).catch(() => {});
+      await EdgeLayer.updateStageSync(jobId, "onDemandAI", { status: "running", progress: 45 }).catch(() => {});
       logger.info("[Dubbing] Transcript loaded — starting speaker profiling", { jobId });
 
       // ─── STUDIO RIG: Intelligence & Identity (Phase 2) ─────────────────────
@@ -137,13 +226,24 @@ export class DubbingEngine {
       const speakerProfiles = await speakerProfilingService.profileSpeakers(transcript.utterances ?? []);
       logger.info("[Dubbing] Speaker profiling complete", { jobId, speakers: speakerProfiles.length });
 
+      await db().collection("video_jobs").doc(jobId).set({
+        stages: {
+          onDemandAI: {
+            status: "running",
+            progress: 50,
+            updatedAt: Date.now(),
+          }
+        }
+      }, { merge: true });
+
       // 1.6. Studio Tier: Extract Vocal Identity & Acoustic Fingerprint
       let acousticFingerprint = null;
       let isolatedVocalUrl = null;
 
-      const jobData = jobDoc.data();
       if (executionPlan.channelType === "custom") {
         logger.info("[Dubbing] Custom Channel: Capturing Audio Identity", { jobId });
+        const jobDoc = await db().collection("video_jobs").doc(jobId).get();
+        const jobData = jobDoc.data();
 
         // Use original audio for fingerprinting (extracted by transcription layer)
         const originalAudioUrl = jobData?.artifacts?.transcription?.audioUrl || videoUrl;
@@ -189,9 +289,24 @@ export class DubbingEngine {
       if (creatorDNA) logger.info("[Dubbing] Loaded Creator DNA Style Memory", { userId, vibe: creatorDNA.vibe });
 
       // 2. Process each language IN PARALLEL — independent per language
-      logger.info("[Dubbing] Triggering per-language processing", { jobId, languages: executionPlan.languages });
+      let languagesToProcess: string[];
+      if (!executionPlan.generateDubbing) {
+        languagesToProcess = (executionPlan.subtitleLanguages && executionPlan.subtitleLanguages.length > 0)
+          ? executionPlan.subtitleLanguages
+          : (executionPlan.languages && executionPlan.languages.length > 0 ? executionPlan.languages : []);
+      } else {
+        const dubLangs = executionPlan.dubbingLanguages && executionPlan.dubbingLanguages.length > 0
+          ? executionPlan.dubbingLanguages
+          : (executionPlan.languages || []);
+        const subLangs = executionPlan.subtitleLanguages || [];
+        languagesToProcess = Array.from(new Set([...dubLangs, ...subLangs]));
+      }
+      if (languagesToProcess.length === 0 && executionPlan.languages && executionPlan.languages.length > 0) {
+        languagesToProcess = executionPlan.languages;
+      }
+      logger.info("[Dubbing] Triggering per-language processing", { jobId, languages: languagesToProcess });
       const results = await Promise.allSettled(
-        executionPlan.languages.map((lang) =>
+        languagesToProcess.map((lang) =>
           this.processLanguage(
             jobId, userId, videoUrl, lang,
             segments,
@@ -212,7 +327,7 @@ export class DubbingEngine {
       const audioPaths:      Record<string, string>  = {};
 
       results.forEach((r, i) => {
-        const lang = executionPlan.languages[i];
+        const lang = languagesToProcess[i];
         const normLang = normalizeLanguageCode(lang);
         if (r.status === "fulfilled" && r.value) {
           const v = r.value;
@@ -249,14 +364,14 @@ export class DubbingEngine {
         // Log detailed failure for debugging
         const failureDetails = results
           .map((r, i) => ({
-            lang: executionPlan.languages[i],
+            lang: languagesToProcess[i],
             error: r.status === "rejected" 
               ? (r.reason instanceof Error ? r.reason.message : String(r.reason))
               : "ok"
           }))
           .filter(d => d.error !== "ok");
         logger.error("[Dubbing] ALL languages failed — full details", { jobId, failures: failureDetails });
-        throw new Error(`All ${executionPlan.languages.length} languages failed for job ${jobId}: ${failureDetails.map(f => `${f.lang}: ${f.error}`).join(" | ")}`);
+        throw new Error(`All ${languagesToProcess.length} languages failed for job ${jobId}: ${failureDetails.map(f => `${f.lang}: ${f.error}`).join(" | ")}`);
       }
 
       // 4. Emit dubbing-complete (AFTER successful Firestore writes in processLanguage)
@@ -286,10 +401,57 @@ export class DubbingEngine {
       });
       await this.distribution.markEventCompleted(eventId);
 
+      await db().collection("video_jobs").doc(jobId).set({
+        status: "completed",
+        progress: 100,
+        stages: {
+          dubbing: {
+            status: executionPlan.generateDubbing ? "completed" : "skipped",
+            progress: 100,
+            completedAt: Date.now(),
+          },
+          subtitles: {
+            status: "completed",
+            progress: 100,
+            completedAt: Date.now(),
+          },
+          onDemandAI: {
+            status: "completed",
+            progress: 100,
+            completedAt: Date.now(),
+          }
+        },
+        outputs: {
+          audioTracks: audioPaths,
+          subtitles: subtitlePaths,
+          dubbedVideos: dubbedPaths,
+        }
+      }, { merge: true });
+
       return dubbingResults;
 
     } catch (error) {
       await EdgeLayer.failJob(jobId, "dubbing", error instanceof Error ? error.message : String(error));
+      await db().collection("video_jobs").doc(jobId).set({
+        status: "failed",
+        stages: {
+          dubbing: {
+            status: "failed",
+            error: error instanceof Error ? error.message : String(error),
+            failedAt: Date.now(),
+          },
+          subtitles: {
+            status: "failed",
+            error: error instanceof Error ? error.message : String(error),
+            failedAt: Date.now(),
+          },
+          onDemandAI: {
+            status: "failed",
+            error: error instanceof Error ? error.message : String(error),
+            failedAt: Date.now(),
+          }
+        }
+      }, { merge: true });
       throw error;
     } finally {
       // 💨 Voice Lifecycle Cleanup: Delete temporary clones from ElevenLabs
@@ -355,7 +517,9 @@ export class DubbingEngine {
     try {
       // A. Translate (skip if same language)
       if (targetLang !== sourceLang) {
-        await updateTranslationStage("running", 10);
+        await updateTranslationStage("running", 25);
+        await EdgeLayer.updateStageSync(jobId, "subtitles", { status: "running", progress: 55 }).catch(() => {});
+        await EdgeLayer.updateStageSync(jobId, "onDemandAI", { status: "running", progress: 55 }).catch(() => {});
       }
       logger.info("[Dubbing] [Lang] Starting translation", { jobId, targetLang, sourceLang });
       let dubbingSegs: DubbingSegment[];
@@ -392,6 +556,8 @@ export class DubbingEngine {
 
       if (targetLang !== sourceLang) {
         await updateTranslationStage("completed", 100);
+        await EdgeLayer.updateStageSync(jobId, "subtitles", { status: "running", progress: 75 }).catch(() => {});
+        await EdgeLayer.updateStageSync(jobId, "onDemandAI", { status: "running", progress: 75 }).catch(() => {});
       }
 
       // B. Generate subtitles (.json, .vtt, and .srt formats for every language)
@@ -470,67 +636,102 @@ export class DubbingEngine {
           if (jobData?.videoId && !linkedVideoIds.includes(jobData.videoId)) {
             linkedVideoIds.push(jobData.videoId);
           }
+          if (!linkedVideoIds.includes(jobId)) {
+            linkedVideoIds.push(jobId);
+          }
 
-          const directSubtitleUrl = subtitleUrl.startsWith("gs://")
-            ? `https://storage.googleapis.com/${bucket.name}/${subtitleUrl.replace(`gs://${bucket.name}/`, "")}`
-            : subtitleUrl;
+          let directSubtitleUrl = subtitleUrl;
+          if (subtitleUrl.startsWith("gs://")) {
+            const relPath = subtitleUrl.replace(`gs://${bucket.name}/`, "");
+            directSubtitleUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(relPath)}?alt=media`;
+          }
 
-          const subUpdates: Record<string, string> = {
-            [targetLang]: directSubtitleUrl,
+          const subUpdates: Record<string, any> = {
+            subtitles: {
+              [targetLang]: directSubtitleUrl,
+              ...(rawTargetLang && rawTargetLang !== targetLang ? { [rawTargetLang]: directSubtitleUrl } : {}),
+            },
+            media: {
+              subtitles: {
+                [targetLang]: directSubtitleUrl,
+                ...(rawTargetLang && rawTargetLang !== targetLang ? { [rawTargetLang]: directSubtitleUrl } : {}),
+              },
+            },
+            [`subtitles.${targetLang}`]: directSubtitleUrl,
+            [`media.subtitles.${targetLang}`]: directSubtitleUrl,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           };
           if (rawTargetLang && rawTargetLang !== targetLang) {
-            subUpdates[rawTargetLang] = directSubtitleUrl;
+            subUpdates[`subtitles.${rawTargetLang}`] = directSubtitleUrl;
+            subUpdates[`media.subtitles.${rawTargetLang}`] = directSubtitleUrl;
           }
 
           for (const vid of linkedVideoIds) {
-            // Update top-level videos/{vid} document directly
-            await db().collection("videos").doc(vid).set({
-              subtitles: subUpdates,
-              media: {
-                subtitles: subUpdates,
-              },
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            }, { merge: true });
+            // Update top-level videos/{vid} document directly with nested and dot notation
+            await db().collection("videos").doc(vid).set(subUpdates, { merge: true });
 
             // Also update subcollection for backwards compatibility
-            await db().collection("videos").doc(vid).collection("media").doc("localization").set({
-              subtitles: subUpdates,
+            const locSubUpdates: Record<string, any> = {
+              subtitles: {
+                [targetLang]: directSubtitleUrl,
+                ...(rawTargetLang && rawTargetLang !== targetLang ? { [rawTargetLang]: directSubtitleUrl } : {}),
+              },
+              [`subtitles.${targetLang}`]: directSubtitleUrl,
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            }, { merge: true });
+            };
+            if (rawTargetLang && rawTargetLang !== targetLang) {
+              locSubUpdates[`subtitles.${rawTargetLang}`] = directSubtitleUrl;
+            }
+            await db().collection("videos").doc(vid).collection("media").doc("localization").set(locSubUpdates, { merge: true });
           }
 
-          // Also update the job_outputs document's subtitles map
-          const jobOutputSubs: Record<string, any> = {
-            [targetLang]: {
-              url: subtitleUrl,
-              srtPath: srtUrl || `gs://${bucket.name}/subtitles/${jobId}/${targetLang}.srt`,
-              vttPath: vttUrl || `gs://${bucket.name}/subtitles/${jobId}/${targetLang}.vtt`,
-              jsonPath: jsonUrl || translationUrl,
-              format: "srt",
-              language: targetLang,
-              updatedAt: Date.now(),
-            }
+          // Also update the job_outputs and video_jobs documents' subtitles map
+          const targetSubEntry = {
+            url: subtitleUrl,
+            srtPath: srtUrl || `gs://${bucket.name}/subtitles/${jobId}/${targetLang}.srt`,
+            vttPath: vttUrl || `gs://${bucket.name}/subtitles/${jobId}/${targetLang}.vtt`,
+            jsonPath: jsonUrl || translationUrl,
+            format: "srt",
+            language: targetLang,
+            updatedAt: Date.now(),
+          };
+          const jobOutputSubUpdate: Record<string, any> = {
+            subtitles: {
+              [targetLang]: targetSubEntry,
+              ...(rawTargetLang && rawTargetLang !== targetLang ? { [rawTargetLang]: targetSubEntry } : {}),
+            },
+            [`subtitles.${targetLang}`]: targetSubEntry,
+            updatedAt: Date.now(),
           };
           if (rawTargetLang && rawTargetLang !== targetLang) {
-            jobOutputSubs[rawTargetLang] = {
-              url: subtitleUrl,
-              srtPath: srtUrl || `gs://${bucket.name}/subtitles/${jobId}/${targetLang}.srt`,
-              vttPath: vttUrl || `gs://${bucket.name}/subtitles/${jobId}/${targetLang}.vtt`,
-              jsonPath: jsonUrl || translationUrl,
-              format: "srt",
-              language: rawTargetLang,
-              updatedAt: Date.now(),
-            };
+            jobOutputSubUpdate[`subtitles.${rawTargetLang}`] = targetSubEntry;
           }
+          await db().collection("job_outputs").doc(jobId).set(jobOutputSubUpdate, { merge: true });
 
-          await db().collection("job_outputs").doc(jobId).set({
-            subtitles: jobOutputSubs
-          }, { merge: true });
+          const videoJobSubUpdate: Record<string, any> = {
+            outputs: {
+              subtitles: {
+                [targetLang]: subtitleUrl,
+                ...(rawTargetLang && rawTargetLang !== targetLang ? { [rawTargetLang]: subtitleUrl } : {}),
+              },
+            },
+            [`outputs.subtitles.${targetLang}`]: subtitleUrl,
+            updatedAt: Date.now(),
+          };
+          if (rawTargetLang && rawTargetLang !== targetLang) {
+            videoJobSubUpdate[`outputs.subtitles.${rawTargetLang}`] = subtitleUrl;
+          }
+          await db().collection("video_jobs").doc(jobId).set(videoJobSubUpdate, { merge: true });
 
           // Update the job document's updatedAt timestamp
           await db().collection("video_jobs").doc(jobId).update({
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
+          await EdgeLayer.updateStageSync(jobId, "subtitles", { status: "running", progress: 90 }).catch(() => {});
+          await EdgeLayer.updateStageSync(jobId, "onDemandAI", { status: "running", progress: 90 }).catch(() => {});
+          if (!executionPlan.generateDubbing) {
+            await updateDubbingStage("completed", 100);
+          }
 
           logger.info("[Dubbing] Propagated subtitles to video collection", { jobId, targetLang, rawTargetLang, videoCount: linkedVideoIds.length });
         } catch (err) {
@@ -561,6 +762,100 @@ export class DubbingEngine {
           const syncInstructions = this.buildSyncInstructions(normalised, ttsUrls);
           audioUrl = await this.stitchAudio(jobId, ttsUrls, syncInstructions, targetLang);
 
+          // ⚡ Progressive Audio Delivery (Industry Low-Latency Standard):
+          // Immediately propagate audio tracks to Firestore and linked videos so creators & players
+          // receive instant access to the audio track without waiting for heavy FFmpeg video muxing.
+          const bucket = admin.storage().bucket();
+          const directAudioUrl = audioUrl
+            ? (audioUrl.startsWith("gs://")
+                ? `https://storage.googleapis.com/${bucket.name}/${audioUrl.replace(`gs://${bucket.name}/`, "")}`
+                : audioUrl)
+            : "";
+
+          if (directAudioUrl) {
+            try {
+              const jobSnap = await db().collection("video_jobs").doc(jobId).get();
+              const jobData = jobSnap.data() as JobData;
+              const linkedVideoIds = jobData?.linkedVideoIds || [];
+              if (jobData?.videoId && !linkedVideoIds.includes(jobData.videoId)) {
+                linkedVideoIds.push(jobData.videoId);
+              }
+              if (!linkedVideoIds.includes(jobId)) {
+                linkedVideoIds.push(jobId);
+              }
+
+              const dotAudioUpdates: Record<string, any> = {
+                audioTracks: {
+                  [targetLang]: directAudioUrl,
+                  ...(rawTargetLang && rawTargetLang !== targetLang ? { [rawTargetLang]: directAudioUrl } : {}),
+                },
+                media: {
+                  audioTracks: {
+                    [targetLang]: directAudioUrl,
+                    ...(rawTargetLang && rawTargetLang !== targetLang ? { [rawTargetLang]: directAudioUrl } : {}),
+                  },
+                },
+                [`audioTracks.${targetLang}`]: directAudioUrl,
+                [`media.audioTracks.${targetLang}`]: directAudioUrl,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              };
+              if (rawTargetLang && rawTargetLang !== targetLang) {
+                dotAudioUpdates[`audioTracks.${rawTargetLang}`] = directAudioUrl;
+                dotAudioUpdates[`media.audioTracks.${rawTargetLang}`] = directAudioUrl;
+              }
+
+              for (const vid of linkedVideoIds) {
+                await db().collection("videos").doc(vid).set(dotAudioUpdates, { merge: true });
+
+                const locAudioUpdates: Record<string, any> = {
+                  audioTracks: {
+                    [targetLang]: directAudioUrl,
+                    ...(rawTargetLang && rawTargetLang !== targetLang ? { [rawTargetLang]: directAudioUrl } : {}),
+                  },
+                  [`audioTracks.${targetLang}`]: directAudioUrl,
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                };
+                if (rawTargetLang && rawTargetLang !== targetLang) {
+                  locAudioUpdates[`audioTracks.${rawTargetLang}`] = directAudioUrl;
+                }
+                await db().collection("videos").doc(vid).collection("media").doc("localization").set(locAudioUpdates, { merge: true });
+              }
+
+              const jobOutputAudioUpdate: Record<string, any> = {
+                audioTracks: {
+                  [targetLang]: directAudioUrl,
+                  ...(rawTargetLang && rawTargetLang !== targetLang ? { [rawTargetLang]: directAudioUrl } : {}),
+                },
+                [`audioTracks.${targetLang}`]: directAudioUrl,
+                updatedAt: Date.now(),
+              };
+              if (rawTargetLang && rawTargetLang !== targetLang) {
+                jobOutputAudioUpdate[`audioTracks.${rawTargetLang}`] = directAudioUrl;
+              }
+              await db().collection("job_outputs").doc(jobId).set(jobOutputAudioUpdate, { merge: true });
+
+              const videoJobAudioUpdate: Record<string, any> = {
+                outputs: {
+                  audioTracks: {
+                    [targetLang]: directAudioUrl,
+                    ...(rawTargetLang && rawTargetLang !== targetLang ? { [rawTargetLang]: directAudioUrl } : {}),
+                  },
+                },
+                [`outputs.audioTracks.${targetLang}`]: directAudioUrl,
+                updatedAt: Date.now(),
+              };
+              if (rawTargetLang && rawTargetLang !== targetLang) {
+                videoJobAudioUpdate[`outputs.audioTracks.${rawTargetLang}`] = directAudioUrl;
+              }
+              await db().collection("video_jobs").doc(jobId).set(videoJobAudioUpdate, { merge: true });
+
+              await updateDubbingStage("completed", 100);
+              logger.info("[Dubbing] ⚡ Progressive Delivery: Audio track published immediately", { jobId, targetLang, directAudioUrl });
+            } catch (earlyPropErr) {
+              logger.warn("[Dubbing] Early audio track propagation warning:", earlyPropErr);
+            }
+          }
+
           // Studio Mastering: Apply Acoustic Identity via DSP Rules Engine
           let dspFilters = undefined;
           if (acousticFingerprint) {
@@ -568,12 +863,16 @@ export class DubbingEngine {
             logger.info("[Dubbing] Studio Tier: Applying DSP mastering chain", { jobId, targetLang });
           }
 
-          videoResult = await mediaService.mergeAudioToVideo({
-            jobId, videoUrl, audioUrl, 
-            subtitleUrl: executionPlan.genLangSubs ? subtitleUrl : undefined,
-            language: targetLang, format: "mp4",
-            audioFilters: dspFilters, // Pass the mastering chain to FFmpeg
-          });
+          try {
+            videoResult = await mediaService.mergeAudioToVideo({
+              jobId, videoUrl, audioUrl, 
+              subtitleUrl: executionPlan.genLangSubs ? subtitleUrl : undefined,
+              language: targetLang, format: "mp4",
+              audioFilters: dspFilters, // Pass the mastering chain to FFmpeg
+            });
+          } catch (mergeErr) {
+            logger.warn("[Dubbing] Video remuxing skipped or deferred (audio track is intact):", mergeErr);
+          }
 
           await updateDubbingStage("completed", 100);
         } catch (dubErr) {
@@ -626,6 +925,9 @@ export class DubbingEngine {
           if (jobData?.videoId && !linkedVideoIds.includes(jobData.videoId)) {
             linkedVideoIds.push(jobData.videoId);
           }
+          if (!linkedVideoIds.includes(jobId)) {
+            linkedVideoIds.push(jobId);
+          }
 
           const directAudioUrl = audioUrl
             ? (audioUrl.startsWith("gs://")
@@ -638,76 +940,76 @@ export class DubbingEngine {
                 : videoResult)
             : "";
 
-          const audioUpdates: Record<string, string> = {};
+          const videoDocUpdate: any = {
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          };
+          const locDocUpdate: any = {
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          };
+          const jobOutputAudio: any = {
+            updatedAt: Date.now(),
+          };
+          const videoJobOutputsUpdate: any = {
+            updatedAt: Date.now(),
+          };
+
           if (directAudioUrl) {
-            audioUpdates[targetLang] = directAudioUrl;
+            videoDocUpdate[`audioTracks.${targetLang}`] = directAudioUrl;
+            videoDocUpdate[`media.audioTracks.${targetLang}`] = directAudioUrl;
+            locDocUpdate[`audioTracks.${targetLang}`] = directAudioUrl;
+            jobOutputAudio[`audioTracks.${targetLang}`] = directAudioUrl;
+            videoJobOutputsUpdate[`outputs.audioTracks.${targetLang}`] = directAudioUrl;
+
             if (rawTargetLang && rawTargetLang !== targetLang) {
-              audioUpdates[rawTargetLang] = directAudioUrl;
+              videoDocUpdate[`audioTracks.${rawTargetLang}`] = directAudioUrl;
+              videoDocUpdate[`media.audioTracks.${rawTargetLang}`] = directAudioUrl;
+              locDocUpdate[`audioTracks.${rawTargetLang}`] = directAudioUrl;
+              jobOutputAudio[`audioTracks.${rawTargetLang}`] = directAudioUrl;
+              videoJobOutputsUpdate[`outputs.audioTracks.${rawTargetLang}`] = directAudioUrl;
             }
           }
 
-          const dubbedUpdates: Record<string, string> = {};
           if (directVideoUrl) {
-            dubbedUpdates[targetLang] = directVideoUrl;
+            videoDocUpdate[`dubbedVideos.${targetLang}`] = directVideoUrl;
+            videoDocUpdate[`media.dubbedVideos.${targetLang}`] = directVideoUrl;
+            locDocUpdate[`dubbedVideos.${targetLang}`] = directVideoUrl;
+            videoJobOutputsUpdate[`outputs.dubbedVideos.${targetLang}`] = directVideoUrl;
+
             if (rawTargetLang && rawTargetLang !== targetLang) {
-              dubbedUpdates[rawTargetLang] = directVideoUrl;
+              videoDocUpdate[`dubbedVideos.${rawTargetLang}`] = directVideoUrl;
+              videoDocUpdate[`media.dubbedVideos.${rawTargetLang}`] = directVideoUrl;
+              locDocUpdate[`dubbedVideos.${rawTargetLang}`] = directVideoUrl;
+              videoJobOutputsUpdate[`outputs.dubbedVideos.${rawTargetLang}`] = directVideoUrl;
             }
           }
 
-          if (Object.keys(audioUpdates).length > 0 || Object.keys(dubbedUpdates).length > 0) {
-            for (const vid of linkedVideoIds) {
-              const videoDocUpdate: any = {
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-              };
-              if (Object.keys(audioUpdates).length > 0) {
-                videoDocUpdate.audioTracks = audioUpdates;
-                videoDocUpdate["media.audioTracks"] = audioUpdates;
-              }
-              if (Object.keys(dubbedUpdates).length > 0) {
-                videoDocUpdate.dubbedVideos = dubbedUpdates;
-                videoDocUpdate["media.dubbedVideos"] = dubbedUpdates;
-              }
-
-              await db().collection("videos").doc(vid).set(videoDocUpdate, { merge: true });
-
-              await db().collection("videos").doc(vid).collection("media").doc("localization").set({
-                ...(Object.keys(audioUpdates).length > 0 ? { audioTracks: audioUpdates } : {}),
-                ...(Object.keys(dubbedUpdates).length > 0 ? { dubbedVideos: dubbedUpdates } : {}),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-              }, { merge: true });
-            }
-
-            // Also update the job_outputs document's audioTracks and dubbed maps
-            const jobOutputAudio: any = {
+          if (directVideoUrl || directAudioUrl) {
+            jobOutputAudio[`dubbed.${targetLang}`] = {
+              audioUrl: directAudioUrl,
+              path: directVideoUrl || directAudioUrl,
+              videoUrl: directVideoUrl,
+              language: targetLang,
               updatedAt: Date.now(),
             };
-            if (Object.keys(audioUpdates).length > 0) {
-              jobOutputAudio.audioTracks = audioUpdates;
-            }
-            if (directVideoUrl || directAudioUrl) {
-              jobOutputAudio.dubbed = {
-                [targetLang]: {
-                  audioUrl: directAudioUrl,
-                  path: directVideoUrl || directAudioUrl,
-                  videoUrl: directVideoUrl,
-                  language: targetLang,
-                  updatedAt: Date.now(),
-                },
-                ...(rawTargetLang && rawTargetLang !== targetLang ? {
-                  [rawTargetLang]: {
-                    audioUrl: directAudioUrl,
-                    path: directVideoUrl || directAudioUrl,
-                    videoUrl: directVideoUrl,
-                    language: rawTargetLang,
-                    updatedAt: Date.now(),
-                  },
-                } : {}),
+            if (rawTargetLang && rawTargetLang !== targetLang) {
+              jobOutputAudio[`dubbed.${rawTargetLang}`] = {
+                audioUrl: directAudioUrl,
+                path: directVideoUrl || directAudioUrl,
+                videoUrl: directVideoUrl,
+                language: rawTargetLang,
+                updatedAt: Date.now(),
               };
             }
-
-            await db().collection("job_outputs").doc(jobId).set(jobOutputAudio, { merge: true });
-            logger.info("[Dubbing] Propagated audio tracks to video collection", { jobId, targetLang, rawTargetLang, videoCount: linkedVideoIds.length });
           }
+
+          for (const vid of linkedVideoIds) {
+            await db().collection("videos").doc(vid).set(videoDocUpdate, { merge: true });
+            await db().collection("videos").doc(vid).collection("media").doc("localization").set(locDocUpdate, { merge: true });
+          }
+
+          await db().collection("job_outputs").doc(jobId).set(jobOutputAudio, { merge: true });
+          await db().collection("video_jobs").doc(jobId).set(videoJobOutputsUpdate, { merge: true });
+          logger.info("[Dubbing] Propagated audio tracks to video collection", { jobId, targetLang, rawTargetLang, videoCount: linkedVideoIds.length });
         } catch (propErr) {
           logger.error("[Dubbing] Failed to propagate audio tracks to videos", { jobId, err: String(propErr) });
         }
@@ -1011,9 +1313,260 @@ export class DubbingEngine {
       .trim();
   }
 
+  private async fetchFileContent(url: string): Promise<string | null> {
+    try {
+      if (url.startsWith("gs://")) {
+        const parts = url.replace("gs://", "").split("/");
+        const bucketName = parts[0];
+        const filePath = parts.slice(1).join("/");
+        const file = admin.storage().bucket(bucketName).file(filePath);
+        const [exists] = await file.exists();
+        if (!exists) return null;
+        const [content] = await file.download();
+        return content.toString("utf8");
+      }
+      if (url.startsWith("http://") || url.startsWith("https://")) {
+        const axios = require("axios");
+        const resp = await axios.get(url, { responseType: "text", timeout: 15000 });
+        return typeof resp.data === "string" ? resp.data : JSON.stringify(resp.data);
+      }
+    } catch (err) {
+      logger.warn("[Dubbing] fetchFileContent error:", { url, err: String(err) });
+    }
+    return null;
+  }
+
+  private parseSubtitlesToUtterances(content: string): TimedSegment[] {
+    if (!content || !content.trim()) return [];
+    let raw = content;
+    if (raw.startsWith("\uFEFF")) raw = raw.substring(1);
+    const trimmed = raw.trim();
+
+    // 1. JSON
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed.map((s: any, i: number) => ({
+            index: i,
+            text: s.text || s.translatedText || s.originalText || "",
+            start: typeof s.start === "number" ? s.start : 0,
+            end: typeof s.end === "number" ? s.end : ((s.start || 0) + 2000),
+            duration: (s.end && s.start) ? (s.end - s.start) : 2000,
+            speaker: s.speaker || "Speaker 1",
+            words: s.words || [],
+          })).filter((s: TimedSegment) => s.text.length > 0);
+        }
+        if (parsed.utterances && Array.isArray(parsed.utterances)) {
+          return parsed.utterances.map((u: any, i: number) => ({
+            index: i,
+            text: u.text || "",
+            start: typeof u.start === "number" ? u.start : 0,
+            end: typeof u.end === "number" ? u.end : ((u.start || 0) + 2000),
+            duration: (u.end && u.start) ? (u.end - u.start) : 2000,
+            speaker: u.speaker || "Speaker 1",
+            words: u.words || [],
+          })).filter((s: TimedSegment) => s.text.length > 0);
+        }
+      } catch (e) {
+        logger.warn("[Dubbing] JSON subtitle parse error:", e);
+      }
+    }
+
+    // 2. SRT / WebVTT
+    const clean = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    const timeRegex = /(?:(\d{1,2}):)?(\d{2}):(\d{2})[,.](\d{3})\s*-->\s*(?:(\d{1,2}):)?(\d{2}):(\d{2})[,.](\d{3})/;
+    const blocks = clean.split(/\n\s*\n/);
+    const utterances: TimedSegment[] = [];
+    let idx = 0;
+
+    for (const block of blocks) {
+      const lines = block.trim().split("\n");
+      if (lines.length === 0) continue;
+      const timeLineIdx = lines.findIndex(l => timeRegex.test(l));
+      if (timeLineIdx === -1) continue;
+      const match = lines[timeLineIdx].match(timeRegex);
+      if (!match) continue;
+
+      const parseMs = (h: string | undefined, m: string, s: string, ms: string) => {
+        const hours = h ? parseInt(h, 10) : 0;
+        const mins = parseInt(m, 10);
+        const secs = parseInt(s, 10);
+        const millis = parseInt(ms, 10);
+        return (hours * 3600 + mins * 60 + secs) * 1000 + millis;
+      };
+
+      const start = parseMs(match[1], match[2], match[3], match[4]);
+      const end = parseMs(match[5], match[6], match[7], match[8]);
+      const textLines = lines.slice(timeLineIdx + 1)
+        .map(l => l.replace(/<[^>]*>/g, "").trim())
+        .filter(Boolean);
+      const text = textLines.join(" ").trim();
+
+      if (text.length > 0 && end > start) {
+        utterances.push({
+          index: idx++,
+          text,
+          start,
+          end,
+          duration: end - start,
+          speaker: "Speaker 1",
+          words: [],
+        });
+      }
+    }
+
+    return utterances;
+  }
+
+  private normalizeTranscriptData(parsed: any): any {
+    if (!parsed) return { text: "", utterances: [] };
+    if (parsed.utterances && Array.isArray(parsed.utterances)) {
+      return {
+        text: parsed.text || parsed.utterances.map((u: any) => u.text).join(" "),
+        language: parsed.language || "en",
+        utterances: parsed.utterances.map((u: any, i: number) => ({
+          index: i,
+          text: u.text || "",
+          start: typeof u.start === "number" ? u.start : 0,
+          end: typeof u.end === "number" ? u.end : ((u.start || 0) + 2000),
+          duration: (u.end && u.start) ? (u.end - u.start) : 2000,
+          speaker: u.speaker || "Speaker 1",
+        })).filter((u: any) => u.text.length > 0),
+      };
+    }
+    if (Array.isArray(parsed)) {
+      return {
+        text: parsed.map((s: any) => s.text || s.translatedText || "").join(" "),
+        language: "en",
+        utterances: parsed.map((s: any, i: number) => ({
+          index: i,
+          text: s.text || s.translatedText || "",
+          start: typeof s.start === "number" ? s.start : 0,
+          end: typeof s.end === "number" ? s.end : ((s.start || 0) + 2000),
+          duration: (s.end && s.start) ? (s.end - s.start) : 2000,
+          speaker: s.speaker || "Speaker 1",
+        })).filter((u: any) => u.text.length > 0),
+      };
+    }
+    return { text: "", utterances: [] };
+  }
+
   private async loadTranscript(jobId: string): Promise<any | null> {
-    const doc = await db().collection("transcripts").doc(jobId).get();
-    return doc.exists ? doc.data() : null;
+    let doc = await db().collection("transcripts").doc(jobId).get();
+    if (doc.exists) {
+      const data = doc.data();
+      if (data?.utterances && data.utterances.length > 0) {
+        return data;
+      }
+    }
+
+    const vDoc = await db().collection("videos").doc(jobId).get();
+    const vData = vDoc.data();
+    const origJobId = vData?.jobId;
+    if (origJobId && origJobId !== jobId) {
+      doc = await db().collection("transcripts").doc(origJobId).get();
+      if (doc.exists) {
+        const data = doc.data();
+        if (data?.utterances && data.utterances.length > 0) {
+          return data;
+        }
+      }
+    }
+
+    const bucket = admin.storage().bucket();
+    const potentialStoragePaths = [
+      `transcripts/${jobId}/full.json`,
+      `transcripts/${jobId}.json`,
+      origJobId ? `transcripts/${origJobId}/full.json` : null,
+      origJobId ? `transcripts/${origJobId}.json` : null,
+    ].filter(Boolean) as string[];
+
+    for (const p of potentialStoragePaths) {
+      try {
+        const file = bucket.file(p);
+        const [exists] = await file.exists();
+        if (exists) {
+          const [content] = await file.download();
+          const parsed = JSON.parse(content.toString("utf8"));
+          const normalized = this.normalizeTranscriptData(parsed);
+          if (normalized.utterances.length > 0) {
+            await db().collection("transcripts").doc(jobId).set(normalized, { merge: true }).catch(() => {});
+            return normalized;
+          }
+        }
+      } catch (e) {
+        logger.warn("[Dubbing] Error reading transcript from Cloud Storage:", { path: p, error: String(e) });
+      }
+    }
+
+    const transcriptionUrl = vData?.transcriptionUrl || vData?.artifacts?.transcription?.jsonUrl;
+    if (transcriptionUrl && typeof transcriptionUrl === "string") {
+      try {
+        const content = await this.fetchFileContent(transcriptionUrl);
+        if (content) {
+          const parsed = JSON.parse(content);
+          const normalized = this.normalizeTranscriptData(parsed);
+          if (normalized.utterances.length > 0) {
+            await db().collection("transcripts").doc(jobId).set(normalized, { merge: true }).catch(() => {});
+            return normalized;
+          }
+        }
+      } catch (e) {
+        logger.warn("[Dubbing] Error fetching transcriptionUrl:", { transcriptionUrl, error: String(e) });
+      }
+    }
+
+    const existingSubs: Record<string, string> = {
+      ...(vData?.subtitles || {}),
+      ...(vData?.media?.subtitles || {}),
+      ...(vData?.mediaSubtitles || {}),
+    };
+
+    const availableLangs = Object.keys(existingSubs);
+    if (availableLangs.length > 0) {
+      for (const lang of availableLangs) {
+        const subUrl = existingSubs[lang];
+        if (!subUrl) continue;
+        try {
+          const subContent = await this.fetchFileContent(subUrl);
+          if (subContent && subContent.trim().length > 0) {
+            const utterances = this.parseSubtitlesToUtterances(subContent);
+            if (utterances.length > 0) {
+              const fullText = utterances.map((u) => u.text).join(" ");
+              const normalized = {
+                text: fullText,
+                utterances,
+                language: lang,
+                source: "parsed_subtitles",
+                confidence: 1.0,
+              };
+              logger.info("[Dubbing] Recovered transcript from existing subtitles", { jobId, lang, utterances: utterances.length });
+              await db().collection("transcripts").doc(jobId).set(normalized, { merge: true }).catch(() => {});
+              return normalized;
+            }
+          }
+        } catch (subErr) {
+          logger.warn("[Dubbing] Failed to parse existing subtitle:", { lang, subUrl, error: String(subErr) });
+        }
+      }
+    }
+
+    if (vData?.transcript && typeof vData.transcript === "string" && vData.transcript.trim().length > 0) {
+      const dur = (vData.durationSeconds || 60) * 1000;
+      return {
+        text: vData.transcript,
+        language: vData.detectedLanguage || vData.language || "en",
+        utterances: [{
+          text: vData.transcript,
+          start: 0,
+          end: dur,
+          speaker: "Speaker 1",
+        }],
+      };
+    }
+
+    return null;
   }
 
   private async loadExistingResults(

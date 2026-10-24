@@ -34,7 +34,7 @@ import {
 import { getCache, setCache } from "../utils/memory-cache";
 import { logger } from "../utils/logger";
 import { alerting } from "../utils/alerting";
-import { getClaimCacheProvider, ClaimCacheProvider } from "../services/claimCacheProvider.js";
+import { getClaimCacheProvider, ClaimCacheProvider } from "../services/claimCacheProvider";
 
 const db = () => admin.firestore();
 

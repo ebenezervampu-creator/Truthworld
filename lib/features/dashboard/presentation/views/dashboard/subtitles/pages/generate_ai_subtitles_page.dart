@@ -7,7 +7,8 @@ import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Dedicated, full-screen responsive page for generating multi-language AI subtitles
+/// Dedicated, responsive page for selecting target languages and generating AI subtitles,
+/// with real-time persistent background progress observation.
 class GenerateAiSubtitlesPage extends StatelessWidget {
   const GenerateAiSubtitlesPage({
     required this.controller,
@@ -22,19 +23,26 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final video = controller.selectedVideo.value;
     final surfaceColor =
-        isDarkMode ? const Color(0xFF1E1E1E) : AppColors.bgSurface;
+        isDarkMode ? const Color(0xFF18181B) : AppColors.bgSurface;
     const bgColor = AppColors.bgPage;
     final textColor =
         isDarkMode ? AppColors.textPrimary : AppColors.textPrimary;
     final textSecondaryColor =
         isDarkMode ? AppColors.textSecondary : AppColors.textSecondary;
     final borderColor =
-        isDarkMode ? AppColors.bgDivider : const Color(0xFF2A2A2A);
+        isDarkMode ? const Color(0xFF27272A) : const Color(0xFF2A2A2A);
 
     // Reactive state for the page (Zero setState policy)
-    final selectedLangs = <String>{'en', 'hi', 'te', 'es'}.obs;
+    // Start with clean empty selection so creator chooses only desired languages
+    final selectedLangs = <String>{}.obs;
     final priorityMode = 'standard'.obs; // 'standard' | 'high'
     final searchQuery = ''.obs;
+
+    // Detect languages that already have subtitles generated for this video
+    final existingSubs = <String>{
+      ...?video?.mediaSubtitles.keys.map((k) => k.toLowerCase()),
+      ...controller.availableLanguages.map((k) => k.toLowerCase()),
+    };
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -49,7 +57,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Generate with Truthworld AI',
+              'Generate Subtitles',
               style: TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.bold,
@@ -75,380 +83,45 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
         ),
       ),
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isDesktop = constraints.maxWidth >= 900;
-            final isTablet =
-                constraints.maxWidth >= 600 && constraints.maxWidth < 900;
-            final horizontalPadding = isDesktop ? 48.0 : (isTablet ? 24.0 : 16.0);
-
-            return Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 860),
-                child: ListView(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: horizontalPadding,
-                    vertical: 20,
-                  ),
-                  children: [
-                    // Video Mini-Header Card
-                    if (video != null)
-                      _buildVideoHeaderCard(
-                        video: video,
-                        surfaceColor: surfaceColor,
-                        borderColor: borderColor,
-                        textColor: textColor,
-                        textSecondaryColor: textSecondaryColor,
-                      ),
-                    const SizedBox(height: 20),
-
-                    // Feature Information Banner
-                    _buildAiExplainerBanner(
-                      surfaceColor: surfaceColor,
-                      borderColor: borderColor,
-                      textColor: textColor,
-                      textSecondaryColor: textSecondaryColor,
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Section 1: Processing Priority Mode
-                    _buildSectionTitle(
-                      title: '1. Processing Priority Mode',
-                      subtitle:
-                          'Choose execution speed and pipeline throughput',
-                      textColor: textColor,
-                      textSecondaryColor: textSecondaryColor,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildPrioritySelector(
-                      priorityMode: priorityMode,
-                      surfaceColor: surfaceColor,
-                      borderColor: borderColor,
-                      textColor: textColor,
-                      textSecondaryColor: textSecondaryColor,
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Section 2: Target Languages Selection
-                    _buildSectionTitle(
-                      title: '2. Target Translation Languages',
-                      subtitle:
-                          'Select the languages to transcribe and generate subtitles for',
-                      textColor: textColor,
-                      textSecondaryColor: textSecondaryColor,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildLanguagesMultiPicker(
-                      selectedLangs: selectedLangs,
-                      searchQuery: searchQuery,
-                      surfaceColor: surfaceColor,
-                      borderColor: borderColor,
-                      textColor: textColor,
-                      textSecondaryColor: textSecondaryColor,
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Section 3: Cost and Wallet Summary Card
-                    _buildCostSummaryCard(
-                      video: video,
-                      selectedLangs: selectedLangs,
-                      controller: controller,
-                      surfaceColor: surfaceColor,
-                      borderColor: borderColor,
-                      textColor: textColor,
-                      textSecondaryColor: textSecondaryColor,
-                    ),
-                    const SizedBox(height: 32),
-
-                    // Bottom Action Button
-                    _buildActionButtons(
-                      selectedLangs: selectedLangs,
-                      priorityMode: priorityMode,
-                      controller: controller,
-                    ),
-                    const SizedBox(height: 40),
-                  ],
-                ),
-              ),
+        child: Obx(() {
+          // If generation is active or in progress, show the Live Progress UI
+          if (controller.isGeneratingAI.value) {
+            return _buildLiveProgressView(
+              context: context,
+              video: video,
+              surfaceColor: surfaceColor,
+              borderColor: borderColor,
+              textColor: textColor,
+              textSecondaryColor: textSecondaryColor,
             );
-          },
-        ),
+          }
+
+          // Otherwise show the Language Selection & Generation Setup
+          return _buildLanguageSelectionView(
+            video: video,
+            selectedLangs: selectedLangs,
+            priorityMode: priorityMode,
+            searchQuery: searchQuery,
+            existingSubs: existingSubs,
+            surfaceColor: surfaceColor,
+            borderColor: borderColor,
+            textColor: textColor,
+            textSecondaryColor: textSecondaryColor,
+          );
+        }),
       ),
     );
   }
 
   // ===========================================================================
-  // VIDEO HEADER CARD
+  // 1. LANGUAGE SELECTION VIEW (Styled like Category Selection in Channel Wizard)
   // ===========================================================================
-  Widget _buildVideoHeaderCard({
-    required Video video,
-    required Color surfaceColor,
-    required Color borderColor,
-    required Color textColor,
-    required Color textSecondaryColor,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor),
-      ),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: CachedNetworkImage(
-              imageUrl: video.thumbnailUrl,
-              width: 80,
-              height: 48,
-              fit: BoxFit.cover,
-              errorWidget: (_, _, _) => Container(
-                width: 80,
-                height: 48,
-                color: Colors.black26,
-                child: const Icon(
-                  Icons.video_library_rounded,
-                  color: Colors.white,
-                  size: 24,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  video.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Duration: ${video.duration}',
-                  style: TextStyle(fontSize: 12, color: textSecondaryColor),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ===========================================================================
-  // EXPLAINER BANNER
-  // ===========================================================================
-  Widget _buildAiExplainerBanner({
-    required Color surfaceColor,
-    required Color borderColor,
-    required Color textColor,
-    required Color textSecondaryColor,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.brand.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.brand.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.auto_awesome_rounded,
-              size: 20,
-              color: AppColors.brand,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Automated Speech-to-Text & Neural Translation',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Truthworld AI transcribes spoken dialogue from the video, aligns precision timestamps, and translates subtitles into all selected languages. Once finished, you can edit and fine-tune every cue directly in the studio.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: textSecondaryColor,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ===========================================================================
-  // SECTION TITLE
-  // ===========================================================================
-  Widget _buildSectionTitle({
-    required String title,
-    required String subtitle,
-    required Color textColor,
-    required Color textSecondaryColor,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: textColor,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          subtitle,
-          style: TextStyle(fontSize: 12, color: textSecondaryColor),
-        ),
-      ],
-    );
-  }
-
-  // ===========================================================================
-  // PRIORITY SELECTOR
-  // ===========================================================================
-  Widget _buildPrioritySelector({
-    required RxString priorityMode,
-    required Color surfaceColor,
-    required Color borderColor,
-    required Color textColor,
-    required Color textSecondaryColor,
-  }) {
-    return Obx(() {
-      final current = priorityMode.value;
-
-      return Row(
-        children: [
-          Expanded(
-            child: _buildPriorityCard(
-              title: 'Standard Queue',
-              subtitle: 'Cost-effective high-accuracy processing.',
-              isSelected: current == 'standard',
-              onTap: () => priorityMode.value = 'standard',
-              surfaceColor: surfaceColor,
-              borderColor: borderColor,
-              textColor: textColor,
-              textSecondaryColor: textSecondaryColor,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _buildPriorityCard(
-              title: 'Express Priority',
-              subtitle: 'Low-latency priority processing in GPU queue.',
-              isSelected: current == 'high',
-              onTap: () => priorityMode.value = 'high',
-              surfaceColor: surfaceColor,
-              borderColor: borderColor,
-              textColor: textColor,
-              textSecondaryColor: textSecondaryColor,
-            ),
-          ),
-        ],
-      );
-    });
-  }
-
-  Widget _buildPriorityCard({
-    required String title,
-    required String subtitle,
-    required bool isSelected,
-    required VoidCallback onTap,
-    required Color surfaceColor,
-    required Color borderColor,
-    required Color textColor,
-    required Color textSecondaryColor,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.brand.withValues(alpha: 0.12)
-              : surfaceColor,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? AppColors.brand : borderColor,
-            width: isSelected ? 1.8 : 1.0,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: isSelected ? AppColors.brand : textColor,
-                  ),
-                ),
-                const Spacer(),
-                Icon(
-                  isSelected
-                      ? Icons.check_circle_rounded
-                      : Icons.radio_button_unchecked_rounded,
-                  size: 16,
-                  color: isSelected ? AppColors.brand : Colors.white38,
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: 11,
-                color: textSecondaryColor,
-                height: 1.3,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ===========================================================================
-  // TARGET LANGUAGES MULTI-PICKER
-  // ===========================================================================
-  Widget _buildLanguagesMultiPicker({
+  Widget _buildLanguageSelectionView({
+    required Video? video,
     required RxSet<String> selectedLangs,
+    required RxString priorityMode,
     required RxString searchQuery,
+    required Set<String> existingSubs,
     required Color surfaceColor,
     required Color borderColor,
     required Color textColor,
@@ -469,169 +142,1190 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
       'zh',
       'ko',
     ];
-    final regionalIndian = ['te', 'hi', 'ta', 'kn', 'ml', 'mr', 'bn', 'gu', 'pa'];
+    final regionalIndian = [
+      'te',
+      'hi',
+      'ta',
+      'kn',
+      'ml',
+      'mr',
+      'bn',
+      'gu',
+      'pa',
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktop = constraints.maxWidth >= 900;
+        final isTablet =
+            constraints.maxWidth >= 600 && constraints.maxWidth < 900;
+        final horizontalPadding = isDesktop ? 48.0 : (isTablet ? 24.0 : 16.0);
+
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 860),
+            child: ListView(
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding,
+                vertical: 18,
+              ),
+              children: [
+                // Video Summary Header Card
+                if (video != null)
+                  _buildVideoHeaderCard(
+                    video: video,
+                    existingSubs: existingSubs,
+                    surfaceColor: surfaceColor,
+                    borderColor: borderColor,
+                    textColor: textColor,
+                    textSecondaryColor: textSecondaryColor,
+                  ),
+                const SizedBox(height: 18),
+
+                // Category-styled Card for Target Languages Selection (ElevenLabs Studio Style)
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF141416),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFF27272A)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.translate_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Obx(
+                              () => Text(
+                                'Target Languages (${selectedLangs.length} Selected)',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Select the languages you want to transcribe and generate subtitles for.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Search bar
+                      Container(
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF18181B),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFF27272A)),
+                        ),
+                        child: TextField(
+                          style: TextStyle(fontSize: 13, color: textColor),
+                          decoration: InputDecoration(
+                            hintText: 'Search languages by name or code...',
+                            hintStyle: TextStyle(
+                              fontSize: 13,
+                              color: textSecondaryColor,
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.search_rounded,
+                              size: 18,
+                              color: Colors.white70,
+                            ),
+                            border: InputBorder.none,
+                            contentPadding:
+                                const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                          onChanged: (q) =>
+                              searchQuery.value = q.trim().toLowerCase(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // ElevenLabs-inspired Minimalist Filter Row (Zero garish green)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: [
+                                  _buildSegmentFilterChip(
+                                    label: 'Popular (${topPopular.length})',
+                                    onTap: () => selectedLangs.addAll(
+                                      topPopular.where((code) => !existingSubs.contains(code)),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _buildSegmentFilterChip(
+                                    label: 'Indian Regional (${regionalIndian.length})',
+                                    onTap: () => selectedLangs.addAll(
+                                      regionalIndian.where((code) => !existingSubs.contains(code)),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _buildSegmentFilterChip(
+                                    label: 'Select All Missing',
+                                    onTap: () => selectedLangs.addAll(
+                                      supportedLanguages
+                                          .map((l) => l.code)
+                                          .where((code) => !existingSubs.contains(code)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          TextButton(
+                            onPressed: selectedLangs.clear,
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFFA1A1AA),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text('Clear', style: TextStyle(fontSize: 12)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Selected Languages Tags Wrap (Matching Channel Wizard Category Wrap)
+                      Obx(() {
+                        if (selectedLangs.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+                        return Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 14),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF121212),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFF27272A)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Selected Languages (${selectedLangs.length}):',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: selectedLangs.map((code) {
+                                  final lang = supportedLanguages
+                                      .firstWhereOrNull((l) => l.code == code);
+                                  final name = lang?.name ?? code.toUpperCase();
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF27272A),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: const Color(0xFF3F3F46),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          name,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        GestureDetector(
+                                          onTap: () =>
+                                              selectedLangs.remove(code),
+                                          child: const Icon(
+                                            Icons.close,
+                                            size: 14,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+
+                      const Divider(color: Color(0xFF27272A), height: 1),
+                      const SizedBox(height: 8),
+
+                      // Vertical Language List with Checkboxes (Identical to Category List in Channel Creation)
+                      Obx(() {
+                        final query = searchQuery.value;
+                        final filtered = supportedLanguages.where((l) {
+                          if (query.isEmpty) return true;
+                          return l.name.toLowerCase().contains(query) ||
+                              l.nativeName.toLowerCase().contains(query) ||
+                              l.code.toLowerCase().contains(query);
+                        }).toList();
+
+                        return Container(
+                          constraints: const BoxConstraints(maxHeight: 360),
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: filtered.length,
+                            separatorBuilder: (ctx, i) => const Divider(
+                              color: Color(0xFF27272A),
+                              height: 1,
+                            ),
+                            itemBuilder: (ctx, i) {
+                              final lang = filtered[i];
+                              final isAlreadyAvailable =
+                                  existingSubs.contains(lang.code.toLowerCase());
+                              return Obx(() {
+                                final isSelected =
+                                    selectedLangs.contains(lang.code);
+                                return Material(
+                                  color: Colors.transparent,
+                                  child: ListTile(
+                                    dense: true,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 2,
+                                    ),
+                                    leading: Container(
+                                      width: 32,
+                                      height: 32,
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? AppColors.brand
+                                                .withValues(alpha: 0.15)
+                                            : const Color(0xFF1E1E22),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(
+                                          color: isSelected
+                                              ? AppColors.brand
+                                              : (isAlreadyAvailable
+                                                  ? const Color(0xFF3F3F46)
+                                                  : const Color(0xFF27272A)),
+                                        ),
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        lang.code.toUpperCase(),
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: isSelected
+                                              ? Colors.white
+                                              : (isAlreadyAvailable
+                                                  ? const Color(0xFFA1A1AA)
+                                                  : AppColors.textSecondary),
+                                        ),
+                                      ),
+                                    ),
+                                    title: Row(
+                                      children: [
+                                        Text(
+                                          lang.name,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: isSelected
+                                                ? FontWeight.bold
+                                                : FontWeight.normal,
+                                            color: isSelected
+                                                ? Colors.white
+                                                : AppColors.textSecondary,
+                                          ),
+                                        ),
+                                        if (isAlreadyAvailable) ...[
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF202024),
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                              border: Border.all(
+                                                color: const Color(0xFF2E2E33),
+                                              ),
+                                            ),
+                                            child: const Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  Icons.check_rounded,
+                                                  size: 10,
+                                                  color: Color(0xFFA1A1AA),
+                                                ),
+                                                SizedBox(width: 3),
+                                                Text(
+                                                  'In Studio',
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: Color(0xFFA1A1AA),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                    subtitle: Text(
+                                      isAlreadyAvailable
+                                          ? '${lang.nativeName} • ${lang.code} • Subtitle already available in studio'
+                                          : '${lang.nativeName} • ${lang.code}',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: isAlreadyAvailable
+                                            ? const Color(0xFFA1A1AA)
+                                            : AppColors.textTertiary,
+                                      ),
+                                    ),
+                                    trailing: Checkbox(
+                                      value: isSelected,
+                                      activeColor: Colors.white,
+                                      checkColor: Colors.black,
+                                      side: const BorderSide(
+                                        color: Color(0xFF52525B),
+                                      ),
+                                      onChanged: (val) {
+                                        if (isSelected) {
+                                          selectedLangs.remove(lang.code);
+                                        } else {
+                                          selectedLangs.add(lang.code);
+                                        }
+                                      },
+                                    ),
+                                    onTap: () {
+                                      if (isSelected) {
+                                        selectedLangs.remove(lang.code);
+                                      } else {
+                                        selectedLangs.add(lang.code);
+                                      }
+                                    },
+                                  ),
+                                );
+                              });
+                            },
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Cost Summary Card (Strict Zero-Charm Pricing)
+                _buildCostSummaryCard(
+                  video: video,
+                  selectedLangs: selectedLangs,
+                  controller: controller,
+                  surfaceColor: surfaceColor,
+                  borderColor: borderColor,
+                  textColor: textColor,
+                  textSecondaryColor: textSecondaryColor,
+                ),
+                const SizedBox(height: 24),
+
+                // Generate Button (High Contrast White on Dark, Black Text on White)
+                _buildGenerateActionCard(
+                  selectedLangs: selectedLangs,
+                  priorityMode: priorityMode,
+                  controller: controller,
+                ),
+                const SizedBox(height: 40),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ===========================================================================
+  // 2. LIVE PROGRESS VIEW (Continuous Background-Resilient State)
+  // ===========================================================================
+  Widget _buildLiveProgressView({
+    required BuildContext context,
+    required Video? video,
+    required Color surfaceColor,
+    required Color borderColor,
+    required Color textColor,
+    required Color textSecondaryColor,
+  }) {
+    return Obx(() {
+      final progress = controller.aiJobProgress.value;
+      final status = controller.aiJobStatus.value.isNotEmpty
+          ? controller.aiJobStatus.value
+          : 'Transcribing dialogue & preparing multilingual subtitles...';
+      final isDone = progress >= 100;
+      final isPaused = controller.isAiJobPaused.value;
+      final elapsed = controller.aiElapsedSeconds.value;
+      final elapsedMinutes = (elapsed ~/ 60).toString().padLeft(2, '0');
+      final elapsedSeconds = (elapsed % 60).toString().padLeft(2, '0');
+      final isStalledNotice = elapsed >= 75 && !isDone && !isPaused;
+
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 780),
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            children: [
+              // Video Header
+              if (video != null)
+                _buildVideoHeaderCard(
+                  video: video,
+                  existingSubs: controller.availableLanguages.toSet(),
+                  surfaceColor: surfaceColor,
+                  borderColor: borderColor,
+                  textColor: textColor,
+                  textSecondaryColor: textSecondaryColor,
+                ),
+              const SizedBox(height: 20),
+
+              // Main Live Progress Box
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF161618),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isDone
+                        ? const Color(0xFF3F3F46)
+                        : (isPaused
+                            ? AppColors.warning.withValues(alpha: 0.5)
+                            : AppColors.brand.withValues(alpha: 0.3)),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header Bar with Status Icon, Live Badge & Telemetry
+                    Row(
+                      children: [
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: isDone
+                                ? const Color(0xFF27272A)
+                                : (isPaused
+                                    ? AppColors.warning.withValues(alpha: 0.15)
+                                    : AppColors.brand.withValues(alpha: 0.12)),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            isDone
+                                ? Icons.check_circle_rounded
+                                : (isPaused
+                                    ? Icons.pause_circle_rounded
+                                    : Icons.auto_awesome_rounded),
+                            size: 26,
+                            color: isDone
+                                ? Colors.white
+                                : (isPaused ? AppColors.warning : Colors.white),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                isDone
+                                    ? 'Subtitles Generated Successfully!'
+                                    : (isPaused
+                                        ? 'Subtitle Generation Paused'
+                                        : 'Generating AI Subtitles...'),
+                                style: const TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                status,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Elapsed Timer Badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF27272A),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(0xFF3F3F46),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.timer_outlined,
+                                size: 13,
+                                color: AppColors.textSecondary,
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                '$elapsedMinutes:$elapsedSeconds',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Cloud Queue & Pipeline Telemetry Bar
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E1E22),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF27272A)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isPaused
+                                ? Icons.pause_circle_outline_rounded
+                                : Icons.cloud_sync_rounded,
+                            size: 16,
+                            color: isPaused
+                                ? AppColors.warning
+                                : AppColors.brand,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              controller.aiQueueTotal.value > 1
+                                  ? 'Cloud Queue: Position #${controller.aiQueuePosition.value} of ${controller.aiQueueTotal.value} active jobs'
+                                  : 'TruthWorld Cloud: Direct High-Priority Worker',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.white70,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isPaused
+                                  ? AppColors.warning.withValues(alpha: 0.2)
+                                  : (isDone
+                                      ? const Color(0xFF27272A)
+                                      : const Color(0xFF27272A)),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              isPaused
+                                  ? 'PAUSED'
+                                  : (isDone ? 'COMPLETE' : 'PROCESSING'),
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: isPaused
+                                    ? AppColors.warning
+                                    : (isDone ? Colors.white : Colors.white70),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // Progress Bar & Percentage
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          isDone
+                              ? 'Pipeline Completed'
+                              : controller.aiCurrentStageName.value,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        Text(
+                          '$progress%',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: LinearProgressIndicator(
+                        value: progress > 0
+                            ? (progress / 100.0).clamp(0.0, 1.0)
+                            : null,
+                        backgroundColor: const Color(0xFF27272A),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          isDone
+                              ? Colors.white
+                              : (isPaused ? AppColors.warning : AppColors.brand),
+                        ),
+                        minHeight: 8,
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+
+                    // Pipeline Step Progress Indicators
+                    _buildStepProgressRow(
+                      stepNumber: '1',
+                      title: 'Speech Extraction & Transcription',
+                      isComplete: progress >= 35,
+                      isActive: progress < 35 && !isDone && !isPaused,
+                    ),
+                    const SizedBox(height: 10),
+                    _buildStepProgressRow(
+                      stepNumber: '2',
+                      title: 'Neural Multilingual Translation',
+                      isComplete: progress >= 75,
+                      isActive: progress >= 35 && progress < 75 && !isDone && !isPaused,
+                    ),
+                    const SizedBox(height: 10),
+                    _buildStepProgressRow(
+                      stepNumber: '3',
+                      title: 'Precision Timestamp Alignment & VTT Export',
+                      isComplete: progress >= 100,
+                      isActive: progress >= 75 && !isDone && !isPaused,
+                    ),
+                    const SizedBox(height: 22),
+
+                    // Target Languages Generation Breakdown
+                    if (controller.aiTargetLanguages.isNotEmpty) ...[
+                      const Divider(color: Color(0xFF27272A), height: 1),
+                      const SizedBox(height: 14),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Target Languages (${controller.aiTargetLanguages.length})',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          Text(
+                            '${controller.aiLanguageStatuses.values.where((s) => s == "completed").length}/${controller.aiTargetLanguages.length} Ready',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: controller.aiTargetLanguages.map((code) {
+                          final status = controller.aiLanguageStatuses[code] ??
+                              (isDone ? 'completed' : 'queued');
+                          final lang = supportedLanguages
+                              .firstWhereOrNull((l) => l.code == code);
+                          final name = lang?.name ?? code.toUpperCase();
+                          return _buildLanguageProgressChip(
+                            code: code,
+                            name: name,
+                            status: status,
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+
+                    // Stalled Job Notice & Recommendation
+                    if (isStalledNotice) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2A2000),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: const Color(0xFF854D0E),
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              Icons.info_outline_rounded,
+                              size: 18,
+                              color: AppColors.warning,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    controller.aiCurrentStageName.value == 'Speech Extraction & Transcription'
+                                        ? 'Audio extraction and dialogue transcription for this video (${video?.duration ?? "extended duration"}) is processing in the cloud. You can Pause, Cancel, or Regenerate below if needed.'
+                                        : (controller.aiCurrentStageName.value == 'Neural Multilingual Translation'
+                                            ? 'Neural multilingual translation for ${controller.aiTargetLanguages.length} target languages is processing in the cloud. You can Pause, Cancel, or Regenerate below if needed.'
+                                            : 'Precision timestamp alignment and standard VTT/SRT export is finalizing in the cloud. You can Pause, Cancel, or Regenerate below if needed.'),
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Color(0xFFFEF08A),
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  InkWell(
+                                    onTap: () => _confirmAndCancelAIJob(context),
+                                    child: const Text(
+                                      'Reset & Start Fresh',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.amber,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+
+                    // Background Persistence Assurance Notice
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E1E22),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF27272A)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.cloud_done_rounded,
+                            size: 18,
+                            color: Colors.white,
+                          ),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Runs safely in the cloud. You can leave this page or close the app anytime without stopping generation.',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                                height: 1.3,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Controls Row: Pause / Resume, Cancel, Regenerate
+                    if (!isDone) ...[
+                      Row(
+                        children: [
+                          // Pause / Resume Button
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: controller.isPausingAI.value
+                                  ? null
+                                  : controller.togglePauseAIJob,
+                              icon: Icon(
+                                isPaused
+                                    ? Icons.play_arrow_rounded
+                                    : Icons.pause_rounded,
+                                size: 16,
+                                color: Colors.white,
+                              ),
+                              label: Text(
+                                isPaused ? 'Resume' : 'Pause',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                side: const BorderSide(color: Color(0xFF3F3F46)),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+
+                          // Regenerate / Restart Button
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: controller.isRegeneratingAI.value
+                                  ? null
+                                  : controller.regenerateAIJob,
+                              icon: const Icon(
+                                Icons.refresh_rounded,
+                                size: 16,
+                                color: Colors.white,
+                              ),
+                              label: const Text(
+                                'Regenerate',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                side: const BorderSide(color: Color(0xFF3F3F46)),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+
+                          // Cancel Button
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: controller.isCancellingAI.value
+                                  ? null
+                                  : _confirmAndCancelAIJob,
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                size: 16,
+                                color: Colors.redAccent,
+                              ),
+                              label: const Text(
+                                'Cancel',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.redAccent,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                side: BorderSide(
+                                  color: Colors.redAccent.withValues(alpha: 0.5),
+                                ),
+                                foregroundColor: Colors.redAccent,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
+                    // Action Button (Primary Navigation)
+                    SizedBox(
+                      width: double.infinity,
+                      height: 46,
+                      child: ElevatedButton(
+                        onPressed: () => Get.back<void>(),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.black,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: Text(
+                          isDone ? 'Open Subtitle Editor' : 'Return to Studio',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    });
+  }
+
+  Widget _buildLanguageProgressChip({
+    required String code,
+    required String name,
+    required String status,
+  }) {
+    final (Color badgeColor, Color badgeTextColor, String statusLabel, IconData iconData) = switch (status) {
+      'completed' => (
+        const Color(0xFF27272A),
+        Colors.white,
+        'Ready',
+        Icons.check_circle_rounded,
+      ),
+      'translating' => (
+        const Color(0xFF2563EB).withValues(alpha: 0.2),
+        const Color(0xFF60A5FA),
+        'Translating',
+        Icons.translate_rounded,
+      ),
+      'aligning' => (
+        const Color(0xFF7C3AED).withValues(alpha: 0.2),
+        const Color(0xFFA78BFA),
+        'Aligning',
+        Icons.av_timer_rounded,
+      ),
+      'transcribing' => (
+        const Color(0xFF27272A),
+        Colors.white,
+        'Transcribing',
+        Icons.mic_rounded,
+      ),
+      _ => (
+        const Color(0xFF27272A),
+        AppColors.textSecondary,
+        'Queued',
+        Icons.schedule_rounded,
+      ),
+    };
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: surfaceColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor),
+        color: const Color(0xFF1E1E22),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFF27272A)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Toolbar with Quick actions & Search
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.bgPage,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: borderColor),
-                  ),
-                  child: TextField(
-                    style: TextStyle(fontSize: 13, color: textColor),
-                    decoration: InputDecoration(
-                      hintText: 'Search languages...',
-                      hintStyle:
-                          TextStyle(fontSize: 13, color: textSecondaryColor),
-                      prefixIcon: const Icon(
-                        Icons.search_rounded,
-                        size: 18,
-                        color: Colors.white60,
-                      ),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                    ),
-                    onChanged: (q) =>
-                        searchQuery.value = q.trim().toLowerCase(),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Obx(() {
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.brand.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '${selectedLangs.length} Selected',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.brand,
-                    ),
-                  ),
-                );
-              }),
-            ],
+          Text(
+            name,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
           ),
-          const SizedBox(height: 12),
-
-          // Quick selection preset buttons
-          Wrap(
-            spacing: 8,
-            runSpacing: 6,
-            children: [
-              OutlinedButton(
-                onPressed: () => selectedLangs.addAll(topPopular),
-                style: OutlinedButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  side: BorderSide(color: borderColor),
-                  foregroundColor: Colors.white,
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: badgeColor,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(iconData, size: 10, color: badgeTextColor),
+                const SizedBox(width: 4),
+                Text(
+                  statusLabel,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: badgeTextColor,
+                  ),
                 ),
-                child: const Text('Top Popular (13)',
-                    style: TextStyle(fontSize: 11)),
-              ),
-              OutlinedButton(
-                onPressed: () => selectedLangs.addAll(regionalIndian),
-                style: OutlinedButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  side: BorderSide(color: borderColor),
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Indian Regional (9)',
-                    style: TextStyle(fontSize: 11)),
-              ),
-              OutlinedButton(
-                onPressed: () => selectedLangs.clear(),
-                style: OutlinedButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  side: BorderSide(color: borderColor),
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Clear All', style: TextStyle(fontSize: 11)),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 14),
-          Divider(height: 1, color: borderColor),
-          const SizedBox(height: 14),
-
-          // Scrollable Wrap of Language Filter Chips
-          Obx(() {
-            final query = searchQuery.value;
-            final filtered = supportedLanguages.where((l) {
-              if (query.isEmpty) return true;
-              return l.name.toLowerCase().contains(query) ||
-                  l.nativeName.toLowerCase().contains(query) ||
-                  l.code.toLowerCase().contains(query);
-            }).toList();
-
-            return Container(
-              constraints: const BoxConstraints(maxHeight: 280),
-              child: SingleChildScrollView(
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: filtered.map((lang) {
-                    final isSel = selectedLangs.contains(lang.code);
-
-                    return FilterChip(
-                      label: Text('${lang.name} (${lang.nativeName})'),
-                      selected: isSel,
-                      onSelected: (val) {
-                        if (val) {
-                          selectedLangs.add(lang.code);
-                        } else {
-                          selectedLangs.remove(lang.code);
-                        }
-                      },
-                      selectedColor: AppColors.brand,
-                      checkmarkColor: Colors.black,
-                      backgroundColor: AppColors.bgPage,
-                      labelStyle: TextStyle(
-                        fontSize: 12,
-                        color: isSel ? Colors.black : textColor,
-                        fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                      ),
-                      side: BorderSide(
-                        color: isSel ? AppColors.brand : borderColor,
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-            );
-          }),
         ],
       ),
     );
   }
 
+  void _confirmAndCancelAIJob([BuildContext? context]) {
+    Get.dialog<void>(
+      AlertDialog(
+        backgroundColor: const Color(0xFF18181B),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: Color(0xFF27272A)),
+        ),
+        title: const Text(
+          'Cancel Subtitle Generation?',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        content: const Text(
+          'Are you sure you want to stop subtitle generation for this video? The job will be cancelled in the cloud.',
+          style: TextStyle(
+            fontSize: 13,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back<void>(),
+            child: const Text(
+              'Keep Running',
+              style: TextStyle(color: Colors.white70),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Get.back<void>();
+              controller.cancelAIJob();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Cancel Job'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStepProgressRow({
+    required String stepNumber,
+    required String title,
+    required bool isComplete,
+    required bool isActive,
+  }) {
+    return Row(
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            color: isComplete
+                ? Colors.white
+                : (isActive ? Colors.white : const Color(0xFF27272A)),
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: isComplete
+              ? const Icon(Icons.check, size: 14, color: Colors.black)
+              : Text(
+                  stepNumber,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: isActive ? Colors.black : Colors.white70,
+                  ),
+                ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight:
+                  isActive || isComplete ? FontWeight.bold : FontWeight.normal,
+              color: isActive || isComplete
+                  ? Colors.white
+                  : AppColors.textSecondary,
+            ),
+          ),
+        ),
+        if (isActive)
+          const SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          ),
+      ],
+    );
+  }
+
   // ===========================================================================
-  // COST SUMMARY & WALLET CARD
+  // 3. COST SUMMARY (Strict Zero-Charm Pricing Policy)
   // ===========================================================================
   Widget _buildCostSummaryCard({
     required Video? video,
@@ -675,21 +1369,25 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                   color: Colors.white,
                 ),
                 const SizedBox(width: 10),
-                Text(
-                  'Estimated Subtitle Generation Cost',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
+                Expanded(
+                  child: Text(
+                    'Estimated Subtitle Generation Cost',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 Text(
                   '\$${roundedCost.toInt()}',
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.success,
+                    color: Colors.white,
                   ),
                 ),
               ],
@@ -698,12 +1396,16 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
             Divider(height: 1, color: borderColor),
             const SizedBox(height: 10),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Languages: ${selectedLangs.length} selected',
-                  style: TextStyle(fontSize: 12, color: textSecondaryColor),
+                Expanded(
+                  child: Text(
+                    'Languages: ${selectedLangs.length} selected',
+                    style: TextStyle(fontSize: 12, color: textSecondaryColor),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
+                const SizedBox(width: 8),
                 Text(
                   'Duration: ${durationSecs ~/ 60}m ${durationSecs % 60}s',
                   style: TextStyle(fontSize: 12, color: textSecondaryColor),
@@ -719,9 +1421,11 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                   color: AppColors.brand,
                 ),
                 const SizedBox(width: 5),
-                Text(
-                  'Zero charm pricing: 100% transparent round rates with no hidden fees.',
-                  style: TextStyle(fontSize: 11, color: textSecondaryColor),
+                Expanded(
+                  child: Text(
+                    'Zero charm pricing: 100% transparent round rates with no hidden fees.',
+                    style: TextStyle(fontSize: 11, color: textSecondaryColor),
+                  ),
                 ),
               ],
             ),
@@ -732,9 +1436,9 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
   }
 
   // ===========================================================================
-  // ACTION BUTTONS (CANCEL / LAUNCH)
+  // 4. GENERATE ACTION CARD
   // ===========================================================================
-  Widget _buildActionButtons({
+  Widget _buildGenerateActionCard({
     required RxSet<String> selectedLangs,
     required RxString priorityMode,
     required SubtitlesController controller,
@@ -742,52 +1446,190 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
     return Obx(() {
       final isReady = selectedLangs.isNotEmpty;
 
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          OutlinedButton(
-            onPressed: () => Get.back<void>(),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white,
-              side: const BorderSide(color: AppColors.bgDivider),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            ),
-            child: const Text('Cancel'),
+      return SizedBox(
+        width: double.infinity,
+        height: 48,
+        child: ElevatedButton.icon(
+          onPressed: isReady
+              ? () {
+                  controller.triggerSubtitlesGeneration(
+                    targetLanguages: selectedLangs.toList(),
+                    priorityMode: priorityMode.value,
+                  );
+                }
+              : null,
+          icon: const Icon(
+            Icons.auto_awesome_rounded,
+            size: 18,
+            color: Colors.black,
           ),
-          const SizedBox(width: 14),
-          ElevatedButton.icon(
-            onPressed: isReady
-                ? () {
-                    Get.back<void>();
-                    controller.triggerSubtitlesGeneration(
-                      targetLanguages: selectedLangs.toList(),
-                      priorityMode: priorityMode.value,
-                    );
-                  }
-            : null,
-            icon: const Icon(
-              Icons.auto_awesome_rounded,
-              size: 16,
+          label: Text(
+            isReady
+                ? 'Generate Subtitles (${selectedLangs.length} Languages)'
+                : 'Generate Subtitles (Select Languages)',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
               color: Colors.black,
             ),
-            label: const Text(
-              'Start AI Subtitle Pipeline',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black,
+            disabledBackgroundColor: AppColors.bgSurfaceHover,
+            disabledForegroundColor: AppColors.textDisabled,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
+      );
+    });
+  }
+
+  // ===========================================================================
+  // 5. VIDEO HEADER CARD (ElevenLabs Minimal Media Card)
+  // ===========================================================================
+  Widget _buildVideoHeaderCard({
+    required Video video,
+    required Set<String> existingSubs,
+    required Color surfaceColor,
+    required Color borderColor,
+    required Color textColor,
+    required Color textSecondaryColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141416),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF27272A)),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: CachedNetworkImage(
+              imageUrl: video.thumbnailUrl,
+              width: 88,
+              height: 52,
+              fit: BoxFit.cover,
+              errorWidget: (_, _, _) => Container(
+                width: 88,
+                height: 52,
+                color: const Color(0xFF1E1E22),
+                child: const Icon(
+                  Icons.video_library_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
               ),
             ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.brand,
-              foregroundColor: Colors.black,
-              disabledBackgroundColor: AppColors.bgSurfaceHover,
-              disabledForegroundColor: AppColors.textDisabled,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  video.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF202024),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.access_time_rounded, size: 11, color: Color(0xFFA1A1AA)),
+                          const SizedBox(width: 4),
+                          Text(
+                            video.duration,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFFA1A1AA),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (existingSubs.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF202024),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: const Color(0xFF2E2E33)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.subtitles_rounded, size: 11, color: Colors.white70),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Active: ${existingSubs.map((c) => c.toUpperCase()).join(", ")}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.white70,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ],
             ),
           ),
         ],
-      );
-    });
+      ),
+    );
+  }
+
+  Widget _buildSegmentFilterChip({
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E22),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFF2E2E33)),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            color: Color(0xFFA1A1AA),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
   }
 }

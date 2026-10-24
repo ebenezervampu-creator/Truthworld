@@ -119,6 +119,9 @@ mixin SubtitlesExportMixin on SubtitlesControllerBase {
     showSuccess('Downloaded WebVTT subtitles: $fileName');
   }
 
+  void downloadTxtTrack({String? langCode}) =>
+      downloadTxtTranscript(langCode: langCode);
+
   void downloadTxtTranscript({String? langCode}) {
     final targetLang = langCode ?? selectedLanguage.value;
     if (targetLang.isEmpty || currentCues.isEmpty) {

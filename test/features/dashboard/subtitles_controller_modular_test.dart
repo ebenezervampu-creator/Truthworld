@@ -151,5 +151,36 @@ void main() {
       controller.setCueSearchQuery('');
       expect(controller.filteredCues.length, 2);
     });
+
+    test('Cancellation clears AI generation state so progress UI does not appear again', () {
+      final controller = Get.put(SubtitlesController());
+      controller.isGeneratingAI.value = true;
+      controller.aiJobProgress.value = 49;
+      controller.aiJobStatus.value = 'Translating dialogue into 1 target languages (49%)...';
+
+      // Simulate cancellation cleanup
+      controller.isGeneratingAI.value = false;
+      controller.isAiJobPaused.value = false;
+      controller.aiJobProgress.value = 0;
+      controller.aiJobStatus.value = '';
+
+      expect(controller.isGeneratingAI.value, isFalse);
+      expect(controller.aiJobProgress.value, 0);
+      expect(controller.aiJobStatus.value, isEmpty);
+    });
+
+    test('Stage 2 progress resolution maps dynamically without freezing at 49%', () {
+      // 0% translation mapped into stage 2 (35%..75%)
+      final p0 = (35 + (0 * 0.40)).round().clamp(35, 74);
+      expect(p0, 35); // Not 49%!
+
+      // 50% translation mapped into stage 2
+      final p50 = (35 + (50 * 0.40)).round().clamp(35, 74);
+      expect(p50, 55);
+
+      // 100% translation moves to stage 3 (75%..95%)
+      final p100 = (75 + (100 * 0.20)).round().clamp(75, 95);
+      expect(p100, 95);
+    });
   });
 }

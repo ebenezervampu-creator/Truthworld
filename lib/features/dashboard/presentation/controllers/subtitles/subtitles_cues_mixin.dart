@@ -38,13 +38,64 @@ mixin SubtitlesCuesMixin on SubtitlesControllerBase {
   void updateCueText(int index, String newText) {
     if (index < 0 || index >= currentCues.length) return;
     if (currentCues[index].text != newText) {
+      recordSnapshot();
       currentCues[index].text = newText;
       hasUnsavedChanges.value = true;
       currentCues.refresh();
     }
   }
 
+  void updateCueTiming(int index, {String? startTime, String? endTime}) {
+    if (index < 0 || index >= currentCues.length) return;
+    recordSnapshot();
+    if (startTime != null) currentCues[index].startTime = startTime;
+    if (endTime != null) currentCues[index].endTime = endTime;
+    hasUnsavedChanges.value = true;
+    currentCues.refresh();
+  }
+
+  void toggleSelectCue(String id) {
+    if (selectedCueIds.contains(id)) {
+      selectedCueIds.remove(id);
+    } else {
+      selectedCueIds.add(id);
+    }
+  }
+
+  void toggleSelectAllCues() {
+    if (selectedCueIds.length == currentCues.length && currentCues.isNotEmpty) {
+      selectedCueIds.clear();
+    } else {
+      selectedCueIds
+        ..clear()
+        ..addAll(currentCues.map((c) => c.id));
+    }
+  }
+
+  void deleteSelectedCues() {
+    if (selectedCueIds.isEmpty) return;
+    recordSnapshot();
+    currentCues.removeWhere((c) => selectedCueIds.contains(c.id));
+    selectedCueIds.clear();
+    hasUnsavedChanges.value = true;
+    currentCues.refresh();
+    showSuccess('Removed selected subtitle segments');
+  }
+
+  void setZoomScale(double scale) {
+    cueZoomScale.value = scale.clamp(0.7, 1.5);
+  }
+
+  void zoomIn() {
+    setZoomScale(cueZoomScale.value + 0.1);
+  }
+
+  void zoomOut() {
+    setZoomScale(cueZoomScale.value - 0.1);
+  }
+
   void addNewCue() {
+    recordSnapshot();
     final lastEndTime = currentCues.isNotEmpty
         ? currentCues.last.endTime
         : '00:00:00.000';
@@ -63,6 +114,7 @@ mixin SubtitlesCuesMixin on SubtitlesControllerBase {
   }
 
   void addCueAtCurrentTime() {
+    recordSnapshot();
     final curPos = currentVideoPosition.value;
     final startStr = SubtitlesControllerBase.formatDurationToTimecode(curPos);
     final endStr = SubtitlesControllerBase.formatDurationToTimecode(curPos + const Duration(seconds: 4));
@@ -80,6 +132,7 @@ mixin SubtitlesCuesMixin on SubtitlesControllerBase {
 
   void setStartToCurrentTime(int index) {
     if (index < 0 || index >= currentCues.length) return;
+    recordSnapshot();
     currentCues[index].startTime =
         SubtitlesControllerBase.formatDurationToTimecode(currentVideoPosition.value);
     hasUnsavedChanges.value = true;
@@ -88,6 +141,7 @@ mixin SubtitlesCuesMixin on SubtitlesControllerBase {
 
   void setEndToCurrentTime(int index) {
     if (index < 0 || index >= currentCues.length) return;
+    recordSnapshot();
     currentCues[index].endTime =
         SubtitlesControllerBase.formatDurationToTimecode(currentVideoPosition.value);
     hasUnsavedChanges.value = true;
@@ -96,6 +150,7 @@ mixin SubtitlesCuesMixin on SubtitlesControllerBase {
 
   void duplicateCue(int index) {
     if (index < 0 || index >= currentCues.length) return;
+    recordSnapshot();
     final original = currentCues[index];
     final shiftedStart = shiftTimeString(original.endTime, 100);
     final shiftedEnd = shiftTimeString(shiftedStart, 3000);
@@ -112,6 +167,7 @@ mixin SubtitlesCuesMixin on SubtitlesControllerBase {
   }
 
   void clearAllCues() {
+    recordSnapshot();
     currentCues.clear();
     hasUnsavedChanges.value = true;
     showSuccess(
@@ -129,6 +185,7 @@ mixin SubtitlesCuesMixin on SubtitlesControllerBase {
 
   void shiftAllCues(int offsetMs) {
     if (currentCues.isEmpty) return;
+    recordSnapshot();
     for (var i = 0; i < currentCues.length; i++) {
       final cue = currentCues[i];
       cue.startTime = shiftTimeString(cue.startTime, offsetMs);
@@ -143,6 +200,7 @@ mixin SubtitlesCuesMixin on SubtitlesControllerBase {
 
   int replaceTextInCues(String findText, String replaceWith) {
     if (findText.isEmpty) return 0;
+    recordSnapshot();
     var count = 0;
     for (var i = 0; i < currentCues.length; i++) {
       if (currentCues[i].text.contains(findText)) {
@@ -163,6 +221,7 @@ mixin SubtitlesCuesMixin on SubtitlesControllerBase {
 
   void deleteCue(int index) {
     if (index < 0 || index >= currentCues.length) return;
+    recordSnapshot();
     currentCues.removeAt(index);
     hasUnsavedChanges.value = true;
   }
@@ -173,6 +232,7 @@ mixin SubtitlesCuesMixin on SubtitlesControllerBase {
     int shiftMilliseconds = 500,
   }) {
     if (index < 0 || index >= currentCues.length) return;
+    recordSnapshot();
     final cue = currentCues[index];
     final targetTimeStr = isStart ? cue.startTime : cue.endTime;
 
