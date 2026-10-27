@@ -17,7 +17,11 @@ import { TTSResult, TTSRequest } from "../types";
 import { costEngine } from "./cost-engine";
 import { PIPELINE_CONFIG } from "../config";
 import { logger } from "../utils/logger";
-import { GoogleTextToSpeechService, googleTextToSpeechService } from "./googleTextToSpeechService";
+import {
+  GoogleTextToSpeechService,
+  googleTextToSpeechService,
+  ELEVENLABS_VOICE_GENDER_MAP,
+} from "./googleTextToSpeechService";
 
 const ELEVENLABS_BASE_URL = "https://api.elevenlabs.io/v1";
 
@@ -210,44 +214,52 @@ export class TTSService {
 
   /**
    * Unified synthesis entry point.
-   * - Defaults to Google Cloud Text-to-Speech for standard dubbing (50%-75% cost savings).
-   * - Routes to ElevenLabs if explicit voice cloning is requested.
-   * - Automatically falls back to Google Cloud TTS if ElevenLabs fails, lacks quota, or is rate limited.
+   * - Tier 1: ElevenLabs Multilingual v2 & Flash v2.5 (Gold Standard for Video Dubbing)
+   *   Used whenever voice cloning is requested, an ElevenLabs voice preset is assigned,
+   *   or the target language lacks neural voices in Google Cloud TTS (e.g. Telugu, Tamil, Kannada, Malayalam, Marathi, etc.).
+   * - Tier 2: Google Cloud Text-to-Speech (Neural2 & Journey voices for Hindi, English, etc.).
+   * - Automatic Resilient Fallback: If ElevenLabs encounters rate limits or errors, gracefully falls back to Google Cloud TTS.
    */
   async synthesize(request: TTSRequest): Promise<TTSResult> {
+    const langLower = (request.language || "en").toLowerCase().split("-")[0];
+    const isElevenLabsVoice = Boolean(
+      (request.voiceId && ELEVENLABS_VOICE_GENDER_MAP[request.voiceId]) ||
+      (request.voiceId && request.voiceId.length >= 20 && !request.voiceId.includes("-"))
+    );
+    const REGIONAL_LANGS_LACKING_GOOGLE_NEURAL = new Set([
+      // Languages where Google Cloud TTS lacks *any* voice (neural or standard).
+      // Telugu (te) has Standard voices, so we rely on Google for cost‑effective dubbing.
+      "ta", "kn", "ml", "mr", "bn", "gu", "pa", "ur"
+    ]);
+    const lacksGoogleNeural = REGIONAL_LANGS_LACKING_GOOGLE_NEURAL.has(langLower);
+
     const isVoiceCloningRequested = Boolean(
       request.preferVoiceCloning ||
       request.voiceCloneId ||
       request.provider === "elevenlabs"
     );
 
-    // 1. Voice Cloning Requested -> Attempt ElevenLabs
-    if (isVoiceCloningRequested) {
-      const apiKey = this.elevenLabsTts.getApiKey();
-      if (!apiKey) {
-        logger.warn(
-          "[TTS] ⚠️ Voice cloning requested but ElevenLabs API key is missing. Falling back to Google Cloud Text-to-Speech.",
-          { jobId: request.jobId, language: request.language }
-        );
-        return this.googleTts.synthesize({
-          ...request,
-          preferVoiceCloning: false,
-        });
-      }
+    const shouldPreferElevenLabs =
+      isVoiceCloningRequested ||
+      isElevenLabsVoice ||
+      lacksGoogleNeural;
 
+    const elevenKey = this.elevenLabsTts.getApiKey();
+
+    // 1. If ElevenLabs is preferred and API key is present -> synthesize via ElevenLabs premier models
+    if (shouldPreferElevenLabs && elevenKey) {
       try {
         return await this.elevenLabsTts.synthesize(request);
       } catch (err: any) {
         logger.warn(
-          "[TTS] ⚠️ ElevenLabs voice cloning failed or quota exceeded. Seamlessly falling back to Google Cloud Text-to-Speech.",
+          "[TTS] ⚠️ ElevenLabs synthesis failed or rate limited. Seamlessly falling back to Google Cloud Text-to-Speech.",
           {
             jobId: request.jobId,
             language: request.language,
+            voiceId: request.voiceId,
             error: err.message,
           }
         );
-
-        // Resilient Fallback to Google Cloud Text-to-Speech
         return await this.googleTts.synthesize({
           ...request,
           preferVoiceCloning: false,
@@ -255,12 +267,11 @@ export class TTSService {
       }
     }
 
-    // 2. Standard Dubbing -> Google Cloud Text-to-Speech (High quality, native regional accents, cost-effective)
+    // 2. Standard synthesis via Google Cloud Text-to-Speech (Journey/Neural2)
     try {
       return await this.googleTts.synthesize(request);
     } catch (googleErr: any) {
-      // If Google Cloud TTS experiences an outage and ElevenLabs key exists, provide emergency fallback
-      const elevenKey = this.elevenLabsTts.getApiKey();
+      // Emergency fallback to ElevenLabs if Google Cloud encounters an error and ElevenLabs key exists
       if (elevenKey) {
         logger.warn(
           "[TTS] ⚠️ Google Cloud TTS error — attempting emergency fallback to ElevenLabs.",
