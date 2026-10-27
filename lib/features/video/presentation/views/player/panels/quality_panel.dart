@@ -4,6 +4,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/widgets/channel_membership_join_sheet.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/presentation/controllers/downloads/download_resolution_manager.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
@@ -178,8 +179,21 @@ class QualityPanel extends StatelessWidget {
         );
       }
 
-      final tiers = ctrl.abr.resolutionLadder;
       final isPremium = _isPremiumUser();
+
+      // Build list from only the resolutions actually available for this video.
+      // Map each available resolution to its corresponding ABR ladder index
+      // so selectQuality(idx) works correctly.
+      final ladder = ctrl.abr.resolutionLadder;
+
+      // Collect available entries paired with their ABR ladder index.
+      // We sort descending by height then fps to match download page order.
+      final availSorted = [...avail]
+        ..sort((a, b) {
+          final cmp = b.height.compareTo(a.height);
+          if (cmp != 0) return cmp;
+          return b.fps.compareTo(a.fps);
+        });
 
       return Column(
         mainAxisSize: MainAxisSize.min,
@@ -196,9 +210,10 @@ class QualityPanel extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Auto tile
                   SelectTile(
                     label: 'Auto',
-                    sublabel: 'Adapts to network speed (down to 144p)',
+                    sublabel: 'Adapts to network speed',
                     selected: ctrl.abr.isAutoMode.value && !ctrl.isAudioOnly.value,
                     badge: (ctrl.abr.isAutoMode.value && !ctrl.isAudioOnly.value)
                         ? (ctrl.abr.currentTier.height > 0
@@ -207,60 +222,68 @@ class QualityPanel extends StatelessWidget {
                         : null,
                     onTap: ctrl.selectAutoQuality,
                   ),
-                  ...tiers.reversed
-                      .where((t) =>
-                          avail.isEmpty ||
-                          avail.any((r) =>
-                              r.label.toLowerCase() == t.label.toLowerCase() ||
-                              (r.height == t.height &&
-                                  (r.is60Fps == t.is60Fps ||
-                                      avail.where((x) => x.height == t.height).length == 1)) ||
-                              r.height == t.height))
-                      .map((tier) {
-                        final idx = tiers.indexOf(tier);
-                        final isPremiumRes = tier.height > 1040;
-                        final is60 = tier.is60Fps;
-                        String? resBadge;
-                        if (tier.height >= 2160) {
-                          resBadge = is60 ? '4K 60' : '4K UHD';
-                        } else if (tier.height >= 1440) {
-                          resBadge = is60 ? '2K 60' : '2K QHD';
-                        } else if (tier.height >= 1080) {
-                          resBadge = is60 ? 'FHD 60' : 'FHD';
-                        } else if (is60) {
-                          resBadge = '60 FPS';
-                        }
 
-                        return SelectTile(
-                          label: tier.label,
-                          sublabel: '${tier.bitrate} kbps',
-                          badge: resBadge,
-                          selected:
-                              !ctrl.isAudioOnly.value &&
-                              !ctrl.abr.isAutoMode.value &&
-                              (ctrl.abr.currentTier.label == tier.label ||
-                                  (ctrl.abr.currentTier.height == tier.height &&
-                                      ctrl.abr.currentTier.fps == tier.fps)),
-                          trailing: isPremiumRes && !isPremium
-                              ? const Icon(
-                                  Icons.lock_rounded,
-                                  color: AppColors.warning,
-                                  size: 16,
-                                )
-                              : null,
-                          onTap: () {
-                            if (isPremiumRes && !isPremium) {
-                              _showPremiumDialog(context);
-                            } else {
-                              if (idx >= 0) ctrl.selectQuality(idx);
-                            }
-                          },
-                        );
-                      }),
+                  // Only actually available resolutions — same as download page
+                  ...availSorted.map((res) {
+                    final isPremiumRes = res.height > 1040;
+
+                    // Friendly badge matching download page style (Full HD, HD, SD…)
+                    final badgeText = DownloadResolutionManager.getResolutionBadge(
+                      res.label,
+                      res.height,
+                      fps: res.fps,
+                    );
+
+                    // Find matching index in ABR ladder for selectQuality()
+                    int ladderIdx = ladder.indexWhere(
+                      (t) =>
+                          t.height == res.height &&
+                          (t.fps == res.fps ||
+                              ladder.where((x) => x.height == res.height).length == 1),
+                    );
+                    // Fallback: match by label
+                    if (ladderIdx < 0) {
+                      ladderIdx = ladder.indexWhere(
+                        (t) => t.label.toLowerCase() == res.label.toLowerCase(),
+                      );
+                    }
+                    // Fallback: match by height only
+                    if (ladderIdx < 0) {
+                      ladderIdx = ladder.indexWhere((t) => t.height == res.height);
+                    }
+
+                    final isSelected = !ctrl.isAudioOnly.value &&
+                        !ctrl.abr.isAutoMode.value &&
+                        (ctrl.abr.currentTier.label == res.label ||
+                            (ctrl.abr.currentTier.height == res.height &&
+                                ctrl.abr.currentTier.fps == res.fps));
+
+                    return SelectTile(
+                      label: res.label,
+                      sublabel: 'Tap to switch to this quality',
+                      badge: badgeText.isNotEmpty ? badgeText : null,
+                      selected: isSelected,
+                      trailing: isPremiumRes && !isPremium
+                          ? const Icon(
+                              Icons.lock_rounded,
+                              color: AppColors.warning,
+                              size: 16,
+                            )
+                          : null,
+                      onTap: () {
+                        if (isPremiumRes && !isPremium) {
+                          _showPremiumDialog(context);
+                        } else if (ladderIdx >= 0) {
+                          ctrl.selectQuality(ladderIdx);
+                        }
+                      },
+                    );
+                  }),
+
                   const SizedBox(height: 4),
                   SelectTile(
                     label: 'Audio only',
-                    sublabel: 'Manual toggle · Listen without video (saves data)',
+                    sublabel: 'Listen without video · saves data',
                     badge: 'AUDIO',
                     selected: ctrl.isAudioOnly.value,
                     onTap: () {
