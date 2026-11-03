@@ -11,7 +11,7 @@ TruthWorld is a decentralized, credibility-focused video streaming platform buil
 | **Frontend Clients** | Flutter 3.x (Web, Android, iOS) | Multi-flavor entrypoints (`main.dart`, `main_studio.dart`, `main_admin.dart`, `main_advertiser.dart`), GetX state & routing, HLS/DASH video playback |
 | **Identity & Security** | Firebase Authentication + Custom Claims | Email/Password, OAuth, RBAC claims (`isAdmin`, `isStudio`, `isAdvertiser`, `tier`), App Check attestation |
 | **Application Serverless** | Firebase Cloud Functions (2nd Gen / Node 24 TS) | Video processing pipeline, Cashfree payment gateway, AI search, SEO SSR engine, live viewer tracking |
-| **Primary Databases** | Cloud Firestore & Firebase RTDB | Firestore for structured documents; Realtime Database (RTDB) for live viewer counts, active sessions, and live chat |
+| **Primary Databases** | Cloud Firestore & Firebase RTDB | Firestore for structured documents; Realtime Database (RTDB) for live viewer counts and active sessions |
 | **Blob & Video Storage** | Google Cloud Storage (GCS) | Video uploads, HLS streams, dubbed audio tracks, speaker profiles, thumbnails, watermarks |
 | **Message Queue / PubSub** | Google Cloud Pub/Sub & Cloud Tasks | Video pipeline fan-out (transcription $\rightarrow$ credibility $\rightarrow$ dubbing), SWR cache invalidation queues |
 | **AI & Inference Engines** | Gemini Flash API, AssemblyAI, In-House Vector Search | Automated transcription, credibility scoring, claim normalization, multi-language dubbing (Telugu, Hindi, English), vector embeddings |
@@ -92,7 +92,7 @@ graph TD
         end
 
         Firestore[("Cloud Firestore<br/>(Videos, Users, Channels, Orders)")]
-        RTDB[("Realtime Database<br/>(Live Viewers, Chat)")]
+        RTDB[("Realtime Database<br/>(Live Viewers, Presence)")]
     end
 
     FlutterWeb -->|Authenticate| Auth
@@ -121,5 +121,6 @@ graph TD
 * **ADR-001 (Scale-to-Zero Cloud Functions):** All Cloud Functions 2nd Gen are configured with `minInstances: 0` and region `asia-south1` to optimize serverless operating costs while handling traffic spikes.
 * **ADR-002 (Gated Publishing Pipeline):** Videos are never made public immediately upon upload. They must pass resolution transcoding, automated moderation, copyright scanning, and fact-checking aggregation before reaching `published` status.
 * **ADR-003 (Counter Sharding for High Concurrency):** High-frequency counters (video views, impressions, likes, subscribers) use distributed counter shards to prevent Firestore 1 write/second document contention limits. Shards are periodically aggregated by `rollupVideoCounterShards`.
-* **ADR-004 (Hybrid Realtime Database + Firestore):** Ephemeral high-throughput state (active video viewers, typing status, live chat) is stored in RTDB, while persistent relational documents (user profiles, video metadata, financial records) live in Firestore.
+* **ADR-004 (Hybrid Realtime Database + Firestore):** Ephemeral high-throughput state (active video viewers, typing status, presence) is stored in RTDB, while persistent relational documents (user profiles, video metadata, financial records) live in Firestore.
 * **ADR-005 (Decoupled Clean Architecture & Modular Routing):** Zero framework coupling in Domain and Data layers (`GetX`, `Flutter Widgets` are prohibited in `lib/domain` and `lib/data`). Repositories receive dependencies via constructor injection. Routing is modularized by feature (`lib/routes/modules/*`), centralized in `AppRoutes`, and abstracted behind `AppNavigator` facade for testability and loose coupling.
+* **ADR-006 (Full-Stack Financial Telemetry & Real-Time Unit Economics):** Every AI token (Vertex AI/Gemini), STT minute (AssemblyAI), TTS character (ElevenLabs/Google Chirp), and CDN egress byte (Google Cloud CDN) is recorded at runtime by `CostEngine` into append-only `cost_events` and rolled up to `cost_rollups` with `channelId`. Pro channels operate under a predictable 1/3 infrastructure budget cap and 2/3 platform profit margin with automated viral surge fronting and withdrawal holds.

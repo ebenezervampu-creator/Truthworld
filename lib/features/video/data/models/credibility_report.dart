@@ -364,6 +364,59 @@ class UIDriver {
   };
 }
 
+class EvidenceAssessment {
+  EvidenceAssessment({
+    this.scripturalSupport,
+    this.independentHistoricalCorroboration,
+    this.empiricalVerification,
+  });
+
+  factory EvidenceAssessment.fromMap(Map<String, dynamic> map) {
+    return EvidenceAssessment(
+      scripturalSupport: map['scripturalSupport']?.toString(),
+      independentHistoricalCorroboration:
+          map['independentHistoricalCorroboration']?.toString(),
+      empiricalVerification: map['empiricalVerification']?.toString(),
+    );
+  }
+
+  final String? scripturalSupport;
+  final String? independentHistoricalCorroboration;
+  final String? empiricalVerification;
+
+  Map<String, dynamic> toMap() => {
+    'scripturalSupport': scripturalSupport,
+    'independentHistoricalCorroboration': independentHistoricalCorroboration,
+    'empiricalVerification': empiricalVerification,
+  };
+}
+
+class FramingViolationDetail {
+  FramingViolationDetail({
+    this.violationType,
+    this.assertedEvidenceQuality,
+    this.explanation,
+  });
+
+  factory FramingViolationDetail.fromMap(Map<String, dynamic> map) {
+    return FramingViolationDetail(
+      violationType: map['violationType']?.toString(),
+      assertedEvidenceQuality: map['assertedEvidenceQuality']?.toString(),
+      explanation: map['explanation']?.toString(),
+    );
+  }
+
+  final String? violationType;
+  final String? assertedEvidenceQuality;
+  final String? explanation;
+
+  Map<String, dynamic> toMap() => {
+    'violationType': violationType,
+    'assertedEvidenceQuality': assertedEvidenceQuality,
+    'explanation': explanation,
+  };
+}
+
 class UISource {
   UISource({
     required this.title,
@@ -377,6 +430,9 @@ class UISource {
     this.publisher,
     this.publishedAt,
     this.avatarUrl,
+    this.whatItSupports,
+    this.whatItDoesNotEstablish,
+    this.sourceRole,
   });
 
   factory UISource.fromMap(Map<String, dynamic> map) {
@@ -432,6 +488,10 @@ class UISource {
     final type =
         (map['sourceType'] ?? map['type'] ?? 'Secondary').toString();
 
+    final whatItSupports = map['whatItSupports']?.toString();
+    final whatItDoesNotEstablish = map['whatItDoesNotEstablish']?.toString();
+    final sourceRole = map['sourceRole']?.toString();
+
     return UISource(
       title: title,
       url: url,
@@ -445,6 +505,9 @@ class UISource {
       publisher: publisher,
       publishedAt: publishedAt,
       avatarUrl: avatarUrl,
+      whatItSupports: whatItSupports,
+      whatItDoesNotEstablish: whatItDoesNotEstablish,
+      sourceRole: sourceRole,
     );
   }
   final String title;
@@ -458,6 +521,9 @@ class UISource {
   final String? publisher;
   final String? publishedAt;
   final String? avatarUrl;
+  final String? whatItSupports;
+  final String? whatItDoesNotEstablish;
+  final String? sourceRole;
 
   Map<String, dynamic> toMap() => {
     'title': title,
@@ -471,6 +537,9 @@ class UISource {
     'publisher': publisher,
     'publishedAt': publishedAt,
     'avatarUrl': avatarUrl,
+    'whatItSupports': whatItSupports,
+    'whatItDoesNotEstablish': whatItDoesNotEstablish,
+    'sourceRole': sourceRole,
   };
 }
 
@@ -526,6 +595,17 @@ class ClaimResult {
     this.multiModelConsensus,
     this.isAppealed,
     this.appealStatus,
+    this.thumbnailUrl,
+    this.evidenceAssessment,
+    this.beliefAssessment,
+    this.misinformationVerdict,
+    this.framingViolationDetail,
+    this.confidenceMeaning,
+    this.framingAssessment,
+    this.epistemicLimitations,
+    this.evidenceTraceability,
+    this.calibratedConfidence,
+    this.assessmentV2,
   });
 
   factory ClaimResult.fromMap(Map<String, dynamic> map) {
@@ -618,6 +698,12 @@ class ClaimResult {
       }
     }
 
+    final rawThumbnail = (map['thumbnailUrl'] ??
+            map['thumbnail'] ??
+            map['frameUrl'] ??
+            map['imageUrl'])
+        ?.toString();
+
     return ClaimResult(
       text: rawText,
       verdict: rawVerdict,
@@ -649,6 +735,41 @@ class ClaimResult {
           : null,
       isAppealed: map['isAppealed'] as bool?,
       appealStatus: map['appealStatus']?.toString(),
+      thumbnailUrl: (rawThumbnail != null && rawThumbnail.trim().isNotEmpty)
+          ? rawThumbnail.trim()
+          : null,
+      evidenceAssessment: map['evidenceAssessment'] is Map
+          ? EvidenceAssessment.fromMap(
+              Map<String, dynamic>.from(map['evidenceAssessment']),
+            )
+          : null,
+      beliefAssessment: map['beliefAssessment']?.toString(),
+      misinformationVerdict: map['misinformationVerdict']?.toString(),
+      framingViolationDetail: map['framingViolationDetail'] is Map
+          ? FramingViolationDetail.fromMap(
+              Map<String, dynamic>.from(map['framingViolationDetail']),
+            )
+          : null,
+      confidenceMeaning: map['confidenceMeaning']?.toString(),
+      framingAssessment: map['framingAssessment']?.toString(),
+      epistemicLimitations: (map['epistemicLimitations'] as List?)
+          ?.map((e) => e.toString())
+          .toList(),
+      evidenceTraceability: map['evidenceTraceability'] is Map
+          ? EvidenceToClaimTraceability.fromMap(
+              Map<String, dynamic>.from(map['evidenceTraceability']),
+            )
+          : null,
+      calibratedConfidence: map['calibratedConfidence'] is Map
+          ? CalibratedConfidenceBreakdown.fromMap(
+              Map<String, dynamic>.from(map['calibratedConfidence']),
+            )
+          : null,
+      assessmentV2: map['assessmentV2'] is Map
+          ? CredibilityAssessmentV2.fromMap(
+              Map<String, dynamic>.from(map['assessmentV2']),
+            )
+          : null,
     );
   }
   final String text;
@@ -657,6 +778,28 @@ class ClaimResult {
   final double? end;
   final bool? isLowRiskTrivia;
   final List<UISource> effectiveSources;
+  final String? thumbnailUrl;
+  final EvidenceAssessment? evidenceAssessment;
+  final String? beliefAssessment;
+  final String? misinformationVerdict;
+  final FramingViolationDetail? framingViolationDetail;
+  final String? confidenceMeaning;
+  final String? framingAssessment;
+  final List<String>? epistemicLimitations;
+  final EvidenceToClaimTraceability? evidenceTraceability;
+  final CalibratedConfidenceBreakdown? calibratedConfidence;
+  final CredibilityAssessmentV2? assessmentV2;
+
+  Duration get startDuration =>
+      Duration(milliseconds: ((start ?? 0) * 1000).round());
+
+  String get formattedStartTime {
+    if (start == null) return '00:00';
+    final totalSec = start!.toInt();
+    final m = totalSec ~/ 60;
+    final s = totalSec % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
 
   /// Confidence in the categorization of the claim nature (e.g. 1.0 = 100% sure this is a RELIGIOUS_CLAIM).
   final double? classificationConfidence;
@@ -693,6 +836,17 @@ class ClaimResult {
     'multiModelConsensus': multiModelConsensus,
     'isAppealed': isAppealed,
     'appealStatus': appealStatus,
+    'thumbnailUrl': thumbnailUrl,
+    'evidenceAssessment': evidenceAssessment?.toMap(),
+    'beliefAssessment': beliefAssessment,
+    'misinformationVerdict': misinformationVerdict,
+    'framingViolationDetail': framingViolationDetail?.toMap(),
+    'confidenceMeaning': confidenceMeaning,
+    'framingAssessment': framingAssessment,
+    'epistemicLimitations': epistemicLimitations,
+    'evidenceTraceability': evidenceTraceability?.toMap(),
+    'calibratedConfidence': calibratedConfidence?.toMap(),
+    'assessmentV2': assessmentV2?.toMap(),
   };
 }
 
@@ -929,4 +1083,863 @@ class UIReport {
   String get label => summary.label;
   String get confidence => summary.confidence;
   String? get analysisState => summary.analysisState;
+}
+
+/// 🔍 Evidence-to-Claim Traceability: Source Provenance
+class EvidenceProvenance {
+  const EvidenceProvenance({
+    required this.originAgencyOrAuthor,
+    required this.isIndependentOfSubject,
+    required this.independenceValidation,
+  });
+
+  factory EvidenceProvenance.fromMap(Map<String, dynamic> map) {
+    return EvidenceProvenance(
+      originAgencyOrAuthor: (map['originAgencyOrAuthor'] ?? '').toString(),
+      isIndependentOfSubject: (map['isIndependentOfSubject'] ?? false) as bool,
+      independenceValidation: (map['independenceValidation'] ?? '').toString(),
+    );
+  }
+
+  final String originAgencyOrAuthor;
+  final bool isIndependentOfSubject;
+  final String independenceValidation;
+
+  Map<String, dynamic> toMap() => {
+    'originAgencyOrAuthor': originAgencyOrAuthor,
+    'isIndependentOfSubject': isIndependentOfSubject,
+    'independenceValidation': independenceValidation,
+  };
+}
+
+/// 🔍 Source Independence Matrix (Non-Binary Provenance)
+class SourceIndependenceMatrix {
+  const SourceIndependenceMatrix({
+    required this.publisherIndependentOfSubject,
+    required this.underlyingDataIndependentOfSubject,
+    required this.analysisIndependentlyConducted,
+    required this.corroborationType,
+  });
+
+  factory SourceIndependenceMatrix.fromMap(Map<String, dynamic> map) {
+    return SourceIndependenceMatrix(
+      publisherIndependentOfSubject: (map['publisherIndependentOfSubject'] ?? false) as bool,
+      underlyingDataIndependentOfSubject: (map['underlyingDataIndependentOfSubject'] ?? false) as bool,
+      analysisIndependentlyConducted: (map['analysisIndependentlyConducted'] ?? false) as bool,
+      corroborationType: (map['corroborationType'] ?? 'subject_self_reporting').toString(),
+    );
+  }
+
+  final bool publisherIndependentOfSubject;
+  final bool underlyingDataIndependentOfSubject;
+  final bool analysisIndependentlyConducted;
+  final String corroborationType;
+
+  Map<String, dynamic> toMap() => {
+    'publisherIndependentOfSubject': publisherIndependentOfSubject,
+    'underlyingDataIndependentOfSubject': underlyingDataIndependentOfSubject,
+    'analysisIndependentlyConducted': analysisIndependentlyConducted,
+    'corroborationType': corroborationType,
+  };
+}
+
+/// 🔍 Automated Passage Verification (Machine-Audited Retrieval)
+class AutomatedPassageVerification {
+  const AutomatedPassageVerification({
+    required this.urlResolved,
+    required this.passageLocated,
+    required this.passageMatchesSource,
+    required this.supportsClaimComponent,
+    required this.verificationMethod,
+    required this.lastVerifiedAt,
+    this.locatedContextSnippet,
+    this.omittedContextDetected = false,
+    this.omittedContextExplanation,
+  });
+
+  factory AutomatedPassageVerification.fromMap(Map<String, dynamic> map) {
+    return AutomatedPassageVerification(
+      urlResolved: (map['urlResolved'] ?? false) as bool,
+      passageLocated: (map['passageLocated'] ?? false) as bool,
+      passageMatchesSource: (map['passageMatchesSource'] ?? false) as bool,
+      supportsClaimComponent: (map['supportsClaimComponent'] ?? false) as bool,
+      verificationMethod: (map['verificationMethod'] ?? 'unverified_citation').toString(),
+      lastVerifiedAt: (map['lastVerifiedAt'] ?? '').toString(),
+      locatedContextSnippet: map['locatedContextSnippet']?.toString(),
+      omittedContextDetected: (map['omittedContextDetected'] ?? false) as bool,
+      omittedContextExplanation: map['omittedContextExplanation']?.toString(),
+    );
+  }
+
+  final bool urlResolved;
+  final bool passageLocated;
+  final bool passageMatchesSource;
+  final bool supportsClaimComponent;
+  final String verificationMethod;
+  final String lastVerifiedAt;
+  final String? locatedContextSnippet;
+  final bool omittedContextDetected;
+  final String? omittedContextExplanation;
+
+  Map<String, dynamic> toMap() => {
+    'urlResolved': urlResolved,
+    'passageLocated': passageLocated,
+    'passageMatchesSource': passageMatchesSource,
+    'supportsClaimComponent': supportsClaimComponent,
+    'verificationMethod': verificationMethod,
+    'lastVerifiedAt': lastVerifiedAt,
+    'locatedContextSnippet': locatedContextSnippet,
+    'omittedContextDetected': omittedContextDetected,
+    'omittedContextExplanation': omittedContextExplanation,
+  };
+}
+
+/// 🔍 Calibrated Confidence Breakdown
+class CalibratedConfidenceBreakdown {
+  const CalibratedConfidenceBreakdown({
+    this.claimDecomposition,
+    this.premiseAssessment,
+    this.sourceVerification,
+    this.inferenceAssessment,
+    this.overallVerdict,
+  });
+
+  factory CalibratedConfidenceBreakdown.fromMap(Map<String, dynamic> map) {
+    return CalibratedConfidenceBreakdown(
+      claimDecomposition: (map['claimDecomposition'] is num) ? (map['claimDecomposition'] as num).toDouble() : null,
+      premiseAssessment: (map['premiseAssessment'] is num) ? (map['premiseAssessment'] as num).toDouble() : null,
+      sourceVerification: (map['sourceVerification'] is num) ? (map['sourceVerification'] as num).toDouble() : null,
+      inferenceAssessment: (map['inferenceAssessment'] is num) ? (map['inferenceAssessment'] as num).toDouble() : null,
+      overallVerdict: (map['overallVerdict'] is num) ? (map['overallVerdict'] as num).toDouble() : null,
+    );
+  }
+
+  final double? claimDecomposition;
+  final double? premiseAssessment;
+  final double? sourceVerification;
+  final double? inferenceAssessment;
+  final double? overallVerdict;
+
+  Map<String, dynamic> toMap() => {
+    'claimDecomposition': claimDecomposition,
+    'premiseAssessment': premiseAssessment,
+    'sourceVerification': sourceVerification,
+    'inferenceAssessment': inferenceAssessment,
+    'overallVerdict': overallVerdict,
+  };
+}
+
+/// 🔍 Evidence-to-Claim Traceability: Exact Evidence Item
+class EvidenceTraceItem {
+  const EvidenceTraceItem({
+    required this.evidenceId,
+    required this.componentId,
+    required this.sourceTitle,
+    required this.sourceUrl,
+    required this.retrievalTimestamp,
+    required this.sourceType,
+    required this.provenance,
+    required this.exactPassage,
+    required this.claimComponentAddressed,
+    required this.relationship,
+    required this.verificationStatus,
+    this.sourceIndependence,
+    this.automatedVerification,
+    this.knownLimitations = const [],
+  });
+
+  factory EvidenceTraceItem.fromMap(Map<String, dynamic> map) {
+    return EvidenceTraceItem(
+      evidenceId: (map['evidenceId'] ?? '').toString(),
+      componentId: (map['componentId'] ?? '').toString(),
+      sourceTitle: (map['sourceTitle'] ?? '').toString(),
+      sourceUrl: (map['sourceUrl'] ?? '').toString(),
+      retrievalTimestamp: (map['retrievalTimestamp'] ?? 0) as int,
+      sourceType: (map['sourceType'] ?? '').toString(),
+      provenance: map['provenance'] is Map
+          ? EvidenceProvenance.fromMap(Map<String, dynamic>.from(map['provenance']))
+          : const EvidenceProvenance(
+              originAgencyOrAuthor: '',
+              isIndependentOfSubject: false,
+              independenceValidation: '',
+            ),
+      exactPassage: (map['exactPassage'] ?? '').toString(),
+      claimComponentAddressed: (map['claimComponentAddressed'] ?? '').toString(),
+      relationship: (map['relationship'] ?? '').toString(),
+      verificationStatus: (map['verificationStatus'] ?? '').toString(),
+      sourceIndependence: map['sourceIndependence'] is Map
+          ? SourceIndependenceMatrix.fromMap(Map<String, dynamic>.from(map['sourceIndependence']))
+          : null,
+      automatedVerification: map['automatedVerification'] is Map
+          ? AutomatedPassageVerification.fromMap(Map<String, dynamic>.from(map['automatedVerification']))
+          : null,
+      knownLimitations: (map['knownLimitations'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+    );
+  }
+
+  final String evidenceId;
+  final String componentId;
+  final String sourceTitle;
+  final String sourceUrl;
+  final int retrievalTimestamp;
+  final String sourceType;
+  final EvidenceProvenance provenance;
+  final SourceIndependenceMatrix? sourceIndependence;
+  final AutomatedPassageVerification? automatedVerification;
+  final String exactPassage;
+  final String claimComponentAddressed;
+  final String relationship;
+  final String verificationStatus;
+  final List<String> knownLimitations;
+
+  Map<String, dynamic> toMap() => {
+    'evidenceId': evidenceId,
+    'componentId': componentId,
+    'sourceTitle': sourceTitle,
+    'sourceUrl': sourceUrl,
+    'retrievalTimestamp': retrievalTimestamp,
+    'sourceType': sourceType,
+    'provenance': provenance.toMap(),
+    'sourceIndependence': sourceIndependence?.toMap(),
+    'automatedVerification': automatedVerification?.toMap(),
+    'exactPassage': exactPassage,
+    'claimComponentAddressed': claimComponentAddressed,
+    'relationship': relationship,
+    'verificationStatus': verificationStatus,
+    'knownLimitations': knownLimitations,
+  };
+}
+
+/// 🔍 Evidence-to-Claim Traceability: Decomposed Claim Component
+class ClaimComponent {
+  const ClaimComponent({
+    required this.componentId,
+    required this.statement,
+    required this.type,
+    required this.factualAccuracy,
+    required this.explanation,
+    this.inferentialValidity,
+    this.detectedFallacy,
+    this.evidenceIds = const [],
+  });
+
+  factory ClaimComponent.fromMap(Map<String, dynamic> map) {
+    return ClaimComponent(
+      componentId: (map['componentId'] ?? '').toString(),
+      statement: (map['statement'] ?? '').toString(),
+      type: (map['type'] ?? '').toString(),
+      factualAccuracy: (map['factualAccuracy'] ?? '').toString(),
+      inferentialValidity: map['inferentialValidity']?.toString(),
+      explanation: (map['explanation'] ?? '').toString(),
+      detectedFallacy: map['detectedFallacy']?.toString(),
+      evidenceIds: (map['evidenceIds'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+    );
+  }
+
+  final String componentId;
+  final String statement;
+  final String type;
+  final String factualAccuracy;
+  final String? inferentialValidity;
+  final String explanation;
+  final String? detectedFallacy;
+  final List<String> evidenceIds;
+
+  Map<String, dynamic> toMap() => {
+    'componentId': componentId,
+    'statement': statement,
+    'type': type,
+    'factualAccuracy': factualAccuracy,
+    'inferentialValidity': inferentialValidity,
+    'explanation': explanation,
+    'detectedFallacy': detectedFallacy,
+    'evidenceIds': evidenceIds,
+  };
+}
+
+/// 🔍 Evidence-to-Claim Traceability: Full Traceability Manifest
+class EvidenceToClaimTraceability {
+  const EvidenceToClaimTraceability({
+    required this.isCompoundClaim,
+    required this.components,
+    required this.evidenceTraces,
+    required this.inferentialBridgeSummary,
+    this.premisesVerdict,
+    this.conclusionVerdict,
+    this.finalAdjudication,
+  });
+
+  factory EvidenceToClaimTraceability.fromMap(Map<String, dynamic> map) {
+    final synthesis = map['overallSynthesis'] is Map
+        ? Map<String, dynamic>.from(map['overallSynthesis'])
+        : <String, dynamic>{};
+    return EvidenceToClaimTraceability(
+      isCompoundClaim: (map['isCompoundClaim'] ?? false) as bool,
+      components: (map['components'] as List?)
+              ?.map((c) => ClaimComponent.fromMap(Map<String, dynamic>.from(c)))
+              .toList() ??
+          const [],
+      evidenceTraces: (map['evidenceTraces'] as List?)
+              ?.map((e) => EvidenceTraceItem.fromMap(Map<String, dynamic>.from(e)))
+              .toList() ??
+          const [],
+      inferentialBridgeSummary:
+          (map['inferentialBridgeSummary'] ?? '').toString(),
+      premisesVerdict: synthesis['premisesVerdict']?.toString(),
+      conclusionVerdict: synthesis['conclusionVerdict']?.toString(),
+      finalAdjudication: synthesis['finalAdjudication']?.toString(),
+    );
+  }
+
+  final bool isCompoundClaim;
+  final List<ClaimComponent> components;
+  final List<EvidenceTraceItem> evidenceTraces;
+  final String inferentialBridgeSummary;
+  final String? premisesVerdict;
+  final String? conclusionVerdict;
+  final String? finalAdjudication;
+
+  Map<String, dynamic> toMap() => {
+    'isCompoundClaim': isCompoundClaim,
+    'components': components.map((c) => c.toMap()).toList(),
+    'evidenceTraces': evidenceTraces.map((e) => e.toMap()).toList(),
+    'inferentialBridgeSummary': inferentialBridgeSummary,
+    'overallSynthesis': {
+      'premisesVerdict': premisesVerdict,
+      'conclusionVerdict': conclusionVerdict,
+      'finalAdjudication': finalAdjudication,
+    },
+  };
+}
+
+// ============================================================================
+// 🏛 V2 CREDIBILITY ASSESSMENT & 3-AXIS ORTHOGONAL CLASSIFICATION
+// ============================================================================
+
+class OrthogonalClassification {
+  const OrthogonalClassification({
+    required this.propositionType,
+    required this.evidenceStatus,
+    required this.reasoningValidity,
+    required this.displayBadge,
+  });
+
+  factory OrthogonalClassification.fromMap(Map<String, dynamic> map) {
+    return OrthogonalClassification(
+      propositionType: (map['propositionType'] ?? 'EMPIRICAL_OBSERVATION').toString(),
+      evidenceStatus: (map['evidenceStatus'] ?? 'INSUFFICIENT_EVIDENCE').toString(),
+      reasoningValidity: (map['reasoningValidity'] ?? 'NOT_APPLICABLE').toString(),
+      displayBadge: (map['displayBadge'] ?? 'UNSUPPORTED_CONJECTURE').toString(),
+    );
+  }
+
+  final String propositionType;
+  final String evidenceStatus;
+  final String reasoningValidity;
+  final String displayBadge;
+
+  Map<String, dynamic> toMap() => {
+    'propositionType': propositionType,
+    'evidenceStatus': evidenceStatus,
+    'reasoningValidity': reasoningValidity,
+    'displayBadge': displayBadge,
+  };
+}
+
+class ClaimDecompositionProposition {
+  const ClaimDecompositionProposition({
+    required this.propositionId,
+    required this.role,
+    required this.text,
+    required this.propositionType,
+    required this.assessment,
+    this.supportingEvidenceIds = const [],
+    this.contradictingEvidenceIds = const [],
+    this.independentPrimarySourceCount = 0,
+  });
+
+  factory ClaimDecompositionProposition.fromMap(Map<String, dynamic> map) {
+    return ClaimDecompositionProposition(
+      propositionId: (map['propositionId'] ?? '').toString(),
+      role: (map['role'] ?? 'PREMISE').toString(),
+      text: (map['text'] ?? '').toString(),
+      propositionType: (map['propositionType'] ?? 'EMPIRICAL_OBSERVATION').toString(),
+      assessment: (map['assessment'] ?? 'INSUFFICIENT_EVIDENCE').toString(),
+      supportingEvidenceIds: (map['supportingEvidenceIds'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+      contradictingEvidenceIds: (map['contradictingEvidenceIds'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+      independentPrimarySourceCount: (map['independentPrimarySourceCount'] ?? 0) as int,
+    );
+  }
+
+  final String propositionId;
+  final String role;
+  final String text;
+  final String propositionType;
+  final String assessment;
+  final List<String> supportingEvidenceIds;
+  final List<String> contradictingEvidenceIds;
+  final int independentPrimarySourceCount;
+
+  Map<String, dynamic> toMap() => {
+    'propositionId': propositionId,
+    'role': role,
+    'text': text,
+    'propositionType': propositionType,
+    'assessment': assessment,
+    'supportingEvidenceIds': supportingEvidenceIds,
+    'contradictingEvidenceIds': contradictingEvidenceIds,
+    'independentPrimarySourceCount': independentPrimarySourceCount,
+  };
+}
+
+class DeterministicVerification {
+  const DeterministicVerification({
+    required this.fetchStatus,
+    required this.snapshotSha256,
+    required this.retrievedAtUtc,
+    required this.verifiedPassage,
+    required this.charStart,
+    required this.charEnd,
+    required this.exactMatchScore,
+    this.contextDistortionDetected = false,
+  });
+
+  factory DeterministicVerification.fromMap(Map<String, dynamic> map) {
+    return DeterministicVerification(
+      fetchStatus: (map['fetchStatus'] ?? 'UNVERIFIED').toString(),
+      snapshotSha256: (map['snapshotSha256'] ?? '').toString(),
+      retrievedAtUtc: (map['retrievedAtUtc'] ?? '').toString(),
+      verifiedPassage: (map['verifiedPassage'] ?? '').toString(),
+      charStart: (map['charStart'] ?? 0) as int,
+      charEnd: (map['charEnd'] ?? 0) as int,
+      exactMatchScore: ((map['exactMatchScore'] ?? 0.0) as num).toDouble(),
+      contextDistortionDetected: (map['contextDistortionDetected'] ?? false) as bool,
+    );
+  }
+
+  final String fetchStatus;
+  final String snapshotSha256;
+  final String retrievedAtUtc;
+  final String verifiedPassage;
+  final int charStart;
+  final int charEnd;
+  final double exactMatchScore;
+  final bool contextDistortionDetected;
+
+  Map<String, dynamic> toMap() => {
+    'fetchStatus': fetchStatus,
+    'snapshotSha256': snapshotSha256,
+    'retrievedAtUtc': retrievedAtUtc,
+    'verifiedPassage': verifiedPassage,
+    'charStart': charStart,
+    'charEnd': charEnd,
+    'exactMatchScore': exactMatchScore,
+    'contextDistortionDetected': contextDistortionDetected,
+  };
+}
+
+class SourceIndependenceProfile {
+  const SourceIndependenceProfile({
+    required this.lineageType,
+    this.upstreamSourceId,
+    required this.independenceWeight,
+  });
+
+  factory SourceIndependenceProfile.fromMap(Map<String, dynamic> map) {
+    return SourceIndependenceProfile(
+      lineageType: (map['lineageType'] ?? 'PRIMARY_TECHNICAL_RECORD').toString(),
+      upstreamSourceId: map['upstreamSourceId']?.toString(),
+      independenceWeight: ((map['independenceWeight'] ?? 1.0) as num).toDouble(),
+    );
+  }
+
+  final String lineageType;
+  final String? upstreamSourceId;
+  final double independenceWeight;
+
+  Map<String, dynamic> toMap() => {
+    'lineageType': lineageType,
+    'upstreamSourceId': upstreamSourceId,
+    'independenceWeight': independenceWeight,
+  };
+}
+
+class EpistemicScope {
+  const EpistemicScope({
+    required this.establishes,
+    required this.doesNotEstablish,
+    required this.limitations,
+  });
+
+  factory EpistemicScope.fromMap(Map<String, dynamic> map) {
+    return EpistemicScope(
+      establishes: (map['establishes'] ?? '').toString(),
+      doesNotEstablish: (map['doesNotEstablish'] ?? '').toString(),
+      limitations: (map['limitations'] ?? '').toString(),
+    );
+  }
+
+  final String establishes;
+  final String doesNotEstablish;
+  final String limitations;
+
+  Map<String, dynamic> toMap() => {
+    'establishes': establishes,
+    'doesNotEstablish': doesNotEstablish,
+    'limitations': limitations,
+  };
+}
+
+class EvidenceRegistryItem {
+  const EvidenceRegistryItem({
+    required this.publisher,
+    required this.url,
+    this.primaryArtifactId,
+    required this.deterministicVerification,
+    required this.independence,
+    required this.epistemicScope,
+  });
+
+  factory EvidenceRegistryItem.fromMap(Map<String, dynamic> map) {
+    final identity = map['sourceIdentity'] is Map
+        ? Map<String, dynamic>.from(map['sourceIdentity'])
+        : <String, dynamic>{};
+    return EvidenceRegistryItem(
+      publisher: (identity['publisher'] ?? '').toString(),
+      url: (identity['url'] ?? '').toString(),
+      primaryArtifactId: identity['primaryArtifactId']?.toString(),
+      deterministicVerification: DeterministicVerification.fromMap(
+        map['deterministicVerification'] is Map
+            ? Map<String, dynamic>.from(map['deterministicVerification'])
+            : <String, dynamic>{},
+      ),
+      independence: SourceIndependenceProfile.fromMap(
+        map['independence'] is Map
+            ? Map<String, dynamic>.from(map['independence'])
+            : <String, dynamic>{},
+      ),
+      epistemicScope: EpistemicScope.fromMap(
+        map['epistemicScope'] is Map
+            ? Map<String, dynamic>.from(map['epistemicScope'])
+            : <String, dynamic>{},
+      ),
+    );
+  }
+
+  final String publisher;
+  final String url;
+  final String? primaryArtifactId;
+  final DeterministicVerification deterministicVerification;
+  final SourceIndependenceProfile independence;
+  final EpistemicScope epistemicScope;
+
+  Map<String, dynamic> toMap() => {
+    'sourceIdentity': {
+      'publisher': publisher,
+      'url': url,
+      'primaryArtifactId': primaryArtifactId,
+    },
+    'deterministicVerification': deterministicVerification.toMap(),
+    'independence': independence.toMap(),
+    'epistemicScope': epistemicScope.toMap(),
+  };
+}
+
+class BackendAuditFlags {
+  const BackendAuditFlags({
+    required this.allReferencedCitationsDeterministicallyVerified,
+    required this.unverifiedEvidencePresent,
+    required this.closedWorldCitationCheckPassed,
+  });
+
+  factory BackendAuditFlags.fromMap(Map<String, dynamic> map) {
+    return BackendAuditFlags(
+      allReferencedCitationsDeterministicallyVerified:
+          (map['allReferencedCitationsDeterministicallyVerified'] ?? false) as bool,
+      unverifiedEvidencePresent:
+          (map['unverifiedEvidencePresent'] ?? false) as bool,
+      closedWorldCitationCheckPassed:
+          (map['closedWorldCitationCheckPassed'] ?? true) as bool,
+    );
+  }
+
+  final bool allReferencedCitationsDeterministicallyVerified;
+  final bool unverifiedEvidencePresent;
+  final bool closedWorldCitationCheckPassed;
+
+  Map<String, dynamic> toMap() => {
+    'allReferencedCitationsDeterministicallyVerified':
+        allReferencedCitationsDeterministicallyVerified,
+    'unverifiedEvidencePresent': unverifiedEvidencePresent,
+    'closedWorldCitationCheckPassed': closedWorldCitationCheckPassed,
+  };
+}
+
+class EpistemicUncertainty {
+  const EpistemicUncertainty({
+    this.numericalConfidenceAvailable = false,
+    this.calibrationModelVersion,
+    required this.qualitativeTier,
+    this.conformalPredictionSet = const [],
+    this.disclosedGaps = const [],
+  });
+
+  factory EpistemicUncertainty.fromMap(Map<String, dynamic> map) {
+    return EpistemicUncertainty(
+      numericalConfidenceAvailable:
+          (map['numericalConfidenceAvailable'] ?? false) as bool,
+      calibrationModelVersion: map['calibrationModelVersion']?.toString(),
+      qualitativeTier: (map['qualitativeTier'] ?? 'PRELIMINARY_EVIDENCE').toString(),
+      conformalPredictionSet: (map['conformalPredictionSet'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+      disclosedGaps: (map['disclosedGaps'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+    );
+  }
+
+  final bool numericalConfidenceAvailable;
+  final String? calibrationModelVersion;
+  final String qualitativeTier;
+  final List<String> conformalPredictionSet;
+  final List<String> disclosedGaps;
+
+  Map<String, dynamic> toMap() => {
+    'numericalConfidenceAvailable': numericalConfidenceAvailable,
+    'calibrationModelVersion': calibrationModelVersion,
+    'qualitativeTier': qualitativeTier,
+    'conformalPredictionSet': conformalPredictionSet,
+    'disclosedGaps': disclosedGaps,
+  };
+}
+
+class CredibilityAssessmentV2 {
+  const CredibilityAssessmentV2({
+    required this.assessmentId,
+    this.schemaVersion = '2.0.0',
+    this.assessmentVersion = 1,
+    this.supersededBy,
+    this.correctionReason,
+    this.speakerStance = 'SPEAKER_ASSERTS',
+    required this.claimText,
+    required this.classification,
+    required this.claimDecomposition,
+    required this.evidenceRegistry,
+    required this.backendAuditFlags,
+    required this.uncertainty,
+    this.semanticValidation,
+  });
+
+  factory CredibilityAssessmentV2.fromMap(Map<String, dynamic> map) {
+    final videoCtx = map['videoContext'] is Map
+        ? Map<String, dynamic>.from(map['videoContext'])
+        : <String, dynamic>{};
+
+    final regMap = map['evidenceRegistry'] is Map
+        ? Map<String, dynamic>.from(map['evidenceRegistry'])
+        : <String, dynamic>{};
+
+    final registry = <String, EvidenceRegistryItem>{};
+    regMap.forEach((k, v) {
+      if (v is Map) {
+        registry[k] = EvidenceRegistryItem.fromMap(Map<String, dynamic>.from(v));
+      }
+    });
+
+    return CredibilityAssessmentV2(
+      assessmentId: (map['assessmentId'] ?? '').toString(),
+      schemaVersion: (map['schemaVersion'] ?? '2.0.0').toString(),
+      assessmentVersion: (map['assessmentVersion'] ?? 1) as int,
+      supersededBy: map['supersededBy']?.toString(),
+      correctionReason: map['correctionReason']?.toString(),
+      speakerStance: (videoCtx['speakerStance'] ?? 'SPEAKER_ASSERTS').toString(),
+      claimText: (map['claimText'] ?? '').toString(),
+      classification: OrthogonalClassification.fromMap(
+        map['classification'] is Map
+            ? Map<String, dynamic>.from(map['classification'])
+            : <String, dynamic>{},
+      ),
+      claimDecomposition: (map['claimDecomposition'] as List?)
+              ?.map((p) => ClaimDecompositionProposition.fromMap(
+                  Map<String, dynamic>.from(p)))
+              .toList() ??
+          const [],
+      evidenceRegistry: registry,
+      backendAuditFlags: BackendAuditFlags.fromMap(
+        map['backendAuditFlags'] is Map
+            ? Map<String, dynamic>.from(map['backendAuditFlags'])
+            : <String, dynamic>{},
+      ),
+      uncertainty: EpistemicUncertainty.fromMap(
+        map['uncertainty'] is Map
+            ? Map<String, dynamic>.from(map['uncertainty'])
+            : <String, dynamic>{},
+      ),
+      semanticValidation: map['semanticValidation'] is Map
+          ? SemanticEvidenceValidationResult.fromMap(
+              Map<String, dynamic>.from(map['semanticValidation']),
+            )
+          : null,
+    );
+  }
+
+  final String assessmentId;
+  final String schemaVersion;
+  final int assessmentVersion;
+  final String? supersededBy;
+  final String? correctionReason;
+  final String speakerStance;
+  final String claimText;
+  final OrthogonalClassification classification;
+  final List<ClaimDecompositionProposition> claimDecomposition;
+  final Map<String, EvidenceRegistryItem> evidenceRegistry;
+  final BackendAuditFlags backendAuditFlags;
+  final EpistemicUncertainty uncertainty;
+  final SemanticEvidenceValidationResult? semanticValidation;
+
+  Map<String, dynamic> toMap() => {
+    'assessmentId': assessmentId,
+    'schemaVersion': schemaVersion,
+    'assessmentVersion': assessmentVersion,
+    'supersededBy': supersededBy,
+    'correctionReason': correctionReason,
+    'videoContext': {
+      'speakerStance': speakerStance,
+    },
+    'claimText': claimText,
+    'classification': classification.toMap(),
+    'claimDecomposition':
+        claimDecomposition.map((p) => p.toMap()).toList(),
+    'evidenceRegistry': evidenceRegistry.map((k, v) => MapEntry(k, v.toMap())),
+    'backendAuditFlags': backendAuditFlags.toMap(),
+    'uncertainty': uncertainty.toMap(),
+    'semanticValidation': semanticValidation?.toMap(),
+  };
+}
+
+class SemanticEvidenceLink {
+  const SemanticEvidenceLink({
+    required this.evidenceId,
+    required this.targetPropositionId,
+    required this.semanticRelationship,
+    required this.rationale,
+    this.disclosedCaveats = const [],
+    this.hypothesisVsFindingDistinction,
+    this.scopeOfSupport = 'FULL_PROPOSITION',
+  });
+
+  factory SemanticEvidenceLink.fromMap(Map<String, dynamic> map) {
+    return SemanticEvidenceLink(
+      evidenceId: (map['evidenceId'] ?? '').toString(),
+      targetPropositionId: (map['targetPropositionId'] ?? '').toString(),
+      semanticRelationship: (map['semanticRelationship'] ?? 'AMBIGUOUS').toString(),
+      rationale: (map['rationale'] ?? '').toString(),
+      disclosedCaveats: (map['disclosedCaveats'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+      hypothesisVsFindingDistinction:
+          map['hypothesisVsFindingDistinction']?.toString(),
+      scopeOfSupport: (map['scopeOfSupport'] ?? 'FULL_PROPOSITION').toString(),
+    );
+  }
+
+  final String evidenceId;
+  final String targetPropositionId;
+  final String semanticRelationship;
+  final String rationale;
+  final List<String> disclosedCaveats;
+  final String? hypothesisVsFindingDistinction;
+  final String scopeOfSupport;
+
+  Map<String, dynamic> toMap() => {
+    'evidenceId': evidenceId,
+    'targetPropositionId': targetPropositionId,
+    'semanticRelationship': semanticRelationship,
+    'rationale': rationale,
+    'disclosedCaveats': disclosedCaveats,
+    'hypothesisVsFindingDistinction': hypothesisVsFindingDistinction,
+    'scopeOfSupport': scopeOfSupport,
+  };
+}
+
+class OverclaimingAudit {
+  const OverclaimingAudit({
+    required this.overclaimingDetected,
+    this.violationTypes = const [],
+    this.details = const [],
+  });
+
+  factory OverclaimingAudit.fromMap(Map<String, dynamic> map) {
+    return OverclaimingAudit(
+      overclaimingDetected: (map['overclaimingDetected'] ?? false) as bool,
+      violationTypes: (map['violationTypes'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+      details: (map['details'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+    );
+  }
+
+  final bool overclaimingDetected;
+  final List<String> violationTypes;
+  final List<String> details;
+
+  Map<String, dynamic> toMap() => {
+    'overclaimingDetected': overclaimingDetected,
+    'violationTypes': violationTypes,
+    'details': details,
+  };
+}
+
+class SemanticEvidenceValidationResult {
+  const SemanticEvidenceValidationResult({
+    this.links = const [],
+    required this.overclaimingAudit,
+    this.semanticEvidenceLevel = 'ROBUST_SUPPORT',
+  });
+
+  factory SemanticEvidenceValidationResult.fromMap(Map<String, dynamic> map) {
+    return SemanticEvidenceValidationResult(
+      links: (map['links'] as List?)
+              ?.map((l) => SemanticEvidenceLink.fromMap(Map<String, dynamic>.from(l)))
+              .toList() ??
+          const [],
+      overclaimingAudit: OverclaimingAudit.fromMap(
+        map['overclaimingAudit'] is Map
+            ? Map<String, dynamic>.from(map['overclaimingAudit'])
+            : <String, dynamic>{},
+      ),
+      semanticEvidenceLevel:
+          (map['semanticEvidenceLevel'] ?? 'ROBUST_SUPPORT').toString(),
+    );
+  }
+
+  final List<SemanticEvidenceLink> links;
+  final OverclaimingAudit overclaimingAudit;
+  final String semanticEvidenceLevel;
+
+  Map<String, dynamic> toMap() => {
+    'links': links.map((l) => l.toMap()).toList(),
+    'overclaimingAudit': overclaimingAudit.toMap(),
+    'semanticEvidenceLevel': semanticEvidenceLevel,
+  };
 }

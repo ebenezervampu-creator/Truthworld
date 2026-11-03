@@ -13,9 +13,10 @@ const db = () => admin.firestore();
 // ─── Provider Rate Cards (USD) ──────────────────────────────────────────────
 
 export const RATE_CARDS = {
-  assemblyai: { perMinute: 0.039 },
+  assemblyai: { perMinute: 0.00383 }, // Universal-3.5 Pro ($0.21/hr) + Speaker Diarization ($0.02/hr) = $0.23/hr ($0.00383/min)
   "google-translate-v3": { perCharacter: 0.000020 },
-  elevenlabs: { perCharacter: 0.000030 },
+  elevenlabs: { perCharacter: 0.000200 }, // ElevenLabs Creator/Pro tier ($0.20 / 1K chars)
+  "google-tts-chirp3-hd": { perCharacter: 0.000030 },
   "google-tts-neural2": { perCharacter: 0.000016 },
   "google-tts-standard": { perCharacter: 0.000004 },
   storage: { perGBMonth: 0.020 },
@@ -70,6 +71,33 @@ export interface DubbingDurationTier {
   maxSeconds: number;
   standardPriceUSD: number;
   customPriceUSD: number;
+  voiceClonePriceUSD?: number;
+}
+
+export const PER_MINUTE_STANDARD_DUBBING_RATE = 0.10; // $1.00 for 10 mins ($0.10/min)
+export const PER_MINUTE_VOICE_CLONE_RATE = 0.20;       // $2.00 for 10 mins ($0.20/min)
+export const PER_MINUTE_LIP_SYNC_RATE = 0.30;          // $3.00 for 10 mins ($0.30/min)
+
+export const DUBBING_TIER_RATES = {
+  audio_starter: 0.10, // $1.00 for 10 mins ($0.10/min)
+  audio_pro: 0.20,     // $2.00 for 10 mins ($0.20/min)
+  audio_ultra: 0.30,   // $3.00 for 10 mins ($0.30/min)
+  video_pro: 0.40,     // $4.00 for 10 mins ($0.40/min)
+  video_ultra: 0.50,   // $5.00 for 10 mins ($0.50/min, Cinema Grade)
+} as const;
+
+export function getTierDubbingRatePerMinute(tierId: string): number {
+  return (DUBBING_TIER_RATES as any)[tierId] ?? DUBBING_TIER_RATES.audio_starter;
+}
+
+export function getFlatDubbingPriceForTier(durationSeconds: number, tierId: string = "audio_starter"): number {
+  const perMinuteRate = getTierDubbingRatePerMinute(tierId);
+  if (!durationSeconds || durationSeconds <= 0) {
+    return perMinuteRate;
+  }
+  const effectiveSeconds = Math.max(60, durationSeconds);
+  const cost = (effectiveSeconds / 60.0) * perMinuteRate;
+  return Math.round(cost * 100) / 100;
 }
 
 export const DUBBING_DURATION_TIERS: DubbingDurationTier[] = [
@@ -80,74 +108,166 @@ export const DUBBING_DURATION_TIERS: DubbingDurationTier[] = [
     maxSeconds: 60,
     standardPriceUSD: 0.10,
     customPriceUSD: 0.10,
+    voiceClonePriceUSD: 0.20,
   },
   {
     id: "mini",
     label: "Mini Video (1–5 min)",
     minSeconds: 61,
     maxSeconds: 300,
-    standardPriceUSD: 0.25,
-    customPriceUSD: 0.25,
+    standardPriceUSD: 0.50,
+    customPriceUSD: 0.50,
+    voiceClonePriceUSD: 1.00,
   },
   {
     id: "standard",
     label: "Standard Video (5–10 min)",
     minSeconds: 301,
     maxSeconds: 600,
-    standardPriceUSD: 0.50,
-    customPriceUSD: 0.50,
+    standardPriceUSD: 1.00,
+    customPriceUSD: 1.00,
+    voiceClonePriceUSD: 2.00,
   },
   {
     id: "extended",
     label: "Extended Video (10–30 min)",
     minSeconds: 601,
     maxSeconds: 1800,
-    standardPriceUSD: 1.25,
-    customPriceUSD: 1.25,
+    standardPriceUSD: 3.00,
+    customPriceUSD: 3.00,
+    voiceClonePriceUSD: 6.00,
   },
   {
     id: "long_form",
     label: "Long-Form Video (30–60 min)",
     minSeconds: 1801,
     maxSeconds: 3600,
-    standardPriceUSD: 2.50,
-    customPriceUSD: 2.50,
+    standardPriceUSD: 6.00,
+    customPriceUSD: 6.00,
+    voiceClonePriceUSD: 12.00,
   },
 ];
 
 export function getFlatDubbingPricePerLanguage(
   durationSeconds: number,
-  channelType: "standard" | "custom" = "standard"
+  channelType: "standard" | "custom" = "standard",
+  voiceType: "standard" | "voice_clone" | "cloned" = "standard"
 ): number {
-  if (durationSeconds <= 60) return 0.10;
-  if (durationSeconds <= 300) return 0.25;
-  if (durationSeconds <= 600) return 0.50;
-  if (durationSeconds <= 1800) return 1.25;
-  if (durationSeconds <= 3600) return 2.50;
+  const isVoiceClone = voiceType === "voice_clone" || voiceType === "cloned";
+  const perMinuteRate = isVoiceClone ? PER_MINUTE_VOICE_CLONE_RATE : PER_MINUTE_STANDARD_DUBBING_RATE;
 
-  // Beyond 60 minutes: base 60 min price ($2.50) + $1.25 per 30m block (0% platform profit)
-  const extraSeconds = durationSeconds - 3600;
-  const extraBlocks = Math.ceil(extraSeconds / 1800);
-  const basePrice = 2.50;
-  const blockPrice = 1.25;
-  return basePrice + extraBlocks * blockPrice;
+  if (!durationSeconds || durationSeconds <= 0) {
+    return perMinuteRate;
+  }
+
+  // Proportional per-minute calculation (ElevenLabs model) with 60s floor
+  const effectiveSeconds = Math.max(60, durationSeconds);
+  const cost = (effectiveSeconds / 60.0) * perMinuteRate;
+  return Math.round(cost * 100) / 100;
 }
 
 export function calculateDubbingCost(
   languageCount: number,
   durationSeconds: number = 0,
-  channelType: "standard" | "custom" = "standard"
+  channelType: "standard" | "custom" = "standard",
+  voiceType: "standard" | "voice_clone" | "cloned" = "standard",
+  discountPercent: number = 0
 ): number {
   if (languageCount <= 0) return 0.0;
+  if (discountPercent >= 100) return 0.0;
+  const isVoiceClone = voiceType === "voice_clone" || voiceType === "cloned";
+  let baseCost = 0.0;
   if (durationSeconds > 0) {
-    const flatPerLang = getFlatDubbingPricePerLanguage(durationSeconds, channelType);
-    return Math.round(languageCount * flatPerLang * 100) / 100;
+    const flatPerLang = getFlatDubbingPricePerLanguage(durationSeconds, channelType, voiceType);
+    baseCost = Math.round(languageCount * flatPerLang * 100) / 100;
+  } else {
+    const pricing =
+      CHANNEL_DUBBING_PRICING[channelType] || CHANNEL_DUBBING_PRICING.standard;
+    const multiplier = (isVoiceClone && channelType !== "custom") ? 2 : 1;
+    const rawCost = languageCount * pricing.ratePerLanguageUSD * multiplier;
+    baseCost = Math.min(Math.max(rawCost, pricing.minCostUSD * multiplier), pricing.capCostUSD * multiplier);
   }
-  const pricing =
-    CHANNEL_DUBBING_PRICING[channelType] || CHANNEL_DUBBING_PRICING.standard;
-  const rawCost = languageCount * pricing.ratePerLanguageUSD;
-  return Math.min(Math.max(rawCost, pricing.minCostUSD), pricing.capCostUSD);
+  if (discountPercent > 0) {
+    const clampedDiscount = Math.min(100.0, Math.max(0.0, discountPercent));
+    const factor = (100.0 - clampedDiscount) / 100.0;
+    return Math.round(baseCost * factor * 100) / 100;
+  }
+  return baseCost;
 }
+
+/**
+ * 👄 AI Visual Lip-Sync (LatentSync / MuseTalk GPU pass-through rate card)
+ *
+ * TruthWorld Rule: Zero Charm-Pricing, clean round numbers.
+ * Costs ~10x less than SyncLabs while delivering broadcast 1080p latent diffusion quality.
+ */
+export function getFlatLipSyncPricePerLanguage(
+  durationSeconds: number,
+  channelType: "standard" | "custom" = "standard"
+): number {
+  const perMinuteRate = PER_MINUTE_LIP_SYNC_RATE; // $0.30/min ($3.00 for 10 min, $2.10 for 7 min)
+
+  if (!durationSeconds || durationSeconds <= 0) {
+    return perMinuteRate;
+  }
+
+  // Proportional per-minute calculation (ElevenLabs model) with 60s floor
+  const effectiveSeconds = Math.max(60, durationSeconds);
+  const cost = (effectiveSeconds / 60.0) * perMinuteRate;
+  return Math.round(cost * 100) / 100;
+}
+
+export function calculateLipSyncCost(
+  languageCount: number,
+  durationSeconds: number = 0,
+  channelType: "standard" | "custom" = "standard",
+  discountPercent: number = 0
+): number {
+  if (languageCount <= 0 || durationSeconds <= 0) return 0.0;
+  if (discountPercent >= 100) return 0.0;
+  const flatPerLang = getFlatLipSyncPricePerLanguage(durationSeconds, channelType);
+  const baseCost = Math.round(languageCount * flatPerLang * 100) / 100;
+  if (discountPercent > 0) {
+    const clampedDiscount = Math.min(100.0, Math.max(0.0, discountPercent));
+    const factor = (100.0 - clampedDiscount) / 100.0;
+    return Math.round(baseCost * factor * 100) / 100;
+  }
+  return baseCost;
+}
+
+export interface SubtitleTierConfig {
+  id: "starter" | "pro";
+  name: string;
+  basePrice10MinUSD: number; // $0.50 (Starter) or $0.75 (Pro)
+  perMinuteRateUSD: number;  // $0.05/min (Starter) or $0.075/min (Pro)
+  additionalLang10MinUSD: number; // $0.20 (Starter) or $0.30 (Pro)
+  additionalLangPerMinuteUSD: number; // $0.02/min (Starter) or $0.03/min (Pro)
+  sttEngine: string;
+  translationEngine: string;
+}
+
+export const SUBTITLE_TIERS: Record<"starter" | "pro", SubtitleTierConfig> = {
+  starter: {
+    id: "starter",
+    name: "Starter Subtitles",
+    basePrice10MinUSD: 0.50,
+    perMinuteRateUSD: 0.05,
+    additionalLang10MinUSD: 0.20,
+    additionalLangPerMinuteUSD: 0.02,
+    sttEngine: "AssemblyAI Universal 3.5 Pro (Global) + Sarvam AI (Indic) + Google Cloud Chirp 2 (Long-tail)",
+    translationEngine: "Google Cloud Translation v3 Advanced + Gemini 2.5 Flash",
+  },
+  pro: {
+    id: "pro",
+    name: "Pro Subtitles (Cinema-Grade)",
+    basePrice10MinUSD: 0.75,
+    perMinuteRateUSD: 0.075,
+    additionalLang10MinUSD: 0.30,
+    additionalLangPerMinuteUSD: 0.03,
+    sttEngine: "AssemblyAI Universal 3.5 Pro (Global) + Sarvam AI (Indic) + Google Cloud Chirp 2 (Long-tail)",
+    translationEngine: "Google Cloud Translation v3 Advanced + Gemini 4 Argon",
+  },
+};
 
 export const CHANNEL_SUBTITLE_PRICING = {
   standard: {
@@ -210,36 +330,41 @@ export const SUBTITLE_DURATION_TIERS: SubtitleDurationTier[] = [
 
 export function getFlatSubtitlePricePerLanguage(
   durationSeconds: number,
-  channelType: "standard" | "custom" = "standard"
+  channelType: "standard" | "custom" = "standard",
+  tier: "starter" | "pro" = "starter"
 ): number {
-  if (durationSeconds <= 300) return 0.025;
-  if (durationSeconds <= 600) return 0.05;
-  if (durationSeconds <= 1800) return 0.10;
-  if (durationSeconds <= 3600) return 0.20;
-
-  // Beyond 60 minutes: base 60 min price ($0.20) + $0.075 per 30m block (0% platform profit)
-  const extraSeconds = durationSeconds - 3600;
-  const extraBlocks = Math.ceil(extraSeconds / 1800);
-  const basePrice = 0.20;
-  const blockPrice = 0.075;
-  return Number((basePrice + extraBlocks * blockPrice).toFixed(3));
+  const tierConfig = SUBTITLE_TIERS[tier] || SUBTITLE_TIERS.starter;
+  const effectiveSeconds = Math.max(60, durationSeconds || 600);
+  const cost = (effectiveSeconds / 60.0) * tierConfig.perMinuteRateUSD;
+  return Number(cost.toFixed(3));
 }
 
 export function calculateSubtitleCost(
   languageCount: number,
   durationSeconds: number = 0,
-  channelType: "standard" | "custom" = "standard"
+  channelType: "standard" | "custom" = "standard",
+  discountPercent: number = 0,
+  tier: "starter" | "pro" = "starter"
 ): number {
   if (languageCount <= 0) return 0.0;
-  const pricing =
-    CHANNEL_SUBTITLE_PRICING[channelType] || CHANNEL_SUBTITLE_PRICING.standard;
-  if (durationSeconds > 0) {
-    const flatPerLang = getFlatSubtitlePricePerLanguage(durationSeconds, channelType);
-    const rawCost = languageCount * flatPerLang;
-    return Math.round(Math.max(pricing.minCostUSD, rawCost) * 100) / 100;
+  if (discountPercent >= 100) return 0.0;
+
+  const tierConfig = SUBTITLE_TIERS[tier] || SUBTITLE_TIERS.starter;
+  const effectiveSeconds = Math.max(60, durationSeconds || 600);
+  const effectiveMinutes = effectiveSeconds / 60.0;
+
+  const baseCost = effectiveMinutes * tierConfig.perMinuteRateUSD;
+  const additionalLanguages = Math.max(0, languageCount - 1);
+  const additionalCost = additionalLanguages * effectiveMinutes * tierConfig.additionalLangPerMinuteUSD;
+
+  let totalCost = Math.round((baseCost + additionalCost) * 100) / 100;
+
+  if (discountPercent > 0) {
+    const clampedDiscount = Math.min(100.0, Math.max(0.0, discountPercent));
+    const factor = (100.0 - clampedDiscount) / 100.0;
+    return Math.round(totalCost * factor * 100) / 100;
   }
-  const rawCost = languageCount * pricing.ratePerLanguageUSD;
-  return Math.min(Math.max(rawCost, pricing.minCostUSD), pricing.capCostUSD);
+  return totalCost;
 }
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -322,12 +447,12 @@ export class CostEngine {
     quantity: number = 0
   ): Promise<void> {
     try {
-      let resolvedUserId = userId;
+      const isPlaceholderUser = !userId || userId === "system" || userId === "__batch__" || userId === "unknown";
+      let resolvedUserId = isPlaceholderUser ? "" : userId;
       let channelId: string | undefined;
       let channelType: ChannelType = 'standard';
 
-      // 1. Fetch job to find channelId and channelType
-      // Try video_jobs and pipeline_jobs first
+      // 1. Fetch job to find channelId, channelType, and owner userId
       let jobDoc = await db().collection("video_jobs").doc(jobId).get();
       if (!jobDoc.exists) {
         jobDoc = await db().collection("pipeline_jobs").doc(jobId).get();
@@ -338,18 +463,26 @@ export class CostEngine {
         channelId = jobData.channelId;
         const config = jobData.config || {};
         channelType = config.channelType || 'standard';
-        resolvedUserId = resolvedUserId || jobData.userId || "system";
+        if (!resolvedUserId) {
+          resolvedUserId = jobData.userId || "";
+        }
       } else {
         // Fallback 1: check if jobId is a videoId in the videos collection
         const videoDoc = await db().collection("videos").doc(jobId).get();
         if (videoDoc.exists) {
           const videoData = videoDoc.data() || {};
           channelId = videoData.channelId;
-          resolvedUserId = resolvedUserId || videoData.userId || videoData.ownerId || "system";
+          if (!resolvedUserId) {
+            resolvedUserId = videoData.userId || videoData.ownerId || "";
+          }
           if (channelId) {
             const chDoc = await db().collection("channels").doc(channelId).get();
             if (chDoc.exists) {
-              channelType = (chDoc.data()?.type || chDoc.data()?.channelType || 'standard') as ChannelType;
+              const chData = chDoc.data() || {};
+              channelType = (chData.type || chData.channelType || 'standard') as ChannelType;
+              if (!resolvedUserId) {
+                resolvedUserId = chData.ownerId || chData.userId || "";
+              }
             }
           }
         } else {
@@ -358,9 +491,23 @@ export class CostEngine {
           if (adDoc.exists) {
             const adData = adDoc.data() || {};
             channelId = adData.channelId;
-            resolvedUserId = resolvedUserId || adData.userId || "advertiser";
+            if (!resolvedUserId) {
+              resolvedUserId = adData.userId || adData.ownerId || "advertiser";
+            }
           }
         }
+      }
+
+      // If channelId is present but ownerId wasn't found yet, resolve from channels
+      if (channelId && !resolvedUserId) {
+        try {
+          const chDoc = await db().collection("channels").doc(channelId).get();
+          if (chDoc.exists) {
+            const chData = chDoc.data() || {};
+            resolvedUserId = chData.ownerId || chData.userId || "";
+            channelType = (chData.type || chData.channelType || channelType) as ChannelType;
+          }
+        } catch (_) {}
       }
 
       if (!resolvedUserId) {
@@ -384,14 +531,51 @@ export class CostEngine {
       await db().collection("cost_events").add(event);
 
       // 2. Update rollup
-      await this.updateRollup(resolvedUserId, channelType, stage, amount);
+      await this.updateRollup(resolvedUserId, channelId, channelType, stage, amount);
 
-      // 3. If Custom Channel, increment outstandingCosts
-      if (channelType === 'custom' && channelId) {
-        await db().collection("channels").doc(channelId).update({
-          outstandingCosts: admin.firestore.FieldValue.increment(amount),
+      // 3. Update channel infrastructure and bandwidth metering
+      if (channelId) {
+        const channelRef = db().collection("channels").doc(channelId);
+        const channelUpdates: Record<string, any> = {
+          "infraConfig.currentMonthInfraCost": admin.firestore.FieldValue.increment(amount),
           updatedAt: Date.now(),
-        });
+        };
+
+        // If bandwidth egress, increment bandwidthUsedBytesThisMonth
+        if (stage === "cdn_egress") {
+          const egressBytes = Math.round(quantity * 1024 * 1024 * 1024);
+          if (egressBytes > 0) {
+            channelUpdates["infraConfig.bandwidthUsedBytesThisMonth"] = admin.firestore.FieldValue.increment(egressBytes);
+          }
+        }
+
+        // If Pro Channel, increment outstandingCosts and verify surge hold
+        const isCustomOrPro = channelType === 'custom' || (channelType as string) === 'pro';
+        if (isCustomOrPro) {
+          channelUpdates.outstandingCosts = admin.firestore.FieldValue.increment(amount);
+
+          try {
+            const chSnap = await channelRef.get();
+            if (chSnap.exists) {
+              const chData = chSnap.data() || {};
+              const infra = chData.infraConfig || {};
+              const currentBandwidth = Number(infra.bandwidthUsedBytesThisMonth || 0);
+              const quotaBytes = Number(infra.bandwidthQuotaBytesThisMonth || 0);
+              const egressBytes = stage === "cdn_egress" ? Math.round(quantity * 1024 * 1024 * 1024) : 0;
+              const newBandwidth = currentBandwidth + egressBytes;
+
+              if (quotaBytes > 0 && newBandwidth > quotaBytes && !infra.isWithdrawalHeld) {
+                channelUpdates["infraConfig.isWithdrawalHeld"] = true;
+                channelUpdates["infraConfig.withdrawalHoldReason"] =
+                  "TruthWorld has fronted and paid 100% of your viral infrastructure surge costs. Withdrawals are temporarily on hold until your Pro Channel plan is upgraded to cover the surge bandwidth.";
+              }
+            }
+          } catch (surgeErr) {
+            logger.warn(`[CostEngine] Non-blocking surge check error for ${channelId}:`, surgeErr);
+          }
+        }
+
+        await channelRef.update(channelUpdates);
       }
 
       logger.debug(`[CostEngine] Recorded $${amount.toFixed(6)} for ${channelType} channel ${channelId || "unassigned"}`);
@@ -413,11 +597,30 @@ export class CostEngine {
     await this.recordCost(jobId, userId, "translation", "google-translate-v3", cost, "characters", chars);
   }
 
+  async recordSubtitleCost(
+    jobId: string,
+    userId: string,
+    durationSeconds: number,
+    languageCount: number,
+    tier: "starter" | "pro" = "starter"
+  ): Promise<void> {
+    const cost = calculateSubtitleCost(languageCount, durationSeconds, "standard", 0, tier);
+    await this.recordCost(
+      jobId,
+      userId,
+      "subtitles",
+      tier === "pro" ? "google-translate-v3+gemini-4-argon" : "google-translate-v3+gemini-flash",
+      cost,
+      "subtitles_job",
+      languageCount
+    );
+  }
+
   async recordTTSCost(
     jobId: string,
     userId: string,
     chars: number,
-    provider: "elevenlabs" | "google-tts-neural2" | "google-tts-standard" = "google-tts-neural2"
+    provider: "elevenlabs" | "google-tts-chirp3-hd" | "google-tts-neural2" | "google-tts-standard" = "google-tts-chirp3-hd"
   ): Promise<void> {
     const rateCard = (RATE_CARDS as any)[provider] ?? RATE_CARDS["google-tts-neural2"];
     const cost = chars * rateCard.perCharacter;
@@ -581,18 +784,31 @@ export class CostEngine {
     return { jobId, totalCostUsd: total, lineItems: items };
   }
 
-  private async updateRollup(userId: string, channelType: ChannelType, stage: string, amount: number): Promise<void> {
+  private async updateRollup(
+    userId: string,
+    channelId: string | undefined,
+    channelType: ChannelType,
+    stage: string,
+    amount: number
+  ): Promise<void> {
     const monthKey = this.currentMonthKey();
     const rollupRef = db().collection("cost_rollups").doc(`${userId}_${monthKey}`);
 
-    await rollupRef.set({
+    const rollupData: Record<string, any> = {
       userId,
       month: monthKey,
       channelType,
       totalCostUsd: admin.firestore.FieldValue.increment(amount),
       [`breakdown.${stage}`]: admin.firestore.FieldValue.increment(amount),
       lastUpdated: Date.now(),
-    }, { merge: true });
+    };
+
+    if (channelId) {
+      rollupData.channelId = channelId;
+      rollupData.channelIds = admin.firestore.FieldValue.arrayUnion(channelId);
+    }
+
+    await rollupRef.set(rollupData, { merge: true });
   }
 
   private currentMonthKey(): string {
@@ -601,9 +817,23 @@ export class CostEngine {
   }
 
   // Quota check (Legacy but kept for EdgeLayer)
-  async checkQuota(userId: string, channelType: string, estimatedMinutes: number): Promise<{ allowed: boolean; reason?: string }> {
-    if (channelType === "standard" && estimatedMinutes > 10) {
-      return { allowed: false, reason: "Standard channel video duration cannot exceed 10 minutes" };
+  async checkQuota(
+    userId: string,
+    channelType: string,
+    estimatedMinutes: number,
+    channelData?: any
+  ): Promise<{ allowed: boolean; reason?: string }> {
+    const customLimit = channelData?.customDailyUploadLimitMinutes
+      || (channelData?.customDailyVideoDurationSeconds ? Math.floor(channelData.customDailyVideoDurationSeconds / 60) : null)
+      || (channelData?.maxDailyVideoDurationSeconds ? Math.floor(channelData.maxDailyVideoDurationSeconds / 60) : null);
+
+    const limitMinutes = customLimit || 10;
+
+    if (channelType === "standard" && estimatedMinutes > limitMinutes) {
+      return {
+        allowed: false,
+        reason: `Standard channel video duration cannot exceed ${limitMinutes} minutes`,
+      };
     }
     return { allowed: true };
   }

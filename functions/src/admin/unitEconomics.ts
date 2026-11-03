@@ -4,20 +4,20 @@
  * Provides real-time financial reporting by joining:
  *   1. cost_rollups (Gemini AI, Google Cloud CDN, ElevenLabs, AssemblyAI, FFmpeg, Compute)
  *   2. revenue_statements (Gross revenue, 70/30 platform/creator splits, ad/premium pools)
- *   3. channels (Standard vs. Custom channel economics & SaaS fee offsets)
+ *   3. channels (Standard vs. Pro channel economics & SaaS fee offsets)
  *   4. premium_subscriptions (Per-tier margin analysis: Free, Audio, Premium, 4K Fact-Checked)
  *
  * Solves the 3 core business model equations:
  *   - Cost per active user across subscription tiers
  *   - Contribution per monetized view
- *   - Creator lifetime economics (Standard vs. Custom channels & revenue leak analysis)
+ *   - Creator lifetime economics (Standard vs. Pro channels & revenue leak analysis)
  */
 
 import * as admin from "firebase-admin";
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import { applySecurityHeaders } from "../utils/securityHeaders";
-import { requireRecentAdmin } from "../utils/auth";
+import { requireRecentAdmin, isCallableAdmin, isCallableSuperAdmin } from "../utils/auth";
 import { ChannelType } from "../pipeline/types";
 
 const db = () => admin.firestore();
@@ -169,10 +169,12 @@ export async function computeUnitEconomics(monthInput?: string): Promise<UnitEco
   let customCreatorINR = 0;
   let customPlatformINR = 0;
   let customChannelsCount = 0;
+  let totalReportedViews = 0;
 
   revenueSnap.forEach((doc) => {
     const data = doc.data() as any;
-    const isCustom = data.channelType === "custom";
+    totalReportedViews += Number(data.views || data.totalViews || data.periodViews || 0);
+    const isCustom = data.channelType === "custom" || data.channelType === "pro" || data.type === "custom" || data.type === "pro";
     const gross = Number(data.grossINR || 0);
     const creator = Number(data.creatorShareINR || 0);
     const platform = Number(data.platformShareINR || 0);
@@ -190,15 +192,24 @@ export async function computeUnitEconomics(monthInput?: string): Promise<UnitEco
     }
   });
 
-  // 3. Fetch active Custom Channels to calculate SaaS fees collected
+  // 3. Fetch active Pro Channels to dynamically calculate SaaS fees collected
   const customChannelsSnap = await db()
     .collection("channels")
-    .where("channelType", "==", "custom")
+    .where("channelType", "in", ["custom", "pro"])
     .get();
 
+  let customSaaSFeesUSD = 0;
+  customChannelsSnap.forEach((doc) => {
+    const cData = doc.data() || {};
+    const infra = cData.infraConfig || {};
+    const fee = Number(infra.flatPlatformFee || infra.planPriceUSD || 30.0);
+    customSaaSFeesUSD += fee;
+  });
+
   const totalCustomChannels = Math.max(customChannelsSnap.size, customChannelsCount);
-  // Custom channels pay flat $15-$45/mo infrastructure tier (average $30)
-  const customSaaSFeesUSD = totalCustomChannels * 30;
+  if (customSaaSFeesUSD === 0 && totalCustomChannels > 0) {
+    customSaaSFeesUSD = totalCustomChannels * 30.0;
+  }
 
   const standardGrossUSD = standardGrossINR / USD_INR_RATE;
   const standardCreatorUSD = standardCreatorINR / USD_INR_RATE;
@@ -208,7 +219,7 @@ export async function computeUnitEconomics(monthInput?: string): Promise<UnitEco
   const customCreatorUSD = customCreatorINR / USD_INR_RATE;
   const customPlatformRevenueUSD = (customPlatformINR / USD_INR_RATE) + customSaaSFeesUSD;
 
-  // Custom channel revenue leakage: foregone 30% rev share minus SaaS fee collected
+  // Pro channel revenue leakage: foregone 30% rev share minus SaaS fee collected
   const foregonePlatformShareUSD = customGrossUSD * 0.30;
   const netPlatformLeakUSD = Math.max(0, foregonePlatformShareUSD - customSaaSFeesUSD);
 
@@ -267,17 +278,26 @@ export async function computeUnitEconomics(monthInput?: string): Promise<UnitEco
     };
   });
 
-  // 5. Per-View Unit Economics (at Benchmark CPM ₹15)
+  // 5. Per-View Unit Economics (Dynamic from actual reported views or benchmark ₹15 CPM)
   const BENCHMARK_CPM_INR = 15.0;
-  const grossRevPerViewUSD = (BENCHMARK_CPM_INR / 1000) / USD_INR_RATE;
-  const creatorPerViewUSD = grossRevPerViewUSD * 0.70;
-  const platformPerViewUSD = grossRevPerViewUSD * 0.30;
+  let grossRevPerViewUSD = (BENCHMARK_CPM_INR / 1000) / USD_INR_RATE;
+  let creatorPerViewUSD = grossRevPerViewUSD * 0.70;
+  let platformPerViewUSD = grossRevPerViewUSD * 0.30;
+  let cdnEgressPerViewUSD = 0.0017;
+  let computeCostPerViewUSD = 0.00015;
 
-  // Average 5-minute video stream @ 2.0 Mbps = ~75 MB = 0.073 GB
-  // At $0.08/GB Google Cloud CDN rate in India = $0.0058 per complete stream
-  // For average 30% view duration = $0.0017
-  const cdnEgressPerViewUSD = 0.0017;
-  const computeCostPerViewUSD = 0.00015;
+  if (totalReportedViews > 0) {
+    grossRevPerViewUSD = (standardGrossUSD + customGrossUSD) / totalReportedViews;
+    creatorPerViewUSD = (standardCreatorUSD + customCreatorUSD) / totalReportedViews;
+    platformPerViewUSD = (standardPlatformUSD + (customPlatformINR / USD_INR_RATE)) / totalReportedViews;
+    if (googleCloudCDN_USD > 0) {
+      cdnEgressPerViewUSD = googleCloudCDN_USD / totalReportedViews;
+    }
+    if (cloudFunctionsComputeUSD > 0 || geminiAI_USD > 0) {
+      computeCostPerViewUSD = (cloudFunctionsComputeUSD + geminiAI_USD) / totalReportedViews;
+    }
+  }
+
   const netContributionPerViewUSD = platformPerViewUSD - (cdnEgressPerViewUSD + computeCostPerViewUSD);
 
   // Break-even CPM: CPM needed so platform 30% cut covers delivery
@@ -358,8 +378,8 @@ export async function computeUnitEconomics(monthInput?: string): Promise<UnitEco
         saasFeesCollectedUSD: Math.round(customSaaSFeesUSD * 100) / 100,
         netPlatformLeakUSD: Math.round(netPlatformLeakUSD * 100) / 100,
         recommendation: netPlatformLeakUSD > 0
-          ? `Custom channels caused a $${Math.round(netPlatformLeakUSD)} net revenue leakage this month. Introduce Option B ($30/mo + 10% rev share) to capture upside.`
-          : "Custom channels are currently accretive under the SaaS fee structure.",
+          ? `Pro channels caused a $${Math.round(netPlatformLeakUSD)} net revenue leakage this month. Introduce Option B ($30/mo + 10% rev share) to capture upside.`
+          : "Pro channels are currently accretive under the SaaS fee structure.",
       },
     },
     userTierEconomics,
@@ -394,9 +414,9 @@ export const getUnitEconomicsDashboard = onCall(
       throw new HttpsError("unauthenticated", "Authentication required to access admin analytics.");
     }
 
-    const isAdmin = request.auth?.token?.admin === true;
+    const isAdmin = isCallableAdmin(request.auth);
     if (!isAdmin) {
-      throw new HttpsError("permission-denied", "Admin privileges required.");
+      throw new HttpsError("permission-denied", "Verified admin access required.");
     }
 
     const month = (request.data?.month as string) || undefined;
@@ -413,11 +433,7 @@ export const getUnitEconomicsDashboard = onCall(
  */
 export const getUnitEconomicsReport = onRequest(
   {
-    cors: [
-      "https://admin.truthworld.in",
-      "https://admin.truthworld.app",
-      "http://localhost:5173",
-    ],
+    cors: true,
     region: "asia-south1",
     memory: "512MiB",
     timeoutSeconds: 60,
@@ -442,3 +458,342 @@ export const getUnitEconomicsReport = onRequest(
     }
   }
 );
+
+// ─── Channel-Level Spendings & Revenue (Super Admin Only) ───────────────────
+
+export interface ChannelSpendingsAndRevenueReport {
+  channelId: string;
+  channelName: string;
+  ownerId: string;
+  channelType: string;
+  currency: string;
+  usdInrRate: number;
+  revenue: {
+    grossINR: number;
+    grossUSD: number;
+    creatorShareINR: number;
+    creatorShareUSD: number;
+    platformShareINR: number;
+    platformShareUSD: number;
+    breakdown: {
+      adsINR: number;
+      premiumINR: number;
+      membershipsINR: number;
+      superchatsINR: number;
+    };
+    payouts: {
+      walletBalanceUSD: number;
+      clearedWithdrawableINR: number;
+      pendingINR: number;
+      withdrawnINR: number;
+    };
+  };
+  spendings: {
+    totalInfraUSD: number;
+    totalInfraINR: number;
+    currentMonthInfraCostUSD: number;
+    breakdown: {
+      geminiAI: number;
+      cdnEgress: number;
+      transcription: number;
+      translationDubbing: number;
+      mediaTranscoding: number;
+      compute: number;
+      firestoreOps: number;
+    };
+    creatorWalletSpendUSD: number;
+  };
+  economics: {
+    netPlatformContributionUSD: number;
+    netPlatformContributionINR: number;
+    marginPercent: number;
+    isProfitable: boolean;
+  };
+  transactions: Array<{
+    id: string;
+    amount: number;
+    category: string;
+    description: string;
+    timestamp: number;
+    balanceAfter: number;
+    fundedDeducted: number;
+    rolloverDeducted: number;
+    revenueDeducted: number;
+  }>;
+  monthlyStatements: Array<{
+    month: string;
+    grossAdsRevenue: number;
+    grossSubsRevenue: number;
+    creatorShare: number;
+    platformFee: number;
+    infrastructureCosts: number;
+    payoutStatus: string;
+  }>;
+}
+
+export async function computeChannelSpendingsAndRevenue(channelId: string): Promise<ChannelSpendingsAndRevenueReport> {
+  const chDoc = await db().collection("channels").doc(channelId).get();
+  if (!chDoc.exists) {
+    throw new HttpsError("not-found", `Channel with ID ${channelId} not found.`);
+  }
+
+  const data = chDoc.data() || {};
+  const ownerId = (data.ownerId || data.userId || "").toString();
+  const channelType = (data.channelType || "standard").toString().toLowerCase();
+  const infraConfig = data.infraConfig || {};
+
+  // 1. Revenue Streams
+  const adsINR = Number(data.adsRevenueTotal || 0);
+  const premiumINR = Number(data.premiumSubsRevenueTotal || 0);
+  const membershipsINR = Number(data.membershipRevenueTotal || data.membershipsRevenueTotal || 0);
+  const superchatsINR = Number(data.superchatRevenueTotal || 0);
+  const grossRevenueINR = adsINR + premiumINR + membershipsINR + superchatsINR;
+  const grossRevenueUSD = Math.round((grossRevenueINR / USD_INR_RATE) * 100) / 100;
+
+  const walletBalanceUSD = Number(data.walletBalanceUSD || data.walletBalance || 0);
+  const withdrawnINR = Number(data.withdrawnRevenueTotal || 0);
+  const clearedWithdrawableINR = Number(data.clearedWithdrawableRevenueTotal ?? Math.max(0, grossRevenueINR - withdrawnINR));
+  const pendingINR = Number(data.pendingRevenueTotal || 0);
+
+  let creatorShareINR = 0;
+  let creatorShareUSD = 0;
+  let platformShareINR = 0;
+  let platformShareUSD = 0;
+
+  if (channelType === "custom" || channelType === "pro") {
+    creatorShareINR = grossRevenueINR;
+    creatorShareUSD = grossRevenueUSD;
+    platformShareUSD = Number(infraConfig.flatPlatformFee || 15.0);
+    platformShareINR = Math.round(platformShareUSD * USD_INR_RATE * 100) / 100;
+  } else {
+    creatorShareINR = Math.round(grossRevenueINR * 0.70 * 100) / 100;
+    creatorShareUSD = Math.round(grossRevenueUSD * 0.70 * 100) / 100;
+    platformShareINR = Math.round(grossRevenueINR * 0.30 * 100) / 100;
+    platformShareUSD = Math.round(grossRevenueUSD * 0.30 * 100) / 100;
+  }
+
+  // 2. Platform Infrastructure & Cloud Processing Spendings for this channel
+  let geminiAI = 0;
+  let cdnEgress = 0;
+  let transcription = 0;
+  let translationDubbing = 0;
+  let mediaTranscoding = 0;
+  let compute = 0;
+  let firestoreOps = 0;
+  let totalInfraUSD = 0;
+
+  if (ownerId) {
+    try {
+      const rollupsSnap = await db()
+        .collection("cost_rollups")
+        .where("userId", "==", ownerId)
+        .get();
+
+      rollupsSnap.forEach((doc) => {
+        const rData = doc.data() as any;
+        totalInfraUSD += Number(rData.totalCostUsd || 0);
+        const b = rData.breakdown || {};
+        geminiAI += Number(b.extraction || 0) + Number(b.verification || 0) + Number(b.synthesis || 0) + Number(b.ad_moderation || 0) + Number(b.grounding || 0);
+        cdnEgress += Number(b.cdn_egress || 0);
+        transcription += Number(b.transcription || 0);
+        translationDubbing += Number(b.translation || 0) + Number(b.tts || 0);
+        mediaTranscoding += Number(b.media || 0);
+        compute += Number(b.compute || 0);
+        firestoreOps += Number(b.firestore || 0);
+      });
+    } catch (e) {
+      logger.warn(`[computeChannelSpendingsAndRevenue] cost_rollups query error for ${ownerId}:`, e);
+    }
+  }
+
+  try {
+    const channelRollupsSnap = await db()
+      .collection("cost_rollups")
+      .where("channelId", "==", channelId)
+      .get();
+
+    channelRollupsSnap.forEach((doc) => {
+      if (!doc.data().userId || doc.data().userId !== ownerId) {
+        const rData = doc.data() as any;
+        totalInfraUSD += Number(rData.totalCostUsd || 0);
+        const b = rData.breakdown || {};
+        geminiAI += Number(b.extraction || 0) + Number(b.verification || 0) + Number(b.synthesis || 0) + Number(b.ad_moderation || 0) + Number(b.grounding || 0);
+        cdnEgress += Number(b.cdn_egress || 0);
+        transcription += Number(b.transcription || 0);
+        translationDubbing += Number(b.translation || 0) + Number(b.tts || 0);
+        mediaTranscoding += Number(b.media || 0);
+        compute += Number(b.compute || 0);
+        firestoreOps += Number(b.firestore || 0);
+      }
+    });
+  } catch (e) {
+    logger.warn(`[computeChannelSpendingsAndRevenue] channel rollups query error for ${channelId}:`, e);
+  }
+
+  const currentMonthInfraCost = Number(infraConfig.currentMonthInfraCost || 0);
+  if (totalInfraUSD === 0 && currentMonthInfraCost > 0) {
+    totalInfraUSD = currentMonthInfraCost;
+  }
+  totalInfraUSD = Math.round(totalInfraUSD * 100) / 100;
+  const totalInfraINR = Math.round(totalInfraUSD * USD_INR_RATE * 100) / 100;
+
+  // 3. Channel Economics & Net Contribution
+  const netPlatformContributionUSD = Math.round((platformShareUSD - totalInfraUSD) * 100) / 100;
+  const netPlatformContributionINR = Math.round(netPlatformContributionUSD * USD_INR_RATE * 100) / 100;
+  const marginPercent = platformShareUSD > 0
+    ? Math.round((netPlatformContributionUSD / platformShareUSD) * 10000) / 100
+    : 0;
+
+  // 4. Wallet Deductions & Spendings History
+  let transactions: any[] = [];
+  let creatorWalletSpendUSD = 0;
+  try {
+    const txSnap = await db()
+      .collection("channel_wallet_transactions")
+      .where("channelId", "==", channelId)
+      .limit(50)
+      .get();
+
+    const rawTxList = txSnap.docs.map((d) => {
+      const td = d.data();
+      let ts = Date.now();
+      if (td.timestamp?.toMillis) ts = td.timestamp.toMillis();
+      else if (td.timestamp?.seconds) ts = td.timestamp.seconds * 1000;
+      else if (typeof td.timestamp === "number") ts = td.timestamp;
+      else if (td.createdAt?.toMillis) ts = td.createdAt.toMillis();
+
+      const amt = Number(td.amount || 0);
+      creatorWalletSpendUSD += amt;
+
+      return {
+        id: d.id,
+        amount: amt,
+        category: td.category || "ai_feature",
+        description: td.description || "Wallet Transaction",
+        timestamp: ts,
+        balanceAfter: Number(td.balanceAfter || 0),
+        fundedDeducted: Number(td.fundedDeducted || 0),
+        rolloverDeducted: Number(td.rolloverDeducted || 0),
+        revenueDeducted: Number(td.revenueDeducted || 0),
+      };
+    });
+
+    rawTxList.sort((a, b) => b.timestamp - a.timestamp);
+    transactions = rawTxList.slice(0, 15);
+  } catch (err) {
+    logger.warn(`[computeChannelSpendingsAndRevenue] Transactions fetch issue for ${channelId}:`, err);
+  }
+
+  // 5. Monthly Revenue Statements
+  let monthlyStatements: any[] = [];
+  if (ownerId) {
+    try {
+      const stmtsSnap = await db()
+        .collection("revenue_statements")
+        .where("userId", "==", ownerId)
+        .limit(12)
+        .get();
+
+      const rawStmts = stmtsSnap.docs.map((d) => {
+        const sd = d.data();
+        return {
+          month: sd.month || d.id,
+          grossAdsRevenue: Number(sd.grossAdsRevenue || 0),
+          grossSubsRevenue: Number(sd.grossSubsRevenue || 0),
+          creatorShare: Number(sd.creatorShare || 0),
+          platformFee: Number(sd.platformFee || 0),
+          infrastructureCosts: Number(sd.infrastructureCosts || 0),
+          payoutStatus: sd.payoutStatus || "pending",
+        };
+      });
+      rawStmts.sort((a, b) => b.month.localeCompare(a.month));
+      monthlyStatements = rawStmts.slice(0, 6);
+    } catch (err) {
+      logger.warn(`[computeChannelSpendingsAndRevenue] Statements fetch issue for user ${ownerId}:`, err);
+    }
+  }
+
+  return {
+    channelId,
+    channelName: data.name || data.channelName || "Truthworld Channel",
+    ownerId,
+    channelType,
+    currency: "INR",
+    usdInrRate: USD_INR_RATE,
+    revenue: {
+      grossINR: grossRevenueINR,
+      grossUSD: grossRevenueUSD,
+      creatorShareINR,
+      creatorShareUSD,
+      platformShareINR,
+      platformShareUSD,
+      breakdown: {
+        adsINR,
+        premiumINR,
+        membershipsINR,
+        superchatsINR,
+      },
+      payouts: {
+        walletBalanceUSD,
+        clearedWithdrawableINR,
+        pendingINR,
+        withdrawnINR,
+      },
+    },
+    spendings: {
+      totalInfraUSD,
+      totalInfraINR,
+      currentMonthInfraCostUSD: currentMonthInfraCost,
+      breakdown: {
+        geminiAI: Math.round(geminiAI * 100) / 100,
+        cdnEgress: Math.round(cdnEgress * 100) / 100,
+        transcription: Math.round(transcription * 100) / 100,
+        translationDubbing: Math.round(translationDubbing * 100) / 100,
+        mediaTranscoding: Math.round(mediaTranscoding * 100) / 100,
+        compute: Math.round(compute * 100) / 100,
+        firestoreOps: Math.round(firestoreOps * 100) / 100,
+      },
+      creatorWalletSpendUSD: Math.round(creatorWalletSpendUSD * 100) / 100,
+    },
+    economics: {
+      netPlatformContributionUSD,
+      netPlatformContributionINR,
+      marginPercent,
+      isProfitable: netPlatformContributionUSD >= 0,
+    },
+    transactions,
+    monthlyStatements,
+  };
+}
+
+/**
+ * 🔒 Callable Cloud Function: getChannelSpendingsAndRevenue
+ * Exclusively accessible by Super Admin (and Owner / Director).
+ * Aggregates all revenue, platform infrastructure costs, and wallet transactions for a specific channel.
+ */
+export const getChannelSpendingsAndRevenue = onCall(
+  {
+    region: "asia-south1",
+    memory: "512MiB",
+    timeoutSeconds: 60,
+  },
+  async (request): Promise<ChannelSpendingsAndRevenueReport> => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Authentication required to access channel financial data.");
+    }
+
+    const isSuper = await isCallableSuperAdmin(request.auth);
+    if (!isSuper) {
+      throw new HttpsError("permission-denied", "Access Denied: Super Admin privileges are required to inspect channel spendings and revenue.");
+    }
+
+    const channelId = request.data?.channelId as string;
+    if (!channelId || typeof channelId !== "string") {
+      throw new HttpsError("invalid-argument", "Missing or invalid channelId parameter.");
+    }
+
+    return await computeChannelSpendingsAndRevenue(channelId);
+  }
+);
+

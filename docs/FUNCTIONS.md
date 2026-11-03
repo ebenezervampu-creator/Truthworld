@@ -141,9 +141,20 @@ Powers global discoverability, social sharing, and search engine ranking.
 ### 7. Moderation, Safety & Community
 | Function Name | Trigger Type | Purpose |
 | :--- | :--- | :--- |
-| `onVideoUploadedForModeration` | Storage / Firestore | Runs frame-by-frame and audio moderation for NSFW/hate speech |
+| `onContentUploadedForModeration` | Storage / Firestore | Runs frame-by-frame and audio moderation for NSFW/hate speech |
 | `ingestUploadedImage` | Storage Trigger | Evaluates thumbnails and avatars through tiered moderation queues (High, Medium, Low) |
-| `moderateLiveChatUser` | Callable `onCall` | Mutes or bans malicious users in active livestream chat rooms |
 | `addCommentNested` | Callable `onCall` | Creates threaded comments with automated spam filtering |
 | `onCommentCreated` | Firestore `onCreate` | Sends push notifications to the creator and parent commenter |
 | `purgeUserAccount` | Callable (Admin) | Executes GDPR / DPDP compliant hard deletion of user data |
+
+---
+
+### 8. Admin Telemetry, Unit Economics & Infrastructure Governance
+Provides real-time visibility into cloud infrastructure expenses, channel-level unit economics, and platform profitability margins.
+
+| Function Name | Trigger Type | Purpose |
+| :--- | :--- | :--- |
+| `getUnitEconomicsDashboard` | Callable `onCall` | Authenticated admin endpoint calculating real-time gross revenue, provider cost rollups (Gemini AI, CDN egress, STT, TTS, compute), contribution margins, and break-even CPM |
+| `getUnitEconomicsReport` | HTTPS `onRequest` | External BI REST endpoint secured with `requireRecentAdmin` returning comprehensive monthly unit economics reports |
+| `getChannelSpendingsAndRevenue` | Callable `onCall` | Super Admin endpoint aggregating revenue, infrastructure spend breakdown, and wallet transactions for a specific channel |
+| `monthlyZeroWasteRollover` | Pub/Sub Cron (`0 0 1 * *`) | Automatically runs on the 1st of every month to compute exact unspent Pro plan budgets (`planBudget - currentSpent`) and rolls over 100% of unused balance into creator wallet credits |

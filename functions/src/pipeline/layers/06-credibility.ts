@@ -200,6 +200,29 @@ export class CredibilityEngine {
     // ── Input Resolution (Decoupled from AssemblyAI Transcription) ───────────
     const jobDoc = await db().collection("video_jobs").doc(jobId).get();
     const jobData = jobDoc.exists ? jobDoc.data() : {};
+    const targetVideoId = (executionPlan as any).videoId || jobData?.videoId || (jobData?.linkedVideoIds?.[0]) || jobId;
+
+    let videoTitle = jobData?.title || "";
+    let videoDescription = jobData?.description || "";
+    let channelTitle = jobData?.channelTitle || jobData?.channelName || "";
+    let channelId = jobData?.channelId || "";
+
+    try {
+      const videoSnap = await db().collection("videos").doc(targetVideoId).get();
+      if (videoSnap.exists) {
+        const vData = videoSnap.data() || {};
+        if (!videoTitle) videoTitle = vData.title || "";
+        if (!videoDescription) videoDescription = vData.description || "";
+        if (!channelTitle) channelTitle = vData.channelTitle || vData.channelName || "";
+        if (!channelId) channelId = vData.channelId || "";
+      }
+    } catch (_) {}
+
+    const videoContext = {
+      title: videoTitle,
+      description: videoDescription,
+      channelTitle: channelTitle,
+    };
 
     await EdgeLayer.updateStageSync(jobId, "credibility", {
       status: "running", progress: 5, startedAt: Date.now(),
@@ -220,8 +243,8 @@ export class CredibilityEngine {
 
       await EdgeLayer.updateStage(jobId, "credibility", { progress: 10 });
 
-      // All claims fact-checked with complete full ground truth verification across ALL languages
-      const deepResearchActive = isDeepResearchEnabled(executionPlan.synthesisTier || 'standard') || executionPlan.factCheckTier === 'full_ground' || Boolean(executionPlan.factCheckEnabled) || (executionPlan.factCheckTier as string) !== 'none';
+      // Deep Research is active ONLY when explicitly requested or required by tier ('deep', 'podcast', 'full_ground')
+      const deepResearchActive = isDeepResearchEnabled(executionPlan.synthesisTier || 'standard') || executionPlan.factCheckTier === 'full_ground' || (executionPlan.factCheckTier as string) === 'deep';
 
       // TruthWorld Core Epistemic Policy: "No Claim Left Unchecked"
       const configuredMax = typeof executionPlan.maxClaims === 'number' && executionPlan.maxClaims > 0
@@ -251,12 +274,12 @@ export class CredibilityEngine {
           : 120_000;
 
         const [detectedDomain, rawClaimsResult, resolvedSpeakers] = await Promise.all([
-          this.extractionService.detectDomainAndStance(transcript.utterances ?? []).catch((err: any) => {
+          this.extractionService.detectDomainAndStance(transcript.utterances ?? [], videoTitle).catch((err: any) => {
             logger.error("[Credibility] Domain detection failed, using safe defaults", { jobId, error: err?.message });
             return { domain: "General", stance: "Mixed", cautionLevel: "medium" as const, isLaunchNews: false, primaryIntent: "educational", isSensitive: false };
           }),
           Promise.race([
-            this.extractionService.extractClaims(jobId, transcript, 45_000, extractionConcurrency)
+            this.extractionService.extractClaims(jobId, transcript, 45_000, extractionConcurrency, videoContext)
               .then(claims => ({ claims, partial: false }))
               .catch((err: any) => {
                 logger.error("[Credibility] Primary extraction failed", { jobId, error: err?.message });
@@ -269,7 +292,7 @@ export class CredibilityEngine {
               }, extractionBudgetMs);
             })
           ]),
-          this.resolveSpeakerIdentities(jobId, jobData?.channelId || "unknown", transcript, {}).catch(() => ({}))
+          this.resolveSpeakerIdentities(jobId, channelId || jobData?.channelId || "unknown", transcript, {}).catch(() => ({}))
         ]);
 
         domainInfo = detectedDomain;
@@ -281,12 +304,10 @@ export class CredibilityEngine {
         // Zero-copy, operates directly on GCS media without AssemblyAI dependency
         logger.info("[Credibility] Stage 2: Direct multimodal claim extraction from media via Google Cloud Vertex AI", { jobId });
         let mediaUrl = providedVideoUrl || jobData?.videoUrl || jobData?.filePath || "";
-        let videoTitle = jobData?.title || "";
         if (!mediaUrl) {
-          const videoSnap = await db().collection("videos").doc(jobId).get();
+          const videoSnap = await db().collection("videos").doc(targetVideoId).get();
           if (videoSnap.exists) {
             mediaUrl = videoSnap.data()?.videoUrl || "";
-            if (!videoTitle) videoTitle = videoSnap.data()?.title || "";
           }
         }
 
@@ -475,10 +496,16 @@ export class CredibilityEngine {
       const labeledOpinions: VerifiedClaim[] = opinionClaims.map(claim => ({
         ...claim,
         status: (claim.nature === ClaimNature.BELIEF ? 'religious_belief' : 
+                 claim.nature === ClaimNature.SATIRE ? 'satire_claim' :
+                 claim.nature === ClaimNature.RHETORICAL_EXAGGERATION ? 'rhetorical_exaggeration' :
                  claim.nature === ClaimNature.ESTIMATION ? 'opinion_claim' : 'opinion_claim') as any,
         nature: claim.nature,
         verificationConfidence: 1.0,
-        reasoning: formatOpinionReasoning(claim.text),
+        reasoning: claim.nature === ClaimNature.RHETORICAL_EXAGGERATION
+          ? `Figurative expression: "${claim.text}" is identified as conversational hyperbole or rhetorical exaggeration rather than a literal empirical assertion.`
+          : (claim.nature === ClaimNature.SATIRE
+              ? `Satirical expression: "${claim.text}" is parodic or comedic content not intended as an empirical claim.`
+              : formatOpinionReasoning(claim.text)),
         sources: [],
         richSources: [],
         isGrounded: false,
@@ -589,6 +616,10 @@ export class CredibilityEngine {
             isDiscoverySensitive: isDiscoverySensitive || isSensitiveTopic,
             providedSources: creatorProvidedSources,
             communitySources: sanitizedCommunitySources, // v12.1: Separated & sandboxed
+            videoTitle: videoTitle,
+            videoDescription: videoDescription,
+            channelTitle: channelTitle,
+            topicContext: domainInfo?.domain || "General",
           };
 
           // v10.5 Audit #8: Pre-verification cost logging
@@ -604,7 +635,11 @@ export class CredibilityEngine {
           const isBreakerActive = await isBreakerTrippedAsync();
           if (isBreakerActive) {
             logger.warn(`[Credibility] Distributed Circuit Breaker is active. Routing ${factual.length} claims to safe fast-knowledge recovery to prevent downstream cascade.`, { jobId });
-            verified = await this.verificationService.verifyBatchWithFastKnowledge(factual, jobId);
+            verified = await this.verificationService.verifyBatchWithFastKnowledge(factual, jobId, {
+              videoTitle: videoTitle,
+              videoDescription: videoDescription,
+              channelTitle: channelTitle,
+            });
             batchStats = { completed: verified.length, timedOut: 0 };
             return verified;
           }
@@ -628,7 +663,11 @@ export class CredibilityEngine {
             recordFailure();
             logger.error(`[Credibility] Verification pipeline threw — initiating Full Recovery Pass`, { jobId, error: (verErr as any)?.message });
             try {
-              verified = await this.verificationService.verifyBatchWithFastKnowledge(factual, jobId);
+              verified = await this.verificationService.verifyBatchWithFastKnowledge(factual, jobId, {
+                videoTitle: videoTitle,
+                videoDescription: videoDescription,
+                channelTitle: channelTitle,
+              });
               batchStats = { completed: verified.length, timedOut: 0 };
               logger.info(`[Credibility] Full Recovery Pass succeeded: ${verified.length} claims recovered`, { jobId });
               recordSuccess();
@@ -663,7 +702,11 @@ export class CredibilityEngine {
       if (stillTimedOut.length > 0) {
         logger.warn(`[Credibility] Final Recovery Sweep: ${stillTimedOut.length} claims still timed out`, { jobId });
         try {
-          const recovered = await this.verificationService.verifyBatchWithFastKnowledge(stillTimedOut as any, jobId);
+          const recovered = await this.verificationService.verifyBatchWithFastKnowledge(stillTimedOut as any, jobId, {
+            videoTitle: videoTitle,
+            videoDescription: videoDescription,
+            channelTitle: channelTitle,
+          });
           for (const r of recovered) {
             const idx = allVerified.findIndex(c => c.claimId === r.claimId);
             if (idx !== -1) allVerified[idx] = r;
@@ -995,7 +1038,7 @@ export class CredibilityEngine {
         },
 
         llmProvider: "Gemini 2.5 (Flash+Pro)",
-        sttProvider: hasTranscript ? "AssemblyAI Universal-3-Pro" : "Google Cloud Multimodal (Zero-Copy)",
+        sttProvider: hasTranscript ? "AssemblyAI Universal-3.5-Pro" : "Google Cloud Multimodal (Zero-Copy)",
         language: normalizeLanguageCode(transcript?.language || "en"),
 
         latencyMs: {
@@ -1040,27 +1083,27 @@ export class CredibilityEngine {
       if (actualTokens && (actualTokens.extractionInputTokens > 0 || actualTokens.verificationInputTokens > 0)) {
         logger.info(`[Credibility] Recording actual Vertex AI token costs for ${jobId}`, { actualTokens });
         if (actualTokens.extractionInputTokens > 0 || actualTokens.extractionOutputTokens > 0) {
-          costEngine.recordGeminiCost(jobId, userId, "extraction", "flash", actualTokens.extractionInputTokens, actualTokens.extractionOutputTokens).catch(() => {});
+          costEngine.recordGeminiCost(jobId, userId, "extraction", "flash", actualTokens.extractionInputTokens, actualTokens.extractionOutputTokens).catch((err) => logger.warn(`[Credibility] Extraction cost record error for ${jobId}:`, err));
         }
         if (actualTokens.verificationInputTokens > 0 || actualTokens.verificationOutputTokens > 0) {
-          costEngine.recordGeminiCost(jobId, userId, "verification", modelTier, actualTokens.verificationInputTokens, actualTokens.verificationOutputTokens).catch(() => {});
+          costEngine.recordGeminiCost(jobId, userId, "verification", modelTier, actualTokens.verificationInputTokens, actualTokens.verificationOutputTokens).catch((err) => logger.warn(`[Credibility] Verification cost record error for ${jobId}:`, err));
         }
         if (actualTokens.synthesisInputTokens > 0 || actualTokens.synthesisOutputTokens > 0) {
-          costEngine.recordGeminiCost(jobId, userId, "synthesis", "flash", actualTokens.synthesisInputTokens, actualTokens.synthesisOutputTokens).catch(() => {});
+          costEngine.recordGeminiCost(jobId, userId, "synthesis", "flash", actualTokens.synthesisInputTokens, actualTokens.synthesisOutputTokens).catch((err) => logger.warn(`[Credibility] Synthesis cost record error for ${jobId}:`, err));
         }
       } else {
         // Fallback: chunk-based estimates if usageMetadata was not surfaced
         const extractionChunks = Math.max(1, Math.ceil(claimCount / 5));
         const extractInputTokens = extractionChunks * 2000;
         const extractOutputTokens = extractionChunks * 500;
-        costEngine.recordGeminiCost(jobId, userId, "extraction", "flash", extractInputTokens, extractOutputTokens).catch(() => {});
+        costEngine.recordGeminiCost(jobId, userId, "extraction", "flash", extractInputTokens, extractOutputTokens).catch((err) => logger.warn(`[Credibility] Fallback extraction cost record error for ${jobId}:`, err));
 
         const verificationBatches = Math.max(1, Math.ceil(verifiedCount / 6));
         const verifyInputTokens = verificationBatches * 3000;
         const verifyOutputTokens = verificationBatches * 1000;
-        costEngine.recordGeminiCost(jobId, userId, "verification", modelTier, verifyInputTokens, verifyOutputTokens).catch(() => {});
+        costEngine.recordGeminiCost(jobId, userId, "verification", modelTier, verifyInputTokens, verifyOutputTokens).catch((err) => logger.warn(`[Credibility] Fallback verification cost record error for ${jobId}:`, err));
 
-        costEngine.recordGeminiCost(jobId, userId, "synthesis", "flash", 15000, 5000).catch(() => {});
+        costEngine.recordGeminiCost(jobId, userId, "synthesis", "flash", 15000, 5000).catch((err) => logger.warn(`[Credibility] Fallback synthesis cost record error for ${jobId}:`, err));
       }
 
       // Search Grounding: 1 query per verified claim that used grounding
@@ -1068,11 +1111,11 @@ export class CredibilityEngine {
         c.richSources?.some((s: any) => s.retrievalMethod === "google_grounding")
       ).length;
       if (groundedClaims > 0) {
-        costEngine.recordGroundingCost(jobId, userId, groundedClaims).catch(() => {});
+        costEngine.recordGroundingCost(jobId, userId, groundedClaims).catch((err) => logger.warn(`[Credibility] Grounding cost record error for ${jobId}:`, err));
       }
 
       // Cloud Functions compute: credibility pipeline elapsed seconds × 1 vCPU
-      costEngine.recordComputeCost(jobId, userId, elapsedSec).catch(() => {});
+      costEngine.recordComputeCost(jobId, userId, elapsedSec).catch((err) => logger.warn(`[Credibility] Compute cost record error for ${jobId}:`, err));
 
       // 16. Emit fact-complete
       const eventData: FactCompleteData = {
