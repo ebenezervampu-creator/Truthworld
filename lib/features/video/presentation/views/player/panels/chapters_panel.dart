@@ -65,6 +65,7 @@ class ChaptersPanel extends StatelessWidget {
                 chapter: ch,
                 video: video,
                 playerCtrl: ctrl,
+                index: i,
                 onTapOverride: () {
                   ctrl.seekTo(ch.startTime);
                   ctrl.closeSettings();

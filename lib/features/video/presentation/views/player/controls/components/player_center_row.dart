@@ -18,7 +18,9 @@ class CenterRow extends StatelessWidget {
   final double maxControlsWidth;
 
   bool _useChewieMobileButtons(BuildContext context) {
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS)) {
       return true;
     }
     if (kIsWeb) {
@@ -58,9 +60,12 @@ class CenterRow extends StatelessWidget {
               ? 'Restart video (p)'
               : 'No previous video');
 
+      final showControlsRow = isAutoplayOn || hasPrev || hasNext;
+
+      final Widget buttonsRow;
       if (useChewie) {
-        if (!isAutoplayOn) {
-          return CenterPlayButton(
+        if (!showControlsRow) {
+          buttonsRow = CenterPlayButton(
             backgroundColor: buttonBg,
             iconColor: Colors.white,
             isFinished: isFinished,
@@ -68,116 +73,127 @@ class CenterRow extends StatelessWidget {
             show: true,
             onPressed: ctrl.togglePlayPause,
           );
-        }
-
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Opacity(
-              opacity: hasPrev ? 1.0 : 0.4,
-              child: CenterSeekButton(
-                iconData: Icons.skip_previous_rounded,
+        } else {
+          buttonsRow = Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Opacity(
+                opacity: hasPrev ? 1.0 : 0.4,
+                child: CenterSeekButton(
+                  iconData: Icons.skip_previous_rounded,
+                  backgroundColor: buttonBg,
+                  iconColor: Colors.white,
+                  show: true,
+                  iconSize: 28,
+                  onPressed: prevTap,
+                ),
+              ),
+              const SizedBox(width: 24),
+              CenterPlayButton(
                 backgroundColor: buttonBg,
                 iconColor: Colors.white,
+                isFinished: isFinished,
+                isPlaying: isPlaying,
                 show: true,
-                iconSize: 28,
-                onPressed: prevTap,
+                onPressed: ctrl.togglePlayPause,
               ),
-            ),
-            const SizedBox(width: 24),
-            CenterPlayButton(
-              backgroundColor: buttonBg,
-              iconColor: Colors.white,
-              isFinished: isFinished,
-              isPlaying: isPlaying,
-              show: true,
-              onPressed: ctrl.togglePlayPause,
-            ),
-            const SizedBox(width: 24),
-            Opacity(
-              opacity: hasNext ? 1.0 : 0.4,
-              child: CenterSeekButton(
-                iconData: Icons.skip_next_rounded,
-                backgroundColor: buttonBg,
-                iconColor: Colors.white,
-                show: true,
-                iconSize: 28,
-                onPressed: hasNext ? ctrl.playNext : null,
-              ),
-            ),
-          ],
-        );
-      }
-
-      // Substantially increased dimensions for desktop & mobile ergonomics
-      final playDiameter = isMobile ? 64.0 : 72.0;
-      final skipDiameter = isMobile ? 48.0 : 52.0;
-      final playIconSize = isMobile ? 32.0 : 36.0;
-      final skipIconSize = isMobile ? 24.0 : 28.0;
-      final spacing = isMobile ? 24.0 : 36.0;
-
-      final playBtn = CenterBtn(
-        onTap: ctrl.togglePlayPause,
-        size: playIconSize,
-        buttonDiameter: playDiameter,
-        isPrimary: true,
-        tooltip: ctrl.isPlaying.value ? 'Pause (k)' : 'Play (k)',
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 200),
-          transitionBuilder: (child, animation) =>
-              ScaleTransition(scale: animation, child: child),
-          child: Icon(
-            ctrl.isPlaying.value
-                ? Icons.pause_rounded
-                : Icons.play_arrow_rounded,
-            key: ValueKey<bool>(ctrl.isPlaying.value),
-            size: playIconSize,
-            color: Colors.white,
-            shadows: const [
-              Shadow(
-                color: Color(0xCC000000),
-                blurRadius: 6,
-                offset: Offset(0, 1),
+              const SizedBox(width: 24),
+              Opacity(
+                opacity: hasNext ? 1.0 : 0.4,
+                child: CenterSeekButton(
+                  iconData: Icons.skip_next_rounded,
+                  backgroundColor: buttonBg,
+                  iconColor: Colors.white,
+                  show: true,
+                  iconSize: 28,
+                  onPressed: hasNext ? ctrl.playNext : null,
+                ),
               ),
             ],
-          ),
-        ),
-      );
+          );
+        }
+      } else {
+        // Substantially increased dimensions for desktop & mobile ergonomics
+        final playDiameter = isMobile ? 64.0 : 72.0;
+        final skipDiameter = isMobile ? 48.0 : 52.0;
+        final playIconSize = isMobile ? 32.0 : 36.0;
+        final skipIconSize = isMobile ? 24.0 : 28.0;
+        final spacing = isMobile ? 24.0 : 36.0;
 
-      if (!isAutoplayOn) {
-        return playBtn;
+        final playTooltip = isFinished
+            ? 'Replay (k)'
+            : (ctrl.isPlaying.value ? 'Pause (k)' : 'Play (k)');
+        final playIcon = isFinished
+            ? Icons.replay_rounded
+            : (ctrl.isPlaying.value
+                ? Icons.pause_rounded
+                : Icons.play_arrow_rounded);
+
+        final playBtn = CenterBtn(
+          onTap: ctrl.togglePlayPause,
+          size: playIconSize,
+          buttonDiameter: playDiameter,
+          isPrimary: true,
+          tooltip: playTooltip,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            transitionBuilder: (child, animation) =>
+                ScaleTransition(scale: animation, child: child),
+            child: Icon(
+              playIcon,
+              key: ValueKey<String>(
+                isFinished ? 'replay' : (ctrl.isPlaying.value ? 'pause' : 'play'),
+              ),
+              size: playIconSize,
+              color: Colors.white,
+              shadows: const [
+                Shadow(
+                  color: Color(0xCC000000),
+                  blurRadius: 6,
+                  offset: Offset(0, 1),
+                ),
+              ],
+            ),
+          ),
+        );
+
+        if (!showControlsRow) {
+          buttonsRow = playBtn;
+        } else {
+          buttonsRow = Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Opacity(
+                opacity: hasPrev ? 1.0 : 0.4,
+                child: CenterBtn(
+                  icon: Icons.skip_previous_rounded,
+                  onTap: prevTap,
+                  size: skipIconSize,
+                  buttonDiameter: skipDiameter,
+                  tooltip: prevTooltip,
+                ),
+              ),
+              SizedBox(width: spacing),
+              playBtn,
+              SizedBox(width: spacing),
+              Opacity(
+                opacity: hasNext ? 1.0 : 0.4,
+                child: CenterBtn(
+                  icon: Icons.skip_next_rounded,
+                  onTap: hasNext ? ctrl.playNext : null,
+                  size: skipIconSize,
+                  buttonDiameter: skipDiameter,
+                  tooltip: hasNext ? 'Next video (n)' : 'No next video',
+                ),
+              ),
+            ],
+          );
+        }
       }
 
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Opacity(
-            opacity: hasPrev ? 1.0 : 0.4,
-            child: CenterBtn(
-              icon: Icons.skip_previous_rounded,
-              onTap: prevTap,
-              size: skipIconSize,
-              buttonDiameter: skipDiameter,
-              tooltip: prevTooltip,
-            ),
-          ),
-          SizedBox(width: spacing),
-          playBtn,
-          SizedBox(width: spacing),
-          Opacity(
-            opacity: hasNext ? 1.0 : 0.4,
-            child: CenterBtn(
-              icon: Icons.skip_next_rounded,
-              onTap: hasNext ? ctrl.playNext : null,
-              size: skipIconSize,
-              buttonDiameter: skipDiameter,
-              tooltip: hasNext ? 'Next video (n)' : 'No next video',
-            ),
-          ),
-        ],
-      );
+      return buttonsRow;
     });
   }
 }

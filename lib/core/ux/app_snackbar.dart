@@ -51,6 +51,28 @@ class AppSnackbar {
   }) {
     final titleLower = title.toLowerCase().trim();
     final messageLower = message.toLowerCase().trim();
+    final actionLabelLower = actionLabel?.toLowerCase().trim() ?? '';
+
+    final isSignIn = titleLower.contains('sign in') ||
+        actionLabelLower.contains('sign in') ||
+        messageLower.contains('sign in with your google') ||
+        messageLower.contains('sign in to post') ||
+        messageLower.contains('please sign in');
+
+    Widget? actionWidget;
+    if (mainButton is Widget) {
+      actionWidget = mainButton;
+    }
+
+    if (isSignIn) {
+      AppToast.signIn(
+        message: message,
+        title: title,
+        onAction: onAction,
+        duration: duration,
+      );
+      return;
+    }
 
     final isError =
         titleLower.contains('error') ||
@@ -95,11 +117,6 @@ class AppSnackbar {
                 backgroundColor.toARGB32() == 0xFFF9BF05 ||
                 backgroundColor == AppColors.warning ||
                 backgroundColor == AppColors.warning));
-
-    Widget? actionWidget;
-    if (mainButton is Widget) {
-      actionWidget = mainButton;
-    }
 
     if (isError) {
       AppToast.error(
@@ -212,6 +229,21 @@ class AppSnackbar {
       onAction: onAction,
       actionLabel: actionLabel,
       action: action,
+      duration: duration,
+    );
+  }
+
+  /// Semantic Sign-In Required Snackbar (Image 2 Design)
+  static void signInRequired({
+    String? message,
+    String? title,
+    VoidCallback? onAction,
+    Duration? duration,
+  }) {
+    AppToast.signIn(
+      message: message,
+      title: title,
+      onAction: onAction,
       duration: duration,
     );
   }

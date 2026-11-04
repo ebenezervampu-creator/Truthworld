@@ -103,6 +103,24 @@ void main() {
         AdminModerationPredicates.isChannelPending(rejectedChannel),
         isFalse,
       );
+
+      final heldChannel = {
+        'id': 'c4',
+        'status': 'onHold',
+      };
+      final heldChannelAlt = {
+        'id': 'c5',
+        'status': 'hold',
+      };
+
+      expect(AdminModerationPredicates.isChannelOnHold(heldChannel), isTrue);
+      expect(AdminModerationPredicates.isChannelOnHold(heldChannelAlt), isTrue);
+      expect(AdminModerationPredicates.isChannelPending(heldChannel), isFalse);
+      expect(AdminModerationPredicates.isChannelActive(heldChannel), isFalse);
+      expect(AdminModerationPredicates.isChannelRejected(heldChannel), isFalse);
+      expect(AdminModerationPredicates.isChannelOnHold(activeChannel), isFalse);
+      expect(AdminModerationPredicates.isChannelOnHold(pendingChannel), isFalse);
+      expect(AdminModerationPredicates.isChannelOnHold(rejectedChannel), isFalse);
     });
 
     test('Topic predicates correctly identify topic states', () {
@@ -301,6 +319,13 @@ void main() {
           'status': 'active',
           'isVerified': true,
         },
+        {
+          'id': 'c3',
+          'name': 'Nature Explorer',
+          'handle': '@nature',
+          'status': 'onHold',
+          'isVerified': false,
+        },
       ];
 
       final filteredPending = AdminModerationFilters.filterChannels(
@@ -310,6 +335,14 @@ void main() {
       );
       expect(filteredPending.length, equals(1));
       expect(filteredPending.first['id'], equals('c1'));
+
+      final filteredHold = AdminModerationFilters.filterChannels(
+        channels: testChannels,
+        searchQuery: '',
+        channelFilterTab: 'hold',
+      );
+      expect(filteredHold.length, equals(1));
+      expect(filteredHold.first['id'], equals('c3'));
 
       final filteredQuery = AdminModerationFilters.filterChannels(
         channels: testChannels,

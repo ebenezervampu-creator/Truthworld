@@ -261,7 +261,7 @@ class DashboardMobileVideoDropdownChip extends StatelessWidget {
 
       return PopupMenuButton<String?>(
         tooltip: 'Filter by video',
-        color: const Color(0xFF1E1E1E),
+        color: AppColors.bgSurface,
         onSelected: controller.selectVideo,
         itemBuilder: (context) => [
           PopupMenuItem<String?>(
@@ -343,7 +343,7 @@ class DashboardMobileVideoDropdownChip extends StatelessWidget {
           decoration: BoxDecoration(
             color: selectedId != null
                 ? AppColors.bgSurfaceHover
-                : const Color(0xFF1E1E1E),
+                : AppColors.bgSurface,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: selectedId != null ? AppColors.textPrimary : AppColors.bgDivider,

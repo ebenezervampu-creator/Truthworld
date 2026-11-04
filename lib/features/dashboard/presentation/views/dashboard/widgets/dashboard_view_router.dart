@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
+import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_view_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_screen.dart';
@@ -14,10 +14,8 @@ import 'package:truthworld/features/dashboard/presentation/views/dashboard/custo
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_comments_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization_screen.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/playlists_management_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/studio_settings_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles_page.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/topic_management_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification_dashboard_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/dashboard_overview_content.dart';
 
@@ -60,13 +58,27 @@ class DashboardViewRouter extends StatelessWidget {
           child: Obx(() {
             final activeIndex = dashboardController.selectedIndex.value;
             return AnimatedSwitcher(
-              duration: const Duration(milliseconds: 220),
+              duration: const Duration(milliseconds: 240),
               switchInCurve: Curves.easeOutCubic,
               switchOutCurve: Curves.easeInCubic,
-              transitionBuilder: (child, animation) => FadeTransition(
-                opacity: animation,
-                child: child,
-              ),
+              transitionBuilder: (child, animation) {
+                final slide = Tween<Offset>(
+                  begin: const Offset(0, 0.025),
+                  end: Offset.zero,
+                ).animate(
+                  CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeOutCubic,
+                  ),
+                );
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: slide,
+                    child: child,
+                  ),
+                );
+              },
               child: KeyedSubtree(
                 key: ValueKey<int>(activeIndex),
                 child: _buildScreen(activeIndex, channelId, currentChannel),
@@ -93,12 +105,20 @@ class DashboardViewRouter extends StatelessWidget {
       case 2:
         final tabParam = (Get.parameters['tab'] ?? '').toLowerCase();
         final currentRoute = Get.currentRoute.toLowerCase();
-        final isDrafts = currentRoute.contains('/drafts') ||
-            tabParam == 'drafts' ||
-            tabParam == '20';
         final isTrash = currentRoute.contains('/trash') ||
             tabParam == 'trash' ||
             tabParam == '13';
+        final isScheduled = currentRoute.contains('/scheduled') ||
+            tabParam == 'scheduled';
+        final isDrafts = currentRoute.contains('/drafts') ||
+            tabParam == 'drafts' ||
+            tabParam == '20';
+        final isTopics = currentRoute.contains('/topics') ||
+            tabParam == 'topics' ||
+            tabParam == '14';
+        final isPlaylists = currentRoute.contains('/playlists') ||
+            tabParam == 'playlists' ||
+            tabParam == '17';
         final isCommunity = currentRoute.contains('/community') ||
             currentRoute.contains('/posts') ||
             tabParam == 'community' ||
@@ -106,8 +126,14 @@ class DashboardViewRouter extends StatelessWidget {
             tabParam == '19';
         var initialIdx = 0;
         if (isTrash) {
-          initialIdx = 4;
+          initialIdx = 6;
+        } else if (isScheduled) {
+          initialIdx = 5;
         } else if (isDrafts) {
+          initialIdx = 4;
+        } else if (isTopics) {
+          initialIdx = 3;
+        } else if (isPlaylists) {
           initialIdx = 2;
         } else if (isCommunity) {
           initialIdx = 1;
@@ -162,18 +188,24 @@ class DashboardViewRouter extends StatelessWidget {
           channelId: channelId,
           isDarkMode: isDarkMode,
           searchQuery: dashboardController.searchQuery.value,
-          initialIndex: 4,
+          initialIndex: 6,
         );
       case 14:
-        return TopicManagementScreen(
+        return ContentScreen(
           channelId: channelId,
           isDarkMode: isDarkMode,
           searchQuery: dashboardController.searchQuery.value,
+          initialIndex: 3,
         );
       case 15:
+        final vidId = dashboardController.targetVideoId.value.isNotEmpty
+            ? dashboardController.targetVideoId.value
+            : ((Get.arguments is Map ? Get.arguments['videoId'] as String? : null) ??
+                Get.parameters['videoId']);
         return TruthVerificationDashboardPage(
           channelId: channelId,
           isDarkMode: isDarkMode,
+          initialVideoId: vidId,
         );
       case 16:
         final ownerId = viewController.getOwnerId(currentChannel);
@@ -182,12 +214,24 @@ class DashboardViewRouter extends StatelessWidget {
           creatorId: ownerId,
         );
       case 17:
-        return PlaylistsManagementScreen(
+        return ContentScreen(
           channelId: channelId,
           isDarkMode: isDarkMode,
           searchQuery: dashboardController.searchQuery.value,
+          initialIndex: 2,
         );
       case 18:
+        if (!dashboardController.isChannelMonetizationActive) {
+          return DashboardOverviewContent(
+            viewController: viewController,
+            dashboardController: dashboardController,
+            isDarkMode: isDarkMode,
+            isMobile: isMobile,
+            isDesktop: isDesktop,
+            isTablet: isTablet,
+            horizontalPadding: horizontalPadding,
+          );
+        }
         return MembershipsScreen(
           channelId: channelId,
           isDarkMode: isDarkMode,
@@ -204,7 +248,7 @@ class DashboardViewRouter extends StatelessWidget {
           channelId: channelId,
           isDarkMode: isDarkMode,
           searchQuery: dashboardController.searchQuery.value,
-          initialIndex: 2,
+          initialIndex: 4,
         );
       default:
         return DashboardOverviewContent(
@@ -220,12 +264,6 @@ class DashboardViewRouter extends StatelessWidget {
   }
 
   Widget _buildRouterSkeleton() {
-    return DashboardOverviewContentSkeleton(
-      isMobile: isMobile,
-      isTablet: isTablet,
-      isDesktop: isDesktop,
-      horizontalPadding: horizontalPadding,
-      isDarkMode: isDarkMode,
-    );
+    return const StudioLoadingIndicator();
   }
 }

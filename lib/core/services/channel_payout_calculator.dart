@@ -46,12 +46,12 @@ class ChannelPayoutCalculator {
   /// Channel monetization qualification threshold: 1,000 views on any video
   static const int channelMonetizationViewsThreshold = 1000;
 
-  /// Channel monetization qualification threshold: 10 Hours (600 mins) watch time on any video
-  static const int channelMonetizationWatchTimeMinutesThreshold = 600;
+  /// Channel monetization qualification threshold: 30 Hours (1800 mins) watch time on any video
+  static const int channelMonetizationWatchTimeMinutesThreshold = 1800;
 
-  /// Channel video withdrawal threshold: 10 Hours (600 mins) of watch time per video (Standard & Custom)
+  /// Channel video withdrawal threshold: 30 Hours (1800 mins) of watch time per video (Standard & Custom)
   static const int channelWithdrawalWatchTimeMinutesThreshold =
-      600; // 10 Hours
+      1800; // 30 Hours
   static const int standardChannelWithdrawalWatchTimeMinutesThreshold =
       channelWithdrawalWatchTimeMinutesThreshold;
 
@@ -73,7 +73,7 @@ class ChannelPayoutCalculator {
       isIndian ? '₹100' : r'$10';
 
   /// Evaluates whether a channel meets the qualification criteria to turn monetization ON:
-  /// 1. Any video of the channel has crossed 1,000 views AND 10 hours (600 mins) watch time.
+  /// 1. Any video of the channel has crossed 1,000 views AND 30 hours (1800 mins) watch time.
   /// 2. Creator KYC verification is completed.
   /// Once ON, all videos on the channel generate revenue.
   static bool isChannelMonetizationEligible({
@@ -103,12 +103,12 @@ class ChannelPayoutCalculator {
     return channel.pendingBalanceINR;
   }
 
-  /// Calculates revenue payout for a Standard Channel:
+  /// Calculates revenue payout for a Standard Channel (Hybrid Model):
   /// - Ad Revenue: 70% Creator / 30% Platform
   /// - Premium Subscriptions: 70% Creator / 30% Platform
-  /// - Superchats & Tips: 100% Creator / 0% Platform
+  /// - Superchats & Tips: 90% Creator / 10% Platform (10% fee covers hosting, gateway fees, and admin costs)
   /// - Channel Memberships:
-  ///   - Standard (Default): 100% Creator / 0% Platform
+  ///   - Standard (Default): 90% Creator / 10% Platform
   ///   - Member Ad-Free Playback Enabled: 70% Creator / 30% Platform (Platform retains 30% cut to cover ad suppression for members)
   static ChannelPayoutBreakdown calculateStandardChannelPayout({
     required double adRevenue,
@@ -123,10 +123,12 @@ class ChannelPayoutCalculator {
     final creatorSub = premiumSubRevenue * 0.70;
     final platformSub = premiumSubRevenue * 0.30;
 
-    final creatorTips = tipsRevenue; // 100% Creator / 0% Platform
+    final creatorTips = tipsRevenue * 0.90; // 90% Creator / 10% Platform
+    final platformTips = tipsRevenue * 0.10;
 
-    // When noAdsForMembers is enabled, platform takes a 30% cut on memberships
-    final membershipPlatformCutRate = noAdsForMembers ? 0.30 : 0.0;
+    // When noAdsForMembers is enabled, platform takes a 30% cut on memberships (70% creator)
+    // Otherwise on Standard tier, platform takes a 10% fee (90% creator)
+    final membershipPlatformCutRate = noAdsForMembers ? 0.30 : 0.10;
     final creatorMemberships = membershipsRevenue * (1.0 - membershipPlatformCutRate);
     final platformMemberships = membershipsRevenue * membershipPlatformCutRate;
 
@@ -134,7 +136,7 @@ class ChannelPayoutCalculator {
         adRevenue + premiumSubRevenue + tipsRevenue + membershipsRevenue;
     final creatorTotal =
         creatorAd + creatorSub + creatorTips + creatorMemberships;
-    final platformTotal = platformAd + platformSub + platformMemberships;
+    final platformTotal = platformAd + platformSub + platformTips + platformMemberships;
 
     return ChannelPayoutBreakdown(
       grossRevenue: gross,
@@ -148,9 +150,9 @@ class ChannelPayoutCalculator {
     );
   }
 
-  /// Calculates revenue payout for a Custom Channel:
-  /// - Platform Revenue Share: 0% Platform from Ads, Premium Subs, Superchats, and Memberships (100% Creator retention).
-  /// - Custom channels take plans ($15, $30, $45, $100, $200/mo etc.) plus actual infrastructure costs.
+  /// Calculates revenue payout for a Custom Channel (Pro Tier):
+  /// - Platform Revenue Share: 0% Platform cut from Ads, Premium Subs, Superchats, and Memberships (100% Creator retention).
+  /// - Custom channels subscribe to flat monthly SaaS plans ($15, $25, $50/mo etc.) plus actual infrastructure costs.
   /// - Net Payout: Gross Revenue - Infra Cost - Plan/Service Fee
   /// - Zero-Debt Protection: Payout is capped at floor of 0 (creator balance never goes negative).
   static ChannelPayoutBreakdown calculateCustomChannelPayout({
@@ -212,8 +214,8 @@ class ChannelPayoutCalculator {
 
   /// Calculates video withdrawal eligibility for a video on a Channel:
   /// - Day 1 Earning: Both Standard & Custom channels start earning from Day 1.
-  /// - Standard & Custom Channels: Earnings on a video can be withdrawn ONLY after that video reaches 1,000 views AND 10 Hours (600 mins) watch time.
-  /// - Custom channels retain 100% of revenue across all sources, with cash withdrawals unlocking per video at 1,000 views and 10 hours watch time.
+  /// - Standard & Custom Channels: Earnings on a video can be withdrawn ONLY after that video reaches 1,000 views AND 30 Hours (1800 mins) watch time.
+  /// - Custom channels retain 100% of revenue across all sources, with cash withdrawals unlocking per video at 1,000 views and 30 hours watch time.
   static VideoWithdrawalEligibility calculateVideoWithdrawalEligibility({
     required Channel channel,
     required String videoId,
@@ -221,7 +223,7 @@ class ChannelPayoutCalculator {
     required int videoWatchTimeMinutes,
     int videoViews = 0,
   }) {
-    // Both 1,000 views AND 10-Hour Watch Time (600 mins) thresholds are enforced for all channels
+    // Both 1,000 views AND 30-Hour Watch Time (1800 mins) thresholds are enforced for all channels
     final isUnlocked =
         videoWatchTimeMinutes >= channelWithdrawalWatchTimeMinutesThreshold &&
         videoViews >= channelWithdrawalViewsThreshold;

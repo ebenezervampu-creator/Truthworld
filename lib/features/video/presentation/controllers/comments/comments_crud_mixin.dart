@@ -4,6 +4,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/features/channel/data/services/channel_memory_cache.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments/comments_state_base.dart';
 
 /// Mixin handling comment creation, input validation, donation records, mentions, and deletion.
@@ -13,8 +14,10 @@ mixin CommentsCrudMixin on CommentsStateBase {
     required String text,
     String? channelId,
     String? channelName,
+    String? channelHandle,
     String? channelProfilePicUrl,
     String? userProfilePicUrl,
+    bool? isChannel,
     double donationAmount = 0.0,
     String donationCurrency = r'$',
     bool isDonatedComment = false,
@@ -26,6 +29,11 @@ mixin CommentsCrudMixin on CommentsStateBase {
 
     if (video == null) {
       throw Exception('Video not loaded');
+    }
+
+    if (!video!.allowComments) {
+      AppSnackbar.info('Comments are turned off for this video.');
+      return;
     }
 
     if (!AuthService.to.isAuthenticated.value || currentUserId.isEmpty) {
@@ -42,26 +50,49 @@ mixin CommentsCrudMixin on CommentsStateBase {
       throw Exception(validation.message);
     }
 
+    if (isDonatedComment || donationAmount > 0) {
+      final chId = video?.channelId ?? '';
+      final ch = chId.isNotEmpty ? ChannelMemoryCache.get(chId) : null;
+      final monetized = ch != null ? ch.isMonetizationActive : (video?.isMonetized ?? false);
+      if (!monetized) {
+        throw Exception('Super Thanks and super chats are only allowed on monetized channels.');
+      }
+    }
+
     try {
       isSubmittingComment.value = true;
       commentError.value = null;
 
       final authService = AuthService.to;
-      final rawName = authService.activeDisplayName;
+      final hasActiveChannel = isChannel ??
+          (authService.hasChannel.value && authService.userChannel != null);
+      final userChannel = hasActiveChannel ? authService.userChannel : null;
+
+      final resolvedChannelId = (channelId != null && channelId.isNotEmpty)
+          ? channelId
+          : (userChannel?.id ?? '');
+      final resolvedChannelHandle =
+          (channelHandle != null && channelHandle.isNotEmpty)
+              ? channelHandle
+              : userChannel?.handle;
+      final resolvedChannelName =
+          (channelName != null && channelName.isNotEmpty)
+              ? channelName
+              : userChannel?.name;
+      final resolvedChannelProfilePicUrl =
+          (channelProfilePicUrl != null && channelProfilePicUrl.isNotEmpty)
+              ? channelProfilePicUrl
+              : userChannel?.avatarUrl;
+
+      final rawName = authService.userDisplayName.value ??
+          authService.user?.displayName ??
+          'User';
       final finalUserName =
           rawName.startsWith('@') ? rawName.substring(1) : rawName;
-      final finalUserProfilePicUrl =
-          userProfilePicUrl ?? authService.activePhotoUrl;
-      final finalChannelId = (channelId != null && channelId.isNotEmpty)
-          ? channelId
-          : null;
-      final finalChannelName = (channelName != null && channelName.isNotEmpty)
-          ? channelName
-          : null;
-      final finalChannelProfilePicUrl =
-          (channelName != null && channelName.isNotEmpty)
-              ? channelProfilePicUrl
-              : null;
+      final finalUserProfilePicUrl = userProfilePicUrl ??
+          authService.userPhotoUrl.value ??
+          authService.user?.photoURL ??
+          '';
 
       // Channel Membership & Loyalty Badge lookup
       var isMember = false;
@@ -69,7 +100,16 @@ mixin CommentsCrudMixin on CommentsStateBase {
       String? memberTierName;
       final targetChannelId = video?.channelId;
       if (targetChannelId != null && targetChannelId.isNotEmpty) {
-        try {
+        if (isDonatedComment || donationAmount > 0) {
+      final chId = video?.channelId ?? '';
+      final ch = chId.isNotEmpty ? ChannelMemoryCache.get(chId) : null;
+      final monetized = ch != null ? ch.isMonetizationActive : (video?.isMonetized ?? false);
+      if (!monetized) {
+        throw Exception('Super Thanks and super chats are only allowed on monetized channels.');
+      }
+    }
+
+    try {
           final memDoc = await FirebaseFirestore.instance
               .collection(FirestoreCollections.users)
               .doc(currentUserId)
@@ -96,9 +136,11 @@ mixin CommentsCrudMixin on CommentsStateBase {
         userId: currentUserId,
         userName: finalUserName,
         userProfilePicUrl: finalUserProfilePicUrl,
-        channelId: finalChannelId ?? currentUserId,
-        channelName: finalChannelName,
-        channelProfilePicUrl: finalChannelProfilePicUrl,
+        channelId: resolvedChannelId,
+        channelName: resolvedChannelName,
+        channelHandle: resolvedChannelHandle,
+        channelProfilePicUrl: resolvedChannelProfilePicUrl,
+        isChannel: hasActiveChannel,
         text: ContentValidator.cleanProfanity(text.trim()),
         donationAmount: donationAmount,
         donationCurrency: donationCurrency,

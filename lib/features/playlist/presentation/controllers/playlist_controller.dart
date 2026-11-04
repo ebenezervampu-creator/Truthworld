@@ -39,6 +39,11 @@ class PlaylistController extends BaseController with ContentValidationMixin {
           getUserId: () => user,
           syncManager: _syncManager,
           refreshPlaylistsTick: _filterManager.refreshPlaylistsTick,
+          getWatchLaterPlaylist: () => _watchLaterManager.getWatchLaterPlaylist(),
+          getWatchLaterThumbnail: () =>
+              _watchLaterManager.firstVideoThumbnail.value,
+          getWatchLaterCount: () =>
+              _watchLaterManager.watchLaterVideoIds.length,
           firestore: fs,
         );
   }
@@ -115,6 +120,10 @@ class PlaylistController extends BaseController with ContentValidationMixin {
   // Watch Later pass-throughs
   RxList<String> get watchLaterVideoIds =>
       _watchLaterManager.watchLaterVideoIds;
+  RxString get firstVideoThumbnail =>
+      _watchLaterManager.firstVideoThumbnail;
+  void setWatchLaterThumbnail(String url) =>
+      _watchLaterManager.setFirstThumbnail(url);
   void listenToWatchLater() => _watchLaterManager.listenToWatchLater();
   PlaylistModel? getWatchLaterPlaylist() =>
       _watchLaterManager.getWatchLaterPlaylist();
@@ -128,11 +137,23 @@ class PlaylistController extends BaseController with ContentValidationMixin {
       );
   bool isInWatchLater(String videoId) =>
       _watchLaterManager.isInWatchLater(videoId);
+  Future<bool> clearWatchLater() => _watchLaterManager.clearWatchLater();
 
   @override
   void onInit() {
     super.onInit();
     fetchChannels();
+
+    addWorker(
+      ever(_watchLaterManager.watchLaterVideoIds, (_) {
+        refreshPlaylistsTick();
+      }),
+    );
+    addWorker(
+      ever(_watchLaterManager.firstVideoThumbnail, (_) {
+        refreshPlaylistsTick();
+      }),
+    );
 
     addWorker(
       ever(AuthService.to.currentUser, (u) {
@@ -206,8 +227,20 @@ class PlaylistController extends BaseController with ContentValidationMixin {
   ) =>
       _crudManager.togglePlaylistVisibility(playlistId, currentIsPublic);
 
-  Future<void> sharePlaylist(String playlistId, {String? name}) =>
-      _crudManager.sharePlaylist(playlistId, name: name);
+  Future<void> sharePlaylist(
+    String playlistId, {
+    String? name,
+    String? thumbnailUrl,
+    int? videoCount,
+    String? channelName,
+  }) =>
+      _crudManager.sharePlaylist(
+        playlistId,
+        name: name,
+        thumbnailUrl: thumbnailUrl,
+        videoCount: videoCount,
+        channelName: channelName,
+      );
 
   // Video Management pass-throughs
   Future<List<String>> fetchPlaylistVideoIds(

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
 import 'package:truthworld/core/services/auth_service.dart';
@@ -44,7 +45,12 @@ class FollowingTopicsPage extends GetView<FollowingTopicsController> {
     final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS;
 
-    // Responsive columns for video grid
+    // Responsive columns matching Truthworld standards:
+    // Mobile: 1
+    // Tablet or small desktop / mobile device: 2
+    // Desktop (1100 - 1700): 3 (YouTube standard for clean video card proportions)
+    // Wide Desktop (1700 - 2400): 4
+    // Ultra-wide (>= 2400): 5
     final crossAxisCount = isMobile
         ? 1
         : (isTablet || isMobileDevice
@@ -54,11 +60,6 @@ class FollowingTopicsPage extends GetView<FollowingTopicsController> {
                 : (screenWidth >= 1700
                     ? 4
                     : (screenWidth >= 1100 ? 3 : 2))));
-
-    // Child aspect ratio ensuring no overflow
-    final childAspectRatio = isMobile
-        ? 1.18
-        : (isTablet ? 1.16 : 1.18);
 
     final horizontalPadding = isDesktop
         ? 24.0
@@ -71,17 +72,22 @@ class FollowingTopicsPage extends GetView<FollowingTopicsController> {
           onRefresh: _refreshFollowingTopics,
           color: Colors.white,
           backgroundColor: const Color(0xFF222224),
-          child: CustomScrollView(
-            physics: const BouncingScrollPhysics(
-              parent: AlwaysScrollableScrollPhysics(),
-            ),
-            slivers: [
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1440),
+              child: CustomScrollView(
+                physics: const BouncingScrollPhysics(
+                  parent: AlwaysScrollableScrollPhysics(),
+                ),
+                slivers: [
               // 1. Top Header (Back button + Pill Search bar + Voice search mic)
               SliverToBoxAdapter(
                 child: FollowingTopicsHeader(
                   controller: controller,
                   isMobile: isMobile,
                   isDashboard: isDashboard,
+                  isTablet: isTablet,
+                  isDesktop: isDesktop,
                 ),
               ),
 
@@ -127,7 +133,7 @@ class FollowingTopicsPage extends GetView<FollowingTopicsController> {
                 if (controller.searchQuery.value.isNotEmpty) {
                   final q = controller.searchQuery.value.toLowerCase();
                   topics = topics.where((t) {
-                    return t.title.toLowerCase().contains(q) ||
+                    return t.name.toLowerCase().contains(q) ||
                         t.category.toLowerCase().contains(q);
                   }).toList();
                 }
@@ -206,25 +212,20 @@ class FollowingTopicsPage extends GetView<FollowingTopicsController> {
                           horizontal: horizontalPadding,
                           vertical: 6,
                         ),
-                        sliver: SliverGrid(
-                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: crossAxisCount,
-                            mainAxisSpacing: 16,
-                            crossAxisSpacing: 16,
-                            childAspectRatio: childAspectRatio,
-                          ),
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              return FollowingTopicVideoCard(
-                                video: videos[index],
-                                topic: selectedTopic,
-                                isMobile: isMobile,
-                                index: index,
-                                totalCount: videos.length,
-                              );
-                            },
-                            childCount: videos.length,
-                          ),
+                        sliver: SliverMasonryGrid.count(
+                          crossAxisCount: crossAxisCount,
+                          mainAxisSpacing: 16,
+                          crossAxisSpacing: 16,
+                          childCount: videos.length,
+                          itemBuilder: (context, index) {
+                            return FollowingTopicVideoCard(
+                              video: videos[index],
+                              topic: selectedTopic,
+                              isMobile: isMobile,
+                              index: index,
+                              totalCount: videos.length,
+                            );
+                          },
                         ),
                       ),
 
@@ -257,7 +258,7 @@ class FollowingTopicsPage extends GetView<FollowingTopicsController> {
                       SliverToBoxAdapter(
                         child: Center(
                           child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 1400),
+                            constraints: const BoxConstraints(maxWidth: 1440),
                             child: Padding(
                               padding: EdgeInsets.symmetric(
                                 horizontal: horizontalPadding,
@@ -312,6 +313,8 @@ class FollowingTopicsPage extends GetView<FollowingTopicsController> {
           ),
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 }

@@ -43,8 +43,24 @@ mixin TowerPlayerStateMixin on GetxController {
   final RxBool showCommentsPopup = false.obs;
   final RxBool showTranscriptPopup = false.obs;
   final ScrollController overlayTranscriptScrollController = ScrollController();
+  final RxBool isOverlayTranscriptAutoScroll = true.obs;
+  Timer? overlayTranscriptAutoScrollTimer;
+  int lastOverlayScrollIndex = -1;
+
+  void onOverlayTranscriptUserScrolled() {
+    isOverlayTranscriptAutoScroll.value = false;
+    overlayTranscriptAutoScrollTimer?.cancel();
+    overlayTranscriptAutoScrollTimer = Timer(const Duration(seconds: 4), () {
+      isOverlayTranscriptAutoScroll.value = true;
+    });
+  }
+
+  void resumeOverlayTranscriptAutoScroll() {
+    overlayTranscriptAutoScrollTimer?.cancel();
+    overlayTranscriptAutoScrollTimer = null;
+    isOverlayTranscriptAutoScroll.value = true;
+  }
   final RxBool showFactCheckPopup = false.obs;
-  final RxBool showLiveChat = false.obs;
   final RxBool showMoreVideos = false.obs;
   final RxBool isLooping = false.obs;
 

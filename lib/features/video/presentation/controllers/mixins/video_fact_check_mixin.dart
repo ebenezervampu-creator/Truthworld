@@ -66,6 +66,26 @@ mixin VideoFactCheckMixin on GetxController {
         hasAttemptedFactCheck.value = true;
         return;
       }
+      // Progressive Hydration: Check for Fast Triage provisional report (available in 3-5s post-upload)
+      if (video.isProvisional ||
+          video.provisionalClaims.isNotEmpty ||
+          video.provisionalScore != null ||
+          video.credibilityStatus == 'provisional_ready') {
+        factCheckData.value = {
+          'isProvisional': true,
+          'credibilityStatus': video.credibilityStatus ?? 'provisional_ready',
+          'trustScore': video.provisionalScore ?? video.trustScore,
+          'trustLabel': video.provisionalLabel ?? video.trustLabel,
+          'viewerNote': video.provisionalViewerNote ??
+              'Preliminary scan complete. Full multi-source verification is finalizing in background.',
+          'summary': video.provisionalViewerNote ??
+              'Preliminary scan complete. Full multi-source verification is finalizing in background.',
+          'claims': video.provisionalClaims,
+        };
+        hasFactCheckError.value = false;
+        hasAttemptedFactCheck.value = true;
+        return;
+      }
       factCheckData.clear();
       hasFactCheckError.value = false;
       hasAttemptedFactCheck.value = true;
@@ -150,8 +170,6 @@ mixin VideoFactCheckMixin on GetxController {
             contextualFlags: parsedCred.contextualFlags.isNotEmpty
                 ? parsedCred.contextualFlags
                 : (existing?.contextualFlags ?? const []),
-            honestyBreakdown:
-                parsedCred.honestyBreakdown ?? existing?.honestyBreakdown,
             harmCapApplied: parsedCred.harmCapApplied ||
                 (existing?.harmCapApplied ?? false),
             harmCapReason:

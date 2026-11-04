@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -91,7 +90,7 @@ class MiniplayerExpandButton extends StatelessWidget {
                   ),
                   child: Text(
                     'I',
-                    style: GoogleFonts.robotoMono(
+                    style: TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 10,
                       fontWeight: FontWeight.w600,

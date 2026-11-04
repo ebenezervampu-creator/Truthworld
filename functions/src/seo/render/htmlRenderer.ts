@@ -1,6 +1,6 @@
 import { DOMAIN, SCHEMA_VERSION, escapeHtml, cleanJsonLd } from "../schema/schemaConfig";
 
-export const SNAPSHOT_VERSION = 7;
+export const SNAPSHOT_VERSION = 10;
 
 export interface HtmlRenderOptions {
   title: string;
@@ -27,6 +27,8 @@ export interface HtmlRenderOptions {
   uploadDate?: string;
   // Custom semantic HTML content for rich landing pages
   customBodyHtml?: string;
+  // Injected JavaScript (e.g. window.__VIDEO_DATA__ for instant Flutter hydration)
+  injectedScript?: string;
 }
 
 export function truncateTranscriptToSentence(transcript?: string, maxChars: number = 2500): string {
@@ -370,6 +372,35 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
       line-height: 1;
     }
   </style>
+  <!-- HLS.js polyfill for Chromium / Firefox browsers -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.17/hls.min.js"></script>
+  <script>
+    (function() {
+      if (window.Hls && window.Hls.isSupported()) {
+        var origSrcDescriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
+        if (origSrcDescriptor && origSrcDescriptor.set) {
+          var origSet = origSrcDescriptor.set;
+          Object.defineProperty(HTMLMediaElement.prototype, 'src', {
+            set: function(val) {
+              if (typeof val === 'string' && (val.indexOf('.m3u8') !== -1 || val.indexOf('hls') !== -1)) {
+                if (!this.canPlayType('application/vnd.apple.mpegurl')) {
+                  var hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+                  hls.loadSource(val);
+                  hls.attachMedia(this);
+                  this._hls = hls;
+                  return;
+                }
+              }
+              return origSet.call(this, val);
+            },
+            get: origSrcDescriptor.get,
+            configurable: true,
+            enumerable: true
+          });
+        }
+      }
+    })();
+  </script>
 </head>
 <body>
   <!-- Mobile Smart App Banner -->
@@ -387,7 +418,36 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
     </div>
   </div>
 
-  ${semanticBodyHtml}
+  <!-- Instant App Loading Shell -->
+  <div id="tw-app-loading" style="position: fixed; inset: 0; background: #0D0014; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999; font-family: Roboto, -apple-system, sans-serif;">
+    <div style="width: 56px; height: 56px; border-radius: 14px; background: #9B30FF; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(155, 48, 255, 0.4); margin-bottom: 20px;">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 5V19L19 12L8 5Z" fill="#FFFFFF"/>
+      </svg>
+    </div>
+    <div style="width: 32px; height: 32px; border: 3px solid rgba(255,255,255,0.15); border-top-color: #9B30FF; border-radius: 50%; animation: tw-spin 0.8s linear infinite;"></div>
+  </div>
+  <style>
+    @keyframes tw-spin { to { transform: rotate(360deg); } }
+  </style>
+  <script>
+    // Automatically dismiss instant loading shell once Flutter paints
+    window.addEventListener('flutter-first-frame', function() {
+      var loader = document.getElementById('tw-app-loading');
+      if (loader) loader.remove();
+    });
+    var twObs = new MutationObserver(function() {
+      if (document.querySelector('flutter-view') || document.querySelector('flt-glass-pane')) {
+        var loader = document.getElementById('tw-app-loading');
+        if (loader) loader.remove();
+        twObs.disconnect();
+      }
+    });
+    twObs.observe(document.body, { childList: true });
+  </script>
+  <noscript>
+    ${semanticBodyHtml}
+  </noscript>
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(function(registrations) {
@@ -451,6 +511,8 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
       }
     })();
   </script>
+  <!-- Injected Video Hydration Data for Instant 0ms Playback -->
+  ${options.injectedScript ? `<script>${options.injectedScript}</script>` : ""}
   <!-- Flutter bootstrap -->
   <script src="flutter_bootstrap.js"></script>
 </body>

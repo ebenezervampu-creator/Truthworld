@@ -1,5 +1,4 @@
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -38,34 +37,30 @@ class UserAvatar extends StatelessWidget {
     var effectivePhotoUrl = photoUrl;
     var effectiveDisplayName = displayName;
 
-    try {
-      if (Get.isRegistered<AuthService>()) {
-        final authService = AuthService.to;
-        final currentUser = FirebaseAuth.instance.currentUser;
-        if (currentUser != null) {
-          final userPhoto = currentUser.photoURL;
-          final userName = currentUser.displayName;
-
-          final isCurrentUserDetails =
-              (photoUrl != null && userPhoto != null && photoUrl == userPhoto) ||
-              (displayName != null && userName != null && displayName == userName);
-
-          if (isCurrentUserDetails) {
+    // Only resolve active session details if no explicit photoUrl was provided.
+    // Explicit URLs (e.g. from specific channels, comments, or creators) must NEVER be hijacked
+    // or overwritten with another account's avatar.
+    if (effectivePhotoUrl == null || effectivePhotoUrl.trim().isEmpty) {
+      try {
+        if (Get.isRegistered<AuthService>()) {
+          final authService = AuthService.to;
+          if (authService.isAuthenticated.value) {
             if (authService.activePhotoUrl.isNotEmpty) {
               effectivePhotoUrl = authService.activePhotoUrl;
             }
-            if (authService.activeDisplayName.isNotEmpty) {
+            if (effectiveDisplayName == null ||
+                effectiveDisplayName.trim().isEmpty) {
               effectiveDisplayName = authService.activeDisplayName;
             }
           }
         }
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'UserAvatar.resolveCurrentUserDetails',
+        );
       }
-    } catch (e, stackTrace) {
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
-        tag: 'UserAvatar.resolveCurrentUserDetails',
-      );
     }
 
     final cleanDisplayName = effectiveDisplayName

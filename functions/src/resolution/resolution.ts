@@ -1,17 +1,17 @@
 /**
- * 🎥 RESOLUTION — Video Resolution Processing (≤ 1040p)
+ * ðŸŽ¥ RESOLUTION â€” Video Resolution Processing (â‰¤ 1040p)
  *
  * Firebase Cloud Function triggered by video uploads.
  * Processes uploaded videos into adaptive bitrate ladder capped at 1040p.
  *
- * ✅ FEATURES:
+ * âœ… FEATURES:
  *   - Storage trigger: onObjectFinalized for videos/ prefix
  *   - Resolution cap: Maximum 1040p. Ladder: [1040, 720, 480, 360, 240, 144]
  *   - Stores processed metadata in Firestore
  *   - Stores processed files in Firebase Storage
  *   - minInstances: 0 (scale-to-zero)
  *
- * ✅ COST OPTIMIZATION:
+ * âœ… COST OPTIMIZATION:
  *   - Only transcode if source resolution > target
  *   - Skip redundant resolutions (e.g., don't upscale 480p to 720p/1040p)
  *   - Bitrate ladder dynamically set per resolution
@@ -19,12 +19,13 @@
 
 import * as admin from "firebase-admin";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
-import { onRequest } from "firebase-functions/v2/https";
+import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { v4 as uuidv4 } from "uuid";
 import { MessagingService } from "../shared/messaging";
 import { applySecurityHeaders } from "../utils/securityHeaders";
+import { requireRecentAdmin } from "../utils/auth";
 import { checkAndMarkEventId, markEventCompleted, markEventFailed } from "../shared/idempotency";
 import * as path from "path";
 import * as os from "os";
@@ -40,6 +41,14 @@ function getFFmpegInstance(): any {
     if (ffmpegInstaller) {
       ffmpeg.setFfmpegPath(ffmpegInstaller);
     }
+    try {
+      const ffprobeInstaller = require("@ffprobe-installer/ffprobe");
+      if (ffprobeInstaller && ffprobeInstaller.path) {
+        ffmpeg.setFfprobePath(ffprobeInstaller.path);
+      }
+    } catch {
+      // Fallback handled in probeVideoFile
+    }
     _ffmpegInstance = ffmpeg;
     _ffmpegInitialized = true;
   }
@@ -49,13 +58,13 @@ function getFFmpegInstance(): any {
 const db = admin.firestore();
 const REGION = "asia-south1";
 
-// ─── Resolution Configuration ────────────────────────────────────────────────
+// â”€â”€â”€ Resolution Configuration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-/** Maximum resolution cap — 2160p (4K Ultra HD) */
+/** Maximum resolution cap â€” 2160p (4K Ultra HD) */
 const MAX_STANDARD_RESOLUTION_HEIGHT = 2160;
 const MAX_CUSTOM_RESOLUTION_HEIGHT = 2160;
 
-/** Full resolution ladder (descending). Only resolutions ≤ source are generated. */
+/** Full resolution ladder (descending). Only resolutions â‰¤ source are generated. */
 export interface ResolutionProfile {
   height: number;
   width: number;
@@ -68,7 +77,7 @@ export interface ResolutionProfile {
 /** Standard channel audio bitrate: 192 kbps (broadcast-standard transparent AAC stereo across all tiers) */
 export const STANDARD_AUDIO_BITRATE_KBPS = 192;
 
-/** Custom channel audio bitrate: 256 kbps (studio-grade high-fidelity AAC stereo across all tiers) */
+/** Pro channel audio bitrate: 256 kbps (studio-grade high-fidelity AAC stereo across all tiers) */
 export const CUSTOM_AUDIO_BITRATE_KBPS = 256;
 
 export const STANDARD_RESOLUTION_LADDER: ResolutionProfile[] = [
@@ -108,6 +117,7 @@ export interface MediaProbeInfo {
   height: number;
   codec: string;
   fps: number;
+  duration: number; // Media duration in seconds
   hasVideo: boolean;
   hasAudio: boolean;
   audioCodec: string;
@@ -116,24 +126,98 @@ export interface MediaProbeInfo {
   audioBitrateKbps: number;
 }
 
-/** Helper to probe media dimensions, video codec, and audio stream properties with ffprobe */
+/** Fallback probe using ffmpeg -i via child_process to ensure 100% reliability */
+function probeWithFfmpegCli(filePath: string): Promise<MediaProbeInfo> {
+  return new Promise((resolve) => {
+    try {
+      const { execFile } = require("child_process");
+      const ffmpegInstaller = require("ffmpeg-static");
+      if (!ffmpegInstaller) {
+        return resolve({
+          width: 0, height: 0, codec: "unknown", fps: 30, duration: 0,
+          hasVideo: false, hasAudio: false, audioCodec: "none", audioChannels: 2,
+          audioSampleRate: 48000, audioBitrateKbps: 0,
+        });
+      }
+      execFile(ffmpegInstaller, ["-i", filePath], (err: any, stdout: string, stderr: string) => {
+        const output = (stderr || "") + (stdout || "");
+        let duration = 0;
+        const durMatch = output.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+        if (durMatch) {
+          duration = parseInt(durMatch[1], 10) * 3600 + parseInt(durMatch[2], 10) * 60 + parseFloat(durMatch[3]);
+        }
+        let width = 0, height = 0, codec = "unknown", fps = 30, hasVideo = false;
+        const codecMatch = output.match(/Video:\s*([a-zA-Z0-9_-]+)/);
+        if (codecMatch) {
+          hasVideo = true;
+          codec = codecMatch[1].toLowerCase();
+        }
+        const dimMatch = output.match(/,\s*(\d{2,5})x(\d{2,5})/);
+        if (dimMatch) {
+          width = parseInt(dimMatch[1], 10);
+          height = parseInt(dimMatch[2], 10);
+        }
+        const fpsMatch = output.match(/,\s*(\d+(?:\.\d+)?)\s*(?:fps|tbr)/);
+        if (fpsMatch) {
+          fps = Math.round(parseFloat(fpsMatch[1])) || 30;
+        }
+        let hasAudio = false, audioCodec = "none", audioChannels = 2, audioSampleRate = 48000, audioBitrateKbps = 192;
+        const audioMatch = output.match(/Audio:\s*([a-zA-Z0-9_-]+)/);
+        if (audioMatch) {
+          hasAudio = true;
+          audioCodec = audioMatch[1].toLowerCase();
+        }
+        const rateMatch = output.match(/,\s*(\d{4,6})\s*Hz/);
+        if (rateMatch) {
+          audioSampleRate = parseInt(rateMatch[1], 10);
+        }
+        const chMatch = output.match(/,\s*(mono|stereo|\d+\s*channels?)/i);
+        if (chMatch) {
+          const ch = chMatch[1].toLowerCase();
+          if (ch === "mono") audioChannels = 1;
+          else if (ch === "stereo") audioChannels = 2;
+          else {
+            const m = ch.match(/(\d+)/);
+            if (m) audioChannels = parseInt(m[1], 10);
+          }
+        }
+        const bitMatch = output.match(/,\s*(\d+)\s*kb\/s/);
+        if (bitMatch) {
+          audioBitrateKbps = parseInt(bitMatch[1], 10);
+        }
+
+        resolve({
+          width,
+          height,
+          codec,
+          fps,
+          duration: isNaN(duration) ? 0 : duration,
+          hasVideo,
+          hasAudio,
+          audioCodec,
+          audioChannels,
+          audioSampleRate,
+          audioBitrateKbps,
+        });
+      });
+    } catch {
+      resolve({
+        width: 0, height: 0, codec: "unknown", fps: 30, duration: 0,
+        hasVideo: false, hasAudio: false, audioCodec: "none", audioChannels: 2,
+        audioSampleRate: 48000, audioBitrateKbps: 0,
+      });
+    }
+  });
+}
+
+/** Helper to probe media dimensions, video codec, and audio stream properties with ffprobe + ffmpeg fallback */
 function probeVideoFile(filePath: string): Promise<MediaProbeInfo> {
   return new Promise((resolve) => {
     try {
-      getFFmpegInstance().ffprobe(filePath, (err: any, metadata: any) => {
+      getFFmpegInstance().ffprobe(filePath, async (err: any, metadata: any) => {
         if (err || !metadata || !metadata.streams) {
-          resolve({
-            width: 0,
-            height: 0,
-            codec: "unknown",
-            fps: 30,
-            hasVideo: false,
-            hasAudio: false,
-            audioCodec: "none",
-            audioChannels: 2,
-            audioSampleRate: 48000,
-            audioBitrateKbps: 0,
-          });
+          const fallbackInfo = await probeWithFfmpegCli(filePath);
+          resolve(fallbackInfo);
           return;
         }
 
@@ -173,11 +257,26 @@ function probeVideoFile(filePath: string): Promise<MediaProbeInfo> {
           ? Math.round(Number(audioStream.bit_rate) / 1000)
           : 0;
 
+        const duration = metadata?.format?.duration
+          ? parseFloat(metadata.format.duration)
+          : (videoStream?.duration
+              ? parseFloat(videoStream.duration)
+              : (audioStream?.duration ? parseFloat(audioStream.duration) : 0));
+
+        const parsedDuration = isNaN(duration) ? 0 : duration;
+
+        if (width === 0 && parsedDuration === 0) {
+          const fallbackInfo = await probeWithFfmpegCli(filePath);
+          resolve(fallbackInfo);
+          return;
+        }
+
         resolve({
           width,
           height,
           codec,
           fps,
+          duration: parsedDuration,
           hasVideo: !!videoStream,
           hasAudio,
           audioCodec,
@@ -187,28 +286,17 @@ function probeVideoFile(filePath: string): Promise<MediaProbeInfo> {
         });
       });
     } catch {
-      resolve({
-        width: 0,
-        height: 0,
-        codec: "unknown",
-        fps: 30,
-        hasVideo: false,
-        hasAudio: false,
-        audioCodec: "none",
-        audioChannels: 2,
-        audioSampleRate: 48000,
-        audioBitrateKbps: 0,
-      });
+      probeWithFfmpegCli(filePath).then(resolve);
     }
   });
 }
 
-// ─── Storage Trigger ─────────────────────────────────────────────────────────
+// â”€â”€â”€ Storage Trigger â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Triggered when a video is uploaded to Firebase Storage under the `videos/` prefix.
  *
- * ✅ COST OPTIMIZED:
+ * âœ… COST OPTIMIZED:
  *   - memory: 128MiB (only reads metadata, $0.0000002 per invocation)
  *   - minInstances: 0 (zero idle cost)
  *   - maxInstances: 2 (governed concurrency)
@@ -259,7 +347,7 @@ export const onVideoUploadedForResolution = onObjectFinalized(
 
     const videoId = pathParts[1]; // videos/[videoId]/...
 
-    // ✅ INDUSTRY STANDARD: Autonomous Service Sovereignty
+    // âœ… INDUSTRY STANDARD: Autonomous Service Sovereignty
     // We get the userId from Storage Metadata instead of querying the main database.
     // This allows the media service to work even if the main API is lagging or down.
     const storageMetadata = event.data.metadata ?? {};
@@ -269,17 +357,17 @@ export const onVideoUploadedForResolution = onObjectFinalized(
 
     let channelType = "standard";
 
-    // ─── MODERATION GATE: Skip resolution for rejected videos ────────────
+    // â”€â”€â”€ MODERATION GATE: Skip resolution for rejected videos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     try {
       const videoDoc = await db.collection("videos").doc(videoId).get();
       if (videoDoc.exists) {
         const videoData = videoDoc.data();
         const moderationStatus = videoData?.moderation?.status;
         if (moderationStatus === "rejected") {
-          console.log(`[Resolution Service] Video REJECTED by moderation — skipping resolution`, { videoId });
+          console.log(`[Resolution Service] Video REJECTED by moderation â€” skipping resolution`, { videoId });
           return;
         }
-        if (videoData?.channelType === "custom" || videoData?.type === "custom") {
+        if (videoData?.channelType === "custom" || videoData?.type === "custom" || videoData?.channelType === "pro" || videoData?.type === "pro") {
           channelType = "custom";
         }
       }
@@ -305,8 +393,8 @@ export const onVideoUploadedForResolution = onObjectFinalized(
       const effectiveHeight = sourceHeight > 0 ? Math.min(sourceHeight, maxLadderHeight) : maxLadderHeight;
       const is60Fps = sourceFps >= 50;
 
-      // Build applicable resolution ladder (only resolutions ≤ source height)
-      // When source is 60fps, preserve native 60fps for high-definition tiers (≥ 720p).
+      // Build applicable resolution ladder (only resolutions â‰¤ source height)
+      // When source is 60fps, preserve native 60fps for high-definition tiers (â‰¥ 720p).
       // Lower tiers (480p, 360p, 240p, 144p) remain at 30 fps to save mobile data.
       const applicableResolutions = baseLadder
         .filter((r) => r.height <= effectiveHeight)
@@ -386,7 +474,7 @@ export const onVideoUploadedForResolution = onObjectFinalized(
       });
 
 
-      // ─── Cost-Effective 2-Tier Event Publishing ───────────────────────────────────
+      // â”€â”€â”€ Cost-Effective 2-Tier Event Publishing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       // Instead of 8 separate Pub/Sub events (which boots 8 parallel 4GiB Cloud Functions
       // each downloading the full 2GB raw video independently = 16GB download egress),
       // we partition variants into:
@@ -436,12 +524,12 @@ export const onVideoUploadedForResolution = onObjectFinalized(
   }
 );
 
-// ─── HTTP Endpoint — Status ──────────────────────────────────────────────────
+// â”€â”€â”€ HTTP Endpoint â€” Status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Get resolution processing status and available quality variants.
  *
- * ✅ CONFIG: minInstances=0, maxInstances=5, 256MiB, 30s timeout
+ * âœ… CONFIG: minInstances=0, maxInstances=5, 256MiB, 30s timeout
  */
 /**
  * Automated Reconciliation Engine: Guarantees that no video on TruthWorld ever has an incomplete ladder.
@@ -466,7 +554,7 @@ export async function reconcileResolutionJob(videoId: string): Promise<boolean> 
   const videoData = videoSnap.exists ? (videoSnap.data() || {}) : {};
 
   const variants = { ...(jobData.variants || {}) };
-  const standardLadder = (jobData.channelType === "custom" || videoData.channelType === "custom")
+  const standardLadder = (jobData.channelType === "custom" || videoData.channelType === "custom" || jobData.channelType === "pro" || videoData.channelType === "pro")
     ? CUSTOM_RESOLUTION_LADDER
     : STANDARD_RESOLUTION_LADDER;
 
@@ -635,13 +723,13 @@ export const getVideoResolutionStatus = onRequest(
   }
 );
 
-// ─── HTTP Endpoint — Available Profiles ──────────────────────────────────────
+// â”€â”€â”€ HTTP Endpoint â€” Available Profiles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Returns the resolution ladder configuration.
  * Useful for client-side adaptive bitrate player configuration.
  *
- * ✅ CONFIG: minInstances=0, maxInstances=5, 256MiB, 10s timeout
+ * âœ… CONFIG: minInstances=0, maxInstances=5, 256MiB, 10s timeout
  */
 export const getResolutionProfiles = onRequest(
   {
@@ -670,12 +758,12 @@ export const getResolutionProfiles = onRequest(
   }
 );
 
-// ─── Pub/Sub Worker — Process Resolution ─────────────────────────────────────
+// â”€â”€â”€ Pub/Sub Worker â€” Process Resolution â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Worker triggered by 'resolution.requested' Pub/Sub topic via push subscription.
  *
- * 💰 INDUSTRY-STANDARD TRANSCODING ENGINE:
+ * ðŸ’° INDUSTRY-STANDARD TRANSCODING ENGINE:
  *   1. 2GiB RAM allocation to prevent OOM on large video downloads & FFmpeg transcode
  *   2. Native resolution passthrough (-c copy) when source matches target
  *   3. Universal browser compatibility via -pix_fmt yuv420p, -c:v libx264, -c:a aac
@@ -683,7 +771,7 @@ export const getResolutionProfiles = onRequest(
  *   5. Immediate /tmp disk cleanup to ensure 0 disk leakage
  *   6. Real-time UI exposure on each variant completion
  *
- * ✅ CONFIG: minInstances=0 (scale-to-zero), maxInstances=5, 2GiB memory, 540s timeout
+ * âœ… CONFIG: minInstances=0 (scale-to-zero), maxInstances=5, 2GiB memory, 540s timeout
  */
 export const handleResolution = onMessagePublished(
   {
@@ -729,7 +817,7 @@ export const handleResolution = onMessagePublished(
         return;
       }
 
-      // 2. IDEMPOTENCY — Check if event was already handled
+      // 2. IDEMPOTENCY â€” Check if event was already handled
       const status = await checkAndMarkEventId(parsedEvent.eventId, videoId);
       if (status === "COMPLETED" || status === "PROCESSING") {
         console.log(`[Resolution Worker] Duplicate event detected, skipping: ${parsedEvent.eventId}`, { videoId });
@@ -778,7 +866,7 @@ export const handleResolution = onMessagePublished(
           const [exists720] = await bucket.file(trans720Path).exists().catch(() => [false]);
           if (exists720) {
             sourceToDownload = trans720Path;
-            console.log(`[Resolution Worker] ⚡ Cascaded downscaling: using completed 720p.mp4 as transcode source for low tier batch`, { videoId });
+            console.log(`[Resolution Worker] âš¡ Cascaded downscaling: using completed 720p.mp4 as transcode source for low tier batch`, { videoId });
           }
         }
 
@@ -805,11 +893,11 @@ export const handleResolution = onMessagePublished(
             continue;
           }
 
-          // 🚫 STRICT NO-UPSCALING GATE:
+          // ðŸš« STRICT NO-UPSCALING GATE:
           // Never generate resolutions higher than the source video uploaded by the creator.
           // E.g. If creator uploads 720p, only generate 720p, 480p, 360p, 240p, 144p (never 1080p, 1440p, 2160p).
           if (actualSourceHeight > 0 && targetVariant.height > actualSourceHeight + 16) {
-            console.log(`[Resolution Worker] 🚫 Skipping upscaling: variant ${variantLabel} (${targetVariant.height}p) > source (${actualSourceHeight}p)`, { videoId });
+            console.log(`[Resolution Worker] ðŸš« Skipping upscaling: variant ${variantLabel} (${targetVariant.height}p) > source (${actualSourceHeight}p)`, { videoId });
             await variantRef.update({
               [`variants.${variantLabel}.status`]: "skipped",
               [`variants.${variantLabel}.error`]: `Source resolution (${actualSourceHeight}p) is lower than target (${targetVariant.height}p)`,
@@ -828,7 +916,7 @@ export const handleResolution = onMessagePublished(
           const localOutputPath = path.join(tempDir, `${variantLabel}.mp4`);
           const targetPath = `resolutions/${videoId}/${variantLabel}.mp4`;
 
-          // 💰 COST OPTIMIZATION: Passthrough Copy for Native Resolution
+          // ðŸ’° COST OPTIMIZATION: Passthrough Copy for Native Resolution
           // If the source video matches this resolution height and is already MP4 H.264/AAC, fast-copy!
           const isNativeMatch = actualSourceHeight > 0 &&
             Math.abs(actualSourceHeight - targetVariant.height) <= 16 &&
@@ -837,13 +925,12 @@ export const handleResolution = onMessagePublished(
 
           try {
             if (isNativeMatch) {
-              console.log(`[Resolution Worker] ⚡ Native passthrough copy for ${variantLabel} (0 CPU re-encoding cost)`, { videoId });
+              console.log(`[Resolution Worker] âš¡ Native passthrough copy for ${variantLabel} (0 CPU re-encoding cost)`, { videoId });
               await new Promise<void>((resolve, reject) => {
                 getFFmpegInstance()(localSourcePath)
                   .outputOptions([
                     "-c copy",
-                    "-movflags", "+faststart+dash+frag_custom+empty_moov+default_base_moof",
-                    "-frag_duration", "2000000",
+                    "-movflags", "+faststart",
                   ])
                   .output(localOutputPath)
                   .on("end", () => resolve())
@@ -862,7 +949,7 @@ export const handleResolution = onMessagePublished(
                 probed.audioChannels <= 2 &&
                 (probed.audioSampleRate === 44100 || probed.audioSampleRate === 48000)
               ) {
-                // ⚡ ZERO-GENERATION-LOSS PASSTHROUGH:
+                // âš¡ ZERO-GENERATION-LOSS PASSTHROUGH:
                 // Source audio is already AAC stereo/mono at standard broadcast sample rate.
                 // Stream-copy audio directly without re-compression to preserve 100% master audio quality across all resolution tiers.
                 audioOptions.push("-c:a", "copy");
@@ -888,9 +975,9 @@ export const handleResolution = onMessagePublished(
                 }
               }
 
-              // Execute FFmpeg Transcode with CMAF Ultra-Low Latency (ULL) Profile:
+              // Execute FFmpeg Transcode with Standard Progressive Faststart Profile:
               // - Fixed Closed-GOP aligned keyframes across all resolution tiers (-g, -keyint_min, -sc_threshold 0)
-              // - 2s CMAF chunks (empty_moov + default_base_moof + frag_custom) for universal compatibility
+              // - Web-optimized progressive MP4 with moov atom at beginning (+faststart) for immediate playback and full duration metadata
               // - ultrafast preset & all vCPUs (threads 0) for 4x encoding speed
               await new Promise<void>((resolve, reject) => {
                 getFFmpegInstance()(localSourcePath)
@@ -908,16 +995,34 @@ export const handleResolution = onMessagePublished(
                     ...audioOptions,
                     "-r", String(targetVariant.fps),
                     "-threads", "0",
-                    "-movflags", "+faststart+dash+frag_custom+empty_moov+default_base_moof",
-                    "-frag_duration", "2000000",                // 2s standard CMAF chunks
+                    "-movflags", "+faststart",
                   ])
                   .output(localOutputPath)
-                  .on("start", (cmd: string) => console.log(`[FFmpeg CMAF ULL] ${variantLabel}: ${cmd}`))
+                  .on("start", (cmd: string) => console.log(`[FFmpeg Progressive Faststart] ${variantLabel}: ${cmd}`))
                   .on("end", () => resolve())
                   .on("error", (err: Error) => reject(err))
                   .run();
               });
             }
+
+            // 🛡️ Scale & Integrity Guard: Verify output file with ffprobe/ffmpeg before uploading
+            const outputProbed = await probeVideoFile(localOutputPath);
+            const sourceDuration = probed.duration > 0 ? probed.duration : 0;
+            if (sourceDuration > 10) {
+              if (outputProbed.duration <= 5 || outputProbed.duration < sourceDuration * 0.85) {
+                throw new Error(
+                  `Output stream integrity violation: output duration (${outputProbed.duration.toFixed(1)}s) is truncated compared to source (${sourceDuration.toFixed(1)}s). Aborting corrupted upload.`
+                );
+              }
+            }
+            if (probed.hasVideo && !outputProbed.hasVideo) {
+              throw new Error(
+                `Output stream integrity violation: source video has visual stream but transcode produced zero video tracks. Aborting corrupted upload.`
+              );
+            }
+            console.log(
+              `[Resolution Worker] Output integrity verified for ${variantLabel}: ${outputProbed.width}x${outputProbed.height}, duration=${outputProbed.duration.toFixed(1)}s, codec=${outputProbed.codec}`
+            );
 
             // Generate Firebase Storage download token for direct, auth-free client playback
             const downloadToken = uuidv4();
@@ -951,7 +1056,7 @@ export const handleResolution = onMessagePublished(
             });
 
             // Immediately expose new resolution to the main 'videos' collection in real-time
-            await syncVariantToVideoDoc(videoId, bucket.name, variantLabel, targetVariant, targetPath, downloadToken);
+            await syncVariantToVideoDoc(videoId, bucket.name, variantLabel, targetVariant, targetPath, downloadToken, probed.duration);
 
           } catch (variantErr) {
             console.error(`[Resolution Worker] Variant failed: ${variantLabel}`, {
@@ -1029,7 +1134,7 @@ export const handleResolution = onMessagePublished(
               source: "resolution-media-service",
               userId: finalJobData.userId,
             });
-            console.log(`[Resolution Worker] ⚡ Dispatched secondary resolution batch (${pendingVariants.map((v) => v.label).join(", ")}) for ${videoId}`);
+            console.log(`[Resolution Worker] âš¡ Dispatched secondary resolution batch (${pendingVariants.map((v) => v.label).join(", ")}) for ${videoId}`);
           }
 
           const allDone = allVariants.length > 0 && allVariants.every(v => v.status === "completed" || v.status === "failed" || v.status === "skipped");
@@ -1052,6 +1157,15 @@ export const handleResolution = onMessagePublished(
               if (!finalJobData.storyboardGenerated && fs.existsSync(localSourcePath) && probed.hasVideo) {
                 generatedStoryboardUrls = await generateStoryboardSpriteSheets(localSourcePath, videoId, bucket, tempDir).catch(err => {
                   console.warn(`[Resolution Worker] Storyboard generation failed (non-fatal):`, err);
+                  return [];
+                });
+              }
+
+              // Industry standard: Extract discrete high-definition chapter thumbnails (640x360 qHD)
+              // for any chapters or auto-chapters on the video document.
+              if (fs.existsSync(localSourcePath) && probed.hasVideo) {
+                await generateHighQualityChapterThumbnails(localSourcePath, videoId, bucket, tempDir).catch(err => {
+                  console.warn(`[Resolution Worker] High-quality chapter thumbnail extraction failed (non-fatal):`, err);
                   return [];
                 });
               }
@@ -1137,7 +1251,8 @@ async function syncVariantToVideoDoc(
   variantLabel: string,
   variant: ResolutionProfile,
   outputPath: string,
-  downloadToken?: string
+  downloadToken?: string,
+  probedDuration?: number
 ): Promise<void> {
   try {
     const videoRef = db.collection("videos").doc(videoId);
@@ -1165,36 +1280,8 @@ async function syncVariantToVideoDoc(
         bitrate: variant.bitrateKbps * 1000,
       });
 
-      // Guarantee standard OTT tiers down to 144p are never missing
-      const standardLadder = [
-        { height: 1080, width: 1920, label: "1080p", bitrate: 4500000 },
-        { height: 720, width: 1280, label: "720p", bitrate: 2500000 },
-        { height: 480, width: 854, label: "480p", bitrate: 1200000 },
-        { height: 360, width: 640, label: "360p", bitrate: 800000 },
-        { height: 240, width: 426, label: "240p", bitrate: 400000 },
-        { height: 144, width: 256, label: "144p", bitrate: 200000 },
-      ];
-
-      const maxHeight = Math.max(...filtered.map(f => f.height), variant.height);
-      const targetMax = maxHeight >= 720 ? (maxHeight >= 1080 ? maxHeight : 1080) : maxHeight;
-      const fallbackUrl = directUrl || data.videoUrl || data.originalUrl || "";
-
-      for (const stdTier of standardLadder) {
-        if (stdTier.height <= targetMax) {
-          const exists = filtered.some(f => f.height === stdTier.height || f.label.toLowerCase() === stdTier.label.toLowerCase());
-          if (!exists && fallbackUrl) {
-            filtered.push({
-              label: stdTier.label,
-              url: fallbackUrl,
-              width: stdTier.width,
-              height: stdTier.height,
-              bitrate: stdTier.bitrate,
-            });
-          }
-        }
-      }
-
       // Sort ladder descending: 2160p -> 1440p -> 1080p -> 720p -> 480p -> 360p -> 240p -> 144p
+      // Only include authentic transcoded variants (never inject premature duplicates that prevent secondary mobile tier transcode)
       filtered.sort((a, b) => b.height - a.height);
 
       const mediaVariants: Record<string, string> = {
@@ -1211,64 +1298,29 @@ async function syncVariantToVideoDoc(
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       };
 
+      if (typeof probedDuration === "number" && probedDuration > 0) {
+        const probedSec = Math.round(probedDuration);
+        const currentSec = Number(data.durationSeconds || 0) || (data.durationMs ? Math.floor(Number(data.durationMs) / 1000) : 0);
+        if (currentSec <= 0 || (currentSec <= 5 && probedSec > 10)) {
+          updatePayload.durationSeconds = probedSec;
+          updatePayload.durationMs = Math.round(probedDuration * 1000);
+          const h = Math.floor(probedSec / 3600);
+          const m = Math.floor((probedSec % 3600) / 60);
+          const s = probedSec % 60;
+          updatePayload.duration = h > 0
+            ? `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`
+            : `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+        }
+      }
+
       transaction.update(videoRef, updatePayload);
     });
 
     console.log(`[Resolution Service] Atomically synced ${variantLabel} with download token to video doc: ${videoId}`);
 
-    // Also ensure resolution_jobs document has valid fallback stream URLs for lower tiers
-    try {
-      const jobRef = db.collection("resolution_jobs").doc(videoId);
-      const jobDoc = await jobRef.get();
-      if (jobDoc.exists) {
-        const jobData = jobDoc.data() || {};
-        const jobVariants = { ...(jobData.variants || {}) };
-        let jobUpdated = false;
-
-        const stdLadder = [
-          { height: 1080, width: 1920, label: "1080p", bitrateKbps: 4500, fps: 30 },
-          { height: 720, width: 1280, label: "720p", bitrateKbps: 2500, fps: 30 },
-          { height: 480, width: 854, label: "480p", bitrateKbps: 1200, fps: 30 },
-          { height: 360, width: 640, label: "360p", bitrateKbps: 800, fps: 30 },
-          { height: 240, width: 426, label: "240p", bitrateKbps: 400, fps: 24 },
-          { height: 144, width: 256, label: "144p", bitrateKbps: 200, fps: 15 },
-        ];
-
-        for (const tier of stdLadder) {
-          if (tier.height <= variant.height) {
-            const cur = jobVariants[tier.label];
-            if (!cur || cur.status !== "completed" || !cur.downloadUrl) {
-              jobVariants[tier.label] = {
-                ...(cur || {}),
-                height: tier.height,
-                width: tier.width,
-                label: tier.label,
-                bitrateKbps: tier.bitrateKbps,
-                audioBitrateKbps: STANDARD_AUDIO_BITRATE_KBPS,
-                fps: tier.fps,
-                status: "completed",
-                downloadUrl: directUrl,
-                fallback: true,
-                processedAt: Date.now(),
-                error: null,
-              };
-              jobUpdated = true;
-            }
-          }
-        }
-
-        if (jobUpdated) {
-          const completedCount = Object.values(jobVariants).filter((v: any) => v.status === "completed").length;
-          await jobRef.update({
-            variants: jobVariants,
-            completedVariants: completedCount,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
-        }
-      }
-    } catch (jobSyncErr) {
-      console.warn(`[Resolution Service] Non-fatal error updating fallback tiers in resolution_jobs:`, jobSyncErr);
-    }
+    // Note: Do NOT mark pending lower tiers as completed here!
+    // Lower tiers (< 720p) must remain 'pending' so handleResolution can dispatch the secondary batch
+    // to transcode authentic 480p, 360p, 240p, and 144p variants.
   } catch (err) {
     console.warn(`[Resolution Service] Failed to sync ${variantLabel} to video doc (non-fatal):`, err);
   }
@@ -1284,6 +1336,15 @@ async function generateMasterHlsPlaylist(
   tempDir: string,
   completedVariants: any[]
 ): Promise<string> {
+  // RFC 8216 Compliance Guard:
+  // HLS master playlists require child media playlist URIs (.m3u8). Pointing #EXT-X-STREAM-INF
+  // directly to progressive .mp4 files breaks ExoPlayer and AVPlayer.
+  // For progressive MP4 ladder streaming, return empty string so clients stream directly via adaptiveResolutions.
+  const hasRealHlsVariants = completedVariants.some(v => v.downloadUrl && (v.downloadUrl.includes(".m3u8") || (v.outputPath && v.outputPath.endsWith(".m3u8"))));
+  if (!hasRealHlsVariants) {
+    return "";
+  }
+
   const masterPath = path.join(tempDir, "master.m3u8");
   const lines: string[] = [
     "#EXTM3U",
@@ -1292,7 +1353,6 @@ async function generateMasterHlsPlaylist(
     "",
   ];
 
-  // Sort descending by height
   const sorted = [...completedVariants].sort((a, b) => (b.height || 0) - (a.height || 0));
 
   for (const v of sorted) {
@@ -1327,7 +1387,8 @@ async function generateMasterHlsPlaylist(
 }
 
 /**
- * Generates 1-second interval storyboard sprite sheets across 10x10 grids (100 frames/sheet)
+ * Generates 1-second interval storyboard sprite sheets across 5x5 grids (25 frames/sheet at 320x180)
+ * matching modern industry streaming standards (YouTube / Netflix trick-play)
  * using FFmpeg tile filter and uploads them to Firebase Storage.
  */
 async function generateStoryboardSpriteSheets(
@@ -1346,8 +1407,8 @@ async function generateStoryboardSpriteSheets(
   await new Promise<void>((resolve) => {
     getFFmpegInstance()(localSourcePath)
       .outputOptions([
-        "-vf", "fps=1,scale=160:90,tile=10x10",
-        "-q:v", "3",
+        "-vf", "fps=1,scale=320:180,tile=5x5",
+        "-q:v", "2",
       ])
       .output(sheetPattern)
       .on("start", (cmd: string) => console.log(`[FFmpeg Storyboards] ${cmd}`))
@@ -1390,7 +1451,570 @@ async function generateStoryboardSpriteSheets(
 }
 
 /**
- * ⏰ Scheduled Job: Reconciles and repairs any stuck resolution jobs every 10 minutes.
+ * Extracts broadcast/industry-standard high-quality chapter thumbnails (640x360 qHD / 1280x720 HD)
+ * at representative keyframes directly from the local video file.
+ *
+ * Industry Standard Rules:
+ * 1. Sequential extraction: 1 FFmpeg process at a time (guarantees zero OOM / zero CPU starvation).
+ * 2. Representative frame offset:
+ *    - Chapter 0 (start 0:00): offset 1.5s - 2.5s into the chapter to capture live video/speaker
+ *      instead of a black frame or duplicate title card!
+ *    - Subsequent chapters: offset 1.0s or 10% into chapter to avoid scene-cut transitions / wipes.
+ * 3. Never assign the main video cover as chapter thumbnail.
+ * 4. Immutable public caching on Storage with token.
+ * 5. Updates both videos root document and media/streaming subcollection in Firestore.
+ */
+export async function generateHighQualityChapterThumbnails(
+  localSourcePath: string,
+  videoId: string,
+  bucket: any,
+  tempDir: string,
+  chaptersToProcess?: any[],
+  videoDurationMs?: number
+): Promise<any[]> {
+  try {
+    const videoDoc = await db.collection("videos").doc(videoId).get().catch(() => null);
+    const videoData = (videoDoc && videoDoc.exists) ? (videoDoc.data() || {}) : {};
+    const rawChapters = (chaptersToProcess && Array.isArray(chaptersToProcess) && chaptersToProcess.length > 0)
+      ? chaptersToProcess
+      : ((Array.isArray(videoData.chapters) && videoData.chapters.length > 0)
+          ? videoData.chapters
+          : ((Array.isArray(videoData.autoChapters) && videoData.autoChapters.length > 0)
+              ? videoData.autoChapters
+              : []));
+
+    if (!rawChapters || rawChapters.length === 0) return [];
+
+    const chapterDir = path.join(tempDir, "chapter_thumbs");
+    if (!fs.existsSync(chapterDir)) {
+      fs.mkdirSync(chapterDir, { recursive: true });
+    }
+
+    const mainVideoThumb = videoData.thumbnailUrl || "";
+    let hasChanges = false;
+    const updatedChapters: any[] = [];
+
+    // Process chapters sequentially to prevent CPU/memory exhaustion and ensure rock-solid FFmpeg execution
+    for (let idx = 0; idx < rawChapters.length; idx++) {
+      const ch = rawChapters[idx];
+      const existingThumb = ch.thumbnailUrl;
+      if (
+        existingThumb &&
+        typeof existingThumb === "string" &&
+        existingThumb.trim().length > 0 &&
+        existingThumb !== mainVideoThumb &&
+        existingThumb.startsWith("http")
+      ) {
+        updatedChapters.push(ch);
+        continue;
+      }
+
+      const startTimeMs = Math.max(0, Number(ch.startTimeMs ?? ch.startMs ?? (ch.startTime ? ch.startTime * 1000 : 0)) || 0);
+      const endTimeMs = Math.max(
+        startTimeMs + 1000,
+        Number(ch.endTimeMs ?? ch.endMs ?? (ch.endTime ? ch.endTime * 1000 : 0)) || (startTimeMs + 30000)
+      );
+      const chapterDurationMs = Math.max(1000, endTimeMs - startTimeMs);
+
+      // Industry Standard: To avoid black frames, title slides, or cross-fade transitions at exact cut boundary:
+      // For Chapter 0: offset 1.5s to 2.5s into the chapter to capture authentic speaker/content instead of cover art
+      // For Subsequent chapters: offset 1.0s or 10% into the chapter
+      let captureMs = startTimeMs;
+      if (startTimeMs === 0) {
+        captureMs = Math.min(2500, Math.max(1000, Math.round(chapterDurationMs * 0.15)));
+      } else {
+        captureMs = startTimeMs + Math.min(1500, Math.max(500, Math.round(chapterDurationMs * 0.1)));
+      }
+
+      // Clamp within total duration if available
+      if (videoDurationMs && videoDurationMs > 2000) {
+        captureMs = Math.min(captureMs, videoDurationMs - 500);
+      }
+
+      const captureSec = (captureMs / 1000).toFixed(3);
+      const outName = `chapter_${idx}_${startTimeMs}.jpg`;
+      const localOutPath = path.join(chapterDir, outName);
+
+      const runExtractAtTime = (sec: string) => {
+        return new Promise<boolean>((resolve) => {
+          getFFmpegInstance()(localSourcePath)
+            .seekInput(sec)
+            .outputOptions([
+              "-frames:v", "1",
+              "-vf", "scale=1280:720:force_original_aspect_ratio=decrease:flags=lanczos,pad=1280:720:(ow-iw)/2:(oh-ih)/2:color=black",
+              "-q:v", "2",
+            ])
+            .output(localOutPath)
+            .on("end", () => resolve(true))
+            .on("error", (err: any) => {
+              console.warn(`[Resolution Worker] Chapter thumbnail extract failed at ${sec}s:`, err?.message || err);
+              resolve(false);
+            })
+            .run();
+        });
+      };
+
+      let extracted = await runExtractAtTime(captureSec);
+      if (!extracted && captureMs !== startTimeMs) {
+        // Fallback to exact start timestamp if offset extraction failed
+        const startSec = (startTimeMs / 1000).toFixed(3);
+        extracted = await runExtractAtTime(startSec);
+      }
+
+      if (!extracted || !fs.existsSync(localOutPath)) {
+        updatedChapters.push(ch);
+        continue;
+      }
+
+      const destination = `thumbnails/${videoId}/chapters/${outName}`;
+      const token = uuidv4();
+      await bucket.upload(localOutPath, {
+        destination,
+        metadata: {
+          contentType: "image/jpeg",
+          cacheControl: "public, max-age=31536000, immutable",
+          metadata: {
+            firebaseStorageDownloadTokens: token,
+            videoId,
+            chapterIndex: String(idx),
+            startTimeMs: String(startTimeMs),
+            captureMs: String(captureMs),
+          },
+        },
+      });
+
+      const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(destination)}?alt=media&token=${token}`;
+      hasChanges = true;
+      updatedChapters.push({
+        ...ch,
+        startTimeMs,
+        endTimeMs,
+        thumbnailUrl: downloadUrl,
+      });
+    }
+
+    if (hasChanges && videoId && videoId !== "mock_job" && videoId !== "test_id") {
+      await db.collection("videos").doc(videoId).set({
+        chapters: updatedChapters,
+        autoChapters: updatedChapters,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true }).catch((err) => {
+        console.warn(`[Resolution Worker] Failed to update videos/${videoId} with chapter thumbnails:`, err);
+      });
+
+      await db.collection("videos").doc(videoId).collection("media").doc("streaming").set({
+        chapters: updatedChapters,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true }).catch(() => null);
+
+      console.log(`[Resolution Worker] Successfully extracted and attached ${updatedChapters.length} high-quality chapter thumbnails for ${videoId}`);
+    }
+
+    return updatedChapters;
+  } catch (err) {
+    console.warn(`[Resolution Worker] Error generating chapter thumbnails for ${videoId}:`, err);
+    return chaptersToProcess || [];
+  }
+}
+
+/**
+ * Extracts and attaches dedicated high-quality chapter thumbnails (640x360 qHD / 1280x720 HD)
+ * for a specific video in Firestore by locating its available MP4 renditions or source video.
+ * Supports direct sourceUrlOrPath, gs://, https://, and relative paths.
+ * Updates Firestore with per-chapter download URLs.
+ */
+export async function generateHighQualityChapterThumbnailsForVideo(
+  videoId: string,
+  sourceUrlOrPath?: string,
+  existingChapters?: any[],
+  videoDurationMs?: number
+): Promise<any[]> {
+  const tempDir = path.join(os.tmpdir(), `ch_extract_${videoId}_${Date.now()}`);
+  try {
+    const videoDoc = await db.collection("videos").doc(videoId).get().catch(() => null);
+    const videoData = (videoDoc && videoDoc.exists) ? (videoDoc.data() || {}) : {};
+
+    const rawChapters = (existingChapters && Array.isArray(existingChapters) && existingChapters.length > 0)
+      ? existingChapters
+      : ((Array.isArray(videoData.chapters) && videoData.chapters.length > 0)
+          ? videoData.chapters
+          : ((Array.isArray(videoData.autoChapters) && videoData.autoChapters.length > 0)
+              ? videoData.autoChapters
+              : []));
+
+    if (!rawChapters || rawChapters.length === 0) return [];
+
+    const mainVideoThumb = videoData.thumbnailUrl || "";
+    const needsThumbs = rawChapters.some((c: any) =>
+      !c.thumbnailUrl ||
+      typeof c.thumbnailUrl !== "string" ||
+      !c.thumbnailUrl.startsWith("http") ||
+      c.thumbnailUrl === mainVideoThumb
+    );
+    if (!needsThumbs) {
+      return rawChapters;
+    }
+
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    const bucketName = admin.app().options.storageBucket || "truthworld-1.firebasestorage.app";
+    const bucket = admin.storage().bucket(bucketName);
+
+    let targetStorageFile: any = null;
+
+    // 1. Direct sourceUrlOrPath resolution if provided
+    if (sourceUrlOrPath && typeof sourceUrlOrPath === "string" && sourceUrlOrPath.trim().length > 0) {
+      const cleanPath = sourceUrlOrPath.trim();
+      if (cleanPath.startsWith("gs://")) {
+        const withoutGs = cleanPath.replace("gs://", "");
+        const parts = withoutGs.split("/");
+        const targetBucket = parts[0];
+        const filePath = parts.slice(1).join("/");
+        targetStorageFile = admin.storage().bucket(targetBucket).file(filePath);
+      } else if (cleanPath.startsWith("https://storage.googleapis.com/")) {
+        const afterDomain = cleanPath.replace("https://storage.googleapis.com/", "");
+        const parts = afterDomain.split("?")[0].split("/");
+        const targetBucket = parts[0];
+        const filePath = parts.slice(1).join("/");
+        targetStorageFile = admin.storage().bucket(targetBucket).file(filePath);
+      } else if (cleanPath.startsWith("https://firebasestorage.googleapis.com/")) {
+        const afterO = cleanPath.split("/o/")[1]?.split("?")[0];
+        if (afterO) {
+          targetStorageFile = bucket.file(decodeURIComponent(afterO));
+        }
+      } else if (cleanPath.startsWith("videos/") || cleanPath.startsWith("resolutions/")) {
+        targetStorageFile = bucket.file(cleanPath);
+      }
+    }
+
+    // 2. Check video document metadata: storage.videoPath, originalUrl, videoUrl
+    if (!targetStorageFile) {
+      const storageVideoPath = videoData.storage?.videoPath;
+      if (typeof storageVideoPath === "string" && storageVideoPath.length > 0) {
+        const f = bucket.file(storageVideoPath);
+        const [exists] = await f.exists().catch(() => [false]);
+        if (exists) targetStorageFile = f;
+      }
+    }
+
+    if (!targetStorageFile) {
+      const urlCandidates = [videoData.originalUrl, videoData.videoUrl].filter((u) => typeof u === "string" && u.length > 0);
+      for (const u of urlCandidates) {
+        if (u.startsWith("gs://")) {
+          const parts = u.replace("gs://", "").split("/");
+          const f = admin.storage().bucket(parts[0]).file(parts.slice(1).join("/"));
+          const [exists] = await f.exists().catch(() => [false]);
+          if (exists) { targetStorageFile = f; break; }
+        } else if (u.startsWith("https://storage.googleapis.com/")) {
+          const parts = u.replace("https://storage.googleapis.com/", "").split("?")[0].split("/");
+          const f = admin.storage().bucket(parts[0]).file(parts.slice(1).join("/"));
+          const [exists] = await f.exists().catch(() => [false]);
+          if (exists) { targetStorageFile = f; break; }
+        } else if (u.includes("/o/")) {
+          const encoded = u.split("/o/")[1]?.split("?")[0];
+          if (encoded) {
+            const f = bucket.file(decodeURIComponent(encoded));
+            const [exists] = await f.exists().catch(() => [false]);
+            if (exists) { targetStorageFile = f; break; }
+          }
+        }
+      }
+    }
+
+    // 3. Candidate resolution paths (720p/480p preferred for speed, then original)
+    if (!targetStorageFile) {
+      const candidatePaths = [
+        `resolutions/${videoId}/720p.mp4`,
+        `resolutions/${videoId}/480p.mp4`,
+        `resolutions/${videoId}/360p.mp4`,
+        `resolutions/${videoId}/1080p.mp4`,
+        `videos/${videoId}/original.mp4`,
+        `videos/${videoId}/source.mp4`,
+        `videos/${videoId}/${videoId}.mp4`,
+      ];
+      for (const p of candidatePaths) {
+        const file = bucket.file(p);
+        const [exists] = await file.exists().catch(() => [false]);
+        if (exists) {
+          targetStorageFile = file;
+          break;
+        }
+      }
+    }
+
+    // 4. Prefix search for any video extension under videos/{videoId}/
+    if (!targetStorageFile) {
+      const [files] = await bucket.getFiles({ prefix: `videos/${videoId}/` }).catch(() => [[]]);
+      const validExtensions = [".mp4", ".mov", ".webm", ".mkv", ".m4v", ".avi"];
+      const candidate = (files).find(f =>
+        validExtensions.some(ext => f.name.toLowerCase().endsWith(ext)) &&
+        !f.name.includes("_240p") && !f.name.includes("_144p")
+      );
+      if (candidate) {
+        targetStorageFile = candidate;
+      }
+    }
+
+    if (!targetStorageFile) {
+      console.warn(`[Resolution] No viable source video found for chapter thumbnails of ${videoId}`);
+      return rawChapters;
+    }
+
+    // Single robust local download before sequential FFmpeg extraction
+    const localSourcePath = path.join(tempDir, "source.mp4");
+    await targetStorageFile.download({ destination: localSourcePath });
+
+    if (!fs.existsSync(localSourcePath)) {
+      console.warn(`[Resolution] Downloaded source video missing at ${localSourcePath}`);
+      return rawChapters;
+    }
+
+    const updatedChapters = await generateHighQualityChapterThumbnails(
+      localSourcePath,
+      videoId,
+      bucket,
+      tempDir,
+      rawChapters,
+      videoDurationMs
+    );
+
+    return updatedChapters;
+  } catch (err) {
+    console.warn(`[Resolution] Error in generateHighQualityChapterThumbnailsForVideo for ${videoId}:`, err);
+    return existingChapters || [];
+  } finally {
+    try {
+      if (fs.existsSync(tempDir)) {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+    } catch {}
+  }
+}
+
+export const captureChapterThumbnail = onCall(
+  {
+    region: REGION,
+    memory: "1GiB",        // Optimized to 1GiB: cuts cloud RAM billing in half
+    timeoutSeconds: 60,    // 60s max execution prevents runaway billing
+    minInstances: 0,
+    maxInstances: 5,
+  },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "User must be signed in to capture frames.");
+    }
+
+    const { videoId, timestampMs, width = 1280, height = 720 } = request.data || {};
+    if (!videoId || typeof videoId !== "string") {
+      throw new HttpsError("invalid-argument", "Missing or invalid videoId.");
+    }
+    const targetMs = Math.max(0, Number(timestampMs) || 0);
+
+    const videoRef = db.collection("videos").doc(videoId);
+    const videoSnap = await videoRef.get();
+    if (!videoSnap.exists) {
+      throw new HttpsError("not-found", "Video not found.");
+    }
+    const videoData = videoSnap.data() || {};
+    const isAdmin = request.auth?.token?.admin === true && request.auth?.token?.email_verified === true;
+    const ownerId = videoData.userId || videoData.ownerId;
+    const isOwner = !!(ownerId && ownerId === uid);
+    if (!isOwner && !isAdmin) {
+      throw new HttpsError("permission-denied", "You do not have permission to edit this video.");
+    }
+
+    // 1. Zero-Cost Fast Cache Check: If an existing chapter at this timestamp already has an authentic thumbnail, return it immediately ($0 compute, 0ms latency)
+    const existingChapters = Array.isArray(videoData.chapters) ? videoData.chapters : (Array.isArray(videoData.autoChapters) ? videoData.autoChapters : []);
+    const cachedChapter = existingChapters.find((c: any) => {
+      const cMs = Number(c.startTimeMs ?? c.startMs ?? (c.startTime ? c.startTime * 1000 : 0)) || 0;
+      return Math.abs(cMs - targetMs) < 1000 && c.thumbnailUrl && typeof c.thumbnailUrl === "string" && c.thumbnailUrl.startsWith("http");
+    });
+    if (cachedChapter) {
+      return {
+        success: true,
+        thumbnailUrl: cachedChapter.thumbnailUrl,
+        timestampMs: targetMs,
+        cached: true,
+      };
+    }
+
+    const bucket = admin.storage().bucket();
+    const tempDir = path.join(os.tmpdir(), `capture_${videoId}_${Date.now()}`);
+    fs.mkdirSync(tempDir, { recursive: true });
+
+    try {
+      // 2. Cost-Effective Source Selection: Prioritize 720p / 480p variants first
+      // A 720p/480p variant is 95% smaller than the multi-gigabyte original, saving bandwidth and IO
+      const candidatePaths = [
+        `resolutions/${videoId}/720p.mp4`,
+        `resolutions/${videoId}/480p.mp4`,
+        `videos/${videoId}/original.mp4`,
+        `videos/${videoId}/source.mp4`,
+        `videos/${videoId}/${videoId}.mp4`,
+      ];
+
+      let targetStorageFile: any = null;
+      for (const p of candidatePaths) {
+        const file = bucket.file(p);
+        const [exists] = await file.exists().catch(() => [false]);
+        if (exists) {
+          targetStorageFile = file;
+          break;
+        }
+      }
+
+      if (!targetStorageFile) {
+        const [files] = await bucket.getFiles({ prefix: `videos/${videoId}/` });
+        const mp4File = files.find(f => f.name.endsWith(".mp4") && !f.name.includes("_240p") && !f.name.includes("_144p"));
+        if (mp4File) {
+          targetStorageFile = mp4File;
+        }
+      }
+
+      if (!targetStorageFile) {
+        throw new HttpsError("not-found", "Source video file unavailable for frame capture.");
+      }
+
+      // 3. HTTP Range Streaming via Signed URL:
+      // Uses HTTP Range requests (RFC 7233) so FFmpeg seeks directly to the keyframe
+      // without downloading the entire multi-gigabyte video file to disk!
+      let localSourcePath = "";
+      let isStreamUrl = false;
+      try {
+        const [signedUrl] = await targetStorageFile.getSignedUrl({
+          action: "read",
+          expires: Date.now() + 15 * 60 * 1000,
+        });
+        if (signedUrl) {
+          localSourcePath = signedUrl;
+          isStreamUrl = true;
+        }
+      } catch {
+        // Fallback to local download if signing fails
+      }
+
+      if (!isStreamUrl) {
+        localSourcePath = path.join(tempDir, "source.mp4");
+        await targetStorageFile.download({ destination: localSourcePath });
+      }
+
+      const targetSec = (targetMs / 1000).toFixed(3);
+      const outFileName = `captured_${targetMs}_${uuidv4().substring(0, 8)}.jpg`;
+      const localOutPath = path.join(tempDir, outFileName);
+
+      const targetW = Number(width) > 0 ? Number(width) : 1280;
+      const targetH = Number(height) > 0 ? Number(height) : 720;
+
+      const runExtract = async (inputPath: string) => {
+        return new Promise<void>((resolve, reject) => {
+          getFFmpegInstance()(inputPath)
+            .seekInput(targetSec)
+            .outputOptions([
+              "-frames:v", "1",
+              "-vf", `scale=${targetW}:${targetH}:force_original_aspect_ratio=decrease:flags=lanczos,pad=${targetW}:${targetH}:(ow-iw)/2:(oh-ih)/2:color=black`,
+              "-q:v", "2",
+            ])
+            .output(localOutPath)
+            .on("end", () => resolve())
+            .on("error", (err: any) => reject(err))
+            .run();
+        });
+      };
+
+      try {
+        await runExtract(localSourcePath);
+      } catch (streamErr) {
+        // Resilient fallback: If HTTP range stream encountered socket drop, download compact file
+        if (isStreamUrl) {
+          const fallbackPath = path.join(tempDir, "source_fallback.mp4");
+          await targetStorageFile.download({ destination: fallbackPath });
+          await runExtract(fallbackPath);
+        } else {
+          throw streamErr;
+        }
+      }
+
+      if (!fs.existsSync(localOutPath)) {
+        throw new HttpsError("internal", "Failed to extract video frame.");
+      }
+
+      const destination = `thumbnails/${videoId}/chapters/${outFileName}`;
+      const token = uuidv4();
+      await bucket.upload(localOutPath, {
+        destination,
+        metadata: {
+          contentType: "image/jpeg",
+          cacheControl: "public, max-age=31536000, immutable",
+          metadata: {
+            firebaseStorageDownloadTokens: token,
+            videoId,
+            timestampMs: String(targetMs),
+            capturedBy: uid,
+          },
+        },
+      });
+
+      const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(destination)}?alt=media&token=${token}`;
+      return {
+        success: true,
+        thumbnailUrl: downloadUrl,
+        timestampMs: targetMs,
+      };
+    } finally {
+      try {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      } catch (_) {}
+    }
+  }
+);
+
+/**
+ * 📸 Generate / Backfill High-Quality Chapter Thumbnails for an entire video on-demand.
+ * Callable by video owner or admin to generate or repair discrete chapter thumbnails.
+ */
+export const generateVideoChapterThumbnails = onCall(
+  {
+    region: REGION,
+    memory: "1GiB",
+    timeoutSeconds: 120,
+    minInstances: 0,
+    maxInstances: 5,
+  },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "User must be signed in.");
+    }
+    const { videoId } = request.data || {};
+    if (!videoId || typeof videoId !== "string") {
+      throw new HttpsError("invalid-argument", "Missing or invalid videoId.");
+    }
+    const videoRef = db.collection("videos").doc(videoId);
+    const videoSnap = await videoRef.get();
+    if (!videoSnap.exists) {
+      throw new HttpsError("not-found", "Video not found.");
+    }
+    const videoData = videoSnap.data() || {};
+    const isAdmin = request.auth?.token?.admin === true && request.auth?.token?.email_verified === true;
+    const ownerId = videoData.userId || videoData.ownerId;
+    if (!isAdmin && ownerId !== uid) {
+      throw new HttpsError("permission-denied", "You do not have permission to modify this video.");
+    }
+
+    const updatedChapters = await generateHighQualityChapterThumbnailsForVideo(videoId);
+    return {
+      success: true,
+      chaptersCount: updatedChapters.length,
+      chapters: updatedChapters,
+    };
+  }
+);
+
+/**
+ * â° Scheduled Job: Reconciles and repairs any stuck resolution jobs every 10 minutes.
  * Guarantees that any job left in 'processing' longer than 5 minutes is resolved and complete.
  */
 export const reconcileStuckResolutionJobsScheduled = onSchedule(
@@ -1436,7 +2060,7 @@ export const reconcileStuckResolutionJobsScheduled = onSchedule(
 );
 
 /**
- * 🛠️ Manual HTTP Trigger: Immediately reconcile a video's resolution ladder on demand.
+ * ðŸ› ï¸ Manual HTTP Trigger: Immediately reconcile a video's resolution ladder on demand.
  */
 export const reconcileVideoResolutionManual = onRequest(
   {
@@ -1449,9 +2073,12 @@ export const reconcileVideoResolutionManual = onRequest(
   },
   async (req, res) => {
     applySecurityHeaders(res);
+    const authUser = await requireRecentAdmin(req, res, 3600);
+    if (!authUser) return;
+
     const videoId = (req.query.videoId as string) || (req.body?.videoId as string);
-    if (!videoId || typeof videoId !== "string") {
-      res.status(400).json({ error: "videoId query or body parameter is required" });
+    if (!videoId || typeof videoId !== "string" || !/^[a-zA-Z0-9_-]{5,64}$/.test(videoId)) {
+      res.status(400).json({ error: "Missing or invalid videoId parameter." });
       return;
     }
 
@@ -1464,7 +2091,7 @@ export const reconcileVideoResolutionManual = onRequest(
       res.status(200).json({ success: true, message: `Video ${videoId} resolution ladder reconciled.` });
     } catch (e: any) {
       console.error("[Reconcile Manual] Failed to reconcile", e);
-      res.status(500).json({ error: e?.message || "Failed to reconcile resolution" });
+      res.status(500).json({ error: "Unable to reconcile video resolution at this time. Please try again." });
     }
   }
 );

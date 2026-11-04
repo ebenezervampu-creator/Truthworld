@@ -164,7 +164,7 @@ class TeamManagementTab extends StatelessWidget {
   Widget _buildMembersCard(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),

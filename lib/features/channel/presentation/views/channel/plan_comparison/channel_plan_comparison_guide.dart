@@ -30,7 +30,7 @@ class PlanRecommendationGuideCard extends StatelessWidget {
     );
 
     final customCard = _buildRecommendationBox(
-      title: 'Choose Custom Channel If:',
+      title: 'Choose Pro Channel If:',
       badge: 'MAXIMUM EARNING POWER',
       badgeColor: const Color(0xFF8B5CF6),
       icon: Icons.rocket_launch_outlined,
@@ -211,12 +211,12 @@ class PlanComparisonFaqWidget extends StatelessWidget {
       {
         'q': 'Can I change my channel plan later?',
         'a':
-            'Yes! You can switch or upgrade between Standard and Custom anytime directly in Channel Settings. Your existing videos, subscribers, and comments remain intact.',
+            'Yes! You can switch or upgrade between Standard and Pro anytime directly in Channel Settings. Your existing videos, subscribers, and comments remain intact.',
       },
       {
-        'q': 'Why does Custom Channel charge an infrastructure fee?',
+        'q': 'Why does Pro Channel charge an infrastructure fee?',
         'a':
-            r'Custom channels keep 100% of all gross ad revenue and premium subscriptions (TruthWorld takes 0% commission). To sustain this without rev-share cuts, infrastructure plans ($15, $30, $45, $100, $200/mo) cover raw cloud storage and CDN bandwidth transparently at cost.',
+            r'Pro channels keep 100% of all gross ad revenue and premium subscriptions (TruthWorld takes 0% commission). To sustain this without rev-share cuts, infrastructure plans ($15, $30, $45, $100, $200/mo) cover raw cloud storage and CDN bandwidth transparently at cost.',
       },
       {
         'q': 'How does the 10 min/day upload limit on Standard work?',
@@ -226,7 +226,7 @@ class PlanComparisonFaqWidget extends StatelessWidget {
       {
         'q': 'How does cash withdrawal work for each plan?',
         'a':
-            r'Cash-out and payout rules are identical for both Standard and Custom channels. Per-video earnings unlock for cash withdrawal once that specific video reaches 1,000 views and 10 hours of watch time. The minimum withdrawal threshold is ₹100 for Indian channels and $10 for other countries in their local currencies. Locked or unwithdrawn earnings can also be spent immediately anytime on AI Subtitles and Dubbing without waiting!',
+            r'Cash-out and payout rules are identical for both Standard and Pro channels. Per-video earnings unlock for cash withdrawal once that specific video reaches 1,000 views and 30 hours of watch time. The minimum withdrawal threshold is ₹100 for Indian channels and $10 for other countries in their local currencies. Locked or unwithdrawn earnings can also be spent immediately anytime on AI Subtitles and Dubbing without waiting!',
       },
     ];
 

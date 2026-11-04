@@ -56,7 +56,8 @@ class Video {
     this.languages = const [],
     this.isShort = false,
     this.isKidFriendly = false,
-    this.enableComments = true,
+    bool? allowComments,
+    bool enableComments = true,
     this.allowClipping = true,
     this.isMonetized = false,
     this.allowRatings = false,
@@ -104,6 +105,13 @@ class Video {
     this.embedding,
     this.jobId,
     this.resubmitCount = 0,
+    this.isChannelTrusted = false,
+    this.isProvisional = false,
+    this.provisionalScore,
+    this.provisionalLabel,
+    this.provisionalViewerNote,
+    this.provisionalClaims = const [],
+    this.credibilityStatus,
   })  : titleLowercase = (vTitleLowercase == null || vTitleLowercase.isEmpty)
             ? title.toLowerCase()
             : vTitleLowercase,
@@ -136,6 +144,7 @@ class Video {
                 ? VideoStatus.ready
                 : VideoStatus.processing),
         visibility = visibility?.toString() ?? 'public',
+        enableComments = allowComments ?? enableComments,
         likedBy = likedBy ?? [],
         _directFactCheckUrl = factCheckUrl ?? '',
         _directTranscriptionUrl = transcriptionUrl ?? '',
@@ -187,7 +196,7 @@ class Video {
     return Video(
       id: offline.id,
       title: offline.title,
-      description: 'Offline Video',
+      description: 'Saved Video',
       thumbnailUrl: offline.thumbnailUrl,
       ownerId: '',
       channelId: '',
@@ -196,6 +205,8 @@ class Video {
       category: 'Downloads',
       tags: [],
       viewCount: int.tryParse(offline.views) ?? 0,
+      videoUrl: offline.videoUrl,
+      hlsUrl: offline.videoUrl?.contains('.m3u8') == true ? offline.videoUrl! : '',
     );
   }
 
@@ -265,6 +276,7 @@ class Video {
 
   // Flags
   final bool enableComments;
+  bool get allowComments => enableComments;
   final bool allowClipping;
   final bool isMonetized;
   final bool allowRatings;
@@ -278,6 +290,9 @@ class Video {
   final String factCheckReviewMode; // "open_to_users" | "first_to_creator"
   final bool isFactCheckApproved;
   final bool isVerified;
+  final bool isChannelTrusted;
+  /// Blue Checkmark badges are completely discontinued platform-wide for channels.
+  bool get showVerifiedBadge => false;
   bool isSeen = false;
   final String? channelStatus;
   final DateTime? scheduledPublishAt;
@@ -296,6 +311,12 @@ class Video {
   // v8.0 Credibility Fields (lightweight)
   final String? trustLabel;
   final String? jobId;
+  final bool isProvisional;
+  final double? provisionalScore;
+  final String? provisionalLabel;
+  final String? provisionalViewerNote;
+  final List<Map<String, dynamic>> provisionalClaims;
+  final String? credibilityStatus;
 
   // Direct fields (immediate availability without cache delay)
   final String _directFactCheckUrl;
@@ -400,37 +421,97 @@ class Video {
 
   /// Returns true if the video is non-factual/creative content where AI credibility is not applicable.
   bool get isNonCredibilityCategory {
-    final cat = (videoCategory ?? category).trim().toLowerCase();
+    final cat = (videoCategory ?? effectiveCategory ?? category).trim().toLowerCase();
     if (cat.isNotEmpty &&
         (nonCredibilityCategories.contains(cat) ||
-            nonCredibilityCategories.any(cat.contains))) {
+            nonCredibilityCategories.any((token) => cat.contains(token) || token.contains(cat)))) {
       return true;
     }
-    return categoryTokens.any(nonCredibilityCategories.contains);
+    return categoryTokens.any((t) =>
+        nonCredibilityCategories.contains(t) ||
+        nonCredibilityCategories.any((token) => t.contains(token) || token.contains(t)));
+  }
+
+  /// Returns true if this video actually has non-empty TruthWorld Intelligence & Credibility.
+  bool get hasTruthIntelligence {
+    if (isNonCredibilityCategory) return false;
+    if (isProvisional ||
+        provisionalClaims.isNotEmpty ||
+        (provisionalScore != null && provisionalScore! > 0) ||
+        credibilityStatus == 'provisional_ready') {
+      return true;
+    }
+    if (factCheckUrl.trim().isNotEmpty) return true;
+    final cached = VideoMediaService.credibilityCache[id];
+    if (cached != null) {
+      if (cached.factCheckUrl.trim().isNotEmpty) return true;
+      if (cached.claims.isNotEmpty) return true;
+      if (cached.uiReport != null &&
+          (cached.uiReport!.keyClaims.isNotEmpty ||
+              cached.uiReport!.summary.rating != null)) {
+        return true;
+      }
+      if (cached.trustScore > 0) return true;
+      if (cached.factCheckStats != null &&
+          cached.factCheckStats!.totalClaims > 0) {
+        return true;
+      }
+    }
+    if (uiReport != null &&
+        (uiReport!.keyClaims.isNotEmpty || uiReport!.summary.rating != null)) {
+      return true;
+    }
+    if (factCheckStats != null && factCheckStats!.totalClaims > 0) {
+      return true;
+    }
+    // If marked isFactChecked and has an authentic verified trust score
+    if (isFactChecked && trustScore > 0) {
+      return true;
+    }
+    return false;
   }
 
   /// Returns true if this video is eligible for and actually has AI credibility / fact-checking enabled and present.
-  bool get hasAiCredibility {
-    if (isNonCredibilityCategory) return false;
-    return isFactChecked ||
-        factCheckUrl.isNotEmpty ||
-        (uiReport != null &&
-            (uiReport?.keyClaims.isNotEmpty == true ||
-                uiReport?.summary.rating != null));
-  }
+  bool get hasAiCredibility => hasTruthIntelligence;
 
   /// Whether the creator specified that fact-check results should be reviewed before viewers can see them
   bool get isFactCheckCreatorReviewFirst => factCheckReviewMode == 'first_to_creator';
 
-  /// Whether fact-checking is set to private creator review first and not yet approved by the channel
+  /// Duration of creator review grace period before automatic publication to viewers.
+  /// Standard window is 48 hours; accelerated to 24 hours for high-risk / low-trust content (< 50% trust).
+  Duration get factCheckGracePeriod {
+    final isHighRisk = trustScore > 0 &&
+        ((trustScore <= 5.0 && trustScore < 2.5) ||
+            (trustScore > 5.0 && trustScore < 50.0));
+    return isHighRisk ? const Duration(hours: 24) : const Duration(hours: 48);
+  }
+
+  /// Whether the creator review grace period has expired, triggering public transparency.
+  bool get isFactCheckGracePeriodExpired {
+    final createdTime = createdAt.toDate();
+    final elapsed = DateTime.now().difference(createdTime);
+    return elapsed >= factCheckGracePeriod;
+  }
+
+  /// Remaining duration in the creator review grace period before automatic public transparency.
+  Duration get factCheckGracePeriodRemaining {
+    final createdTime = createdAt.toDate();
+    final elapsed = DateTime.now().difference(createdTime);
+    final diff = factCheckGracePeriod - elapsed;
+    return diff.isNegative ? Duration.zero : diff;
+  }
+
+  /// Whether fact-checking is set to private creator review first and still within the unexpired review window.
   bool get isFactCheckPendingApproval =>
-      isFactCheckCreatorReviewFirst && !isFactCheckApproved;
+      isFactCheckCreatorReviewFirst &&
+      !isFactCheckApproved &&
+      !isFactCheckGracePeriodExpired;
 
   /// Whether regular viewers (public) can see fact-checking results & verification icon
   bool get canPublicViewFactCheck => !isFactCheckPendingApproval;
 
   /// Public visibility check for AI credibility (must have credibility AND not be pending creator review)
-  bool get hasPublicAiCredibility => hasAiCredibility && canPublicViewFactCheck;
+  bool get hasPublicAiCredibility => hasTruthIntelligence && canPublicViewFactCheck;
 
   /// Lazily cached, pre-normalized tokens for O(1) category matching & search.
   Set<String> get categoryTokens {
@@ -501,6 +582,7 @@ class Video {
     List<String>? languages,
     bool? isShort,
     bool? isKidFriendly,
+    bool? allowComments,
     bool? enableComments,
     bool? isMonetized,
     bool? allowRatings,
@@ -529,6 +611,13 @@ class Video {
     Map<String, String>? audioTracks,
     Map<String, String>? dubbedVideos,
     Map<String, String>? mediaSubtitles,
+    bool? isChannelTrusted,
+    bool? isProvisional,
+    double? provisionalScore,
+    String? provisionalLabel,
+    String? provisionalViewerNote,
+    List<Map<String, dynamic>>? provisionalClaims,
+    String? credibilityStatus,
   }) {
     return Video(
       id: id ?? this.id,
@@ -568,7 +657,7 @@ class Video {
       languages: languages ?? this.languages,
       isShort: isShort ?? this.isShort,
       isKidFriendly: isKidFriendly ?? this.isKidFriendly,
-      enableComments: enableComments ?? this.enableComments,
+      enableComments: allowComments ?? enableComments ?? this.enableComments,
       isMonetized: isMonetized ?? this.isMonetized,
       allowRatings: allowRatings ?? this.allowRatings,
       showLikeCount: showLikeCount ?? this.showLikeCount,
@@ -581,6 +670,7 @@ class Video {
       factCheckReviewMode: factCheckReviewMode ?? this.factCheckReviewMode,
       isFactCheckApproved: isFactCheckApproved ?? this.isFactCheckApproved,
       isVerified: isVerified ?? this.isVerified,
+      isChannelTrusted: isChannelTrusted ?? this.isChannelTrusted,
       likedBy: likedBy ?? this.likedBy,
       isSeen: isSeen ?? this.isSeen,
       totalWatchTimeSeconds:
@@ -597,6 +687,12 @@ class Video {
       audioTracks: audioTracks ?? this.audioTracks,
       dubbedVideos: dubbedVideos ?? this.dubbedVideos,
       mediaSubtitles: mediaSubtitles ?? this.mediaSubtitles,
+      isProvisional: isProvisional ?? this.isProvisional,
+      provisionalScore: provisionalScore ?? this.provisionalScore,
+      provisionalLabel: provisionalLabel ?? this.provisionalLabel,
+      provisionalViewerNote: provisionalViewerNote ?? this.provisionalViewerNote,
+      provisionalClaims: provisionalClaims ?? this.provisionalClaims,
+      credibilityStatus: credibilityStatus ?? this.credibilityStatus,
     );
   }
 

@@ -23,7 +23,46 @@ class AppConfig {
 
   static const String cdnBaseUrl = String.fromEnvironment(
     'CDN_BASE_URL',
-    defaultValue: 'https://storage.googleapis.com',
+    defaultValue: 'https://cdn.truthworld.in',
+  );
+
+  /// Whether public thumbnails & avatars should be served via Google Cloud CDN (cdn.truthworld.in).
+  /// Defaults to false for zero-disruption local development until the Google Cloud Storage bucket
+  /// IAM condition (Storage Object Viewer on allUsers for thumbnails/) is provisioned.
+  static bool enableCdnThumbnails = const bool.fromEnvironment(
+    'ENABLE_CDN_THUMBNAILS',
+  );
+
+  /// Root URL for publicly cached video thumbnails & poster images
+  static String get cdnThumbnailsUrl => '$cdnBaseUrl/thumbnails';
+
+  /// Root URL for protected/gated video streams (requires session attestation)
+  static String get cdnVideosUrl => '$cdnBaseUrl/videos';
+
+  // ─── Typesense Instant Search Cluster Configuration ──────────────────────
+  static const String typesenseHost = String.fromEnvironment(
+    'TYPESENSE_HOST',
+    defaultValue: '26z51dwhpsoq0kv8p-1.a1.typesense.net',
+  );
+
+  static const String typesenseSearchKey = String.fromEnvironment(
+    'TYPESENSE_SEARCH_KEY',
+    defaultValue: 'pw6fZJ3XVEdZHcSJAEGwwYh3xZXsMPyc',
+  );
+
+  static const int typesensePort = int.fromEnvironment(
+    'TYPESENSE_PORT',
+    defaultValue: 443,
+  );
+
+  static const String typesenseProtocol = String.fromEnvironment(
+    'TYPESENSE_PROTOCOL',
+    defaultValue: 'https',
+  );
+
+  static const bool enableTypesenseSearch = bool.fromEnvironment(
+    'ENABLE_TYPESENSE_SEARCH',
+    defaultValue: true,
   );
 
   static late AppConfig _instance;

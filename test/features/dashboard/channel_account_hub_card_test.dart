@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/data/models/channel.dart';
-import 'package:truthworld/data/models/channel_wallet_models.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_account_hub_card.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_financial_history_page.dart';
@@ -16,6 +15,10 @@ void main() {
 
   setUpAll(() async {
     await setupMockFirebase();
+  });
+
+  setUp(() {
+    Get.testMode = true;
   });
 
   tearDown(Get.reset);
@@ -35,7 +38,6 @@ void main() {
     infraConfig: CustomChannelInfraConfig(
       subscriptionId: 'sub_hub_1',
       rolloverCreditUSD: 20.0,
-      flatPlatformFee: 15.0,
     ),
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
@@ -54,7 +56,7 @@ void main() {
     thumbnailUrl: '',
     duration: 1200,
     viewCount: 2000,
-    totalWatchTimeSeconds: 43200, // 12 hours (>= 10h)
+    totalWatchTimeSeconds: 126000, // 35 hours (>= 30h)
     createdAt: DateTime.now(),
     updatedAt: DateTime.now(),
   );
@@ -78,7 +80,7 @@ void main() {
       controller.rxMembershipsRevenue.value = 4200.0;
       controller.rxSuperchatRevenue.value = 1000.0;
       controller.rxAdsRevenue.value = 2000.0;
-      controller.rxWatchTimeRevenue.value = 1200.0;
+      controller.rxPremiumSubsRevenue.value = 1200.0;
       controller.recentVideos.assignAll([sampleVideo]);
 
       await tester.pumpWidget(
@@ -101,19 +103,23 @@ void main() {
       expect(find.text('Locked Earnings'), findsOneWidget);
       expect(find.text('Pre-Funded Credits'), findsOneWidget);
 
-      // 3 Core Action Buttons
+      // Core Action Buttons
       expect(find.text('Add Funds'), findsOneWidget);
       expect(find.text('Cash Out'), findsOneWidget);
-      expect(find.text('Spend on AI'), findsOneWidget);
+      expect(find.text('Spend on AI'), findsNothing);
 
-      // Unified Activity Feed & Filter Chips
-      expect(find.text('Unified Activity Feed'), findsOneWidget);
-      expect(find.text('All Activity'), findsOneWidget);
-      expect(find.text('Earnings & Payouts'), findsOneWidget);
-      expect(find.text('Spends & Deposits'), findsOneWidget);
+      // Financial History & Ledger Entry (Replaces Unified Activity Feed clutter)
+      expect(find.text('Financial History & Ledger'), findsOneWidget);
+      expect(find.text('View statements, payouts, spends & 8-year audit records'), findsOneWidget);
+      expect(find.text('Unified Activity Feed'), findsNothing);
+      expect(find.text('All Activity'), findsNothing);
 
-      // 8-Year Audit History & Statement Button
-      expect(find.text('View 8-Year Audit History & Export Statements'), findsOneWidget);
+      // Tap Financial History & Ledger to open Financial History & Ledger page
+      await tester.ensureVisible(find.text('Financial History & Ledger'));
+      await tester.tap(find.text('Financial History & Ledger'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byType(ChannelFinancialHistoryPage), findsOneWidget);
     });
 
     testWidgets('UnifiedChannelTransaction maps categories and formatting accurately', (tester) async {
@@ -161,7 +167,7 @@ void main() {
           currency: 'INR',
           isCredit: true,
           type: UnifiedTransactionType.revenueEarned,
-          timestamp: DateTime(2026, 10, 21, 12, 0),
+          timestamp: DateTime(2026, 10, 21, 12),
         ),
         UnifiedChannelTransaction(
           id: 'payout_1',
@@ -171,7 +177,7 @@ void main() {
           currency: 'INR',
           isCredit: false,
           type: UnifiedTransactionType.payout,
-          timestamp: DateTime(2026, 10, 21, 14, 0),
+          timestamp: DateTime(2026, 10, 21, 14),
         ),
       ];
 

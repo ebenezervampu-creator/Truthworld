@@ -4,12 +4,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/services/distributed_counter_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/analytics/data/models/watch_event_model.dart';
 import 'package:truthworld/features/analytics/data/services/analytics/channel_analytics_aggregator.dart';
 import 'package:truthworld/features/analytics/data/services/analytics/fraud_overview.dart';
 import 'package:truthworld/features/analytics/data/services/analytics/video_analytics_aggregator.dart';
+import 'package:truthworld/features/analytics/data/services/geolocation_service.dart';
 import 'package:truthworld/features/video/data/models/video/video_duration_utils.dart';
 
 /// Client executing Firestore queries and live counter fallbacks for video and channel analytics.
@@ -96,19 +99,6 @@ class AnalyticsFirestoreClient {
         if (shardWatchTime > 0) {
           watchTime = shardWatchTime;
           DistributedCounterService.to.healParentVideoWatchTime(videoId, shardWatchTime);
-        }
-      }
-
-      if (watchTime <= 0 && viewCount > 0 && durationSec > 0) {
-        final reconciled = math.min(
-          viewCount * durationSec,
-          (viewCount * durationSec * 0.75).round(),
-        );
-        if (reconciled > 0) {
-          watchTime = reconciled;
-          if (Get.isRegistered<DistributedCounterService>()) {
-            DistributedCounterService.to.healParentVideoWatchTime(videoId, reconciled);
-          }
         }
       }
 
@@ -374,10 +364,43 @@ class AnalyticsFirestoreClient {
         );
       }
 
-      // If countryTraffic is empty but views exist, derive from channel location or default IN
+      // Reconcile and normalize countryTraffic
+      // 1. If stateTraffic or cityTraffic has Indian states/cities, ensure those views are mapped to 'IN'
+      final indianStateViews = stateTraffic.entries
+          .where((e) => GeolocationService.isIndianState(e.key))
+          .fold<int>(0, (a, b) => a + b.value);
+      final indianCityViews = cityTraffic.entries
+          .where((e) => GeolocationService.isIndianCity(e.key))
+          .fold<int>(0, (a, b) => a + b.value);
+      final verifiedIndianGeoViews = math.max(indianStateViews, indianCityViews);
+
+      if (verifiedIndianGeoViews > 0) {
+        countryTraffic['IN'] = math.max(countryTraffic['IN'] ?? 0, verifiedIndianGeoViews);
+        // If US was recorded due to proxy hop or legacy default, rectify it
+        if (countryTraffic.containsKey('US') && countryTraffic['US']! <= verifiedIndianGeoViews) {
+          countryTraffic.remove('US');
+        } else if (countryTraffic.containsKey('US')) {
+          countryTraffic['US'] = countryTraffic['US']! - verifiedIndianGeoViews;
+        }
+      }
+
+      // 2. If countryTraffic is empty but views exist, derive from channel location or default IN
       if (countryTraffic.isEmpty && views > 0) {
-        final rawCountry = (data['country'] as String?)?.trim() ?? 'IN';
-        final cCode = rawCountry.length == 2 ? rawCountry.toUpperCase() : 'IN';
+        final rawCountry = (data['country'] as String?)?.trim();
+        String cCode = 'IN';
+        if (rawCountry != null && rawCountry.isNotEmpty) {
+          if (rawCountry.toUpperCase() == 'IN' || rawCountry.toLowerCase() == 'india') {
+            cCode = 'IN';
+          } else if (rawCountry.toUpperCase() == 'US' || rawCountry.toLowerCase() == 'united states') {
+            final isCreatorIndian = (Get.isRegistered<AuthService>() &&
+                    AuthService.to.userCountry.value == 'IN') ||
+                (Get.isRegistered<CurrencyLocalizationService>() &&
+                    CurrencyLocalizationService.to.userCountryCode.value == 'IN');
+            cCode = isCreatorIndian ? 'IN' : 'US';
+          } else if (rawCountry.length == 2) {
+            cCode = rawCountry.toUpperCase();
+          }
+        }
         countryTraffic[cCode] = views;
       }
 

@@ -138,8 +138,16 @@ export const LANGUAGE_NAME_TO_CODE: Record<string, string> = {
  */
 export function normalizeLanguageCode(lang: string): string {
   if (!lang || typeof lang !== "string") return "en";
-  const trimmed = lang.trim().toLowerCase();
-  
+  let trimmed = lang.trim().toLowerCase();
+
+  // If contains locale delimiter like en_us or en-US, split to base language code
+  if (trimmed.includes("-") || trimmed.includes("_")) {
+    const base = trimmed.split(/[-_]/)[0].toLowerCase();
+    if (base.length >= 2 && base.length <= 3) {
+      trimmed = base;
+    }
+  }
+
   // If already a valid 2 or 3 letter code in the values set
   if (trimmed.length >= 2 && trimmed.length <= 3) {
     return trimmed;
@@ -159,4 +167,53 @@ export function normalizeLanguageCodes(langs: string[]): string[] {
     .filter((code) => code && code.length >= 2);
   
   return Array.from(new Set(normalized));
+}
+
+/**
+ * 📜 Unicode Script Identification
+ * Scans text (e.g. video title, description, tags, transcript) for authentic native scripts.
+ * Returns candidate ISO 639-1 language codes with matching character count and script name.
+ */
+export interface ScriptMatchResult {
+  language: string;
+  script: string;
+  matchCount: number;
+}
+
+export function detectScriptsFromText(text: string): ScriptMatchResult[] {
+  if (!text || typeof text !== "string") return [];
+
+  const scriptPatterns: Array<{ script: string; language: string; regex: RegExp }> = [
+    { script: "Telugu", language: "te", regex: /[\u0C00-\u0C7F]/g },
+    { script: "Tamil", language: "ta", regex: /[\u0B80-\u0BFF]/g },
+    { script: "Kannada", language: "kn", regex: /[\u0C80-\u0CFF]/g },
+    { script: "Malayalam", language: "ml", regex: /[\u0D00-\u0D7F]/g },
+    { script: "Devanagari", language: "hi", regex: /[\u0900-\u097F]/g },
+    { script: "Bengali", language: "bn", regex: /[\u0980-\u09FF]/g },
+    { script: "Gujarati", language: "gu", regex: /[\u0A80-\u0AFF]/g },
+    { script: "Gurmukhi", language: "pa", regex: /[\u0A00-\u0A7F]/g },
+    { script: "Odia", language: "or", regex: /[\u0B00-\u0B7F]/g },
+    { script: "Arabic", language: "ar", regex: /[\u0600-\u06FF\u0750-\u077F]/g },
+    { script: "Japanese-Kana", language: "ja", regex: /[\u3040-\u309F\u30A0-\u30FF]/g },
+    { script: "Hangul", language: "ko", regex: /[\uAC00-\uD7AF\u1100-\u11FF]/g },
+    { script: "Hanzi", language: "zh", regex: /[\u4E00-\u9FFF]/g },
+    { script: "Cyrillic", language: "ru", regex: /[\u0400-\u04FF]/g },
+    { script: "Greek", language: "el", regex: /[\u0370-\u03FF]/g },
+    { script: "Hebrew", language: "he", regex: /[\u0590-\u05FF]/g },
+    { script: "Thai", language: "th", regex: /[\u0E00-\u0E7F]/g },
+  ];
+
+  const results: ScriptMatchResult[] = [];
+  for (const { script, language, regex } of scriptPatterns) {
+    const matches = text.match(regex);
+    if (matches && matches.length >= 2) {
+      results.push({
+        script,
+        language,
+        matchCount: matches.length,
+      });
+    }
+  }
+
+  return results.sort((a, b) => b.matchCount - a.matchCount);
 }

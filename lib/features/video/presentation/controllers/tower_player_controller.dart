@@ -1,9 +1,11 @@
 import 'package:chewie/chewie.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/user_languages_service.dart';
 import 'package:truthworld/features/video/data/services/storyboard_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/adaptive_bitrate_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/audio_only_service.dart';
@@ -44,6 +46,7 @@ class TowerPlayerController extends BaseController
   bool _isClosed = false;
   @override
   bool get isClosed => _isClosed;
+  Worker? _langWorker;
 
   TowerPlayerController({required this.videoPlayerController, this.tag}) {
     try {
@@ -85,6 +88,17 @@ class TowerPlayerController extends BaseController
 
   @override
   bool get isScrubbingValue => isScrubbing.value;
+
+  /// Effective duration: guards against truncated streams (< 5s) when model duration is known (> 10s)
+  @override
+  Duration get effectiveDuration {
+    final playerDur = rxValue.value.duration;
+    final modelDur = videoController?.video.durationValue ?? Duration.zero;
+    if (modelDur > const Duration(seconds: 10) && playerDur <= const Duration(seconds: 5)) {
+      return modelDur;
+    }
+    return playerDur > Duration.zero ? playerDur : modelDur;
+  }
 
   // ── Global Registry ───────────────────────────────────────
   static List<TowerPlayerController> get activePlayers =>
@@ -221,110 +235,124 @@ class TowerPlayerController extends BaseController
   void onInit() {
     super.onInit();
     WidgetsBinding.instance.addObserver(this);
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!isClosed) {
-        TowerPlayerRegistry.pauseAllActivePlayers(except: this);
-      }
-    });
     TowerPlayerRegistry.register(this);
-
-    TowerPlayerLifecycleHelper.loadUserSettings(
-      tag: tag,
-      showStatsForNerds: showStatsForNerds,
-      isAutoplay: isAutoplay,
-    );
-
     _attachVideoListener();
-    startHideTimer();
-    initABR();
-    initAudioService();
-    if (audioService != null && audioService!.isActive.value) {
+
+    void performInitialSetup() {
+      if (isClosed) return;
+      TowerPlayerRegistry.pauseAllActivePlayers(except: this);
+
+      TowerPlayerLifecycleHelper.loadUserSettings(
+        tag: tag,
+        showStatsForNerds: showStatsForNerds,
+        isAutoplay: isAutoplay,
+      );
+
+      startHideTimer();
+      initABR();
+      initAudioService();
+      if (audioService != null && audioService!.isActive.value) {
+        try {
+          audioService!.deactivateBackgroundPlayback();
+        } catch (_) {}
+      }
+      trackAnalytics(PlayerEvent('player_init'));
+
+      if (videoController != null) {
+        ever(videoController!.availableAudioTracks, (_) => _syncTracksWithVideoController());
+        ever(videoController!.availableVideoTracks, (_) => _syncTracksWithVideoController());
+        ever(videoController!.availableSubtitles, (_) => _syncTracksWithVideoController());
+        _syncTracksWithVideoController();
+      }
+
+      if (Get.isRegistered<UserLanguagesService>()) {
+        _langWorker = ever(UserLanguagesService.to.primaryLanguage, (_) {
+          _syncTracksWithVideoController();
+        });
+      }
+
+      final vid = videoController?.video;
+      if (vid != null) {
+        VideoPlaybackQueueService.to.onVideoLoaded(vid);
+        if (vid.durationValue > Duration.zero) {
+          storyboardTrack.value = StoryboardService.generateHighDensityTrack(
+            totalDuration: vid.durationValue,
+            multiSheetUrls: vid.storyboardVariants,
+            singleSheetUrl: vid.storyboardUrl,
+            thumbnailVariants: vid.thumbnailVariants,
+          );
+        }
+      }
+
+      final isFromMiniplayer =
+          TowerPlayerLifecycleHelper.isFromMiniplayerOrResumed(
+        arguments: Get.arguments,
+        tag: tag,
+        videoId: videoController?.video.id,
+        currentPosition: videoPlayerController.value.position,
+      );
+
+      if (isFromMiniplayer) {
+        preRollPlayed = true;
+      }
+
       try {
-        audioService!.deactivateBackgroundPlayback();
-      } catch (_) {}
-    }
-    trackAnalytics(PlayerEvent('player_init'));
-
-    if (videoController != null) {
-      ever(videoController!.availableAudioTracks, (_) => _syncTracksWithVideoController());
-      ever(videoController!.availableSubtitles, (_) => _syncTracksWithVideoController());
-      _syncTracksWithVideoController();
-    }
-
-    final vid = videoController?.video;
-    if (vid != null) {
-      VideoPlaybackQueueService.to.onVideoLoaded(vid);
-      if (vid.durationValue > Duration.zero) {
-        storyboardTrack.value = StoryboardService.generateHighDensityTrack(
-          totalDuration: vid.durationValue,
-          multiSheetUrls: vid.storyboardVariants,
-          singleSheetUrl: vid.storyboardUrl,
-          thumbnailVariants: vid.thumbnailVariants,
+        TowerPlayerLifecycleHelper.triggerInitialPreRollAd(
+          isClosed: isClosed,
+          shouldSuppressAds: shouldSuppressAds,
+          isFromMiniplayer: isFromMiniplayer,
+          preRollPlayed: preRollPlayed,
+          videoId: videoController?.video.id,
+          videoPlayerController: videoPlayerController,
+          onStartSponsorAd: (ad, {required isPreRoll}) =>
+              startSponsorAd(ad, isPreRoll: isPreRoll),
+          onStartAd: startAd,
+          setPreRollPlayed: (v) => preRollPlayed = v,
+        );
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'TowerPlayerController.triggerInitialPreRollAd',
         );
       }
-    }
 
-    final isFromMiniplayer =
-        TowerPlayerLifecycleHelper.isFromMiniplayerOrResumed(
-      arguments: Get.arguments,
-      tag: tag,
-      videoId: videoController?.video.id,
-      currentPosition: videoPlayerController.value.position,
-    );
-
-    if (isFromMiniplayer) {
-      preRollPlayed = true;
-    }
-
-    try {
-      TowerPlayerLifecycleHelper.triggerInitialPreRollAd(
-        isClosed: isClosed,
-        shouldSuppressAds: shouldSuppressAds,
-        isFromMiniplayer: isFromMiniplayer,
-        preRollPlayed: preRollPlayed,
-        videoId: videoController?.video.id,
-        videoPlayerController: videoPlayerController,
-        onStartSponsorAd: (ad, {required isPreRoll}) =>
-            startSponsorAd(ad, isPreRoll: isPreRoll),
-        onStartAd: startAd,
-        setPreRollPlayed: (v) => preRollPlayed = v,
+      TowerPlayerLifecycleHelper.applyInitialPreferences(
+        arguments: Get.arguments,
+        subtitlesEnabled: subtitlesEnabled,
+        activeSubLang: activeSubLang,
+        isAudioOnly: isAudioOnly,
+        playbackSpeed: playbackSpeed,
+        vpc: videoPlayerController,
+        onSetAudioOnly: setAudioOnly,
+        onToggleAudioOnly: toggleAudioOnly,
+        initialAudioOnly: videoController?.isAudioOnly.value ?? false,
+        isClosed: () => isClosed,
       );
-    } catch (e, s) {
-      ErrorHandler.log(
-        e,
-        stackTrace: s,
-        tag: 'TowerPlayerController.triggerInitialPreRollAd',
+
+      _initChewieController();
+
+      webFullscreenSub = TowerPlayerLifecycleHelper.initWebFullscreenListener(
+        isFullScreen: isFullScreen,
+        getVideoController: () => videoController,
+        onInteraction: onInteraction,
+        onExitFullscreen: resetZoom,
       );
+
+      if (!Get.isRegistered<TowerPlayerController>(tag: tag)) {
+        Get.put<TowerPlayerController>(this, tag: tag);
+      }
+
+      TowerPlayerRegistry.initPipChannel();
     }
 
-    TowerPlayerLifecycleHelper.applyInitialPreferences(
-      arguments: Get.arguments,
-      subtitlesEnabled: subtitlesEnabled,
-      activeSubLang: activeSubLang,
-      isAudioOnly: isAudioOnly,
-      playbackSpeed: playbackSpeed,
-      vpc: videoPlayerController,
-      onSetAudioOnly: setAudioOnly,
-      onToggleAudioOnly: toggleAudioOnly,
-      initialAudioOnly: videoController?.isAudioOnly.value ?? false,
-      isClosed: () => isClosed,
-    );
-
-    _initChewieController();
-
-    webFullscreenSub = TowerPlayerLifecycleHelper.initWebFullscreenListener(
-      isFullScreen: isFullScreen,
-      getVideoController: () => videoController,
-      onInteraction: onInteraction,
-      onExitFullscreen: resetZoom,
-    );
-
-    if (!Get.isRegistered<TowerPlayerController>(tag: tag)) {
-      Get.put<TowerPlayerController>(this, tag: tag);
+    if (WidgetsBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        performInitialSetup();
+      });
+    } else {
+      performInitialSetup();
     }
-
-    TowerPlayerRegistry.initPipChannel();
   }
 
   @override
@@ -333,15 +361,30 @@ class TowerPlayerController extends BaseController
     if (!controlsVisible.value) {
       controlsVisible.value = true;
     }
-    if (!isMuted.value && videoPlayerController.value.volume == 0.0) {
-      try {
-        videoPlayerController.setVolume(volume.value > 0 ? volume.value : 1.0);
-      } catch (e, s) {
-        ErrorHandler.log(
-          e,
-          stackTrace: s,
-          tag: 'TowerPlayerController.onInteraction',
-        );
+    if (!isMuted.value) {
+      if (hasAlternateAudioTrack) {
+        if (videoPlayerController.value.volume > 0.0) {
+          try {
+            videoPlayerController.setVolume(0.0);
+          } catch (_) {}
+        }
+        if (audioTrackController != null &&
+            audioTrackController!.value.isInitialized &&
+            audioTrackController!.value.volume == 0.0) {
+          try {
+            audioTrackController!.setVolume(volume.value > 0 ? volume.value : 1.0);
+          } catch (_) {}
+        }
+      } else if (videoPlayerController.value.volume == 0.0) {
+        try {
+          videoPlayerController.setVolume(volume.value > 0 ? volume.value : 1.0);
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'TowerPlayerController.onInteraction',
+          );
+        }
       }
     }
     if (!isDragging.value) {
@@ -357,6 +400,14 @@ class TowerPlayerController extends BaseController
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (isClosed) return;
       try {
+        if (hasAlternateAudioTrack) {
+          videoPlayerController.setVolume(0.0);
+          return;
+        }
+        if (kIsWeb && (videoPlayerController.value.volume == 0.0 || isMuted.value)) {
+          // Preserve muted autoplay state on Web until user interaction occurs (like YouTube)
+          return;
+        }
         final volumeScale =
             TowerPlayerVpcEventHandler.getNormalizedVolumeScale();
         if ((videoPlayerController.value.volume - volumeScale).abs() > 0.001) {
@@ -414,6 +465,7 @@ class TowerPlayerController extends BaseController
         audioCtrl: audioTrackController,
         isMuted: isMuted.value,
         volume: volume.value,
+        hasAlternateAudioTrack: hasAlternateAudioTrack,
       );
 
       // Ad triggers
@@ -421,6 +473,7 @@ class TowerPlayerController extends BaseController
       try {
         adHandled = TowerPlayerVpcEventHandler.handleAdTriggers(
           val: val,
+          effectiveDuration: effectiveDuration,
           shouldSuppressAds: shouldSuppressAds,
           hasRealVideoAds: TowerPlayerAdPolicyEvaluator.hasRealVideoAds(
             videoId: videoController?.video.id,
@@ -452,7 +505,8 @@ class TowerPlayerController extends BaseController
       TowerPlayerVpcEventHandler.syncPlaybackMetadata(
         val: val,
         subtitlesEnabled: subtitlesEnabled.value,
-        hasSubtitles: subtitleSegments.isNotEmpty,
+        hasSubtitles: subtitleSegments.isNotEmpty ||
+            (videoController?.transcriptSegments.isNotEmpty ?? false),
         startSubtitleSyncTimer: startSubtitleSyncTimer,
         stopSubtitleSyncTimer: stopSubtitleSyncTimer,
         syncActiveSubtitle: syncActiveSubtitle,
@@ -473,16 +527,18 @@ class TowerPlayerController extends BaseController
         scheduleRetry();
       }
 
+      final effectiveDur = effectiveDuration;
+
       if (sleepTimerService.mode.value == SleepTimerMode.endOfVideo) {
-        final rem = (val.duration - val.position).inSeconds;
+        final rem = (effectiveDur - val.position).inSeconds;
         sleepTimerService.remainingSeconds.value =
             rem.clamp(0, double.maxFinite.toInt());
       }
 
       // Near-end trigger: When watching in fullscreen and video is coming to an end
       // (within the last 10 seconds), automatically reveal the recommended videos overlay.
-      if (val.duration > const Duration(seconds: 15)) {
-        final remaining = val.duration - val.position;
+      if (effectiveDur > const Duration(seconds: 15)) {
+        final remaining = effectiveDur - val.position;
         if (isFullScreen.value &&
             remaining > Duration.zero &&
             remaining <= const Duration(seconds: 10) &&
@@ -494,12 +550,12 @@ class TowerPlayerController extends BaseController
         }
       }
 
-      if (val.position >= val.duration &&
-          val.duration > Duration.zero &&
+      if (val.position >= effectiveDur &&
+          effectiveDur > Duration.zero &&
           !hasEnded) {
         hasEnded = true;
         onTrackEnded();
-      } else if (val.position < val.duration) {
+      } else if (val.position < effectiveDur) {
         hasEnded = false;
       }
     } catch (e, s) {
@@ -511,9 +567,12 @@ class TowerPlayerController extends BaseController
   @override
   void onClose() {
     _isClosed = true;
+    _langWorker?.dispose();
+    _langWorker = null;
     WidgetsBinding.instance.removeObserver(this);
     stopSubtitleSyncTimer();
     stopCommentsAutoPlay();
+    stopFactOverlayTimers();
     try {
       chewieController?.removeListener(onInternalChewieChanged);
     } catch (_) {}
@@ -538,6 +597,7 @@ class TowerPlayerController extends BaseController
     chewieController = null;
     TowerPlayerRegistry.unregister(this);
     timers.cancelAll();
+    overlayTranscriptAutoScrollTimer?.cancel();
     overlayTranscriptScrollController.dispose();
     if (isFullScreen.value) isFullScreen.value = false;
     if (isBackgroundAudioActive) {
@@ -591,6 +651,11 @@ class TowerPlayerController extends BaseController
     );
     videoPlayerController = vpc;
     rxVideoPlayerController.value = vpc;
+    if (hasAlternateAudioTrack) {
+      try {
+        vpc.setVolume(0.0);
+      } catch (_) {}
+    }
     videoPlaybackSource = source;
     sleepTimerService.setActivePlayback(activePlayback);
     if (Get.isRegistered<AudioOnlyService>()) {
@@ -603,6 +668,11 @@ class TowerPlayerController extends BaseController
     }
 
     try {
+      showFactCheckPopup.value = false;
+      showCommentsPopup.value = false;
+      showTranscriptPopup.value = false;
+      overlayManager.close();
+
       rxValue.value = vpc.value;
       isInitialized.value = isInit;
       if (isInit && vpc.value.aspectRatio > 0) {
@@ -638,8 +708,8 @@ class TowerPlayerController extends BaseController
   }
 
   void _syncTracksWithVideoController() {
-    if (!Get.isRegistered<VideoController>(tag: tag)) return;
-    final vc = Get.find<VideoController>(tag: tag);
+    final vc = videoController;
+    if (vc == null) return;
     TowerPlayerTrackSyncHelper.syncTracks(
       vc: vc,
       subtitleTracks: subtitleTracks,
@@ -648,6 +718,9 @@ class TowerPlayerController extends BaseController
       audioTracks: audioTracks,
       activeAudioLang: activeAudioLang,
       setAudioLanguage: setAudioLanguage,
+      videoTracks: videoTracks,
+      activeVideoLang: activeVideoLang,
+      setVideoLanguage: setVideoLanguage,
       chapters: chapters,
     );
   }

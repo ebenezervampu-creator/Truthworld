@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
@@ -62,7 +63,7 @@ class TopicNotificationOptionsSheet extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Unfollow ${topic.title}?',
+                'Unfollow ${topic.name}?',
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w500,
@@ -193,6 +194,7 @@ class TopicNotificationOptionsSheet extends StatelessWidget {
                         ? const Icon(Icons.check, color: Colors.white)
                         : null,
                     onTap: () {
+                      HapticFeedback.selectionClick();
                       Navigator.pop(context);
                       controller.updateTopicNotificationSetting(
                         topic.id,
@@ -228,6 +230,7 @@ class TopicNotificationOptionsSheet extends StatelessWidget {
                         ? const Icon(Icons.check, color: Colors.white)
                         : null,
                     onTap: () {
+                      HapticFeedback.selectionClick();
                       Navigator.pop(context);
                       controller.updateTopicNotificationSetting(
                         topic.id,
@@ -261,6 +264,7 @@ class TopicNotificationOptionsSheet extends StatelessWidget {
                         ? const Icon(Icons.check, color: Colors.white)
                         : null,
                     onTap: () {
+                      HapticFeedback.selectionClick();
                       Navigator.pop(context);
                       controller.updateTopicNotificationSetting(
                         topic.id,
@@ -285,6 +289,7 @@ class TopicNotificationOptionsSheet extends StatelessWidget {
                       ),
                     ),
                     onTap: () {
+                      HapticFeedback.lightImpact();
                       Navigator.pop(context);
                       showUnfollowConfirmation(
                         context,

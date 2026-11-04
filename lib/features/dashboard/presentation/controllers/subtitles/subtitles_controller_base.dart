@@ -4,9 +4,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/services/channel_wallet_service.dart';
+import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/data/models/channel_wallet_models.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles/subtitle_cue_model.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
+export 'package:truthworld/features/video/data/models/ai_features.dart' show normalizeLanguageCode;
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:video_player/video_player.dart';
@@ -20,6 +26,34 @@ abstract class SubtitlesControllerBase extends BaseController
 
   // Active channel context
   final RxString channelId = ''.obs;
+  final Rx<SpendableBalance?> spendableBalance = Rx<SpendableBalance?>(null);
+  final Rx<Channel?> currentChannel = Rx<Channel?>(null);
+
+  Future<void> refreshSpendableBalance() async {
+    try {
+      final currentUser = auth.currentUser;
+      if (currentUser == null) return;
+      final targetChanId = channelId.value.isNotEmpty
+          ? channelId.value
+          : (selectedVideo.value?.channelId.isNotEmpty == true
+              ? selectedVideo.value!.channelId
+              : currentUser.uid);
+      if (targetChanId.isEmpty) return;
+
+      final chanDoc = await firestore
+          .collection(FirestoreCollections.channels)
+          .doc(targetChanId)
+          .get();
+      if (chanDoc.exists && chanDoc.data() != null) {
+        final chan = Channel.fromMap(chanDoc.data()!, chanDoc.id);
+        currentChannel.value = chan;
+        final bal = await ChannelWalletService().getSpendableBalanceForChannelId(chan.id);
+        spendableBalance.value = bal;
+      }
+    } catch (e) {
+      logger.warning('Could not refresh spendable balance: $e', tag: subtitlesTag);
+    }
+  }
 
   // Video list state
   final RxList<Video> videos = <Video>[].obs;
@@ -137,6 +171,30 @@ abstract class SubtitlesControllerBase extends BaseController
     return list;
   }
 
+  /// Returns only languages configured or available for the current selected video.
+  List<String> get configuredLanguages {
+    final list = <String>[];
+    final video = selectedVideo.value;
+    final baseLang = normalizeLanguageCode(video?.language ?? 'en');
+    list.add(baseLang);
+    if (!list.contains('en')) list.add('en');
+    if (video != null) {
+      for (final k in video.mediaSubtitles.keys) {
+        final code = normalizeLanguageCode(k);
+        if (!list.contains(code)) list.add(code);
+      }
+      for (final l in video.languages) {
+        final code = normalizeLanguageCode(l);
+        if (!list.contains(code)) list.add(code);
+      }
+    }
+    for (final l in availableLanguages) {
+      final code = normalizeLanguageCode(l);
+      if (!list.contains(code)) list.add(code);
+    }
+    return list;
+  }
+
   // Video Player Preview & Sync
   VideoPlayerController? videoPlayerController;
   final RxBool isVideoPlayerInitialized = false.obs;
@@ -246,10 +304,19 @@ abstract class SubtitlesControllerBase extends BaseController
     }
   }
 
-  String getLanguageName(String code) {
-    final found = supportedLanguages.firstWhereOrNull((l) => l.code == code);
-    if (found != null) return found.name;
-    return code.length <= 3 ? code.toUpperCase() : code;
+  String getLanguageName(String code, {bool includeNative = false}) {
+    final clean = code.trim().toLowerCase();
+    final normalized = normalizeLanguageCode(clean);
+    final found = supportedLanguages.firstWhereOrNull(
+      (l) => l.code == normalized || l.code == clean || l.name.toLowerCase() == clean,
+    );
+    if (found != null) {
+      if (includeNative && found.nativeName.isNotEmpty && found.nativeName != found.name) {
+        return '${found.name} (${found.nativeName})';
+      }
+      return found.name;
+    }
+    return clean.length <= 3 ? clean.toUpperCase() : clean;
   }
 
   void cancelBaseSubscriptions() {

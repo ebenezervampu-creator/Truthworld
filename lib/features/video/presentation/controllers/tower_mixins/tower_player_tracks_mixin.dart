@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/network/app_http_client.dart';
+import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/utils/isolate_compute_utils.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/utils/subtitle_parser.dart';
@@ -26,6 +26,7 @@ mixin TowerPlayerTracksMixin on GetxController {
   set audioTrackController(VideoPlayerController? ctrl);
   RxBool get isMuted;
   RxDouble get volume;
+  RxBool get isLooping;
   String? get tag;
   VideoController? get videoController;
   void trackAnalytics(PlayerEvent event);
@@ -55,10 +56,38 @@ mixin TowerPlayerTracksMixin on GetxController {
     showToast('Subtitle sync reset to 0ms');
   }
 
-  final RxString activeAudioLang = 'English'.obs;
+  final RxString activeAudioLang = 'Original'.obs;
   final RxList<AudioTrack> audioTracks = <AudioTrack>[].obs;
+  final RxString activeVideoLang = 'Original'.obs;
+  final RxList<VideoTrack> videoTracks = <VideoTrack>[].obs;
 
-  void syncActiveSubtitle() {
+  bool get hasAlternateAudioTrack {
+    final ctrl = audioTrackController;
+    if (ctrl != null && !ctrl.value.hasError) return true;
+    final lang = activeAudioLang.value.trim().toLowerCase();
+    if (lang.isEmpty ||
+        lang == 'off' ||
+        lang == 'original' ||
+        lang.startsWith('original')) {
+      return false;
+    }
+    return ctrl != null && !ctrl.value.hasError;
+  }
+
+  void fallbackToOriginalAudio({String? reason}) {
+    if (audioTrackController != null) {
+      try {
+        audioTrackController!.dispose();
+      } catch (_) {}
+      audioTrackController = null;
+    }
+    activeAudioLang.value =
+        audioTracks.isNotEmpty ? audioTracks.first.label : 'Original';
+    videoPlayerController.setVolume(isMuted.value ? 0.0 : volume.value);
+    showToast('Original Audio');
+  }
+
+  void syncActiveSubtitle({Duration? overridePos}) {
     if (isClosed) return;
 
     // Bidirectional fallback: If local subtitleSegments is empty, check VideoController
@@ -74,12 +103,34 @@ mixin TowerPlayerTracksMixin on GetxController {
       if (activeSubtitleSegment.value != null) activeSubtitleSegment.value = null;
       return;
     }
-    // Read directly from the VideoPlayerController for the most up-to-date
-    // position, shifted by any user-configured subtitle offset.
-    final rawPos = videoPlayerController.value.position;
-    final pos = subtitleOffsetMs.value == 0
+    // Read clock position: when an alternate audio track is active, lock subtitles
+    // directly to the audible audio track position to ensure 100% speech-to-subtitle sync.
+    final useAudioClock = overridePos == null &&
+        audioTrackController != null &&
+        audioTrackController!.value.isInitialized &&
+        activeAudioLang.value != 'Original' &&
+        activeAudioLang.value != 'Off' &&
+        activeAudioLang.value.isNotEmpty;
+
+    Duration rawPos;
+    if (overridePos != null) {
+      rawPos = overridePos;
+    } else {
+      Duration? audioPos;
+      if (useAudioClock) {
+        try {
+          audioPos = audioTrackController?.value.position;
+        } catch (_) {}
+      }
+      rawPos = audioPos ?? videoPlayerController.value.position;
+    }
+    // For real-time video playback (overridePos == null), apply a 75ms audio clock lead
+    // to compensate for hardware audio buffer latency and align subtitle display with vocal onset.
+    final clockLeadMs = (overridePos == null) ? 75 : 0;
+    final totalOffsetMs = subtitleOffsetMs.value + clockLeadMs;
+    final pos = totalOffsetMs == 0
         ? rawPos
-        : rawPos + Duration(milliseconds: subtitleOffsetMs.value);
+        : rawPos + Duration(milliseconds: totalOffsetMs);
     final seg = SubtitleParser.findActiveSubtitle(subtitleSegments, pos);
     final text = seg?.text ?? '';
     if (currentSubtitle.value != text) {
@@ -115,9 +166,25 @@ mixin TowerPlayerTracksMixin on GetxController {
     subtitlesEnabled.value = enabled;
     if (!enabled) {
       activeSubLang.value = 'Off';
+      if (currentSubtitle.value.isNotEmpty) currentSubtitle.value = '';
+      activeSubtitleSegment.value = null;
+      stopSubtitleSyncTimer();
     } else if (track != null) {
       activeSubLang.value = track.label;
       fetchAndParseSubtitles(track.url);
+      startSubtitleSyncTimer();
+    } else {
+      activeSubLang.value = 'Auto';
+      if (subtitleSegments.isEmpty) {
+        final vc = videoController;
+        if (vc != null && vc.transcriptSegments.isNotEmpty) {
+          subtitleSegments.assignAll(vc.transcriptSegments);
+        }
+      }
+      if (subtitleSegments.isNotEmpty) {
+        startSubtitleSyncTimer();
+        syncActiveSubtitle();
+      }
     }
     TowerPlayerController.globalSubtitlesEnabled = enabled;
     TowerPlayerController.globalActiveSubLang = activeSubLang.value;
@@ -134,14 +201,17 @@ mixin TowerPlayerTracksMixin on GetxController {
 
       try {
         final resolvedUrl = StorageUtils.getFastDownloadUrl(url);
-        final response = await AppHttpClient.get(Uri.parse(resolvedUrl));
+        final headers = await StorageUtils.getMediaHeaders();
+        final response = await AppHttpClient.get(
+          Uri.parse(resolvedUrl),
+          headers: headers,
+        );
         if (response.statusCode == 200) {
           content = utf8.decode(response.bodyBytes, allowMalformed: true);
         }
-      } catch (e, stackTrace) {
-        ErrorHandler.log(
-          e,
-          stackTrace: stackTrace,
+      } catch (e) {
+        logger.warning(
+          'Fast download HTTP probe for subtitles skipped or failed: $e',
           tag: 'TowerPlayerTracksMixin.fetchFastDownloadUrl',
         );
       }
@@ -149,35 +219,35 @@ mixin TowerPlayerTracksMixin on GetxController {
       if (content == null || content.isEmpty) {
         try {
           Uint8List? data;
-          if (url.startsWith('gs://')) {
-            data = await FirebaseStorage.instance.refFromURL(url).getData();
-          } else if (url.startsWith('https://storage.googleapis.com/') ||
-              url.startsWith('https://firebasestorage.googleapis.com/')) {
-            data = await FirebaseStorage.instance.refFromURL(url).getData();
-          } else if (url.startsWith('subtitles/') || url.startsWith('transcripts/') || url.startsWith('videos/')) {
-            data = await FirebaseStorage.instance.ref(url).getData();
+          final ref = StorageUtils.getStorageRef(url);
+          if (ref != null) {
+            data = await StorageUtils.getDataWithTimeout(ref);
           }
           if (data != null && data.isNotEmpty) {
             content = utf8.decode(data, allowMalformed: true);
           }
-        } catch (e, stackTrace) {
-          ErrorHandler.log(
-            e,
-            stackTrace: stackTrace,
-            tag: 'TowerPlayerTracksMixin.fetchFirebaseStorageSubtitles',
-          );
-        }
+        } catch (_) {}
       }
 
       if (content != null && content.isNotEmpty) {
         await parseSubtitleContent(content);
       }
     } catch (e, stackTrace) {
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
-        tag: 'TowerPlayerTracksMixin.fetchAndParseSubtitles',
-      );
+      final errStr = e.toString().toLowerCase();
+      if (errStr.contains('unauthorized') ||
+          errStr.contains('permission-denied') ||
+          errStr.contains('object-not-found')) {
+        logger.warning(
+          'Subtitle track loading skipped (unavailable or unauthorized): $e',
+          tag: 'TowerPlayerTracksMixin.fetchAndParseSubtitles',
+        );
+      } else {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'TowerPlayerTracksMixin.fetchAndParseSubtitles',
+        );
+      }
       subtitleSegments.clear();
     } finally {
       isLoadingSubtitles.value = false;
@@ -189,6 +259,9 @@ mixin TowerPlayerTracksMixin on GetxController {
     if (isClosed) return;
     if (segs.isNotEmpty) {
       subtitleSegments.assignAll(segs);
+      if (subtitlesEnabled.value) {
+        startSubtitleSyncTimer();
+      }
       syncActiveSubtitle();
     } else {
       subtitleSegments.clear();
@@ -196,55 +269,141 @@ mixin TowerPlayerTracksMixin on GetxController {
     }
   }
 
-  void setAudioLanguage(AudioTrack track) {
+  int _audioInitEpoch = 0;
+
+  Future<void> setAudioLanguage(AudioTrack track) async {
+    final currentEpoch = ++_audioInitEpoch;
     activeAudioLang.value = track.label;
     activePanel.value = '';
     closeSettings();
     try {
-      if (Get.isRegistered<VideoController>(tag: tag)) {
-        if (audioTrackController != null) {
-          try {
-            audioTrackController!.dispose();
-          } catch (e, stackTrace) {
+      if (audioTrackController != null) {
+        try {
+          audioTrackController!.dispose();
+        } catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'TowerPlayerTracksMixin.disposeOldAudioController',
+          );
+        }
+        audioTrackController = null;
+      }
+
+      final isAlternateTrack = track.url != null &&
+          track.url!.isNotEmpty &&
+          track.type != 'Original' &&
+          !track.label.toLowerCase().startsWith('original');
+
+      if (isAlternateTrack) {
+        // 1. Immediately mute main video player so original audio does not bleed
+        videoPlayerController.setVolume(0.0);
+
+        var trackUrl = track.url!.trim();
+        if (!trackUrl.contains('token=')) {
+          final ref = StorageUtils.getStorageRef(trackUrl);
+          if (ref != null) {
+            try {
+              trackUrl = await ref.getDownloadURL();
+            } catch (e, stackTrace) {
+              ErrorHandler.log(
+                e,
+                stackTrace: stackTrace,
+                tag: 'TowerPlayerTracksMixin.resolveAudioTrackUrl',
+              );
+            }
+          }
+        }
+
+        if (currentEpoch != _audioInitEpoch || isClosed) return;
+
+        final isFirebaseStorageDownloadUrl =
+            trackUrl.contains('firebasestorage.googleapis.com') &&
+                trackUrl.contains('token=');
+
+        final newAudioCtrl = VideoPlayerController.networkUrl(
+          Uri.parse(trackUrl),
+          httpHeaders: isFirebaseStorageDownloadUrl
+              ? const <String, String>{}
+              : StorageUtils.getSyncMediaHeaders(),
+          videoPlayerOptions: VideoPlayerOptions(
+            mixWithOthers: true,
+            allowBackgroundPlayback: true,
+          ),
+        );
+        audioTrackController = newAudioCtrl;
+
+        void onAudioTrackError() {
+          if (newAudioCtrl.value.hasError &&
+              audioTrackController == newAudioCtrl &&
+              currentEpoch == _audioInitEpoch) {
             ErrorHandler.log(
-              e,
-              stackTrace: stackTrace,
-              tag: 'TowerPlayerTracksMixin.disposeOldAudioController',
+              newAudioCtrl.value.errorDescription,
+              tag: 'TowerPlayerTracksMixin.audioTrackController.error',
+            );
+            fallbackToOriginalAudio(
+              reason: 'Alternate audio playback failed',
             );
           }
-          audioTrackController = null;
         }
 
-        if (track.url != null && track.url!.isNotEmpty) {
-          videoPlayerController.setVolume(0);
+        newAudioCtrl.addListener(onAudioTrackError);
 
-          audioTrackController = VideoPlayerController.networkUrl(
-            Uri.parse(track.url!),
-            httpHeaders: StorageUtils.getSyncMediaHeaders(),
+        newAudioCtrl.initialize().then((_) async {
+          if (currentEpoch != _audioInitEpoch ||
+              audioTrackController != newAudioCtrl ||
+              isClosed) {
+            try {
+              newAudioCtrl.dispose();
+            } catch (_) {}
+            return;
+          }
+
+          if (newAudioCtrl.value.hasError) {
+            fallbackToOriginalAudio(reason: 'Audio track reported error');
+            return;
+          }
+
+          // Strictly enforce zero volume on main video player
+          videoPlayerController.setVolume(0.0);
+
+          newAudioCtrl.setVolume(
+            isMuted.value ? 0.0 : volume.value,
           );
-          audioTrackController!.initialize().then((_) async {
-            if (audioTrackController == null) return;
+          newAudioCtrl.setPlaybackSpeed(
+            videoPlayerController.value.playbackSpeed,
+          );
 
-            audioTrackController!.setVolume(
-              isMuted.value ? 0.0 : volume.value,
-            );
-            audioTrackController!.setPlaybackSpeed(
-              videoPlayerController.value.playbackSpeed,
-            );
+          if (isLooping.value) {
+            newAudioCtrl.setLooping(true);
+          }
 
-            final currentPos = videoPlayerController.value.position;
-            final audioDur = audioTrackController!.value.duration;
-            if (audioDur > Duration.zero && currentPos <= audioDur) {
-              await audioTrackController!.seekTo(currentPos);
-            }
+          final currentPos = videoPlayerController.value.position;
+          final audioDur = newAudioCtrl.value.duration;
+          if (currentPos > Duration.zero &&
+              (audioDur == Duration.zero || currentPos <= audioDur)) {
+            TowerPlayerVpcEventHandler.notifyManualSeekInitiated();
+            await newAudioCtrl.seekTo(currentPos);
+          }
 
-            if (videoPlayerController.value.isPlaying && audioTrackController != null) {
-              await audioTrackController!.play();
-            }
-          });
-        } else {
-          videoPlayerController.setVolume(isMuted.value ? 0.0 : volume.value);
-        }
+          if (videoPlayerController.value.isPlaying &&
+              audioTrackController == newAudioCtrl) {
+            await newAudioCtrl.play();
+          }
+        }).catchError((e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'TowerPlayerTracksMixin.initAudioTrackController',
+          );
+          if (audioTrackController == newAudioCtrl &&
+              currentEpoch == _audioInitEpoch) {
+            fallbackToOriginalAudio(reason: 'Failed to initialize audio track');
+          }
+        });
+      } else {
+        // Reverting to Original Audio
+        videoPlayerController.setVolume(isMuted.value ? 0.0 : volume.value);
       }
     } catch (e, stackTrace) {
       ErrorHandler.log(
@@ -256,9 +415,44 @@ mixin TowerPlayerTracksMixin on GetxController {
     trackAnalytics(PlayerEvent('audio_lang', data: {'lang': track.langCode}));
   }
 
+  void setVideoLanguage(VideoTrack track) {
+    activeVideoLang.value = track.label;
+    activePanel.value = '';
+    closeSettings();
+    try {
+      final vc = videoController;
+      if (vc != null) {
+        vc.setVideoTrack(track);
+      }
+      if (track.type == 'Video' && track.url != null && track.url!.isNotEmpty) {
+        if (audioTrackController != null) {
+          try {
+            audioTrackController!.dispose();
+          } catch (e, stackTrace) {
+            ErrorHandler.log(
+              e,
+              stackTrace: stackTrace,
+              tag: 'TowerPlayerTracksMixin.disposeAudioControllerOnVideoTrackSwitch',
+            );
+          }
+          audioTrackController = null;
+        }
+        videoPlayerController.setVolume(isMuted.value ? 0.0 : volume.value);
+      }
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'TowerPlayerTracksMixin.setVideoLanguage',
+      );
+    }
+    showToast('Video: ${track.label}');
+    trackAnalytics(PlayerEvent('video_lang', data: {'lang': track.langCode}));
+  }
+
   void showRequestDialog(BuildContext context, String type) {
-    if (!Get.isRegistered<VideoController>(tag: tag)) return;
-    final vc = Get.find<VideoController>(tag: tag);
+    final vc = videoController;
+    if (vc == null) return;
     if (!vc.isAuthenticated) {
       showToast('Please login to request languages');
       return;

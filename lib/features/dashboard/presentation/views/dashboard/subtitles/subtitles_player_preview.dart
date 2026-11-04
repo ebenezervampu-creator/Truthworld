@@ -11,6 +11,7 @@ class SubtitlesPlayerPreview extends StatelessWidget {
     required this.borderColor,
     required this.textColor,
     required this.isDarkMode,
+    this.isMobile = false,
     super.key,
   });
 
@@ -19,9 +20,67 @@ class SubtitlesPlayerPreview extends StatelessWidget {
   final Color borderColor;
   final Color textColor;
   final bool isDarkMode;
+  final bool isMobile;
 
   @override
   Widget build(BuildContext context) {
+    if (!isMobile) {
+      return Container(
+        width: 380,
+        decoration: BoxDecoration(
+          color: surfaceColor,
+          border: Border(left: BorderSide(color: borderColor)),
+        ),
+        child: Column(
+          children: [
+            // Dock Header with title & close button
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.play_circle_filled_rounded,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Video Preview',
+                    style: AppTextStyles.labelMedium.copyWith(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 18, color: Colors.white),
+                    tooltip: 'Close Video Preview',
+                    onPressed: controller.toggleVideoPreview,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: borderColor),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    _buildVideoViewport(context),
+                    const SizedBox(height: 8),
+                    SubtitlesVideoControlsBar(controller: controller),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Obx(() {
       final isExpanded = controller.showVideoPreview.value;
 
@@ -45,15 +104,19 @@ class SubtitlesPlayerPreview extends StatelessWidget {
                       color: Colors.white,
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      'Video Player & Real-time Subtitle Sync Preview',
-                      style: AppTextStyles.labelMedium.copyWith(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: textColor,
+                    Expanded(
+                      child: Text(
+                        'Video Player & Real-time Subtitle Sync Preview',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.labelMedium.copyWith(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                        ),
                       ),
                     ),
-                    const Spacer(),
+                    const SizedBox(width: 8),
                     Icon(
                       isExpanded
                           ? Icons.keyboard_arrow_up_rounded
@@ -73,102 +136,8 @@ class SubtitlesPlayerPreview extends StatelessWidget {
                 color: AppColors.bgPage,
                 child: Column(
                   children: [
-                    // Video Viewport with Live Subtitle Overlay
-                    Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          maxHeight: 220,
-                          maxWidth: 420,
-                        ),
-                        child: AspectRatio(
-                          aspectRatio: 16 / 9,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.black,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            clipBehavior: Clip.antiAlias,
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                if (controller.isVideoPlayerInitialized.value &&
-                                    controller.videoPlayerController != null)
-                                  VideoPlayer(controller.videoPlayerController!)
-                                else
-                                  Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const Icon(
-                                        Icons.video_library_rounded,
-                                        size: 44,
-                                        color: Colors.white,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Synchronized Video Preview',
-                                        style: AppTextStyles.caption.copyWith(
-                                          color: Colors.white70,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-
-                                // Subtitle Overlay Box
-                                Obx(() {
-                                  final activeIdx =
-                                      controller.activeCueIndex.value;
-                                  if (activeIdx >= 0 &&
-                                      activeIdx < controller.currentCues.length) {
-                                    final text =
-                                        controller.currentCues[activeIdx].text;
-                                    if (text.trim().isNotEmpty) {
-                                      return Positioned(
-                                        bottom: 12,
-                                        left: 16,
-                                        right: 16,
-                                        child: Center(
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 10,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.black
-                                                  .withValues(alpha: 0.8),
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                            ),
-                                            child: Text(
-                                              text,
-                                              textAlign: TextAlign.center,
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w600,
-                                                shadows: [
-                                                  Shadow(
-                                                    blurRadius: 4,
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                  }
-                                  return const SizedBox.shrink();
-                                }),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+                    _buildVideoViewport(context),
                     const SizedBox(height: 8),
-
-                    // Video Scrubber & Playhead Controls
                     SubtitlesVideoControlsBar(controller: controller),
                   ],
                 ),
@@ -178,6 +147,99 @@ class SubtitlesPlayerPreview extends StatelessWidget {
         ),
       );
     });
+  }
+
+  Widget _buildVideoViewport(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(
+          maxHeight: 220,
+          maxWidth: 420,
+        ),
+        child: AspectRatio(
+          aspectRatio: 16 / 9,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.black,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Obx(() {
+                  if (controller.isVideoPlayerInitialized.value &&
+                      controller.videoPlayerController != null) {
+                    return VideoPlayer(controller.videoPlayerController!);
+                  }
+                  return Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.video_library_rounded,
+                        size: 44,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Synchronized Video Preview',
+                        style: AppTextStyles.caption.copyWith(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+
+                // Subtitle Overlay Box
+                Obx(() {
+                  final activeIdx = controller.activeCueIndex.value;
+                  if (activeIdx >= 0 &&
+                      activeIdx < controller.currentCues.length) {
+                    final text = controller.currentCues[activeIdx].text;
+                    if (text.trim().isNotEmpty) {
+                      return Positioned(
+                        bottom: 12,
+                        left: 16,
+                        right: 16,
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.8),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              text,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                shadows: [
+                                  Shadow(
+                                    blurRadius: 4,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                  }
+                  return const SizedBox.shrink();
+                }),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

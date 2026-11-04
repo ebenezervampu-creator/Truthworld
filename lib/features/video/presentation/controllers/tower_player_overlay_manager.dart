@@ -6,7 +6,6 @@ enum TowerPlayerOverlay {
   none,
   truthReport,
   factCheck,
-  liveChat,
   comments,
   transcript,
   settings,
@@ -45,7 +44,6 @@ class TowerPlayerOverlayManager {
       activeOverlay.value == TowerPlayerOverlay.factCheck;
   bool get isFactCheckOpen =>
       activeOverlay.value == TowerPlayerOverlay.factCheck;
-  bool get isLiveChatOpen => activeOverlay.value == TowerPlayerOverlay.liveChat;
   bool get isCommentsOpen => activeOverlay.value == TowerPlayerOverlay.comments;
   bool get isTranscriptOpen =>
       activeOverlay.value == TowerPlayerOverlay.transcript;

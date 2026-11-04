@@ -61,9 +61,12 @@ class CommentRepliesSection extends StatelessWidget {
 
           if (!isExpanded) {
             final firstReply = replies.first;
-            return InkWell(
-              onTap: () => controller.setRepliesExpanded(true),
-              child: Row(
+            return MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => controller.setRepliesExpanded(true),
+                child: Row(
                 children: [
                   CustomPaint(
                     size: const Size(40, 36),
@@ -97,7 +100,8 @@ class CommentRepliesSection extends StatelessWidget {
                   ),
                 ],
               ),
-            );
+            ),
+          );
           }
 
           return Column(
@@ -129,33 +133,37 @@ class CommentRepliesSection extends StatelessWidget {
                   isTarget: isReplyTarget,
                 );
               }),
-              InkWell(
-                onTap: () => controller.setRepliesExpanded(false),
-                child: Row(
-                  children: [
-                    CustomPaint(
-                      size: const Size(40, 36),
-                      painter: ReplyThreadLinePainter(
-                        color: Colors.white24,
-                        isLast: true,
-                        branchY: 18,
+              MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => controller.setRepliesExpanded(false),
+                  child: Row(
+                    children: [
+                      CustomPaint(
+                        size: const Size(40, 36),
+                        painter: ReplyThreadLinePainter(
+                          color: Colors.white24,
+                          isLast: true,
+                          branchY: 18,
+                        ),
                       ),
-                    ),
-                    const Text(
-                      'Hide replies',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white70,
+                      const Text(
+                        'Hide replies',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white70,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(
-                      Icons.expand_less,
-                      color: Colors.white,
-                      size: 16,
-                    ),
-                  ],
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.expand_less,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],

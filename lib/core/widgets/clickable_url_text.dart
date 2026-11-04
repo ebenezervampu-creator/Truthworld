@@ -32,8 +32,8 @@ class ClickableUrlText extends StatelessWidget {
     this.onMentionTap,
   });
 
-  static final RegExp _urlAndMentionRegex = RegExp(
-    r'(https?:\/\/[^\s<]+|www\.[^\s<]+|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}(?:\/[^\s<]*)?|@[a-zA-Z0-9_-]+)',
+  static final RegExp _combinedRegex = RegExp(
+    r'(\[([^\]]+)\]\(([^)]+)\)|https?:\/\/[^\s<]+|www\.[^\s<]+|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}(?:\/[^\s<]*)?|@[a-zA-Z0-9_-]+)',
     caseSensitive: false,
   );
 
@@ -57,8 +57,8 @@ class ClickableUrlText extends StatelessWidget {
   }
 
   /// Launches a URL with low-latency in-app navigation for Truthworld links
-  /// or opens external browser for third-party links.
-  static Future<void> launchUrlString(String rawUrl) async {
+  /// or safely opens external browser for third-party links with zero-404 protection.
+  static Future<void> launchUrlString(String rawUrl, {String? title, String? domain}) async {
     final clean = DeepLinkService.cleanUrlString(rawUrl);
     if (clean.isEmpty) return;
 
@@ -68,31 +68,18 @@ class ClickableUrlText extends StatelessWidget {
       return;
     }
 
-    final sanitized = SourceUrlSanitizer.sanitizeUrl(clean);
-    final url = sanitized ?? (clean.startsWith('http') ? clean : 'https://$clean');
-    final uri = Uri.tryParse(url);
-    if (uri != null) {
-      try {
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        } else {
-          await launchUrl(uri);
-        }
-      } catch (e, s) {
-        ErrorHandler.log(
-          e,
-          stackTrace: s,
-          tag: 'ClickableUrlText.launchUrl',
-        );
-      }
-    }
+    await SourceUrlSanitizer.launchSourceUrl(
+      url: clean,
+      title: title,
+      domain: domain,
+    );
   }
 
   /// Converts raw URLs and @handle mentions in markdown text to standard markdown links.
   static String formatMarkdownLinks(String text) {
     if (text.isEmpty) return text;
     final markdownLinkRegex = RegExp(r'\[([^\]]+)\]\(([^)]+)\)');
-    final matches = _urlAndMentionRegex.allMatches(text);
+    final matches = _combinedRegex.allMatches(text);
     if (matches.isEmpty) return text;
 
     final existingMarkdownSpans = <TextRange>[];
@@ -131,8 +118,14 @@ class ClickableUrlText extends StatelessWidget {
 
       while (cleanToken.endsWith('.') ||
           cleanToken.endsWith(',') ||
-          cleanToken.endsWith(')') ||
-          cleanToken.endsWith(']') ||
+          cleanToken.endsWith(';') ||
+          cleanToken.endsWith(':') ||
+          (cleanToken.endsWith(')') &&
+              '('.allMatches(cleanToken).length <
+                  ')'.allMatches(cleanToken).length) ||
+          (cleanToken.endsWith(']') &&
+              '['.allMatches(cleanToken).length <
+                  ']'.allMatches(cleanToken).length) ||
           cleanToken.endsWith('!') ||
           cleanToken.endsWith('?')) {
         trailingPunct = cleanToken[cleanToken.length - 1] + trailingPunct;
@@ -171,7 +164,7 @@ class ClickableUrlText extends StatelessWidget {
     Function(String handle)? onMentionTap,
   }) {
     if (text.isEmpty) return [];
-    final matches = _urlAndMentionRegex.allMatches(text);
+    final matches = _combinedRegex.allMatches(text);
     if (matches.isEmpty) {
       return [TextSpan(text: text, style: style)];
     }
@@ -194,6 +187,50 @@ class ClickableUrlText extends StatelessWidget {
 
     for (final match in matches) {
       final rawMatched = match.group(0)!;
+
+      // Handle Markdown link format: [label](url)
+      final markdownLabel = match.group(2);
+      final markdownTarget = match.group(3);
+      if (markdownLabel != null && markdownTarget != null) {
+        if (match.start > lastEnd) {
+          spans.add(
+            TextSpan(
+              text: text.substring(lastEnd, match.start),
+              style: style,
+            ),
+          );
+        }
+
+        final isMention = markdownTarget.startsWith('mention://');
+        final target = isMention
+            ? '@${markdownTarget.substring('mention://'.length)}'
+            : markdownTarget;
+
+        spans.add(
+          TextSpan(
+            text: markdownLabel,
+            style: isMention ? effectiveMentionStyle : effectiveUrlStyle,
+            recognizer: TapGestureRecognizer()
+              ..onTap = () {
+                if (isMention) {
+                  if (onMentionTap != null) {
+                    onMentionTap(target);
+                  } else {
+                    navigateToChannelByHandle(target);
+                  }
+                } else {
+                  if (onUrlTap != null) {
+                    onUrlTap(target);
+                  } else {
+                    launchUrlString(target);
+                  }
+                }
+              },
+          ),
+        );
+        lastEnd = match.end;
+        continue;
+      }
 
       // Check if @handle is part of an email address
       if (rawMatched.startsWith('@') && match.start > 0) {
@@ -223,8 +260,14 @@ class ClickableUrlText extends StatelessWidget {
 
       while (cleanToken.endsWith('.') ||
           cleanToken.endsWith(',') ||
-          cleanToken.endsWith(')') ||
-          cleanToken.endsWith(']') ||
+          cleanToken.endsWith(';') ||
+          cleanToken.endsWith(':') ||
+          (cleanToken.endsWith(')') &&
+              '('.allMatches(cleanToken).length <
+                  ')'.allMatches(cleanToken).length) ||
+          (cleanToken.endsWith(']') &&
+              '['.allMatches(cleanToken).length <
+                  ']'.allMatches(cleanToken).length) ||
           cleanToken.endsWith('!') ||
           cleanToken.endsWith('?')) {
         trailingPunct = cleanToken[cleanToken.length - 1] + trailingPunct;
@@ -289,19 +332,19 @@ class ClickableUrlText extends StatelessWidget {
       onMentionTap: onMentionTap,
     );
 
-    if (selectable) {
-      return SelectableText.rich(
-        TextSpan(children: spans),
-        maxLines: maxLines,
-        textAlign: textAlign,
-      );
-    }
-
-    return Text.rich(
+    final textWidget = Text.rich(
       TextSpan(children: spans),
       maxLines: maxLines,
       overflow: overflow,
       textAlign: textAlign,
     );
+
+    if (selectable) {
+      return SelectionArea(
+        child: textWidget,
+      );
+    }
+
+    return textWidget;
   }
 }

@@ -192,33 +192,27 @@ class PremiumPlansScreen extends StatelessWidget {
       final auth = Get.isRegistered<AuthService>() ? AuthService.to : null;
       final isPremium = auth?.isPremiumUser.value ?? false;
       final currentPlanId = auth?.premiumPlanId.value;
+      final isTrialExpired = auth?.isTrialExpired ?? false;
+      final expiresAt = auth?.premiumExpiresAt.value;
+      final hasActiveOrExpiredStatus =
+          isPremium || isTrialExpired || expiresAt != null;
 
       return Stack(
         children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 1. Premium Style Hero Banner
-              PremiumHeroSection(
-                isPremium: isPremium,
-                planId: currentPlanId,
-                isDesktop: isDesktop,
-                isTablet: isTablet,
-                controller: controller,
-              ),
-              const SizedBox(height: 32),
-
-              // 2. User Membership Status & Sandbox Panel (on Mobile/Tablet)
-              if (!isDesktop) ...[
+              // 1. User Membership Status (on Mobile/Tablet for active or expired memberships)
+              if (!isDesktop && hasActiveOrExpiredStatus) ...[
                 PremiumMembershipStatusCard(
                   isPremium: isPremium,
                   planId: currentPlanId,
                   controller: controller,
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
               ],
 
-              // 3. Plan Selector & Upgrades ("Choose the plan that fits for you")
+              // 2. Plan Selector & Upgrades ("Choose the plan that fits for you")
               PremiumPlanSelectorSection(
                 isDesktop: isDesktop,
                 isTablet: isTablet,

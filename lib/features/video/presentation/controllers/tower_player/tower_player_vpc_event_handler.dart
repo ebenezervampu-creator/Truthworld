@@ -16,6 +16,12 @@ class TowerPlayerVpcEventHandler {
         err.contains('the play() request was interrupted') ||
         err.contains('aborterror') ||
         err.contains('notallowederror') ||
+        err.contains('not allowed') ||
+        err.contains('notallowed') ||
+        err.contains("user didn't interact") ||
+        err.contains('user did not interact') ||
+        err.contains('interact with the document') ||
+        err.contains('autoplay') ||
         err.contains('media_err_aborted') ||
         err.contains('client returned a buffer') ||
         err.contains('bad_index') ||
@@ -40,24 +46,52 @@ class TowerPlayerVpcEventHandler {
     }
   }
 
-  /// Synchronize alternate audio track player volume, playback speed, and seek drift
+  static int _lastSeekTimestamp = 0;
+  static int? _pendingSeekTargetMs;
+
+  /// Notifies the sync handler that a manual seek was initiated, resetting cooldowns
+  /// and preventing machinegun re-seeks while the media buffers.
+  static void notifyManualSeekInitiated() {
+    _lastSeekTimestamp = DateTime.now().millisecondsSinceEpoch;
+    _pendingSeekTargetMs = null;
+  }
+
+  /// Synchronize alternate audio track player volume, playback speed, and clock drift.
+  /// Broadcast-grade Phase-Locked Loop (PLL) clock smoothing filter:
+  /// - In-sync lock (< 40ms): Audio matches main playback speed.
+  /// - Micro-drift (40ms - 200ms): Gentle slew ±4% for smooth imperceptible clock alignment.
+  /// - Moderate drift (200ms - 600ms): Slew ±8% to pull audio back into lock within ~2.5s without buffer flushes.
+  /// - Substantial drift (600ms - 1200ms): Slew ±14% to recover quickly without audio cuts.
+  /// - Severe drift (> 1200ms, e.g. scrubbing/jump): Debounced seekTo with a 1500ms cooldown and buffering guard.
   static void syncAlternateAudioTrack({
     required VideoPlayerController mainVpc,
     required VideoPlayerController? audioCtrl,
     required bool isMuted,
     required double volume,
+    bool hasAlternateAudioTrack = false,
   }) {
-    if (audioCtrl == null || !audioCtrl.value.isInitialized) return;
-    final val = mainVpc.value;
-    if (val.volume > 0.0) {
-      mainVpc.setVolume(0);
+    final isAlternateActive =
+        hasAlternateAudioTrack && audioCtrl != null && !audioCtrl.value.hasError;
+
+    if (isAlternateActive) {
+      if (mainVpc.value.volume > 0.0) {
+        mainVpc.setVolume(0);
+      }
+    } else if (audioCtrl == null || audioCtrl.value.hasError) {
+      // Re-enable main video audio if alternate audio is not active or errored
+      final targetVol = isMuted ? 0.0 : volume;
+      if (mainVpc.value.volume != targetVol) {
+        mainVpc.setVolume(targetVol);
+      }
     }
+
+    if (audioCtrl == null || !audioCtrl.value.isInitialized || audioCtrl.value.hasError) {
+      return;
+    }
+    final val = mainVpc.value;
     final targetVol = isMuted ? 0.0 : volume;
     if (audioCtrl.value.volume != targetVol) {
       audioCtrl.setVolume(targetVol);
-    }
-    if (val.playbackSpeed != audioCtrl.value.playbackSpeed) {
-      audioCtrl.setPlaybackSpeed(val.playbackSpeed);
     }
 
     final audioDur = audioCtrl.value.duration;
@@ -65,15 +99,74 @@ class TowerPlayerVpcEventHandler {
       if (audioCtrl.value.isPlaying) {
         audioCtrl.pause();
       }
-    } else {
-      if (val.isPlaying && !audioCtrl.value.isPlaying) {
-        audioCtrl.play();
-      } else if (!val.isPlaying && audioCtrl.value.isPlaying) {
-        audioCtrl.pause();
+      final targetVol = isMuted ? 0.0 : volume;
+      if (mainVpc.value.volume != targetVol) {
+        mainVpc.setVolume(targetVol);
       }
-      final drift = (val.position - audioCtrl.value.position).inMilliseconds.abs();
-      if (drift > 80) {
+      return;
+    }
+
+    final isVideoBuffering = val.isBuffering;
+    final isAudioBuffering = audioCtrl.value.isBuffering;
+
+    if (val.isPlaying && !isVideoBuffering && !audioCtrl.value.isPlaying) {
+      audioCtrl.play();
+    } else if ((!val.isPlaying || isVideoBuffering) && audioCtrl.value.isPlaying) {
+      audioCtrl.pause();
+    }
+
+    // Measure clock drift between video and audio (positive => audio lags behind video)
+    final driftMs = (val.position - audioCtrl.value.position).inMilliseconds;
+    final absDrift = driftMs.abs();
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    // Check if a prior major seek has settled
+    if (_pendingSeekTargetMs != null) {
+      final seekDiff = (audioCtrl.value.position.inMilliseconds - _pendingSeekTargetMs!).abs();
+      if (seekDiff < 400 || (now - _lastSeekTimestamp) > 2000) {
+        _pendingSeekTargetMs = null;
+      } else {
+        // Seek is still settling in decoder/network stream; do not trigger new seek or slew
+        return;
+      }
+    }
+
+    if (absDrift > 1200) {
+      // Major user seek / jump: debounced seekTo to prevent machinegun buffer flushes
+      // Must not interrupt an ongoing network buffer cycle
+      if (!isAudioBuffering && (now - _lastSeekTimestamp > 1500)) {
+        _lastSeekTimestamp = now;
+        _pendingSeekTargetMs = val.position.inMilliseconds;
         audioCtrl.seekTo(val.position);
+      }
+    } else if (absDrift >= 40) {
+      // Graduated PLL Clock Smoothing to eliminate drift smoothly without audio clicks or decode restarts
+      final double slewFactor;
+      if (absDrift < 200) {
+        slewFactor = 0.04;
+      } else if (absDrift < 600) {
+        slewFactor = 0.08;
+      } else {
+        slewFactor = 0.14;
+      }
+
+      if (driftMs > 0) {
+        // Audio is lagging behind video -> speed up audio
+        final targetSpeed = (val.playbackSpeed * (1.0 + slewFactor)).clamp(0.25, 2.0);
+        if ((audioCtrl.value.playbackSpeed - targetSpeed).abs() > 0.01) {
+          audioCtrl.setPlaybackSpeed(targetSpeed);
+        }
+      } else {
+        // Audio is ahead of video -> slow down audio
+        final targetSpeed = (val.playbackSpeed * (1.0 - slewFactor)).clamp(0.25, 2.0);
+        if ((audioCtrl.value.playbackSpeed - targetSpeed).abs() > 0.01) {
+          audioCtrl.setPlaybackSpeed(targetSpeed);
+        }
+      }
+    } else {
+      // In-sync lock (< 40ms): return to main playback speed
+      if ((audioCtrl.value.playbackSpeed - val.playbackSpeed).abs() > 0.005) {
+        audioCtrl.setPlaybackSpeed(val.playbackSpeed);
       }
     }
   }
@@ -95,6 +188,7 @@ class TowerPlayerVpcEventHandler {
     required void Function(bool played) setPreRollPlayed,
     required void Function(bool played) setMidRollPlayed,
     required void Function(bool played) setSponsorMidRollPlayed,
+    Duration? effectiveDuration,
   }) {
     if (!shouldSuppressAds && hasRealVideoAds) {
       final sponsorAd = Get.isRegistered<AdService>()
@@ -125,7 +219,9 @@ class TowerPlayerVpcEventHandler {
 
     if (!shouldSuppressAds && !isShowingAd && hasRealVideoAds) {
       final currentPos = val.position;
-      final totalDur = val.duration;
+      final totalDur = (effectiveDuration != null && effectiveDuration > Duration.zero)
+          ? effectiveDuration
+          : val.duration;
 
       final sponsorAd = Get.isRegistered<AdService>()
           ? AdService.to.getSponsorAdForVideo(videoId)

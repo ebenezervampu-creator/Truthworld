@@ -3,13 +3,12 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
-import 'package:truthworld/core/utils/get_instance_extensions.dart';
+import 'package:truthworld/core/services/user_preferences_service.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
@@ -43,6 +42,19 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
 
   late final HomeController _homeController;
   late final Worker _topicsWorker;
+  Worker? _hiddenWorker;
+
+  List<Topic> _getValidUnhiddenTopics() {
+    final userPrefs = Get.isRegistered<UserPreferencesService>()
+        ? UserPreferencesService.to
+        : null;
+    return _homeController.featuredTopics
+        .where((t) =>
+            t.isValidTopic &&
+            t.videoCount > 0 &&
+            (userPrefs == null || !userPrefs.isTopicBlocked(t)))
+        .toList();
+  }
 
   @override
   void initState() {
@@ -57,10 +69,17 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
       }
     });
 
+    // Listen to changes in hiddenTopicIds to reinitialize PageController
+    if (Get.isRegistered<UserPreferencesService>()) {
+      _hiddenWorker = ever(UserPreferencesService.to.hiddenTopicIds, (_) {
+        if (mounted) {
+          _reinitPageController();
+        }
+      });
+    }
+
     // Initialize PageController with cached topics if they are already available
-    final initialTopics = _homeController.featuredTopics
-        .where((t) => t.isValidTopic && t.videoCount > 0)
-        .toList();
+    final initialTopics = _getValidUnhiddenTopics();
     if (initialTopics.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -71,13 +90,15 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
   }
 
   void _reinitPageController() {
-    final topics = _homeController.featuredTopics
-        .where((t) => t.isValidTopic && t.videoCount > 0)
-        .toList();
-    if (topics.isEmpty) return;
+    final topics = _getValidUnhiddenTopics();
+    if (topics.isEmpty) {
+      _timer?.cancel();
+      return;
+    }
     final itemsCount = topics.length;
-    final initialPage =
-        (_infiniteItems ~/ 2) - ((_infiniteItems ~/ 2) % itemsCount);
+    final initialPage = itemsCount <= 1
+        ? 0
+        : (_infiniteItems ~/ 2) - ((_infiniteItems ~/ 2) % itemsCount);
     try {
       _pageController.dispose();
     } catch (e, stackTrace) {
@@ -88,19 +109,22 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
       );
     }
     _pageController = PageController(initialPage: initialPage);
-    _currentIndex.value = initialPage % itemsCount;
+    _currentIndex.value = itemsCount <= 1 ? 0 : (initialPage % itemsCount);
     _startAutoScroll();
   }
 
   void _startAutoScroll() {
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(milliseconds: 2500), (timer) {
+    final topics = _getValidUnhiddenTopics();
+    if (topics.length <= 1) return;
+
+    _timer = Timer.periodic(const Duration(milliseconds: 4500), (timer) {
       if (_pageController.hasClients &&
           !_isHovering.value &&
           _isVisible.value) {
         _pageController.nextPage(
-          duration: const Duration(milliseconds: 1000),
-          curve: Curves.easeInOutQuart,
+          duration: const Duration(milliseconds: 800),
+          curve: Curves.easeInOutCubic,
         );
       }
     });
@@ -109,6 +133,7 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
   @override
   void dispose() {
     _topicsWorker.dispose();
+    _hiddenWorker?.dispose();
     _timer?.cancel();
     try {
       _pageController.dispose();
@@ -142,11 +167,17 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
     final bannerHeight = isMobile ? 320.0 : 460.0;
 
     return Obx(() {
-      final topics = _homeController.featuredTopics
-          .where((t) => t.isValidTopic && t.videoCount > 0)
-          .toList();
+      final topics = _getValidUnhiddenTopics();
 
-      if (_homeController.isLoadingFeaturedTopics.value && topics.isEmpty) {
+      // Only show the shimmer placeholder during initial cold boot when the entire feed is empty.
+      // During pull-to-refresh or background revalidation of an active feed, never inject a temporary 320px
+      // shimmer placeholder that abruptly collapses and causes layout jank.
+      final isInitialFeedLoading = _homeController.isLoadingVideos.value &&
+          _homeController.videos.isEmpty;
+
+      if (_homeController.isLoadingFeaturedTopics.value &&
+          topics.isEmpty &&
+          isInitialFeedLoading) {
         return Padding(
           padding: EdgeInsets.symmetric(
             horizontal: widget.horizontalPadding,
@@ -199,7 +230,11 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
             child: Container(
               height: bannerHeight,
               decoration: BoxDecoration(
+                color: const Color(0xFF141416),
                 borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.12),
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.4),
@@ -209,12 +244,15 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
                 ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(23),
                 child: Stack(
                   children: [
                     PageView.builder(
                       controller: _pageController,
-                      itemCount: _infiniteItems,
+                      physics: itemsCount <= 1
+                          ? const NeverScrollableScrollPhysics()
+                          : const ClampingScrollPhysics(),
+                      itemCount: itemsCount <= 1 ? 1 : _infiniteItems,
                       onPageChanged: (index) =>
                           _currentIndex.value = index % itemsCount,
                       itemBuilder: (context, index) {
@@ -224,6 +262,9 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
                           topic: topics[bannerIndex],
                           isMobile: isMobile,
                         );
+                        if (itemsCount <= 1) {
+                          return bannerWidget;
+                        }
                         return AnimatedBuilder(
                           animation: _pageController,
                           builder: (context, child) {
@@ -236,20 +277,12 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
                               }
                             }
 
-                            // Awesome transition effects
-                            final scale = (1 - (pageOffset.abs() * 0.3)).clamp(
-                              0.7,
-                              1.0,
-                            );
-                            final opacity = (1 - (pageOffset.abs() * 0.5))
+                            final opacity = (1 - (pageOffset.abs() * 0.4))
                                 .clamp(0.0, 1.0);
 
                             return Opacity(
                               opacity: opacity,
-                              child: Transform.scale(
-                                scale: scale,
-                                child: child,
-                              ),
+                              child: child,
                             );
                           },
                           child: bannerWidget,
@@ -261,17 +294,25 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
                     if (!isMobile && itemsCount > 1) ...[
                       _buildNavButton(
                         isLeft: true,
-                        onTap: () => _pageController.previousPage(
-                          duration: const Duration(milliseconds: 800),
-                          curve: Curves.easeInOutQuart,
-                        ),
+                        onTap: () {
+                          if (_pageController.hasClients) {
+                            _pageController.previousPage(
+                              duration: const Duration(milliseconds: 800),
+                              curve: Curves.easeInOutQuart,
+                            );
+                          }
+                        },
                       ),
                       _buildNavButton(
                         isLeft: false,
-                        onTap: () => _pageController.nextPage(
-                          duration: const Duration(milliseconds: 800),
-                          curve: Curves.easeInOutQuart,
-                        ),
+                        onTap: () {
+                          if (_pageController.hasClients) {
+                            _pageController.nextPage(
+                              duration: const Duration(milliseconds: 800),
+                              curve: Curves.easeInOutQuart,
+                            );
+                          }
+                        },
                       ),
                     ],
 
@@ -430,17 +471,18 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
                       ),
                     ),
                   ),
-                  // Subtle bottom gradient for indicators
+                  // Multi-stop bottom gradient for indicators and clean bottom border definition
                   Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.bottomCenter,
                         end: Alignment.topCenter,
                         colors: [
-                          Colors.black.withValues(alpha: 0.6),
+                          Colors.black.withValues(alpha: 0.90),
+                          Colors.black.withValues(alpha: 0.50),
                           Colors.transparent,
                         ],
-                        stops: const [0.0, 0.4],
+                        stops: const [0.0, 0.25, 0.60],
                       ),
                     ),
                   ),
@@ -502,8 +544,8 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
                     maxWidth: isMobile ? double.infinity : 680,
                   ),
                   child: Text(
-                    topic.title,
-                    style: GoogleFonts.roboto(
+                    topic.name,
+                    style: TextStyle(
                       fontSize: isMobile ? 22 : 32,
                       fontWeight: FontWeight.w800,
                       color: Colors.white,
@@ -584,9 +626,9 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
                   child: Text(
                     topic.description.trim().isNotEmpty
                         ? topic.description
-                        : topic.title,
+                        : topic.name,
                     style: const TextStyle(
-                      color: Color(0xFF94A3B8),
+                      color: AppColors.textTertiary,
                       fontSize: 13,
                       height: 1.3,
                     ),
@@ -599,7 +641,7 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _BannerFollowButton(topic: topic),
+                    BannerFollowButton(topic: topic),
                     const SizedBox(width: 10),
                     Container(
                       width: 38,
@@ -622,14 +664,15 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
                         ),
                         onPressed: () {
                           final slug = topic.slug;
-                          final title = topic.title;
+                          final title = topic.name;
                           final imageUrl = topic.coverImage ?? topic.thumbnailUrl;
                           final topicUrl = DeepLinkService.topicUrl(slug);
                           final followingCtrl =
-                              Get.findIfInstantiated<FollowingTopicsController>();
+                              Get.isRegistered<FollowingTopicsController>()
+                                  ? Get.find<FollowingTopicsController>()
+                                  : Get.put(FollowingTopicsController());
                           final currentFollowerCount =
-                              followingCtrl?.getFollowerCount(topic) ??
-                                  topic.followerCount;
+                              followingCtrl.getFollowerCount(topic);
                           ShareBottomSheet.show(
                             title: title,
                             url: topicUrl,
@@ -679,7 +722,7 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
           Positioned(
             top: isMobile ? 16 : 24,
             right: isMobile ? 16 : 28,
-            child: _BannerFollowerCountBadge(
+            child: BannerFollowerCountBadge(
               topic: topic,
               formatCount: _formatCount,
             ),
@@ -702,10 +745,10 @@ class FeaturedVideoBannerState extends State<FeaturedVideoBanner> {
   }
 }
 
-/// Follow button for the featured banner that avoids eager initialization of
-/// [FollowingTopicsController] until the user explicitly requests follow interactions.
-class _BannerFollowButton extends StatelessWidget {
-  const _BannerFollowButton({required this.topic});
+/// Follow button for the featured banner that reactively reflects topic follow state.
+@visibleForTesting
+class BannerFollowButton extends StatelessWidget {
+  const BannerFollowButton({required this.topic, super.key});
 
   final Topic topic;
 
@@ -721,52 +764,35 @@ class _BannerFollowButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final followingController =
-        Get.findIfInstantiated<FollowingTopicsController>();
+    final ctrl = Get.isRegistered<FollowingTopicsController>()
+        ? Get.find<FollowingTopicsController>()
+        : Get.put(FollowingTopicsController());
 
-    if (followingController != null) {
-      final ctrl = followingController;
-      return Obx(() {
-        final isFollowed = ctrl.isTopicFollowed(topic.id);
-        final setting = ctrl.topicNotificationSettings[topic.id];
-        return _buildButton(
-          context,
-          isFollowed: isFollowed,
-          icon: isFollowed
-              ? _getNotificationIcon(setting)
-              : Icons.play_arrow_rounded,
-          onPressed: () {
-            if (isFollowed) {
-              TopicNotificationOptionsSheet.show(
-                context,
-                topic: topic,
-              );
-            } else {
-              ctrl.toggleFollowTopic(topic);
-            }
-          },
-        );
-      });
-    }
-
-    return _buildButton(
-      context,
-      isFollowed: false,
-      icon: Icons.play_arrow_rounded,
-      onPressed: () {
-        final ctrl = Get.isRegistered<FollowingTopicsController>()
-            ? Get.find<FollowingTopicsController>()
-            : Get.put(FollowingTopicsController());
-        if (ctrl.isTopicFollowed(topic.id)) {
-          TopicNotificationOptionsSheet.show(
-            context,
-            topic: topic,
-          );
-        } else {
-          ctrl.toggleFollowTopic(topic);
-        }
-      },
-    );
+    return Obx(() {
+      final isFollowed = ctrl.isTopicFollowed(topic.id) ||
+          (topic.slug.isNotEmpty && ctrl.isTopicFollowed(topic.slug));
+      final setting = ctrl.topicNotificationSettings[topic.id] ??
+          (topic.slug.isNotEmpty
+              ? ctrl.topicNotificationSettings[topic.slug]
+              : null);
+      return _buildButton(
+        context,
+        isFollowed: isFollowed,
+        icon: isFollowed
+            ? _getNotificationIcon(setting)
+            : Icons.add_rounded,
+        onPressed: () {
+          if (isFollowed) {
+            TopicNotificationOptionsSheet.show(
+              context,
+              topic: topic,
+            );
+          } else {
+            ctrl.toggleFollowTopic(topic);
+          }
+        },
+      );
+    });
   }
 
   Widget _buildButton(
@@ -814,12 +840,13 @@ class _BannerFollowButton extends StatelessWidget {
   }
 }
 
-/// Follower count badge that resolves reactively if [FollowingTopicsController]
-/// is active, but falls back to static metadata without triggering lazy instantiation.
-class _BannerFollowerCountBadge extends StatelessWidget {
-  const _BannerFollowerCountBadge({
+/// Follower count badge that resolves reactively with [FollowingTopicsController].
+@visibleForTesting
+class BannerFollowerCountBadge extends StatelessWidget {
+  const BannerFollowerCountBadge({
     required this.topic,
     required this.formatCount,
+    super.key,
   });
 
   final Topic topic;
@@ -827,18 +854,14 @@ class _BannerFollowerCountBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final followingController =
-        Get.findIfInstantiated<FollowingTopicsController>();
+    final ctrl = Get.isRegistered<FollowingTopicsController>()
+        ? Get.find<FollowingTopicsController>()
+        : Get.put(FollowingTopicsController());
 
-    if (followingController != null) {
-      final ctrl = followingController;
-      return Obx(() {
-        final count = ctrl.getFollowerCount(topic);
-        return _buildBadge(count);
-      });
-    }
-
-    return _buildBadge(topic.followerCount);
+    return Obx(() {
+      final count = ctrl.getFollowerCount(topic);
+      return _buildBadge(count);
+    });
   }
 
   Widget _buildBadge(int count) {

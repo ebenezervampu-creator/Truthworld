@@ -60,7 +60,7 @@ class AppealsTab extends StatelessWidget {
   Widget _buildEmptyState() {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
@@ -103,7 +103,7 @@ class AppealsTab extends StatelessWidget {
   Widget _buildAppealsList(List<Map<String, dynamic>> appeals) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
@@ -130,7 +130,7 @@ class AppealsTab extends StatelessWidget {
           }
 
           return Material(
-            color: isSelected ? const Color(0xFF212121) : Colors.transparent,
+            color: isSelected ? AppColors.bgSurface : Colors.transparent,
             child: ListTile(
               contentPadding: const EdgeInsets.all(16),
               title: Text(
@@ -209,7 +209,7 @@ class AppealsTab extends StatelessWidget {
     if (appeal == null) {
       return Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF181818),
+          color: AppColors.bgPage,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         ),
@@ -236,7 +236,7 @@ class AppealsTab extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
@@ -462,7 +462,7 @@ class AppealsTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF212121),
+        color: AppColors.bgSurface,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),

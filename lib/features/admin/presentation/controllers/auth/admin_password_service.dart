@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -62,30 +63,8 @@ class AdminPasswordService {
       );
       final localStoredPass = creds[cleanEmail]?.toString() ?? '';
 
-      final docRef = FirebaseFirestore.instance
-          .collection('admin_members')
-          .doc(cleanEmail);
-      DocumentSnapshot<Map<String, dynamic>>? snap;
-      try {
-        snap = await docRef.get();
-      } catch (fsErr, s) {
-        ErrorHandler.log(
-          fsErr,
-          stackTrace: s,
-          tag: 'AdminPasswordService.readAdminMembersDoc',
-        );
-      }
-
       var verified = false;
-      if (snap != null && snap.exists && snap.data() != null) {
-        final storedPass = snap.data()?['password']?.toString() ?? '';
-        if (storedPass.isNotEmpty && storedPass == cleanCurrentPassword) {
-          verified = true;
-        }
-      }
-
-      if (!verified &&
-          localStoredPass.isNotEmpty &&
+      if (localStoredPass.isNotEmpty &&
           localStoredPass == cleanCurrentPassword) {
         verified = true;
       }
@@ -95,16 +74,34 @@ class AdminPasswordService {
         verified = true;
       }
 
-      // If current user is already logged in with Firebase Auth and password matches
-      if (!verified && FirebaseAuth.instance.currentUser != null) {
+      final currentUser = FirebaseAuth.instance.currentUser;
+
+      // 1. Re-authenticate current user to refresh auth timestamp and verify current password.
+      // This directly prevents [firebase_auth/requires-recent-login].
+      if (currentUser != null) {
         try {
           final authCred = EmailAuthProvider.credential(
-            email: cleanEmail,
+            email: currentUser.email ?? cleanEmail,
             password: cleanCurrentPassword,
           );
-          await FirebaseAuth.instance.currentUser!
-              .reauthenticateWithCredential(authCred);
+          await currentUser.reauthenticateWithCredential(authCred);
           verified = true;
+        } on FirebaseAuthException catch (authEx) {
+          if (authEx.code == 'wrong-password' ||
+              authEx.code == 'invalid-credential') {
+            if (!verified) {
+              AppSnackbar.error(
+                'The current password you entered is incorrect.',
+                title: 'Verification Notice',
+              );
+              rxIsLoading.value = false;
+              return false;
+            }
+          }
+          ErrorHandler.log(
+            authEx,
+            tag: 'AdminPasswordService.reauthenticateWithCredential',
+          );
         } catch (e, s) {
           ErrorHandler.log(
             e,
@@ -123,61 +120,83 @@ class AdminPasswordService {
         return false;
       }
 
-      // 1. Synchronize / Update with Firebase Auth so client has active auth token
-      try {
-        if (FirebaseAuth.instance.currentUser != null) {
-          await FirebaseAuth.instance.currentUser!
-              .updatePassword(cleanNewPassword);
-        } else {
-          try {
-            await FirebaseAuth.instance.signInWithEmailAndPassword(
-              email: cleanEmail,
-              password: cleanCurrentPassword,
-            );
-            if (FirebaseAuth.instance.currentUser != null) {
-              await FirebaseAuth.instance.currentUser!
-                  .updatePassword(cleanNewPassword);
-            }
-          } on FirebaseAuthException catch (authErr) {
-            if (authErr.code == 'user-not-found' ||
-                authErr.code == 'invalid-credential') {
-              try {
-                await FirebaseAuth.instance.createUserWithEmailAndPassword(
-                  email: cleanEmail,
-                  password: cleanNewPassword,
-                );
-              } catch (createErr, s) {
-                ErrorHandler.log(
-                  createErr,
-                  stackTrace: s,
-                  tag: 'AdminPasswordService.createUserAuth',
-                );
-              }
-            } else if (authErr.code == 'email-already-in-use') {
-              try {
-                await FirebaseAuth.instance.signInWithEmailAndPassword(
-                  email: cleanEmail,
-                  password: cleanNewPassword,
-                );
-              } catch (e, s) {
-                ErrorHandler.log(
-                  e,
-                  stackTrace: s,
-                  tag: 'AdminPasswordService.signInUpdatedUser',
-                );
-              }
+      // 2. Synchronize / Update with Firebase Auth
+      var authUpdated = false;
+
+      // Primary: Client-side updatePassword (succeeds because session was freshly reauthenticated)
+      if (currentUser != null) {
+        try {
+          await currentUser.updatePassword(cleanNewPassword);
+          authUpdated = true;
+        } on FirebaseAuthException catch (authErr) {
+          ErrorHandler.log(
+            authErr,
+            tag: 'AdminPasswordService.clientUpdatePassword',
+          );
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'AdminPasswordService.clientUpdatePassword',
+          );
+        }
+      }
+
+      // Fallback: If client update was blocked or currentUser is null, use Admin SDK Cloud Function
+      if (!authUpdated) {
+        try {
+          final callable = FirebaseFunctions.instanceFor(region: 'asia-south1')
+              .httpsCallable('changeAdminPassword');
+          final response = await callable.call<Map<String, dynamic>>({
+            'currentPassword': cleanCurrentPassword,
+            'newPassword': cleanNewPassword,
+            'targetEmail': cleanEmail,
+          });
+          if (response.data['success'] == true) {
+            authUpdated = true;
+          }
+        } catch (cfErr, s) {
+          ErrorHandler.log(
+            cfErr,
+            stackTrace: s,
+            tag: 'AdminPasswordService.changeAdminPasswordCloudFunction',
+          );
+        }
+      }
+
+      // If currentUser was null, try sign-in or create
+      if (!authUpdated && currentUser == null) {
+        try {
+          await FirebaseAuth.instance.signInWithEmailAndPassword(
+            email: cleanEmail,
+            password: cleanCurrentPassword,
+          );
+          if (FirebaseAuth.instance.currentUser != null) {
+            await FirebaseAuth.instance.currentUser!
+                .updatePassword(cleanNewPassword);
+            authUpdated = true;
+          }
+        } on FirebaseAuthException catch (authErr) {
+          if (authErr.code == 'user-not-found' ||
+              authErr.code == 'invalid-credential') {
+            try {
+              await FirebaseAuth.instance.createUserWithEmailAndPassword(
+                email: cleanEmail,
+                password: cleanNewPassword,
+              );
+              authUpdated = true;
+            } catch (createErr, s) {
+              ErrorHandler.log(
+                createErr,
+                stackTrace: s,
+                tag: 'AdminPasswordService.createUserAuth',
+              );
             }
           }
         }
-      } catch (authErr, s) {
-        ErrorHandler.log(
-          authErr,
-          stackTrace: s,
-          tag: 'AdminPasswordService.syncAuthCredentials',
-        );
       }
 
-      // 2. Persist updated password to local GetStorage credentials store
+      // 3. Persist updated password to local GetStorage credentials store
       try {
         creds[cleanEmail] = cleanNewPassword;
         storage.write('truthworld_admin_credentials', creds);
@@ -192,27 +211,6 @@ class AdminPasswordService {
           e,
           stackTrace: s,
           tag: 'AdminPasswordService.persistAdminCredentials',
-        );
-      }
-
-      // 3. Update password in Firestore admin_members
-      try {
-        await docRef.set({
-          'email': cleanEmail,
-          'password': cleanNewPassword,
-          'role': currentAdminRole.value.isNotEmpty
-              ? currentAdminRole.value
-              : (isOwner ? 'Super Admin' : 'Admin'),
-          'roles': currentAdminRoles.isNotEmpty
-              ? currentAdminRoles.toList()
-              : ['Super Admin'],
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      } catch (fsWriteErr, s) {
-        ErrorHandler.log(
-          fsWriteErr,
-          stackTrace: s,
-          tag: 'AdminPasswordService.writeAdminMembersDoc',
         );
       }
 
@@ -397,8 +395,40 @@ class AdminPasswordService {
                                   .trim()
                                   .toLowerCase();
 
+                              var passwordSaved = false;
                               if (currentUser != null) {
-                                await currentUser.updatePassword(pass);
+                                try {
+                                  await currentUser.updatePassword(pass);
+                                  passwordSaved = true;
+                                } catch (e, s) {
+                                  ErrorHandler.log(
+                                    e,
+                                    stackTrace: s,
+                                    tag:
+                                        'AdminPasswordService.setPasswordDirect',
+                                  );
+                                }
+                              }
+
+                              if (!passwordSaved) {
+                                try {
+                                  final callable =
+                                      FirebaseFunctions.instanceFor(
+                                    region: 'asia-south1',
+                                  ).httpsCallable('changeAdminPassword');
+                                  await callable.call<Map<String, dynamic>>({
+                                    'newPassword': pass,
+                                    'targetEmail': targetEmail,
+                                  });
+                                  passwordSaved = true;
+                                } catch (e, s) {
+                                  ErrorHandler.log(
+                                    e,
+                                    stackTrace: s,
+                                    tag:
+                                        'AdminPasswordService.setPasswordCallable',
+                                  );
+                                }
                               }
 
                               // Cache in local credentials store
@@ -424,27 +454,6 @@ class AdminPasswordService {
                                   tag:
                                       'AdminPasswordService.cacheAdminCredentials',
                                 );
-                              }
-
-                              // Update Firestore admin_members
-                              if (targetEmail.isNotEmpty) {
-                                try {
-                                  await FirebaseFirestore.instance
-                                      .collection('admin_members')
-                                      .doc(targetEmail)
-                                      .set({
-                                    'email': targetEmail,
-                                    'password': pass,
-                                    'updatedAt': FieldValue.serverTimestamp(),
-                                  }, SetOptions(merge: true));
-                                } catch (e, s) {
-                                  ErrorHandler.log(
-                                    e,
-                                    stackTrace: s,
-                                    tag:
-                                        'AdminPasswordService.updateAdminMemberPassword',
-                                  );
-                                }
                               }
 
                               try {

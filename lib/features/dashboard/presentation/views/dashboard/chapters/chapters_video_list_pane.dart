@@ -36,21 +36,64 @@ class ChaptersVideoListPane extends StatelessWidget {
         _buildFilterChips(),
         Expanded(
           child: Obx(() {
+            final videos = controller.filteredVideos;
+            if (videos.isEmpty) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.search_off_rounded,
+                        size: 48,
+                        color: textSecondaryColor.withValues(alpha: 0.5),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No videos found',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: textColor,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Try adjusting your search or filters.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: textSecondaryColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
             return ListView.separated(
               padding: EdgeInsets.symmetric(
                 horizontal: isMobile ? 12 : 12,
                 vertical: 12,
               ),
-              itemCount: controller.filteredVideos.length,
+              itemCount: videos.length,
               separatorBuilder: (context, index) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
-                final video = controller.filteredVideos[index];
-                final isSelected =
-                    controller.selectedVideo.value?.id == video.id;
-                return _buildVideoSelectorCard(
-                  video: video,
-                  isSelected: isSelected,
-                );
+                final video = videos[index];
+                return Obx(() {
+                  final isSelected =
+                      controller.selectedVideo.value?.id == video.id;
+                  final chapterCount = isSelected
+                      ? controller.currentChapters.length
+                      : video.chapters.length;
+                  return _buildVideoSelectorCard(
+                    video: video,
+                    isSelected: isSelected,
+                    chapterCount: chapterCount,
+                  );
+                });
               },
             );
           }),
@@ -70,9 +113,9 @@ class ChaptersVideoListPane extends StatelessWidget {
             children: [
               if (Navigator.canPop(context)) ...[
                 IconButton(
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.arrow_back_rounded,
-                    color: Colors.white,
+                    color: isDarkMode ? Colors.white : Colors.black87,
                   ),
                   onPressed: () => Navigator.of(context).pop(),
                   padding: EdgeInsets.zero,
@@ -80,9 +123,9 @@ class ChaptersVideoListPane extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
               ],
-              const Icon(
+              Icon(
                 Icons.bookmarks_rounded,
-                color: Colors.white,
+                color: isDarkMode ? Colors.white : Colors.black87,
                 size: 22,
               ),
               const SizedBox(width: 8),
@@ -187,9 +230,8 @@ class ChaptersVideoListPane extends StatelessWidget {
   Widget _buildVideoSelectorCard({
     required Video video,
     required bool isSelected,
+    required int chapterCount,
   }) {
-    final chapterCount = video.chapters.length;
-
     return InkWell(
       onTap: () => controller.selectVideo(video),
       borderRadius: BorderRadius.circular(12),
@@ -198,13 +240,18 @@ class ChaptersVideoListPane extends StatelessWidget {
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppColors.brand.withValues(alpha: 0.1)
+              ? (isDarkMode
+                  ? AppColors.brand.withValues(alpha: 0.1)
+                  : Colors.black.withValues(alpha: 0.05))
               : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
-                ? AppColors.brand.withValues(alpha: 0.5)
+                ? (isDarkMode
+                    ? AppColors.brand.withValues(alpha: 0.6)
+                    : Colors.black.withValues(alpha: 0.5))
                 : borderColor.withValues(alpha: 0.6),
+            width: isSelected ? 1.5 : 1.0,
           ),
         ),
         child: Row(
@@ -276,7 +323,9 @@ class ChaptersVideoListPane extends StatelessWidget {
                       fontSize: 14,
                       fontWeight:
                           isSelected ? FontWeight.bold : FontWeight.w500,
-                      color: isSelected ? AppColors.brand : textColor,
+                      color: isSelected
+                          ? (isDarkMode ? AppColors.brand : Colors.black87)
+                          : textColor,
                     ),
                   ),
                   const SizedBox(height: 6),

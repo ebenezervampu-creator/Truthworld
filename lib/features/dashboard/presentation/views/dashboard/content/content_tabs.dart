@@ -3,12 +3,23 @@ import 'package:get/get.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
 import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/feedback/feedback_service.dart';
+import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/playlists_management_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/topic_management_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/content/desktop_content_data_table.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/content/draft_scheduled_cards.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/content/video_content_card.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/drafts_screen.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/playlists/dialogs/create_playlist_dialog.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/playlists/playlists_view_body.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/topics/topics_widgets.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/trash_restore_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/topics/presentation/widgets/create_topic_dialog.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -648,6 +659,386 @@ class ScheduledTab extends StatelessWidget {
   }
 }
 
+class PlaylistsTab extends StatelessWidget {
+  const PlaylistsTab({
+    required this.channelId,
+    required this.isDarkMode,
+    this.searchQuery = '',
+    super.key,
+  });
+
+  final String channelId;
+  final bool isDarkMode;
+  final String searchQuery;
+
+  String get activeChannelId {
+    if (channelId.isNotEmpty) {
+      return channelId;
+    }
+    if (Get.isRegistered<AuthService>() &&
+        AuthService.to.userChannel?.id != null) {
+      return AuthService.to.userChannel!.id;
+    }
+    return AuthService.to.uid;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = Get.isRegistered<PlaylistsManagementController>()
+        ? Get.find<PlaylistsManagementController>()
+        : Get.put(PlaylistsManagementController());
+
+    if (searchQuery.isNotEmpty && controller.searchQuery.value != searchQuery) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        controller.searchQuery.value = searchQuery;
+      });
+    }
+
+    final effectiveChannelId = activeChannelId;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 600;
+        final horizontalPadding = isMobile ? 16.0 : 24.0;
+
+        return SingleChildScrollView(
+          padding: EdgeInsets.symmetric(
+            horizontal: horizontalPadding,
+            vertical: 16,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Obx(() {
+                    final count = controller.filteredPlaylists.length;
+                    return Text(
+                      'Playlists ($count)',
+                      style: const TextStyle(
+                        fontFamily: TWTypography.brandFamily,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                        letterSpacing: -0.3,
+                      ),
+                    );
+                  }),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      CreatePlaylistDialog.show(
+                        context,
+                        channelId: effectiveChannelId,
+                      );
+                    },
+                    icon: const Icon(
+                      Icons.add_rounded,
+                      size: 16,
+                      color: Colors.black,
+                    ),
+                    label: const Text(
+                      'New Playlist',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.brand,
+                      foregroundColor: Colors.black,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              PlaylistsViewBody(channelId: effectiveChannelId),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class TopicsTab extends StatelessWidget {
+  const TopicsTab({
+    required this.channelId,
+    required this.isDarkMode,
+    this.searchQuery = '',
+    super.key,
+  });
+
+  final String channelId;
+  final bool isDarkMode;
+  final String searchQuery;
+
+  String get activeChannelId {
+    if (channelId.isNotEmpty) {
+      return channelId;
+    }
+    if (Get.isRegistered<AuthService>() &&
+        AuthService.to.userChannel?.id != null) {
+      return AuthService.to.userChannel!.id;
+    }
+    return AuthService.to.uid;
+  }
+
+  void _showCreateTopicDialog(
+    BuildContext context,
+    TopicManagementController controller,
+    String effectiveChannelId,
+  ) {
+    CreateTopicDialog.show(
+      context: context,
+      isDarkMode: isDarkMode,
+      channelVideosFuture: controller.fetchChannelVideos(effectiveChannelId),
+      onCreateTopicSubmitted: (createCtrl) async {
+        String? finalThumbnailUrl;
+        if (createCtrl.thumbnailSource.value == 'custom' &&
+            createCtrl.pickedCustomImageBytes.value != null) {
+          finalThumbnailUrl = await controller.uploadTopicThumbnail(
+            createCtrl.pickedCustomImageBytes.value!,
+            createCtrl.pickedCustomImageName.value ?? 'custom_topic_thumb.jpg',
+          );
+        } else if (createCtrl.thumbnailSource.value == 'video') {
+          finalThumbnailUrl = createCtrl.chosenVideoThumbnailUrl.value;
+        }
+
+        await controller.createTopic(
+          channelId: effectiveChannelId,
+          name: createCtrl.nameController.text,
+          handle: createCtrl.handleController.text,
+          description: createCtrl.descriptionController.text,
+          category: createCtrl.categoryController.text.isEmpty
+              ? 'General'
+              : createCtrl.categoryController.text,
+          selectedVideoIds: createCtrl.selectedVideoIds,
+          visibilityType: createCtrl.selectedVisibility.value,
+          accessCode: createCtrl.selectedVisibility.value == TopicVisibilityType.private
+              ? createCtrl.accessCodeController.text.trim()
+              : null,
+          thumbnailUrl: finalThumbnailUrl,
+        );
+      },
+    );
+  }
+
+  bool _haveTopicsChanged(List<Topic> current, List<Topic> incoming) {
+    if (current.length != incoming.length) return true;
+    for (var i = 0; i < current.length; i++) {
+      if (current[i].id != incoming[i].id ||
+          current[i].updatedAt != incoming[i].updatedAt ||
+          current[i].title != incoming[i].title ||
+          current[i].videoCount != incoming[i].videoCount ||
+          current[i].visibilityType != incoming[i].visibilityType ||
+          current[i].thumbnailUrl != incoming[i].thumbnailUrl ||
+          current[i].category != incoming[i].category) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = Get.isRegistered<TopicManagementController>()
+        ? Get.find<TopicManagementController>()
+        : Get.put(TopicManagementController());
+
+    controller.onEditTopicRequested = (ctx, topic) {
+      final isOwner =
+          Get.isRegistered<AuthService>() &&
+          ((topic.channelId != null &&
+                  topic.channelId!.isNotEmpty &&
+                  AuthService.to.userChannel?.id == topic.channelId) ||
+              (topic.creatorId != null &&
+                  topic.creatorId!.isNotEmpty &&
+                  AuthService.to.uid == topic.creatorId));
+
+      if (!isOwner) {
+        SnackbarService.error(
+          message: 'Only the topic creator channel can edit this topic.',
+        );
+        return;
+      }
+
+      EditTopicDialog.show(
+        context: ctx,
+        topic: topic,
+        channelId: topic.channelId ?? activeChannelId,
+        isDarkMode: isDarkMode,
+        controller: controller,
+      );
+    };
+
+    if (searchQuery.isNotEmpty && controller.searchQuery.value != searchQuery) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        controller.searchQuery.value = searchQuery;
+      });
+    }
+
+    final effectiveChannelId = activeChannelId;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 600;
+        final horizontalPadding = isMobile ? 16.0 : 24.0;
+
+        return SingleChildScrollView(
+          padding: EdgeInsets.symmetric(
+            horizontal: horizontalPadding,
+            vertical: 16,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Obx(() {
+                    final count = controller.topicsList.length;
+                    return Text(
+                      'Topics ($count)',
+                      style: const TextStyle(
+                        fontFamily: TWTypography.brandFamily,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                        letterSpacing: -0.3,
+                      ),
+                    );
+                  }),
+                  ElevatedButton.icon(
+                    onPressed: () => _showCreateTopicDialog(
+                      context,
+                      controller,
+                      effectiveChannelId,
+                    ),
+                    icon: const Icon(
+                      Icons.add_rounded,
+                      size: 16,
+                      color: Colors.black,
+                    ),
+                    label: const Text(
+                      'New Topic',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.brand,
+                      foregroundColor: Colors.black,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              StreamBuilder<List<Topic>>(
+                stream: controller.fetchChannelTopics(effectiveChannelId),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const TopicLoadingGrid();
+                  }
+                  if (snapshot.hasError) {
+                    ErrorHandler.log(
+                      snapshot.error,
+                      tag: 'TopicsTab.stream',
+                    );
+                    return TopicErrorState(
+                      error: UserFeedbackSanitizer.sanitizeMessage(
+                        snapshot.error,
+                        defaultActionContext:
+                            'Unable to load topics. Please check your connection and try again.',
+                      ),
+                      onRetry: () => controller.update(),
+                    );
+                  }
+                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return const TopicEmptyState();
+                  }
+
+                  final topics = snapshot.data!;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (_haveTopicsChanged(controller.topicsList, topics)) {
+                      controller.topicsList.assignAll(topics);
+                    }
+                  });
+
+                  return Obx(() {
+                    final query = searchQuery.isNotEmpty
+                        ? searchQuery.trim().toLowerCase()
+                        : controller.searchQuery.value.trim().toLowerCase();
+                    final filterMode = controller.activeFilterMode.value;
+
+                    var baseTopics = topics;
+                    if (filterMode == 'public') {
+                      baseTopics = topics
+                          .where((t) =>
+                              t.visibilityType == TopicVisibilityType.public &&
+                              t.status.toLowerCase() == 'active')
+                          .toList();
+                    } else if (filterMode == 'private') {
+                      baseTopics = topics
+                          .where((t) => t.visibilityType == TopicVisibilityType.private)
+                          .toList();
+                    } else if (filterMode == 'rejected') {
+                      baseTopics = topics
+                          .where((t) =>
+                              t.status.toLowerCase() == 'verificationrejected' ||
+                              t.status.toLowerCase() == 'rejected')
+                          .toList();
+                    }
+
+                    final filtered = query.isEmpty
+                        ? baseTopics
+                        : baseTopics.where((topic) {
+                            return topic.name.toLowerCase().contains(query) ||
+                                topic.handle.toLowerCase().contains(query) ||
+                                topic.description.toLowerCase().contains(query) ||
+                                topic.category.toLowerCase().contains(query);
+                          }).toList();
+
+                    if (filtered.isEmpty) {
+                      return TopicSearchEmptyState(controller: controller);
+                    }
+
+                    return TopicGridView(
+                      topics: filtered,
+                      controller: controller,
+                    );
+                  });
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
 class TrashTab extends StatelessWidget {
   const TrashTab({
     required this.channelId,
@@ -666,6 +1057,8 @@ class TrashTab extends StatelessWidget {
       channelId: channelId,
       isDarkMode: isDarkMode,
       searchQuery: searchQuery,
+      isConsumer: false,
+      isStudioContentTab: true,
     );
   }
 }

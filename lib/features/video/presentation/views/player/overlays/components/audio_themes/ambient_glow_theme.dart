@@ -1,10 +1,13 @@
 import 'dart:math';
+import 'dart:ui' as ui;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Theme 1: Ambient Studio Glow
-/// Vibrant blurred backdrop with breathing audio halo, elevated artwork, and rhythmic spectrum bars.
+/// High-end, Spotify & Apple Music-grade ambient acoustic stage.
+/// Dynamically diffuses the artwork's authentic palette into a deep, luxurious studio backdrop
+/// paired with crisp typography and a silky, rhythmic waveform.
 class AmbientGlowTheme extends StatefulWidget {
   const AmbientGlowTheme({
     required this.isPlaying,
@@ -66,51 +69,68 @@ class _AmbientGlowThemeState extends State<AmbientGlowTheme>
     return Stack(
       fit: StackFit.expand,
       children: [
-        // ── Dynamic Ambient Aura ─────────────────────────────────────
+        // ── Deep Obsidian Canvas ─────────────────────────────────────
+        const ColoredBox(color: Color(0xFF08090C)),
+
+        // ── Dynamic Artwork Ambient Diffusion ───────────────────────
+        if (thumb.isNotEmpty)
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.35,
+              child: ImageFiltered(
+                imageFilter: ui.ImageFilter.blur(sigmaX: 70, sigmaY: 70),
+                child: CachedNetworkImage(
+                  imageUrl: thumb,
+                  fit: BoxFit.cover,
+                  errorWidget: (_, _, _) => const SizedBox.shrink(),
+                ),
+              ),
+            ),
+          ),
+
+        // Dark Luxury Vignette Overlay
+        Positioned.fill(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment.center,
+                radius: 1.1,
+                colors: [
+                  Colors.black.withValues(alpha: 0.4),
+                  Colors.black.withValues(alpha: 0.88),
+                  const Color(0xFF08090C),
+                ],
+                stops: const [0.0, 0.65, 1.0],
+              ),
+            ),
+          ),
+        ),
+
+        // Subtle Breathing Halo
         AnimatedBuilder(
           animation: _controller,
           builder: (context, _) {
             final t = _controller.value * 2 * pi;
-            final scale1 = 1.0 + 0.15 * sin(t);
-            final scale2 = 1.0 + 0.18 * cos(t + 1.2);
+            final haloOpacity = widget.isPlaying
+                ? (0.10 + 0.05 * sin(t)).clamp(0.05, 0.18)
+                : 0.06;
 
-            return Stack(
-              fit: StackFit.expand,
-              children: [
-                const ColoredBox(color: Color(0xFF0A0A0E)),
-                // Blurred Radial Gradient 1
-                Positioned(
-                  top: -60,
-                  left: -60,
-                  child: Transform.scale(
-                    scale: scale1,
-                    child: Container(
-                      width: 260,
-                      height: 260,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: const Color(0xFF4F46E5).withValues(alpha: 0.22),
-                      ),
+            return Center(
+              child: Container(
+                width: 220,
+                height: 220,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: haloOpacity),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.white.withValues(alpha: haloOpacity * 0.7),
+                      blurRadius: 70,
+                      spreadRadius: 20,
                     ),
-                  ),
+                  ],
                 ),
-                // Blurred Radial Gradient 2
-                Positioned(
-                  bottom: -60,
-                  right: -60,
-                  child: Transform.scale(
-                    scale: scale2,
-                    child: Container(
-                      width: 280,
-                      height: 280,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: const Color(0xFF9333EA).withValues(alpha: 0.18),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             );
           },
         ),
@@ -118,36 +138,30 @@ class _AmbientGlowThemeState extends State<AmbientGlowTheme>
         // ── Center Stage Artwork & Info ──────────────────────────────
         Center(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Elevated Artwork Card
-                Container(
-                  width: 110,
-                  height: 110,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isNarrow = constraints.maxWidth < 440;
+
+                final artworkWidget = Container(
+                  width: isNarrow ? 110 : 124,
+                  height: isNarrow ? 110 : 124,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(18),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      width: 1.5,
+                      color: Colors.white.withValues(alpha: 0.16),
+                      width: 1.2,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF7C3AED).withValues(alpha: 0.35),
-                        blurRadius: 28,
-                        spreadRadius: 2,
-                      ),
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.7),
-                        blurRadius: 16,
+                        color: Colors.black.withValues(alpha: 0.6),
+                        blurRadius: 24,
                         offset: const Offset(0, 8),
                       ),
                     ],
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(15),
+                    borderRadius: BorderRadius.circular(17),
                     child: thumb.isNotEmpty
                         ? CachedNetworkImage(
                             imageUrl: thumb,
@@ -157,74 +171,119 @@ class _AmbientGlowThemeState extends State<AmbientGlowTheme>
                           )
                         : _fallbackCover(),
                   ),
-                ),
+                );
 
-                const SizedBox(width: 20),
-
-                // Metadata & Mini Spectrum
-                Flexible(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 320),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
+                final metaWidget = Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: isNarrow
+                      ? CrossAxisAlignment.center
+                      : CrossAxisAlignment.start,
+                  children: [
+                    // Sleek Frosted Badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.14),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AnimatedBuilder(
+                            animation: _controller,
+                            builder: (context, _) {
+                              final dotOpacity = widget.isPlaying
+                                  ? (0.6 + 0.4 * sin(_controller.value * 2 * pi)).clamp(0.2, 1.0)
+                                  : 0.4;
+                              return Container(
+                                width: 5,
+                                height: 5,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white.withValues(alpha: dotOpacity),
+                                ),
+                              );
+                            },
                           ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFA855F7).withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: const Color(0xFFA855F7).withValues(alpha: 0.4),
-                            ),
-                          ),
-                          child: const Text(
-                            'NOW PLAYING AUDIO',
+                          const SizedBox(width: 5),
+                          const Text(
+                            'AUDIO ONLY',
                             style: TextStyle(
-                              color: Color(0xFFC084FC),
+                              color: Colors.white,
                               fontSize: 9,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.8,
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: -0.2,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          channel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.7),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        // Animated soundwave bars
-                        _RhythmicVisualizerBars(
-                          animation: _controller,
-                          isPlaying: widget.isPlaying,
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ),
-              ],
+                    const SizedBox(height: 8),
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: isNarrow ? TextAlign.center : TextAlign.start,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      channel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: isNarrow ? TextAlign.center : TextAlign.start,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.65),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Minimalist Waveform Bars
+                    _RhythmicVisualizerBars(
+                      animation: _controller,
+                      isPlaying: widget.isPlaying,
+                    ),
+                  ],
+                );
+
+                if (isNarrow) {
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      artworkWidget,
+                      const SizedBox(height: 14),
+                      Flexible(child: metaWidget),
+                    ],
+                  );
+                }
+
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    artworkWidget,
+                    const SizedBox(width: 22),
+                    Flexible(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 320),
+                        child: metaWidget,
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -236,16 +295,16 @@ class _AmbientGlowThemeState extends State<AmbientGlowTheme>
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF312E81), Color(0xFF581C87)],
+          colors: [Color(0xFF1E2028), Color(0xFF111216)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
       ),
       child: const Center(
         child: Icon(
-          Icons.music_note_rounded,
-          size: 40,
-          color: Colors.white,
+          Icons.headphones_rounded,
+          size: 38,
+          color: Colors.white70,
         ),
       ),
     );
@@ -262,7 +321,7 @@ class _RhythmicVisualizerBars extends StatelessWidget {
   final bool isPlaying;
 
   static const _barHeights = [
-    0.35, 0.75, 1.0, 0.55, 0.85, 0.3, 0.95, 0.5, 0.7, 0.45, 0.9, 0.65, 0.4,
+    0.35, 0.70, 0.95, 0.55, 0.85, 0.35, 0.90, 0.50, 0.75, 0.45, 0.85, 0.60,
   ];
 
   @override
@@ -272,26 +331,22 @@ class _RhythmicVisualizerBars extends StatelessWidget {
       builder: (context, _) {
         final t = animation.value * 2 * pi;
         return SizedBox(
-          height: 22,
+          height: 18,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: List.generate(_barHeights.length, (i) {
               final baseH = _barHeights[i];
               final wave = isPlaying
-                  ? (0.3 + 0.7 * ((sin(t * 2.5 + i * 0.8) + 1.0) / 2.0))
-                  : 0.25;
-              final h = (baseH * wave).clamp(0.18, 1.0) * 22;
+                  ? (0.3 + 0.7 * ((sin(t * 2.6 + i * 0.75) + 1.0) / 2.0))
+                  : 0.22;
+              final h = (baseH * wave).clamp(0.18, 1.0) * 18;
 
               return Container(
-                width: 3.5,
+                width: 3,
                 height: h,
-                margin: const EdgeInsets.only(right: 3.5),
+                margin: const EdgeInsets.only(right: 3),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF818CF8), Color(0xFFC084FC)],
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                  ),
+                  color: Colors.white.withValues(alpha: isPlaying ? 0.85 : 0.4),
                   borderRadius: BorderRadius.circular(2),
                 ),
               );

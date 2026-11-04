@@ -20,7 +20,7 @@ class AdminSidebar extends StatelessWidget {
     return Container(
       width: 270,
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         border: Border(
           right: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
         ),
@@ -90,7 +90,8 @@ class AdminSidebar extends StatelessWidget {
                   controller.isTabAllowed('ad_reports') ||
                   controller.isTabAllowed('analytics') ||
                   controller.isTabAllowed('appeals') ||
-                  controller.isTabAllowed('feedbacks');
+                  controller.isTabAllowed('feedbacks') ||
+                  controller.isTabAllowed('broadcast');
 
               final hasSystemTabs = controller.isTabAllowed('alerts') ||
                   controller.isTabAllowed('security') ||
@@ -248,6 +249,15 @@ class AdminSidebar extends StatelessWidget {
                         controller: controller,
                         onTap: onCloseDrawer,
                       ),
+                    if (controller.isTabAllowed('broadcast'))
+                      AdminNavItem(
+                        icon: Icons.cell_tower_rounded,
+                        activeIcon: Icons.cell_tower_rounded,
+                        label: 'Push Broadcast',
+                        tabId: 'broadcast',
+                        controller: controller,
+                        onTap: onCloseDrawer,
+                      ),
                   ],
                   if (hasSystemTabs) ...[
                     const SizedBox(height: 16),
@@ -313,7 +323,7 @@ class AdminSidebar extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 18,
-                    backgroundColor: const Color(0xFF212121),
+                    backgroundColor: AppColors.bgSurface,
                     child: Text(
                       email[0].toUpperCase(),
                       style: const TextStyle(
@@ -391,7 +401,7 @@ class AdminNavItem extends StatelessWidget {
       return Container(
         margin: const EdgeInsets.only(bottom: 4),
         child: Material(
-          color: isSelected ? const Color(0xFF212121) : Colors.transparent,
+          color: isSelected ? AppColors.bgSurface : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           child: InkWell(
             borderRadius: BorderRadius.circular(12),

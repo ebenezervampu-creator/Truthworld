@@ -19,10 +19,10 @@ class RequestAudioDubDialog extends StatelessWidget {
 
     return Obx(
       () => AlertDialog(
-        backgroundColor: const Color(0xFF161618),
+        backgroundColor: AppColors.appBarSurface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFF27272A)),
+          side: const BorderSide(color: AppColors.bgSurface),
         ),
         title: const Text(
           'Request AI Voice Dubbing',
@@ -59,14 +59,14 @@ class RequestAudioDubDialog extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFF121212),
+                color: AppColors.bgInput,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFF27272A)),
+                border: Border.all(color: AppColors.bgSurface),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: selectedLang.value,
-                  dropdownColor: const Color(0xFF161618),
+                  dropdownColor: AppColors.appBarSurface,
                   iconEnabledColor: Colors.white,
                   isExpanded: true,
                   items: [
@@ -105,14 +105,14 @@ class RequestAudioDubDialog extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFF121212),
+                color: AppColors.bgInput,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFF27272A)),
+                border: Border.all(color: AppColors.bgSurface),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: selectedVoice.value,
-                  dropdownColor: const Color(0xFF161618),
+                  dropdownColor: AppColors.appBarSurface,
                   iconEnabledColor: Colors.white,
                   isExpanded: true,
                   items: const [

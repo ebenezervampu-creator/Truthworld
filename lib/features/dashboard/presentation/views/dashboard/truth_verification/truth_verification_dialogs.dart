@@ -61,7 +61,7 @@ class TruthVerificationDialogs {
                       decoration: BoxDecoration(
                         color: isDarkMode
                             ? AppColors.bgSurfaceHover
-                            : const Color(0xFFF3F4F6),
+                            : AppColors.textPrimary,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
@@ -110,7 +110,7 @@ class TruthVerificationDialogs {
             ),
             const SizedBox(height: 14),
             Divider(
-              color: isDarkMode ? AppColors.bgDivider : const Color(0xFFE5E7EB),
+              color: isDarkMode ? AppColors.bgDivider : AppColors.textPrimary,
             ),
             const SizedBox(height: 14),
             Expanded(
@@ -121,12 +121,12 @@ class TruthVerificationDialogs {
                     decoration: BoxDecoration(
                       color: isDarkMode
                           ? AppColors.bgPage
-                          : const Color(0xFFF9FAFB),
+                          : AppColors.textPrimary,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: isDarkMode
                             ? AppColors.bgDivider
-                            : const Color(0xFFE5E7EB),
+                            : AppColors.textPrimary,
                       ),
                     ),
                     child: Text(
@@ -156,12 +156,12 @@ class TruthVerificationDialogs {
                     decoration: BoxDecoration(
                       color: isDarkMode
                           ? AppColors.bgPage
-                          : const Color(0xFFF3F4F6),
+                          : AppColors.textPrimary,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: isDarkMode
                             ? AppColors.bgDivider
-                            : const Color(0xFFE5E7EB),
+                            : AppColors.textPrimary,
                       ),
                     ),
                     child: Column(
@@ -233,12 +233,12 @@ class TruthVerificationDialogs {
                       decoration: BoxDecoration(
                         color: isDarkMode
                             ? AppColors.bgPage
-                            : const Color(0xFFF9FAFB),
+                            : AppColors.textPrimary,
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
                           color: isDarkMode
                               ? AppColors.bgDivider
-                              : const Color(0xFFE5E7EB),
+                              : AppColors.textPrimary,
                         ),
                       ),
                       child: Row(
@@ -301,9 +301,6 @@ class TruthVerificationDialogs {
           .join('\n');
     }
 
-    final mediaAuthenticityPercent =
-        video.truthScore > 0 ? (video.truthScore * 100).toInt() : 100;
-
     final dossierText = '''
 =====================================================
 TRUTHWORLD VERIFICATION AUDIT DOSSIER & CERTIFICATE
@@ -314,7 +311,7 @@ Channel ID: $channelId
 Audit Timestamp: ${DateTime.now().toUtc().toIso8601String()}
 
 VERIFICATION & CREDIBILITY METRICS:
-- Media / Provenance Authenticity: $mediaAuthenticityPercent% (Tamper-evident asset integrity verified)
+- Media / Provenance Authenticity: Immutable Provenance Ledger Verified
 - Factual Accuracy: ${video.factualAccuracyLabel}
 - Evidence Coverage: ${video.claims.length} assertion(s) analyzed
 - Verification State: ${video.verificationState}
@@ -343,7 +340,7 @@ Status: ${video.consensusValidationStatus}
               decoration: BoxDecoration(
                 color: isDarkMode
                     ? AppColors.bgSurfaceHover
-                    : const Color(0xFFF3F4F6),
+                    : AppColors.textPrimary,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
@@ -388,12 +385,12 @@ Status: ${video.consensusValidationStatus}
                   decoration: BoxDecoration(
                     color: isDarkMode
                         ? AppColors.bgPage
-                        : const Color(0xFFF3F4F6),
+                        : AppColors.textPrimary,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: isDarkMode
                           ? AppColors.bgDivider
-                          : const Color(0xFFE5E7EB),
+                          : AppColors.textPrimary,
                     ),
                   ),
                   child: SelectableText(
@@ -467,7 +464,7 @@ Status: ${video.consensusValidationStatus}
               decoration: BoxDecoration(
                 color: isDarkMode
                     ? AppColors.bgSurfaceHover
-                    : const Color(0xFFF3F4F6),
+                    : AppColors.textPrimary,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
@@ -502,7 +499,7 @@ Status: ${video.consensusValidationStatus}
                   decoration: BoxDecoration(
                     color: isDarkMode
                         ? AppColors.bgPage
-                        : const Color(0xFFF3F4F6),
+                        : AppColors.textPrimary,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: claim.isHighConcern
@@ -596,12 +593,12 @@ Status: ${video.consensusValidationStatus}
                   decoration: BoxDecoration(
                     color: isDarkMode
                         ? const Color(0xFF1F2937)
-                        : const Color(0xFFF3F4F6),
+                        : AppColors.textPrimary,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: isDarkMode
                           ? AppColors.bgDivider
-                          : const Color(0xFFE5E7EB),
+                          : AppColors.textPrimary,
                     ),
                   ),
                   child: Column(
@@ -712,7 +709,7 @@ Status: ${video.consensusValidationStatus}
               decoration: BoxDecoration(
                 color: isDarkMode
                     ? AppColors.bgSurfaceHover
-                    : const Color(0xFFF3F4F6),
+                    : AppColors.textPrimary,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
@@ -792,7 +789,7 @@ Status: ${video.consensusValidationStatus}
                     filled: true,
                     fillColor: isDarkMode
                         ? AppColors.bgPage
-                        : const Color(0xFFF9FAFB),
+                        : AppColors.textPrimary,
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 10,
@@ -834,7 +831,7 @@ Status: ${video.consensusValidationStatus}
                     filled: true,
                     fillColor: isDarkMode
                         ? AppColors.bgPage
-                        : const Color(0xFFF9FAFB),
+                        : AppColors.textPrimary,
                     contentPadding: const EdgeInsets.all(12),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -974,7 +971,7 @@ Status: ${video.consensusValidationStatus}
                   filled: true,
                   fillColor: isDarkMode
                       ? AppColors.bgPage
-                      : const Color(0xFFF9FAFB),
+                      : AppColors.textPrimary,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide: const BorderSide(color: AppColors.bgDivider),
@@ -1089,7 +1086,7 @@ Status: ${video.consensusValidationStatus}
                     decoration: BoxDecoration(
                       color: isDarkMode
                           ? AppColors.bgPage
-                          : const Color(0xFFF9FAFB),
+                          : AppColors.textPrimary,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: AppColors.bgDivider),
                     ),
@@ -1131,7 +1128,7 @@ Status: ${video.consensusValidationStatus}
                     filled: true,
                     fillColor: isDarkMode
                         ? AppColors.bgPage
-                        : const Color(0xFFF9FAFB),
+                        : AppColors.textPrimary,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: const BorderSide(color: AppColors.bgDivider),
@@ -1163,7 +1160,7 @@ Status: ${video.consensusValidationStatus}
                     filled: true,
                     fillColor: isDarkMode
                         ? AppColors.bgPage
-                        : const Color(0xFFF9FAFB),
+                        : AppColors.textPrimary,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: const BorderSide(color: AppColors.bgDivider),
@@ -1239,7 +1236,7 @@ Status: ${video.consensusValidationStatus}
               decoration: BoxDecoration(
                 color: isDarkMode
                     ? AppColors.bgSurfaceHover
-                    : const Color(0xFFF3F4F6),
+                    : AppColors.textPrimary,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
@@ -1323,7 +1320,7 @@ Status: ${video.consensusValidationStatus}
                     filled: true,
                     fillColor: isDarkMode
                         ? AppColors.bgPage
-                        : const Color(0xFFF9FAFB),
+                        : AppColors.textPrimary,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: const BorderSide(color: AppColors.bgDivider),
@@ -1355,7 +1352,7 @@ Status: ${video.consensusValidationStatus}
                     filled: true,
                     fillColor: isDarkMode
                         ? AppColors.bgPage
-                        : const Color(0xFFF9FAFB),
+                        : AppColors.textPrimary,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: const BorderSide(color: AppColors.bgDivider),
@@ -1379,7 +1376,7 @@ Status: ${video.consensusValidationStatus}
                     filled: true,
                     fillColor: isDarkMode
                         ? AppColors.bgPage
-                        : const Color(0xFFF9FAFB),
+                        : AppColors.textPrimary,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: const BorderSide(color: AppColors.bgDivider),

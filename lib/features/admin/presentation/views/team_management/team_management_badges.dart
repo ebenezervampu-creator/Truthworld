@@ -36,31 +36,31 @@ class TeamRoleBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    var bg = const Color(0xFF202020);
+    var bg = AppColors.bgSurface;
     var fg = Colors.white;
 
     final r = role.toLowerCase();
     if (r.contains('super') || r.contains('owner')) {
-      bg = const Color(0xFF332040);
-      fg = const Color(0xFFD8B4FE);
+      bg = AppColors.infoContainer;
+      fg = AppColors.info;
     } else if (r.contains('content') || r.contains('mod')) {
-      bg = const Color(0xFF1E2D4A);
-      fg = const Color(0xFF93C5FD);
+      bg = AppColors.infoContainer;
+      fg = AppColors.textLink;
     } else if (r.contains('ad')) {
-      bg = const Color(0xFF3E3218);
-      fg = const Color(0xFFFDE68A);
+      bg = AppColors.warningContainer;
+      fg = AppColors.warning;
     } else if (r.contains('trust') || r.contains('safety')) {
-      bg = const Color(0xFF1A3828);
-      fg = const Color(0xFF86EFAC);
+      bg = AppColors.successContainer;
+      fg = AppColors.success;
     } else if (r.contains('user')) {
-      bg = const Color(0xFF34231E);
-      fg = const Color(0xFFFDBA74);
+      bg = AppColors.warningContainer;
+      fg = AppColors.warning;
     } else if (r.contains('audit') || r.contains('compliance')) {
-      bg = const Color(0xFF2E2638);
-      fg = const Color(0xFFE9D5FF);
+      bg = AppColors.infoContainer;
+      fg = AppColors.info;
     } else if (r.contains('team')) {
-      bg = const Color(0xFF16323B);
-      fg = const Color(0xFF67E8F9);
+      bg = AppColors.infoContainer;
+      fg = AppColors.textLink;
     }
 
     return Container(
@@ -99,12 +99,12 @@ class TeamStatusChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: isSuspended
             ? AppColors.error.withValues(alpha: 0.15)
-            : const Color(0xFF1E3A24),
+            : AppColors.successContainer,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isSuspended
               ? AppColors.error.withValues(alpha: 0.3)
-              : const Color(0xFF2BA640).withValues(alpha: 0.3),
+              : AppColors.success.withValues(alpha: 0.3),
         ),
       ),
       child: Row(
@@ -115,7 +115,7 @@ class TeamStatusChip extends StatelessWidget {
             height: 6,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: isSuspended ? AppColors.error : const Color(0xFF2BA640),
+              color: isSuspended ? AppColors.error : AppColors.success,
             ),
           ),
           const SizedBox(width: 5),
@@ -125,7 +125,7 @@ class TeamStatusChip extends StatelessWidget {
               fontFamily: TWTypography.uiFamily,
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: isSuspended ? AppColors.error : const Color(0xFF4ADE80),
+              color: isSuspended ? AppColors.error : AppColors.success,
             ),
           ),
         ],

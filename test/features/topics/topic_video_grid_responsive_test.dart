@@ -86,8 +86,9 @@ void main() {
       expect(find.byType(VideoCardGridInfo), findsOneWidget);
       expect(find.byType(VideoCardListInfo), findsNothing);
 
-      // Verify end-of-list message
-      expect(find.text('No more videos'), findsOneWidget);
+      // Verify end-of-list message is removed
+      expect(find.text('No more videos'), findsNothing);
+      expect(find.text('Check back later for more videos in this topic.'), findsNothing);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(milliseconds: 500));

@@ -22,10 +22,10 @@ class BillingTaxInfoDialog extends StatelessWidget {
     final emailController = TextEditingController(text: controller.billingEmail.value);
 
     return AlertDialog(
-      backgroundColor: const Color(0xFF161618),
+      backgroundColor: AppColors.appBarSurface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFF27272A)),
+        side: const BorderSide(color: AppColors.bgSurface),
       ),
       title: const Text(
         'Edit GST & Tax Invoicing Info',
@@ -51,7 +51,7 @@ class BillingTaxInfoDialog extends StatelessWidget {
                 labelText: 'Registered Business Name',
                 labelStyle: const TextStyle(color: AppColors.textSecondary),
                 filled: true,
-                fillColor: const Color(0xFF121214),
+                fillColor: AppColors.bgInput,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
@@ -69,7 +69,7 @@ class BillingTaxInfoDialog extends StatelessWidget {
                 labelText: 'GSTIN / VAT Number',
                 labelStyle: const TextStyle(color: AppColors.textSecondary),
                 filled: true,
-                fillColor: const Color(0xFF121214),
+                fillColor: AppColors.bgInput,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
@@ -87,7 +87,7 @@ class BillingTaxInfoDialog extends StatelessWidget {
                 labelText: 'Invoice Delivery Email',
                 labelStyle: const TextStyle(color: AppColors.textSecondary),
                 filled: true,
-                fillColor: const Color(0xFF121214),
+                fillColor: AppColors.bgInput,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
@@ -103,7 +103,7 @@ class BillingTaxInfoDialog extends StatelessWidget {
                 labelText: 'Registered Address',
                 labelStyle: const TextStyle(color: AppColors.textSecondary),
                 filled: true,
-                fillColor: const Color(0xFF121214),
+                fillColor: AppColors.bgInput,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),

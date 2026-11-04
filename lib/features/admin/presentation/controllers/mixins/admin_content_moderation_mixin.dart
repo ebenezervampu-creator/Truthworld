@@ -94,6 +94,14 @@ mixin AdminContentModerationMixin on GetxController {
   bool isChannelRejected(Map<String, dynamic> c) =>
       AdminModerationPredicates.isChannelRejected(c);
 
+  bool isChannelOnHold(Map<String, dynamic> c) =>
+      AdminModerationPredicates.isChannelOnHold(c);
+
+  bool isChannelTrusted(Map<String, dynamic> c) =>
+      c['trustedModerationBypass'] == true ||
+      c['bypassModeration'] == true ||
+      c['trustedChannel'] == true;
+
   bool isTopicPending(Map<String, dynamic> t) =>
       AdminModerationPredicates.isTopicPending(t);
 
@@ -168,6 +176,38 @@ mixin AdminContentModerationMixin on GetxController {
         pendingChannels: pendingChannels,
         selectedChannel: selectedChannel,
         isActionSubmitting: isActionSubmitting,
+      );
+
+  /// Updates channel upload quota manually (Admin feature)
+  Future<bool> updateChannelQuota({
+    required String channelId,
+    required int dailyDurationMinutes,
+    required String reason,
+    int? maxVideoDurationMinutes,
+  }) =>
+      AdminEntityModerationService.updateChannelQuota(
+        channelId: channelId,
+        dailyDurationMinutes: dailyDurationMinutes,
+        maxVideoDurationMinutes: maxVideoDurationMinutes,
+        reason: reason,
+        channels: channels,
+        selectedChannel: selectedChannel,
+        isActionSubmitting: isActionSubmitting,
+      );
+
+  /// Toggles Trusted Channel Moderation Exemption (Admin feature)
+  Future<bool> toggleChannelTrustedModeration({
+    required String channelId,
+    required bool enabled,
+    String? reason,
+  }) =>
+      AdminEntityModerationService.toggleChannelTrustedModeration(
+        channelId: channelId,
+        enabled: enabled,
+        channels: channels,
+        selectedChannel: selectedChannel,
+        isActionSubmitting: isActionSubmitting,
+        reason: reason,
       );
 
   /// Executes manual topic moderation action (Approve/Reject)

@@ -2,7 +2,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/miniplayer/presentation/widgets/components/miniplayer_audio_stage.dart';
 import 'package:truthworld/features/miniplayer/presentation/widgets/components/miniplayer_expanded_details.dart';
@@ -280,7 +279,7 @@ class MiniplayerExpandedVideo extends StatelessWidget {
                           const SizedBox(width: 5),
                           Text(
                             'CLIP MODE',
-                            style: GoogleFonts.robotoMono(
+                            style: TextStyle(
                               color: Colors.white,
                               fontSize: 10,
                               fontWeight: FontWeight.w700,

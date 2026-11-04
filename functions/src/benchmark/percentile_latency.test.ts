@@ -6,7 +6,7 @@
  *
  * Verifies that:
  * 1. Feed Ranking & Ingestion Scoring: P95 <= 0.50ms, P99 <= 1.00ms
- * 2. Live Chat Sliding-Window Rate Limiter: P95 <= 0.05ms, P99 <= 0.20ms
+ * 2. Sliding-Window Event Rate Limiter: P95 <= 0.05ms, P99 <= 0.20ms
  * 3. FCM Token Batching & Chunking: P95 <= 0.05ms, P99 <= 0.15ms
  * 4. Watch Time Heartbeat Aggregation: P95 <= 0.05ms, P99 <= 0.15ms
  * 5. Dynamic SEO Route Matching: P95 <= 0.05ms, P99 <= 0.10ms
@@ -132,7 +132,7 @@ function benchmarkFeedRanking(): LatencyStats {
 }
 
 // ---------------------------------------------------------------------------
-// 2. Live Chat Sliding-Window Rate Limiter
+// 2. Sliding-Window Event Rate Limiter
 // ---------------------------------------------------------------------------
 function benchmarkChatRateLimiter(): LatencyStats {
   class SlidingWindowRateLimiter {
@@ -183,7 +183,7 @@ function benchmarkChatRateLimiter(): LatencyStats {
     durations[i] = Number(t1 - t0) / 1_000_000;
   }
 
-  return computePercentiles("Live Chat Rate Limiter (50k events)", durations, 0.05, 0.20);
+  return computePercentiles("Event Rate Limiter (50k events)", durations, 0.05, 0.20);
 }
 
 // ---------------------------------------------------------------------------

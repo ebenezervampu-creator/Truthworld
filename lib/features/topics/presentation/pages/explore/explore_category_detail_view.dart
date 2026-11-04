@@ -2,9 +2,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:truthworld/components/ui/share_bottom_sheet.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
-import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/data/models/topic_categories.dart';
 import 'package:truthworld/features/topics/presentation/controllers/explore_topics_controller.dart';
@@ -16,7 +16,7 @@ import 'package:truthworld/theme/app_colors.dart';
 
 /// Category Detail View displaying the exact UI of the second uploaded image:
 /// - Circular back button
-/// - Hero banner with background photograph, category title, count, description, and '+ Follow' button
+/// - Hero banner with background photograph, category title, count, and description
 /// - Category-specific search bar with dynamic hints
 /// - Interactive filter pills: Trending, Newest, Popular
 /// - 3-column responsive subtopics grid with 16:9 thumbnails, category icon, title, video count, and 3-dots menu
@@ -100,11 +100,8 @@ class ExploreCategoryDetailView extends StatelessWidget {
     final controller = Get.isRegistered<ExploreTopicsController>()
         ? Get.find<ExploreTopicsController>()
         : Get.put(ExploreTopicsController());
-    final followingController = Get.isRegistered<FollowingTopicsController>()
-        ? Get.find<FollowingTopicsController>()
-        : Get.put(FollowingTopicsController());
 
-    final heroHeight = isDesktop ? 260.0 : (isTablet ? 230.0 : 220.0);
+    final heroHeight = isDesktop ? 240.0 : (isTablet ? 210.0 : 200.0);
 
     return Container(
       height: heroHeight,
@@ -162,7 +159,7 @@ class ExploreCategoryDetailView extends StatelessWidget {
             ),
           ),
 
-          // Left Hero Metadata and Follow Button
+          // Left Hero Metadata
           Padding(
             padding: EdgeInsets.symmetric(
               horizontal: isDesktop ? 32 : 20,
@@ -227,69 +224,6 @@ class ExploreCategoryDetailView extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 16),
-
-                      // Follow Action Button (Zero White-on-White: white background MUST have black text and icon)
-                      Obx(() {
-                        final isFollowed = followingController
-                                .followingStates[category.id] ==
-                            true ||
-                            followingController.followingStates[category.title] ==
-                                true;
-
-                        return Material(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          child: InkWell(
-                            onTap: () {
-                              HapticFeedback.lightImpact();
-                              final newState = !isFollowed;
-                              followingController.followingStates[category.id] =
-                                  newState;
-                              followingController
-                                  .followingStates[category.title] = newState;
-
-                              if (newState) {
-                                AppSnackbar.success(
-                                  'You are now following ${category.title}.',
-                                );
-                              } else {
-                                AppSnackbar.info(
-                                  'Unfollowed ${category.title}.',
-                                );
-                              }
-                            },
-                            borderRadius: BorderRadius.circular(20),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 18,
-                                vertical: 8,
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    isFollowed
-                                        ? Icons.check_rounded
-                                        : Icons.add_rounded,
-                                    color: Colors.black,
-                                    size: 18,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    isFollowed ? 'Following' : 'Follow',
-                                    style: const TextStyle(
-                                      color: Colors.black,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
                     ],
                   ),
                 ),
@@ -553,8 +487,16 @@ class ExploreCategoryDetailView extends StatelessWidget {
                   ),
                   onTap: () {
                     Navigator.pop(ctx);
-                    Share.share(
-                      'Check out this topic on TruthWorld: ${topic.title}\nhttps://truthworld.org${topic.topicRoute}',
+                    final url = DeepLinkService.topicUrl(topic.slug);
+                    final count = followingController.getFollowerCount(topic);
+                    ShareBottomSheet.show(
+                      title: topic.name,
+                      url: url,
+                      thumbnailUrl: topic.coverImage ?? topic.thumbnailUrl,
+                      followerCount: count,
+                      videoCount: topic.effectiveVideoCount,
+                      handle: topic.slug,
+                      type: 'topic',
                     );
                   },
                 ),
@@ -669,7 +611,7 @@ class _SubtopicCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            topic.title,
+                            topic.name,
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,

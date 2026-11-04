@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
@@ -105,7 +104,7 @@ class DownloadQualityDialog {
       Container(
         padding: const EdgeInsets.all(24),
         decoration: const BoxDecoration(
-          color: Color(0xFF1E1E1E),
+          color: AppColors.bgSurface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Column(
@@ -205,7 +204,7 @@ class DownloadQualityDialog {
     showModalBottomSheet(
       context: targetContext,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: AppColors.bgSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -245,7 +244,7 @@ class DownloadQualityDialog {
                               children: [
                                 Text(
                                   'Select Download Quality',
-                                  style: GoogleFonts.roboto(
+                                  style: TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
                                     color: AppColors.textPrimary,
@@ -256,7 +255,7 @@ class DownloadQualityDialog {
                                   video.title,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.roboto(
+                                  style: TextStyle(
                                     fontSize: 12,
                                     color: AppColors.textSecondary,
                                   ),
@@ -300,7 +299,7 @@ class DownloadQualityDialog {
                             children: [
                               Text(
                                 res.label,
-                                style: GoogleFonts.roboto(
+                                style: TextStyle(
                                   color: AppColors.textPrimary,
                                   fontWeight: FontWeight.w600,
                                   fontSize: 15,
@@ -331,7 +330,7 @@ class DownloadQualityDialog {
                           ),
                           subtitle: Text(
                             'Save video for offline viewing',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               color: AppColors.textSecondary,
                               fontSize: 12,
                             ),
@@ -363,7 +362,7 @@ class DownloadQualityDialog {
                         ),
                         title: Text(
                           'Audio only',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             color: AppColors.textPrimary,
                             fontWeight: FontWeight.w600,
                             fontSize: 15,
@@ -371,7 +370,7 @@ class DownloadQualityDialog {
                         ),
                         subtitle: Text(
                           'Save audio for offline listening (saves storage & data)',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             color: AppColors.textSecondary,
                             fontSize: 12,
                           ),

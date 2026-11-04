@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:get/get.dart';
+import 'package:truthworld/features/video/presentation/controllers/claim_comments_controller.dart';
+import 'package:truthworld/features/video/presentation/widgets/analysis/comments/add_claim_comment_sheet.dart';
+
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
+import 'package:truthworld/features/video/data/models/claim_verdict_localization.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/views/claim_detail_screen.dart';
@@ -10,7 +14,7 @@ import 'package:truthworld/features/video/presentation/widgets/analysis/video_an
 import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_helpers.dart';
 import 'package:truthworld/features/video/presentation/widgets/claim_share_card.dart';
 import 'package:truthworld/theme/app_theme.dart';
-import 'package:url_launcher/url_launcher.dart';
+
 
 /// 🏛 VideoAnalysisClaimCard
 ///
@@ -42,14 +46,7 @@ class VideoAnalysisClaimCard extends StatelessWidget {
 
   Future<void> _launchUrl(String? urlStr) async {
     if (urlStr == null || urlStr.trim().isEmpty) return;
-    try {
-      final uri = Uri.parse(urlStr.startsWith('http') ? urlStr : 'https://$urlStr');
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-    } catch (e, s) {
-      ErrorHandler.log(e, stackTrace: s, tag: 'VideoAnalysisClaimCard._launchUrl');
-    }
+    await ClickableUrlText.launchUrlString(urlStr);
   }
 
   @override
@@ -94,6 +91,7 @@ class VideoAnalysisClaimCard extends StatelessWidget {
     }
 
     return InkWell(
+      borderRadius: BorderRadius.circular(16),
       onTap: () {
         ClaimDetailScreen.open(
           context,
@@ -105,7 +103,6 @@ class VideoAnalysisClaimCard extends StatelessWidget {
           allClaims: allClaims,
         );
       },
-      borderRadius: BorderRadius.circular(12),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
         child: Row(
@@ -126,7 +123,7 @@ class VideoAnalysisClaimCard extends StatelessWidget {
               child: Center(
                 child: Text(
                   '${index + 1}',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
@@ -162,7 +159,7 @@ class VideoAnalysisClaimCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(4),
                         child: Text(
                           timestampText,
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
                             color: AppColors.textSecondary,
@@ -170,6 +167,34 @@ class VideoAnalysisClaimCard extends StatelessWidget {
                         ),
                       ),
                       const Spacer(),
+
+                      // Quick Community Note Button
+                      IconButton(
+                        icon: const Icon(
+                          Icons.rate_review_outlined,
+                          size: 16.5,
+                          color: AppColors.textLink,
+                        ),
+                        tooltip: 'Add Community Note',
+                        padding: const EdgeInsets.all(4),
+                        constraints: const BoxConstraints(),
+                        onPressed: () {
+                          final vid = videoCtrl.video.id;
+                          final tag = 'claim_${vid}_$index';
+                          final c = Get.isRegistered<ClaimCommentsController>(tag: tag)
+                              ? Get.find<ClaimCommentsController>(tag: tag)
+                              : Get.put(ClaimCommentsController(), tag: tag);
+                          c.initForClaim(videoId: vid, claimIndex: index);
+                          AddClaimCommentSheet.show(
+                            context: context,
+                            videoId: vid,
+                            claimIndex: index,
+                            claimText: cleanClaimText,
+                            controller: c,
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 4),
 
                       // Share Button for this specific claim
                       IconButton(
@@ -202,7 +227,7 @@ class VideoAnalysisClaimCard extends StatelessWidget {
                   // Claim Statement
                   Text(
                     cleanClaimText,
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 14.5,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
@@ -225,7 +250,7 @@ class VideoAnalysisClaimCard extends StatelessWidget {
                               'Source: $sourceAttribution',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 fontSize: 11.5,
                                 color: AppColors.textTertiary,
                               ),
@@ -298,25 +323,25 @@ class VideoAnalysisClaimCard extends StatelessWidget {
     } else if (isPartially) {
       // ⚡ Partially Verified (Warm luminous amber / gold - zero murky brown)
       label = 'Partially Verified';
-      bgColor = const Color(0xFFF59E0B).withValues(alpha: 0.14);
-      borderColor = const Color(0xFFFBBF24).withValues(alpha: 0.35);
-      textColor = const Color(0xFFFBBF24);
+      bgColor = AppColors.warning.withValues(alpha: 0.14);
+      borderColor = AppColors.warning.withValues(alpha: 0.35);
+      textColor = AppColors.warning;
       iconData = Icons.warning_amber_rounded;
     } else if (verdict.isVerified) {
       // 🛡️ Fully Verified (Vibrant emerald)
       label = 'Verified';
-      bgColor = const Color(0xFF10B981).withValues(alpha: 0.14);
-      borderColor = const Color(0xFF10B981).withValues(alpha: 0.35);
-      textColor = const Color(0xFF34D399);
+      bgColor = AppColors.success.withValues(alpha: 0.14);
+      borderColor = AppColors.success.withValues(alpha: 0.35);
+      textColor = AppColors.success;
       iconData = Icons.check_rounded;
     } else if (verdict.isFalse || rawStatus.contains('false') || rawStatus.contains('misleading')) {
       // 🛑 False / Misleading (Crisp coral red - zero muddy maroon)
       label = (verdict.type == ClaimVerdictType.misleading || rawStatus.contains('misleading'))
           ? 'Misleading'
           : 'False';
-      bgColor = const Color(0xFFEF4444).withValues(alpha: 0.14);
-      borderColor = const Color(0xFFF87171).withValues(alpha: 0.35);
-      textColor = const Color(0xFFF87171);
+      bgColor = AppColors.error.withValues(alpha: 0.14);
+      borderColor = AppColors.error.withValues(alpha: 0.35);
+      textColor = AppColors.error;
       iconData = Icons.close_rounded;
     } else if (verdict.isCaution ||
         rawStatus.contains('caution') ||
@@ -364,16 +389,16 @@ class VideoAnalysisClaimCard extends StatelessWidget {
         // 🧠 Opinion / Value Judgment (Sky blue)
         label = verdict.label.isNotEmpty ? verdict.label : 'Opinion';
         bgColor = const Color(0xFF0284C7).withValues(alpha: 0.14);
-        borderColor = const Color(0xFF38BDF8).withValues(alpha: 0.35);
-        textColor = const Color(0xFF38BDF8);
+        borderColor = AppColors.textLink.withValues(alpha: 0.35);
+        textColor = AppColors.textLink;
         iconData = Icons.psychology_rounded;
       }
     } else {
       // ℹ️ Default / Inconclusive
       label = verdict.label.isNotEmpty ? verdict.label : 'Caution';
-      bgColor = const Color(0xFFF59E0B).withValues(alpha: 0.14);
-      borderColor = const Color(0xFFFBBF24).withValues(alpha: 0.35);
-      textColor = const Color(0xFFFBBF24);
+      bgColor = AppColors.warning.withValues(alpha: 0.14);
+      borderColor = AppColors.warning.withValues(alpha: 0.35);
+      textColor = AppColors.warning;
       iconData = Icons.warning_amber_rounded;
     }
 
@@ -390,8 +415,8 @@ class VideoAnalysisClaimCard extends StatelessWidget {
           Icon(iconData, size: 12.5, color: textColor),
           const SizedBox(width: 4),
           Text(
-            label,
-            style: GoogleFonts.roboto(
+            ClaimVerdictLocalization.localizeCategory(label),
+            style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
               color: textColor,

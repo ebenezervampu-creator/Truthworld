@@ -6,6 +6,7 @@ import 'package:truthworld/features/video/presentation/controllers/tower_player_
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/fact_check/fact_check_overlay_widgets.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/player_settings_panels.dart';
+import 'package:truthworld/features/video/presentation/widgets/fact_check/fact_check_epistemic_banner.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 export 'fact_check/fact_check_overlay_widgets.dart';
@@ -21,6 +22,22 @@ class FactCheckOverlay extends StatelessWidget {
     final overlayCtrl = Get.put(FactCheckOverlayController());
     final vc = ctrl.videoController;
     final video = vc?.video;
+
+    // Guard: Fact-checking is completely inapplicable for non-credibility / spiritual content,
+    // or videos that do not have fact-checking.
+    final hasCredibility = video != null &&
+        !video.isNonCredibilityCategory &&
+        (video.hasAiCredibility || (vc != null && vc.factCheckData.isNotEmpty));
+
+    if (!hasCredibility) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ctrl.showFactCheckPopup.value = false;
+        if (ctrl.overlayManager.isFactCheckOpen) {
+          ctrl.overlayManager.close();
+        }
+      });
+      return const SizedBox.shrink();
+    }
 
     // Proactively load fact-check data if URL present and data not loaded
     if (video != null &&
@@ -194,6 +211,10 @@ class FactCheckOverlay extends StatelessWidget {
 
                     // 7. Community & Dispute Actions Footer
                     FactCheckCommunityActions(video: video, claims: claims),
+                    const SizedBox(height: 14),
+
+                    // 8. AI Disclaimer — always visible at the bottom of all fact-check content
+                    const FactCheckEpistemicBanner(),
                     const SizedBox(height: 24),
                   ],
                 );

@@ -302,25 +302,74 @@ class AudioTracksUploadManager with ContentValidationMixin {
     final video = selectedVideo;
     if (video == null) return;
 
+    final cleanCode = langCode.trim().toLowerCase();
     final cachedLoc = VideoMediaService.localizationCache[video.id];
     final updatedAudioMap = Map<String, String>.from(
       cachedLoc?.audioTracks ?? video.audioTracks,
     );
-    if (url.trim().isEmpty) {
+    final isDeleting = url.trim().isEmpty;
+    if (isDeleting) {
+      updatedAudioMap.remove(cleanCode);
       updatedAudioMap.remove(langCode);
     } else {
-      updatedAudioMap[langCode] = url.trim();
+      updatedAudioMap[cleanCode] = url.trim();
     }
 
-    await _firestore
+    final locUpdates = <String, dynamic>{
+      'audioTracks': updatedAudioMap,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    final videoUpdates = <String, dynamic>{
+      'audioTracks': updatedAudioMap,
+      'media.audioTracks': updatedAudioMap,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    if (isDeleting) {
+      locUpdates['audioTracks.$cleanCode'] = FieldValue.delete();
+      locUpdates['audioTracks.$langCode'] = FieldValue.delete();
+      locUpdates['media.audioTracks.$cleanCode'] = FieldValue.delete();
+      locUpdates['media.audioTracks.$langCode'] = FieldValue.delete();
+      videoUpdates['audioTracks.$cleanCode'] = FieldValue.delete();
+      videoUpdates['audioTracks.$langCode'] = FieldValue.delete();
+      videoUpdates['media.audioTracks.$cleanCode'] = FieldValue.delete();
+      videoUpdates['media.audioTracks.$langCode'] = FieldValue.delete();
+    }
+
+    final locRef = _firestore
         .collection(FirestoreCollections.videos)
         .doc(video.id)
         .collection('media')
-        .doc('localization')
-        .set({
-          'audioTracks': updatedAudioMap,
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        .doc('localization');
+
+    await locRef.update(locUpdates).catchError((_) async {
+      await locRef.set(locUpdates, SetOptions(merge: true));
+    });
+
+    final videoRef = _firestore
+        .collection(FirestoreCollections.videos)
+        .doc(video.id);
+
+    await videoRef.update(videoUpdates).catchError((_) async {
+      await videoRef.set(videoUpdates, SetOptions(merge: true));
+    });
+
+    if (isDeleting) {
+      try {
+        final jobRef = _firestore.collection('video_jobs').doc(video.id);
+        final jobSnap = await jobRef.get();
+        if (jobSnap.exists) {
+          await jobRef.update({
+            'outputs.audioTracks.$cleanCode': FieldValue.delete(),
+            'outputs.audioTracks.$langCode': FieldValue.delete(),
+            'audioTracks.$cleanCode': FieldValue.delete(),
+            'audioTracks.$langCode': FieldValue.delete(),
+            'stages.dubbing_$cleanCode': FieldValue.delete(),
+            'stages.dubbing_$langCode': FieldValue.delete(),
+          });
+        }
+      } catch (_) {}
+    }
 
     if (VideoMediaService.localizationCache[video.id] != null) {
       VideoMediaService.localizationCache[video.id] = VideoMediaLocalization(

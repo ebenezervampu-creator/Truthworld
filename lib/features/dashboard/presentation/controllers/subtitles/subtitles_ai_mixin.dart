@@ -7,9 +7,14 @@ import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/data/models/channel_wallet_models.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles/subtitles_controller_base.dart';
+import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/data/services/video_media_service.dart';
 
 /// Mixin handling Truthworld AI subtitle generation, Cloud Function triggers,
 /// live pipeline telemetry, per-language tracking, and cloud queue monitoring.
@@ -17,6 +22,7 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
   Future<void> triggerSubtitlesGeneration({
     required List<String> targetLanguages,
     String priorityMode = 'accuracy',
+    String subtitleTier = 'starter',
   }) async {
     final video = selectedVideo.value;
     if (video == null) {
@@ -27,6 +33,74 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
     if (currentUser == null) {
       showError('You must be signed in to generate subtitles.');
       return;
+    }
+
+    // Resolve channel context
+    final targetChanId = channelId.value.isNotEmpty
+        ? channelId.value
+        : (video.channelId.isNotEmpty ? video.channelId : currentUser.uid);
+    Channel? chan;
+    try {
+      final chanDoc = await firestore.collection(FirestoreCollections.channels).doc(targetChanId).get();
+      if (chanDoc.exists && chanDoc.data() != null) {
+        chan = Channel.fromMap(chanDoc.data()!, chanDoc.id);
+      }
+    } catch (e) {
+      logger.warning('Could not resolve channel for subtitles: $e', tag: SubtitlesControllerBase.subtitlesTag);
+    }
+
+    final durationSecs = video.durationSeconds > 0
+        ? video.durationSeconds
+        : (video.durationValue.inSeconds > 0 ? video.durationValue.inSeconds : 120);
+    final channelType = chan?.channelType ?? ChannelType.standard;
+    final subtitleCost = ChannelWalletService.calculateSubtitleCost(
+      languageCount: targetLanguages.length,
+      durationSeconds: durationSecs,
+      channelType: channelType,
+      channel: chan,
+      tierId: subtitleTier,
+    );
+
+    WalletTransaction? walletTx;
+    if (subtitleCost > 0) {
+      if (chan == null) {
+        showError('Unable to verify channel wallet. Please ensure you have a valid channel to proceed with AI subtitles.');
+        return;
+      }
+      final walletService = ChannelWalletService();
+      final balance = await walletService.getSpendableBalanceForChannelId(chan.id);
+      if (!balance.canAfford(subtitleCost)) {
+        final rate = ChannelWalletService.getFlatSubtitlePricePerLanguage(
+          durationSeconds: durationSecs,
+          channelType: channelType,
+          tierId: subtitleTier,
+        );
+        showError(
+          'Subtitles are not free. Your channel balance of \$${balance.totalSpendableBalance.toStringAsFixed(2)} is insufficient for the subtitle cost of \$${subtitleCost.toStringAsFixed(2)} (\$${rate.toStringAsFixed(3)}/lang × ${targetLanguages.length} languages for ${durationSecs}s video). Please add money to your wallet to proceed.',
+        );
+        return;
+      }
+
+      walletTx = await walletService.spendBalance(
+        channel: chan,
+        userId: currentUser.uid,
+        amount: subtitleCost,
+        category: WalletTransactionCategory.aiSubtitles,
+        description: '${subtitleTier == "pro" ? "Pro" : "Starter"} AI Subtitles for "${video.title}" (${targetLanguages.length} langs, ${durationSecs}s)',
+        metadata: {
+          'videoId': video.id,
+          'targetLanguages': targetLanguages,
+          'durationSeconds': durationSecs,
+          'costUSD': subtitleCost,
+          'subtitleTier': subtitleTier,
+        },
+      );
+
+      if (walletTx == null) {
+        showError('Unable to deduct subtitle payment from channel wallet. Please ensure your wallet has sufficient funds.');
+        return;
+      }
+      unawaited(refreshSpendableBalance());
     }
 
     aiTargetLanguages.assignAll(targetLanguages);
@@ -77,12 +151,24 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
             'features': ['subtitles'],
             'targetLanguages': targetLanguages,
             'priorityMode': priorityMode,
+            'subtitleTier': subtitleTier,
             'autoChapters': false,
+            if (walletTx != null) 'walletTransactionId': walletTx.id,
+            if (subtitleCost > 0) 'paidFromWallet': true,
           }),
         ).timeout(const Duration(seconds: 15));
 
         if (response.statusCode == 200) {
           pipelineTriggered = true;
+          if (walletTx != null) {
+            await firestore.collection('videos').doc(video.id).set({
+              'subtitlesPaid': true,
+              'subtitlesCostUSD': subtitleCost,
+              'subtitlesDurationSeconds': durationSecs,
+              'subtitlesWalletTxId': walletTx.id,
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+          }
           showSuccess(
             'Truthworld AI has started generating subtitles for ${targetLanguages.join(", ").toUpperCase()}!',
           );
@@ -112,6 +198,8 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
           'videoUrl': video.videoUrl,
           'fileName': video.title,
           'status': 'processing',
+          'paidFromWallet': walletTx != null,
+          if (walletTx != null) 'walletTransactionId': walletTx.id,
           'createdAt': nowMs,
           'updatedAt': nowMs,
           'executionPlan': {
@@ -143,6 +231,16 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
             },
           },
         }, SetOptions(merge: true));
+
+        if (walletTx != null) {
+          await firestore.collection('videos').doc(video.id).set({
+            'subtitlesPaid': true,
+            'subtitlesCostUSD': subtitleCost,
+            'subtitlesDurationSeconds': durationSecs,
+            'subtitlesWalletTxId': walletTx.id,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
 
         showSuccess(
           'AI subtitle job queued for ${targetLanguages.join(", ").toUpperCase()}!',
@@ -334,7 +432,10 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
       final langs = aiTargetLanguages.isNotEmpty
           ? aiTargetLanguages.toList()
           : targetLanguages;
-      if (langs.isNotEmpty && langs.every(mediaSubtitles.containsKey)) {
+      if (langs.isNotEmpty && langs.every((l) {
+        final norm = normalizeLanguageCode(l);
+        return mediaSubtitles.containsKey(l) || mediaSubtitles.containsKey(norm);
+      })) {
         onSubtitlesFinished(langs);
       }
     }, onError: (_) {});
@@ -372,9 +473,13 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
 
       // A target language has final subtitles ready if present in outputs or video doc
       final hasAllFinalSubs = langs.isNotEmpty &&
-          langs.every((l) =>
-              outputSubs.containsKey(l) ||
-              currentSubs.containsKey(l));
+          langs.every((l) {
+            final norm = normalizeLanguageCode(l);
+            return outputSubs.containsKey(l) ||
+                outputSubs.containsKey(norm) ||
+                currentSubs.containsKey(l) ||
+                currentSubs.containsKey(norm);
+          });
 
       // Handle Cancelled State
       if (jobStatus == 'cancelled' ||
@@ -399,17 +504,23 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
         isAiJobPaused.value = false;
       }
 
-      final isDubbingCompletedOrSkipped =
-          dubbing?['status']?.toString().toLowerCase() == 'completed' ||
-          dubbing?['status']?.toString().toLowerCase() == 'skipped';
-
-      // Handle Completed State
-      if (jobStatus == 'completed' ||
-          onDemand?['status']?.toString().toLowerCase() == 'completed' ||
-          subtitlesStage?['status']?.toString().toLowerCase() == 'completed' ||
-          (isDubbingCompletedOrSkipped && hasAllFinalSubs) ||
-          hasAllFinalSubs) {
+      // Handle Completed State: Only complete if all requested subtitle tracks are truly produced!
+      if (hasAllFinalSubs) {
         onSubtitlesFinished(langs);
+        return;
+      }
+
+      if (onDemand?['status']?.toString().toLowerCase() == 'completed') {
+        if (hasAllFinalSubs) {
+          onSubtitlesFinished(langs);
+        } else {
+          isGeneratingAI.value = false;
+          stopElapsedTimer();
+          stopQueueMonitor();
+          aiJobSubscription?.cancel();
+          aiVideoSubscription?.cancel();
+          showError('AI subtitle generation completed, but requested tracks were not generated.');
+        }
         return;
       }
 
@@ -719,7 +830,12 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
       final langs = aiTargetLanguages.isNotEmpty
           ? aiTargetLanguages.toList()
           : <String>[];
-      if (langs.isNotEmpty && langs.every(mediaSubtitles.containsKey)) {
+      final hasAllFinal = langs.isNotEmpty &&
+          langs.every((l) {
+            final norm = normalizeLanguageCode(l);
+            return mediaSubtitles.containsKey(l) || mediaSubtitles.containsKey(norm);
+          });
+      if (hasAllFinal) {
         isGeneratingAI.value = false;
         aiJobProgress.value = 100;
         aiCurrentStageName.value = 'Precision Timestamp Alignment & VTT Export';
@@ -733,7 +849,7 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
         aiJobSubscription?.cancel();
         aiVideoSubscription?.cancel();
         final newlyGenerated = langs.firstWhere(
-          (l) => l != (selectedVideo.value?.language ?? 'en'),
+          (l) => normalizeLanguageCode(l) != normalizeLanguageCode(selectedVideo.value?.language ?? 'en'),
           orElse: () => langs.isNotEmpty ? langs.first : 'en',
         );
         refreshSelectedVideoLocalization(newlyGenerated);
@@ -784,27 +900,38 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
         .doc(video.id)
         .get();
     if (doc.exists) {
-      final updatedVideo = Video.fromDocumentSnapshot(doc);
+      var updatedVideo = Video.fromDocumentSnapshot(doc);
+      final loc = await VideoMediaService().getLocalization(video.id, forceRefresh: true);
+      final subs = Map<String, String>.from(updatedVideo.mediaSubtitles);
+      if (loc.subtitles.isNotEmpty) {
+        subs.addAll(loc.subtitles);
+        updatedVideo = updatedVideo.copyWith(mediaSubtitles: subs);
+      }
       selectedVideo.value = updatedVideo;
       selectedLanguage.value = '';
       availableLanguages.clear();
       currentCues.clear();
-      final subs = updatedVideo.mediaSubtitles;
-      final orderedLangs = <String>['en'];
+      final orderedLangs = <String>[];
+      final baseLang = normalizeLanguageCode(updatedVideo.language);
+      orderedLangs.add(baseLang);
+      if (!orderedLangs.contains('en')) orderedLangs.add('en');
       for (final lang in subs.keys) {
-        if (!orderedLangs.contains(lang)) orderedLangs.add(lang);
+        final norm = normalizeLanguageCode(lang);
+        if (!orderedLangs.contains(norm)) orderedLangs.add(norm);
       }
       availableLanguages.value = orderedLangs;
 
       String targetLang;
-      if (newlyGeneratedLang != null && subs.containsKey(newlyGeneratedLang)) {
-        targetLang = newlyGeneratedLang;
+      final normNew = newlyGeneratedLang != null ? normalizeLanguageCode(newlyGeneratedLang) : null;
+      if (newlyGeneratedLang != null && (subs.containsKey(newlyGeneratedLang) || (normNew != null && subs.containsKey(normNew)))) {
+        targetLang = subs.containsKey(newlyGeneratedLang) ? newlyGeneratedLang : normNew!;
       } else {
-        targetLang = orderedLangs.contains('en') ? 'en' : orderedLangs.first;
+        targetLang = orderedLangs.contains(baseLang) ? baseLang : (orderedLangs.contains('en') ? 'en' : orderedLangs.first);
       }
       selectedLanguage.value = targetLang;
-      if (subs.containsKey(targetLang)) {
-        await parseCuesForLanguage(targetLang, subs[targetLang]);
+      final subUrl = subs[targetLang] ?? (normNew != null ? subs[normNew] : null);
+      if (subUrl != null && subUrl.isNotEmpty) {
+        await parseCuesForLanguage(targetLang, subUrl);
       }
       selectedVideo.refresh();
     }

@@ -61,9 +61,17 @@ class AdminModerationPredicates {
     return modStatus == 'rejected' || vStatus == 'rejected';
   }
 
+  /// Checks if a channel is on hold
+  static bool isChannelOnHold(Map<String, dynamic> c) {
+    final status = (c['status'] ?? '').toString().toLowerCase().replaceAll('_', '').replaceAll(' ', '');
+    return status == 'onhold' ||
+        status == 'hold' ||
+        status == 'held';
+  }
+
   /// Checks if a channel is pending verification/review
   static bool isChannelPending(Map<String, dynamic> c) {
-    if (isChannelRejected(c)) return false;
+    if (isChannelRejected(c) || isChannelOnHold(c)) return false;
     final status = (c['status'] ?? '').toString().toLowerCase();
     if (status == 'underreview' ||
         status == 'under_review' ||
@@ -83,7 +91,7 @@ class AdminModerationPredicates {
 
   /// Checks if a channel is active/verified
   static bool isChannelActive(Map<String, dynamic> c) {
-    if (isChannelRejected(c)) return false;
+    if (isChannelRejected(c) || isChannelOnHold(c)) return false;
     if (isChannelPending(c)) return false;
     final status = (c['status'] ?? 'active').toString().toLowerCase();
     return status == 'active' ||
@@ -102,6 +110,7 @@ class AdminModerationPredicates {
 
   /// Checks if a channel verification was rejected or banned
   static bool isChannelRejected(Map<String, dynamic> c) {
+    if (isChannelOnHold(c)) return false;
     final status = (c['status'] ?? '').toString().toLowerCase();
     return status == 'verificationrejected' ||
         status == 'verification_rejected' ||

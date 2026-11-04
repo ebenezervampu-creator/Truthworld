@@ -2,13 +2,13 @@ import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/user_languages_service.dart';
 
 /// Loads and caches the user's interest profile from Firestore.
 ///
@@ -81,6 +81,19 @@ class UserInterestProfileService extends GetxService {
       if (currentUid.isNotEmpty) {
         loadProfile(currentUid);
       }
+    }
+
+    if (Get.isRegistered<UserLanguagesService>()) {
+      ever(UserLanguagesService.to.primaryLanguage, (lang) {
+        if (profile.value != null) {
+          profile.value = profile.value!.copyWith(
+            primaryLanguage: lang,
+            secondaryLanguages:
+                UserLanguagesService.to.secondaryLanguages.toList(),
+            knownLanguages: UserLanguagesService.to.knownLanguages.toList(),
+          );
+        }
+      });
     }
   }
 
@@ -338,6 +351,15 @@ class UserInterestProfileService extends GetxService {
 
     final newProfile = UserInterestProfile(
       userId: userId,
+      primaryLanguage: Get.isRegistered<UserLanguagesService>()
+          ? UserLanguagesService.to.primaryLanguage.value
+          : 'English',
+      secondaryLanguages: Get.isRegistered<UserLanguagesService>()
+          ? UserLanguagesService.to.secondaryLanguages.toList()
+          : const [],
+      knownLanguages: Get.isRegistered<UserLanguagesService>()
+          ? UserLanguagesService.to.knownLanguages.toList()
+          : const ['English'],
       categoryAffinities: categoryAffinities,
       topicAffinities: topicAffinities,
       channelAffinities: channelAffinities,

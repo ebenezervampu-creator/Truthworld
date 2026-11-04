@@ -4,7 +4,7 @@ import 'package:truthworld/data/models/channel.dart';
 
 void main() {
   group('Channel Revenue Share Audit & Verification Tests', () {
-    test('Standard Channel receives exact 70/30 split on Ads & Subs, 100% on Memberships & Superchats', () {
+    test('Standard Channel receives exact 70/30 split on Ads & Subs, 90/10 on Memberships & Superchats (Hybrid Model)', () {
       final breakdown = ChannelPayoutCalculator.calculateStandardChannelPayout(
         adRevenue: 1000.0,
         premiumSubRevenue: 500.0,
@@ -18,16 +18,18 @@ void main() {
       // Creator Share:
       // Ads: 70% of 1000 = 700.0
       // Premium Subs: 70% of 500 = 350.0
-      // Superchats/Tips: 100% of 300 = 300.0
-      // Memberships: 100% of 200 = 200.0
-      // Total Creator Payout: 700 + 350 + 300 + 200 = 1550.0
-      expect(breakdown.creatorPayout, closeTo(1550.0, 0.001));
+      // Superchats/Tips: 90% of 300 = 270.0 (10% fee)
+      // Memberships: 90% of 200 = 180.0 (10% fee)
+      // Total Creator Payout: 700 + 350 + 270 + 180 = 1500.0
+      expect(breakdown.creatorPayout, closeTo(1500.0, 0.001));
 
       // Platform Share:
       // Ads: 30% of 1000 = 300.0
       // Premium Subs: 30% of 500 = 150.0
-      // Total Platform Share: 450.0
-      expect(breakdown.platformShare, closeTo(450.0, 0.001));
+      // Superchats/Tips: 10% of 300 = 30.0
+      // Memberships: 10% of 200 = 20.0
+      // Total Platform Share: 300 + 150 + 30 + 20 = 500.0
+      expect(breakdown.platformShare, closeTo(500.0, 0.001));
 
       // Sum of creator + platform equals gross revenue exactly
       expect(breakdown.creatorPayout + breakdown.platformShare, closeTo(breakdown.grossRevenue, 0.001));
@@ -60,15 +62,29 @@ void main() {
       const tipInr25_5 = tipUsd25_5 * usdRate;
       expect(tipInr25_5, equals(2142.0));
 
-      // 100% of Superchats go to channel creator
+      // Standard channel: 90% of Superchats go to creator (10% platform fee)
       final standardPayout = ChannelPayoutCalculator.calculateStandardChannelPayout(
         adRevenue: 0.0,
         premiumSubRevenue: 0.0,
         tipsRevenue: tipInr10,
         membershipsRevenue: 0.0,
       );
-      expect(standardPayout.creatorPayout, equals(840.0));
-      expect(standardPayout.platformShare, equals(0.0));
+      expect(standardPayout.creatorPayout, equals(756.0));
+      expect(standardPayout.platformShare, equals(84.0));
+
+      // Custom channel: 100% of Superchats retained
+      final customChannel = Channel.fromMap({
+        'name': 'Custom Channel',
+        'channelType': 'custom',
+        'superchatRevenueTotal': tipInr10,
+      }, 'ch-custom');
+      final customPayout = ChannelPayoutCalculator.calculatePayout(
+        customChannel,
+        tipsRevenue: tipInr10,
+        actualInfraCost: 0.0,
+      );
+      // Flat platform fee is deducted in custom channel calculation
+      expect(customPayout.grossRevenue, equals(840.0));
     });
 
     test('Channel Model serialization accurately preserves all 5 revenue fields', () {

@@ -5,24 +5,43 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_ai_coach_tab.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_claim_card.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_conclusion_tab.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_dialogs.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_full_inspector_modal.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_full_inspector_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_models.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_stats_bar.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_opinions_tab.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_overview_tab.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_sources_tab.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_tab_bar.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_video_card.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 // Re-exports for 100% backward compatibility with existing tests and imports
+export 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_ai_coach_tab.dart';
 export 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_claim_card.dart';
+export 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_conclusion_tab.dart';
 export 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_dialogs.dart';
 export 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_full_inspector_modal.dart';
+export 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_full_inspector_page.dart';
 export 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_models.dart';
+export 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_opinions_tab.dart';
+export 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_overview_tab.dart';
+export 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_sources_tab.dart';
 export 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_stats_bar.dart';
+export 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_tab_bar.dart';
 export 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_video_card.dart';
 
-/// Studio Fact-Checks & Truth Verification Console.
-/// Production-grade dashboard with zero raw JSON exposure, zero UI overflow bugs,
-/// complete parity with consumer app video screen, and exclusive Studio creator tools.
+/// Studio Fact-Checks & Truth Verification Console for Channels.
+///
+/// Production-grade dashboard inspired directly by the Consumer App's "Ai Check" implementation:
+/// - Multi-tab architecture: Fact Claims, Overview, Video Reports, Opinions & Context,
+///   Authoritative Sources, Conclusion & Insights, Audit & Transparency, and Ask AI Truth Coach.
+/// - Top Creator Review Window Countdown & Provisional Triage Banners.
+/// - Multi-source empirical grounding with IFCN institutional compliance.
+/// - Zero raw developer errors, zero setState calls, WCAG AA compliance with zero white-on-white.
 class TruthVerificationDashboardPage extends StatelessWidget {
   TruthVerificationDashboardPage({
     required this.channelId,
@@ -42,9 +61,13 @@ class TruthVerificationDashboardPage extends StatelessWidget {
   /// Global or deep-linked target video filter
   static final RxString targetVideoId = ''.obs;
 
-  final RxInt _selectedTab = 0.obs; // 0: Video Reports, 1: Claims, 2: Activity Audit Log
+  /// Active tab index:
+  /// 0: Fact Claims, 1: Overview, 2: Video Reports, 3: Opinions & Context,
+  /// 4: Sources & Citations, 5: Conclusion & Insights, 6: Audit & Transparency, 7: Ask AI Truth Coach
+  final RxInt _selectedTab = 0.obs;
+
   final RxString _videoFilter = 'all'.obs; // 'all', 'concerns', 'pending', 'approved', 'disputed'
-  final RxString _claimTierFilter = 'all'.obs; // 'all', 'high_concern', 'needs_source', 'verified', 'disputed'
+  final RxString _claimTierFilter = 'all'.obs; // 'all', 'verified', 'needs_source', 'high_concern', 'disputed'
   final RxBool _isPublished = true.obs;
   final RxString _searchQuery = ''.obs;
 
@@ -175,448 +198,788 @@ class TruthVerificationDashboardPage extends StatelessWidget {
     }
   }
 
+  Future<void> _approveAllPendingVideos(List<VideoFactCheckItem> pendingVideos) async {
+    if (pendingVideos.isEmpty) return;
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      for (final v in pendingVideos) {
+        final docRef = FirebaseFirestore.instance.collection('videos').doc(v.id);
+        batch.update(docRef, {
+          'isFactCheckApproved': true,
+          'aiFeatures.isFactCheckApproved': true,
+        });
+      }
+      await batch.commit();
+      AppSnackbar.success(
+        'All pending video verifications approved and published to viewers!',
+      );
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TruthVerificationDashboardPage.approveAll',
+      );
+      AppSnackbar.error(
+        'Unable to approve verifications. Please check your connection and try again.',
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: isDarkMode ? AppColors.bgPage : Colors.white,
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('videos')
-            .where('channelId', isEqualTo: channelId)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            ErrorHandler.log(
-              snapshot.error,
-              tag: 'TruthVerificationDashboardPage.stream',
-            );
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  UserFeedbackSanitizer.sanitizeMessage(
-                    snapshot.error,
-                    defaultActionContext:
-                        'Unable to load verification data. Please try again.',
+      backgroundColor: AppColors.bgPage,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isDesktop = constraints.maxWidth >= 900;
+
+          return StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('videos')
+                .where('channelId', isEqualTo: channelId)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                ErrorHandler.log(
+                  snapshot.error,
+                  tag: 'TruthVerificationDashboardPage.stream',
+                );
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      UserFeedbackSanitizer.sanitizeMessage(
+                        snapshot.error,
+                        defaultActionContext:
+                            'Unable to load verification data. Please try again.',
+                      ),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: AppColors.error,
+                      ),
+                    ),
                   ),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontFamily: TWTypography.uiFamily,
-                    color: AppColors.error,
+                );
+              }
+
+              if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                return const StudioLoadingIndicator(
+                  message: 'Loading truth verification insights...',
+                );
+              }
+
+              final videoDocs = snapshot.data?.docs ?? [];
+              final allClaims = <RealExtractedClaim>[];
+              final videoItems = <VideoFactCheckItem>[];
+
+              for (final doc in videoDocs) {
+                final data = doc.data()! as Map<String, dynamic>;
+                final videoItem = TruthVerificationParser.parseVideoDoc(doc);
+
+                if (!hasFactChecking(
+                  data,
+                  claims: videoItem.claims,
+                )) {
+                  continue;
+                }
+
+                allClaims.addAll(videoItem.claims);
+                videoItems.add(videoItem);
+              }
+
+              return Obx(() {
+                final activeTab = _selectedTab.value;
+                final targetId = targetVideoId.value;
+                final videoFilter = _videoFilter.value;
+                final query = _searchQuery.value.trim().toLowerCase();
+
+                // Filter videos
+                var filteredVideos = videoItems;
+                if (targetId.isNotEmpty) {
+                  filteredVideos =
+                      filteredVideos.where((v) => v.id == targetId).toList();
+                } else if (videoFilter == 'pending') {
+                  filteredVideos =
+                      filteredVideos.where((v) => v.isPendingApproval).toList();
+                } else if (videoFilter == 'approved') {
+                  filteredVideos =
+                      filteredVideos.where((v) => v.isFactCheckApproved).toList();
+                } else if (videoFilter == 'concerns') {
+                  filteredVideos =
+                      filteredVideos.where((v) => v.hasConcerns).toList();
+                } else if (videoFilter == 'disputed') {
+                  filteredVideos = filteredVideos
+                      .where((v) => v.isDisputed || v.reverificationRequested)
+                      .toList();
+                }
+
+                if (query.isNotEmpty) {
+                  filteredVideos = filteredVideos
+                      .where((v) =>
+                          v.title.toLowerCase().contains(query) ||
+                          v.domain.toLowerCase().contains(query))
+                      .toList();
+                }
+
+                // Filter claims
+                final claimTier = _claimTierFilter.value;
+                var filteredClaims = allClaims.where((claim) {
+                  if (targetId.isNotEmpty && claim.videoId != targetId) {
+                    return false;
+                  }
+                  if (claimTier == 'verified') {
+                    return claim.isVerified;
+                  } else if (claimTier == 'high_concern') {
+                    return claim.isHighConcern;
+                  } else if (claimTier == 'needs_source') {
+                    return claim.isNeedsSource;
+                  } else if (claimTier == 'disputed') {
+                    return claim.isDisputed;
+                  }
+                  return true;
+                }).toList();
+
+                if (query.isNotEmpty) {
+                  filteredClaims = filteredClaims
+                      .where((c) =>
+                          c.text.toLowerCase().contains(query) ||
+                          c.videoTitle.toLowerCase().contains(query) ||
+                          c.category.toLowerCase().contains(query))
+                      .toList();
+                }
+
+                final pendingVideos =
+                    videoItems.where((v) => v.isPendingApproval).toList();
+                final videosWithConcernsCount =
+                    videoItems.where((v) => v.hasConcerns).length;
+                final opinionClaims =
+                    allClaims.where((c) => c.isOpinionOrBelief).toList();
+                final hasProvisionalVideo =
+                    videoItems.any((v) => v.isProvisional);
+
+                return Column(
+                  children: [
+                    // Top Header matching Channel Creation Wizard
+                    _buildTopHeader(isDesktop),
+
+                    // Sleek Tab Bar pinned under header
+                    TruthVerificationTabBar(
+                      selectedTab: activeTab,
+                      onTabSelected: (idx) => _selectedTab.value = idx,
+                      claimsCount: allClaims.length,
+                      videosCount: videoItems.length,
+                      opinionsCount: opinionClaims.length,
+                      sourcesCount: videoItems.fold(0, (sum, v) => sum + v.sources.length),
+                      isDarkMode: isDarkMode,
+                    ),
+
+                    // Scrollable Tab Content
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isDesktop ? 32 : 16,
+                          vertical: isDesktop ? 24 : 16,
+                        ),
+                        physics: const BouncingScrollPhysics(),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 1. Creator Review Grace Period Notice Banner (if any videos in review)
+                            if (pendingVideos.isNotEmpty) ...[
+                              _buildPendingApprovalBanner(pendingVideos),
+                              const SizedBox(height: 16),
+                            ],
+
+                            // 2. Provisional Fast Triage Banner (if any provisional scans)
+                            if (hasProvisionalVideo) ...[
+                              _buildProvisionalNoticeBanner(),
+                              const SizedBox(height: 16),
+                            ],
+
+                            // 3. Target Video Filter Banner (if deep-linked or focused)
+                            if (targetId.isNotEmpty) ...[
+                              _buildTargetVideoBanner(
+                                filteredVideos.isNotEmpty ? filteredVideos.first.title : targetId,
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+
+                            // 4. Responsive Search Bar (Active for Claims, Videos, and Sources)
+                            if (activeTab == 0 || activeTab == 2 || activeTab == 6) ...[
+                              _buildSearchBar(activeTab, query),
+                              const SizedBox(height: 16),
+                            ],
+
+                            // 5. TAB CONTENT
+                            if (activeTab == 0) ...[
+                              // ── Tab 0: Fact Claims ──
+                              _buildFactClaimsTab(filteredClaims, allClaims, videoItems),
+                            ] else if (activeTab == 1) ...[
+                              // ── Tab 1: Overview ──
+                              TruthVerificationOverviewTab(
+                                videos: videoItems,
+                                allClaims: allClaims,
+                                isDarkMode: isDarkMode,
+                                onSwitchToTab: (idx) => _selectedTab.value = idx,
+                                targetVideoTitle: targetId.isNotEmpty && filteredVideos.isNotEmpty
+                                    ? filteredVideos.first.title
+                                    : null,
+                              ),
+                            ] else if (activeTab == 2) ...[
+                              // ── Tab 2: Video Reports ──
+                              _buildVideoReportsTab(
+                                filteredVideos,
+                                videoItems,
+                                videosWithConcernsCount,
+                                pendingVideos.length,
+                              ),
+                            ] else if (activeTab == 3) ...[
+                              // ── Tab 3: Opinions & Subjective Context ──
+                              TruthVerificationOpinionsTab(
+                                opinionClaims: opinionClaims,
+                                isDarkMode: isDarkMode,
+                              ),
+                            ] else if (activeTab == 4) ...[
+                              // ── Tab 4: Sources & Citations ──
+                              TruthVerificationSourcesTab(
+                                videos: videoItems,
+                                allClaims: allClaims,
+                                isDarkMode: isDarkMode,
+                              ),
+                            ] else if (activeTab == 5) ...[
+                              // ── Tab 5: Conclusion & Recommendations ──
+                              TruthVerificationConclusionTab(
+                                videos: videoItems,
+                                allClaims: allClaims,
+                                isDarkMode: isDarkMode,
+                                onSwitchToTab: (idx) => _selectedTab.value = idx,
+                              ),
+                            ] else if (activeTab == 6) ...[
+                              // ── Tab 6: Activity Audit Log ──
+                              _buildAuditActivityLogTab(filteredVideos.isNotEmpty ? filteredVideos : videoItems),
+                            ] else if (activeTab == 7) ...[
+                              // ── Tab 7: Ask AI Truth Coach ──
+                              TruthVerificationAiCoachTab(
+                                channelId: channelId,
+                                allClaims: allClaims,
+                                videos: videoItems,
+                                isDarkMode: isDarkMode,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              });
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildTopHeader(bool isDesktop) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isDesktop ? 32 : 16,
+        vertical: 16,
+      ),
+      decoration: const BoxDecoration(
+        color: AppColors.bgPage,
+        border: Border(
+          bottom: BorderSide(color: AppColors.bgSurface),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: const [
+                    Icon(
+                      Icons.verified_rounded,
+                      color: AppColors.success,
+                      size: 22,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Fact-Checks & Verification',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Channel Truth Intelligence console: claim verification, authoritative grounding & creator review.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
                   ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          Obx(() {
+            final published = _isPublished.value;
+            return InkWell(
+              onTap: () {
+                _isPublished.toggle();
+                if (_isPublished.value) {
+                  AppSnackbar.success('Credibility badges active on viewer player overlays.');
+                } else {
+                  AppSnackbar.info('Credibility overlays muted for viewers.');
+                }
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(
+                  color: AppColors.appBarSurface,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: published ? AppColors.success : AppColors.bgSurface,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: published ? AppColors.success : AppColors.textTertiary,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      published ? 'Credibility Active' : 'Overlays Muted',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: published ? Colors.white : AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             );
-          }
-
-          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
-            return const StudioLoadingIndicator(
-              message: 'Loading truth verification insights...',
-            );
-          }
-
-          final videoDocs = snapshot.data?.docs ?? [];
-          final allClaims = <RealExtractedClaim>[];
-          final videoItems = <VideoFactCheckItem>[];
-
-          for (final doc in videoDocs) {
-            final data = doc.data()! as Map<String, dynamic>;
-            final videoItem = TruthVerificationParser.parseVideoDoc(doc);
-
-            if (!hasFactChecking(
-              data,
-              claims: videoItem.claims,
-              trustScore: videoItem.truthScore,
-            )) {
-              continue;
-            }
-
-            allClaims.addAll(videoItem.claims);
-            videoItems.add(videoItem);
-          }
-
-          return Obx(() {
-            final activeTab = _selectedTab.value;
-            final targetId = targetVideoId.value;
-            final videoFilter = _videoFilter.value;
-            final query = _searchQuery.value.trim().toLowerCase();
-
-            // Filter videos
-            var filteredVideos = videoItems;
-            if (targetId.isNotEmpty) {
-              filteredVideos =
-                  filteredVideos.where((v) => v.id == targetId).toList();
-            } else if (videoFilter == 'pending') {
-              filteredVideos =
-                  filteredVideos.where((v) => v.isPendingApproval).toList();
-            } else if (videoFilter == 'approved') {
-              filteredVideos =
-                  filteredVideos.where((v) => v.isFactCheckApproved).toList();
-            } else if (videoFilter == 'concerns') {
-              filteredVideos =
-                  filteredVideos.where((v) => v.hasConcerns).toList();
-            } else if (videoFilter == 'disputed') {
-              filteredVideos = filteredVideos
-                  .where((v) => v.isDisputed || v.reverificationRequested)
-                  .toList();
-            }
-
-            if (query.isNotEmpty) {
-              filteredVideos = filteredVideos
-                  .where((v) =>
-                      v.title.toLowerCase().contains(query) ||
-                      v.domain.toLowerCase().contains(query))
-                  .toList();
-            }
-
-            // Filter claims
-            final claimTier = _claimTierFilter.value;
-            var filteredClaims = allClaims.where((claim) {
-              if (targetId.isNotEmpty && claim.videoId != targetId) {
-                return false;
-              }
-              if (claimTier == 'verified') {
-                return claim.isVerified;
-              } else if (claimTier == 'high_concern') {
-                return claim.isHighConcern;
-              } else if (claimTier == 'needs_source') {
-                return claim.isNeedsSource;
-              } else if (claimTier == 'disputed') {
-                return claim.isDisputed;
-              }
-              return true;
-            }).toList();
-
-            if (query.isNotEmpty) {
-              filteredClaims = filteredClaims
-                  .where((c) =>
-                      c.text.toLowerCase().contains(query) ||
-                      c.videoTitle.toLowerCase().contains(query) ||
-                      c.category.toLowerCase().contains(query))
-                  .toList();
-            }
-
-            final pendingApprovalCount =
-                videoItems.where((v) => v.isPendingApproval).length;
-            final videosWithConcernsCount =
-                videoItems.where((v) => v.hasConcerns).length;
-
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              physics: const BouncingScrollPhysics(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Top Stats & Health Ribbon
-                  TruthVerificationStatsBar(
-                    videos: videoItems,
-                    allClaims: allClaims,
-                    isPublished: _isPublished,
-                    selectedTab: _selectedTab,
-                    isDarkMode: isDarkMode,
-                  ),
-                  const SizedBox(height: 18),
-
-                  // Target Video Filter Banner (if filtered)
-                  if (targetId.isNotEmpty) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.brandVariant.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: AppColors.brandVariant.withValues(alpha: 0.35),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.filter_alt_rounded,
-                            size: 18,
-                            color: AppColors.brand,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Focusing on Video: ${filteredVideos.isNotEmpty ? filteredVideos.first.title : targetId}',
-                              style: const TextStyle(
-                                fontFamily: TWTypography.uiFamily,
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.brand,
-                              ),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () => targetVideoId.value = '',
-                            child: const Text(
-                              'Clear Filter',
-                              style: TextStyle(
-                                color: AppColors.brand,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-
-                  // Search Bar
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: isDarkMode ? AppColors.bgSurface : const Color(0xFFF9FAFB),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: isDarkMode ? AppColors.bgDivider : const Color(0xFFE5E7EB),
-                      ),
-                    ),
-                    child: TextField(
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: isDarkMode ? AppColors.textPrimary : Colors.black87,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: activeTab == 0
-                            ? 'Search fact-checked videos by title or topic...'
-                            : 'Search evaluated claims by keywords...',
-                        hintStyle: TextStyle(
-                          fontSize: 13,
-                          color: isDarkMode ? AppColors.textTertiary : Colors.black38,
-                        ),
-                        prefixIcon: Icon(
-                          Icons.search_rounded,
-                          size: 18,
-                          color: isDarkMode ? AppColors.textSecondary : Colors.black54,
-                        ),
-                        suffixIcon: query.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear_rounded, size: 16),
-                                onPressed: () => _searchQuery.value = '',
-                              )
-                            : null,
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                      ),
-                      onChanged: (val) => _searchQuery.value = val,
-                    ),
-                  ),
-
-                  // TAB CONTENT
-                  if (activeTab == 0) ...[
-                    // Sub-filter pills for videos
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _buildFilterPill(
-                          label: 'All Videos (${videoItems.length})',
-                          isSelected: videoFilter == 'all',
-                          onTap: () => _videoFilter.value = 'all',
-                        ),
-                        if (videosWithConcernsCount > 0)
-                          _buildFilterPill(
-                            label: '🔴 Concern Alerts ($videosWithConcernsCount)',
-                            isSelected: videoFilter == 'concerns',
-                            isAlertHighlight: true,
-                            onTap: () => _videoFilter.value = 'concerns',
-                          ),
-                        _buildFilterPill(
-                          label: 'Pending Approval ($pendingApprovalCount)',
-                          isSelected: videoFilter == 'pending',
-                          isWarningHighlight: pendingApprovalCount > 0,
-                          onTap: () => _videoFilter.value = 'pending',
-                        ),
-                        _buildFilterPill(
-                          label:
-                              'Approved (${videoItems.where((v) => v.isFactCheckApproved).length})',
-                          isSelected: videoFilter == 'approved',
-                          onTap: () => _videoFilter.value = 'approved',
-                        ),
-                        _buildFilterPill(
-                          label:
-                              'Disputed (${videoItems.where((v) => v.isDisputed || v.reverificationRequested).length})',
-                          isSelected: videoFilter == 'disputed',
-                          onTap: () => _videoFilter.value = 'disputed',
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-
-                    if (filteredVideos.isEmpty)
-                      _buildEmptyState(
-                        title: 'No Video Fact-Checks Found',
-                        description:
-                            'No videos matched the current filter or search criteria. Videos with AI Truth Verification will appear here.',
-                      )
-                    else
-                      ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: filteredVideos.length,
-                        separatorBuilder: (context, index) =>
-                            const SizedBox(height: 14),
-                        itemBuilder: (context, index) {
-                          final video = filteredVideos[index];
-                          return TruthVerificationVideoCard(
-                            video: video,
-                            channelId: channelId,
-                            isDarkMode: isDarkMode,
-                            onToggleApproval: _toggleFactCheckApproval,
-                            onApprove: _approveVideoFactCheck,
-                            onClaimSelected: (claim) {
-                              TruthVerificationDialogs.showAskAiWhyDialog(
-                                context,
-                                claim,
-                                isDarkMode: isDarkMode,
-                                onProvideSource: (c) =>
-                                    TruthVerificationDialogs
-                                        .showProvideSourceForClaimDialog(
-                                  context,
-                                  c,
-                                  isDarkMode: isDarkMode,
-                                  onSubmit: (id, url, notes) {
-                                    c.tier = ClaimEvidenceTier.disputed;
-                                    AppSnackbar.success(
-                                      'Citation queued for AI evaluation.',
-                                    );
-                                  },
-                                ),
-                                onMarkEdit: (c) =>
-                                    TruthVerificationDialogs
-                                        .showMarkVideoEditDialog(
-                                  context,
-                                  c,
-                                  isDarkMode: isDarkMode,
-                                  onSave: (note) {
-                                    c.creatorActionNote = note;
-                                    AppSnackbar.success('Action note saved.');
-                                  },
-                                ),
-                              );
-                            },
-                          );
-                        },
-                      ),
-                  ] else if (activeTab == 1) ...[
-                    // Claims Filter Bar
-                    Wrap(
-                      spacing: 16,
-                      runSpacing: 10,
-                      alignment: WrapAlignment.spaceBetween,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Text(
-                          'Evaluated Factual Claims (${filteredClaims.length})',
-                          style: TextStyle(
-                            fontFamily: TWTypography.brandFamily,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: isDarkMode
-                                ? AppColors.textPrimary
-                                : Colors.black87,
-                          ),
-                        ),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.filter_alt_outlined,
-                              size: 16,
-                              color: isDarkMode ? Colors.white : Colors.black87,
-                            ),
-                            const SizedBox(width: 6),
-                            DropdownButton<String>(
-                              value: claimTier,
-                              dropdownColor: isDarkMode
-                                  ? AppColors.bgSurface
-                                  : Colors.white,
-                              underline: const SizedBox(),
-                              style: TextStyle(
-                                fontFamily: TWTypography.uiFamily,
-                                color: isDarkMode
-                                    ? AppColors.textPrimary
-                                    : Colors.black87,
-                              ),
-                              items: const [
-                                DropdownMenuItem(
-                                  value: 'all',
-                                  child: Text('All Claims'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'high_concern',
-                                  child: Text('🔴 High Concern (No Evidence)'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'needs_source',
-                                  child: Text('🟡 Needs Source'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'verified',
-                                  child: Text('🟢 Most Verified'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'disputed',
-                                  child: Text('🟣 Disputed'),
-                                ),
-                              ],
-                              onChanged: (val) {
-                                if (val != null) {
-                                  _claimTierFilter.value = val;
-                                }
-                              },
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-
-                    if (filteredClaims.isEmpty)
-                      _buildEmptyState(
-                        title: 'No Extracted Claims Found',
-                        description:
-                            'No claims match your filter criteria. Try adjusting the search query or tier filter.',
-                      )
-                    else
-                      ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: filteredClaims.length,
-                        separatorBuilder: (context, index) =>
-                            const SizedBox(height: 14),
-                        itemBuilder: (context, index) {
-                          final claim = filteredClaims[index];
-                          final parentVideo = videoItems.firstWhereOrNull(
-                            (v) => v.id == claim.videoId,
-                          );
-                          return TruthVerificationClaimCard(
-                            claim: claim,
-                            video: parentVideo,
-                            isDarkMode: isDarkMode,
-                            channelId: channelId,
-                          );
-                        },
-                      ),
-                  ] else ...[
-                    // Tab 2: Activity Audit Log
-                    _buildAuditActivityLogTab(videoItems),
-                  ],
-                ],
-              ),
-            );
-          });
-        },
+          }),
+        ],
       ),
+    );
+  }
+
+  Widget _buildPendingApprovalBanner(List<VideoFactCheckItem> pendingVideos) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.appBarSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.bgSurface,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.bgInput,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.bgSurface),
+            ),
+            child: const Icon(
+              Icons.lock_clock_rounded,
+              color: AppColors.warning,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Creator Review Window Active (${pendingVideos.length} Video${pendingVideos.length == 1 ? '' : 's'})',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Review preliminary fact-checks before badges auto-publish to viewers to maintain platform truth transparency.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 14),
+          ElevatedButton(
+            onPressed: () => _approveAllPendingVideos(pendingVideos),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.black, // Strictly black on white!
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text(
+              'Approve All',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProvisionalNoticeBanner() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.appBarSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.bgSurface),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: AppColors.bgInput,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.bgSurface),
+            ),
+            child: const Icon(
+              Icons.bolt_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  'FAST TRIAGE • PROVISIONAL CREDIBILITY ACTIVE',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Preliminary multimodal scan results. Deep multi-source grounding and cross-examination run continuously in the background.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTargetVideoBanner(String videoTitle) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.appBarSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.bgSurface),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.filter_alt_rounded,
+            size: 18,
+            color: Colors.white,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Focusing on Video: $videoTitle',
+              style: const TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => targetVideoId.value = '',
+            child: const Text(
+              'Clear Filter',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar(int activeTab, String query) {
+    String hintText;
+    if (activeTab == 0) {
+      hintText = 'Search evaluated claims by keyword or category...';
+    } else if (activeTab == 2) {
+      hintText = 'Search fact-checked videos by title or domain...';
+    } else {
+      hintText = 'Search audit trail by video or event...';
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.appBarSurface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.bgSurface),
+      ),
+      child: TextField(
+        style: const TextStyle(
+          fontSize: 13,
+          color: Colors.white,
+        ),
+        decoration: InputDecoration(
+          hintText: hintText,
+          hintStyle: const TextStyle(
+            fontSize: 13,
+            color: AppColors.textTertiary,
+          ),
+          prefixIcon: const Icon(
+            Icons.search_rounded,
+            size: 18,
+            color: AppColors.textSecondary,
+          ),
+          suffixIcon: query.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear_rounded, size: 16, color: AppColors.textSecondary),
+                  onPressed: () => _searchQuery.value = '',
+                )
+              : null,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 12,
+          ),
+        ),
+        onChanged: (val) => _searchQuery.value = val,
+      ),
+    );
+  }
+
+  Widget _buildFactClaimsTab(
+    List<RealExtractedClaim> filteredClaims,
+    List<RealExtractedClaim> allClaims,
+    List<VideoFactCheckItem> videoItems,
+  ) {
+    final claimTier = _claimTierFilter.value;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Filter Pills for Claims
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _buildFilterPill(
+              label: 'All Claims (${allClaims.length})',
+              isSelected: claimTier == 'all',
+              onTap: () => _claimTierFilter.value = 'all',
+            ),
+            _buildFilterPill(
+              label: '🟢 Verified (${allClaims.where((c) => c.isVerified).length})',
+              isSelected: claimTier == 'verified',
+              onTap: () => _claimTierFilter.value = 'verified',
+            ),
+            _buildFilterPill(
+              label: '🟡 Needs Source (${allClaims.where((c) => c.isNeedsSource).length})',
+              isSelected: claimTier == 'needs_source',
+              isWarningHighlight: allClaims.any((c) => c.isNeedsSource),
+              onTap: () => _claimTierFilter.value = 'needs_source',
+            ),
+            _buildFilterPill(
+              label: '🔴 High Concern (${allClaims.where((c) => c.isHighConcern).length})',
+              isSelected: claimTier == 'high_concern',
+              isAlertHighlight: allClaims.any((c) => c.isHighConcern),
+              onTap: () => _claimTierFilter.value = 'high_concern',
+            ),
+            _buildFilterPill(
+              label: '🟣 Disputed (${allClaims.where((c) => c.isDisputed).length})',
+              isSelected: claimTier == 'disputed',
+              onTap: () => _claimTierFilter.value = 'disputed',
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        if (filteredClaims.isEmpty)
+          _buildEmptyState(
+            title: 'No Extracted Claims Found',
+            description:
+                'No claims match your filter criteria. Try adjusting the search query or tier filter.',
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: filteredClaims.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 14),
+            itemBuilder: (context, index) {
+              final claim = filteredClaims[index];
+              final parentVideo = videoItems.firstWhereOrNull(
+                (v) => v.id == claim.videoId,
+              );
+              return TruthVerificationClaimCard(
+                claim: claim,
+                video: parentVideo,
+                isDarkMode: isDarkMode,
+                channelId: channelId,
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildVideoReportsTab(
+    List<VideoFactCheckItem> filteredVideos,
+    List<VideoFactCheckItem> videoItems,
+    int videosWithConcernsCount,
+    int pendingApprovalCount,
+  ) {
+    final videoFilter = _videoFilter.value;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Sub-filter pills for videos
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _buildFilterPill(
+              label: 'All Videos (${videoItems.length})',
+              isSelected: videoFilter == 'all',
+              onTap: () => _videoFilter.value = 'all',
+            ),
+            if (videosWithConcernsCount > 0)
+              _buildFilterPill(
+                label: '🔴 Concern Alerts ($videosWithConcernsCount)',
+                isSelected: videoFilter == 'concerns',
+                isAlertHighlight: true,
+                onTap: () => _videoFilter.value = 'concerns',
+              ),
+            _buildFilterPill(
+              label: 'Pending Approval ($pendingApprovalCount)',
+              isSelected: videoFilter == 'pending',
+              isWarningHighlight: pendingApprovalCount > 0,
+              onTap: () => _videoFilter.value = 'pending',
+            ),
+            _buildFilterPill(
+              label: 'Approved (${videoItems.where((v) => v.isFactCheckApproved).length})',
+              isSelected: videoFilter == 'approved',
+              onTap: () => _videoFilter.value = 'approved',
+            ),
+            _buildFilterPill(
+              label:
+                  'Disputed (${videoItems.where((v) => v.isDisputed || v.reverificationRequested).length})',
+              isSelected: videoFilter == 'disputed',
+              onTap: () => _videoFilter.value = 'disputed',
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        if (filteredVideos.isEmpty)
+          _buildEmptyState(
+            title: 'No Video Fact-Checks Found',
+            description:
+                'No videos matched the current filter or search criteria. Videos with AI Truth Verification will appear here.',
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: filteredVideos.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 14),
+            itemBuilder: (context, index) {
+              final video = filteredVideos[index];
+              return TruthVerificationVideoCard(
+                video: video,
+                channelId: channelId,
+                isDarkMode: isDarkMode,
+                onToggleApproval: _toggleFactCheckApproval,
+                onApprove: _approveVideoFactCheck,
+                onClaimSelected: (claim) {
+                  TruthVerificationDialogs.showAskAiWhyDialog(
+                    context,
+                    claim,
+                    isDarkMode: isDarkMode,
+                    onProvideSource: (c) =>
+                        TruthVerificationDialogs.showProvideSourceForClaimDialog(
+                      context,
+                      c,
+                      isDarkMode: isDarkMode,
+                      onSubmit: (id, url, notes) {
+                        c.tier = ClaimEvidenceTier.disputed;
+                        AppSnackbar.success(
+                          'Citation queued for AI evaluation.',
+                        );
+                      },
+                    ),
+                    onMarkEdit: (c) =>
+                        TruthVerificationDialogs.showMarkVideoEditDialog(
+                      context,
+                      c,
+                      isDarkMode: isDarkMode,
+                      onSave: (note) {
+                        c.creatorActionNote = note;
+                        AppSnackbar.success('Action note saved.');
+                      },
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+      ],
     );
   }
 
@@ -627,24 +990,24 @@ class TruthVerificationDashboardPage extends StatelessWidget {
     bool isAlertHighlight = false,
     bool isWarningHighlight = false,
   }) {
-    var bg = isDarkMode ? AppColors.bgSurface : const Color(0xFFF3F4F6);
-    var fg = isDarkMode ? AppColors.textSecondary : Colors.black87;
-    var border = isDarkMode ? AppColors.bgDivider : const Color(0xFFE5E7EB);
+    Color bg = AppColors.appBarSurface;
+    Color fg = AppColors.textSecondary;
+    Color border = AppColors.bgSurface;
 
     if (isSelected) {
       bg = isAlertHighlight
           ? AppColors.error
-          : (isWarningHighlight ? AppColors.warning : AppColors.brand);
+          : (isWarningHighlight ? AppColors.warning : Colors.white);
       fg = (isAlertHighlight || isWarningHighlight)
           ? Colors.white
-          : Colors.black;
+          : Colors.black; // Strictly black on white!
       border = bg;
     } else {
       if (isAlertHighlight) {
-        border = AppColors.error.withValues(alpha: 0.6);
+        border = AppColors.error.withValues(alpha: 0.5);
         fg = AppColors.error;
       } else if (isWarningHighlight) {
-        border = AppColors.warning.withValues(alpha: 0.6);
+        border = AppColors.warning.withValues(alpha: 0.5);
         fg = AppColors.warning;
       }
     }
@@ -653,7 +1016,7 @@ class TruthVerificationDashboardPage extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(8),
@@ -694,12 +1057,12 @@ class TruthVerificationDashboardPage extends StatelessWidget {
         final disputeStatus = video.disputeStatus;
 
         return Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isDarkMode ? AppColors.bgSurface : Colors.white,
+            color: AppColors.appBarSurface,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isDarkMode ? AppColors.bgDivider : const Color(0xFFE5E7EB),
+              color: AppColors.bgSurface,
             ),
           ),
           child: Row(
@@ -707,10 +1070,9 @@ class TruthVerificationDashboardPage extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: isApproved
-                      ? AppColors.success.withValues(alpha: 0.15)
-                      : AppColors.warning.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
+                  color: AppColors.bgInput,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.bgSurface),
                 ),
                 child: Icon(
                   isApproved
@@ -727,27 +1089,40 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: TWTypography.uiFamily,
                         fontWeight: FontWeight.bold,
                         fontSize: 13.5,
-                        color: isDarkMode
-                            ? AppColors.textPrimary
-                            : Colors.black87,
+                        color: Colors.white,
                       ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       'Status: ${isApproved ? "Approved for Public Viewers" : "Creator Review Held Private"}${isReverify ? " • AI Re-verification Queued" : ""}${disputeStatus != null ? " • Dispute: $disputeStatus" : ""}',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: isDarkMode
-                            ? AppColors.textSecondary
-                            : Colors.black54,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ],
                 ),
+              ),
+              IconButton(
+                icon: const Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 14,
+                  color: AppColors.textSecondary,
+                ),
+                tooltip: 'Inspect Video',
+                onPressed: () {
+                  TruthVerificationFullInspectorPage.open(
+                    context,
+                    videoItem: video,
+                    channelId: channelId,
+                    isDarkMode: isDarkMode,
+                    onToggleApproval: _toggleFactCheckApproval,
+                  );
+                },
               ),
             ],
           ),
@@ -762,44 +1137,49 @@ class TruthVerificationDashboardPage extends StatelessWidget {
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.all(36),
       decoration: BoxDecoration(
-        color: isDarkMode ? AppColors.bgSurface : Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.appBarSurface,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isDarkMode ? AppColors.bgDivider : const Color(0xFFE5E7EB),
+          color: AppColors.bgSurface,
         ),
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.fact_check_outlined,
-            size: 44,
-            color: isDarkMode ? Colors.white : Colors.black87,
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.bgInput,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.bgSurface),
+            ),
+            child: const Icon(
+              Icons.fact_check_outlined,
+              size: 32,
+              color: Colors.white,
+            ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           Text(
             title,
-            style: TextStyle(
-              fontFamily: TWTypography.brandFamily,
-              fontSize: 17,
+            style: const TextStyle(
+              fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+              color: Colors.white,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             description,
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: TWTypography.uiFamily,
-              fontSize: 12.5,
-              color: isDarkMode ? AppColors.textSecondary : Colors.black54,
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondary,
             ),
           ),
         ],
       ),
     );
   }
-
 }

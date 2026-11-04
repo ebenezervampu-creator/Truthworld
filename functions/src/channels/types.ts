@@ -12,20 +12,6 @@ export type VerificationState =
   | "newsroom"       // official professional news entity
   | "suspended";
 
-export interface VerificationRequest {
-  id: string;
-  channelId: string;
-  userId: string;
-  type: "person" | "org" | "newsroom" | "edu";
-  legalName: string;
-  website: string;
-  documents: string[]; // GCS paths
-  status: "pending" | "approved" | "rejected";
-  createdAt: number;
-  reviewedAt?: number;
-  notes?: string;
-}
-
 // ─── Profile ──────────────────────────────────────────────────────────────────
 
 export interface ChannelProfile {
@@ -114,36 +100,6 @@ export interface ChannelV2 {
   verification: VerificationState;
 }
 
-// ─── Default factories ────────────────────────────────────────────────────────
-
-export function defaultProfile(): ChannelProfile {
-  return {
-    about: "",
-    photoUrl: null,
-    coverUrl: null,
-    category: "other",
-    country: null,
-    links: [],
-    languagesReached: [],
-  };
-}
-
-export function defaultReputation(): ChannelReputation {
-  return {
-    avgTrustIndex: 0,
-    trend30d: 0,
-    totalVideos: 0,
-    factCheckedVideos: 0,
-    appealRate: 0,
-    topCategoryScore: 0,
-    videosThisMonth: 0,
-    inactiveMonths: 0,
-    weakMonths: 0,
-    recoveryStreak: 0,
-    lastUpdatedAt: Date.now(),
-  };
-}
-
 // ─── Type History ─────────────────────────────────────────────────────────────
 
 export interface TypeHistory {
@@ -166,30 +122,6 @@ export const VALID_CATEGORIES: ChannelCategory[] = [
 
 export const VALID_PLATFORMS = ["youtube", "twitter", "instagram", "website", "linkedin"];
 
-export function validateProfile(profile: Partial<ChannelProfile>): string | null {
-  if (profile.about && profile.about.length > 280) {
-    return "Bio must be 280 characters or fewer.";
-  }
-  if (profile.category && !VALID_CATEGORIES.includes(profile.category)) {
-    return `Invalid category. Must be one of: ${VALID_CATEGORIES.join(", ")}.`;
-  }
-  if (profile.links) {
-    if (profile.links.length > 5) return "Maximum 5 links allowed.";
-    for (const link of profile.links) {
-      if (!VALID_PLATFORMS.includes(link.platform as any)) {
-        return `Invalid platform: ${link.platform}.`;
-      }
-      try { new URL(link.url); } catch {
-        return `Invalid URL: ${link.url}`;
-      }
-    }
-  }
-  if (profile.country && !/^[A-Z]{2}$/.test(profile.country)) {
-    return "Country must be a 2-letter ISO code (e.g. 'US', 'IN').";
-  }
-  return null;
-}
-
 // ─── Phase 3: Discovery & Social Constants ───────────────────────────────────
 
 export const RANK_WEIGHTS = {
@@ -197,18 +129,6 @@ export const RANK_WEIGHTS = {
   SUBSCRIBERS:   0.15, // log-scaled
   TREND_30D:   0.15,
   COVERAGE:    0.10, // fact-checked coverage percentage
-};
-
-export const VERIFICATION_CRITERIA = {
-  TRUSTED: {
-    minVideos: 20,
-    minTrustIndex: 8.0,
-    maxAppealRate: 0.05,
-  },
-  INSTITUTIONAL: {
-    requiresManualAudit: true,
-    supportedTypes: ["news", "education", "finance", "government"],
-  }
 };
 
 export const BADGE_TIERS = {

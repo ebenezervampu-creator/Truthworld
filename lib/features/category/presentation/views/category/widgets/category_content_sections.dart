@@ -327,3 +327,66 @@ class CategoryTopContentSection extends StatelessWidget {
     );
   }
 }
+
+class CategorySearchResultsSection extends StatelessWidget {
+  const CategorySearchResultsSection({
+    required this.controller,
+    super.key,
+    this.isDesktop = false,
+    this.isTablet = false,
+    this.isMobile = false,
+  });
+
+  final CategoryController controller;
+  final bool isDesktop;
+  final bool isTablet;
+  final bool isMobile;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CategorySectionHeader(
+          title: 'Search Results',
+          category: controller.category,
+          isDesktop: isDesktop,
+          isTablet: isTablet,
+        ),
+        SizedBox(height: AppTokens.spacing.sm),
+        Obx(() {
+          if (controller.isSearchingRemote.value) {
+            return controller.selectedView.value == 'Grid'
+                ? CategoryVideoGridShimmer(
+                    isDesktop: isDesktop,
+                    isTablet: isTablet,
+                    isMobile: isMobile,
+                  )
+                : const CategoryVideoListShimmer();
+          }
+
+          final results = controller.searchResults;
+          if (results.isEmpty) {
+            return CategoryEmptyWidget(
+              message:
+                  'No matching videos found in ${controller.category}.',
+            );
+          }
+
+          return controller.selectedView.value == 'Grid'
+              ? CategoryVideoGrid(
+                  videos: results,
+                  isDesktop: isDesktop,
+                  isTablet: isTablet,
+                  isMobile: isMobile,
+                )
+              : CategoryVideoList(
+                  videos: results,
+                  isDesktop: isDesktop,
+                  isTablet: isTablet,
+                );
+        }),
+      ],
+    );
+  }
+}

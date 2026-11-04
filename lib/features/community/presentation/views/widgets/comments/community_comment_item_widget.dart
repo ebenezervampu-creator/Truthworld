@@ -6,11 +6,14 @@ import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/content_validator.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
+import 'package:truthworld/features/channel/data/services/channel_memory_cache.dart';
 import 'package:truthworld/features/community/presentation/views/widgets/comments/community_comment_item_controller.dart';
 import 'package:truthworld/features/community/presentation/views/widgets/comments/community_comment_options_sheet.dart';
 import 'package:truthworld/features/community/presentation/views/widgets/comments/community_comment_reply_input.dart';
 import 'package:truthworld/features/community/presentation/views/widgets/comments/community_reply_item.dart';
 import 'package:truthworld/features/community/presentation/views/widgets/comments/reply_thread_line_painter.dart';
+import 'package:truthworld/features/video/presentation/views/widgets/comments/comment_action_handler.dart';
 
 /// Declarative widget displaying an individual community comment, reply drawer, and nested replies stream.
 class CommunityCommentItemWidget extends StatelessWidget {
@@ -19,6 +22,8 @@ class CommunityCommentItemWidget extends StatelessWidget {
     required this.commentData,
     required this.currentUid,
     this.postOwnerId,
+    this.targetCommentId,
+    this.targetReplyId,
     super.key,
   });
 
@@ -26,26 +31,59 @@ class CommunityCommentItemWidget extends StatelessWidget {
   final Map<String, dynamic> commentData;
   final String? currentUid;
   final String? postOwnerId;
+  final String? targetCommentId;
+  final String? targetReplyId;
 
   @override
   Widget build(BuildContext context) {
     final commentId = commentData['id'] as String? ?? '';
-    final isChannel = commentData['isChannel'] == true;
-    final rawName = isChannel &&
-            (commentData['channelName']?.toString().isNotEmpty ?? false)
-        ? commentData['channelName'].toString()
-        : (commentData['userName']?.toString() ??
-            commentData['displayName']?.toString() ??
-            commentData['name']?.toString() ??
-            'User');
-    final userName = rawName.startsWith('@') ? rawName.substring(1) : rawName;
-    final userImage = isChannel &&
-            (commentData['channelProfilePicUrl']?.toString().isNotEmpty ??
-                false)
-        ? commentData['channelProfilePicUrl'].toString()
-        : (commentData['userImage']?.toString() ??
-            commentData['userProfilePicUrl']?.toString() ??
-            '');
+    final rawChannelId = (commentData['channelId']?.toString() ?? '').trim();
+    final rawUserId = (commentData['userId']?.toString() ?? '').trim();
+    final channelHandle = (commentData['channelHandle']?.toString() ??
+        commentData['handle']?.toString() ??
+        '').trim();
+    final channelName = (commentData['channelName']?.toString() ?? '').trim();
+    final channelProfilePicUrl = (commentData['channelProfilePicUrl']?.toString() ??
+        commentData['channelAvatarUrl']?.toString() ??
+        '').trim();
+
+    final isChannel = commentData['isChannel'] == true ||
+        channelHandle.isNotEmpty ||
+        (rawChannelId.isNotEmpty && rawChannelId != rawUserId) ||
+        channelProfilePicUrl.isNotEmpty ||
+        (rawChannelId.isNotEmpty && ChannelMemoryCache.get(rawChannelId) != null);
+
+    final String displayName;
+    final String avatarUrl;
+
+    if (isChannel) {
+      final handle = () {
+        if (channelHandle.isNotEmpty) return channelHandle;
+        if (rawChannelId.isNotEmpty) {
+          final cached = ChannelMemoryCache.get(rawChannelId);
+          if (cached != null && cached.handle.trim().isNotEmpty) {
+            return cached.handle.trim();
+          }
+        }
+        if (channelName.isNotEmpty) return channelName;
+        return 'channel';
+      }();
+      displayName = handle.startsWith('@') ? handle : '@$handle';
+      avatarUrl = channelProfilePicUrl.isNotEmpty
+          ? channelProfilePicUrl
+          : (rawChannelId.isNotEmpty
+              ? (ChannelMemoryCache.get(rawChannelId)?.avatarUrl ?? '')
+              : '');
+    } else {
+      final rawName = commentData['userName']?.toString() ??
+          commentData['displayName']?.toString() ??
+          commentData['name']?.toString() ??
+          'User';
+      displayName = rawName.startsWith('@') ? rawName.substring(1) : rawName;
+      avatarUrl = commentData['userProfilePicUrl']?.toString() ??
+          commentData['userImage']?.toString() ??
+          '';
+    }
     final text = ContentValidator.cleanProfanity(commentData['text']?.toString() ?? '');
     final ts =
         commentData['createdAt'] as Timestamp? ??
@@ -61,7 +99,33 @@ class CommunityCommentItemWidget extends StatelessWidget {
       ),
       tag: '${postId}_$commentId',
       builder: (controller) {
-        return Padding(
+        final isTargetComment = targetCommentId != null && targetCommentId == commentId;
+        if (isTargetComment) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) {
+              Scrollable.ensureVisible(
+                context,
+                duration: const Duration(milliseconds: 500),
+                curve: Curves.easeInOut,
+              );
+            }
+          });
+        }
+
+        return Container(
+          decoration: isTargetComment
+              ? BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.35),
+                    width: 1.2,
+                  ),
+                )
+              : null,
+          margin: isTargetComment
+              ? const EdgeInsets.symmetric(horizontal: 8, vertical: 4)
+              : EdgeInsets.zero,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -69,11 +133,24 @@ class CommunityCommentItemWidget extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  UserAvatar(
-                    radius: 16,
-                    photoUrl: userImage,
-                    displayName: userName,
-                    fontSize: 11,
+                  GestureDetector(
+                    onTap: isChannel
+                        ? () => CommentActionHandler.navigateToChannel(
+                              rawChannelId,
+                              channelHandle: displayName,
+                            )
+                        : null,
+                    child: MouseRegion(
+                      cursor: isChannel
+                          ? SystemMouseCursors.click
+                          : SystemMouseCursors.basic,
+                      child: UserAvatar(
+                        radius: 16,
+                        photoUrl: avatarUrl,
+                        displayName: displayName,
+                        fontSize: 11,
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -82,12 +159,25 @@ class CommunityCommentItemWidget extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Text(
-                              userName,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
+                            GestureDetector(
+                              onTap: isChannel
+                                  ? () => CommentActionHandler.navigateToChannel(
+                                        rawChannelId,
+                                        channelHandle: displayName,
+                                      )
+                                  : null,
+                              child: MouseRegion(
+                                cursor: isChannel
+                                    ? SystemMouseCursors.click
+                                    : SystemMouseCursors.basic,
+                                child: Text(
+                                  displayName,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
                               ),
                             ),
                             if (timeStr.isNotEmpty) ...[
@@ -103,8 +193,8 @@ class CommunityCommentItemWidget extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          text,
+                        ClickableUrlText(
+                          text: text,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 13,
@@ -248,7 +338,7 @@ class CommunityCommentItemWidget extends StatelessWidget {
                   return const SizedBox.shrink();
                 }
                 return CommunityCommentReplyInput(
-                  userName: userName,
+                  userName: displayName,
                   replyController: controller.replyController,
                   onCancel: () => controller.isReplying.value = false,
                   onSubmit: controller.submitReply,
@@ -278,6 +368,16 @@ class CommunityCommentItemWidget extends StatelessWidget {
             .toList();
         if (replies.isEmpty) return const SizedBox.shrink();
 
+        // Auto-expand replies if target reply is within this comment
+        if (targetReplyId != null && replies.any((r) => r['id'] == targetReplyId)) {
+          if (!controller.isRepliesExpanded.value) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              controller.isRepliesExpanded.value = true;
+              controller.update();
+            });
+          }
+        }
+
         return Obx(() {
           final isExpanded = controller.isRepliesExpanded.value;
 
@@ -295,43 +395,47 @@ class CommunityCommentItemWidget extends StatelessWidget {
                     ? firstReply['channelName'].toString()
                     : (firstReply['userName']?.toString() ?? 'User');
 
-            return InkWell(
-              onTap: () => controller.isRepliesExpanded.value = true,
-              child: Padding(
-                padding: const EdgeInsets.only(left: 44, top: 4),
-                child: Row(
-                  children: [
-                    const CustomPaint(
-                      size: Size(20, 24),
-                      painter: ReplyThreadLinePainter(
-                        color: Colors.white24,
-                        isLast: true,
-                        branchY: 12,
+            return MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => controller.isRepliesExpanded.value = true,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 44, top: 4),
+                  child: Row(
+                    children: [
+                      const CustomPaint(
+                        size: Size(20, 24),
+                        painter: ReplyThreadLinePainter(
+                          color: Colors.white24,
+                          isLast: true,
+                          branchY: 12,
+                        ),
                       ),
-                    ),
-                    UserAvatar(
-                      radius: 10,
-                      photoUrl: replyAvatar,
-                      displayName: replyName,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      replies.length == 1
-                          ? '• 1 reply'
-                          : '• ${replies.length} replies',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
+                      UserAvatar(
+                        radius: 10,
+                        photoUrl: replyAvatar,
+                        displayName: replyName,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        replies.length == 1
+                            ? '• 1 reply'
+                            : '• ${replies.length} replies',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.expand_more,
                         color: Colors.white,
-                        fontSize: 12,
+                        size: 16,
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(
-                      Icons.expand_more,
-                      color: Colors.white,
-                      size: 16,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             );
@@ -347,6 +451,7 @@ class CommunityCommentItemWidget extends StatelessWidget {
                 commentId: commentId,
                 replyData: reply,
                 postOwnerId: postOwnerId,
+                targetReplyId: targetReplyId,
                 isLastReply: isLastReply,
                 onReplyToUser: (targetUser) =>
                     controller.prepareReplyToUser(targetUser),

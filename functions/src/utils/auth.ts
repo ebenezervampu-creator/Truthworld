@@ -58,17 +58,29 @@ export async function verifyAuth(req: Request): Promise<AuthenticatedUser | null
       decoded.role === "admin";
 
     // 👑 TruthWorld Director & Authorized Owner Master Privilege:
-    const isDirector = email === "hello@truthworld.in";
+    const authorizedOwners = [
+      "hello@truthworld.in",
+      "ebenezervampu4@gmail.com",
+    ];
+    const isDirector = isEmailVerified && authorizedOwners.includes(email);
     if (isDirector) {
       isAdminUser = true;
     }
 
     // Check admin_members collection in Firestore if not already identified (strictly require email verification)
+    let memberData: FirebaseFirestore.DocumentData | undefined;
     if (!isAdminUser && email && isEmailVerified) {
       try {
         const memberDoc = await admin.firestore().collection("admin_members").doc(email).get();
         if (memberDoc.exists && memberDoc.data()?.status !== "suspended") {
           isAdminUser = true;
+          memberData = memberDoc.data();
+        } else {
+          const uidDoc = await admin.firestore().collection("admin_members").doc(decoded.uid).get();
+          if (uidDoc.exists && uidDoc.data()?.status !== "suspended") {
+            isAdminUser = true;
+            memberData = uidDoc.data();
+          }
         }
       } catch (docErr) {
         logger.warn("[Auth] Could not check admin_members doc:", docErr);
@@ -79,22 +91,63 @@ export async function verifyAuth(req: Request): Promise<AuthenticatedUser | null
     // Runs once per token refresh cycle (only when decoded.admin is not yet set).
     if (isAdminUser && !decoded.admin) {
       try {
+        // Preserve the member's assigned role from memberDoc or roles; do NOT hardcode Super Admin privileges!
+        const assignedRole = isDirector
+          ? "Super Admin"
+          : (memberData?.role || (Array.isArray(memberData?.roles) && memberData.roles[0]) || "admin");
+        const assignedRoles: string[] = isDirector
+          ? ["Super Admin", "Owner", "Director"]
+          : (Array.isArray(memberData?.roles) && memberData.roles.length > 0 ? memberData.roles : [assignedRole]);
+        const isSuperAdmin =
+          isDirector ||
+          assignedRole === "Super Admin" ||
+          assignedRole === "Owner" ||
+          assignedRoles.includes("Super Admin") ||
+          assignedRoles.includes("Owner");
+
         await admin.auth().setCustomUserClaims(decoded.uid, {
           admin: true,
-          role: "admin",
+          role: assignedRole,
+          roles: assignedRoles,
           isDirector: isDirector || undefined,
-          isSuperAdmin: true,
+          isSuperAdmin: isSuperAdmin || undefined,
         });
 
-        // Ensure director record is synced in admin_members collection
+        // Ensure director / owner record is synced in admin_members collection (both by email and UID)
+        // Only director/owner records receive Super Admin master privileges.
         if (isDirector) {
+          const adminDocData = {
+            email: email,
+            name: decoded.name || (email.startsWith("ebenezer") ? "Ebenezer Vampu" : "Truthworld Director"),
+            role: "Super Admin",
+            roles: ["Super Admin", "Owner", "Director"],
+            status: "active",
+            uid: decoded.uid,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          };
           await admin.firestore().collection("admin_members").doc(email).set(
+            adminDocData,
+            { merge: true }
+          );
+          await admin.firestore().collection("admin_members").doc(decoded.uid).set(
+            adminDocData,
+            { merge: true }
+          );
+        } else if (memberData) {
+          // Sync UID to member record if missing, preserving assigned role and permissions
+          const uidUpdate: Record<string, any> = {
+            uid: decoded.uid,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          };
+          if (email) {
+            await admin.firestore().collection("admin_members").doc(email).set(
+              uidUpdate,
+              { merge: true }
+            );
+          }
+          await admin.firestore().collection("admin_members").doc(decoded.uid).set(
             {
-              email: email,
-              name: "Truthworld Director",
-              role: "Super Admin",
-              roles: ["Super Admin", "Owner", "Director"],
-              status: "active",
+              ...memberData,
               uid: decoded.uid,
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             },
@@ -102,7 +155,7 @@ export async function verifyAuth(req: Request): Promise<AuthenticatedUser | null
           );
         }
 
-        logger.info(`[Auth] Auto-set admin claims for admin ${decoded.uid} (${email})`);
+        logger.info(`[Auth] Auto-set admin claims for admin ${decoded.uid} (${email}) with role: ${assignedRole}`);
       } catch (claimErr) {
         logger.warn("[Auth] Could not auto-set admin claim:", claimErr);
       }
@@ -134,17 +187,20 @@ export function setCorsHeaders(req: Request, res: Response): void {
     "https://admin.truthworld.app",
     "https://truthworld.in",
     "https://truthworld.app",
-    "http://localhost:5173",
   ];
   const origin = (req.headers.origin as string) || "";
-  const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+  const isDevOrEmulator =
+    process.env.FUNCTIONS_EMULATOR === "true" ||
+    process.env.NODE_ENV !== "production";
+  const isLocalhost =
+    isDevOrEmulator &&
+    /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+
   if (allowedOrigins.includes(origin) || isLocalhost) {
     res.set("Access-Control-Allow-Origin", origin);
-  } else {
-    res.set("Access-Control-Allow-Origin", "https://admin.truthworld.in");
+    res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
   }
-  res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
-  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
 }
 
 /**
@@ -218,7 +274,9 @@ export async function requireRecentAdmin(
 export function isCallableAdmin(auth: any): boolean {
   if (!auth) return false;
   const token = auth.token || {};
-  return token.admin === true || token.role === "admin";
+  const isEmailVerified = token.email_verified !== false;
+  const hasAdminClaim = token.admin === true || token.role === "admin";
+  return hasAdminClaim && isEmailVerified;
 }
 
 /**
@@ -230,4 +288,57 @@ export function isCallableRecentAdmin(auth: any, maxAgeSeconds: number = 3600): 
   if (!authTime) return false; // fail closed
   return isSessionRecent(authTime, maxAgeSeconds);
 }
+
+/**
+ * Checks if a Callable function context/auth payload has verified Super Admin privileges.
+ */
+export async function isCallableSuperAdmin(auth: any): Promise<boolean> {
+  if (!auth || !auth.uid) return false;
+  const token = auth.token || {};
+  const email = (token.email || "").toLowerCase();
+
+  const authorizedOwnerEmails = [
+    "hello@truthworld.in",
+    "ebenezervampu4@gmail.com",
+  ];
+  if (authorizedOwnerEmails.includes(email)) return true;
+
+  // Strictly Super Admin: token roles check
+  const tokenRoles = Array.isArray(token.roles) ? token.roles.map((r: any) => String(r).toLowerCase()) : [];
+  if (
+    token.role === "Super Admin" ||
+    token.isSuperAdmin === true ||
+    token.isDirector === true ||
+    tokenRoles.some((r: string) => r.includes("super admin") || r.includes("owner") || r.includes("director"))
+  ) {
+    return true;
+  }
+
+  // Check admin_members document for verified role
+  if (email) {
+    try {
+      const doc = await admin.firestore().collection("admin_members").doc(email).get();
+      if (doc.exists) {
+        const d = doc.data() || {};
+        if ((d.status || "active") !== "suspended") {
+          const role = (d.role || "").toLowerCase();
+          const roles = Array.isArray(d.roles) ? d.roles.map((r: any) => String(r).toLowerCase()) : [];
+          if (
+            role.includes("super admin") ||
+            role.includes("owner") ||
+            role.includes("director") ||
+            roles.some((r: string) => r.includes("super admin") || r.includes("owner") || r.includes("director"))
+          ) {
+            return true;
+          }
+        }
+      }
+    } catch {
+      // Fail closed
+    }
+  }
+
+  return false;
+}
+
 

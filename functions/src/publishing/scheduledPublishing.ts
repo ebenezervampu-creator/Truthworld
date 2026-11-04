@@ -31,12 +31,25 @@ const Timestamp = admin.firestore.Timestamp;
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ScheduledVideo {
-  id: string;
-  title: string;
-  ownerId: string;
-  channelId: string;
-  scheduledTime: admin.firestore.Timestamp;
+  id?: string;
+  videoId?: string;
+  title?: string;
+  ownerId?: string;
+  userId?: string;
+  channelId?: string;
+  channel?: { id?: string };
+  scheduledTime?: admin.firestore.Timestamp;
+  scheduledPublishAt?: admin.firestore.Timestamp;
+  targetVisibility?: string;
+  visibility?: string;
   status: "scheduled";
+}
+
+interface PublishCandidate {
+  ref: admin.firestore.DocumentReference;
+  videoId: string;
+  channelId?: string;
+  targetVisibility: string;
 }
 
 interface PublishResult {
@@ -120,26 +133,30 @@ export const scheduledVideoPublisher = onSchedule(
       // STEP 2: VALIDATE & PREPARE VIDEOS FOR PUBLISHING
       // ───────────────────────────────────────────────────────────────────────
 
-      const videosToDocs: admin.firestore.DocumentReference<admin.firestore.DocumentData>[] = [];
+      const candidates: PublishCandidate[] = [];
       const publishResults: PublishResult[] = [];
 
       for (const doc of snapshot.docs) {
         const data = doc.data() as Partial<ScheduledVideo>;
+        const videoId = data.id || data.videoId || doc.id;
+        const ownerId = data.ownerId || data.userId;
+        const channelId = data.channelId || data.channel?.id;
 
         try {
           // Validate required fields
-          if (!data.id || !data.ownerId || !data.channelId) {
-            logger.warn(FUNCTION_NAME, `[${executionId}] Video ${doc.id} missing required fields`);
+          if (!videoId || !ownerId) {
+            logger.warn(FUNCTION_NAME, `[${executionId}] Video ${doc.id} missing required fields (id or ownerId)`);
             publishResults.push({
               success: false,
               videoId: doc.id,
-              error: "Missing required fields (id, ownerId, or channelId)",
+              error: "Missing required fields (id or ownerId)",
             });
             continue;
           }
 
           // Double-check scheduled time hasn't changed
-          const scheduledMs = data.scheduledTime?.toMillis() || 0;
+          const scheduledTs = data.scheduledTime || data.scheduledPublishAt;
+          const scheduledMs = scheduledTs?.toMillis?.() || 0;
           const nowMs = Date.now();
 
           if (scheduledMs > nowMs + MAX_CLOCK_SKEW_MS) {
@@ -150,7 +167,58 @@ export const scheduledVideoPublisher = onSchedule(
             continue; // Not yet due
           }
 
-          videosToDocs.push(doc.ref);
+          // ─── SAFETY GATE: ENFORCE CONTENT MODERATION CHECKS ─────────────────
+          const rawDoc = doc.data() as any;
+          const modStatus = rawDoc?.moderation?.status;
+          const vidStatus = rawDoc?.status;
+
+          if (modStatus === "rejected" || vidStatus === "rejected") {
+            logger.warn(
+              FUNCTION_NAME,
+              `[${executionId}] Video ${doc.id} was rejected by content moderation (${rawDoc?.moderation?.reason || rawDoc?.rejectionReason || "Violates guidelines"}). Aborting scheduled publishing.`
+            );
+            if (vidStatus !== "rejected") {
+              await doc.ref.update({
+                status: "rejected",
+                targetStatus: "rejected",
+              });
+            }
+            publishResults.push({
+              success: false,
+              videoId: doc.id,
+              error: "Aborted: video rejected by content moderation",
+            });
+            continue;
+          }
+
+          if (modStatus === "manual_review" || vidStatus === "pending_review") {
+            logger.info(
+              FUNCTION_NAME,
+              `[${executionId}] Video ${doc.id} is held in Admin Review Queue. Delaying scheduled publication until approved.`
+            );
+            continue;
+          }
+
+          if (modStatus === "processing") {
+            logger.info(
+              FUNCTION_NAME,
+              `[${executionId}] Video ${doc.id} content moderation checks are still in progress. Delaying publication.`
+            );
+            continue;
+          }
+
+          const targetVisibility =
+            data.targetVisibility ||
+            (data.visibility && data.visibility.toLowerCase() !== "scheduled" && data.visibility.toLowerCase() !== "private"
+              ? data.visibility
+              : "public");
+
+          candidates.push({
+            ref: doc.ref,
+            videoId,
+            channelId,
+            targetVisibility,
+          });
 
           publishResults.push({
             success: true,
@@ -169,7 +237,7 @@ export const scheduledVideoPublisher = onSchedule(
         }
       }
 
-      if (videosToDocs.length === 0) {
+      if (candidates.length === 0) {
         logger.info(FUNCTION_NAME, `[${executionId}] No valid videos to publish after validation`);
         return;
       }
@@ -181,10 +249,20 @@ export const scheduledVideoPublisher = onSchedule(
 
       logger.info(
         FUNCTION_NAME,
-        `[${executionId}] Publishing ${videosToDocs.length} videos in batches...`
+        `[${executionId}] Publishing ${candidates.length} videos in batches...`
       );
 
-      const publishedCount = await batchPublishVideos(executionId, videosToDocs);
+      const publishedCount = await batchPublishVideos(executionId, candidates);
+
+      // ───────────────────────────────────────────────────────────────────────
+      // STEP 5: SWEEP EXPIRED FACT-CHECK CREATOR-REVIEW EMBARGOES
+      // Auto-publish reports past grace period (48h standard, 24h for contested)
+      // ───────────────────────────────────────────────────────────────────────
+      try {
+        await sweepExpiredFactCheckEmbargoes(executionId);
+      } catch (sweepErr) {
+        logger.warn(FUNCTION_NAME, `[${executionId}] Fact-check grace period sweep failed (non-critical): ${sweepErr}`);
+      }
 
       // ───────────────────────────────────────────────────────────────────────
       // STEP 4: AUDIT LOG
@@ -228,19 +306,23 @@ export const scheduledVideoPublisher = onSchedule(
  */
 async function batchPublishVideos(
   executionId: string,
-  videoRefs: admin.firestore.DocumentReference[]
+  candidates: PublishCandidate[]
 ): Promise<number> {
   let publishedCount = 0;
 
   // Process in chunks of BATCH_SIZE
-  for (let i = 0; i < videoRefs.length; i += BATCH_SIZE) {
-    const chunk = videoRefs.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
+    const chunk = candidates.slice(i, i + BATCH_SIZE);
     const batch = db.batch();
 
-    for (const videoRef of chunk) {
-      batch.update(videoRef, {
+    for (const item of chunk) {
+      batch.update(item.ref, {
         status: "published",
+        targetStatus: "published",
+        visibility: item.targetVisibility,
+        targetVisibility: item.targetVisibility,
         publishedAt: Timestamp.now(),
+        isPublished: true,
         // 🚀 CRITICAL: Update aiFeatures.pipelineStage to 'published' to trigger the pipeline
         "aiFeatures.pipelineStage": "published",
       });
@@ -249,6 +331,20 @@ async function batchPublishVideos(
     try {
       await batch.commit();
       publishedCount += chunk.length;
+
+      // Update channel videoCount for published videos
+      for (const item of chunk) {
+        if (item.channelId) {
+          try {
+            await db.collection("channels").doc(item.channelId).update({
+              videoCount: admin.firestore.FieldValue.increment(1),
+              updatedAt: Timestamp.now(),
+            });
+          } catch (chanErr) {
+            logger.warn(FUNCTION_NAME, `[${executionId}] Could not increment channel ${item.channelId} videoCount: ${chanErr}`);
+          }
+        }
+      }
 
       logger.debug(
         FUNCTION_NAME,
@@ -306,6 +402,55 @@ export async function manualTriggerScheduledPublishing() {
     logger.error(FUNCTION_NAME, `Manual trigger failed: ${error}`);
     throw new Error(`Failed to trigger scheduled publishing: ${String(error)}`);
   }
+}
+
+/**
+ * Automatically publishes fact checks for videos where the creator review window has expired.
+ * Standard grace period is 48 hours (accelerated to 24 hours for videos with trustScore < 50 or contested claims).
+ */
+async function sweepExpiredFactCheckEmbargoes(executionId: string): Promise<number> {
+  const nowMs = Date.now();
+  const cutoff48h = new Date(nowMs - 48 * 3600 * 1000);
+  const cutoff24h = new Date(nowMs - 24 * 3600 * 1000);
+
+  const snapshot = await db
+    .collection("videos")
+    .where("factCheckReviewMode", "==", "first_to_creator")
+    .where("isFactCheckApproved", "==", false)
+    .limit(100)
+    .get();
+
+  if (snapshot.empty) return 0;
+
+  const batch = db.batch();
+  let expiredCount = 0;
+
+  for (const doc of snapshot.docs) {
+    const data = doc.data();
+    const createdAt = data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt)) : null;
+    if (!createdAt) continue;
+
+    const trustScore = typeof data.trustScore === "number" ? data.trustScore : 0;
+    const isContested = trustScore > 0 && ((trustScore <= 5.0 && trustScore < 2.5) || (trustScore > 5.0 && trustScore < 50.0));
+    const effectiveCutoff = isContested ? cutoff24h : cutoff48h;
+
+    if (createdAt <= effectiveCutoff) {
+      batch.update(doc.ref, {
+        isFactCheckApproved: true,
+        factCheckAutoPublished: true,
+        factCheckAutoPublishedAt: admin.firestore.FieldValue.serverTimestamp(),
+        "aiFeatures.isFactCheckApproved": true,
+      });
+      expiredCount++;
+    }
+  }
+
+  if (expiredCount > 0) {
+    await batch.commit();
+    logger.info(FUNCTION_NAME, `[${executionId}] Auto-published ${expiredCount} expired fact-check creator review embargoes.`);
+  }
+
+  return expiredCount;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

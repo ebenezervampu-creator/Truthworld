@@ -14,6 +14,7 @@ import 'package:truthworld/core/navigation/app_navigator.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_comments_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -218,6 +219,11 @@ class MyVideosController extends BaseController {
 
       // Immediately remove from local list for snappy UI
       videos.removeWhere((v) => v.id == video.id);
+
+      // Immediately evict from Comments tab controller if active
+      if (Get.isRegistered<DashboardCommentsController>()) {
+        Get.find<DashboardCommentsController>().removeVideo(video.id);
+      }
 
       AppSnackbar.success('"${video.title}" moved to Trash. It will be retained for 30 days.');
     } catch (e) {

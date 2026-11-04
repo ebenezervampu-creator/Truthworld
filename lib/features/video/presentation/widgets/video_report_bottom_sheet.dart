@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
@@ -116,7 +115,7 @@ class VideoReportBottomSheet {
                   const SizedBox(width: 12),
                   Text(
                     currentStep.value == 1 ? 'Report video' : 'Provide details',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textPrimary,
@@ -130,7 +129,7 @@ class VideoReportBottomSheet {
                 // Info note
                 Text(
                   'Flagged videos are reviewed by staff 24/7 to determine whether they violate Community Guidelines. Severe violations may result in immediate video removal or account termination.',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 12,
                     height: 1.4,
@@ -178,7 +177,7 @@ class VideoReportBottomSheet {
                                     children: [
                                       Text(
                                         label,
-                                        style: GoogleFonts.roboto(
+                                        style: TextStyle(
                                           fontSize: 14,
                                           fontWeight: isSelected
                                               ? FontWeight.bold
@@ -189,7 +188,7 @@ class VideoReportBottomSheet {
                                       const SizedBox(height: 2),
                                       Text(
                                         desc,
-                                        style: GoogleFonts.roboto(
+                                        style: TextStyle(
                                           fontSize: 11,
                                           color: AppColors.textSecondary,
                                         ),
@@ -215,7 +214,7 @@ class VideoReportBottomSheet {
                       onPressed: Get.back,
                       child: Text(
                         'Cancel',
-                        style: GoogleFonts.roboto(color: AppColors.textSecondary),
+                        style: TextStyle(color: AppColors.textSecondary),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -239,7 +238,7 @@ class VideoReportBottomSheet {
                       ),
                       child: Text(
                         'Next',
-                        style: GoogleFonts.roboto(fontWeight: FontWeight.bold),
+                        style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],
@@ -248,7 +247,7 @@ class VideoReportBottomSheet {
                 // Step 2: Timestamp & comments
                 Text(
                   'Selected Reason: ${selectedReason.value}',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -262,11 +261,11 @@ class VideoReportBottomSheet {
                   activeColor: AppColors.brand,
                   title: Text(
                     'Include timestamp at $defaultTimestamp',
-                    style: GoogleFonts.roboto(color: AppColors.textPrimary, fontSize: 13),
+                    style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
                   ),
                   subtitle: Text(
                     'Helps reviewers locate the issue quickly',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 11,
                     ),
@@ -315,7 +314,7 @@ class VideoReportBottomSheet {
                       },
                       child: Text(
                         'Back',
-                        style: GoogleFonts.roboto(color: AppColors.textSecondary),
+                        style: TextStyle(color: AppColors.textSecondary),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -354,7 +353,7 @@ class VideoReportBottomSheet {
                       ),
                       child: Text(
                         'Submit',
-                        style: GoogleFonts.roboto(fontWeight: FontWeight.bold),
+                        style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],

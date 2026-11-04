@@ -1,11 +1,53 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/navigation/app_navigator.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/features/library/presentation/controllers/library_controller.dart';
 import 'package:truthworld/features/library/presentation/views/library/library_screen.dart';
 import '../../test_helpers/mock_firebase.dart';
+
+class _TestNavigationService implements INavigationService {
+  String? lastToNamedPage;
+
+  @override
+  Future<T?>? toNamed<T>(
+    String page, {
+    dynamic arguments,
+    int? id,
+    bool preventDuplicates = true,
+    Map<String, String>? parameters,
+  }) {
+    lastToNamedPage = page;
+    return null;
+  }
+
+  @override
+  Future<T?>? offNamed<T>(
+    String page, {
+    dynamic arguments,
+    int? id,
+    bool preventDuplicates = true,
+    Map<String, String>? parameters,
+  }) =>
+      null;
+
+  @override
+  Future<T?>? offAllNamed<T>(
+    String page, {
+    dynamic arguments,
+    int? id,
+    Map<String, String>? parameters,
+  }) =>
+      null;
+
+  @override
+  void back<T>({T? result, bool closeOverlays = false, bool canPop = true}) {}
+
+  @override
+  bool canPop() => true;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -147,6 +189,36 @@ void main() {
       expect(find.text('Playlists'), findsOneWidget);
       expect(find.text('Subscriptions'), findsOneWidget);
       expect(find.text('Liked videos'), findsOneWidget);
+    });
+
+    testWidgets('tapping Settings tile navigates via AppNavigator.toSettings', (tester) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      final mockNav = _TestNavigationService();
+      AppNavigator.setMockService(mockNav);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        AppNavigator.resetService();
+      });
+      Get.put<AuthService>(AuthService());
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: LibraryNavList(userId: 'test_user_id'),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final settingsTile = find.widgetWithText(LibraryListTile, 'Settings');
+      expect(settingsTile, findsOneWidget);
+
+      await tester.tap(settingsTile);
+      await tester.pump();
+
+      expect(mockNav.lastToNamedPage, equals('/settings'));
     });
   });
 

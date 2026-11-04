@@ -10,7 +10,9 @@ import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/services/user_preferences_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_discovery_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/topics/presentation/controllers/explore_topics_controller.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
 import 'package:truthworld/features/topics/presentation/widgets/topic_notification_options_sheet.dart';
 import 'package:truthworld/theme/app_colors.dart';
@@ -170,11 +172,10 @@ class TopicMoreOptionsBottomSheet extends StatelessWidget {
                     final url = DeepLinkService.topicUrl(topic.slug);
                     final followingCtrl = Get.isRegistered<FollowingTopicsController>()
                         ? Get.find<FollowingTopicsController>()
-                        : null;
-                    final count = followingCtrl?.getFollowerCount(topic) ??
-                        topic.followerCount;
+                        : Get.put(FollowingTopicsController());
+                    final count = followingCtrl.getFollowerCount(topic);
                     ShareBottomSheet.show(
-                      title: topic.title,
+                      title: topic.name,
                       url: url,
                       thumbnailUrl: topic.coverImage ?? topic.thumbnailUrl,
                       followerCount: count,
@@ -216,7 +217,10 @@ class TopicMoreOptionsBottomSheet extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap,
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
         splashColor: AppColors.brand.withValues(alpha: 0.15),
         highlightColor: AppColors.brand.withValues(alpha: 0.05),
         child: Padding(
@@ -255,11 +259,16 @@ class TopicMoreOptionsBottomSheet extends StatelessWidget {
   }
 
   void _handleDontRecommendTopic(BuildContext context) {
-    UserPreferencesService.to.hideTopic(topic.id, topicSlug: topic.slug);
+    UserPreferencesService.to.hideTopic(
+      topic.id,
+      topicSlug: topic.slug,
+      topicName: topic.name,
+      canonicalKey: topic.canonicalKey,
+    );
     _removeTopicFromFeeds();
     AppSnackbar.show(
       "Don't recommend topic",
-      "We won't recommend \"${topic.title}\" anymore.",
+      "We won't recommend \"${topic.name}\" anymore.",
       snackPosition: SnackPosition.BOTTOM,
       backgroundColor: AppColors.bgSurfaceHover,
       colorText: AppColors.textPrimary,
@@ -268,9 +277,16 @@ class TopicMoreOptionsBottomSheet extends StatelessWidget {
       mainButton: TextButton(
         onPressed: () {
           if (Get.isSnackbarOpen) Get.back();
-          UserPreferencesService.to.unhideTopic(topic.id, topicSlug: topic.slug);
+          UserPreferencesService.to.unhideTopic(
+            topic.id,
+            topicSlug: topic.slug,
+            topicName: topic.name,
+            canonicalKey: topic.canonicalKey,
+          );
           if (Get.isRegistered<HomeController>()) {
             Get.find<HomeController>().discovery.fetchFeaturedTopics();
+          } else if (Get.isRegistered<HomeDiscoveryController>()) {
+            Get.find<HomeDiscoveryController>().fetchFeaturedTopics();
           }
           AppSnackbar.show(
             'Restored',
@@ -290,7 +306,12 @@ class TopicMoreOptionsBottomSheet extends StatelessWidget {
   }
 
   void _handleNotInterested(BuildContext context) {
-    UserPreferencesService.to.hideTopic(topic.id, topicSlug: topic.slug);
+    UserPreferencesService.to.hideTopic(
+      topic.id,
+      topicSlug: topic.slug,
+      topicName: topic.name,
+      canonicalKey: topic.canonicalKey,
+    );
     _removeTopicFromFeeds();
     AppSnackbar.show(
       'Not interested',
@@ -303,9 +324,16 @@ class TopicMoreOptionsBottomSheet extends StatelessWidget {
       mainButton: TextButton(
         onPressed: () {
           if (Get.isSnackbarOpen) Get.back();
-          UserPreferencesService.to.unhideTopic(topic.id, topicSlug: topic.slug);
+          UserPreferencesService.to.unhideTopic(
+            topic.id,
+            topicSlug: topic.slug,
+            topicName: topic.name,
+            canonicalKey: topic.canonicalKey,
+          );
           if (Get.isRegistered<HomeController>()) {
             Get.find<HomeController>().discovery.fetchFeaturedTopics();
+          } else if (Get.isRegistered<HomeDiscoveryController>()) {
+            Get.find<HomeDiscoveryController>().fetchFeaturedTopics();
           }
           AppSnackbar.show(
             'Restored',
@@ -325,11 +353,39 @@ class TopicMoreOptionsBottomSheet extends StatelessWidget {
   }
 
   void _removeTopicFromFeeds() {
+    final userPrefs = Get.isRegistered<UserPreferencesService>()
+        ? UserPreferencesService.to
+        : null;
+
+    bool matchesTopic(Topic t) {
+      if (t.id == topic.id) return true;
+      if (topic.slug.isNotEmpty && t.slug == topic.slug) return true;
+      if (topic.canonicalKey.isNotEmpty && t.canonicalKey == topic.canonicalKey) return true;
+      if (topic.name.isNotEmpty && t.name.toLowerCase() == topic.name.toLowerCase()) return true;
+      if (userPrefs != null && userPrefs.isTopicBlocked(t)) return true;
+      return false;
+    }
+
     if (Get.isRegistered<HomeController>()) {
       final hc = Get.find<HomeController>();
-      hc.featuredTopics.removeWhere(
-        (t) => t.id == topic.id || (topic.slug.isNotEmpty && t.slug == topic.slug),
-      );
+      hc.featuredTopics.removeWhere(matchesTopic);
+      hc.discovery.saveFeaturedTopicsToCache();
+    } else if (Get.isRegistered<HomeDiscoveryController>()) {
+      final dc = Get.find<HomeDiscoveryController>();
+      dc.featuredTopics.removeWhere(matchesTopic);
+      dc.saveFeaturedTopicsToCache();
+    }
+
+    if (Get.isRegistered<ExploreTopicsController>()) {
+      final etc = Get.find<ExploreTopicsController>();
+      etc.featuredTopics.removeWhere(matchesTopic);
+      etc.topics.removeWhere(matchesTopic);
+    }
+
+    if (Get.isRegistered<FollowingTopicsController>()) {
+      final ftc = Get.find<FollowingTopicsController>();
+      ftc.followedTopics.removeWhere(matchesTopic);
+      ftc.favoriteTopics.removeWhere(matchesTopic);
     }
   }
 
@@ -365,7 +421,7 @@ class TopicMoreOptionsBottomSheet extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Why are you reporting "${topic.title}"?',
+                      'Why are you reporting "${topic.name}"?',
                       style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
                     ),
                     const SizedBox(height: 12),
@@ -416,20 +472,35 @@ class TopicMoreOptionsBottomSheet extends StatelessWidget {
                               .add({
                             'topicId': topic.id,
                             'topicSlug': topic.slug,
-                            'topicTitle': topic.title,
+                            'topicName': topic.name,
+                            'topicTitle': topic.name,
                             'reason': reason,
                             'reporterId': currentUid,
                             'reportedAt': FieldValue.serverTimestamp(),
                             'status': 'pending',
                             'type': 'topic',
                           });
+                          await UserPreferencesService.to.hideTopic(
+                            topic.id,
+                            topicSlug: topic.slug,
+                            topicName: topic.name,
+                            canonicalKey: topic.canonicalKey,
+                          );
+                          _removeTopicFromFeeds();
                           AppSnackbar.success(
-                            'Thank you for reporting. Our team will review this topic.',
+                            'Thank you for reporting. This topic has been hidden and our team will review it.',
                           );
                         } catch (e, s) {
                           ErrorHandler.log(e, stackTrace: s, tag: 'ReportTopic');
+                          await UserPreferencesService.to.hideTopic(
+                            topic.id,
+                            topicSlug: topic.slug,
+                            topicName: topic.name,
+                            canonicalKey: topic.canonicalKey,
+                          );
+                          _removeTopicFromFeeds();
                           AppSnackbar.success(
-                            'Thank you for reporting. Our team will review this topic.',
+                            'Thank you for reporting. This topic has been hidden and our team will review it.',
                           );
                         }
                       },
@@ -438,7 +509,13 @@ class TopicMoreOptionsBottomSheet extends StatelessWidget {
                   foregroundColor: Colors.black,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ),
-                child: const Text('Report', style: TextStyle(fontWeight: FontWeight.bold)),
+                child: const Text(
+                  'Report',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
               ),
             ],
           );

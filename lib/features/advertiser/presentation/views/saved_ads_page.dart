@@ -13,7 +13,7 @@ class SavedAdsPage extends StatelessWidget {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        backgroundColor: const Color(0xFF0F0F0F),
+        backgroundColor: AppColors.bgPage,
         body: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -72,9 +72,9 @@ class SavedAdsPage extends StatelessWidget {
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF161618),
+                  color: AppColors.appBarSurface,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF27272A)),
+                  border: Border.all(color: AppColors.bgSurface),
                 ),
                 child: const TabBar(
                   indicatorColor: AppColors.brand,

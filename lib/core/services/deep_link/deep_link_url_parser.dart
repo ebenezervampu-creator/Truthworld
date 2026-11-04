@@ -4,6 +4,72 @@ import 'package:truthworld/core/services/deep_link/parsed_truthworld_url.dart';
 class DeepLinkUrlParser {
   const DeepLinkUrlParser._();
 
+  /// Reserved routes that must NEVER be hijacked as vanity creator handles
+  static const Set<String> reservedRoutes = {
+    'home',
+    'explore',
+    'explore-topics',
+    'following-topics',
+    'trending',
+    'library',
+    'history',
+    'likedvideos',
+    'watchlater',
+    'subscriptions',
+    'discover',
+    'about',
+    'privacy',
+    'terms',
+    'community-guidelines',
+    'copyright-complaint',
+    'dmca',
+    'feedback',
+    'settings',
+    'studio',
+    'admin',
+    'advertiser',
+    'advertisements',
+    'ads',
+    'search',
+    'notifications',
+    'downloads',
+    'playlists',
+    'playlistscreen',
+    'clips',
+    'claim',
+    'claims',
+    'claim-detail',
+    'claimdetailscreen',
+    'video-analysis',
+    'analysis',
+    'premium',
+    'checkout',
+    'payment-result',
+    'payment_result',
+    'upload',
+    'uploadscreen',
+    'create-post',
+    'create-playlist',
+    'create-topic',
+    'myvideos',
+    'saved-community-posts',
+    'saved-comments',
+    'wallet',
+    'user-wallet',
+    'analytics',
+    'browse',
+    'login',
+    'signup',
+    'watch',
+    'watchtime',
+    'watch-time',
+    'videoscreen',
+    'video',
+    'v',
+    'shorts',
+    'clip',
+  };
+
   /// Cleans trailing punctuation from URLs.
   static String cleanUrlString(String rawUrl) {
     var url = rawUrl.trim();
@@ -92,6 +158,21 @@ class DeepLinkUrlParser {
       if (match != null) {
         uriStr = 'https://${match.group(1)}';
       }
+    } else if (RegExp(r'^truthworldstudio:\/{1,3}').hasMatch(uriStr)) {
+      uriStr = uriStr.replaceFirst(
+        RegExp(r'^truthworldstudio:\/{1,3}'),
+        'https://studio.truthworld.in/',
+      );
+    } else if (RegExp(r'^truthworldadmin:\/{1,3}').hasMatch(uriStr)) {
+      uriStr = uriStr.replaceFirst(
+        RegExp(r'^truthworldadmin:\/{1,3}'),
+        'https://admin.truthworld.in/',
+      );
+    } else if (RegExp(r'^truthworld(ads|advertiser):\/{1,3}').hasMatch(uriStr)) {
+      uriStr = uriStr.replaceFirst(
+        RegExp(r'^truthworld(ads|advertiser):\/{1,3}'),
+        'https://www.truthworld.in/advertisements/',
+      );
     } else if (RegExp(r'^truthworld[a-z]*:\/{1,3}').hasMatch(uriStr)) {
       uriStr = uriStr.replaceFirst(
         RegExp(r'^truthworld[a-z]*:\/{1,3}'),
@@ -417,64 +498,6 @@ class DeepLinkUrlParser {
     }
 
     // Reserved routes that must NEVER be hijacked as vanity creator handles
-    const reservedRoutes = {
-      'home',
-      'explore',
-      'explore-topics',
-      'following-topics',
-      'trending',
-      'library',
-      'history',
-      'likedvideos',
-      'watchlater',
-      'subscriptions',
-      'discover',
-      'about',
-      'privacy',
-      'terms',
-      'community-guidelines',
-      'copyright-complaint',
-      'dmca',
-      'feedback',
-      'settings',
-      'studio',
-      'admin',
-      'advertiser',
-      'advertisements',
-      'ads',
-      'search',
-      'notifications',
-      'downloads',
-      'playlists',
-      'playlistscreen',
-      'clips',
-      'claim',
-      'claims',
-      'claim-detail',
-      'claimdetailscreen',
-      'video-analysis',
-      'analysis',
-      'premium',
-      'checkout',
-      'payment-result',
-      'payment_result',
-      'upload',
-      'uploadscreen',
-      'create-post',
-      'create-playlist',
-      'create-topic',
-      'myvideos',
-      'saved-community-posts',
-      'saved-comments',
-      'wallet',
-      'user-wallet',
-      'analytics',
-      'browse',
-      'login',
-      'signup',
-    };
-
-    // Vanity Handle Fallback: /ebenezervampu
     if (pathSegments.length == 1 &&
         !reservedRoutes.contains(firstSegment.toLowerCase())) {
       return ParsedTruthworldUrl(

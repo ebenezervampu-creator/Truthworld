@@ -36,7 +36,7 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
           ),
           child: const Icon(
             Icons.verified_rounded,
-            color: Color(0xFF34D399),
+            color: AppColors.success,
             size: 20,
           ),
         ),
@@ -633,7 +633,7 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
                     ),
                     child: const Icon(
                       Icons.warning_amber_rounded,
-                      color: Color(0xFFF87171),
+                      color: AppColors.error,
                       size: 18,
                     ),
                   ),
@@ -650,7 +650,7 @@ class ChannelNotificationsIssuesSection extends StatelessWidget {
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 1.1,
-                            color: Color(0xFFF87171),
+                            color: AppColors.error,
                           ),
                         ),
                         SizedBox(height: 2),

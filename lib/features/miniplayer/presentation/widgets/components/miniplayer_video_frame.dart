@@ -1,7 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/miniplayer/presentation/widgets/components/miniplayer_audio_stage.dart';
@@ -123,7 +122,7 @@ class MiniplayerVideoFrame extends StatelessWidget {
                   const SizedBox(width: 4),
                   Text(
                     'CLIP',
-                    style: GoogleFonts.robotoMono(
+                    style: TextStyle(
                       color: Colors.white,
                       fontSize: 9,
                       fontWeight: FontWeight.w700,

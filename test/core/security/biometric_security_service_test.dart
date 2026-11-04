@@ -25,16 +25,16 @@ void main() {
       expect(Get.isRegistered<BiometricSecurityService>(), isTrue);
     });
 
-    test('isDeviceSupported returns true in mock/test mode', () async {
+    test('isDeviceSupported fails closed when native auth is disabled', () async {
       final service = BiometricSecurityService.to;
       final supported = await service.isDeviceSupported();
-      expect(supported, isTrue);
+      expect(supported, isFalse);
     });
 
-    test('canCheckBiometrics returns true in mock/test mode', () async {
+    test('canCheckBiometrics fails closed when native auth is disabled', () async {
       final service = BiometricSecurityService.to;
       final canCheck = await service.canCheckBiometrics();
-      expect(canCheck, isTrue);
+      expect(canCheck, isFalse);
     });
 
     test('getAvailableBiometrics returns empty list in mock/test mode', () async {
@@ -43,12 +43,42 @@ void main() {
       expect(biometrics, isEmpty);
     });
 
-    test('authenticateForHighValueAction succeeds by default in mock/test mode', () async {
+    test('authenticateForHighValueAction strictly fails closed without mock override', () async {
       final service = BiometricSecurityService.to;
       final success = await service.authenticateForHighValueAction(
         reason: 'Authenticate to confirm payout',
+        showFriendlyWarningOnFailure: false,
       );
+      expect(success, isFalse);
+    });
+
+    test('authenticateForHighValueAction executes secondary fallbackAuth when native auth is disabled', () async {
+      final service = BiometricSecurityService.to;
+      var fallbackExecuted = false;
+
+      final success = await service.authenticateForHighValueAction(
+        reason: 'Authenticate to confirm payout',
+        showFriendlyWarningOnFailure: false,
+        fallbackAuth: () async {
+          fallbackExecuted = true;
+          return true;
+        },
+      );
+
+      expect(fallbackExecuted, isTrue);
       expect(success, isTrue);
+    });
+
+    test('authenticateForHighValueAction returns false if fallbackAuth fails', () async {
+      final service = BiometricSecurityService.to;
+
+      final success = await service.authenticateForHighValueAction(
+        reason: 'Authenticate to confirm payout',
+        showFriendlyWarningOnFailure: false,
+        fallbackAuth: () async => false,
+      );
+
+      expect(success, isFalse);
     });
 
     test('authenticateForHighValueAction respects mockAuthenticationResult = false', () async {

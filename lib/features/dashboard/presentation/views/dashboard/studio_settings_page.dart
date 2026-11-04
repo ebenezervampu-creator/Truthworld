@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/config/app_flavor.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/studio_settings_controller.dart';
 import 'package:truthworld/features/settings/presentation/views/settings/widgets/settings_section_card.dart';
+import 'package:truthworld/features/settings/presentation/views/settings/widgets/settings_theme.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Studio Settings Page matching 100% of the Consumer App Settings UI, theme, and fonts.
@@ -18,110 +22,214 @@ class StudioSettingsPage extends StatelessWidget {
         ? Get.find<StudioSettingsController>()
         : Get.put(StudioSettingsController());
 
-    final spacing = context.layoutSpacing;
+    return Theme(
+      data: getSettingsTheme(context),
+      child: Builder(
+        builder: (context) {
+          final spacing = context.layoutSpacing;
 
-    return Scaffold(
-      backgroundColor: context.colors.background,
-      appBar: AppBar(
-        backgroundColor: context.colors.background,
-        elevation: 0,
-        centerTitle: context.isMobile,
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back,
-            color: context.colors.textPrimary,
-            size: context.isMobileSmall ? 20 : 24,
-          ),
-          onPressed: () {
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
-            }
-          },
-        ),
-        title: Text(
-          'Settings',
-          style: context.typography.headline.copyWith(
-            color: context.colors.textPrimary,
-          ),
-        ),
-        actions: [
-          Obx(
-            () => controller.userData.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(
-                      Icons.logout_rounded,
-                      color: AppColors.error,
-                    ),
-                    tooltip: 'Log Out',
-                    onPressed: () => _showLogoutDialog(context, controller),
-                  )
-                : const SizedBox.shrink(),
-          ),
-        ],
-      ),
-      body: Obx(
-        () {
-          if (controller.isLoadingData.value) {
-            return const StudioLoadingIndicator(
-              message: 'Loading studio settings...',
-            );
-          }
-
-          if (controller.userData.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.person_off_outlined,
-                    size: 56,
-                    color: AppColors.textSecondary,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No user data available',
-                    style: TextStyle(
-                      fontFamily: TWTypography.brandFamily,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: context.colors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Please sign in to access settings',
-                    style: TextStyle(
-                      fontFamily: TWTypography.uiFamily,
-                      fontSize: 14,
-                      color: context.colors.textSecondary,
-                    ),
-                  ),
-                ],
+          return Scaffold(
+            backgroundColor: context.colors.background,
+            appBar: AppBar(
+              backgroundColor: context.colors.background,
+              elevation: 0,
+              centerTitle: context.isMobile,
+              leading: IconButton(
+                icon: Icon(
+                  Icons.arrow_back,
+                  color: context.colors.textPrimary,
+                  size: context.isMobileSmall ? 20 : 24,
+                ),
+                onPressed: () {
+                  if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  } else if (Get.isRegistered<DashboardController>()) {
+                    Get.find<DashboardController>().setSelectedIndex(1);
+                  } else {
+                    Get.offAllNamed('/');
+                  }
+                },
               ),
-            );
-          }
-
-          return ResponsiveContainer(
-            child: ListView(
-              padding: EdgeInsets.symmetric(vertical: spacing),
-              children: [
-                _buildChannelSection(context, controller),
-                SizedBox(height: spacing),
-                _buildNotificationSection(context, controller),
-                SizedBox(height: spacing),
-                _buildMonetizationSection(context, controller),
-                SizedBox(height: spacing),
-                _buildPrivacySection(context, controller),
-                SizedBox(height: spacing),
-                _buildAdvancedSection(context, controller),
-                SizedBox(height: spacing),
-                _buildAccountSection(context, controller),
-                SizedBox(height: spacing),
-                _buildDangerZoneSection(context, controller),
+              title: Text(
+                'Settings',
+                style: context.typography.headline.copyWith(
+                  color: context.colors.textPrimary,
+                ),
+              ),
+              actions: [
+                Obx(
+                  () => controller.userData.isNotEmpty
+                      ? IconButton(
+                          icon: Icon(
+                            Icons.logout_rounded,
+                            color: context.colors.error,
+                          ),
+                          tooltip: 'Sign Out',
+                          onPressed: () => _showSignOutDialog(context, controller),
+                        )
+                      : const SizedBox.shrink(),
+                ),
               ],
+            ),
+            body: Obx(
+              () {
+                if (controller.isLoadingData.value) {
+                  return const StudioLoadingIndicator(
+                    message: 'Loading studio settings...',
+                  );
+                }
+
+                if (controller.userData.isEmpty) {
+                  return _buildUnauthenticatedView(context);
+                }
+
+                return ResponsiveContainer(
+                  child: ListView(
+                    padding: EdgeInsets.symmetric(vertical: spacing),
+                    children: [
+                      _buildChannelSection(context, controller),
+                      SizedBox(height: spacing),
+                      _buildNotificationSection(context, controller),
+                      SizedBox(height: spacing),
+                      _buildMonetizationSection(context, controller),
+                      SizedBox(height: spacing),
+                      _buildPrivacySection(context, controller),
+                      SizedBox(height: spacing),
+                      _buildAdvancedSection(context, controller),
+                      SizedBox(height: spacing),
+                      _buildAccountSection(context, controller),
+                      SizedBox(height: spacing),
+                      _buildDangerZoneSection(context, controller),
+                    ],
+                  ),
+                );
+              },
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildUnauthenticatedView(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: context.colors.surface,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: context.colors.divider.withValues(alpha: 0.4),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.25),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.lock_outline_rounded,
+                    size: 46,
+                    color: context.colors.textPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 28),
+              Text(
+                'Sign In to Access Settings',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: context.colors.textPrimary,
+                  letterSpacing: -0.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Your channel settings, notifications, monetization controls, and session preferences require a signed-in account.',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: context.colors.textSecondary,
+                  height: 1.45,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 36),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    AuthService.to.triggerPlatformSignIn();
+                  },
+                  icon: const Icon(
+                    Icons.login_rounded,
+                    color: Colors.black,
+                    size: 20,
+                  ),
+                  label: const Text(
+                    'Sign In to Continue',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: context.colors.textPrimary,
+                    foregroundColor: Colors.black,
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextButton.icon(
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  if (Get.isRegistered<DashboardController>()) {
+                    Get.find<DashboardController>().setSelectedIndex(1);
+                  } else if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  } else {
+                    Get.offAllNamed('/');
+                  }
+                },
+                icon: Icon(
+                  Icons.dashboard_outlined,
+                  size: 18,
+                  color: context.colors.textSecondary,
+                ),
+                label: Text(
+                  'Back to Dashboard',
+                  style: TextStyle(
+                    color: context.colors.textSecondary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -277,7 +385,6 @@ class StudioSettingsPage extends StatelessWidget {
             title: Text(
               'AdSense ID',
               style: TextStyle(
-                fontFamily: TWTypography.uiFamily,
                 color: context.colors.textSecondary,
                 fontSize: 14,
               ),
@@ -285,7 +392,6 @@ class StudioSettingsPage extends StatelessWidget {
             subtitle: Text(
               controller.userData['adSenseId'] ?? 'Not linked',
               style: TextStyle(
-                fontFamily: TWTypography.uiFamily,
                 color: context.colors.textPrimary,
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
@@ -300,7 +406,9 @@ class StudioSettingsPage extends StatelessWidget {
                 ),
               ),
               onPressed: () {
-                // Open AdSense linking flow
+                AppSnackbar.info(
+                  'AdSense linking will be available soon. Stay tuned!',
+                );
               },
               child: const Text('Link'),
             ),
@@ -365,7 +473,6 @@ class StudioSettingsPage extends StatelessWidget {
           title: Text(
             'Default video visibility',
             style: TextStyle(
-              fontFamily: TWTypography.uiFamily,
               color: context.colors.textPrimary,
               fontSize: 15,
               fontWeight: FontWeight.w500,
@@ -374,7 +481,6 @@ class StudioSettingsPage extends StatelessWidget {
           subtitle: Text(
             controller.getVisibilityLabel(defaultVisibility),
             style: TextStyle(
-              fontFamily: TWTypography.uiFamily,
               color: context.colors.textSecondary,
               fontSize: 13,
             ),
@@ -397,8 +503,8 @@ class StudioSettingsPage extends StatelessWidget {
                   child: Text(
                     'Public',
                     style: TextStyle(
-                      fontFamily: TWTypography.uiFamily,
                       color: context.colors.textPrimary,
+                      fontSize: 14,
                     ),
                   ),
                 ),
@@ -407,8 +513,8 @@ class StudioSettingsPage extends StatelessWidget {
                   child: Text(
                     'Unlisted',
                     style: TextStyle(
-                      fontFamily: TWTypography.uiFamily,
                       color: context.colors.textPrimary,
+                      fontSize: 14,
                     ),
                   ),
                 ),
@@ -417,8 +523,8 @@ class StudioSettingsPage extends StatelessWidget {
                   child: Text(
                     'Private',
                     style: TextStyle(
-                      fontFamily: TWTypography.uiFamily,
                       color: context.colors.textPrimary,
+                      fontSize: 14,
                     ),
                   ),
                 ),
@@ -463,7 +569,6 @@ class StudioSettingsPage extends StatelessWidget {
           title: Text(
             name,
             style: TextStyle(
-              fontFamily: TWTypography.uiFamily,
               color: context.colors.textPrimary,
               fontSize: 15,
               fontWeight: FontWeight.w600,
@@ -473,7 +578,6 @@ class StudioSettingsPage extends StatelessWidget {
               ? Text(
                   email,
                   style: TextStyle(
-                    fontFamily: TWTypography.uiFamily,
                     color: context.colors.textSecondary,
                     fontSize: 13,
                   ),
@@ -482,16 +586,15 @@ class StudioSettingsPage extends StatelessWidget {
         ),
         _buildDivider(context),
         ListTile(
-          leading: const Icon(
+          leading: Icon(
             Icons.logout_rounded,
-            color: AppColors.error,
+            color: context.colors.error,
             size: 22,
           ),
-          title: const Text(
-            'Log Out',
+          title: Text(
+            'Sign Out',
             style: TextStyle(
-              fontFamily: TWTypography.uiFamily,
-              color: AppColors.error,
+              color: context.colors.error,
               fontSize: 15,
               fontWeight: FontWeight.w600,
             ),
@@ -499,17 +602,16 @@ class StudioSettingsPage extends StatelessWidget {
           subtitle: Text(
             'Sign out of Truthworld Studio on this device',
             style: TextStyle(
-              fontFamily: TWTypography.uiFamily,
               color: context.colors.textSecondary,
               fontSize: 13,
             ),
           ),
-          trailing: const Icon(
+          trailing: Icon(
             Icons.chevron_right_rounded,
-            color: AppColors.error,
+            color: context.colors.error,
             size: 20,
           ),
-          onTap: () => _showLogoutDialog(context, controller),
+          onTap: () => _showSignOutDialog(context, controller),
         ),
       ],
     );
@@ -526,7 +628,7 @@ class StudioSettingsPage extends StatelessWidget {
         color: context.colors.surface,
         borderRadius: context.radius.lg,
         border: Border.all(
-          color: AppColors.error.withValues(alpha: 0.4),
+          color: context.colors.error.withValues(alpha: 0.4),
         ),
       ),
       child: Material(
@@ -540,16 +642,15 @@ class StudioSettingsPage extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.warning_amber_rounded,
-                    color: AppColors.error,
+                    color: context.colors.error,
                     size: 24,
                   ),
                   const SizedBox(width: 12),
                   Text(
                     'Delete Channel',
                     style: TextStyle(
-                      fontFamily: TWTypography.brandFamily,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: context.colors.textPrimary,
@@ -559,9 +660,8 @@ class StudioSettingsPage extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Deleting your channel is permanent. All channel settings, content, and data associated with this channel will be removed permanently.',
+                'Scheduling deletion hides your channel immediately with a 30-day grace period. You can restore your channel anytime within 30 days. After 30 days, all channel settings, content, and data are removed permanently.',
                 style: TextStyle(
-                  fontFamily: TWTypography.uiFamily,
                   fontSize: 13,
                   color: context.colors.textSecondary,
                   height: 1.4,
@@ -576,7 +676,7 @@ class StudioSettingsPage extends StatelessWidget {
                         ? null
                         : () => _showDeleteChannelDialog(context, controller),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.error,
+                      backgroundColor: context.colors.error,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
@@ -603,7 +703,6 @@ class StudioSettingsPage extends StatelessWidget {
                           ? 'Deleting Channel...'
                           : 'Delete Channel',
                       style: const TextStyle(
-                        fontFamily: TWTypography.uiFamily,
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                       ),
@@ -636,16 +735,15 @@ class StudioSettingsPage extends StatelessWidget {
         ),
         title: Row(
           children: [
-            const Icon(
+            Icon(
               Icons.warning_amber_rounded,
-              color: AppColors.error,
+              color: context.colors.error,
               size: 24,
             ),
             const SizedBox(width: 10),
             Text(
               'Delete Channel?',
               style: TextStyle(
-                fontFamily: TWTypography.brandFamily,
                 color: context.colors.textPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -660,16 +758,15 @@ class StudioSettingsPage extends StatelessWidget {
             Text(
               'Are you sure you want to delete "$channelName"? Your channel will be hidden immediately and scheduled for deletion with a 30-day grace period. You can cancel the deletion anytime in Studio. After 30 days, your channel and all content will be deleted completely.',
               style: TextStyle(
-                fontFamily: TWTypography.uiFamily,
                 color: context.colors.textPrimary,
                 fontSize: 14,
+                height: 1.4,
               ),
             ),
             const SizedBox(height: 12),
             Text(
               'Type DELETE to confirm:',
               style: TextStyle(
-                fontFamily: TWTypography.uiFamily,
                 color: context.colors.textSecondary,
                 fontSize: 12,
               ),
@@ -685,14 +782,14 @@ class StudioSettingsPage extends StatelessWidget {
                 FilteringTextInputFormatter.allow(RegExp('[a-zA-Z]')),
               ],
               style: TextStyle(
-                fontFamily: TWTypography.uiFamily,
                 color: context.colors.textPrimary,
+                fontSize: 14,
               ),
               decoration: InputDecoration(
                 hintText: 'DELETE',
                 hintStyle: TextStyle(
-                  fontFamily: TWTypography.uiFamily,
                   color: context.colors.textTertiary,
+                  fontSize: 14,
                 ),
                 filled: true,
                 fillColor: context.colors.surfaceInput,
@@ -711,7 +808,7 @@ class StudioSettingsPage extends StatelessWidget {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: context.radius.md,
-                  borderSide: const BorderSide(color: AppColors.error),
+                  borderSide: BorderSide(color: context.colors.error),
                 ),
               ),
               onChanged: (val) {
@@ -726,8 +823,9 @@ class StudioSettingsPage extends StatelessWidget {
             child: Text(
               'Cancel',
               style: TextStyle(
-                fontFamily: TWTypography.uiFamily,
                 color: context.colors.textSecondary,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
@@ -747,8 +845,8 @@ class StudioSettingsPage extends StatelessWidget {
                     }
                   : null,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.error,
-                disabledBackgroundColor: AppColors.error.withValues(alpha: 0.3),
+                backgroundColor: context.colors.error,
+                disabledBackgroundColor: context.colors.error.withValues(alpha: 0.3),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: context.radius.md,
@@ -762,7 +860,7 @@ class StudioSettingsPage extends StatelessWidget {
     );
   }
 
-  void _showLogoutDialog(
+  void _showSignOutDialog(
     BuildContext context,
     StudioSettingsController controller,
   ) {
@@ -776,16 +874,15 @@ class StudioSettingsPage extends StatelessWidget {
         ),
         title: Row(
           children: [
-            const Icon(
+            Icon(
               Icons.logout_rounded,
-              color: AppColors.error,
+              color: context.colors.error,
               size: 24,
             ),
             const SizedBox(width: 10),
             Text(
-              'Log Out',
+              'Sign Out',
               style: TextStyle(
-                fontFamily: TWTypography.brandFamily,
                 color: context.colors.textPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -794,9 +891,8 @@ class StudioSettingsPage extends StatelessWidget {
           ],
         ),
         content: Text(
-          'Are you sure you want to log out of Truthworld Studio? You will need to sign in again to access and manage your channel.',
+          'Are you sure you want to sign out of Truthworld Studio? You will need to sign in again to access and manage your channel.',
           style: TextStyle(
-            fontFamily: TWTypography.uiFamily,
             color: context.colors.textSecondary,
             fontSize: 14,
             height: 1.4,
@@ -808,9 +904,9 @@ class StudioSettingsPage extends StatelessWidget {
             child: Text(
               'Cancel',
               style: TextStyle(
-                fontFamily: TWTypography.uiFamily,
                 color: context.colors.textSecondary,
                 fontWeight: FontWeight.w600,
+                fontSize: 14,
               ),
             ),
           ),
@@ -823,8 +919,8 @@ class StudioSettingsPage extends StatelessWidget {
                       await controller.handleSignOut();
                     },
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.error,
-                disabledBackgroundColor: AppColors.error.withValues(alpha: 0.3),
+                backgroundColor: context.colors.error,
+                disabledBackgroundColor: context.colors.error.withValues(alpha: 0.3),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: context.radius.md,
@@ -841,9 +937,8 @@ class StudioSettingsPage extends StatelessWidget {
                       ),
                     )
                   : const Text(
-                      'Log Out',
+                      'Sign Out',
                       style: TextStyle(
-                        fontFamily: TWTypography.uiFamily,
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                       ),
@@ -876,23 +971,32 @@ class StudioSettingsPage extends StatelessWidget {
               ]
             : TruthworldTextInputFormatters.internationalWithLimit(effectiveLimit));
 
+    final rawInitialValue = (prefix != null && value.startsWith(prefix))
+        ? value.substring(prefix.length)
+        : value;
+
     return TextFormField(
       readOnly: readOnly,
       maxLength: effectiveLimit,
       buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
       inputFormatters: effectiveFormatters,
-      initialValue: '${prefix ?? ""}$value',
+      initialValue: rawInitialValue,
       onFieldSubmitted: onChanged,
       style: TextStyle(
-        fontFamily: TWTypography.uiFamily,
         color: context.colors.textPrimary,
         fontSize: 15,
       ),
       decoration: InputDecoration(
         labelText: label,
         labelStyle: TextStyle(
-          fontFamily: TWTypography.uiFamily,
           color: context.colors.textSecondary,
+          fontSize: 14,
+        ),
+        prefixText: prefix,
+        prefixStyle: TextStyle(
+          color: context.colors.textSecondary,
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
         ),
         prefixIcon: Icon(
           icon,
@@ -910,7 +1014,7 @@ class StudioSettingsPage extends StatelessWidget {
           borderRadius: context.radius.md,
         ),
         focusedBorder: OutlineInputBorder(
-          borderSide: const BorderSide(color: AppColors.brand, width: 1.5),
+          borderSide: BorderSide(color: context.colors.brand, width: 1.5),
           borderRadius: context.radius.md,
         ),
       ),
@@ -934,7 +1038,6 @@ class StudioSettingsPage extends StatelessWidget {
       title: Text(
         title,
         style: TextStyle(
-          fontFamily: TWTypography.uiFamily,
           color: context.colors.textPrimary,
           fontSize: 15,
           fontWeight: FontWeight.w500,
@@ -944,16 +1047,16 @@ class StudioSettingsPage extends StatelessWidget {
           ? Text(
               subtitle,
               style: TextStyle(
-                fontFamily: TWTypography.uiFamily,
                 color: context.colors.textSecondary,
-                fontSize: 12,
+                fontSize: 13,
+                height: 1.3,
               ),
             )
           : null,
       value: value,
       onChanged: onChanged,
-      activeColor: Colors.white,
-      activeTrackColor: AppColors.brand.withValues(alpha: 0.4),
+      activeColor: context.colors.brand,
+      activeTrackColor: context.colors.brand.withValues(alpha: 0.38),
       inactiveTrackColor: context.colors.divider,
     );
   }

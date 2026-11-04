@@ -71,6 +71,15 @@ void main() {
       );
       expect(result, isFalse);
     });
+
+    test('ensureDefaultAdminSeeded completes safely when unauthenticated', () async {
+      await expectLater(
+        AdminTeamService.ensureDefaultAdminSeeded(
+          authorizedOwnerEmails: AdminRolesConfig.authorizedOwnerEmails,
+        ),
+        completes,
+      );
+    });
   });
 
   group('AdminPasswordService Validation Tests', () {
@@ -94,6 +103,19 @@ void main() {
         currentAdminEmail: 'hello@truthworld.in'.obs,
         currentAdminRole: 'Super Admin'.obs,
         currentAdminRoles: <String>['Super Admin'].obs,
+        authorizedOwnerEmails: AdminRolesConfig.authorizedOwnerEmails,
+        rxIsLoading: false.obs,
+      );
+      expect(result, isFalse);
+    });
+
+    test('changeAdminPassword rejects invalid current password without throwing', () async {
+      final result = await AdminPasswordService.changeAdminPassword(
+        currentPassword: 'wrong_password_999',
+        newPassword: 'CorrectPassword123!',
+        currentAdminEmail: 'unknown_admin@truthworld.in'.obs,
+        currentAdminRole: 'Content Moderator'.obs,
+        currentAdminRoles: <String>['Content Moderator'].obs,
         authorizedOwnerEmails: AdminRolesConfig.authorizedOwnerEmails,
         rxIsLoading: false.obs,
       );

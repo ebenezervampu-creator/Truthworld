@@ -123,8 +123,8 @@ class CreateTierController extends GetxController {
       activePerks.assignAll(tier!.perks);
     } else {
       activePerks.assignAll([
-        'Loyalty badges beside your name in comments and live chat',
-        'Custom emoji to use in live chat and comments',
+        'Loyalty badges beside your name in comments',
+        'Custom emoji to use in comments and community discussions',
         'Members-only community posts & updates',
       ]);
     }

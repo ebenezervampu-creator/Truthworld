@@ -105,10 +105,11 @@ class DownloadResolutionManager {
       );
     }
 
-    // 2. Check video.adaptiveResolutions
+    // 2. Check video.adaptiveResolutions (only authentic, non-synthetic entries)
     if (resolvedResolutions.isEmpty && video.adaptiveResolutions.isNotEmpty) {
       for (final res in video.adaptiveResolutions) {
-        if (res.url.isNotEmpty &&
+        if (!res.isSynthetic &&
+            res.url.isNotEmpty &&
             !res.url.contains('.m3u8') &&
             !res.url.contains('.mpd')) {
           resolvedResolutions.add(res);

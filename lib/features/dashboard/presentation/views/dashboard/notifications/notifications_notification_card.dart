@@ -198,17 +198,17 @@ class ChannelNotificationsNotificationCard extends StatelessWidget {
   Color _getStatusColor() {
     if (_videoStatus == 'rejected' ||
         notification.priority == NotificationPriority.critical) {
-      return const Color(0xFFF87171);
+      return AppColors.error;
     }
     if (_videoStatus == 'manual_review' ||
         (_isFactCheckNotification && _isReviewFirst && !_isApproved)) {
-      return const Color(0xFFFBBF24);
+      return AppColors.warning;
     }
     if (_isFactCheckNotification && _isApproved) {
-      return const Color(0xFF34D399);
+      return AppColors.success;
     }
     if (_isMilestone) {
-      return const Color(0xFFFBBF24);
+      return AppColors.warning;
     }
     return AppColors.textSecondary;
   }
@@ -389,23 +389,23 @@ class ChannelNotificationsNotificationCard extends StatelessWidget {
               child: const Icon(
                 Icons.person_add_rounded,
                 size: 16,
-                color: Color(0xFF34D399),
+                color: AppColors.success,
               ),
             ),
             errorWidget: (context, url, error) => Container(
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: const Color(0xFF34D399).withValues(alpha: 0.15),
+                color: AppColors.success.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: const Color(0xFF34D399).withValues(alpha: 0.3),
+                  color: AppColors.success.withValues(alpha: 0.3),
                 ),
               ),
               child: const Icon(
                 Icons.person_add_rounded,
                 size: 18,
-                color: Color(0xFF34D399),
+                color: AppColors.success,
               ),
             ),
           ),
@@ -415,16 +415,16 @@ class ChannelNotificationsNotificationCard extends StatelessWidget {
         width: 36,
         height: 36,
         decoration: BoxDecoration(
-          color: const Color(0xFF34D399).withValues(alpha: 0.15),
+          color: AppColors.success.withValues(alpha: 0.15),
           shape: BoxShape.circle,
           border: Border.all(
-            color: const Color(0xFF34D399).withValues(alpha: 0.3),
+            color: AppColors.success.withValues(alpha: 0.3),
           ),
         ),
         child: const Icon(
           Icons.person_add_rounded,
           size: 18,
-          color: Color(0xFF34D399),
+          color: AppColors.success,
         ),
       );
     }
@@ -437,12 +437,12 @@ class ChannelNotificationsNotificationCard extends StatelessWidget {
       leadingIcon = notification.title.toLowerCase().contains('language')
           ? Icons.translate_rounded
           : Icons.cancel_rounded;
-      iconColor = const Color(0xFFF87171);
+      iconColor = AppColors.error;
     } else if (_videoStatus == 'manual_review' ||
         _videoStatus == 'failed' ||
         notification.severity == NotificationSeverity.warning) {
       leadingIcon = Icons.policy_rounded;
-      iconColor = const Color(0xFFFBBF24);
+      iconColor = AppColors.warning;
     } else if (_videoStatus == 'processing') {
       leadingIcon = Icons.hourglass_top_rounded;
       iconColor = AppColors.textSecondary;
@@ -450,10 +450,10 @@ class ChannelNotificationsNotificationCard extends StatelessWidget {
         notification.type.contains('factcheck') ||
         notification.type.contains('verification')) {
       leadingIcon = Icons.verified_rounded;
-      iconColor = const Color(0xFF34D399);
+      iconColor = AppColors.success;
     } else if (_isMilestone) {
       leadingIcon = Icons.emoji_events_rounded;
-      iconColor = const Color(0xFFFBBF24);
+      iconColor = AppColors.warning;
     } else if (notification.type.contains('performance') ||
         notification.type.contains('retention')) {
       leadingIcon = Icons.trending_up_rounded;
@@ -682,13 +682,13 @@ class ChannelNotificationsNotificationCard extends StatelessWidget {
                 Icon(
                   Icons.verified_rounded,
                   size: 14,
-                  color: Color(0xFF34D399),
+                  color: AppColors.success,
                 ),
                 SizedBox(width: 5),
                 Text(
                   'Approved for Viewers',
                   style: TextStyle(
-                    color: Color(0xFF34D399),
+                    color: AppColors.success,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),

@@ -51,7 +51,7 @@ void main() {
       expect(updated.uploadProgressPercent, '75%');
       expect(updated.todayUploadedDurationSeconds, 300);
       expect(updated.remainingDailyDurationSeconds, 300);
-      expect(updated.selectedCategory, 'Other'); // Preserved
+      expect(updated.selectedCategory, ''); // Preserved
       expect(updated.channels, isEmpty); // Preserved
     });
 

@@ -131,9 +131,9 @@ void main() {
 
         // Must display verified credibility state
         expect(find.text('View Full Report'), findsOneWidget);
-        expect(find.text('HIGH TRUST'), findsOneWidget);
-        expect(find.textContaining('92% Trust Score'), findsOneWidget);
-        expect(find.textContaining('1 Claims Evaluated'), findsOneWidget);
+        expect(find.text('CLAIM LEDGER VERIFIED'), findsOneWidget);
+        expect(find.textContaining('92% Institutional Score'), findsOneWidget);
+        expect(find.textContaining('1 Spoken Claims'), findsOneWidget);
         expect(find.text('Run Fact-Check'), findsNothing);
       },
     );

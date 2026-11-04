@@ -165,7 +165,7 @@ class ChannelTypeSelectorModal extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     ChannelTypeOptionCard(
-                      title: 'Custom Channel',
+                      title: 'Pro Channel',
                       subtitle:
                           r'100% Gross Revenue Share • Plans $15, $30, $45, $100, $200/mo • Unlimited Uploads',
                       icon: Icons.rocket_launch,
@@ -217,7 +217,7 @@ class ChannelTypeSelectorModal extends StatelessWidget {
                             ),
                             SizedBox(width: 8),
                             Text(
-                              'Compare Standard vs Custom Benefits',
+                              'Compare Standard vs Pro Benefits',
                               style: TextStyle(
                                 color: Color(0xFF818CF8),
                                 fontSize: 13,
@@ -271,7 +271,7 @@ class ChannelTypeSelectorModal extends StatelessWidget {
                     elevation: 4,
                   ),
                   child: Text(
-                    'Continue with ${isStandard ? 'Standard Channel' : 'Custom Channel'}',
+                    'Continue with ${isStandard ? 'Standard Channel' : 'Pro Channel'}',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,

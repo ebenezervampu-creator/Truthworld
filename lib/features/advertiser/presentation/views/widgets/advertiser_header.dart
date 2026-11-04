@@ -18,9 +18,9 @@ class AdvertiserHeader extends StatelessWidget {
       height: 64,
       padding: const EdgeInsets.symmetric(horizontal: 24),
       decoration: const BoxDecoration(
-        color: Color(0xFF0F0F0F),
+        color: AppColors.bgPage,
         border: Border(
-          bottom: BorderSide(color: Color(0xFF27272A)),
+          bottom: BorderSide(color: AppColors.bgSurface),
         ),
       ),
       child: Row(
@@ -60,16 +60,16 @@ class AdvertiserHeader extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF18181B),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgSurface),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           CircleAvatar(
             radius: 14,
-            backgroundColor: const Color(0xFF27272A),
+            backgroundColor: AppColors.bgSurface,
             child: Text(
               displayName.isNotEmpty ? displayName[0].toUpperCase() : 'A',
               style: const TextStyle(

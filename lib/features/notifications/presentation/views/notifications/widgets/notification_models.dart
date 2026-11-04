@@ -15,3 +15,21 @@ class UnifiedNotificationItem {
   final DateTime timestamp;
   final bool isSeen;
 }
+
+/// Category tab descriptor representing notification filtering segments.
+class NotificationTab {
+  const NotificationTab({
+    required this.id,
+    required this.title,
+  });
+
+  final String id;
+  final String title;
+
+  static const all = NotificationTab(id: 'all', title: 'All');
+  static const verifications = NotificationTab(id: 'verifications', title: 'Verifications');
+  static const studioAlerts = NotificationTab(id: 'studio_alerts', title: 'Studio Alerts');
+  static const topics = NotificationTab(id: 'topics', title: 'Topics');
+  static const comments = NotificationTab(id: 'comments', title: 'Comments');
+  static const mentions = NotificationTab(id: 'mentions', title: 'Mentions');
+}

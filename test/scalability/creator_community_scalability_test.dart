@@ -170,7 +170,8 @@ void main() {
 
       const expectedAd = (1000.0 + 999) * 0.70;
       const expectedSub = (500.0 + 999) * 0.70;
-      const expectedCreator = expectedAd + expectedSub + (200.0 + 999) + (300.0 + 999);
+      const expectedCreator =
+          expectedAd + expectedSub + ((200.0 + 999) * 0.90) + ((300.0 + 999) * 0.90);
 
       expect(lastBreakdown.creatorPayout, closeTo(expectedCreator, 0.001));
       expect(lastBreakdown.isZeroDebtProtected, isFalse);
@@ -212,7 +213,7 @@ void main() {
         channel: standardChannel,
         videoId: 'vid_locked',
         videoRevenue: 100.0,
-        videoWatchTimeMinutes: 599,
+        videoWatchTimeMinutes: 1799,
         videoViews: 1000,
       );
       expect(stdLocked.isUnlockedForWithdrawal, isFalse);
@@ -223,7 +224,7 @@ void main() {
         channel: standardChannel,
         videoId: 'vid_unlocked',
         videoRevenue: 100.0,
-        videoWatchTimeMinutes: 600,
+        videoWatchTimeMinutes: 1800,
         videoViews: 1000,
       );
       expect(stdUnlocked.isUnlockedForWithdrawal, isTrue);
@@ -234,7 +235,7 @@ void main() {
         channel: customChannel,
         videoId: 'vid_cust_locked',
         videoRevenue: 100.0,
-        videoWatchTimeMinutes: 599,
+        videoWatchTimeMinutes: 1799,
         videoViews: 1000,
       );
       expect(custLocked.isUnlockedForWithdrawal, isFalse);
@@ -245,7 +246,7 @@ void main() {
         channel: customChannel,
         videoId: 'vid_cust_unlocked',
         videoRevenue: 100.0,
-        videoWatchTimeMinutes: 600,
+        videoWatchTimeMinutes: 1800,
         videoViews: 1000,
       );
       expect(custUnlocked.isUnlockedForWithdrawal, isTrue);
@@ -260,7 +261,7 @@ void main() {
           channel: standardChannel,
           videoId: 'vid_$i',
           videoRevenue: 100.0,
-          videoWatchTimeMinutes: i,
+          videoWatchTimeMinutes: i * 2,
           videoViews: i * 2,
         );
         totalWithdrawable += stdResult.withdrawableAmount;
@@ -269,7 +270,7 @@ void main() {
           channel: customChannel,
           videoId: 'vid_$i',
           videoRevenue: 100.0,
-          videoWatchTimeMinutes: i,
+          videoWatchTimeMinutes: i * 2,
           videoViews: i * 2,
         );
         totalWithdrawable += custResult.withdrawableAmount;

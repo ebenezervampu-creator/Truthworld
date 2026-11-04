@@ -56,7 +56,7 @@ class SubtitlesSearchHeader extends StatelessWidget {
           Container(
             height: 40,
             decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
+              color: AppColors.bgSurface,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: borderColor),
             ),
@@ -205,16 +205,20 @@ class SubtitlesVideoSelectorCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      Text(
-                        DateFormat(
-                          'MMM d, yyyy',
-                        ).format(video.uploadedAt.toDate()),
-                        style: AppTextStyles.caption.copyWith(
-                          fontSize: 11,
-                          color: textSecondaryColor,
+                      Expanded(
+                        child: Text(
+                          DateFormat(
+                            'MMM d, yyyy',
+                          ).format(video.uploadedAt.toDate()),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.caption.copyWith(
+                            fontSize: 11,
+                            color: textSecondaryColor,
+                          ),
                         ),
                       ),
-                      const Spacer(),
+                      const SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 6,

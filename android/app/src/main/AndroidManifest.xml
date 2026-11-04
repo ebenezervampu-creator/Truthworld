@@ -41,6 +41,11 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+
+            <!-- Disable default Flutter engine deep linking so AppLinks plugin / DeepLinkService exclusively handles routing -->
+            <meta-data
+                android:name="flutter_deeplinking_enabled"
+                android:value="false" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
@@ -78,6 +83,9 @@
                 <data android:pathPrefix="/ads" />
                 <data android:pathPrefix="/post" />
                 <data android:pathPrefix="/community" />
+                <data android:pathPrefix="/claim-detail" />
+                <data android:pathPrefix="/claim" />
+                <data android:pathPrefix="/claims" />
                 <data android:pathPrefix="/payment-result" />
             </intent-filter>
 
@@ -113,40 +121,9 @@
                 <data android:pathPrefix="/ads" />
                 <data android:pathPrefix="/post" />
                 <data android:pathPrefix="/community" />
-                <data android:pathPrefix="/payment-result" />
-            </intent-filter>
-
-            <!-- HTTP Fallback Intent Filter (Separate non-autoVerify filter to preserve App Link validation) -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data android:scheme="http" android:host="www.truthworld.in" />
-                <data android:scheme="http" android:host="truthworld.in" />
-
-                <data android:pathPrefix="/watch" />
-                <data android:pathPrefix="/v/" />
-                <data android:pathPrefix="/shorts" />
-                <data android:pathPrefix="/channel" />
-                <data android:pathPrefix="/@" />
-                <data android:pathPrefix="/c/" />
-                <data android:pathPrefix="/user" />
-                <data android:pathPrefix="/playlist" />
-                <data android:pathPrefix="/topic" />
-                <data android:pathPrefix="/topics" />
-                <data android:pathPrefix="/T/" />
-                <data android:pathPrefix="/t/" />
-                <data android:pathPrefix="/clip" />
-                <data android:pathPrefix="/clips" />
-                <data android:pathPrefix="/chapter" />
-                <data android:pathPrefix="/chapters" />
-                <data android:pathPrefix="/studio" />
-                <data android:pathPrefix="/advertisements" />
-                <data android:pathPrefix="/advertiser" />
-                <data android:pathPrefix="/ads" />
-                <data android:pathPrefix="/post" />
-                <data android:pathPrefix="/community" />
+                <data android:pathPrefix="/claim-detail" />
+                <data android:pathPrefix="/claim" />
+                <data android:pathPrefix="/claims" />
                 <data android:pathPrefix="/payment-result" />
             </intent-filter>
 
@@ -158,13 +135,12 @@
                 <data android:scheme="truthworld" />
                 <data android:scheme="truthworldstudio" />
                 <data android:scheme="truthworldads" />
-                <data android:scheme="truthworldadvertiser" />
-                <data android:scheme="truthworldadmin" />
             </intent-filter>
         </activity>
-        <!-- UCrop Activity for image_cropper -->
+        <!-- UCrop Activity for image_cropper (Explicitly unexported for Android 12+ security) -->
         <activity
             android:name="com.yalantis.ucrop.UCropActivity"
+            android:exported="false"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.AppCompat.Light.NoActionBar"/>
         <!-- Default notification channel for FCM -->

@@ -1,4 +1,18 @@
+import 'dart:math';
+
 class FormatUtils {
+  /// Formats byte count to standard file sizes, e.g. 15 MB, 290 MB, 1.8 GB.
+  static String formatBytes(int bytes) {
+    if (bytes <= 0) return '0 MB';
+    const suffixes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    final i = (log(bytes) / log(1024)).floor().clamp(0, suffixes.length - 1);
+    final value = bytes / pow(1024, i);
+    final formatted = (value >= 10 || i == 0)
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(1);
+    return '$formatted ${suffixes[i]}';
+  }
+
   static String formatCount(int count) {
     if (count >= 1000000000) {
       return '${(count / 1000000000).toStringAsFixed(1)}B';

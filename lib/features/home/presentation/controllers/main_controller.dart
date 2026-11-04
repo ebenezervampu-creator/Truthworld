@@ -111,6 +111,7 @@ class MainController extends BaseController {
     String trafficSource = 'direct',
     String? viewerHash,
     String? dedupKey,
+    String? sessionId,
   }) => _navCtrl.trackWatchEvent(
         videoId: videoId,
         channelId: channelId,
@@ -123,6 +124,7 @@ class MainController extends BaseController {
         trafficSource: trafficSource,
         viewerHash: viewerHash,
         dedupKey: dedupKey,
+        sessionId: sessionId,
       );
   Future<void> recordWatchSession(Map<String, dynamic> sessionData) => _navCtrl.recordWatchSession(sessionData);
   Future<void> incrementShareCount(String videoId) => _navCtrl.incrementShareCount(videoId);

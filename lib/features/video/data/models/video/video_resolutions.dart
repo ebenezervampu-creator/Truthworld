@@ -99,48 +99,40 @@ class VideoResolutionV2 {
     }
 
     if (validExisting.isEmpty) {
-      if (resolvedFallbackUrl.isEmpty) return const [];
-      return standardTiers.map((tier) {
-        return VideoResolutionV2(
-          label: tier['label'] as String,
-          url: resolvedFallbackUrl,
-          width: tier['width'] as int,
-          height: tier['height'] as int,
-          bitrate: tier['bitrate'] as int,
-          isSynthetic: true,
-        );
-      }).toList();
+      return const [];
     }
 
     final result = List<VideoResolutionV2>.from(validExisting);
 
-    // Determine highest resolution present (or at least 1080 if 1080p or 720p is present)
+    // Determine highest resolution present — never synthesize above the authentic ceiling
     final maxHeight = validExisting.map((r) => r.height).fold(0, (a, b) => a > b ? a : b);
-    final targetMax = maxHeight >= 720 ? (maxHeight >= 1080 ? maxHeight : 1080) : maxHeight;
+    final targetMax = maxHeight;
 
-    for (final tier in standardTiers) {
-      final tierHeight = tier['height'] as int;
-      final tierLabel = tier['label'] as String;
+    if (targetMax > 0) {
+      for (final tier in standardTiers) {
+        final tierHeight = tier['height'] as int;
+        final tierLabel = tier['label'] as String;
 
-      // Only add tiers <= targetMax (respect native source ceiling)
-      if (tierHeight <= targetMax) {
-        final exists = result.any(
-          (r) =>
-              r.height == tierHeight ||
-              r.label.toLowerCase() == tierLabel.toLowerCase() ||
-              r.label.toLowerCase().startsWith('${tierHeight}p'),
-        );
-        if (!exists && resolvedFallbackUrl.isNotEmpty) {
-          result.add(
-            VideoResolutionV2(
-              label: tierLabel,
-              url: resolvedFallbackUrl,
-              width: tier['width'] as int,
-              height: tierHeight,
-              bitrate: tier['bitrate'] as int,
-              isSynthetic: true,
-            ),
+        // Only add tiers <= targetMax (strictly respect native source ceiling)
+        if (tierHeight <= targetMax) {
+          final exists = result.any(
+            (r) =>
+                r.height == tierHeight ||
+                r.label.toLowerCase() == tierLabel.toLowerCase() ||
+                r.label.toLowerCase().startsWith('${tierHeight}p'),
           );
+          if (!exists && resolvedFallbackUrl.isNotEmpty) {
+            result.add(
+              VideoResolutionV2(
+                label: tierLabel,
+                url: resolvedFallbackUrl,
+                width: tier['width'] as int,
+                height: tierHeight,
+                bitrate: tier['bitrate'] as int,
+                isSynthetic: true,
+              ),
+            );
+          }
         }
       }
     }

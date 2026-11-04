@@ -200,9 +200,9 @@ class ChaptersWorkspacePane extends StatelessWidget {
                   // Actions row (Desktop)
                   if (!isMobile) ...[
                     IconButton(
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.download_rounded,
-                        color: Colors.white,
+                        color: isDarkMode ? Colors.white : Colors.black87,
                       ),
                       tooltip: 'Import from description',
                       onPressed: () => ChapterDialogs.showImportDialog(
@@ -212,15 +212,18 @@ class ChaptersWorkspacePane extends StatelessWidget {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.upload_rounded,
-                        color: Colors.white,
+                        color: isDarkMode ? Colors.white : Colors.black87,
                       ),
                       tooltip: 'Export timestamps',
                       onPressed: controller.exportToClipboard,
                     ),
                     IconButton(
-                      icon: const Icon(Icons.psychology, color: Colors.white),
+                      icon: Icon(
+                        Icons.psychology,
+                        color: isDarkMode ? Colors.white : Colors.black87,
+                      ),
                       tooltip: 'AI Auto-Detect Chapters',
                       onPressed: controller.autoDetectChapters,
                     ),
@@ -252,7 +255,7 @@ class ChaptersWorkspacePane extends StatelessWidget {
                       label: Text(
                         controller.isSaving.value
                             ? 'Saving...'
-                            : 'Save Changes',
+                            : (isMobile ? 'Save' : 'Save Changes'),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.brand,
@@ -281,32 +284,47 @@ class ChaptersWorkspacePane extends StatelessWidget {
                         controller: controller,
                         isDarkMode: isDarkMode,
                       ),
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.download_rounded,
                         size: 16,
-                        color: Colors.white,
+                        color: isDarkMode ? Colors.white : Colors.black87,
                       ),
-                      label: const Text('Import'),
+                      label: Text(
+                        'Import',
+                        style: TextStyle(
+                          color: isDarkMode ? Colors.white : Colors.black87,
+                        ),
+                      ),
                     ),
                     const VerticalDivider(),
                     TextButton.icon(
                       onPressed: controller.exportToClipboard,
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.upload_rounded,
                         size: 16,
-                        color: Colors.white,
+                        color: isDarkMode ? Colors.white : Colors.black87,
                       ),
-                      label: const Text('Export'),
+                      label: Text(
+                        'Export',
+                        style: TextStyle(
+                          color: isDarkMode ? Colors.white : Colors.black87,
+                        ),
+                      ),
                     ),
                     const VerticalDivider(),
                     TextButton.icon(
                       onPressed: controller.autoDetectChapters,
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.psychology,
                         size: 16,
-                        color: Colors.white,
+                        color: isDarkMode ? Colors.white : Colors.black87,
                       ),
-                      label: const Text('AI Auto'),
+                      label: Text(
+                        'AI Auto',
+                        style: TextStyle(
+                          color: isDarkMode ? Colors.white : Colors.black87,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -330,13 +348,17 @@ class ChaptersWorkspacePane extends StatelessWidget {
 
                 return ReorderableListView.builder(
                   buildDefaultDragHandles: false,
-                  padding: const EdgeInsets.all(24),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 12 : 24,
+                    vertical: 16,
+                  ),
                   itemCount: controller.currentChapters.length,
                   footer: ChaptersTimelineView.buildAddChapterButton(
                     context,
                     controller: controller,
                     borderColor: borderColor,
                     isDarkMode: isDarkMode,
+                    isMobile: isMobile,
                   ),
                   proxyDecorator: (child, index, animation) {
                     return AnimatedBuilder(
@@ -388,6 +410,7 @@ class ChaptersWorkspacePane extends StatelessWidget {
                         borderColor: borderColor,
                         surfaceColor: surfaceColor,
                         isDarkMode: isDarkMode,
+                        isMobile: isMobile,
                       ),
                     );
                   },
@@ -468,7 +491,10 @@ class ChaptersWorkspacePane extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 4,
                   children: [
                     Text(
                       'Automatic Chapters',
@@ -478,7 +504,6 @@ class ChaptersWorkspacePane extends StatelessWidget {
                         color: textColor,
                       ),
                     ),
-                    const SizedBox(width: 8),
                     Obx(() {
                       final hasManual = controller.currentChapters.isNotEmpty;
                       final isAutoOn = controller.autoChaptersEnabled.value;

@@ -5,6 +5,7 @@ import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/features/topics/presentation/controllers/topic_interaction_controller.dart';
 import 'package:truthworld/features/topics/presentation/widgets/comments/topic_comment_models_and_helpers.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
@@ -120,6 +121,25 @@ class TopicReplyItemWidget extends StatelessWidget {
     const avatarRadius = 12.0;
     final formattedUserName = reply.displayName;
 
+    final argReplyId = Get.arguments is Map ? (Get.arguments['replyId'] as String?) : null;
+    final paramReplyId = Get.parameters['replyId'];
+    final targetReplyId = (argReplyId != null && argReplyId.isNotEmpty)
+        ? argReplyId
+        : ((paramReplyId != null && paramReplyId.isNotEmpty) ? paramReplyId : null);
+    final isTargetReply = targetReplyId != null && targetReplyId == reply.id;
+
+    if (isTargetReply) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          Scrollable.ensureVisible(
+            context,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeInOut,
+          );
+        }
+      });
+    }
+
     return Obx(() {
       final interaction = controller.userReplyInteractions[reply.id] ??
           {'isLiked': false, 'isDisliked': false};
@@ -127,14 +147,28 @@ class TopicReplyItemWidget extends StatelessWidget {
       final isDisliked = interaction['isDisliked'] ?? false;
 
       return Container(
+        decoration: isTargetReply
+            ? BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.4),
+                  width: 1.2,
+                ),
+              )
+            : null,
         padding: const EdgeInsets.only(top: 8, bottom: 8, right: 16, left: 8),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             GestureDetector(
-              onTap: () => onNavigateToChannel(reply.channelId),
+              onTap: reply.isChannelAuthor
+                  ? () => onNavigateToChannel(reply.channelId)
+                  : null,
               child: MouseRegion(
-                cursor: SystemMouseCursors.click,
+                cursor: reply.isChannelAuthor
+                    ? SystemMouseCursors.click
+                    : SystemMouseCursors.basic,
                 child: UserAvatar(
                   radius: avatarRadius,
                   photoUrl: reply.avatarUrl,
@@ -151,9 +185,13 @@ class TopicReplyItemWidget extends StatelessWidget {
                     children: [
                       Flexible(
                         child: GestureDetector(
-                          onTap: () => onNavigateToChannel(reply.channelId),
+                          onTap: reply.isChannelAuthor
+                              ? () => onNavigateToChannel(reply.channelId)
+                              : null,
                           child: MouseRegion(
-                            cursor: SystemMouseCursors.click,
+                            cursor: reply.isChannelAuthor
+                                ? SystemMouseCursors.click
+                                : SystemMouseCursors.basic,
                             child: Text(
                               formattedUserName,
                               maxLines: 1,
@@ -178,8 +216,8 @@ class TopicReplyItemWidget extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    reply.text,
+                  ClickableUrlText(
+                    text: reply.text,
                     style: const TextStyle(
                       fontSize: 13,
                       height: 1.3,

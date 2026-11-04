@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/navigation/app_navigator.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/widgets/deferred_widget.dart';
 import 'package:truthworld/features/about/presentation/views/About/about.dart'
@@ -33,8 +34,6 @@ import 'package:truthworld/features/trending/presentation/views/trending/trendin
     deferred as trending;
 import 'package:truthworld/features/video/presentation/views/clips/clips_page.dart'
     deferred as clips;
-import 'package:truthworld/features/video/presentation/views/downloadpage/download_page.dart'
-    deferred as downloads;
 import 'package:truthworld/features/watchhistory/presentation/views/watchhistory/watchhistory.dart'
     deferred as history;
 import 'package:truthworld/features/watchlater/presentation/views/watchlater/watchlater_screen.dart'
@@ -81,11 +80,15 @@ class HomeSubPageRouter {
           builder: () => liked_videos.LikedVideoScreen(isDashboard: true),
         );
       case HomeController.indexDownloads:
-        return DeferredWidget(
-          key: const ValueKey('subpage_deferred_downloads'),
-          loader: downloads.loadLibrary,
-          builder: () => downloads.DownloadsPage(isDashboard: true),
-        );
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (controller.sideNavSelectedIndex.value ==
+              HomeController.indexDownloads) {
+            controller.sideNavSelectedIndex.value =
+                HomeController.indexLibrary;
+            AppNavigator.toDownloads();
+          }
+        });
+        return const SizedBox.shrink();
       case HomeController.indexPlaylists:
         return DeferredWidget(
           key: const ValueKey('subpage_deferred_playlists'),

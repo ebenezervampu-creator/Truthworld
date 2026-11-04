@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/create_playlist_screen.dart';
@@ -110,7 +109,7 @@ class PlaylistScreen extends StatelessWidget {
                 Flexible(
                   child: Text(
                     isPublic ? 'Public Playlists' : 'Private Playlists',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 21,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -123,12 +122,12 @@ class PlaylistScreen extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 2.5),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF262626),
+                    color: AppColors.bgSurface,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
                     '$count',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       color: Colors.white,
                       fontSize: 12.5,
                       fontWeight: FontWeight.bold,
@@ -148,10 +147,10 @@ class PlaylistScreen extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6.5),
               decoration: BoxDecoration(
-                color: const Color(0xFF141414),
+                color: AppColors.bgPage,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: const Color(0xFF2E2E2E),
+                  color: AppColors.bgSurfaceHigh,
                 ),
               ),
               child: Row(
@@ -165,7 +164,7 @@ class PlaylistScreen extends StatelessWidget {
                   const SizedBox(width: 5),
                   Text(
                     sortLabel,
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       color: Colors.white,
                       fontSize: 12.5,
                       fontWeight: FontWeight.w500,
@@ -206,17 +205,24 @@ class PlaylistScreen extends StatelessWidget {
           ? List<PlaylistModel>.from(controller.publicPlaylists)
           : List<PlaylistModel>.from(controller.playlists);
 
-      // Prepend Watch Later for private playlists if user has watch later items
+      // Prepend or synchronize Watch Later for private playlists
       if (!isPublic && controller.user.isNotEmpty) {
         final wlIndex = sourcePlaylists.indexWhere((p) =>
             p.id == 'watchlater' ||
             p.playlistName.toLowerCase().trim() == 'watch later');
+        final liveCount = controller.watchLaterVideoIds.length;
+        final liveThumb = controller.firstVideoThumbnail.value;
+
         if (wlIndex >= 0) {
           final existing = sourcePlaylists[wlIndex];
-          final liveCount = controller.watchLaterVideoIds.length;
           sourcePlaylists[wlIndex] = existing.copyWith(
+            id: 'watchlater',
+            name: 'Watch Later',
+            playlistName: 'Watch Later',
             videoIds: List<String>.from(controller.watchLaterVideoIds),
-            videoCount: liveCount > 0 ? liveCount : existing.effectiveVideoCount,
+            videoCount: liveCount,
+            thumbnailUrl:
+                liveThumb.isNotEmpty ? liveThumb : existing.thumbnailUrl,
           );
         } else if (controller.watchLaterVideoIds.isNotEmpty) {
           final wl = controller.getWatchLaterPlaylist();

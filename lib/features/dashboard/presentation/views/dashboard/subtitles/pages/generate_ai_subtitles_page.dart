@@ -2,7 +2,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_wallet_topup_sheet.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -13,26 +15,30 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
   const GenerateAiSubtitlesPage({
     required this.controller,
     required this.isDarkMode,
+    this.initialTier = 'starter',
     super.key,
   });
 
   final SubtitlesController controller;
   final bool isDarkMode;
+  final String initialTier;
 
   @override
   Widget build(BuildContext context) {
+    controller.refreshSpendableBalance();
     final video = controller.selectedVideo.value;
     final surfaceColor =
-        isDarkMode ? const Color(0xFF18181B) : AppColors.bgSurface;
+        isDarkMode ? AppColors.bgPage : AppColors.bgSurface;
     const bgColor = AppColors.bgPage;
     final textColor =
         isDarkMode ? AppColors.textPrimary : AppColors.textPrimary;
     final textSecondaryColor =
         isDarkMode ? AppColors.textSecondary : AppColors.textSecondary;
     final borderColor =
-        isDarkMode ? const Color(0xFF27272A) : const Color(0xFF2A2A2A);
+        isDarkMode ? AppColors.bgSurface : AppColors.bgSurface;
 
     // Reactive state for the page (Zero setState policy)
+    final selectedTier = initialTier.obs; // 'starter' | 'pro'
     // Start with clean empty selection so creator chooses only desired languages
     final selectedLangs = <String>{}.obs;
     final priorityMode = 'standard'.obs; // 'standard' | 'high'
@@ -98,7 +104,9 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
 
           // Otherwise show the Language Selection & Generation Setup
           return _buildLanguageSelectionView(
+            context: context,
             video: video,
+            selectedTier: selectedTier,
             selectedLangs: selectedLangs,
             priorityMode: priorityMode,
             searchQuery: searchQuery,
@@ -117,7 +125,9 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
   // 1. LANGUAGE SELECTION VIEW (Styled like Category Selection in Channel Wizard)
   // ===========================================================================
   Widget _buildLanguageSelectionView({
+    required BuildContext context,
     required Video? video,
+    required RxString selectedTier,
     required RxSet<String> selectedLangs,
     required RxString priorityMode,
     required RxString searchQuery,
@@ -182,13 +192,23 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                   ),
                 const SizedBox(height: 18),
 
+                // Subtitle Generation Tier Selection (Starter vs Pro)
+                _buildTierSelectionSection(
+                  selectedTier: selectedTier,
+                  surfaceColor: surfaceColor,
+                  borderColor: borderColor,
+                  textColor: textColor,
+                  textSecondaryColor: textSecondaryColor,
+                ),
+                const SizedBox(height: 18),
+
                 // Category-styled Card for Target Languages Selection (ElevenLabs Studio Style)
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF141416),
+                    color: AppColors.bgPage,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFF27272A)),
+                    border: Border.all(color: AppColors.bgSurface),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -231,9 +251,9 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                       Container(
                         height: 42,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF18181B),
+                          color: AppColors.bgPage,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFF27272A)),
+                          border: Border.all(color: AppColors.bgSurface),
                         ),
                         child: TextField(
                           style: TextStyle(fontSize: 13, color: textColor),
@@ -296,7 +316,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                           TextButton(
                             onPressed: selectedLangs.clear,
                             style: TextButton.styleFrom(
-                              foregroundColor: const Color(0xFFA1A1AA),
+                              foregroundColor: AppColors.textSecondary,
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                               minimumSize: Size.zero,
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -317,9 +337,9 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                           margin: const EdgeInsets.only(bottom: 14),
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF121212),
+                            color: AppColors.bgInput,
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFF27272A)),
+                            border: Border.all(color: AppColors.bgSurface),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -346,10 +366,10 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                                       vertical: 6,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF27272A),
+                                      color: AppColors.bgSurface,
                                       borderRadius: BorderRadius.circular(20),
                                       border: Border.all(
-                                        color: const Color(0xFF3F3F46),
+                                        color: AppColors.bgElevated,
                                       ),
                                     ),
                                     child: Row(
@@ -383,7 +403,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                         );
                       }),
 
-                      const Divider(color: Color(0xFF27272A), height: 1),
+                      const Divider(color: AppColors.bgSurface, height: 1),
                       const SizedBox(height: 8),
 
                       // Vertical Language List with Checkboxes (Identical to Category List in Channel Creation)
@@ -402,7 +422,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                             shrinkWrap: true,
                             itemCount: filtered.length,
                             separatorBuilder: (ctx, i) => const Divider(
-                              color: Color(0xFF27272A),
+                              color: AppColors.bgSurface,
                               height: 1,
                             ),
                             itemBuilder: (ctx, i) {
@@ -427,14 +447,14 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                                         color: isSelected
                                             ? AppColors.brand
                                                 .withValues(alpha: 0.15)
-                                            : const Color(0xFF1E1E22),
+                                            : AppColors.bgSurface,
                                         borderRadius: BorderRadius.circular(6),
                                         border: Border.all(
                                           color: isSelected
                                               ? AppColors.brand
                                               : (isAlreadyAvailable
-                                                  ? const Color(0xFF3F3F46)
-                                                  : const Color(0xFF27272A)),
+                                                  ? AppColors.bgElevated
+                                                  : AppColors.bgSurface),
                                         ),
                                       ),
                                       alignment: Alignment.center,
@@ -446,23 +466,27 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                                           color: isSelected
                                               ? Colors.white
                                               : (isAlreadyAvailable
-                                                  ? const Color(0xFFA1A1AA)
+                                                  ? AppColors.textSecondary
                                                   : AppColors.textSecondary),
                                         ),
                                       ),
                                     ),
                                     title: Row(
                                       children: [
-                                        Text(
-                                          lang.name,
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: isSelected
-                                                ? FontWeight.bold
-                                                : FontWeight.normal,
-                                            color: isSelected
-                                                ? Colors.white
-                                                : AppColors.textSecondary,
+                                        Flexible(
+                                          child: Text(
+                                            lang.name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: isSelected
+                                                  ? FontWeight.bold
+                                                  : FontWeight.normal,
+                                              color: isSelected
+                                                  ? Colors.white
+                                                  : AppColors.textSecondary,
+                                            ),
                                           ),
                                         ),
                                         if (isAlreadyAvailable) ...[
@@ -486,7 +510,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                                                 Icon(
                                                   Icons.check_rounded,
                                                   size: 10,
-                                                  color: Color(0xFFA1A1AA),
+                                                  color: AppColors.textSecondary,
                                                 ),
                                                 SizedBox(width: 3),
                                                 Text(
@@ -494,7 +518,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                                                   style: TextStyle(
                                                     fontSize: 10,
                                                     fontWeight: FontWeight.w600,
-                                                    color: Color(0xFFA1A1AA),
+                                                    color: AppColors.textSecondary,
                                                   ),
                                                 ),
                                               ],
@@ -507,10 +531,12 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                                       isAlreadyAvailable
                                           ? '${lang.nativeName} • ${lang.code} • Subtitle already available in studio'
                                           : '${lang.nativeName} • ${lang.code}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
                                         fontSize: 11,
                                         color: isAlreadyAvailable
-                                            ? const Color(0xFFA1A1AA)
+                                            ? AppColors.textSecondary
                                             : AppColors.textTertiary,
                                       ),
                                     ),
@@ -519,7 +545,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                                       activeColor: Colors.white,
                                       checkColor: Colors.black,
                                       side: const BorderSide(
-                                        color: Color(0xFF52525B),
+                                        color: AppColors.textDisabled,
                                       ),
                                       onChanged: (val) {
                                         if (isSelected) {
@@ -550,7 +576,9 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
 
                 // Cost Summary Card (Strict Zero-Charm Pricing)
                 _buildCostSummaryCard(
+                  context: context,
                   video: video,
+                  selectedTier: selectedTier,
                   selectedLangs: selectedLangs,
                   controller: controller,
                   surfaceColor: surfaceColor,
@@ -562,6 +590,9 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
 
                 // Generate Button (High Contrast White on Dark, Black Text on White)
                 _buildGenerateActionCard(
+                  context: context,
+                  video: video,
+                  selectedTier: selectedTier,
                   selectedLangs: selectedLangs,
                   priorityMode: priorityMode,
                   controller: controller,
@@ -620,11 +651,11 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF161618),
+                  color: AppColors.appBarSurface,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: isDone
-                        ? const Color(0xFF3F3F46)
+                        ? AppColors.bgElevated
                         : (isPaused
                             ? AppColors.warning.withValues(alpha: 0.5)
                             : AppColors.brand.withValues(alpha: 0.3)),
@@ -648,7 +679,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                           height: 48,
                           decoration: BoxDecoration(
                             color: isDone
-                                ? const Color(0xFF27272A)
+                                ? AppColors.bgSurface
                                 : (isPaused
                                     ? AppColors.warning.withValues(alpha: 0.15)
                                     : AppColors.brand.withValues(alpha: 0.12)),
@@ -703,10 +734,10 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                             vertical: 5,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF27272A),
+                            color: AppColors.bgSurface,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: const Color(0xFF3F3F46),
+                              color: AppColors.bgElevated,
                             ),
                           ),
                           child: Row(
@@ -740,9 +771,9 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF1E1E22),
+                        color: AppColors.bgSurface,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFF27272A)),
+                        border: Border.all(color: AppColors.bgSurface),
                       ),
                       child: Row(
                         children: [
@@ -777,8 +808,8 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                               color: isPaused
                                   ? AppColors.warning.withValues(alpha: 0.2)
                                   : (isDone
-                                      ? const Color(0xFF27272A)
-                                      : const Color(0xFF27272A)),
+                                      ? AppColors.bgSurface
+                                      : AppColors.bgSurface),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
@@ -830,7 +861,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                         value: progress > 0
                             ? (progress / 100.0).clamp(0.0, 1.0)
                             : null,
-                        backgroundColor: const Color(0xFF27272A),
+                        backgroundColor: AppColors.bgSurface,
                         valueColor: AlwaysStoppedAnimation<Color>(
                           isDone
                               ? Colors.white
@@ -866,7 +897,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
 
                     // Target Languages Generation Breakdown
                     if (controller.aiTargetLanguages.isNotEmpty) ...[
-                      const Divider(color: Color(0xFF27272A), height: 1),
+                      const Divider(color: AppColors.bgSurface, height: 1),
                       const SizedBox(height: 14),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -973,9 +1004,9 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                         vertical: 10,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF1E1E22),
+                        color: AppColors.bgSurface,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFF27272A)),
+                        border: Border.all(color: AppColors.bgSurface),
                       ),
                       child: const Row(
                         children: [
@@ -1027,7 +1058,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                               ),
                               style: OutlinedButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(vertical: 10),
-                                side: const BorderSide(color: Color(0xFF3F3F46)),
+                                side: const BorderSide(color: AppColors.bgElevated),
                                 foregroundColor: Colors.white,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
@@ -1058,7 +1089,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                               ),
                               style: OutlinedButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(vertical: 10),
-                                side: const BorderSide(color: Color(0xFF3F3F46)),
+                                side: const BorderSide(color: AppColors.bgElevated),
                                 foregroundColor: Colors.white,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
@@ -1144,14 +1175,14 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
   }) {
     final (Color badgeColor, Color badgeTextColor, String statusLabel, IconData iconData) = switch (status) {
       'completed' => (
-        const Color(0xFF27272A),
+        AppColors.bgSurface,
         Colors.white,
         'Ready',
         Icons.check_circle_rounded,
       ),
       'translating' => (
-        const Color(0xFF2563EB).withValues(alpha: 0.2),
-        const Color(0xFF60A5FA),
+        AppColors.info.withValues(alpha: 0.2),
+        AppColors.textLink,
         'Translating',
         Icons.translate_rounded,
       ),
@@ -1162,13 +1193,13 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
         Icons.av_timer_rounded,
       ),
       'transcribing' => (
-        const Color(0xFF27272A),
+        AppColors.bgSurface,
         Colors.white,
         'Transcribing',
         Icons.mic_rounded,
       ),
       _ => (
-        const Color(0xFF27272A),
+        AppColors.bgSurface,
         AppColors.textSecondary,
         'Queued',
         Icons.schedule_rounded,
@@ -1178,9 +1209,9 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E22),
+        color: AppColors.bgSurface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgSurface),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1224,10 +1255,10 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
   void _confirmAndCancelAIJob([BuildContext? context]) {
     Get.dialog<void>(
       AlertDialog(
-        backgroundColor: const Color(0xFF18181B),
+        backgroundColor: AppColors.bgPage,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: const BorderSide(color: Color(0xFF27272A)),
+          side: const BorderSide(color: AppColors.bgSurface),
         ),
         title: const Text(
           'Cancel Subtitle Generation?',
@@ -1282,7 +1313,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
           decoration: BoxDecoration(
             color: isComplete
                 ? Colors.white
-                : (isActive ? Colors.white : const Color(0xFF27272A)),
+                : (isActive ? Colors.white : AppColors.bgSurface),
             shape: BoxShape.circle,
           ),
           alignment: Alignment.center,
@@ -1325,10 +1356,250 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
   }
 
   // ===========================================================================
-  // 3. COST SUMMARY (Strict Zero-Charm Pricing Policy)
+  // 3. TIER SELECTION SECTION (Starter $0.50 vs Pro $0.75)
+  // ===========================================================================
+  Widget _buildTierSelectionSection({
+    required RxString selectedTier,
+    required Color surfaceColor,
+    required Color borderColor,
+    required Color textColor,
+    required Color textSecondaryColor,
+  }) {
+    return Obx(() {
+      final currentTier = selectedTier.value;
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.bgPage,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.bgSurface),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.layers_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Select Subtitle Tier',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Both tiers use AssemblyAI Universal 3.5 Pro (Global), Sarvam AI (Indic), and Google Cloud Chirp 2 (Long-tail) for transcription.',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth >= 550;
+                final starterCard = _buildTierCard(
+                  id: 'starter',
+                  name: 'Starter Subtitles',
+                  priceLabel: '\$0.50 / 10 min',
+                  addOnLabel: '+\$0.20 per additional language',
+                  badge: 'Starter',
+                  badgeColor: AppColors.bgSurface,
+                  badgeTextColor: Colors.white,
+                  modelsDescription:
+                      'Google Translation v3 + Gemini 2.5 Flash',
+                  featuresDescription:
+                      'Duration sync, reading pacing & standard cue formatting',
+                  isSelected: currentTier == 'starter',
+                  onTap: () => selectedTier.value = 'starter',
+                );
+
+                final proCard = _buildTierCard(
+                  id: 'pro',
+                  name: 'Pro Subtitles',
+                  priceLabel: '\$0.75 / 10 min',
+                  addOnLabel: '+\$0.30 per additional language',
+                  badge: 'Cinema-Grade',
+                  badgeColor: AppColors.brand,
+                  badgeTextColor: Colors.black, // High contrast: black on brand
+                  modelsDescription:
+                      'Google Translation v3 + Gemini 4 Argon',
+                  featuresDescription:
+                      'Frontier reasoning, cultural transcreation & precision timing',
+                  isSelected: currentTier == 'pro',
+                  onTap: () => selectedTier.value = 'pro',
+                );
+
+                if (isWide) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: starterCard),
+                      const SizedBox(width: 12),
+                      Expanded(child: proCard),
+                    ],
+                  );
+                } else {
+                  return Column(
+                    children: [
+                      starterCard,
+                      const SizedBox(height: 12),
+                      proCard,
+                    ],
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildTierCard({
+    required String id,
+    required String name,
+    required String priceLabel,
+    required String addOnLabel,
+    required String badge,
+    required Color badgeColor,
+    required Color badgeTextColor,
+    required String modelsDescription,
+    required String featuresDescription,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.bgSurface : AppColors.bgPage,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? Colors.white : AppColors.bgSurface,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    name,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: badgeColor,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    badge,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: badgeTextColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              priceLabel,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              addOnLabel,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Divider(color: AppColors.bgSurface, height: 1),
+            const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.auto_awesome_rounded,
+                  size: 14,
+                  color: Colors.white70,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    modelsDescription,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.check_circle_outline_rounded,
+                  size: 14,
+                  color: Colors.white70,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    featuresDescription,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // 4. COST SUMMARY (Strict Zero-Charm Pricing Policy)
   // ===========================================================================
   Widget _buildCostSummaryCard({
+    required BuildContext context,
     required Video? video,
+    required RxString selectedTier,
     required RxSet<String> selectedLangs,
     required SubtitlesController controller,
     required Color surfaceColor,
@@ -1343,14 +1614,22 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
               : 120);
 
       // Clean transparent pricing calculation
+      final currentChan = controller.currentChannel.value;
       final rawCost = ChannelWalletService.calculateAIFeatureCost(
         selectedFeatures: {'subtitles'},
         targetLanguages: selectedLangs.toList(),
         durationSeconds: durationSecs,
+        channel: currentChan,
+        subtitleTier: selectedTier.value,
       );
 
       // Enforce zero charm pricing / round transparent number display
-      final roundedCost = rawCost > 0 ? rawCost.ceilToDouble() : 0.0;
+      final roundedCost = rawCost > 0 ? rawCost : 0.0;
+      final bal = controller.spendableBalance.value?.totalSpendableBalance ?? 0.0;
+      final isInsufficient = controller.spendableBalance.value != null &&
+          selectedLangs.isNotEmpty &&
+          roundedCost > 0 &&
+          bal < roundedCost;
 
       return Container(
         padding: const EdgeInsets.all(16),
@@ -1383,7 +1662,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  '\$${roundedCost.toInt()}',
+                  '\$${rawCost.toStringAsFixed(2)}',
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -1395,6 +1674,28 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
             const SizedBox(height: 10),
             Divider(height: 1, color: borderColor),
             const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Tier: ${selectedTier.value == "pro" ? "Pro Subtitles (\$0.75 / 10m)" : "Starter Subtitles (\$0.50 / 10m)"}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  selectedTier.value == "pro" ? "Gemini 4 Argon" : "Gemini 2.5 Flash",
+                  style: TextStyle(fontSize: 12, color: textSecondaryColor),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
@@ -1412,7 +1713,87 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(
+                  Icons.account_balance_wallet_outlined,
+                  size: 16,
+                  color: isInsufficient ? AppColors.error : textSecondaryColor,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Spendable Balance:',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isInsufficient ? AppColors.error : textSecondaryColor,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '\$${bal.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: isInsufficient ? AppColors.error : Colors.white,
+                  ),
+                ),
+                const Spacer(),
+                if (controller.currentChannel.value != null)
+                  GestureDetector(
+                    onTap: () {
+                      ChannelWalletTopupSheet.show(
+                        context,
+                        channel: controller.currentChannel.value!,
+                        onTopupSuccess: controller.refreshSpendableBalance,
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.brand,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        '+ Add Money',
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            if (isInsufficient) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, size: 14, color: AppColors.error),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Insufficient funds (\$${(roundedCost - bal).toStringAsFixed(2)} needed). Please add money to your wallet to proceed.',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.error,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
             Row(
               children: [
                 const Icon(
@@ -1436,15 +1817,36 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
   }
 
   // ===========================================================================
-  // 4. GENERATE ACTION CARD
+  // 5. GENERATE ACTION CARD
   // ===========================================================================
   Widget _buildGenerateActionCard({
+    required BuildContext context,
+    required Video? video,
+    required RxString selectedTier,
     required RxSet<String> selectedLangs,
     required RxString priorityMode,
     required SubtitlesController controller,
   }) {
     return Obx(() {
       final isReady = selectedLangs.isNotEmpty;
+      final durationSecs = video?.durationSeconds ??
+          (controller.videoDuration.value.inSeconds > 0
+              ? controller.videoDuration.value.inSeconds
+              : 120);
+      final currentChan = controller.currentChannel.value;
+      final rawCost = ChannelWalletService.calculateAIFeatureCost(
+        selectedFeatures: {'subtitles'},
+        targetLanguages: selectedLangs.toList(),
+        durationSeconds: durationSecs,
+        channel: currentChan,
+        subtitleTier: selectedTier.value,
+      );
+      final roundedCost = rawCost > 0 ? rawCost : 0.0;
+      final bal = controller.spendableBalance.value?.totalSpendableBalance ?? 0.0;
+      final isInsufficient = controller.spendableBalance.value != null &&
+          isReady &&
+          roundedCost > 0 &&
+          bal < roundedCost;
 
       return SizedBox(
         width: double.infinity,
@@ -1452,21 +1854,40 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
         child: ElevatedButton.icon(
           onPressed: isReady
               ? () {
+                  if (isInsufficient) {
+                    AppSnackbar.warning(
+                      'Generating subtitles requires \$${roundedCost.toStringAsFixed(2)}, but channel wallet has \$${bal.toStringAsFixed(2)}. Please add money to your wallet.',
+                      title: 'Insufficient Balance',
+                    );
+                    if (controller.currentChannel.value != null) {
+                      ChannelWalletTopupSheet.show(
+                        context,
+                        channel: controller.currentChannel.value!,
+                        onTopupSuccess: controller.refreshSpendableBalance,
+                      );
+                    }
+                    return;
+                  }
                   controller.triggerSubtitlesGeneration(
                     targetLanguages: selectedLangs.toList(),
                     priorityMode: priorityMode.value,
+                    subtitleTier: selectedTier.value,
                   );
                 }
               : null,
-          icon: const Icon(
-            Icons.auto_awesome_rounded,
+          icon: Icon(
+            isInsufficient
+                ? Icons.account_balance_wallet_rounded
+                : Icons.auto_awesome_rounded,
             size: 18,
             color: Colors.black,
           ),
           label: Text(
-            isReady
-                ? 'Generate Subtitles (${selectedLangs.length} Languages)'
-                : 'Generate Subtitles (Select Languages)',
+            isInsufficient
+                ? 'Insufficient Funds — Add Money (\$${(roundedCost - bal).toStringAsFixed(2)})'
+                : (isReady
+                    ? 'Generate Subtitles (${selectedLangs.length} Languages)'
+                    : 'Generate Subtitles (Select Languages)'),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
@@ -1503,9 +1924,9 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgSurface),
       ),
       child: Row(
         children: [
@@ -1519,7 +1940,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
               errorWidget: (_, _, _) => Container(
                 width: 88,
                 height: 52,
-                color: const Color(0xFF1E1E22),
+                color: AppColors.bgSurface,
                 child: const Icon(
                   Icons.video_library_rounded,
                   color: Colors.white,
@@ -1560,13 +1981,13 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.access_time_rounded, size: 11, color: Color(0xFFA1A1AA)),
+                          const Icon(Icons.access_time_rounded, size: 11, color: AppColors.textSecondary),
                           const SizedBox(width: 4),
                           Text(
                             video.duration,
                             style: const TextStyle(
                               fontSize: 11,
-                              color: Color(0xFFA1A1AA),
+                              color: AppColors.textSecondary,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -1617,7 +2038,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E22),
+          color: AppColors.bgSurface,
           borderRadius: BorderRadius.circular(6),
           border: Border.all(color: const Color(0xFF2E2E33)),
         ),
@@ -1625,7 +2046,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
           label,
           style: const TextStyle(
             fontSize: 11,
-            color: Color(0xFFA1A1AA),
+            color: AppColors.textSecondary,
             fontWeight: FontWeight.w500,
           ),
         ),

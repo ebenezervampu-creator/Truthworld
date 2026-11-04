@@ -49,6 +49,15 @@ void main() {
       expect(ContentValidationMixin.formatDurationMinutesSeconds(1200), equals('20 min'));
     });
 
+    test('Standard channel: Uploading 7s video or audio with 0m uploaded today is VALID', () {
+      final res = ContentValidator.validateChannelVideoUpload(
+        standardChannel,
+        durationSeconds: 7, // 7 seconds (short media allowed)
+      );
+      expect(res.isValid, isTrue);
+      expect(res.message, equals('Valid'));
+    });
+
     test('Standard channel: Uploading 7m video with 0m uploaded today is VALID', () {
       final res = ContentValidator.validateChannelVideoUpload(
         standardChannel,
@@ -119,6 +128,96 @@ void main() {
       expect(standardChannel.maxVideoDurationSeconds, equals(600));
       expect(customChannel.maxDailyVideoDurationSeconds, equals(86400));
       expect(customChannel.maxVideoDurationSeconds, equals(86400));
+    });
+
+    test('Standard channel with Admin increased quota (30 min / 1800s): Allows longer uploads', () {
+      final increasedChannel = standardChannel.copyWith(
+        customDailyVideoDurationSeconds: 30 * 60, // 30 minutes = 1800s
+        customMaxVideoDurationSeconds: 30 * 60,
+        quotaIncreasedBy: 'admin@truthworld.in',
+        quotaIncreaseReason: 'Documentary creator expansion',
+      );
+
+      expect(increasedChannel.maxDailyVideoDurationSeconds, equals(1800));
+      expect(increasedChannel.maxVideoDurationSeconds, equals(1800));
+      expect(increasedChannel.hasCustomQuota, isTrue);
+
+      // 1. Single 15-minute video is now VALID (was blocked under 10m default cap)
+      final res15m = ContentValidator.validateChannelVideoUpload(
+        increasedChannel,
+        durationSeconds: 15 * 60,
+      );
+      expect(res15m.isValid, isTrue);
+      expect(res15m.message, equals('Valid'));
+
+      // 2. Uploading 15m when 10m already uploaded is VALID (10m + 15m = 25m <= 30m)
+      final resCombine = ContentValidator.validateChannelVideoUpload(
+        increasedChannel,
+        durationSeconds: 15 * 60,
+        dailyUploadedDurationSeconds: 10 * 60,
+      );
+      expect(resCombine.isValid, isTrue);
+
+      // 3. Uploading 25m when 10m already uploaded is BLOCKED (10m + 25m = 35m > 30m)
+      final resExceed = ContentValidator.validateChannelVideoUpload(
+        increasedChannel,
+        durationSeconds: 25 * 60,
+        dailyUploadedDurationSeconds: 10 * 60,
+      );
+      expect(resExceed.isValid, isFalse);
+      expect(resExceed.message, contains('Daily limit exceeded'));
+      expect(resExceed.message, contains('30 min per day'));
+
+      // 4. Single 35m video is BLOCKED (> 30m max single video)
+      final resSingleExceed = ContentValidator.validateChannelVideoUpload(
+        increasedChannel,
+        durationSeconds: 35 * 60,
+      );
+      expect(resSingleExceed.isValid, isFalse);
+      expect(resSingleExceed.message, contains('Standard channel video duration cannot exceed 30 min (1800 seconds)'));
+    });
+
+    test('Standard channel: Resetting custom quota restores standard 10-minute limits', () {
+      final increasedChannel = standardChannel.copyWith(
+        customDailyVideoDurationSeconds: 45 * 60,
+        quotaIncreasedBy: 'admin@truthworld.in',
+      );
+      expect(increasedChannel.hasCustomQuota, isTrue);
+
+      final resetChannel = increasedChannel.copyWith(clearCustomQuota: true);
+      expect(resetChannel.hasCustomQuota, isFalse);
+      expect(resetChannel.maxDailyVideoDurationSeconds, equals(600));
+      expect(resetChannel.maxVideoDurationSeconds, equals(600));
+      expect(resetChannel.customDailyVideoDurationSeconds, isNull);
+    });
+
+    test('Channel serialization handles customDailyUploadLimitMinutes and quota audit info', () {
+      final channelMap = {
+        'id': 'std_quota_test',
+        'name': 'Quota Creator',
+        'handle': '@quotacreator',
+        'description': 'Channel with increased quota',
+        'avatarUrl': 'https://example.com/avatar.jpg',
+        'bannerUrl': 'https://example.com/banner.jpg',
+        'ownerId': 'user_quota_1',
+        'channelType': 'standard',
+        'customDailyUploadLimitMinutes': 25, // 25 minutes
+        'quotaIncreasedBy': 'admin@truthworld.in',
+        'quotaIncreaseReason': 'Verified partner request',
+      };
+
+      final channel = Channel.fromMap(channelMap, 'std_quota_test');
+      expect(channel.customDailyVideoDurationSeconds, equals(25 * 60)); // 1500 seconds
+      expect(channel.maxDailyVideoDurationSeconds, equals(1500));
+      expect(channel.hasCustomQuota, isTrue);
+      expect(channel.quotaIncreasedBy, equals('admin@truthworld.in'));
+      expect(channel.quotaIncreaseReason, equals('Verified partner request'));
+
+      final serialized = channel.toMap();
+      expect(serialized['customDailyVideoDurationSeconds'], equals(1500));
+      expect(serialized['customDailyUploadLimitMinutes'], equals(25));
+      expect(serialized['hasCustomQuota'], isTrue);
+      expect(serialized['quotaIncreasedBy'], equals('admin@truthworld.in'));
     });
   });
 }

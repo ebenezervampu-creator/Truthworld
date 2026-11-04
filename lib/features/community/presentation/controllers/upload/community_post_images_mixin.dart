@@ -84,10 +84,14 @@ mixin CommunityPostImagesMixin on CommunityPostUploadStateBase {
       final ref = storage.ref('community_images/$fileName');
 
       final currentUid = auth.currentUser?.uid;
+      final chId = selectedChannel.value?.id ?? '';
+      final isTrustedChannel =
+          selectedChannel.value?.trustedModerationBypass == true;
       final metadata = SettableMetadata(
         contentType: 'image/$fileExt',
         customMetadata: {
           'uploaderId': currentUid ?? '',
+          'channelId': chId,
         },
       );
       final uploadTask = ref.putData(await file.xFile.readAsBytes(), metadata);
@@ -134,6 +138,12 @@ mixin CommunityPostImagesMixin on CommunityPostUploadStateBase {
       }
 
       // 4. Content Moderation / Verification (Async)
+      if (isTrustedChannel) {
+        moderationStatuses[index] = 'APPROVED';
+        moderationReasons[index] = 'Trusted channel exemption';
+        return;
+      }
+
       startModerationCheck(index, fileName);
     } catch (e, stackTrace) {
       ErrorHandler.log(

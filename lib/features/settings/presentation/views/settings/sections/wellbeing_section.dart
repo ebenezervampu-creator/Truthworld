@@ -76,6 +76,15 @@ class WellbeingSection extends StatelessWidget {
               )
               .toList(),
         ),
+        actions: [
+          TextButton(
+            onPressed: Get.back,
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -479,18 +488,17 @@ class WellbeingSection extends StatelessWidget {
             if (isEnabled)
               TextButton(
                 onPressed: () {
-                  if (ctrl.verifyParentalPin(pinCtrl.text.trim())) {
+                  final pin = pinCtrl.text.trim();
+                  if (pin.length != 4) {
+                    AppSnackbar.warning('Please enter your 4-digit PIN.');
+                    return;
+                  }
+                  if (ctrl.verifyParentalPin(pin)) {
                     ctrl.disableParentalPin();
                     Get.back();
-                    AppSnackbar.info(
-                      'Restricted mode turned off.',
-                      title: 'Parental Controls Disabled',
-                    );
+                    AppSnackbar.info('Restricted mode turned off.');
                   } else {
-                    AppSnackbar.warning(
-                      'The PIN entered is invalid.',
-                      title: 'Incorrect PIN',
-                    );
+                    AppSnackbar.warning('The PIN entered is invalid.');
                   }
                 },
                 child: const Text(
@@ -501,14 +509,16 @@ class WellbeingSection extends StatelessWidget {
             else
               TextButton(
                 onPressed: () {
-                  if (pinCtrl.text.trim().length == 4) {
-                    ctrl.setParentalPin(pinCtrl.text.trim());
-                    Get.back();
-                    AppSnackbar.success(
-                      'Parental control PIN enabled successfully.',
-                      title: 'PIN Set',
-                    );
+                  final pin = pinCtrl.text.trim();
+                  if (pin.length != 4) {
+                    AppSnackbar.warning('Please enter a 4-digit PIN.');
+                    return;
                   }
+                  ctrl.setParentalPin(pin);
+                  Get.back();
+                  AppSnackbar.success(
+                    'Parental control PIN enabled successfully.',
+                  );
                 },
                 child: Text(
                   'Save PIN',

@@ -125,7 +125,7 @@ class AdReportsTab extends StatelessWidget {
                       return Container(
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF181818),
+                          color: AppColors.bgPage,
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
                             color: isResolved

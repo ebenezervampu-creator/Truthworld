@@ -7,19 +7,20 @@ import 'package:http/http.dart' as http;
 import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 
-/// Mixin managing moderation modes (Direct Admin Approval vs Google Cloud Vision)
+/// Mixin managing moderation modes (Direct Admin Approval vs Google Cloud Vision / Gemini AI)
 /// and bypass switches for TruthWorld Admin.
 mixin AdminModerationModesMixin on GetxController {
+  final RxBool rxBypassAll = false.obs;
+  final RxBool rxBypassVideos = false.obs;
+  final RxBool rxBypassChannels = false.obs;
+  final RxBool rxBypassAds = false.obs;
+  final RxBool rxBypassVideoThumbnails = false.obs;
   final RxBool rxBypassChannelBanners = false.obs;
   final RxBool rxBypassChannelAvatars = false.obs;
-  final RxBool rxBypassVideoThumbnails = false.obs;
   final RxBool rxBypassCommunityPosts = false.obs;
   final RxBool rxBypassTopicThumbnails = false.obs;
   final RxBool rxBypassTopics = false.obs;
   final RxBool rxBypassPlaylistThumbnails = false.obs;
-  final RxBool rxBypassVideos = false.obs;
-  final RxBool rxBypassChannels = false.obs;
-  final RxBool rxBypassAds = false.obs;
   final RxBool isLoadingModerationModes = false.obs;
   final RxBool isTogglingModerationMode = false.obs;
 
@@ -83,6 +84,32 @@ mixin AdminModerationModesMixin on GetxController {
           data['adCampaigns'] == true ||
           data['advertiser_campaigns'] == true;
     }
+
+    final isMasterOn = data['all'] == true || data['master'] == true;
+    if (isMasterOn) {
+      rxBypassAll.value = true;
+      rxBypassVideos.value = true;
+      rxBypassChannels.value = true;
+      rxBypassAds.value = true;
+      rxBypassVideoThumbnails.value = true;
+      rxBypassChannelBanners.value = true;
+      rxBypassChannelAvatars.value = true;
+      rxBypassCommunityPosts.value = true;
+      rxBypassTopicThumbnails.value = true;
+      rxBypassTopics.value = true;
+      rxBypassPlaylistThumbnails.value = true;
+    } else {
+      final allCategoriesOn = rxBypassVideos.value &&
+          rxBypassChannels.value &&
+          rxBypassAds.value &&
+          rxBypassVideoThumbnails.value &&
+          rxBypassChannelBanners.value &&
+          rxBypassChannelAvatars.value &&
+          rxBypassCommunityPosts.value &&
+          rxBypassTopicThumbnails.value &&
+          rxBypassPlaylistThumbnails.value;
+      rxBypassAll.value = allCategoriesOn;
+    }
   }
 
   Future<void> fetchFallbackModerationModes() async {
@@ -101,6 +128,11 @@ mixin AdminModerationModesMixin on GetxController {
   }
 
   Future<bool> toggleModerationMode(String modeKey, bool value) async {
+    if (modeKey == 'all' || modeKey == 'master') {
+      await toggleAllMediaModes(value);
+      return true;
+    }
+
     // 0ms Instant UI update for the specific switch
     switch (modeKey) {
       case 'thumbnails':
@@ -118,12 +150,14 @@ mixin AdminModerationModesMixin on GetxController {
       case 'topics':
       case 'topicThumbnails':
         rxBypassTopicThumbnails.value = value;
+        rxBypassTopics.value = value;
       case 'playlists':
       case 'playlistThumbnails':
         rxBypassPlaylistThumbnails.value = value;
       case 'videos':
         rxBypassVideos.value = value;
       case 'channels':
+      case 'channelDetails':
         rxBypassChannels.value = value;
       case 'ads':
       case 'campaigns':
@@ -132,12 +166,28 @@ mixin AdminModerationModesMixin on GetxController {
         rxBypassAds.value = value;
     }
 
+    final allCategoriesOn = rxBypassVideos.value &&
+        rxBypassChannels.value &&
+        rxBypassAds.value &&
+        rxBypassVideoThumbnails.value &&
+        rxBypassChannelBanners.value &&
+        rxBypassChannelAvatars.value &&
+        rxBypassCommunityPosts.value &&
+        rxBypassTopicThumbnails.value &&
+        rxBypassPlaylistThumbnails.value;
+    rxBypassAll.value = allCategoriesOn;
+
     try {
       final updateMap = <String, dynamic>{
         modeKey: value,
         'updatedAt': FieldValue.serverTimestamp(),
         'updatedBy': FirebaseAuth.instance.currentUser?.email ?? 'admin',
       };
+
+      if (!allCategoriesOn) {
+        updateMap['all'] = false;
+        updateMap['master'] = false;
+      }
 
       if (modeKey == 'thumbnails' || modeKey == 'videoThumbnails') {
         updateMap['thumbnails'] = value;
@@ -163,6 +213,9 @@ mixin AdminModerationModesMixin on GetxController {
         updateMap['playlists'] = value;
         updateMap['playlist_thumbnails'] = value;
         updateMap['playlistThumbnails'] = value;
+      } else if (modeKey == 'channels' || modeKey == 'channelDetails') {
+        updateMap['channels'] = value;
+        updateMap['channelDetails'] = value;
       } else if (modeKey == 'ads' ||
           modeKey == 'campaigns' ||
           modeKey == 'adCampaigns' ||
@@ -223,15 +276,28 @@ mixin AdminModerationModesMixin on GetxController {
   }
 
   Future<void> toggleAllMediaModes(bool enableDirectApproval) async {
+    rxBypassAll.value = enableDirectApproval;
+    rxBypassVideos.value = enableDirectApproval;
+    rxBypassChannels.value = enableDirectApproval;
+    rxBypassAds.value = enableDirectApproval;
     rxBypassVideoThumbnails.value = enableDirectApproval;
     rxBypassChannelBanners.value = enableDirectApproval;
     rxBypassChannelAvatars.value = enableDirectApproval;
     rxBypassCommunityPosts.value = enableDirectApproval;
     rxBypassTopicThumbnails.value = enableDirectApproval;
+    rxBypassTopics.value = enableDirectApproval;
     rxBypassPlaylistThumbnails.value = enableDirectApproval;
-    rxBypassAds.value = enableDirectApproval;
 
     final updateMap = <String, dynamic>{
+      'all': enableDirectApproval,
+      'master': enableDirectApproval,
+      'videos': enableDirectApproval,
+      'channels': enableDirectApproval,
+      'channelDetails': enableDirectApproval,
+      'ads': enableDirectApproval,
+      'campaigns': enableDirectApproval,
+      'adCampaigns': enableDirectApproval,
+      'advertiser_campaigns': enableDirectApproval,
       'thumbnails': enableDirectApproval,
       'videos_thumbnails': enableDirectApproval,
       'videoThumbnails': enableDirectApproval,
@@ -250,10 +316,6 @@ mixin AdminModerationModesMixin on GetxController {
       'playlists': enableDirectApproval,
       'playlist_thumbnails': enableDirectApproval,
       'playlistThumbnails': enableDirectApproval,
-      'ads': enableDirectApproval,
-      'campaigns': enableDirectApproval,
-      'adCampaigns': enableDirectApproval,
-      'advertiser_campaigns': enableDirectApproval,
       'updatedAt': FieldValue.serverTimestamp(),
       'updatedBy': FirebaseAuth.instance.currentUser?.email ?? 'admin',
     };
@@ -287,6 +349,8 @@ mixin AdminModerationModesMixin on GetxController {
               'Authorization': 'Bearer $idToken',
             },
             body: jsonEncode({
+              'modeKey': 'all',
+              'value': enableDirectApproval,
               'modes': updateMap,
             }),
           );

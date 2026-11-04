@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/widgets/channel_verified_badge.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -75,9 +76,13 @@ class ModernVideoListCard extends StatelessWidget {
                 child: CachedNetworkImage(
                   imageUrl: video.thumbnailUrl.replaceAll(' ', '%20'),
                   fit: BoxFit.cover,
-                  memCacheWidth: (thumbnailWidth *
-                          MediaQuery.of(context).devicePixelRatio)
-                      .toInt(),
+                  memCacheWidth: kIsWeb
+                      ? null
+                      : (thumbnailWidth *
+                              MediaQuery.of(context).devicePixelRatio)
+                          .toInt()
+                          .clamp(640, 1920),
+                  filterQuality: FilterQuality.medium,
                   placeholder: (context, url) => Shimmer.fromColors(
                     baseColor: colorScheme.surfaceContainerHighest,
                     highlightColor:
@@ -199,20 +204,31 @@ class ModernVideoListCard extends StatelessWidget {
             ),
             SizedBox(width: context.layoutSpacing / 2),
             Expanded(
-              child: Text(
-                video.channelName,
-                style: Responsive.isMobile(context.screenWidth)
-                    ? AppTextStyles.channelName.copyWith(
-                        fontSize: (AppTextStyles.channelName.fontSize ?? 12) *
-                            context.fontScale,
-                      )
-                    : AppTextStyles.channelNameLarge.copyWith(
-                        fontSize:
-                            (AppTextStyles.channelNameLarge.fontSize ?? 14) *
-                            context.fontScale,
-                      ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      video.channelName,
+                      style: Responsive.isMobile(context.screenWidth)
+                          ? AppTextStyles.channelName.copyWith(
+                              fontSize: (AppTextStyles.channelName.fontSize ?? 12) *
+                                  context.fontScale,
+                            )
+                          : AppTextStyles.channelNameLarge.copyWith(
+                              fontSize:
+                                  (AppTextStyles.channelNameLarge.fontSize ?? 14) *
+                                  context.fontScale,
+                            ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (video.showVerifiedBadge) ...[
+                    const SizedBox(width: 4),
+                    const ChannelVerifiedBadge(size: 13),
+                  ],
+                ],
               ),
             ),
           ],
@@ -352,10 +368,13 @@ class ModernVideoGridCard extends StatelessWidget {
             child: CachedNetworkImage(
               imageUrl: video.thumbnailUrl.replaceAll(' ', '%20'),
               fit: BoxFit.cover,
-              memCacheWidth:
-                  (constraints.maxWidth *
+              memCacheWidth: kIsWeb
+                  ? null
+                  : (constraints.maxWidth *
                           MediaQuery.of(context).devicePixelRatio)
-                      .toInt(),
+                      .toInt()
+                      .clamp(640, 1920),
+              filterQuality: FilterQuality.medium,
               placeholder: (context, url) => Container(
                 color: colorScheme.surfaceContainerHighest.withValues(
                   alpha: 0.3,

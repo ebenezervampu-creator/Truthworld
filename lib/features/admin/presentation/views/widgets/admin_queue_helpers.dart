@@ -88,6 +88,11 @@ class AdminStatusBadge extends StatelessWidget {
         txt == 'FAILED' ||
         txt == 'RESOLVED_REJECTED') {
       color = AppColors.error;
+    } else if (txt.contains('HOLD') ||
+        txt == 'ONHOLD' ||
+        txt == 'ON_HOLD' ||
+        txt == 'HELD') {
+      color = AppColors.warning;
     } else if (txt.contains('PENDING') ||
         txt.contains('FLAGGED') ||
         txt.contains('VERIFICATION') ||
@@ -137,7 +142,7 @@ class AdminSafeSearchChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF212121),
+        color: AppColors.bgSurface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: scoreColor, width: 1.5),
       ),

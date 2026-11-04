@@ -62,14 +62,30 @@ abstract class CommentsStateBase extends BaseController
   @override
   void onInit() {
     super.onInit();
-    if (Get.arguments != null) {
-      if (Get.arguments['commentId'] != null) {
-        targetCommentId.value = Get.arguments['commentId'] as String?;
-      }
-      if (Get.arguments['replyId'] != null) {
-        targetReplyId.value = Get.arguments['replyId'] as String?;
-      }
+    final argCommentId =
+        Get.arguments is Map ? (Get.arguments['commentId'] as String?) : null;
+    final paramCommentId = Get.parameters['commentId'];
+    final resolvedCommentId = (argCommentId != null && argCommentId.isNotEmpty)
+        ? argCommentId
+        : ((paramCommentId != null && paramCommentId.isNotEmpty)
+            ? paramCommentId
+            : null);
+    if (resolvedCommentId != null) {
+      targetCommentId.value = resolvedCommentId;
     }
+
+    final argReplyId =
+        Get.arguments is Map ? (Get.arguments['replyId'] as String?) : null;
+    final paramReplyId = Get.parameters['replyId'];
+    final resolvedReplyId = (argReplyId != null && argReplyId.isNotEmpty)
+        ? argReplyId
+        : ((paramReplyId != null && paramReplyId.isNotEmpty)
+            ? paramReplyId
+            : null);
+    if (resolvedReplyId != null) {
+      targetReplyId.value = resolvedReplyId;
+    }
+
     if (video != null && video!.id.isNotEmpty && !isOffline) {
       initializeComments();
     }

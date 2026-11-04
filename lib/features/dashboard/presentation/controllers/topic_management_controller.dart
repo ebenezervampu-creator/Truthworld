@@ -13,10 +13,11 @@ import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/services/feedback/feedback_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/video/presentation/views/upload/widgets/topic_selection/topic_selection_host.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:uuid/uuid.dart';
 
-class TopicManagementController extends BaseController {
+class TopicManagementController extends BaseController implements TopicSelectionHost {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
@@ -32,23 +33,60 @@ class TopicManagementController extends BaseController {
     activeFilterMode.value = mode;
   }
 
-  // Compatibility getters for TopicSelectionBottomSheet
+  // TopicSelectionHost implementations
+  @override
   RxList<Topic> get availableTopics => topicsList;
+  @override
   RxBool get isTopicsLoading => rxIsLoading;
+  @override
   RxString get topicSearchQuery => searchQuery;
 
+  @override
   void selectTopic(String id) {
     selectedTopicId.value = id;
   }
 
-  void fetchAvailableTopics() {}
+  @override
+  bool isTopicSelected(String key) => selectedTopicId.value == key;
+
+  @override
+  void toggleTopicSelection(Topic topic) {
+    final key = topic.slug.isNotEmpty ? topic.slug : topic.id;
+    if (selectedTopicId.value == key) {
+      selectedTopicId.value = '';
+    } else {
+      selectedTopicId.value = key;
+    }
+  }
+
+  @override
+  int get selectedOwnTopicsCount => 0;
+
+  @override
+  int get selectedPublicTopicsCount => 0;
+
+  @override
+  List<dynamic>? getRankedTopicsForCurrentVideo() => null;
+
+  @override
+  bool isOwnTopic(Topic topic) => true;
+
+  @override
+  Future<void> fetchAvailableTopics() async {}
+
+  @override
+  RxList<String>? get selectedTopicIds => null;
+  @override
+  TextEditingController? get titleController => null;
+  @override
+  RxString? get selectedCategory => null;
 
   /// Computed Filtered Topics based on search query
   List<Topic> get filteredTopics {
     final query = searchQuery.value.trim().toLowerCase();
     if (query.isEmpty) return topicsList;
     return topicsList.where((topic) {
-      return topic.title.toLowerCase().contains(query) ||
+      return topic.name.toLowerCase().contains(query) ||
           topic.handle.toLowerCase().contains(query) ||
           topic.description.toLowerCase().contains(query) ||
           topic.category.toLowerCase().contains(query);
@@ -220,16 +258,28 @@ class TopicManagementController extends BaseController {
 
   Future<void> createTopic({
     required String channelId,
-    required String title,
     required String handle,
     required String description,
     required String category,
     required List<String> selectedVideoIds,
+    String? name,
+    String? title,
     TopicVisibilityType visibilityType = TopicVisibilityType.public,
     String? accessCode,
     String? thumbnailUrl,
   }) async {
     try {
+      final topicName = (name != null && name.trim().isNotEmpty)
+          ? name.trim()
+          : (title?.trim() ?? '');
+      if (topicName.isEmpty) {
+        AppSnackbar.warning(
+          'Topic name is required.',
+          title: 'Name Required',
+        );
+        throw Exception('Topic name is required');
+      }
+
       // 0. Validate at least 1 video is selected
       if (selectedVideoIds.isEmpty) {
         AppSnackbar.warning(
@@ -281,7 +331,7 @@ class TopicManagementController extends BaseController {
         throw Exception('Topic handle is already taken');
       }
 
-      var slug = title
+      var slug = topicName
           .toLowerCase()
           .replaceAll(RegExp(r'[^a-z0-9\s-]'), '')
           .replaceAll(RegExp(r'\s+'), '-');
@@ -298,10 +348,10 @@ class TopicManagementController extends BaseController {
 
       if (existingSlug.docs.isNotEmpty) {
         AppSnackbar.warning(
-          'A topic with this title already exists. Please choose a different title.',
-          title: 'Title Taken',
+          'A topic with this name already exists. Please choose a different name.',
+          title: 'Name Taken',
         );
-        throw Exception('Topic with this title already exists');
+        throw Exception('Topic with this name already exists');
       }
 
       final finalSlug = slug;
@@ -323,7 +373,8 @@ class TopicManagementController extends BaseController {
 
       final topic = Topic(
         id: newTopicRef.id,
-        title: title.trim(),
+        name: topicName,
+        title: topicName,
         slug: finalSlug,
         handle: finalHandle,
         handleLowercase: finalHandleLowercase,
@@ -415,16 +466,21 @@ class TopicManagementController extends BaseController {
 
   Future<bool> updateTopic({
     required Topic topic,
-    required String title,
     required String description,
     required String category,
     required List<String> selectedVideoIds,
     required TopicVisibilityType visibilityType,
+    String? name,
+    String? title,
     String? accessCode,
     String? thumbnailUrl,
     bool showSuccessFeedback = false,
   }) async {
     try {
+      final topicName = (name != null && name.trim().isNotEmpty)
+          ? name.trim()
+          : ((title != null && title.trim().isNotEmpty) ? title.trim() : topic.name);
+
       if (selectedVideoIds.isEmpty) {
         AppSnackbar.warning(
           'A topic must contain at least 1 video.',
@@ -439,7 +495,8 @@ class TopicManagementController extends BaseController {
       final newApproved = wasRejected ? false : topic.geminiApproved;
 
       final updatedTopic = topic.copyWith(
-        title: title,
+        name: topicName,
+        title: topicName,
         description: description,
         category: category,
         thumbnailUrl: thumbnailUrl ?? topic.thumbnailUrl,
@@ -455,15 +512,30 @@ class TopicManagementController extends BaseController {
         moderationReason: wasRejected ? '' : topic.moderationReason,
       );
 
+      final updateData = <String, dynamic>{
+        'name': topicName,
+        'title': topicName,
+        'description': description,
+        'category': category,
+        if (thumbnailUrl != null || topic.thumbnailUrl != null)
+          'thumbnailUrl': thumbnailUrl ?? topic.thumbnailUrl,
+        'visibilityType': visibilityType.toJson(),
+        if (visibilityType == TopicVisibilityType.private)
+          'accessCode': accessCode
+        else
+          'accessCode': FieldValue.delete(),
+        'videoCount': selectedVideoIds.length,
+        'featuredVideoIds': selectedVideoIds,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'status': newStatus,
+        'geminiApproved': newApproved ?? false,
+        if (wasRejected) 'moderationReason': FieldValue.delete(),
+      };
+
       final batch = _firestore.batch();
       batch.update(
         _firestore.collection(FirestoreCollections.topics).doc(topic.id),
-        {
-          ...updatedTopic.toMap(),
-          'status': newStatus,
-          'geminiApproved': newApproved ?? false,
-          if (wasRejected) 'moderationReason': FieldValue.delete(),
-        },
+        updateData,
       );
 
       final currentLinkedVideos = await fetchTopicVideos(topic.slug);
@@ -599,7 +671,7 @@ class TopicManagementController extends BaseController {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Are you sure you want to move "${topic.title}" to Trash?',
+              'Are you sure you want to move "${topic.name}" to Trash?',
               style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,

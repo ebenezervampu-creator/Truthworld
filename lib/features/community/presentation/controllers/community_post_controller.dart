@@ -9,6 +9,7 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
+import 'package:truthworld/features/community/data/models/poll_model.dart';
 import 'package:truthworld/features/community/presentation/controllers/community_interaction_cache.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_recommendations_controller.dart';
@@ -117,6 +118,10 @@ class CommunityPostController extends BaseController with ContentValidationMixin
 
   late final Rx<CommunityPostReactionState> reactionState;
   final RxInt commentCount = 0.obs;
+  late final RxBool showLikeCount;
+  late final RxBool showDislikeCount;
+  late final Rxn<PollModel> poll;
+  final RxBool isDeleted = false.obs;
   final RxBool isSaved = false.obs;
   final RxBool isHidden = false.obs;
   final RxBool isPostHiddenInFeed = false.obs;
@@ -140,6 +145,11 @@ class CommunityPostController extends BaseController with ContentValidationMixin
     final dislikedBy = List<String>.from(post.dislikedBy);
     final uid = currentUid;
 
+    showLikeCount = post.showLikeCount.obs;
+    showDislikeCount = post.showDislikeCount.obs;
+    poll = Rxn<PollModel>(post.poll);
+    isDeleted.value = post.isDeleted;
+
     reactionState = CommunityPostReactionState(
       likes: post.likes,
       dislikes: post.dislikes,
@@ -153,6 +163,23 @@ class CommunityPostController extends BaseController with ContentValidationMixin
 
     _checkSavedStatus();
     _checkHiddenStatus();
+
+    if (Get.isRegistered<AuthService>()) {
+      ever(AuthService.to.currentUser, (user) {
+        final newUid = user?.uid;
+        final current = reactionState.value;
+        reactionState.value = CommunityPostReactionState(
+          likes: current.likes,
+          dislikes: current.dislikes,
+          likedBy: current.likedBy,
+          dislikedBy: current.dislikedBy,
+          isLiked: newUid != null && current.likedBy.contains(newUid),
+          isDisliked: newUid != null && current.dislikedBy.contains(newUid),
+        );
+        _checkSavedStatus();
+        _checkHiddenStatus();
+      });
+    }
   }
 
   @override
@@ -204,7 +231,11 @@ class CommunityPostController extends BaseController with ContentValidationMixin
   Future<void> toggleLike() async {
     final uid = currentUid;
     if (uid == null) {
-      showWarning('Please sign in to like posts.');
+      AppSnackbar.warning(
+        'Please sign in to like posts.',
+        actionLabel: 'SIGN IN',
+        onAction: () => AuthService.to.triggerPlatformSignIn(),
+      );
       return;
     }
 
@@ -253,17 +284,21 @@ class CommunityPostController extends BaseController with ContentValidationMixin
 
       if (previousState.isLiked && !nextState.isLiked) {
         updates['likes'] = FieldValue.increment(-1);
+        updates['likedBy'] = FieldValue.arrayRemove([uid]);
         updates['likedby'] = FieldValue.arrayRemove([uid]);
       } else if (!previousState.isLiked && nextState.isLiked) {
         updates['likes'] = FieldValue.increment(1);
+        updates['likedBy'] = FieldValue.arrayUnion([uid]);
         updates['likedby'] = FieldValue.arrayUnion([uid]);
       }
 
       if (previousState.isDisliked && !nextState.isDisliked) {
         updates['dislikes'] = FieldValue.increment(-1);
+        updates['dislikedBy'] = FieldValue.arrayRemove([uid]);
         updates['dislikedby'] = FieldValue.arrayRemove([uid]);
       } else if (!previousState.isDisliked && nextState.isDisliked) {
         updates['dislikes'] = FieldValue.increment(1);
+        updates['dislikedBy'] = FieldValue.arrayUnion([uid]);
         updates['dislikedby'] = FieldValue.arrayUnion([uid]);
       }
 
@@ -279,7 +314,11 @@ class CommunityPostController extends BaseController with ContentValidationMixin
   Future<void> toggleDislike() async {
     final uid = currentUid;
     if (uid == null) {
-      showWarning('Please sign in to dislike posts.');
+      AppSnackbar.warning(
+        'Please sign in to dislike posts.',
+        actionLabel: 'SIGN IN',
+        onAction: () => AuthService.to.triggerPlatformSignIn(),
+      );
       return;
     }
 
@@ -328,17 +367,21 @@ class CommunityPostController extends BaseController with ContentValidationMixin
 
       if (previousState.isDisliked && !nextState.isDisliked) {
         updates['dislikes'] = FieldValue.increment(-1);
+        updates['dislikedBy'] = FieldValue.arrayRemove([uid]);
         updates['dislikedby'] = FieldValue.arrayRemove([uid]);
       } else if (!previousState.isDisliked && nextState.isDisliked) {
         updates['dislikes'] = FieldValue.increment(1);
+        updates['dislikedBy'] = FieldValue.arrayUnion([uid]);
         updates['dislikedby'] = FieldValue.arrayUnion([uid]);
       }
 
       if (previousState.isLiked && !nextState.isLiked) {
         updates['likes'] = FieldValue.increment(-1);
+        updates['likedBy'] = FieldValue.arrayRemove([uid]);
         updates['likedby'] = FieldValue.arrayRemove([uid]);
       } else if (!previousState.isLiked && nextState.isLiked) {
         updates['likes'] = FieldValue.increment(1);
+        updates['likedBy'] = FieldValue.arrayUnion([uid]);
         updates['likedby'] = FieldValue.arrayUnion([uid]);
       }
 
@@ -354,7 +397,11 @@ class CommunityPostController extends BaseController with ContentValidationMixin
   Future<void> toggleBookmark() async {
     final uid = currentUid;
     if (uid == null) {
-      showWarning('Please sign in to save posts.');
+      AppSnackbar.warning(
+        'Please sign in to save posts.',
+        actionLabel: 'SIGN IN',
+        onAction: () => AuthService.to.triggerPlatformSignIn(),
+      );
       return;
     }
     final docRef = FirebaseFirestore.instance
@@ -599,6 +646,8 @@ class CommunityPostController extends BaseController with ContentValidationMixin
   }
 
   Future<void> updateCountSettings(bool showLike, bool showDislike) async {
+    showLikeCount.value = showLike;
+    showDislikeCount.value = showDislike;
     try {
       await FirebaseFirestore.instance
           .collection(FirestoreCollections.community)
@@ -617,7 +666,11 @@ class CommunityPostController extends BaseController with ContentValidationMixin
   Future<void> moveToTrash() async {
     final uid = currentUid;
     if (uid == null) {
-      showWarning('Please sign in to delete posts.');
+      AppSnackbar.warning(
+        'Please sign in to delete posts.',
+        actionLabel: 'SIGN IN',
+        onAction: () => AuthService.to.triggerPlatformSignIn(),
+      );
       return;
     }
     try {
@@ -630,6 +683,7 @@ class CommunityPostController extends BaseController with ContentValidationMixin
         'deletionRequestedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
+      isDeleted.value = true;
       isHidden.value = true;
       showSuccess('Post moved to Trash. It will be retained for 30 days.');
     } catch (e, s) {
@@ -638,10 +692,65 @@ class CommunityPostController extends BaseController with ContentValidationMixin
     }
   }
 
+  Future<void> votePoll(String optionId) async {
+    final uid = currentUid;
+    if (uid == null) {
+      AppSnackbar.warning(
+        'Please sign in to vote in polls.',
+        actionLabel: 'SIGN IN',
+        onAction: () => AuthService.to.triggerPlatformSignIn(),
+      );
+      return;
+    }
+
+    final currentPoll = poll.value;
+    if (currentPoll == null) return;
+
+    if (currentPoll.isExpired) {
+      AppSnackbar.info('This poll is closed.');
+      return;
+    }
+
+    if (currentPoll.hasVoted(uid)) {
+      AppSnackbar.info('You have already voted on this poll.');
+      return;
+    }
+
+    // Optimistically update poll options
+    final newOptions = currentPoll.options.map((opt) {
+      if (opt.id == optionId) {
+        return opt.copyWith(
+          voteCount: opt.voteCount + 1,
+          voterIds: [...opt.voterIds, uid],
+        );
+      }
+      return opt;
+    }).toList();
+
+    final updatedPoll = currentPoll.copyWith(options: newOptions);
+    poll.value = updatedPoll;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection(FirestoreCollections.community)
+          .doc(post.id)
+          .update({'poll': updatedPoll.toMap()});
+      showSuccess('Vote recorded!');
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'CommunityPostController.votePoll');
+      poll.value = currentPoll;
+      showError('Unable to record vote. Please try again.');
+    }
+  }
+
   Future<void> submitComment(String text) async {
     final uid = currentUid;
     if (uid == null) {
-      showWarning('Please sign in to comment.');
+      AppSnackbar.warning(
+        'Please sign in to comment.',
+        actionLabel: 'SIGN IN',
+        onAction: () => AuthService.to.triggerPlatformSignIn(),
+      );
       return;
     }
 
@@ -670,6 +779,10 @@ class CommunityPostController extends BaseController with ContentValidationMixin
         ? rawDisplayName.substring(1)
         : rawDisplayName;
     final activePhotoUrl = AuthService.to.activePhotoUrl;
+    final authService = AuthService.to;
+    final hasActiveChannel =
+        authService.hasChannel.value && authService.userChannel != null;
+    final userChannel = hasActiveChannel ? authService.userChannel : null;
 
     batch.set(commentRef, {
       'id': commentRef.id,
@@ -681,6 +794,12 @@ class CommunityPostController extends BaseController with ContentValidationMixin
       'repliesCount': 0,
       'userName': cleanUserName,
       'userImage': activePhotoUrl,
+      'userProfilePicUrl': activePhotoUrl,
+      'isChannel': hasActiveChannel,
+      'channelId': hasActiveChannel ? userChannel!.id : '',
+      'channelHandle': userChannel?.handle,
+      'channelName': userChannel?.name,
+      'channelProfilePicUrl': userChannel?.avatarUrl,
     });
 
     batch.update(postRef, {'commentCount': FieldValue.increment(1)});

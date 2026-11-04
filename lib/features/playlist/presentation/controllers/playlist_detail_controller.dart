@@ -30,8 +30,22 @@ class PlaylistDetailController extends BaseController {
       final playlistController = Get.find<PlaylistController>();
       addWorker(
         ever(playlistController.watchLaterVideoIds, (_) {
-          if (activePlaylist.value?.id == 'watchlater') {
+          if (activePlaylist.value?.id == 'watchlater' ||
+              activePlaylist.value?.playlistName.toLowerCase().trim() ==
+                  'watch later') {
             activePlaylist.value = playlistController.getWatchLaterPlaylist();
+          }
+        }),
+      );
+      addWorker(
+        ever(playlistController.firstVideoThumbnail, (thumb) {
+          if ((activePlaylist.value?.id == 'watchlater' ||
+                  activePlaylist.value?.playlistName.toLowerCase().trim() ==
+                      'watch later') &&
+              thumb.isNotEmpty &&
+              (activePlaylist.value?.thumbnailUrl.isEmpty ?? true)) {
+            activePlaylist.value =
+                activePlaylist.value?.copyWith(thumbnailUrl: thumb);
           }
         }),
       );
@@ -66,9 +80,10 @@ class PlaylistDetailController extends BaseController {
         Get.parameters['list'] ??
         Get.parameters['id'];
     if (playlistId != null && playlistId.isNotEmpty) {
-      if (playlistId == 'watchlater' && Get.isRegistered<PlaylistController>()) {
+      if ((playlistId == 'watchlater' || playlistId == 'watch_later') &&
+          Get.isRegistered<PlaylistController>()) {
         final wl = Get.find<PlaylistController>().getWatchLaterPlaylist();
-        if (wl != null && wl.videoCount > 0) {
+        if (wl != null) {
           activePlaylist.value = wl;
           rxIsLoading.value = false;
           return;
@@ -98,9 +113,10 @@ class PlaylistDetailController extends BaseController {
       return;
     }
 
-    if (playlistId == 'watchlater' && Get.isRegistered<PlaylistController>()) {
+    if ((playlistId == 'watchlater' || playlistId == 'watch_later') &&
+        Get.isRegistered<PlaylistController>()) {
       final wl = Get.find<PlaylistController>().getWatchLaterPlaylist();
-      if (wl != null && wl.videoCount > 0) {
+      if (wl != null) {
         activePlaylist.value = wl;
         rxIsLoading.value = false;
         return;

@@ -1,6 +1,6 @@
+import 'package:truthworld/theme/app_theme.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/home/presentation/views/home/widgets/navigation_rail/nav_rail_action_handler.dart';
@@ -208,9 +208,9 @@ class NavRailFooter extends StatelessWidget {
           children: [
             Text(
               '© 2026 Truthworld',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 12,
-                color: isDarkMode ? Colors.white38 : const Color(0xFF94A3B8),
+                color: isDarkMode ? Colors.white38 : AppColors.textTertiary,
               ),
             ),
             Row(
@@ -218,7 +218,7 @@ class NavRailFooter extends StatelessWidget {
               children: [
                 Text(
                   'Made with ',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 11,
                     color: isDarkMode ? Colors.white24 : const Color(0xFFCBD5E1),
                   ),
@@ -230,7 +230,7 @@ class NavRailFooter extends StatelessWidget {
                 ),
                 Text(
                   ' for creators',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 11,
                     color: isDarkMode ? Colors.white24 : const Color(0xFFCBD5E1),
                   ),

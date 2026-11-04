@@ -49,7 +49,7 @@ class AdvertiserSubtitlesEditor extends StatelessWidget {
       final subs = ad.subtitles ?? {};
 
       return Container(
-        color: const Color(0xFF161618),
+        color: AppColors.appBarSurface,
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -117,7 +117,7 @@ class AdvertiserSubtitlesEditor extends StatelessWidget {
                       ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white,
-                        side: const BorderSide(color: Color(0xFF3F3F46)),
+                        side: const BorderSide(color: AppColors.bgElevated),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -228,7 +228,7 @@ class AdvertiserSubtitlesEditor extends StatelessWidget {
                                                 .value ==
                                             lang['code']
                                         ? AppColors.brand
-                                        : const Color(0xFF27272A),
+                                        : AppColors.bgSurface,
                                   ),
                                 ),
                                 labelStyle: TextStyle(
@@ -242,7 +242,7 @@ class AdvertiserSubtitlesEditor extends StatelessWidget {
                                   fontWeight: FontWeight.bold,
                                   fontSize: 12,
                                 ),
-                                backgroundColor: const Color(0xFF18181B),
+                                backgroundColor: AppColors.bgPage,
                               ),
                             ),
                       ],
@@ -260,7 +260,7 @@ class AdvertiserSubtitlesEditor extends StatelessWidget {
                 ),
               ],
             ),
-            const Divider(color: Color(0xFF27272A), height: 32),
+            const Divider(color: AppColors.bgSurface, height: 32),
             if (controller.isTranslatingSubtitles.value)
               PipelineProgressCard(
                 status: controller.subtitleStatusText.value,
@@ -373,7 +373,7 @@ class AdvertiserSubtitlesEditor extends StatelessWidget {
                     ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
-                      side: const BorderSide(color: Color(0xFF27272A)),
+                      side: const BorderSide(color: AppColors.bgSurface),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -405,7 +405,7 @@ class AdvertiserSubtitlesEditor extends StatelessWidget {
                     ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
-                      side: const BorderSide(color: Color(0xFF27272A)),
+                      side: const BorderSide(color: AppColors.bgSurface),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),

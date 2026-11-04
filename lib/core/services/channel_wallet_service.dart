@@ -1,12 +1,11 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:intl/intl.dart';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 import 'package:truthworld/core/constants/ai_languages.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
@@ -38,6 +37,7 @@ class ChannelWalletService {
   static const List<StorageTopupPack> storagePacks = ChannelWalletPricing.storagePacks;
   static const List<BandwidthTopupPack> bandwidthPacks = ChannelWalletPricing.bandwidthPacks;
   static const List<DubbingDurationTier> dubbingDurationTiers = ChannelWalletPricing.dubbingDurationTiers;
+  static const List<DubbingProductionTier> dubbingProductionTiers = ChannelWalletPricing.productionTiers;
   static const List<SubtitleDurationTier> subtitleDurationTiers = ChannelWalletPricing.subtitleDurationTiers;
   static const List<FactCheckDurationTier> factCheckDurationTiers = ChannelWalletPricing.factCheckDurationTiers;
   static const List<FactCheckDepthPlan> factCheckDepthPlans = ChannelWalletPricing.factCheckDepthPlans;
@@ -61,39 +61,119 @@ class ChannelWalletService {
   static double getFlatDubbingPricePerLanguage({
     required int durationSeconds,
     ChannelType channelType = ChannelType.standard,
+    String voiceType = 'standard',
+    bool isVoiceClone = false,
   }) => ChannelWalletPricing.getFlatDubbingPricePerLanguage(
     durationSeconds: durationSeconds,
     channelType: channelType,
+    voiceType: voiceType,
+    isVoiceClone: isVoiceClone,
+  );
+
+  static double getTierRatePerMinute(String tierId) =>
+      ChannelWalletPricing.getTierRatePerMinute(tierId);
+
+  static double getFlatRateForTier({
+    required String tierId,
+    required int durationSeconds,
+  }) => ChannelWalletPricing.getFlatRateForTier(
+    tierId: tierId,
+    durationSeconds: durationSeconds,
+  );
+
+  static double calculateProductionTierCost({
+    required String tierId,
+    required int languageCount,
+    required int durationSeconds,
+    Channel? channel,
+    double? discountPercent,
+  }) => ChannelWalletPricing.calculateProductionTierCost(
+    tierId: tierId,
+    languageCount: languageCount,
+    durationSeconds: durationSeconds,
+    channel: channel,
+    discountPercent: discountPercent,
   );
 
   static DubbingDurationTier getDubbingDurationTier(int durationSeconds) =>
       ChannelWalletPricing.getDubbingDurationTier(durationSeconds);
 
-  static double getDubbingRatePerLanguage(ChannelType type) =>
-      ChannelWalletPricing.getDubbingRatePerLanguage(type);
+  static double getDubbingRatePerLanguage(
+    ChannelType type, {
+    String voiceType = 'standard',
+    bool isVoiceClone = false,
+  }) => ChannelWalletPricing.getDubbingRatePerLanguage(
+    type,
+    voiceType: voiceType,
+    isVoiceClone: isVoiceClone,
+  );
 
-  static double getDubbingMinCost(ChannelType type) =>
-      ChannelWalletPricing.getDubbingMinCost(type);
+  static double getDubbingMinCost(
+    ChannelType type, {
+    String voiceType = 'standard',
+    bool isVoiceClone = false,
+  }) => ChannelWalletPricing.getDubbingMinCost(
+    type,
+    voiceType: voiceType,
+    isVoiceClone: isVoiceClone,
+  );
 
-  static double getDubbingCapCost(ChannelType type) =>
-      ChannelWalletPricing.getDubbingCapCost(type);
+  static double getDubbingCapCost(
+    ChannelType type, {
+    String voiceType = 'standard',
+    bool isVoiceClone = false,
+  }) => ChannelWalletPricing.getDubbingCapCost(
+    type,
+    voiceType: voiceType,
+    isVoiceClone: isVoiceClone,
+  );
 
   static double calculateDubbingCost({
     required int languageCount,
     ChannelType channelType = ChannelType.standard,
     int durationSeconds = 0,
+    String voiceType = 'standard',
+    bool isVoiceClone = false,
+    Channel? channel,
+    double? discountPercent,
   }) => ChannelWalletPricing.calculateDubbingCost(
     languageCount: languageCount,
     channelType: channelType,
     durationSeconds: durationSeconds,
+    voiceType: voiceType,
+    isVoiceClone: isVoiceClone,
+    channel: channel,
+    discountPercent: discountPercent,
+  );
+
+  static double getFlatLipSyncPricePerLanguage({
+    required int durationSeconds,
+    ChannelType channelType = ChannelType.standard,
+  }) => ChannelWalletPricing.getFlatLipSyncPricePerLanguage(
+    durationSeconds: durationSeconds,
+    channelType: channelType,
+  );
+
+  static double calculateLipSyncCost({
+    required int languageCount,
+    int durationSeconds = 0,
+    ChannelType channelType = ChannelType.standard,
+    double discountPercent = 0.0,
+  }) => ChannelWalletPricing.calculateLipSyncCost(
+    languageCount: languageCount,
+    durationSeconds: durationSeconds,
+    channelType: channelType,
+    discountPercent: discountPercent,
   );
 
   static double getFlatSubtitlePricePerLanguage({
     required ChannelType channelType,
     int durationSeconds = 0,
+    String tierId = 'starter',
   }) => ChannelWalletPricing.getFlatSubtitlePricePerLanguage(
     channelType: channelType,
     durationSeconds: durationSeconds,
+    tierId: tierId,
   );
 
   static SubtitleDurationTier getSubtitleDurationTier(int durationSeconds) =>
@@ -103,10 +183,30 @@ class ChannelWalletService {
     required int languageCount,
     ChannelType channelType = ChannelType.standard,
     int durationSeconds = 0,
+    Channel? channel,
+    double? discountPercent,
+    String tierId = 'starter',
   }) => ChannelWalletPricing.calculateSubtitleCost(
     languageCount: languageCount,
     channelType: channelType,
     durationSeconds: durationSeconds,
+    channel: channel,
+    discountPercent: discountPercent,
+    tierId: tierId,
+  );
+
+  static double calculateSubtitleTierCost({
+    required String tierId,
+    required int languageCount,
+    required int durationSeconds,
+    Channel? channel,
+    double? discountPercent,
+  }) => ChannelWalletPricing.calculateSubtitleTierCost(
+    tierId: tierId,
+    languageCount: languageCount,
+    durationSeconds: durationSeconds,
+    channel: channel,
+    discountPercent: discountPercent,
   );
 
   static FactCheckDepthPlan getFactCheckDepthPlan(String id) =>
@@ -141,12 +241,24 @@ class ChannelWalletService {
     ChannelType channelType = ChannelType.standard,
     int durationSeconds = 0,
     String factCheckTier = 'standard',
+    String voiceType = 'standard',
+    bool isVoiceClone = false,
+    Channel? channel,
+    double? dubbingDiscountPercent,
+    double? subtitlesDiscountPercent,
+    String subtitleTier = 'starter',
   }) => ChannelWalletPricing.calculateAIFeatureCost(
     selectedFeatures: selectedFeatures,
     targetLanguages: targetLanguages,
     channelType: channelType,
     durationSeconds: durationSeconds,
     factCheckTier: factCheckTier,
+    voiceType: voiceType,
+    isVoiceClone: isVoiceClone,
+    channel: channel,
+    dubbingDiscountPercent: dubbingDiscountPercent,
+    subtitlesDiscountPercent: subtitlesDiscountPercent,
+    subtitleTier: subtitleTier,
   );
 
   SpendableBalance getSpendableBalance({
@@ -430,7 +542,7 @@ class ChannelWalletService {
       userId: userId,
       amount: priceUSD,
       category: WalletTransactionCategory.customChannelPlan,
-      description: 'Custom Channel Tier Subscription: ${planTier.toUpperCase()}',
+      description: 'Pro Channel Tier Subscription: ${planTier.toUpperCase()}',
       metadata: {'planTier': planTier, 'priceUSD': priceUSD, 'autoPay': autoPay},
     );
 
@@ -446,7 +558,7 @@ class ChannelWalletService {
     required bool autoPay,
   }) async {
     try {
-      await CurrencyLocalizationService.to.fetchRealtimeRate();
+      unawaited(CurrencyLocalizationService.to.fetchRealtimeRate());
       final rate = Get.isRegistered<CurrencyLocalizationService>()
           ? CurrencyLocalizationService.to.rate
           : CurrencyLocalizationService.defaultRate;
@@ -461,7 +573,7 @@ class ChannelWalletService {
         amount: chargeAmount,
         currency: currency,
         purpose: 'custom_channel_plan',
-        orderNote: 'Custom Channel Plan$autoPaySuffix: ${plan.title}',
+        orderNote: 'Pro Channel Plan$autoPaySuffix: ${plan.title}',
         metadata: {
           'channelId': channel.id,
           'planTier': plan.id,
@@ -471,7 +583,7 @@ class ChannelWalletService {
           'autoPay': autoPay,
           'billingType': autoPay ? 'recurring' : 'one_time',
           'category': 'customChannelPlan',
-          'description': 'Custom Channel Plan via Cashfree: ${plan.title}',
+          'description': 'Pro Channel Plan via Cashfree: ${plan.title}',
         },
       );
 
@@ -533,7 +645,7 @@ class ChannelWalletService {
     required StorageTopupPack pack,
   }) async {
     try {
-      await CurrencyLocalizationService.to.fetchRealtimeRate();
+      unawaited(CurrencyLocalizationService.to.fetchRealtimeRate());
       final rate = Get.isRegistered<CurrencyLocalizationService>()
           ? CurrencyLocalizationService.to.rate
           : CurrencyLocalizationService.defaultRate;
@@ -576,7 +688,7 @@ class ChannelWalletService {
     required BandwidthTopupPack pack,
   }) async {
     try {
-      await CurrencyLocalizationService.to.fetchRealtimeRate();
+      unawaited(CurrencyLocalizationService.to.fetchRealtimeRate());
       final rate = Get.isRegistered<CurrencyLocalizationService>()
           ? CurrencyLocalizationService.to.rate
           : CurrencyLocalizationService.defaultRate;
@@ -625,6 +737,8 @@ class ChannelWalletService {
     String priorityMode = 'accuracy',
     bool autoChapters = true,
     String factCheckTier = 'standard',
+    String voiceType = 'standard',
+    bool isVoiceClone = false,
   }) async {
     final cost = calculateAIFeatureCost(
       selectedFeatures: features,
@@ -632,6 +746,9 @@ class ChannelWalletService {
       channelType: channel.channelType,
       durationSeconds: durationSeconds,
       factCheckTier: factCheckTier,
+      voiceType: voiceType,
+      isVoiceClone: isVoiceClone,
+      channel: channel,
     );
 
     var category = WalletTransactionCategory.aiBundle;
@@ -648,30 +765,39 @@ class ChannelWalletService {
         ? getFlatDubbingPricePerLanguage(
             durationSeconds: durationSeconds,
             channelType: channel.channelType,
+            voiceType: voiceType,
+            isVoiceClone: isVoiceClone,
           )
-        : getDubbingRatePerLanguage(channel.channelType);
+        : getDubbingRatePerLanguage(
+            channel.channelType,
+            voiceType: voiceType,
+            isVoiceClone: isVoiceClone,
+          );
 
-    final tx = await spendBalance(
-      channel: channel,
-      userId: userId,
-      amount: cost,
-      category: category,
-      description: 'AI Processing for "$videoTitle" (${features.join(", ")})',
-      metadata: {
-        'videoId': videoId,
-        'channelType': channel.channelType.name,
-        'features': features.toList(),
-        'targetLanguages': targetLanguages,
-        'durationSeconds': durationSeconds,
-        'factCheckTier': factCheckTier,
-        'priorityMode': priorityMode,
-        'costUSD': cost,
-        'flatDubbingRatePerLanguage': flatRate,
-        'voiceCloneIncluded': channel.channelType == ChannelType.custom,
-      },
-    );
+    WalletTransaction? tx;
+    if (cost > 0) {
+      tx = await spendBalance(
+        channel: channel,
+        userId: userId,
+        amount: cost,
+        category: category,
+        description: 'AI Processing for "$videoTitle" (${features.join(", ")})',
+        metadata: {
+          'videoId': videoId,
+          'channelType': channel.channelType.name,
+          'features': features.toList(),
+          'targetLanguages': targetLanguages,
+          'durationSeconds': durationSeconds,
+          'factCheckTier': factCheckTier,
+          'priorityMode': priorityMode,
+          'costUSD': cost,
+          'flatDubbingRatePerLanguage': flatRate,
+          'voiceCloneIncluded': channel.channelType == ChannelType.custom,
+        },
+      );
 
-    if (tx == null) return false;
+      if (tx == null) return false;
+    }
 
     // Enqueue video processing pipeline in Firestore
     try {
@@ -681,8 +807,8 @@ class ChannelWalletService {
         'userId': userId,
         'channelId': channel.id,
         'status': 'processing',
-        'paidFromWallet': true,
-        'walletTransactionId': tx.id,
+        'paidFromWallet': cost > 0,
+        'walletTransactionId': tx?.id ?? 'free_platform_feature',
         'executionPlan': {
           'languages': targetLanguages,
           'generateSubtitles': features.contains('subtitles'),
@@ -716,10 +842,26 @@ class ChannelWalletService {
         },
       }, SetOptions(merge: true));
 
-      await _firestore.collection(FirestoreCollections.videos).doc(videoId).update({
+      final updateVideoData = <String, dynamic>{
         'status': 'processing',
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      };
+      if (features.contains('dubbing')) {
+        updateVideoData['dubbingPaid'] = true;
+        updateVideoData['dubbingDurationSeconds'] = durationSeconds;
+        if (tx != null) {
+          updateVideoData['dubbingWalletTxId'] = tx.id;
+        }
+      }
+      if (features.contains('subtitles')) {
+        updateVideoData['subtitlesPaid'] = true;
+        updateVideoData['subtitlesDurationSeconds'] = durationSeconds;
+        if (tx != null) {
+          updateVideoData['subtitlesWalletTxId'] = tx.id;
+        }
+      }
+
+      await _firestore.collection(FirestoreCollections.videos).doc(videoId).update(updateVideoData);
 
       return true;
     } catch (e, stackTrace) {
@@ -728,7 +870,7 @@ class ChannelWalletService {
         stackTrace: stackTrace,
         tag: 'ChannelWalletService.spendForVideoAIFeatures',
       );
-      return true;
+      return false;
     }
   }
 
@@ -764,7 +906,7 @@ class ChannelWalletService {
     required String userId,
   }) async {
     try {
-      await CurrencyLocalizationService.to.fetchRealtimeRate();
+      unawaited(CurrencyLocalizationService.to.fetchRealtimeRate());
       final rate = Get.isRegistered<CurrencyLocalizationService>()
           ? CurrencyLocalizationService.to.rate
           : CurrencyLocalizationService.defaultRate;
@@ -1202,7 +1344,7 @@ class ChannelWalletService {
     if (startDate != null && endDate != null) {
       sb.writeln('# Period: ${DateFormat('yyyy-MM-dd').format(startDate)} to ${DateFormat('yyyy-MM-dd').format(endDate)}');
     }
-    sb.writeln('');
+    sb.writeln();
     sb.writeln('Date,Transaction ID,Type,Category,Description,Status,Inflow (Credit),Outflow (Debit),Currency');
 
     for (final tx in transactions) {

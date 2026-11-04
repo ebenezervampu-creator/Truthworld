@@ -16,6 +16,7 @@ void showAddTeamMemberDialog(
   AdminController controller,
 ) {
   final emailCtrl = TextEditingController();
+  final usernameCtrl = TextEditingController();
   final nameCtrl = TextEditingController();
   final passCtrl = TextEditingController();
   final selectedRoles = <String>['Content Moderator'].obs;
@@ -32,7 +33,7 @@ void showAddTeamMemberDialog(
 
   Get.dialog(
     Dialog(
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: AppColors.bgSurface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: Container(
         width: 480,
@@ -63,7 +64,7 @@ void showAddTeamMemberDialog(
               ),
               const SizedBox(height: 6),
               const Text(
-                'Enter member email, password, and assign their specific roles & tabs permissions.',
+                'Enter member email, username, password, and assign roles. Credentials will be emailed directly to the member.',
                 style: TextStyle(
                   fontFamily: TWTypography.uiFamily,
                   color: AppColors.textSecondary,
@@ -91,6 +92,33 @@ void showAddTeamMemberDialog(
                   fillColor: AppColors.bgInput,
                   prefixIcon: const Icon(
                     Icons.email_outlined,
+                    color: Colors.white,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Username
+              TextField(
+                controller: usernameCtrl,
+                maxLength: 40,
+                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(40),
+                  FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                ],
+                style: const TextStyle(color: AppColors.textPrimary),
+                decoration: InputDecoration(
+                  labelText: 'Member Username',
+                  hintText: 'e.g. moderator1 or john_audit',
+                  labelStyle: const TextStyle(color: AppColors.textSecondary),
+                  filled: true,
+                  fillColor: AppColors.bgInput,
+                  prefixIcon: const Icon(
+                    Icons.alternate_email_rounded,
                     color: Colors.white,
                   ),
                   border: OutlineInputBorder(
@@ -200,6 +228,9 @@ void showAddTeamMemberDialog(
                           : () async {
                               final email = emailCtrl.text.trim();
                               final pass = passCtrl.text.trim();
+                              final username = usernameCtrl.text.trim().isNotEmpty
+                                  ? usernameCtrl.text.trim().toLowerCase()
+                                  : email.split('@').first.toLowerCase();
                               if (email.isEmpty || pass.isEmpty) {
                                 AppSnackbar.warning(
                                   'Please fill in email and password.',
@@ -231,6 +262,7 @@ void showAddTeamMemberDialog(
                                       : rolesList.join(', ');
                               final success = await controller.addTeamMember(
                                 email: email,
+                                username: username,
                                 password: pass,
                                 role: primaryRole,
                                 roles: rolesList,
@@ -241,6 +273,7 @@ void showAddTeamMemberDialog(
                                 Get.back();
                                 controller.copyMemberCredentials(
                                   email: email,
+                                  username: username,
                                   password: pass,
                                   role: primaryRole,
                                 );
@@ -252,17 +285,20 @@ void showAddTeamMemberDialog(
                               height: 16,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Colors.white,
+                                color: Colors.black,
                               ),
                             )
                           : const Icon(
                               Icons.check_rounded,
-                              color: Colors.white,
+                              color: Colors.black,
                               size: 16,
                             ),
                       label: const Text(
                         'Save & Share',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.brand,

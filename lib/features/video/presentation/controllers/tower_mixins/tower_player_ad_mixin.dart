@@ -30,6 +30,7 @@ mixin TowerPlayerAdMixin on GetxController {
   ChewieController? get chewieController;
   PlaybackSource? get videoPlaybackSource;
   VideoPlayerController? get audioTrackController;
+  bool get hasAlternateAudioTrack;
 
   void startWatchTimer();
   void stopWatchTimer();
@@ -513,9 +514,20 @@ mixin TowerPlayerAdMixin on GetxController {
         }
       }
       isCurrentAdPreRoll = false;
+      if (hasAlternateAudioTrack) {
+        await videoPlayerController.setVolume(0.0);
+      }
       await videoPlayerController.play();
       isPlaying.value = true;
       rxValue.value = videoPlayerController.value;
+      if (audioTrackController != null &&
+          audioTrackController!.value.isInitialized) {
+        final pos = videoPlayerController.value.position;
+        if (pos <= audioTrackController!.value.duration) {
+          await audioTrackController!.seekTo(pos);
+        }
+        await audioTrackController!.play();
+      }
       try {
         chewieController?.play();
       } catch (_) {}

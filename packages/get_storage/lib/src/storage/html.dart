@@ -70,7 +70,7 @@ class StorageImpl {
   // }
 
   Future<void> _writeToStorage(Map<String, dynamic> data) async {
-    web.window.localStorage.setItem(fileName, json.encode(subject.value));
+    web.window.localStorage.setItem(fileName, json.encode(subject.value, toEncodable: (val) { try { return (val as dynamic).toJson(); } catch (_) { return val.toString(); } }));
   }
 
   Future<void> _readFromStorage() async {

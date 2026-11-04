@@ -91,7 +91,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(TextField), findsOneWidget);
-      expect(find.byIcon(Icons.auto_awesome_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.filter_list_rounded), findsOneWidget);
       expect(find.byIcon(Icons.mic_rounded), findsOneWidget);
 
       // Typing updates search query
@@ -246,6 +246,7 @@ void main() {
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
         isVerified: true,
+        trustedModerationBypass: true,
         subscriberCount: 254000,
         videoCount: 12,
       );

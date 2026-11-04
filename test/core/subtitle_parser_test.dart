@@ -173,7 +173,7 @@ Second subtitle cue.
       // Exact inside
       expect(SubtitleParser.findActiveSubtitle(segments, const Duration(milliseconds: 2000))?.text, 'Cue 1');
 
-      // Inside gap tolerance (3100ms is within 150ms of Cue 1 end 3000ms)
+      // Inside gap tolerance (3100ms is within 100ms of Cue 1 end 3000ms)
       expect(SubtitleParser.findActiveSubtitle(segments, const Duration(milliseconds: 3100))?.text, 'Cue 1');
 
       // Next cue
@@ -181,6 +181,94 @@ Second subtitle cue.
 
       // Outside
       expect(SubtitleParser.findActiveSubtitle(segments, const Duration(milliseconds: 6000)), isNull);
+    });
+
+    test('Preserves discrete Telugu SRT cues without synthetic character-ratio chopping or time drift', () {
+      const teluguSrt = '''
+1
+00:00:10,200 --> 00:00:13,800
+వివరాలు ఆ రికార్డు స్థాయి నెంబర్ల
+
+2
+00:00:14,200 --> 00:00:18,500
+ఈ తేదీలను ఒక్కసారి గమనిస్తే బిడ్డింగ్
+
+3
+00:00:19,000 --> 00:00:23,400
+అక్షరాల కేవలం కొద్ది రోజుల వ్యవధిలోనే
+''';
+
+      final segments = SubtitleParser.parse(teluguSrt);
+
+      // Must NOT be chopped into pieces due to Indic multi-byte character length
+      expect(segments.length, 3);
+
+      expect(segments[0].start, const Duration(milliseconds: 10200));
+      expect(segments[0].end, const Duration(milliseconds: 13800));
+      expect(segments[0].text, 'వివరాలు ఆ రికార్డు స్థాయి నెంబర్ల');
+
+      expect(segments[1].start, const Duration(milliseconds: 14200));
+      expect(segments[1].end, const Duration(milliseconds: 18500));
+      expect(segments[1].text, 'ఈ తేదీలను ఒక్కసారి గమనిస్తే బిడ్డింగ్');
+
+      expect(segments[2].start, const Duration(milliseconds: 19000));
+      expect(segments[2].end, const Duration(milliseconds: 23400));
+      expect(segments[2].text, 'అక్షరాల కేవలం కొద్ది రోజుల వ్యవధిలోనే');
+
+      // Exact time lookup
+      expect(
+        SubtitleParser.findActiveSubtitle(segments, const Duration(milliseconds: 12000))?.text,
+        'వివరాలు ఆ రికార్డు స్థాయి నెంబర్ల',
+      );
+      expect(
+        SubtitleParser.findActiveSubtitle(segments, const Duration(milliseconds: 16000))?.text,
+        'ఈ తేదీలను ఒక్కసారి గమనిస్తే బిడ్డింగ్',
+      );
+    });
+
+    test('Accurately detects RTL text for Arabic, Urdu, Hebrew across scripts', () {
+      expect(SubtitleParser.isRtlText('مرحبا بكم في شبكة التحقق من الحقائق'), isTrue); // Arabic
+      expect(SubtitleParser.isRtlText('یہ ایک معلوماتی ویڈیو ہے؟'), isTrue); // Urdu
+      expect(SubtitleParser.isRtlText('שלום עולם'), isTrue); // Hebrew
+
+      expect(SubtitleParser.isRtlText('Hello world'), isFalse); // English
+      expect(SubtitleParser.isRtlText('వివరాలు ఆ రికార్డు స్థాయి'), isFalse); // Telugu
+      expect(SubtitleParser.isRtlText('नमस्ते दुनिया।'), isFalse); // Hindi
+      expect(SubtitleParser.isRtlText('欢迎来到真实世界。'), isFalse); // Chinese
+    });
+
+    test('Splits CJK ideographic text without spaces into rhythmic YouTube-style phrases', () {
+      // Long Chinese unchunked transcript
+      const chineseText = '在过去的几年里，数百万新的散户投资者涌入了印度股票市场，追踪活跃的经纪账户。初创公司超越了老牌行业领导者。';
+      final json = jsonEncode({
+        'utterances': [
+          {'start': 0, 'end': 12000, 'text': chineseText},
+        ]
+      });
+
+      final segments = SubtitleParser.parse(json);
+      expect(segments.length, greaterThan(1));
+      for (final s in segments) {
+        expect(s.text.isNotEmpty, isTrue);
+        expect(s.end, greaterThan(s.start));
+      }
+    });
+
+    test('Correctly handles Indic danda (।) and Arabic question mark (؟) as sentence boundaries', () {
+      final json = jsonEncode({
+        'words': [
+          {'start': 1000, 'end': 1500, 'text': 'नमस्ते'},
+          {'start': 1500, 'end': 2000, 'text': 'भारत।'}, // Ends with Devanagari danda
+          {'start': 2400, 'end': 2800, 'text': 'यह'},
+          {'start': 2800, 'end': 3200, 'text': 'सच'},
+          {'start': 3200, 'end': 3600, 'text': 'है؟'}, // Ends with Arabic question mark
+        ]
+      });
+
+      final segments = SubtitleParser.parse(json);
+      expect(segments.length, 2);
+      expect(segments[0].text, 'नमस्ते भारत।');
+      expect(segments[1].text, 'यह सच है؟');
     });
   });
 }

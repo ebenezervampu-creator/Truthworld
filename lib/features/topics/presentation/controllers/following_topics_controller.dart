@@ -13,6 +13,7 @@ import 'package:truthworld/features/subscriptions/presentation/controllers/subsc
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/data/repositories/topic_repository.dart';
 import 'package:truthworld/features/topics/presentation/controllers/topic_controller.dart';
+import 'package:truthworld/features/topics/presentation/widgets/comments/topic_comment_models_and_helpers.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 /// GetX controller for the Following Topics page
@@ -61,6 +62,9 @@ class FollowingTopicsController extends BaseController {
   final RxString activeVideoFilter = 'Latest'.obs; // 'Latest', 'From followed channels', 'Trending', 'Popular'
   final RxString selectedSortOrder = 'Newest first'.obs; // 'Newest first', 'Oldest first', 'Most popular', 'Most viewed'
   final RxBool isGridView = true.obs;
+
+  // In-flight follow toggle debouncing
+  final Set<String> _pendingFollowTopicIds = <String>{};
 
   @override
   void onInit() {
@@ -262,12 +266,11 @@ class FollowingTopicsController extends BaseController {
           final subCtrl = Get.find<SubscriptionController>();
           final subbedIds = subCtrl.subscribedChannels.map((c) => c.id).toSet();
           final subbedNames = subCtrl.subscribedChannels.map((c) => c.name.toLowerCase()).toSet();
-          final filtered = videos.where((v) {
+          videos = videos.where((v) {
             return subbedIds.contains(v.channelId) || subbedNames.contains(v.channelName.toLowerCase());
           }).toList();
-          if (filtered.isNotEmpty) {
-            videos = filtered;
-          }
+        } else {
+          videos = [];
         }
       case 'Trending':
         videos.sort((a, b) => b.views.compareTo(a.views));
@@ -317,131 +320,164 @@ class FollowingTopicsController extends BaseController {
   Future<void> toggleFollowTopic(Topic topic) async {
     final userId = _currentUserId;
     if (userId.isEmpty) {
-      SnackbarService.error(message: 'Please sign in to follow topics.');
+      showTopicSignInPrompt('follow topics');
       return;
     }
 
     final topicId = topic.id;
-    final topicSlug = topic.slug;
-    final wasFollowed = isTopicFollowed(topicId);
+    if (_pendingFollowTopicIds.contains(topicId)) return;
+    _pendingFollowTopicIds.add(topicId);
 
-    final hasVideos = topic.effectiveVideoCount > 0 || topic.featuredVideoIds.isNotEmpty;
-    if (!wasFollowed && (topic.isArchivedOrDeleted || (!topic.isValidTopic && !hasVideos))) {
-      SnackbarService.error(message: 'Cannot follow an inactive or empty topic.');
-      return;
-    }
-
-    final previousCount = getFollowerCount(topic);
-    final nextCount = (previousCount + (wasFollowed ? -1 : 1)).clamp(0, 999999999);
-
-    // Immediate optimistic state update
-    followingStates[topicId] = !wasFollowed;
-    followerCounts[topicId] = nextCount;
-    if (topicSlug.isNotEmpty) {
-      followingStates[topicSlug] = !wasFollowed;
-      followerCounts[topicSlug] = nextCount;
-    }
-
-    if (wasFollowed) {
-      followedTopics.removeWhere(
-        (t) => t.id == topicId || (topicSlug.isNotEmpty && t.slug == topicSlug),
-      );
-      if (selectedTopic.value?.id == topicId ||
-          (topicSlug.isNotEmpty && selectedTopic.value?.slug == topicSlug)) {
-        selectedTopic.value = followedTopics.isNotEmpty
-            ? followedTopics.first
-            : null;
-      }
-    } else {
-      final updatedTopic = topic.copyWith(followerCount: nextCount);
-      if (!followedTopics.any(
-        (t) => t.id == topicId || (topicSlug.isNotEmpty && t.slug == topicSlug),
-      )) {
-        followedTopics.add(updatedTopic);
-      }
-    }
-
-    // Sync with UserInterestProfileService
     try {
-      if (Get.isRegistered<UserInterestProfileService>()) {
-        final profileService = Get.find<UserInterestProfileService>();
-        if (!wasFollowed) {
-          profileService.onTopicFollowed(topic.slug);
-        } else {
-          profileService.onTopicUnfollowed(topic.slug);
-        }
-      }
-    } catch (e, s) {
-      ErrorHandler.log(
-        e,
-        stackTrace: s,
-        tag: 'FollowingTopicsController.syncUserProfile',
-      );
-    }
+      final topicSlug = topic.slug;
+      final wasFollowed = isTopicFollowed(topicId) ||
+          (topicSlug.isNotEmpty && isTopicFollowed(topicSlug));
 
-    // Sync with HomeDiscoveryController featured topics if loaded
-    try {
-      if (Get.isRegistered<HomeDiscoveryController>()) {
-        final discoveryCtrl = Get.find<HomeDiscoveryController>();
-        final idx = discoveryCtrl.featuredTopics.indexWhere(
+      final hasVideos = topic.effectiveVideoCount > 0 || topic.featuredVideoIds.isNotEmpty;
+      if (!wasFollowed && (topic.isArchivedOrDeleted || (!topic.isValidTopic && !hasVideos))) {
+        SnackbarService.error(message: 'Cannot follow an inactive or empty topic.');
+        return;
+      }
+
+      final previousCount = getFollowerCount(topic);
+      final nextCount = (previousCount + (wasFollowed ? -1 : 1)).clamp(0, 999999999);
+
+      // Immediate optimistic state update
+      followingStates[topicId] = !wasFollowed;
+      followerCounts[topicId] = nextCount;
+      if (topicSlug.isNotEmpty) {
+        followingStates[topicSlug] = !wasFollowed;
+        followerCounts[topicSlug] = nextCount;
+      }
+
+      if (wasFollowed) {
+        followedTopics.removeWhere(
           (t) => t.id == topicId || (topicSlug.isNotEmpty && t.slug == topicSlug),
         );
-        if (idx != -1) {
-          discoveryCtrl.featuredTopics[idx] = discoveryCtrl.featuredTopics[idx].copyWith(
-            followerCount: nextCount,
-          );
-          discoveryCtrl.saveFeaturedTopicsToCache();
-        }
-      }
-    } catch (e, s) {
-      ErrorHandler.log(
-        e,
-        stackTrace: s,
-        tag: 'FollowingTopicsController.syncDiscoveryTopics',
-      );
-    }
-
-    // Sync with TopicController if currently viewing this topic
-    try {
-      if (Get.isRegistered<TopicController>()) {
-        final topicCtrl = Get.find<TopicController>();
-        if (topicCtrl.topic.value?.id == topicId ||
-            (topicSlug.isNotEmpty && topicCtrl.topic.value?.slug == topicSlug)) {
-          topicCtrl.topic.value = topicCtrl.topic.value?.copyWith(
-            followerCount: nextCount,
-          );
-        }
-      }
-    } catch (e, s) {
-      ErrorHandler.log(
-        e,
-        stackTrace: s,
-        tag: 'FollowingTopicsController.syncTopicController',
-      );
-    }
-
-    try {
-      final success = wasFollowed
-          ? await _repository.unfollowTopic(userId, topicId)
-          : await _repository.followTopic(userId, topicId);
-
-      if (success) {
-        if (wasFollowed) {
-          topicNotificationSettings.remove(topicId);
-          if (topicSlug.isNotEmpty) topicNotificationSettings.remove(topicSlug);
-          SnackbarService.success(
-            message: 'You unfollowed "${topic.title}" successfully.',
-          );
-        } else {
-          topicNotificationSettings[topicId] = 'personalized';
-          if (topicSlug.isNotEmpty) topicNotificationSettings[topicSlug] = 'personalized';
-          SnackbarService.success(
-            message: 'You followed "${topic.title}" successfully.',
-          );
-          fetchVideosForTopic(topic);
+        if (selectedTopic.value?.id == topicId ||
+            (topicSlug.isNotEmpty && selectedTopic.value?.slug == topicSlug)) {
+          selectedTopic.value = followedTopics.isNotEmpty
+              ? followedTopics.first
+              : null;
         }
       } else {
-        // Rollback on failure
+        final updatedTopic = topic.copyWith(followerCount: nextCount);
+        if (!followedTopics.any(
+          (t) => t.id == topicId || (topicSlug.isNotEmpty && t.slug == topicSlug),
+        )) {
+          followedTopics.add(updatedTopic);
+        }
+      }
+
+      // Sync with UserInterestProfileService
+      try {
+        if (Get.isRegistered<UserInterestProfileService>()) {
+          final profileService = Get.find<UserInterestProfileService>();
+          if (!wasFollowed) {
+            profileService.onTopicFollowed(topic.slug);
+          } else {
+            profileService.onTopicUnfollowed(topic.slug);
+          }
+        }
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'FollowingTopicsController.syncUserProfile',
+        );
+      }
+
+      // Sync with HomeDiscoveryController featured topics if loaded
+      try {
+        if (Get.isRegistered<HomeDiscoveryController>()) {
+          final discoveryCtrl = Get.find<HomeDiscoveryController>();
+          final idx = discoveryCtrl.featuredTopics.indexWhere(
+            (t) => t.id == topicId || (topicSlug.isNotEmpty && t.slug == topicSlug),
+          );
+          if (idx != -1) {
+            discoveryCtrl.featuredTopics[idx] = discoveryCtrl.featuredTopics[idx].copyWith(
+              followerCount: nextCount,
+            );
+            discoveryCtrl.saveFeaturedTopicsToCache();
+          }
+        }
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'FollowingTopicsController.syncDiscoveryTopics',
+        );
+      }
+
+      // Sync with TopicController if currently viewing this topic
+      try {
+        if (Get.isRegistered<TopicController>()) {
+          final topicCtrl = Get.find<TopicController>();
+          if (topicCtrl.topic.value?.id == topicId ||
+              (topicSlug.isNotEmpty && topicCtrl.topic.value?.slug == topicSlug)) {
+            topicCtrl.topic.value = topicCtrl.topic.value?.copyWith(
+              followerCount: nextCount,
+            );
+          }
+        }
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'FollowingTopicsController.syncTopicController',
+        );
+      }
+
+      try {
+        final success = wasFollowed
+            ? await _repository.unfollowTopic(userId, topicId)
+            : await _repository.followTopic(userId, topicId);
+
+        if (success) {
+          if (wasFollowed) {
+            topicNotificationSettings.remove(topicId);
+            if (topicSlug.isNotEmpty) topicNotificationSettings.remove(topicSlug);
+            SnackbarService.success(
+              message: 'You unfollowed "${topic.name}" successfully.',
+            );
+          } else {
+            topicNotificationSettings[topicId] = 'personalized';
+            if (topicSlug.isNotEmpty) topicNotificationSettings[topicSlug] = 'personalized';
+            SnackbarService.success(
+              message: 'You followed "${topic.name}" successfully.',
+            );
+            fetchVideosForTopic(topic);
+          }
+        } else {
+          // Rollback on failure
+          followingStates[topicId] = wasFollowed;
+          followerCounts[topicId] = previousCount;
+          if (topicSlug.isNotEmpty) {
+            followingStates[topicSlug] = wasFollowed;
+            followerCounts[topicSlug] = previousCount;
+          }
+          if (wasFollowed) {
+            if (!followedTopics.any(
+              (t) => t.id == topicId || (topicSlug.isNotEmpty && t.slug == topicSlug),
+            )) {
+              followedTopics.add(topic);
+            }
+          } else {
+            followedTopics.removeWhere(
+              (t) => t.id == topicId || (topicSlug.isNotEmpty && t.slug == topicSlug),
+            );
+          }
+          SnackbarService.error(
+            message: 'Unable to update follow status. Please try again.',
+          );
+        }
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'FollowingTopicsController.toggleTopicFollowed',
+        );
+        // Rollback on error
         followingStates[topicId] = wasFollowed;
         followerCounts[topicId] = previousCount;
         if (topicSlug.isNotEmpty) {
@@ -460,81 +496,83 @@ class FollowingTopicsController extends BaseController {
           );
         }
         SnackbarService.error(
-          message: 'Unable to update follow status. Please try again.',
+          message: FriendlyErrorTranslator.getFriendlyMessage(
+            e,
+            defaultActionMessage: 'toggle follow status',
+          ),
         );
       }
-    } catch (e, s) {
-      ErrorHandler.log(
-        e,
-        stackTrace: s,
-        tag: 'FollowingTopicsController.toggleTopicFollowed',
-      );
-      // Rollback on error
-      followingStates[topicId] = wasFollowed;
-      followerCounts[topicId] = previousCount;
-      if (topicSlug.isNotEmpty) {
-        followingStates[topicSlug] = wasFollowed;
-        followerCounts[topicSlug] = previousCount;
-      }
-      if (wasFollowed) {
-        if (!followedTopics.any(
-          (t) => t.id == topicId || (topicSlug.isNotEmpty && t.slug == topicSlug),
-        )) {
-          followedTopics.add(topic);
-        }
-      } else {
-        followedTopics.removeWhere(
-          (t) => t.id == topicId || (topicSlug.isNotEmpty && t.slug == topicSlug),
-        );
-      }
-      SnackbarService.error(
-        message: FriendlyErrorTranslator.getFriendlyMessage(
-          e,
-          defaultActionMessage: 'toggle follow status',
-        ),
-      );
+    } finally {
+      _pendingFollowTopicIds.remove(topicId);
     }
   }
 
   /// Helper to check if a specific topic is followed (reactively)
   bool isTopicFollowed(String topicIdOrSlug) {
-    if (followingStates.containsKey(topicIdOrSlug)) {
-      return followingStates[topicIdOrSlug]!;
+    if (topicIdOrSlug.isEmpty) return false;
+    final clean = topicIdOrSlug.trim();
+    if (followingStates.containsKey(clean)) {
+      return followingStates[clean]!;
+    }
+    final cleanLower = clean.toLowerCase();
+    if (followingStates.containsKey(cleanLower)) {
+      return followingStates[cleanLower]!;
     }
     return followedTopics.any(
-      (t) => t.id == topicIdOrSlug || (t.slug.isNotEmpty && t.slug == topicIdOrSlug),
+      (t) =>
+          t.id == clean ||
+          t.id.toLowerCase() == cleanLower ||
+          (t.slug.isNotEmpty &&
+              (t.slug == clean || t.slug.toLowerCase() == cleanLower)),
     );
   }
 
   /// Safely unfollow a topic
   Future<void> unfollowTopic(Topic topic) async {
-    if (isTopicFollowed(topic.id) || (topic.slug.isNotEmpty && isTopicFollowed(topic.slug))) {
+    if (isTopicFollowed(topic.id) ||
+        (topic.slug.isNotEmpty && isTopicFollowed(topic.slug))) {
       await toggleFollowTopic(topic);
     }
   }
 
   /// Get reactive follower count for a topic
   int getFollowerCount(Topic topic) {
+    var count = topic.followerCount;
     if (followerCounts.containsKey(topic.id)) {
-      return followerCounts[topic.id]!;
+      count = followerCounts[topic.id]!;
+    } else if (topic.slug.isNotEmpty && followerCounts.containsKey(topic.slug)) {
+      count = followerCounts[topic.slug]!;
     }
-    if (topic.slug.isNotEmpty && followerCounts.containsKey(topic.slug)) {
-      return followerCounts[topic.slug]!;
+    // TruthWorld Epistemic Consistency: If the current user follows this topic,
+    // the follower count must never be displayed as 0 (always at least 1).
+    if (isTopicFollowed(topic.id) ||
+        (topic.slug.isNotEmpty && isTopicFollowed(topic.slug))) {
+      if (count < 1) {
+        count = 1;
+      }
     }
-    return topic.followerCount;
+    return count;
   }
 
   /// Update follower count from external fresh sources (e.g. HomeDiscoveryController)
   void updateTopicFollowerCount(String topicIdOrSlug, int count) {
-    followerCounts[topicIdOrSlug] = count;
+    var safeCount = count;
+    if (isTopicFollowed(topicIdOrSlug) && safeCount < 1) {
+      safeCount = 1;
+    }
+    followerCounts[topicIdOrSlug] = safeCount;
   }
 
   /// Get reactive follower count by topic ID with optional fallback
   int getFollowerCountById(String topicId, {int fallback = 0}) {
+    var count = fallback;
     if (followerCounts.containsKey(topicId)) {
-      return followerCounts[topicId]!;
+      count = followerCounts[topicId]!;
     }
-    return fallback;
+    if (isTopicFollowed(topicId) && count < 1) {
+      count = 1;
+    }
+    return count;
   }
 
   /// Fetch notification setting for a topic
@@ -564,9 +602,7 @@ class FollowingTopicsController extends BaseController {
   ) async {
     final userId = _currentUserId;
     if (userId.isEmpty) {
-      SnackbarService.error(
-        message: 'Please sign in to update notification settings.',
-      );
+      showTopicSignInPrompt('update notification settings');
       return;
     }
 

@@ -70,7 +70,7 @@ class AdsTab extends StatelessWidget {
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF27272A),
+                      backgroundColor: AppColors.bgSurface,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -201,7 +201,7 @@ class AdsTab extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: const Color(0xFF181818),
+          color: AppColors.bgPage,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         ),
@@ -266,7 +266,7 @@ class AdsTab extends StatelessWidget {
                   label: Text(f['label']!),
                   selected: isSelected,
                   onSelected: (_) => controller.adFilterTab.value = f['id']!,
-                  backgroundColor: const Color(0xFF181818),
+                  backgroundColor: AppColors.bgPage,
                   selectedColor: AppColors.brand,
                   labelStyle: TextStyle(
                     fontFamily: TWTypography.uiFamily,
@@ -321,7 +321,7 @@ class AdsTab extends StatelessWidget {
               ),
               contentPadding: const EdgeInsets.symmetric(vertical: 8),
               filled: true,
-              fillColor: const Color(0xFF181818),
+              fillColor: AppColors.bgPage,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
@@ -385,7 +385,7 @@ class AdsTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
@@ -579,7 +579,7 @@ class AdsTab extends StatelessWidget {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: status == 'active'
                           ? Colors.white.withValues(alpha: 0.08)
-                          : const Color(0xFF2BA640),
+                          : AppColors.success,
                       foregroundColor: AppColors.textPrimary,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
@@ -720,7 +720,7 @@ class AdsTab extends StatelessWidget {
                   color: AppColors.textTertiary,
                 ),
                 filled: true,
-                fillColor: const Color(0xFF181818),
+                fillColor: AppColors.bgPage,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
@@ -730,7 +730,7 @@ class AdsTab extends StatelessWidget {
           ],
         ),
       ),
-      backgroundColor: const Color(0xFF181818),
+      backgroundColor: AppColors.bgPage,
       textConfirm: 'Reject Campaign',
       textCancel: 'Cancel',
       confirmTextColor: AppColors.textPrimary,
@@ -792,7 +792,7 @@ class AdsTab extends StatelessWidget {
           ),
         ),
       ),
-      backgroundColor: const Color(0xFF181818),
+      backgroundColor: AppColors.bgPage,
       textConfirm: 'Close',
       confirmTextColor: AppColors.textPrimary,
       buttonColor: AppColors.brand,

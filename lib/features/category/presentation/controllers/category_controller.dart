@@ -6,6 +6,10 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/app_categories.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/video_visibility_policy.dart';
+import 'package:truthworld/features/search/data/services/engine/typesense_search_engine.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 
 class CategoryController extends BaseController
     with GetTickerProviderStateMixin {
@@ -17,6 +21,8 @@ class CategoryController extends BaseController
   RxString debouncedSearchQuery = ''.obs;
   RxList<String> genres = <String>[].obs;
   RxBool isSearching = false.obs;
+  final RxList<Video> searchResults = <Video>[].obs;
+  final RxBool isSearchingRemote = false.obs;
 
   late String category;
   Timer? _searchDebounceTimer;
@@ -599,10 +605,92 @@ class CategoryController extends BaseController
         (value) {
           debouncedSearchQuery.value = value.trim().toLowerCase();
           isSearching.value = false;
+          performCategorySearch(value);
         },
-        time: const Duration(milliseconds: 500),
+        time: const Duration(milliseconds: 350),
       ),
     );
+  }
+
+  /// Typo-tolerant category video search via Typesense (with silent Firestore fallback)
+  Future<void> performCategorySearch(String query) async {
+    final clean = query.trim();
+    if (clean.isEmpty) {
+      searchResults.clear();
+      return;
+    }
+    isSearchingRemote.value = true;
+    try {
+      final tsEngine = TypesenseSearchEngine();
+      final catFilter = (category.toLowerCase() != 'all' && category.isNotEmpty)
+          ? category
+          : null;
+      if (tsEngine.isEnabled) {
+        final results = await tsEngine.searchVideos(
+          clean,
+          category: catFilter,
+          limit: 30,
+        );
+        if (results.isNotEmpty) {
+          final ids = results
+              .map((r) => r.id)
+              .where((id) => id.isNotEmpty)
+              .toList();
+          final videos = <Video>[];
+          for (var i = 0; i < ids.length; i += 10) {
+            final chunk = ids.skip(i).take(10).toList();
+            final snap = await FirebaseFirestore.instance
+                .collection(FirestoreCollections.videos)
+                .where(FieldPath.documentId, whereIn: chunk)
+                .get();
+            final docMap = {for (final d in snap.docs) d.id: d};
+            for (final id in chunk) {
+              final doc = docMap[id];
+              if (doc != null && doc.exists) {
+                final video = Video.fromDocumentSnapshot(doc);
+                if (VideoVisibilityPolicy.isVisibleForFeed(video)) {
+                  videos.add(video);
+                }
+              }
+            }
+          }
+          if (videos.isNotEmpty) {
+            searchResults.assignAll(videos);
+            return;
+          }
+        }
+      }
+
+      // Firestore fallback
+      Query queryRef = FirebaseFirestore.instance
+          .collection(FirestoreCollections.videos)
+          .where('visibility', isEqualTo: 'Public');
+      if (catFilter != null) {
+        queryRef = queryRef.where('category', isEqualTo: catFilter);
+      }
+      final snap = await queryRef.limit(40).get();
+      final lower = clean.toLowerCase();
+      final matched = snap.docs
+          .map(Video.fromDocumentSnapshot)
+          .where(
+            (v) =>
+                VideoVisibilityPolicy.isVisibleForFeed(v) &&
+                (v.title.toLowerCase().contains(lower) ||
+                    v.channelName.toLowerCase().contains(lower) ||
+                    v.description.toLowerCase().contains(lower)),
+          )
+          .take(30)
+          .toList();
+      searchResults.assignAll(matched);
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'CategoryController.performCategorySearch',
+      );
+    } finally {
+      isSearchingRemote.value = false;
+    }
   }
 
   @override
@@ -624,5 +712,6 @@ class CategoryController extends BaseController
   void clearSearch() {
     searchQuery.value = '';
     debouncedSearchQuery.value = '';
+    searchResults.clear();
   }
 }

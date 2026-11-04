@@ -35,6 +35,7 @@ __pycache__/
 # Logs and temp files
 *.log
 *.tmp
+tmp/
 *.swp
 *.swo
 *.gs
@@ -124,3 +125,5 @@ releases/
 *.ipa
 home_wasm_screenshot.png
 testers.csv
+public/dubs/
+

@@ -1,7 +1,9 @@
+import { isCallableAdmin } from "../utils/auth";
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import { TYPE_REVENUE_SHARE } from "../economy/types";
+import { getBigQueryAnalyticsService } from "../analytics/bigqueryService";
 
 const REGION = "asia-south1";
 const CREATOR_SHARE_RATE = TYPE_REVENUE_SHARE.standard.ads; // 0.70
@@ -183,7 +185,7 @@ export const recordAdImpression = onCall(
           if (chSnap.exists) {
             const chData = chSnap.data() || {};
             channelOwnerId = chData.ownerId || chData.userId || "";
-            isCustomChannel = chData.type === "custom" || chData.channelType === "custom";
+            isCustomChannel = chData.type === "custom" || chData.channelType === "custom" || chData.type === "pro" || chData.channelType === "pro";
           }
 
           // Anti-fraud: Verify video belongs to this channel if videoId provided
@@ -308,6 +310,54 @@ export const recordAdImpression = onCall(
         };
       });
 
+      // ── Stream Ad Impression / Click / Fraud Signals to BigQuery (Non-blocking) ──
+      try {
+        const bq = getBigQueryAnalyticsService();
+        const nowIso = new Date().toISOString();
+
+        if (result.settled && result.impressionId) {
+          bq.enqueueAdImpression({
+            ad_event_id: result.impressionId,
+            timestamp: nowIso,
+            campaign_id: campaignId,
+            advertiser_id: null,
+            channel_id: channelId?.trim() || null,
+            video_id: videoId?.trim() || null,
+            viewer_id: userId === "guest" ? null : userId,
+            ad_type: adType || "homepage",
+            charge_model: validChargeModel,
+            gross_charge_inr: result.grossChargeINR,
+            channel_share_inr: result.channelShareINR,
+            platform_share_inr: result.platformShareINR,
+            is_fraud_suppressed: false,
+          });
+
+          if (validChargeModel === "cpc") {
+            bq.enqueueAdClick({
+              click_id: `click_${result.impressionId}`,
+              timestamp: nowIso,
+              ad_event_id: result.impressionId,
+              campaign_id: campaignId,
+              channel_id: channelId?.trim() || null,
+              video_id: videoId?.trim() || null,
+              viewer_id: userId === "guest" ? null : userId,
+              cost_per_click_inr: result.grossChargeINR,
+            });
+          }
+        } else if (result.reason) {
+          bq.enqueueAdFraudSignal({
+            signal_id: `sig_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            timestamp: nowIso,
+            campaign_id: campaignId,
+            viewer_id: userId === "guest" ? null : userId,
+            fraud_type: result.reason,
+            action_taken: result.reason === "rate_limit_exceeded" ? "rate_limited" : "suppressed_credit",
+          });
+        }
+      } catch (bqErr) {
+        logger.warn("[AdRevenue] BigQuery ad telemetry streaming warning", { err: String(bqErr) });
+      }
+
       return result;
     } catch (err: unknown) {
       if (err instanceof HttpsError) throw err;
@@ -334,10 +384,12 @@ export const getAdRevenueBreakdown = onCall(
 
     const db = admin.firestore();
 
-    // Verify channel ownership
+    // Verify channel ownership or admin privileges
     const channelDoc = await db.collection("channels").doc(channelId).get();
-    if (!channelDoc.exists || channelDoc.data()?.ownerId !== userId) {
-      throw new HttpsError("permission-denied", "You do not own this channel.");
+    const isOwner = channelDoc.exists && channelDoc.data()?.ownerId === userId;
+    const isAdmin = isCallableAdmin(request.auth);
+    if (!isOwner && !isAdmin) {
+      throw new HttpsError("permission-denied", "You do not have permission to view this channel revenue breakdown.");
     }
 
     try {
@@ -362,7 +414,7 @@ export const getAdRevenueBreakdown = onCall(
       }
 
       const chData = channelDoc.data() || {};
-      const isCustomChannel = chData.type === "custom" || chData.channelType === "custom";
+      const isCustomChannel = chData.type === "custom" || chData.channelType === "custom" || chData.type === "pro" || chData.channelType === "pro";
 
       return {
         channelId,
@@ -404,9 +456,7 @@ export const getAdImpressionAudit = onCall(
     if (!campaignDoc.exists) throw new HttpsError("not-found", "Campaign not found.");
 
     const campaignData = campaignDoc.data()!;
-    const userDoc = await db.collection("users").doc(userId).get();
-    const userData = userDoc.data() || {};
-    const isAdmin = request.auth?.token?.admin === true || userData.role === "admin" || userData.role === "superadmin";
+    const isAdmin = isCallableAdmin(request.auth);
 
     if (campaignData.userId !== userId && !isAdmin) {
       throw new HttpsError("permission-denied", "You do not own this campaign.");

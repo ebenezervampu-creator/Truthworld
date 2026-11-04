@@ -111,18 +111,7 @@ class ChannelWizardMobileLayout extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         ChannelWizardAccordionCard(
-          title: '9. Channel Plan',
-          isExpanded: wizardController.isPlanExpanded,
-          isDarkMode: isDarkMode,
-          child: ChannelWizardPlanCard(
-            controller: channelController,
-            isDarkMode: isDarkMode,
-            contentOnly: true,
-          ),
-        ),
-        const SizedBox(height: 16),
-        ChannelWizardAccordionCard(
-          title: '10. Agreements',
+          title: '9. Agreements',
           isExpanded: wizardController.isAgreementsExpanded,
           isDarkMode: isDarkMode,
           child: ChannelWizardAgreementsCard(

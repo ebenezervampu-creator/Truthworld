@@ -193,11 +193,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Featured Topics'), findsOneWidget);
-      expect(find.text('Popular topics you may like'), findsOneWidget);
-      expect(find.text('Discover'), findsOneWidget);
-      expect(find.text('Trending'), findsOneWidget);
-      expect(find.text('Newest'), findsOneWidget);
-      expect(find.text('Popular'), findsOneWidget);
+      expect(find.byIcon(Icons.stars_rounded), findsOneWidget);
+      expect(find.text('Popular topics you may like'), findsNothing);
+      expect(find.text('Discover'), findsNothing);
+      expect(find.text('Trending'), findsNothing);
+      expect(find.text('Newest'), findsNothing);
+      expect(find.text('Popular'), findsNothing);
       expect(tester.takeException(), isNull);
     });
 
@@ -220,7 +221,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Featured Topics'), findsOneWidget);
-      expect(find.text('Discover'), findsOneWidget);
+      expect(find.byIcon(Icons.stars_rounded), findsOneWidget);
+      expect(find.text('Popular topics you may like'), findsNothing);
       expect(tester.takeException(), isNull);
     });
   });
@@ -280,6 +282,30 @@ void main() {
       // Verify no mock 12.4K topics in hero banner
       expect(find.text('12.4K topics'), findsNothing);
       expect(find.text('8.4K topics'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('ExploreCategoryDetailView does not render follow button or icon in category hero banner',
+        (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: ExploreCategoryDetailView(
+                categoryName: 'News',
+                isMobile: true,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify no Follow button / follow icon in category hero banner
+      expect(find.text('Follow'), findsNothing);
+      expect(find.text('Following'), findsNothing);
+      expect(find.byIcon(Icons.add_rounded), findsNothing);
+      expect(find.text('News'), findsWidgets);
       expect(tester.takeException(), isNull);
     });
   });

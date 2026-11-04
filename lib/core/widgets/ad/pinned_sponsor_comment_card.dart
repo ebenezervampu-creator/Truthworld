@@ -1,9 +1,10 @@
+import 'package:truthworld/theme/app_theme.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/ad_service.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/core/widgets/ad/ad_card_controller.dart';
 import 'package:truthworld/core/widgets/ad/sponsor_comment_reply_sheet.dart';
 
@@ -72,7 +73,7 @@ class PinnedSponsorCommentCard extends StatelessWidget {
         ),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
+          color: AppColors.bgSurface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: Colors.white.withValues(alpha: 0.12),
@@ -92,7 +93,7 @@ class PinnedSponsorCommentCard extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   'Pinned Sponsor',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: Colors.white70,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -116,7 +117,7 @@ class PinnedSponsorCommentCard extends StatelessWidget {
                             ad.advertiser.isNotEmpty
                                 ? ad.advertiser
                                 : 'Official Sponsor',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
                               color: Colors.white,
@@ -135,7 +136,7 @@ class PinnedSponsorCommentCard extends StatelessWidget {
                             ),
                             child: Text(
                               'SPONSOR',
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 color: const Color(0xFF1D9BF0),
                                 fontSize: 9,
                                 fontWeight: FontWeight.bold,
@@ -145,9 +146,9 @@ class PinnedSponsorCommentCard extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        commentText,
-                        style: GoogleFonts.roboto(
+                      ClickableUrlText(
+                        text: commentText,
+                        style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.9),
                           fontSize: 13,
                           height: 1.35,
@@ -159,7 +160,7 @@ class PinnedSponsorCommentCard extends StatelessWidget {
                           onTap: () => AdService.to.launchCtaUrl(ad),
                           child: Text(
                             '${ad.ctaText} →',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               color: const Color(0xFF1D9BF0),
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
@@ -197,7 +198,7 @@ class PinnedSponsorCommentCard extends StatelessWidget {
                         replyCount == 0
                             ? 'Reply to Sponsor'
                             : '$replyCount ${replyCount == 1 ? "Reply" : "Replies"}',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           color: Colors.white70,
                           fontSize: 12,
                           fontWeight: FontWeight.w500,

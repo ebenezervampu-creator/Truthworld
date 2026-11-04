@@ -318,6 +318,22 @@ class VideoContentCard extends StatelessWidget {
                     Get.to<dynamic>(() => EditVideoScreen(video: video));
                   } else if (value == 'reactions_settings') {
                     showVideoReactionsSettingsDialog(context, video, controller);
+                  } else if (value == 'video_dubbing') {
+                    showGenerateAIFeaturesDialog(
+                      context,
+                      video,
+                      controller,
+                      initialFeatures: {'dubbing'},
+                      initialDubbingTier: 'video_pro',
+                    );
+                  } else if (value == 'audio_dubbing') {
+                    showGenerateAIFeaturesDialog(
+                      context,
+                      video,
+                      controller,
+                      initialFeatures: {'dubbing'},
+                      initialDubbingTier: 'audio_starter',
+                    );
                   } else if (value == 'ai_features') {
                     showGenerateAIFeaturesDialog(context, video, controller);
                   } else if (value == 'delete') {
@@ -477,6 +493,46 @@ class VideoContentCard extends StatelessWidget {
                         Text(
                           'Like / Dislike Counts',
                           style: AppTextStyles.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'video_dubbing',
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.record_voice_over_rounded,
+                          size: 18,
+                          color: AppColors.textPrimary,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Video Dubbing & Lip-Sync (Pro • Ultra)',
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'audio_dubbing',
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.graphic_eq_rounded,
+                          size: 18,
+                          color: AppColors.textPrimary,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Audio Dubbing (Starter • Pro • Ultra)',
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ],
                     ),

@@ -5,7 +5,8 @@ import 'package:truthworld/features/discover/presentation/views/channels/widgets
 
 export 'channels/widgets/discover_channels_barrel.dart';
 
-/// Modernized Discover Channels page matching exact visual architecture from Image 1 & Image 2.
+/// Modernized Discover Channels page matching industry standards for fast discovery,
+/// high creator productivity, content previewing, and cost-effective pagination.
 class DiscoverChannelsPage extends StatelessWidget {
   const DiscoverChannelsPage({super.key, this.isDashboard = false});
   final bool isDashboard;
@@ -88,13 +89,22 @@ class DiscoverChannelsPage extends StatelessWidget {
             )
           : null,
       body: SafeArea(
-        child: _buildMainContent(
-          context,
-          controller: controller,
-          padding: padding,
-          isDesktop: isDesktop,
-          isTablet: isTablet,
-          isMobile: isMobile,
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (scrollInfo) {
+            if (scrollInfo.metrics.pixels >=
+                scrollInfo.metrics.maxScrollExtent - 300) {
+              controller.loadMoreChannels();
+            }
+            return false;
+          },
+          child: _buildMainContent(
+            context,
+            controller: controller,
+            padding: padding,
+            isDesktop: isDesktop,
+            isTablet: isTablet,
+            isMobile: isMobile,
+          ),
         ),
       ),
     );
@@ -124,7 +134,7 @@ class DiscoverChannelsPage extends StatelessWidget {
             );
           }),
 
-        // Main Search Bar (Image 1) - only when All categories are shown
+        // Main Search Bar - only when All categories are shown
         SliverToBoxAdapter(
           child: Obx(() {
             if (controller.selectedCategory.value != 'All') {
@@ -135,7 +145,7 @@ class DiscoverChannelsPage extends StatelessWidget {
                 padding.left,
                 isDashboard ? 0 : 8,
                 padding.right,
-                14,
+                16,
               ),
               child: DiscoverSearchBar(
                 controller: controller,
@@ -163,6 +173,56 @@ class DiscoverChannelsPage extends StatelessWidget {
           }),
         ),
 
+        // Front-Page Social Shelves: Trending Creators & Top Verified Channels
+        // (Visible only on main page when not actively searching)
+        SliverToBoxAdapter(
+          child: Obx(() {
+            if (controller.selectedCategory.value != 'All' ||
+                controller.searchQuery.value.trim().isNotEmpty) {
+              return const SizedBox.shrink();
+            }
+
+            final trending = controller.trendingCreators;
+            final topVerified = controller.topVerifiedCreators;
+
+            if (trending.isEmpty && topVerified.isEmpty) {
+              return const SizedBox.shrink();
+            }
+
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                padding.left,
+                6,
+                padding.right,
+                0,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (trending.isNotEmpty)
+                    DiscoverCreatorsShelf(
+                      title: 'Trending Creators',
+                      subtitle: 'Leading channels with highest audience engagement',
+                      channels: trending,
+                      controller: controller,
+                      icon: Icons.local_fire_department_rounded,
+                      isDashboard: isDashboard,
+                    ),
+                  if (topVerified.isNotEmpty)
+                    DiscoverCreatorsShelf(
+                      title: 'Top Verified & Credible Channels',
+                      subtitle: 'Channels with highest truth verification track records',
+                      channels: topVerified,
+                      controller: controller,
+                      icon: Icons.verified_rounded,
+                      isDashboard: isDashboard,
+                    ),
+                ],
+              ),
+            );
+          }),
+        ),
+
         // Categories View or Category Detail Hero Header
         SliverPadding(
           padding: EdgeInsets.symmetric(horizontal: padding.left),
@@ -175,7 +235,7 @@ class DiscoverChannelsPage extends StatelessWidget {
               return const SliverToBoxAdapter(child: SizedBox.shrink());
             }
 
-            // Image 2: Category Selected Detail View
+            // Category Selected Detail View with Responsive Header
             if (isCategorySelected) {
               return DiscoverSelectedCategoryHeader(
                 selectedCategory: controller.selectedCategory.value,
@@ -189,7 +249,7 @@ class DiscoverChannelsPage extends StatelessWidget {
               );
             }
 
-            // Image 1: Main Discover Channels Page
+            // Main Discover Channels Page Section Heading
             return SliverToBoxAdapter(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -206,7 +266,7 @@ class DiscoverChannelsPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    'Find channels that match your interests',
+                    'Explore channels categorized across 30 unified knowledge disciplines',
                     style: TextStyle(
                       fontSize: 13,
                       color: Colors.white.withValues(alpha: 0.60),
@@ -219,7 +279,7 @@ class DiscoverChannelsPage extends StatelessWidget {
           }),
         ),
 
-        // Image 1: Category Grid (when on main page without search)
+        // Category Grid (when on main page without search)
         SliverPadding(
           padding: EdgeInsets.symmetric(horizontal: padding.left),
           sliver: Obx(() {
@@ -236,7 +296,7 @@ class DiscoverChannelsPage extends StatelessWidget {
           }),
         ),
 
-        // Image 1: Creator CTA Banner (shown at bottom of main page)
+        // Creator CTA Banner (shown at bottom of main page)
         SliverToBoxAdapter(
           child: Obx(() {
             if (controller.selectedCategory.value != 'All' ||
@@ -256,7 +316,7 @@ class DiscoverChannelsPage extends StatelessWidget {
           }),
         ),
 
-        // Channels List (Shown when inside a Category [Image 2] OR when active search query)
+        // Channels List (Shown when inside a Category OR when active search query)
         SliverPadding(
           padding: EdgeInsets.fromLTRB(
             padding.left,
@@ -304,6 +364,28 @@ class DiscoverChannelsPage extends StatelessWidget {
                   );
                 },
                 childCount: controller.channels.length,
+              ),
+            );
+          }),
+        ),
+
+        // Pagination Loader (Shown when fetching next batch)
+        SliverToBoxAdapter(
+          child: Obx(() {
+            if (!controller.isFetchingMore.value) {
+              return const SizedBox.shrink();
+            }
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Center(
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             );
           }),

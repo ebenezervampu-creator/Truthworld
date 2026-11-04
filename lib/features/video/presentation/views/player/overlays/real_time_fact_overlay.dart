@@ -8,11 +8,15 @@ import 'package:truthworld/theme/app_theme.dart';
 class RealTimeFactOverlayWidget extends StatelessWidget {
   const RealTimeFactOverlayWidget({
     required this.claim,
+    this.isExpanded = false,
+    this.onToggleExpand,
     this.onClose,
     this.onTap,
     super.key,
   });
   final ClaimResult claim;
+  final bool isExpanded;
+  final VoidCallback? onToggleExpand;
   final VoidCallback? onClose;
   final VoidCallback? onTap;
 
@@ -21,7 +25,10 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
   }
 
   String _getVerdictLabel(String verdict) {
-    return ClaimVerdictHelper.resolveVerdictString(verdict).label;
+    return ClaimVerdictHelper.resolveVerdictString(
+      verdict,
+      confidence: claim.classificationConfidence,
+    ).localizedLabel();
   }
 
   Widget _buildDetailChip(String label, String value) {
@@ -63,6 +70,14 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final verdictColor = _getVerdictColor(claim.verdict);
     final verdictLabel = _getVerdictLabel(claim.verdict);
+
+    if (!isExpanded) {
+      return _buildCompactTicker(
+        context,
+        verdictColor: verdictColor,
+        verdictLabel: verdictLabel,
+      );
+    }
 
     final card = ClipRRect(
       borderRadius: BorderRadius.circular(12),
@@ -175,7 +190,24 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
                           ),
                         ],
                         const Spacer(),
-                        if (onClose != null)
+                        if (onToggleExpand != null)
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: onToggleExpand,
+                              child: const Padding(
+                                padding: EdgeInsets.all(2),
+                                child: Icon(
+                                  Icons.expand_less_rounded,
+                                  size: 18,
+                                  color: Colors.white70,
+                                ),
+                              ),
+                            ),
+                          ),
+                        if (onClose != null) ...[
+                          const SizedBox(width: 4),
                           Material(
                             color: Colors.transparent,
                             child: InkWell(
@@ -191,11 +223,12 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
                               ),
                             ),
                           ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      claim.text,
+                      claim.localizedText(),
                       style: TextStyle(
                         color: AppColors.textPrimary.withValues(alpha: 0.95),
                         fontSize: 12,
@@ -548,5 +581,134 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
       );
     }
     return card;
+  }
+
+  Widget _buildCompactTicker(
+    BuildContext context, {
+    required Color verdictColor,
+    required String verdictLabel,
+  }) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 480, minHeight: 38),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.bgPage.withValues(alpha: 0.88),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: verdictColor.withValues(alpha: 0.45),
+              width: 1.0,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 12,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // Glowing verdict indicator dot
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: verdictColor,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: verdictColor.withValues(alpha: 0.8),
+                      blurRadius: 6,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Verdict chip
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: verdictColor.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
+                    color: verdictColor.withValues(alpha: 0.4),
+                    width: 0.5,
+                  ),
+                ),
+                child: Text(
+                  verdictLabel.toUpperCase(),
+                  style: TextStyle(
+                    color: verdictColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 9.5,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // 1-line claim snippet
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onTap,
+                  child: Text(
+                    claim.localizedText(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              // Expand details button
+              if (onToggleExpand != null)
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: onToggleExpand,
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(
+                        Icons.expand_more_rounded,
+                        size: 16,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ),
+                ),
+              // Close button
+              if (onClose != null) ...[
+                const SizedBox(width: 2),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: onClose,
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 15,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

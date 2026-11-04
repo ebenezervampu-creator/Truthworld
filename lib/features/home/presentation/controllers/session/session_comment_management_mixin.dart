@@ -62,18 +62,20 @@ mixin SessionCommentManagementMixin on BaseController {
       final authService = AuthService.to;
       final hasChannel =
           authService.hasChannel.value && authService.userChannel != null;
+      final userChannel = hasChannel ? authService.userChannel : null;
 
-      final finalUserName = authService.activeDisplayName;
-      final finalUserProfilePicUrl = authService.activePhotoUrl;
-      final finalChannelId = hasChannel ? authService.userChannel!.id : userId;
-      final finalChannelName = hasChannel
-          ? (authService.userChannel?.handle.isNotEmpty == true
-                ? authService.userChannel!.handle
-                : authService.userChannel!.name)
-          : null;
-      final finalChannelProfilePicUrl = hasChannel
-          ? authService.userChannel?.avatarUrl
-          : null;
+      final rawName = authService.userDisplayName.value ??
+          authService.user?.displayName ??
+          'User';
+      final finalUserName =
+          rawName.startsWith('@') ? rawName.substring(1) : rawName;
+      final finalUserProfilePicUrl = authService.userPhotoUrl.value ??
+          authService.user?.photoURL ??
+          '';
+      final finalChannelId = hasChannel ? userChannel!.id : '';
+      final finalChannelHandle = userChannel?.handle;
+      final finalChannelName = userChannel?.name;
+      final finalChannelProfilePicUrl = userChannel?.avatarUrl;
 
       final comment = Comment(
         id: docRef.id,
@@ -85,7 +87,9 @@ mixin SessionCommentManagementMixin on BaseController {
         createdAt: Timestamp.now(),
         channelId: finalChannelId,
         channelName: finalChannelName,
+        channelHandle: finalChannelHandle,
         channelProfilePicUrl: finalChannelProfilePicUrl,
+        isChannel: hasChannel,
         likeCount: 0,
         dislikeCount: 0,
         reportCount: 0,
@@ -160,18 +164,20 @@ mixin SessionCommentManagementMixin on BaseController {
       final authService = AuthService.to;
       final hasChannel =
           authService.hasChannel.value && authService.userChannel != null;
+      final userChannel = hasChannel ? authService.userChannel : null;
 
-      final finalUserName = authService.activeDisplayName;
-      final finalUserProfilePicUrl = authService.activePhotoUrl;
-      final finalChannelId = hasChannel ? authService.userChannel!.id : userId;
-      final finalChannelName = hasChannel
-          ? (authService.userChannel?.handle.isNotEmpty == true
-                ? authService.userChannel!.handle
-                : authService.userChannel!.name)
-          : null;
-      final finalChannelProfilePicUrl = hasChannel
-          ? authService.userChannel?.avatarUrl
-          : null;
+      final rawName = authService.userDisplayName.value ??
+          authService.user?.displayName ??
+          'User';
+      final finalUserName =
+          rawName.startsWith('@') ? rawName.substring(1) : rawName;
+      final finalUserProfilePicUrl = authService.userPhotoUrl.value ??
+          authService.user?.photoURL ??
+          '';
+      final finalChannelId = hasChannel ? userChannel!.id : '';
+      final finalChannelHandle = userChannel?.handle;
+      final finalChannelName = userChannel?.name;
+      final finalChannelProfilePicUrl = userChannel?.avatarUrl;
 
       final reply = Reply(
         id: docRef.id,
@@ -184,7 +190,9 @@ mixin SessionCommentManagementMixin on BaseController {
         userProfilePicUrl: finalUserProfilePicUrl,
         channelId: finalChannelId,
         channelName: finalChannelName,
+        channelHandle: finalChannelHandle,
         channelProfilePicUrl: finalChannelProfilePicUrl,
+        isChannel: hasChannel,
         likeCount: 0,
         dislikeCount: 0,
         reportCount: 0,

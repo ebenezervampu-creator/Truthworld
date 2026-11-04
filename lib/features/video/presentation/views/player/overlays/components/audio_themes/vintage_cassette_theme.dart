@@ -2,8 +2,9 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
-/// Theme 6: Vintage Cassette Tape
-/// Dual spinning tape spools, magnetic tape ribbon, retro mixtape label, and warm analog backlighting.
+/// Theme 6: Vintage Reel-to-Reel Tape
+/// High-end analog studio master tape machine (Nagra/Studer aesthetic)
+/// with precision brushed spools, smooth rotational physics, and clean studio typography.
 class VintageCassetteTheme extends StatefulWidget {
   const VintageCassetteTheme({
     required this.isPlaying,
@@ -56,243 +57,257 @@ class _VintageCassetteThemeState extends State<VintageCassetteTheme>
   Widget build(BuildContext context) {
     final title = widget.video?.title.isNotEmpty == true
         ? widget.video!.title
-        : 'TruthWorld Mixtape Vol. 1';
+        : 'TruthWorld Master Tape';
     final channel = widget.video?.channelName.isNotEmpty == true
         ? widget.video!.channelName
-        : 'Studio Cassette';
+        : 'Analog Sound Lab';
 
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Dark Vintage Background with Warm Ambient Radial Aura
-        const ColoredBox(color: Color(0xFF0D0A08)),
+        // Dark Studio Canvas
+        const ColoredBox(color: Color(0xFF0A0A0D)),
+
+        // Soft Warm Studio Vignette
         Container(
           decoration: BoxDecoration(
             gradient: RadialGradient(
-              radius: 0.9,
+              center: Alignment.center,
+              radius: 0.95,
               colors: [
-                const Color(0xFFB45309).withValues(alpha: 0.15),
-                Colors.black,
+                const Color(0xFFD4AF37).withValues(alpha: 0.04),
+                Colors.black.withValues(alpha: 0.75),
+                const Color(0xFF0A0A0D),
               ],
+              stops: const [0.0, 0.65, 1.0],
             ),
           ),
         ),
 
-        // Center Stage Cassette Shell
+        // Center Stage Studio Reel Housing
         Center(
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Container(
-              width: 330,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-              color: const Color(0xFF1C1917), // Charcoal cassette plastic
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: const Color(0xFF44403C),
-                width: 2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.8),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
-                ),
-                BoxShadow(
-                  color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
-                  blurRadius: 16,
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Mixtape Top Label Sticker
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Container(
+                width: 340,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF141418), // Deep brushed titanium
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    width: 1.2,
                   ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFEF3C7), // Vintage cream paper
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: const Color(0xFFD97706),
-                      width: 1.5,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.7),
+                      blurRadius: 28,
+                      offset: const Offset(0, 10),
                     ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFB45309),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          'SIDE A',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 8,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.5,
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Studio Metadata Header
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Frosted Status Pill
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Color(0xFF1C1917),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            Text(
-                              channel,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Color(0xFF78350F),
-                                fontSize: 9,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Text(
-                        'TYPE II 90',
-                        style: TextStyle(
-                          color: Color(0xFF92400E),
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 10),
-
-                // Transparent Acrylic Spool Window
-                Container(
-                  width: double.infinity,
-                  height: 68,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0C0A09),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: const Color(0xFF292524),
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // Magnetic Tape Ribbon Bridge
-                      Positioned(
-                        left: 45,
-                        right: 45,
-                        top: 30,
-                        height: 8,
-                        child: Container(
                           decoration: BoxDecoration(
-                            color: const Color(0xFF451A03), // Brown tape
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                      ),
-                      // Spool Pair
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _buildTapeSpool(_spoolController),
-                          // Center Tick Marks & Tape Window
-                          Container(
-                            width: 32,
-                            height: 20,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.05),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.1),
-                              ),
+                            color: Colors.white.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.12),
                             ),
-                            child: Center(
-                              child: Text(
-                                widget.isPlaying ? 'PLAY' : 'PAUSE',
-                                style: TextStyle(
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 5,
+                                height: 5,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
                                   color: widget.isPlaying
-                                      ? const Color(0xFFF59E0B)
+                                      ? const Color(0xFFE2E8F0)
                                       : Colors.white38,
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.5,
                                 ),
                               ),
+                              const SizedBox(width: 5),
+                              const Text(
+                                'REEL-TO-REEL',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          widget.isPlaying ? '15 IPS MASTER' : 'STANDBY',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.4),
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Song Info
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        channel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.65),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Dual Rotating Precision Spools
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0B0B0E),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.08),
+                        ),
+                      ),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          // Magnetic Tape Ribbon Bridge
+                          Positioned(
+                            top: 30,
+                            left: 45,
+                            right: 45,
+                            height: 6,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF26262B),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
                             ),
                           ),
-                          _buildTapeSpool(_spoolController),
+
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              _TapeSpool(
+                                controller: _spoolController,
+                                isPlaying: widget.isPlaying,
+                                isLeft: true,
+                              ),
+                              _TapeSpool(
+                                controller: _spoolController,
+                                isPlaying: widget.isPlaying,
+                                isLeft: false,
+                              ),
+                            ],
+                          ),
                         ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
-      ),
-    ],
-  );
+      ],
+    );
   }
+}
 
-  Widget _buildTapeSpool(AnimationController controller) {
+class _TapeSpool extends StatelessWidget {
+  const _TapeSpool({
+    required this.controller,
+    required this.isPlaying,
+    required this.isLeft,
+  });
+
+  final AnimationController controller;
+  final bool isPlaying;
+  final bool isLeft;
+
+  @override
+  Widget build(BuildContext context) {
     return RotationTransition(
       turns: controller,
       child: Container(
-        width: 48,
-        height: 48,
+        width: 68,
+        height: 68,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: const Color(0xFF292524),
+          color: const Color(0xFF1E1E24),
           border: Border.all(
-            color: const Color(0xFF57534E),
-            width: 2,
+            color: Colors.white.withValues(alpha: 0.22),
+            width: 1.5,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.6),
+              blurRadius: 10,
+            ),
+          ],
         ),
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // 6-toothed Spool Cog Teeth
-            for (var i = 0; i < 6; i++)
-              Transform.rotate(
-                angle: (i * pi) / 3,
-                child: Container(
-                  width: 3,
-                  height: 38,
-                  color: const Color(0xFFD6D3D1),
-                ),
-              ),
-            // Spool Hub Center
+            // Precision 3-spoke metal cutout
+            CustomPaint(
+              size: const Size(68, 68),
+              painter: _SpoolSpokesPainter(),
+            ),
+            // Center spindle hub
             Container(
-              width: 22,
-              height: 22,
-              decoration: const BoxDecoration(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Color(0xFF0C0A09),
+                color: const Color(0xFF101014),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.4),
+                  width: 1.5,
+                ),
               ),
             ),
           ],
@@ -300,4 +315,25 @@ class _VintageCassetteThemeState extends State<VintageCassetteTheme>
       ),
     );
   }
+}
+
+class _SpoolSpokesPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final paint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.18)
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke;
+
+    for (int i = 0; i < 3; i++) {
+      final angle = i * (2 * pi / 3);
+      final p1 = Offset(center.dx + 10 * cos(angle), center.dy + 10 * sin(angle));
+      final p2 = Offset(center.dx + 28 * cos(angle), center.dy + 28 * sin(angle));
+      canvas.drawLine(p1, p2, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

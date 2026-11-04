@@ -5,6 +5,7 @@ import 'package:truthworld/features/admin/presentation/views/dashboard_component
 import 'package:truthworld/theme/app_theme.dart';
 
 export 'package:truthworld/features/admin/presentation/views/audit_logs_tab.dart';
+export 'package:truthworld/features/admin/presentation/views/broadcast_push_tab.dart';
 export 'package:truthworld/features/admin/presentation/views/channel_queue_tab.dart';
 export 'package:truthworld/features/admin/presentation/views/dashboard_components/admin_dashboard_barrel.dart';
 export 'package:truthworld/features/admin/presentation/views/image_queue_tab.dart';

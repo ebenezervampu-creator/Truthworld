@@ -51,14 +51,23 @@ class ChannelPostsTabView extends GetView<ChannelController> {
         }
 
         final posts = snapshot.data!.docs
-            .map(
-              (doc) => CommunityPostModel.fromMap(
-                doc.data()! as Map<String, dynamic>,
-              ),
-            )
+            .map((doc) {
+              final data = Map<String, dynamic>.from(doc.data()! as Map);
+              if (data['id'] == null || (data['id'] as String).isEmpty) {
+                data['id'] = doc.id;
+              }
+              return CommunityPostModel.fromMap(data);
+            })
             .where((post) {
               if (post.id == '8Zq2KuYIgm9m8kgogAE3' ||
-                  post.title.trim().toLowerCase().startsWith('our first video')) {
+                  post.title.trim().toLowerCase().startsWith('our first video') ||
+                  (post.title.toLowerCase().contains('first video') &&
+                      (post.description.toLowerCase().contains('hi every one') || post.description.isEmpty))) {
+                return false;
+              }
+              if (post.status == 'deleted' ||
+                  post.status == 'trashed' ||
+                  post.status == 'deletion_pending') {
                 return false;
               }
               if (isOwner) return true;

@@ -87,14 +87,13 @@ void main() {
       expect(find.byIcon(Icons.alternate_email_rounded), findsOneWidget);
     });
 
-    testWidgets('buildSection3Title, buildSection4Description, and buildSection7Tags render inputs and tag chips', (tester) async {
+    testWidgets('buildSection3Description and buildSection7Tags render inputs and tag chips (Title removed)', (tester) async {
       await tester.pumpWidget(
         createHarness(
           Builder(
             builder: (ctx) => Column(
               children: [
-                buildSection3Title(ctx, controller),
-                buildSection4Description(ctx, controller),
+                buildSection3Description(ctx, controller),
                 buildSection7Tags(ctx, controller),
               ],
             ),
@@ -102,8 +101,7 @@ void main() {
         ),
       );
 
-      expect(find.text('3. Title'), findsOneWidget);
-      expect(find.text('4. Description'), findsOneWidget);
+      expect(find.text('3. Description'), findsOneWidget);
       expect(find.text('7. Tags'), findsOneWidget);
 
       // Default tags
@@ -227,7 +225,6 @@ void main() {
 
       controller.nameController.text = 'Science Discovery';
       controller.handleController.text = 'science-discovery';
-      controller.titleController.text = 'Science Discovery 2026';
       controller.descriptionController.text = 'Exploring the latest breakthroughs in modern science.';
       controller.selectedVideoIds.add('v1');
 
@@ -284,7 +281,6 @@ void main() {
 
     test('CreateTopicController validation honors isFromUpload flag without demanding videos', () async {
       controller.nameController.text = 'Valid Topic';
-      controller.titleController.text = 'Valid Topic';
       controller.handleController.text = 'valid-topic';
       controller.descriptionController.text = 'Valid topic description with more than 10 chars';
       controller.selectedVideoIds.clear();
@@ -305,7 +301,6 @@ void main() {
 
     test('CreateTopicController validation enforces at least 10 letters of description', () async {
       controller.nameController.text = 'Valid Topic';
-      controller.titleController.text = 'Valid Topic';
       controller.handleController.text = 'valid-topic';
       controller.isFromUpload.value = true;
 

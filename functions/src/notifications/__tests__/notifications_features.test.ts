@@ -550,6 +550,330 @@ function testTopicNotificationPreferences() {
 }
 
 // ----------------------------------------------------------------------
+// FEATURE 9: Video Publish Gate & Multi-Source Subscriber Fan-Out Union
+// ----------------------------------------------------------------------
+function testSubscriberNotificationGateAndMultiCollectionFanout() {
+  console.log("\n--- [Feature 9] Testing Video Publish Gate & Multi-Source Subscriber Fan-Out ---");
+
+  // Replicates video publish gate logic in onVideoPublished
+  function evaluateVideoNotificationGate(beforeData: any, afterData: any) {
+    const aiFeatures = afterData?.aiFeatures || {};
+    const beforeAiFeatures = beforeData?.aiFeatures || {};
+
+    const isPublishRequested =
+      aiFeatures.pipelineStage === "published" ||
+      afterData.status === "published" ||
+      afterData.targetStatus === "published" ||
+      afterData.published === true ||
+      (afterData.status === "processing" && !afterData.jobId);
+
+    const wasPublishRequested =
+      beforeAiFeatures.pipelineStage === "published" ||
+      beforeData?.status === "published" ||
+      beforeData?.targetStatus === "published" ||
+      beforeData?.published === true;
+
+    const videoUrlBecameReady = !beforeData?.videoUrl && !!afterData.videoUrl;
+    const titleBecameReady =
+      (beforeData?.title === "Uploading..." || !beforeData?.title) &&
+      (afterData.title && afterData.title !== "Uploading...");
+
+    const becamePublished =
+      (!wasPublishRequested && isPublishRequested) ||
+      (!afterData.jobId && isPublishRequested && (videoUrlBecameReady || titleBecameReady || afterData.status === "processing"));
+
+    const wasApproved = beforeData?.moderation?.status === "approved";
+    const isApproved =
+      afterData.moderation?.status === "approved" ||
+      afterData.isModerated === true ||
+      afterData.trustedModerationBypass === true ||
+      (afterData.moderation?.status === undefined && afterData.status !== "rejected");
+    const becameApproved = !wasApproved && isApproved;
+
+    const isCurrentlyPublished =
+      (afterData.status === "published" ||
+        afterData.published === true ||
+        afterData.isPublished === true ||
+        aiFeatures.pipelineStage === "published") &&
+      afterData.status !== "processing" &&
+      afterData.status !== "uploading" &&
+      afterData.status !== "draft" &&
+      afterData.status !== "scheduled" &&
+      afterData.status !== "rejected";
+
+    const wasPublished =
+      beforeData?.status === "published" ||
+      beforeData?.published === true ||
+      beforeData?.isPublished === true ||
+      beforeAiFeatures.pipelineStage === "published";
+
+    const statusJustBecamePublished = !wasPublished && isCurrentlyPublished;
+    const notificationsNotSentYet = !afterData.notificationsSent;
+
+    const shouldSendNotifications =
+      isCurrentlyPublished &&
+      isApproved &&
+      notificationsNotSentYet &&
+      (statusJustBecamePublished || becameApproved || becamePublished);
+
+    return shouldSendNotifications;
+  }
+
+  // 1. Pipeline aggregation finishes: processing -> published (already approved)
+  const processingToPublished = evaluateVideoNotificationGate(
+    { status: "processing", targetStatus: "published", moderation: { status: "approved" }, notificationsSent: false },
+    { status: "published", targetStatus: "published", moderation: { status: "approved" }, notificationsSent: false }
+  );
+  assert(processingToPublished === true, "Pipeline aggregation transition (processing -> published) triggers notifications");
+
+  // 2. Video published, moderation approves afterward
+  const pendingToApprovedWhenPublished = evaluateVideoNotificationGate(
+    { status: "published", moderation: { status: "pending" }, notificationsSent: false },
+    { status: "published", moderation: { status: "approved" }, notificationsSent: false }
+  );
+  assert(pendingToApprovedWhenPublished === true, "Moderation approval for published video triggers notifications");
+
+  // 3. Video still processing: must NOT trigger notifications prematurely
+  const stillProcessingApproved = evaluateVideoNotificationGate(
+    { status: "processing", moderation: { status: "pending" }, notificationsSent: false },
+    { status: "processing", moderation: { status: "approved" }, notificationsSent: false }
+  );
+  assert(stillProcessingApproved === false, "Video still processing does not trigger notifications prematurely");
+
+  // 4. Notifications already sent: must NOT re-send
+  const alreadySent = evaluateVideoNotificationGate(
+    { status: "processing", moderation: { status: "approved" }, notificationsSent: true },
+    { status: "published", moderation: { status: "approved" }, notificationsSent: true }
+  );
+  assert(alreadySent === false, "Does not re-send notifications if notificationsSent is true");
+
+  // 5. Rejected video: must NOT send
+  const rejectedVideo = evaluateVideoNotificationGate(
+    { status: "processing", moderation: { status: "pending" }, notificationsSent: false },
+    { status: "rejected", moderation: { status: "rejected" }, notificationsSent: false }
+  );
+  assert(rejectedVideo === false, "Rejected video does not trigger subscriber notifications");
+
+  // 6. Multi-collection subscriber union resolution
+  function resolveSubscribersFromSources(
+    primarySubDocs: Array<{ id: string; data: any }>,
+    legacySubDocs: Array<{ id: string; data: any }>,
+    creatorId: string,
+    isPersonalizedEligible: boolean
+  ) {
+    const notifiedUserIds = new Set<string>();
+    notifiedUserIds.add(creatorId);
+    const notifications: Array<{ userId: string; option: string }> = [];
+
+    const processDocs = (docs: Array<{ id: string; data: any }>) => {
+      docs.forEach(doc => {
+        const data = doc.data;
+        const userId = data.userId || doc.id;
+        if (!userId || notifiedUserIds.has(userId) || userId === creatorId) return;
+
+        notifiedUserIds.add(userId);
+
+        const notificationsEnabled = data.notificationsEnabled !== false;
+        const effectiveOption = (
+          data.notificationOption ||
+          data.notificationPreference ||
+          (!notificationsEnabled ? "none" : "personalized")
+        ).toLowerCase();
+
+        if (notificationsEnabled && effectiveOption !== "none" && (effectiveOption === "all" || isPersonalizedEligible)) {
+          notifications.push({ userId, option: effectiveOption });
+        }
+      });
+    };
+
+    processDocs(primarySubDocs);
+    processDocs(legacySubDocs);
+
+    return { totalNotified: notifications.length, notifications, uniqueUsersCount: notifiedUserIds.size - 1 };
+  }
+
+  // Channel with subscribers across channels/{id}/subscribers and legacy subscriptions
+  const primarySubs = [
+    { id: "user_all_1", data: { notificationOption: "all", notificationsEnabled: true } },
+    { id: "user_pers_1", data: { notificationOption: "personalized", notificationsEnabled: true } },
+    { id: "user_none_1", data: { notificationOption: "none", notificationsEnabled: false } },
+    { id: "user_both", data: { userId: "user_both", notificationOption: "all", notificationsEnabled: true } },
+  ];
+
+  const legacySubs = [
+    { id: "ch_user_both", data: { userId: "user_both", notificationOption: "all", notificationsEnabled: true } },
+    { id: "ch_user_legacy_only", data: { userId: "user_legacy_only", notificationOption: "all", notificationsEnabled: true } },
+  ];
+
+  // Routine video (isPersonalizedEligible = false)
+  const routineResult = resolveSubscribersFromSources(primarySubs, legacySubs, "creator_1", false);
+  assert(routineResult.uniqueUsersCount === 5, "Resolves all 5 unique subscribers across both collections");
+  assert(routineResult.totalNotified === 3, "Notifies exactly the 3 users with option 'all' for routine video (including legacy-only)");
+  assert(routineResult.notifications.some(n => n.userId === "user_legacy_only"), "Includes subscriber present only in legacy collection");
+  assert(routineResult.notifications.some(n => n.userId === "user_all_1"), "Includes subscriber present only in primary channel subcollection");
+  assert(routineResult.notifications.filter(n => n.userId === "user_both").length === 1, "Deduplicates subscriber present in both collections");
+
+  // Highlight video (isPersonalizedEligible = true)
+  const highlightResult = resolveSubscribersFromSources(primarySubs, legacySubs, "creator_1", true);
+  assert(highlightResult.totalNotified === 4, "Notifies 4 users (3 'all' + 1 'personalized') for highlight video");
+  assert(!highlightResult.notifications.some(n => n.userId === "user_none_1"), "Strictly respects 'none' mute setting even on highlight");
+}
+
+// ----------------------------------------------------------------------
+// FEATURE 10: Triple Notification Prevention & Per-Platform Deduplication
+// ----------------------------------------------------------------------
+function testTripleNotificationPrevention() {
+  console.log("\n--- [Feature 10] Testing Triple Notification Prevention & Platform Pruning ---");
+
+  interface CandidateTokenEntry {
+    deviceId: string;
+    token: string;
+    app: string;
+    platform: string;
+    updatedAt: number;
+  }
+
+  function resolveTokensToPush(fcmTokensMap: Record<string, any>, targetApp: string): {
+    tokensToSend: string[];
+    prunedDeviceIds: string[];
+  } {
+    const candidateEntries: CandidateTokenEntry[] = [];
+    const duplicateDeviceIdsToRemove: string[] = [];
+    const seenTokenStrings = new Set<string>();
+
+    for (const [deviceId, val] of Object.entries(fcmTokensMap)) {
+      let tokenStr = "";
+      let tokenApp = "";
+      let platform = "android";
+      let updatedAt = 0;
+
+      if (typeof val === "string") {
+        tokenStr = val.trim();
+      } else if (val && typeof val === "object") {
+        if (typeof val.token === "string") tokenStr = val.token.trim();
+        if (typeof val.app === "string") tokenApp = val.app.trim().toLowerCase();
+        else if (typeof val.appFlavor === "string") tokenApp = val.appFlavor.trim().toLowerCase();
+        if (typeof val.platform === "string") platform = val.platform.trim().toLowerCase();
+        if (typeof val.updatedAt === "number") updatedAt = val.updatedAt;
+      }
+
+      if (!tokenApp) {
+        if (deviceId.startsWith("studio_")) tokenApp = "studio";
+        else if (deviceId.startsWith("admin_")) tokenApp = "admin";
+        else if (deviceId.startsWith("advertiser_")) tokenApp = "advertiser";
+        else if (deviceId.startsWith("app_")) tokenApp = "app";
+      }
+
+      if (tokenStr.length === 0) continue;
+
+      if (targetApp !== "all") {
+        if (tokenApp) {
+          if (tokenApp !== targetApp) continue;
+        } else {
+          if (targetApp !== "app") continue;
+        }
+      }
+
+      if (seenTokenStrings.has(tokenStr)) {
+        duplicateDeviceIdsToRemove.push(deviceId);
+        continue;
+      }
+      seenTokenStrings.add(tokenStr);
+
+      candidateEntries.push({
+        deviceId,
+        token: tokenStr,
+        app: tokenApp || "app",
+        platform: platform || "android",
+        updatedAt,
+      });
+    }
+
+    const groupMap = new Map<string, CandidateTokenEntry[]>();
+    for (const entry of candidateEntries) {
+      const groupKey = `${entry.platform}_${entry.app}`;
+      const group = groupMap.get(groupKey) || [];
+      group.push(entry);
+      groupMap.set(groupKey, group);
+    }
+
+    const tokensToSend: string[] = [];
+    for (const [, entries] of groupMap.entries()) {
+      entries.sort((a, b) => b.updatedAt - a.updatedAt);
+      tokensToSend.push(entries[0].token);
+      for (let i = 1; i < entries.length; i++) {
+        duplicateDeviceIdsToRemove.push(entries[i].deviceId);
+      }
+    }
+
+    return { tokensToSend, prunedDeviceIds: duplicateDeviceIdsToRemove };
+  }
+
+  // Case 1: Exactly 3 Android tokens accumulated on consumer app (e.g. 3 reinstalls on user device)
+  const threeAccumulatedTokens = {
+    "app_uuid_old_1": { token: "fcm_token_day1", platform: "android", app: "app", updatedAt: 1000 },
+    "app_uuid_old_2": { token: "fcm_token_day2", platform: "android", app: "app", updatedAt: 2000 },
+    "app_uuid_active": { token: "fcm_token_day3", platform: "android", app: "app", updatedAt: 3000 },
+  };
+
+  const res1 = resolveTokensToPush(threeAccumulatedTokens, "app");
+  assert(res1.tokensToSend.length === 1, "Reduces 3 accumulated Android app tokens to exactly 1 active token");
+  assert(res1.tokensToSend[0] === "fcm_token_day3", "Selects the newest active token (fcm_token_day3)");
+  assert(res1.prunedDeviceIds.length === 2, "Prunes the 2 superseded stale tokens from Firestore");
+  assert(res1.prunedDeviceIds.includes("app_uuid_old_1"), "Pruned app_uuid_old_1");
+  assert(res1.prunedDeviceIds.includes("app_uuid_old_2"), "Pruned app_uuid_old_2");
+
+  // Case 2: Exactly 3 Android tokens accumulated on Creator Studio
+  const threeStudioTokens = {
+    "studio_uuid_v1": { token: "studio_tok_v1", platform: "android", app: "studio", updatedAt: 100 },
+    "studio_uuid_v2": { token: "studio_tok_v2", platform: "android", app: "studio", updatedAt: 200 },
+    "studio_uuid_v3": { token: "studio_tok_v3", platform: "android", app: "studio", updatedAt: 300 },
+  };
+
+  const resStudio = resolveTokensToPush(threeStudioTokens, "studio");
+  assert(resStudio.tokensToSend.length === 1, "Reduces 3 accumulated Studio tokens to exactly 1 active token");
+  assert(resStudio.tokensToSend[0] === "studio_tok_v3", "Selects newest Studio token (studio_tok_v3)");
+  assert(resStudio.prunedDeviceIds.length === 2, "Prunes the 2 older Studio tokens");
+
+  // Case 3: Distinct platforms (Android + iOS + Web) remain active simultaneously
+  const multiPlatform = {
+    "app_android": { token: "tok_android", platform: "android", app: "app", updatedAt: 500 },
+    "app_ios": { token: "tok_ios", platform: "ios", app: "app", updatedAt: 500 },
+    "app_web": { token: "tok_web", platform: "web", app: "app", updatedAt: 500 },
+  };
+
+  const resMulti = resolveTokensToPush(multiPlatform, "app");
+  assert(resMulti.tokensToSend.length === 3, "Keeps active token across distinct platforms (Android, iOS, Web)");
+  assert(resMulti.prunedDeviceIds.length === 0, "Does not prune tokens on different platforms");
+
+  // Case 4: Entity collapse key resolution
+  function resolveEntityCollapseKey(type: string, metadata?: Record<string, any>, fallbackId = "notif_123"): string {
+    if (type === "new_follower" || type === "new_subscriber") {
+      const chId = metadata?.channelId || "";
+      const subId = metadata?.subscriberId || "";
+      if (chId && subId) return `sub_${chId}_${subId}`;
+    }
+    if (metadata?.videoId) return `video_${metadata.videoId}`;
+    if (metadata?.postId) return `post_${metadata.postId}`;
+    if (metadata?.commentId) return `comment_${metadata.commentId}`;
+    return fallbackId;
+  }
+
+  assert(
+    resolveEntityCollapseKey("new_follower", { channelId: "ch_99", subscriberId: "user_vicky" }) === "sub_ch_99_user_vicky",
+    "Resolves deterministic collapse tag sub_ch_99_user_vicky for new_follower"
+  );
+  assert(
+    resolveEntityCollapseKey("comment", { commentId: "comm_77" }) === "comment_comm_77",
+    "Resolves deterministic collapse tag comment_comm_77 for comment"
+  );
+  assert(
+    resolveEntityCollapseKey("new_community_post", { postId: "post_55" }) === "post_post_55",
+    "Resolves deterministic collapse tag post_post_55 for community post"
+  );
+}
+
+// ----------------------------------------------------------------------
 // RUN ALL TESTS
 // ----------------------------------------------------------------------
 console.log("==================================================");
@@ -564,6 +888,8 @@ testStaleTokenCleanup();
 testSafetyNetFiltering();
 testChannelNotificationPreferences();
 testTopicNotificationPreferences();
+testSubscriberNotificationGateAndMultiCollectionFanout();
+testTripleNotificationPrevention();
 
 console.log("\n==================================================");
 console.log(`TOTAL RESULTS: ${passed} PASSED, ${failed} FAILED`);

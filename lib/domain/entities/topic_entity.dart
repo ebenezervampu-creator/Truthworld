@@ -3,18 +3,20 @@
 class TopicEntity {
   const TopicEntity({
     required this.id,
-    required this.title,
     required this.slug,
     required this.handle,
     required this.description,
     required this.category,
     required this.createdAt,
     required this.updatedAt,
+    String? name,
+    String? title,
     this.thumbnailUrl,
     this.coverImage,
     this.videoCount = 0,
     this.postCount = 0,
     this.followerCount = 0,
+    this.channelCount = 0,
     this.views = 0,
     this.likeCount = 0,
     this.commentCount = 0,
@@ -25,10 +27,11 @@ class TopicEntity {
     this.tags = const [],
     this.featuredVideoIds = const [],
     this.relatedTopics = const [],
-  });
+  }) : name = (name != null && name != '') ? name : (title ?? '');
 
   final String id;
-  final String title;
+  final String name;
+  String get title => name;
   final String slug;
   final String handle;
   final String description;
@@ -40,6 +43,7 @@ class TopicEntity {
   final int videoCount;
   final int postCount;
   final int followerCount;
+  final int channelCount;
   final int views;
   final int likeCount;
   final int commentCount;

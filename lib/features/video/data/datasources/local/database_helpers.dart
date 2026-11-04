@@ -53,7 +53,6 @@ Future<void> saveOfflineVideoMetadata(
   OfflineVideo meta,
 ) async {
   final metaMap = meta.toJson();
-  metaMap['isEncrypted'] = true;
 
   if (kIsWeb) {
     final db = await _getWebDatabase();
@@ -62,7 +61,11 @@ Future<void> saveOfflineVideoMetadata(
     final store = txn.objectStore('videos');
     final existing = await store.getObject(id) as Map?;
     final bytes = existing != null ? existing['bytes'] : null;
-    await store.put({'meta': metaMap, 'bytes': bytes}, id);
+    final payload = <String, dynamic>{'meta': metaMap};
+    if (bytes != null) {
+      payload['bytes'] = bytes;
+    }
+    await store.put(payload, id);
     await txn.completed;
   } else {
     final dir = await _getOfflineDir();
@@ -333,9 +336,14 @@ Future<bool> _isEncryptedFileComplete(File encFile) async {
   }
 }
 
-/// Resolves a streaming loopback URL for offline video playback via LocalPlaybackProxyServer.
-/// On native platforms, serves the encrypted file on-the-fly without writing unencrypted bytes to disk.
+/// Resolves a streaming URL or local file for offline/saved video playback.
+/// For HLS/DASH streaming, returns the direct stream URL without proxy overhead.
 Future<String?> getOfflinePlaybackUrl(String id) async {
+  final meta = await getOfflineVideoMetadata(id);
+  if (meta?.videoUrl != null && meta!.videoUrl!.isNotEmpty) {
+    return meta.videoUrl;
+  }
+
   if (kIsWeb) return null;
 
   final dir = await _getOfflineDir();
@@ -441,6 +449,11 @@ Future<bool> hasOfflineVideo(String id) async {
     return data != null && (data['bytes'] != null || data['meta'] != null);
   } else {
     final dir = await _getOfflineDir();
+
+    final metaFile = File('${dir.path}/$id.json');
+    if (await metaFile.exists()) {
+      return true;
+    }
 
     final encFile = File('${dir.path}/$id.twenc');
     if (await _isEncryptedFileComplete(encFile)) {

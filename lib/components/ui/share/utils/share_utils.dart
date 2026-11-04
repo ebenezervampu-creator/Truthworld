@@ -21,6 +21,9 @@ class ShareUtils {
         (url.contains('start=') && url.contains('end='))) {
       return 'clip';
     }
+    if (url.contains('/claim')) {
+      return 'claim';
+    }
     if (currentPosition != null ||
         durationMs != null ||
         url.contains('/watch')) {

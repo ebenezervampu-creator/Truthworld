@@ -60,7 +60,7 @@ void main() {
     thumbnailUrl: '',
     duration: 1200,
     viewCount: 4500,
-    totalWatchTimeSeconds: 43200, // 12 hours (eligible >= 10h)
+    totalWatchTimeSeconds: 126000, // 35 hours (eligible >= 30h)
     createdAt: DateTime.now(),
     updatedAt: DateTime.now(),
   );
@@ -78,7 +78,7 @@ void main() {
     thumbnailUrl: '',
     duration: 600,
     viewCount: 800,
-    totalWatchTimeSeconds: 14400, // 4 hours (< 10h)
+    totalWatchTimeSeconds: 14400, // 4 hours (< 30h)
     createdAt: DateTime.now(),
     updatedAt: DateTime.now(),
   );
@@ -121,13 +121,13 @@ void main() {
     testWidgets('renders standard channel badge and description', (tester) async {
       await tester.pumpWidget(
         createTestWidget(
-          MonetizationHeaderSection(channel: standardChannel),
+          MonetizationHeaderSection(channel: standardChannel, isMonetized: true),
         ),
       );
 
-      expect(find.text('Channel Monetization'), findsOneWidget);
+      expect(find.text('Truth Standard'), findsOneWidget);
       expect(find.text('STANDARD CHANNEL'), findsOneWidget);
-      expect(find.text('Day 1 Creator Monetization Program'), findsOneWidget);
+      expect(find.text('@standard • Day 1 Monetization Program'), findsOneWidget);
       expect(find.text('ACTIVE'), findsOneWidget);
     });
 
@@ -138,21 +138,44 @@ void main() {
         ),
       );
 
-      expect(find.text('Channel Monetization'), findsOneWidget);
-      expect(find.text('CUSTOM CHANNEL'), findsOneWidget);
-      expect(find.text('Custom Channel Infrastructure & Direct Earnings'), findsOneWidget);
+      expect(find.text('Truth Custom'), findsOneWidget);
+      expect(find.text('PRO CHANNEL'), findsOneWidget);
+      expect(find.text('@custom • Pro Infra & Direct Earnings'), findsOneWidget);
       expect(find.text('ACTIVE'), findsOneWidget);
     });
 
-    testWidgets('renders qualification pending badge when isMonetized is false', (tester) async {
+    testWidgets('renders Join button when isMonetized is false and responds to tap', (tester) async {
+      var joinTapped = false;
       await tester.pumpWidget(
         createTestWidget(
-          MonetizationHeaderSection(channel: standardChannel, isMonetized: false),
+          MonetizationHeaderSection(
+            channel: standardChannel,
+            isMonetized: false,
+            onJoinTap: () => joinTapped = true,
+          ),
         ),
       );
 
-      expect(find.text('Channel Monetization'), findsOneWidget);
-      expect(find.text('QUALIFICATION PENDING'), findsOneWidget);
+      expect(find.text('Truth Standard'), findsOneWidget);
+      expect(find.text('Join'), findsOneWidget);
+      expect(find.byKey(const Key('join_monetization_button')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('join_monetization_button')));
+      expect(joinTapped, isTrue);
+    });
+
+    testWidgets('renders UNDER REVIEW badge when monetization is under review', (tester) async {
+      final reviewChannel = standardChannel.copyWith(
+        status: ChannelStatus.underReview,
+        monetizationStatus: 'underReview',
+      );
+      await tester.pumpWidget(
+        createTestWidget(
+          MonetizationHeaderSection(channel: reviewChannel, isMonetized: false),
+        ),
+      );
+
+      expect(find.text('UNDER REVIEW'), findsOneWidget);
     });
   });
 
@@ -167,8 +190,8 @@ void main() {
       expect(find.text('Channel Type & Infrastructure Tier'), findsOneWidget);
       expect(find.text('Upload Limit'), findsOneWidget);
       expect(find.text('10 Mins / Day'), findsWidgets);
-      expect(find.text('1k Views & 10h Gate'), findsOneWidget);
-      expect(find.text('Explore / Switch Channel Type'), findsOneWidget);
+      expect(find.text('1k Views & 30h Gate'), findsOneWidget);
+      expect(find.text('Upgrade to Pro Channel (100% Rev-Share)'), findsOneWidget);
     });
 
     testWidgets('renders custom channel quotas, pending banner, and manage button', (tester) async {
@@ -180,14 +203,35 @@ void main() {
 
       expect(find.text('Unlimited Videos'), findsOneWidget);
       expect(find.text('Up to 24 Hours'), findsOneWidget);
-      expect(find.text('1k Views & 10h Gate'), findsOneWidget);
-      expect(find.text('Manage Custom Infra & Tier Settings'), findsOneWidget);
+      expect(find.text('1k Views & 30h Gate'), findsOneWidget);
+      expect(find.text('Manage Pro Infra & Tier Settings'), findsOneWidget);
       expect(find.textContaining('Scheduled to switch to STANDARD CHANNEL'), findsOneWidget);
+    });
+
+    testWidgets('renders standard channel with admin increased quota correctly', (tester) async {
+      final increasedChannel = standardChannel.copyWith(
+        customDailyVideoDurationSeconds: 30 * 60,
+        customMaxVideoDurationSeconds: 30 * 60,
+        quotaIncreasedBy: 'admin@truthworld.com',
+        quotaIncreaseReason: 'Granted extended upload capacity',
+      );
+      await tester.pumpWidget(
+        createTestWidget(
+          ChannelTypeCard(channel: increasedChannel),
+        ),
+      );
+
+      expect(find.text('Channel Type & Infrastructure Tier'), findsOneWidget);
+      expect(find.text('Upload Limit'), findsOneWidget);
+      expect(find.text('30 Mins / Day'), findsOneWidget);
+      expect(find.text('Up to 30 Mins / Day'), findsOneWidget);
+      expect(find.textContaining('Admin-Increased Upload Limit Active: 30 Mins / Day'), findsOneWidget);
+      expect(find.text('Granted extended upload capacity'), findsOneWidget);
     });
   });
 
   group('PolicyNoticeCard & PartnerEligibilitySection', () {
-    testWidgets('renders standard policy notice card with 10h cash out rule', (tester) async {
+    testWidgets('renders standard policy notice card with 30h cash out rule', (tester) async {
       await tester.pumpWidget(
         createTestWidget(
           const PolicyNoticeCard(isCustom: false),
@@ -195,7 +239,7 @@ void main() {
       );
 
       expect(find.text('Instant Revenue from Day 1'), findsOneWidget);
-      expect(find.textContaining('10 hours of watch time'), findsOneWidget);
+      expect(find.textContaining('30 hours of watch time'), findsOneWidget);
     });
 
     testWidgets('renders custom policy notice card with instant cash payout', (tester) async {
@@ -219,9 +263,9 @@ void main() {
       expect(find.text('Subscriber Gate'), findsOneWidget);
       expect(find.text('0 Required'), findsOneWidget);
       expect(find.text('Channel Gate'), findsOneWidget);
-      expect(find.text('1k Views, 10h & KYC'), findsOneWidget);
+      expect(find.text('1k Views, 30h & KYC'), findsOneWidget);
       expect(find.text('Cash Out Gate'), findsOneWidget);
-      expect(find.text('1k Views & 10h'), findsOneWidget);
+      expect(find.text('1k Views & 30h'), findsOneWidget);
       expect(find.text('AI Features'), findsOneWidget);
       expect(find.text('Instant Use'), findsOneWidget);
     });
@@ -286,7 +330,7 @@ void main() {
       );
       await tester.pump(const Duration(seconds: 3));
 
-      expect(find.text('Video Cash-Out Eligibility (1,000 Views & 10 Hours)'), findsOneWidget);
+      expect(find.text('Video Cash-Out Eligibility (1,000 Views & 30 Hours)'), findsOneWidget);
       expect(find.textContaining('No uploaded videos found yet'), findsOneWidget);
     });
 
@@ -309,7 +353,7 @@ void main() {
       expect(find.text('Cash-Out Ready'), findsOneWidget);
       expect(find.text('Investigative Report #2'), findsOneWidget);
       expect(find.textContaining('Locked'), findsOneWidget);
-      expect(find.text('Use for AI Tools'), findsNWidgets(2));
+      expect(find.text('Use for AI Tools'), findsNothing);
     });
   });
 
@@ -325,7 +369,7 @@ void main() {
       controller.rxMembershipsRevenue.value = 450.0;
       controller.rxSuperchatRevenue.value = 200.0;
       controller.rxAdsRevenue.value = 1000.0;
-      controller.rxWatchTimeRevenue.value = 800.0;
+      controller.rxPremiumSubsRevenue.value = 800.0;
       controller.recentVideos.assignAll([sampleVideo]);
 
       await tester.pumpWidget(
@@ -338,9 +382,9 @@ void main() {
       expect(find.text('Revenue & Withdrawal Summary'), findsOneWidget);
       expect(find.text('Total Estimated Revenue'), findsOneWidget);
       expect(find.text('Available for Cash Withdrawal'), findsOneWidget);
-      expect(find.text('Locked for Cash Out (Awaiting 1k Views & 10h)'), findsOneWidget);
-      expect(find.text('Usable Balance for AI Features'), findsOneWidget);
-      expect(find.text('Use Balance for AI Subtitles & Dubbing'), findsOneWidget);
+      expect(find.text('Locked for Cash Out (Awaiting 1k Views & 30h)'), findsOneWidget);
+      expect(find.text('Usable Balance for AI Features'), findsNothing);
+      expect(find.text('Use Balance for AI Subtitles & Dubbing'), findsNothing);
     });
   });
 
@@ -385,7 +429,7 @@ void main() {
   });
 
   group('DashboardController Monetization Qualification Logic', () {
-    testWidgets('accurately evaluates channel monetization gates (1k views, 10h watch time, KYC)', (tester) async {
+    testWidgets('accurately evaluates channel monetization gates (1k views, 30h watch time, KYC)', (tester) async {
       final controller = Get.put(
         DashboardController(channelId: 'qual_test_ch', autoInitialize: false),
       );
@@ -408,7 +452,7 @@ void main() {
       expect(controller.isChannelMonetizationOn(isKycVerified: false), isFalse);
       expect(controller.isChannelMonetizationOn(isKycVerified: true), isFalse);
 
-      // Add qualified video (4500 views, 12 hours watch time)
+      // Add qualified video (4500 views, 35 hours watch time)
       controller.recentVideos.assignAll([sampleVideo, samplePendingVideo]);
       expect(controller.hasAnyVideoCrossedThreshold, isTrue);
       expect(controller.firstQualifiedVideo?.id, equals('vid_101'));

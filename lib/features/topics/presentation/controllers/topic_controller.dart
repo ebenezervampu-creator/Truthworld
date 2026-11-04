@@ -93,7 +93,8 @@ class TopicController extends BaseController {
   // ==========================================================================
 
   String get topicSlug => topic.value?.slug ?? '';
-  String get topicTitle => topic.value?.title ?? 'Topic';
+  String get topicName => topic.value?.name ?? 'Topic';
+  String get topicTitle => topicName;
   bool get rxIsEmpty => filteredVideos.isEmpty && !rxIsLoading.value;
 
   bool get hasFactCheckedVideos {

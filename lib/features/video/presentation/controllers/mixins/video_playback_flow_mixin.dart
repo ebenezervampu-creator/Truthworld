@@ -1,21 +1,25 @@
 import 'dart:async';
 
 import 'package:chewie/chewie.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
+import 'package:truthworld/core/services/user_languages_service.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/video/data/datasources/local/database_helpers.dart';
+import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
+import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/features/video/presentation/views/player/tower_custom_player.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:video_player/video_player.dart';
@@ -32,9 +36,11 @@ mixin VideoPlaybackFlowMixin on GetxController {
   RxBool get showThumbnail;
   RxBool get isAutoplay;
   RxBool get isAudioOnly;
+  Rx<VideoTrack?> get activeVideoTrack;
   Rx<VideoClip?> get activeClip;
   RxList<VideoResolutionV2> get availableResolutions;
   Rx<VideoResolutionV2?> get currentResolution;
+  RxSet<String> get blacklistedStreamUrls;
   String? get offlineBlobUrl;
   VideoPlayerController? get videoPlayerController;
   set videoPlayerController(VideoPlayerController? c);
@@ -202,12 +208,6 @@ mixin VideoPlaybackFlowMixin on GetxController {
       final selectedResUrl = currentResolution.value?.url;
 
       try {
-        if (isVpcInitialized && videoPlayerController != null) {
-          videoPlayerController!.pause().catchError((_) {});
-        }
-      } catch (_) {}
-
-      try {
         if (videoPlayerController != null) {
           videoPlayerController!.removeListener(videoErrorListener);
           videoPlayerController!.removeListener(videoListener);
@@ -220,8 +220,6 @@ mixin VideoPlaybackFlowMixin on GetxController {
       } catch (_) {}
       chewieController = null;
 
-      TowerPlayerController.pauseAllActivePlayers();
-
       final activeClipToPlay = activeClip.value;
       final isAudioOnlyToPlay = isAudioOnly.value;
 
@@ -229,24 +227,25 @@ mixin VideoPlaybackFlowMixin on GetxController {
         VideoPlaybackHandoff.registerActiveController(
           video.id,
           videoPlayerController!,
+          position: pos,
         );
         videoPlayerController = null;
         rxVideoPlayerController.value = null;
       }
 
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        try {
+      try {
+        unawaited(
           MiniplayerController.to.showWithVideo(
             videoToPlay,
             resumeFromPosition: pos,
             overrideUrl: selectedResUrl,
             clip: activeClipToPlay,
             isAudioOnly: isAudioOnlyToPlay,
-          );
-        } catch (e, s) {
-          ErrorHandler.log(e, stackTrace: s, tag: 'VideoController.showMiniplayer');
-        }
-      });
+          ),
+        );
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'VideoController.showMiniplayer');
+      }
     }
 
     disposePlayer();
@@ -254,13 +253,17 @@ mixin VideoPlaybackFlowMixin on GetxController {
 
   Future<String?> resolvePlaybackTargetUrl({String? overrideUrl}) async {
     var targetUrl = overrideUrl;
+    if (targetUrl != null && blacklistedStreamUrls.contains(targetUrl)) {
+      targetUrl = null;
+    }
+
     if (targetUrl == null || targetUrl.isEmpty) {
       if (isAudioOnly.value) {
         // Low-bandwidth optimization: In audio-only mode, prioritize 144p or lowest bandwidth stream
-        final lowRes = availableResolutions.firstWhereOrNull((r) => r.label.toLowerCase() == '144p')
-            ?? video.adaptiveResolutions.firstWhereOrNull((r) => r.label.toLowerCase() == '144p')
-            ?? (availableResolutions.isNotEmpty ? availableResolutions.last : null)
-            ?? (video.adaptiveResolutions.isNotEmpty ? video.adaptiveResolutions.last : null);
+        final lowRes = availableResolutions.firstWhereOrNull((r) => r.label.toLowerCase() == '144p' && !blacklistedStreamUrls.contains(r.url))
+            ?? video.adaptiveResolutions.firstWhereOrNull((r) => r.label.toLowerCase() == '144p' && !blacklistedStreamUrls.contains(r.url))
+            ?? (availableResolutions.isNotEmpty ? availableResolutions.lastWhereOrNull((r) => !blacklistedStreamUrls.contains(r.url)) : null)
+            ?? (video.adaptiveResolutions.isNotEmpty ? video.adaptiveResolutions.lastWhereOrNull((r) => !blacklistedStreamUrls.contains(r.url)) : null);
         if (lowRes != null && lowRes.url.isNotEmpty) {
           targetUrl = lowRes.url;
           currentResolution.value = lowRes;
@@ -269,20 +272,21 @@ mixin VideoPlaybackFlowMixin on GetxController {
       if (targetUrl == null || targetUrl.isEmpty) {
         if (currentResolution.value != null &&
             currentResolution.value!.url.isNotEmpty &&
+            !blacklistedStreamUrls.contains(currentResolution.value!.url) &&
             (!kIsWeb || !currentResolution.value!.url.contains('.m3u8'))) {
           targetUrl = currentResolution.value!.url;
-        } else if (!kIsWeb && video.hlsUrl.isNotEmpty) {
+        } else if (!kIsWeb && video.hlsUrl.isNotEmpty && !blacklistedStreamUrls.contains(video.hlsUrl)) {
           targetUrl = video.hlsUrl;
         } else if (availableResolutions.isNotEmpty) {
           final mp4Res = availableResolutions.firstWhereOrNull(
-            (r) => r.url.isNotEmpty && (!kIsWeb || !r.url.contains('.m3u8')),
+            (r) => r.url.isNotEmpty && !blacklistedStreamUrls.contains(r.url) && (!kIsWeb || !r.url.contains('.m3u8')),
           );
           if (mp4Res != null) {
             targetUrl = mp4Res.url;
           }
         } else if (video.adaptiveResolutions.isNotEmpty) {
           final mp4Res = video.adaptiveResolutions.firstWhereOrNull(
-            (r) => r.url.isNotEmpty && (!kIsWeb || !r.url.contains('.m3u8')),
+            (r) => r.url.isNotEmpty && !blacklistedStreamUrls.contains(r.url) && (!kIsWeb || !r.url.contains('.m3u8')),
           );
           if (mp4Res != null) {
             targetUrl = mp4Res.url;
@@ -290,14 +294,18 @@ mixin VideoPlaybackFlowMixin on GetxController {
         }
         if (targetUrl == null || targetUrl.isEmpty) {
           if (video.videoUrl.isNotEmpty &&
+              !blacklistedStreamUrls.contains(video.videoUrl) &&
               (!kIsWeb || !video.videoUrl.contains('.m3u8'))) {
             targetUrl = video.videoUrl;
           } else if (video.originalUrl.isNotEmpty &&
+              !blacklistedStreamUrls.contains(video.originalUrl) &&
               (!kIsWeb || !video.originalUrl.contains('.m3u8'))) {
             targetUrl = video.originalUrl;
-          } else if (video.videoUrl.isNotEmpty) {
+          } else if (video.videoUrl.isNotEmpty && !blacklistedStreamUrls.contains(video.videoUrl)) {
             targetUrl = video.videoUrl;
-          } else if (video.hlsUrl.isNotEmpty) {
+          } else if (video.originalUrl.isNotEmpty && !blacklistedStreamUrls.contains(video.originalUrl)) {
+            targetUrl = video.originalUrl;
+          } else if (video.hlsUrl.isNotEmpty && !blacklistedStreamUrls.contains(video.hlsUrl)) {
             targetUrl = video.hlsUrl;
           }
         }
@@ -377,10 +385,10 @@ mixin VideoPlaybackFlowMixin on GetxController {
       rxAspectRatio.value = video.isShort ? (9 / 16) : (16 / 9);
     }
 
-    // Populate initial resolutions and currentResolution immediately from in-memory video model
+    // Populate initial resolutions and currentResolution immediately from in-memory video model (authentic only)
     if (availableResolutions.isEmpty && video.adaptiveResolutions.isNotEmpty) {
       final modelResolutions = video.adaptiveResolutions
-          .where((r) => r.url.trim().isNotEmpty)
+          .where((r) => r.url.trim().isNotEmpty && !r.isSynthetic)
           .toList();
       if (modelResolutions.isNotEmpty) {
         modelResolutions.sort((a, b) => b.height.compareTo(a.height));
@@ -455,13 +463,13 @@ mixin VideoPlaybackFlowMixin on GetxController {
             }
           }
           final eligible = canStreamHighResolution
-              ? availableResolutions
-              : availableResolutions.where((r) => r.height <= 1040).toList();
-          final candidateList = eligible.isNotEmpty ? eligible : availableResolutions;
+              ? availableResolutions.where((r) => !blacklistedStreamUrls.contains(r.url)).toList()
+              : availableResolutions.where((r) => r.height <= 1040 && !blacklistedStreamUrls.contains(r.url)).toList();
+          final candidateList = eligible.isNotEmpty ? eligible : availableResolutions.where((r) => !blacklistedStreamUrls.contains(r.url)).toList();
           final best = candidateList.firstWhereOrNull(
             (r) => r.url.isNotEmpty && !r.url.contains('.m3u8'),
-          ) ?? candidateList.first;
-          if (currentResolution.value?.url != best.url) {
+          ) ?? candidateList.firstOrNull;
+          if (best != null && currentResolution.value?.url != best.url) {
             currentResolution.value = best;
           }
         }
@@ -492,31 +500,93 @@ mixin VideoPlaybackFlowMixin on GetxController {
       return;
     }
 
+    // Priority 1.5: Direct Dubbed Video Track for User's Primary Language (YouTube-style direct localized playback)
+    if (overrideUrl == null && !isAudioOnly.value && Get.isRegistered<UserLanguagesService>()) {
+      final langService = UserLanguagesService.to;
+      final primaryLang = langService.primaryLanguage.value;
+      final primaryCode = langService.primaryLanguageCode;
+
+      if (normalizeLanguageCode(video.language) != primaryCode) {
+        String? targetDubbedUrl;
+        String? targetDubbedLangCode;
+
+        for (final entry in video.dubbedVideos.entries) {
+          if (entry.value.trim().isNotEmpty &&
+              langService.isLanguageMatch('', entry.key, primaryLang)) {
+            targetDubbedUrl = entry.value.trim();
+            targetDubbedLangCode = entry.key;
+            break;
+          }
+        }
+
+        if (targetDubbedUrl != null && targetDubbedUrl.isNotEmpty) {
+          debugPrint(
+            '[VideoController] 🎬 Instant YouTube-style direct playback in primary language ($primaryLang): $targetDubbedLangCode',
+          );
+          if (!targetDubbedUrl.contains('token=')) {
+            final ref = StorageUtils.getStorageRef(targetDubbedUrl);
+            if (ref != null) {
+              try {
+                targetDubbedUrl = await ref.getDownloadURL();
+              } catch (e) {
+                debugPrint('[VideoController] Direct dubbed URL resolve failed: $e');
+              }
+            }
+          }
+
+          final lang = supportedLanguages.firstWhereOrNull(
+            (l) => l.code == targetDubbedLangCode,
+          );
+          final label = lang?.name != null
+              ? '${lang!.name} (Video)'
+              : '$primaryLang (Video)';
+
+          activeVideoTrack.value = VideoTrack(
+            label: label,
+            langCode: targetDubbedLangCode ?? primaryCode,
+            type: 'Video',
+            url: targetDubbedUrl,
+          );
+
+          await initializeVideoPlayer(overrideUrl: targetDubbedUrl);
+          if (activeClip.value != null) {
+            videoPlayerController?.seekTo(
+              Duration(milliseconds: (activeClip.value!.startTime * 1000).toInt()),
+            );
+          }
+          return;
+        }
+      }
+    }
+
     // 2. Playback strategy backed by Google CDN:
     //    - On native (iOS/Android/Desktop): Attempt HLS adaptive streaming for instant start
     //    - If HLS not available or on Web, immediately stream from best available Google CDN MP4
     var hlsSuccess = false;
-    if (!isAudioOnly.value && !kIsWeb && video.hlsUrl.isNotEmpty && !video.hlsUrl.startsWith('gs://')) {
+    if (!isAudioOnly.value && !kIsWeb && video.hlsUrl.isNotEmpty && !video.hlsUrl.startsWith('gs://') && !blacklistedStreamUrls.contains(video.hlsUrl)) {
       debugPrint('[VideoController] 🎬 Native playback: Using HLS adaptive stream from Google CDN');
       await initializeVideoPlayer(overrideUrl: video.hlsUrl);
 
-      if (!videoError.value) {
+      if (!videoError.value && !blacklistedStreamUrls.contains(video.hlsUrl)) {
         hlsSuccess = true;
         // Once metadata finishes, update the quality/resolution menu reactively
         metadataFuture.then((_) {
           if (isClosed) return;
           if (availableResolutions.isNotEmpty) {
             final eligible = canStreamHighResolution
-                ? availableResolutions
-                : availableResolutions.where((r) => r.height <= 1040).toList();
-            final best = eligible.isNotEmpty ? eligible.first : availableResolutions.first;
-            if (currentResolution.value?.url != best.url) {
+                ? availableResolutions.where((r) => !blacklistedStreamUrls.contains(r.url)).toList()
+                : availableResolutions.where((r) => r.height <= 1040 && !blacklistedStreamUrls.contains(r.url)).toList();
+            final candidateList = eligible.isNotEmpty ? eligible : availableResolutions.where((r) => !blacklistedStreamUrls.contains(r.url)).toList();
+            final best = candidateList.firstWhereOrNull(
+              (r) => r.url.isNotEmpty && !r.url.contains('.m3u8'),
+            ) ?? candidateList.firstOrNull;
+            if (best != null && currentResolution.value?.url != best.url) {
               currentResolution.value = best;
             }
           }
         });
       } else {
-        debugPrint('[VideoController] ⚠️ HLS stream failed, falling back to Google CDN MP4...');
+        debugPrint('[VideoController] ⚠️ HLS stream failed or blacklisted, falling back to Google CDN MP4...');
         videoError.value = false;
         rxErrorMessage.value = '';
       }
@@ -528,22 +598,24 @@ mixin VideoPlaybackFlowMixin on GetxController {
       // Find the best immediate Google CDN stream available in RAM synchronously (0ms)
       String? immediateStreamUrl;
       if (isAudioOnly.value) {
-        final lowRes = availableResolutions.firstWhereOrNull((r) => r.label.toLowerCase() == '144p')
-            ?? video.adaptiveResolutions.firstWhereOrNull((r) => r.label.toLowerCase() == '144p')
-            ?? (availableResolutions.isNotEmpty ? availableResolutions.last : null)
-            ?? (video.adaptiveResolutions.isNotEmpty ? video.adaptiveResolutions.last : null);
+        final lowRes = availableResolutions.firstWhereOrNull((r) => r.label.toLowerCase() == '144p' && !blacklistedStreamUrls.contains(r.url))
+            ?? video.adaptiveResolutions.firstWhereOrNull((r) => r.label.toLowerCase() == '144p' && !blacklistedStreamUrls.contains(r.url))
+            ?? (availableResolutions.isNotEmpty ? availableResolutions.lastWhereOrNull((r) => !blacklistedStreamUrls.contains(r.url)) : null)
+            ?? (video.adaptiveResolutions.isNotEmpty ? video.adaptiveResolutions.lastWhereOrNull((r) => !blacklistedStreamUrls.contains(r.url)) : null);
         if (lowRes != null && lowRes.url.isNotEmpty) {
           immediateStreamUrl = lowRes.url;
           currentResolution.value = lowRes;
         }
       } else if (currentResolution.value != null &&
           currentResolution.value!.url.isNotEmpty &&
+          !blacklistedStreamUrls.contains(currentResolution.value!.url) &&
           (!kIsWeb || !currentResolution.value!.url.contains('.m3u8'))) {
         immediateStreamUrl = currentResolution.value!.url;
       } else if (availableResolutions.isNotEmpty) {
         final mp4Res = availableResolutions.firstWhereOrNull(
           (r) =>
               r.url.isNotEmpty &&
+              !blacklistedStreamUrls.contains(r.url) &&
               (!kIsWeb || !r.url.contains('.m3u8')) &&
               !r.url.endsWith('original.mp4') &&
               !r.url.contains('/original/'),

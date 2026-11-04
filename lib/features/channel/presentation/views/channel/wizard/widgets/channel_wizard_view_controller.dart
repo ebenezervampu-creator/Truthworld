@@ -1,9 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/config/app_flavor.dart';
-import 'package:truthworld/core/constants/firestore_collections.dart';
-import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
@@ -49,13 +46,6 @@ class ChannelWizardViewController extends GetxController {
 
   // Reactive Tag Chip List
   final RxList<String> tagList = <String>[].obs;
-  final RxString tagSearchQuery = ''.obs;
-  String get tagQueryText => tagSearchQuery.value;
-
-  final RxList<Map<String, dynamic>> liveFirestoreSuggestions =
-      <Map<String, dynamic>>[].obs;
-  final RxBool isSearchingTags = false.obs;
-  final RxMap<String, int> realTagUsageMap = <String, int>{}.obs;
 
   // Mobile Accordion Expansion States
   final RxBool isChannelTypeExpanded = true.obs;
@@ -148,77 +138,11 @@ class ChannelWizardViewController extends GetxController {
       channelController.tags.text = tagList.join(', ');
     }
     tagInputController.clear();
-    tagSearchQuery.value = '';
   }
 
   void removeTag(String tag) {
     tagList.remove(tag);
     channelController.tags.text = tagList.join(', ');
-  }
-
-  Future<void> fetchRealMatchingTagsFromFirestore(String query) async {
-    final cleanQuery = query.trim().toLowerCase();
-    if (cleanQuery.isEmpty) {
-      liveFirestoreSuggestions.clear();
-      isSearchingTags.value = false;
-      return;
-    }
-
-    isSearchingTags.value = true;
-    try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection(FirestoreCollections.hashtags)
-          .where('tagLowercase', isGreaterThanOrEqualTo: cleanQuery)
-          .where('tagLowercase', isLessThanOrEqualTo: '$cleanQuery\uf8ff')
-          .limit(8)
-          .get();
-
-      final results = snapshot.docs.map((doc) {
-        final data = doc.data();
-        final name = data['name'] as String? ?? doc.id;
-        final count = (data['usageCount'] as num?)?.toInt() ?? 1;
-        realTagUsageMap[name] = count;
-        return {
-          'name': name,
-          'usageCount': count,
-        };
-      }).toList();
-
-      liveFirestoreSuggestions.assignAll(results);
-    } on FirebaseException catch (e, stackTrace) {
-      liveFirestoreSuggestions.clear();
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
-        tag: 'ChannelWizardViewController.tagSearch.firebase',
-      );
-    } catch (e, stackTrace) {
-      liveFirestoreSuggestions.clear();
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
-        tag: 'ChannelWizardViewController.tagSearch',
-      );
-    } finally {
-      isSearchingTags.value = false;
-    }
-  }
-
-  String getTagUsageCountFormatted(String tag) {
-    final count = realTagUsageMap[tag] ?? 1;
-    if (count >= 1000000000) {
-      final val = (count / 1000000000).toStringAsFixed(1);
-      return '${val.endsWith('.0') ? val.substring(0, val.length - 2) : val}B';
-    }
-    if (count >= 1000000) {
-      final val = (count / 1000000).toStringAsFixed(1);
-      return '${val.endsWith('.0') ? val.substring(0, val.length - 2) : val}M';
-    }
-    if (count >= 1000) {
-      final val = (count / 1000).toStringAsFixed(1);
-      return '${val.endsWith('.0') ? val.substring(0, val.length - 2) : val}k';
-    }
-    return '$count';
   }
 
   void checkDraftAvailable(BuildContext context, bool isDarkMode) {
@@ -375,7 +299,7 @@ class ChannelWizardViewController extends GetxController {
     );
   }
 
-  void validateAndSubmitChannel() {
+  Future<void> validateAndSubmitChannel() async {
     // Sync tags and social inputs from local controllers to ChannelController
     if (tagList.isNotEmpty) {
       channelController.tags.text = tagList.join(', ');
@@ -429,9 +353,34 @@ class ChannelWizardViewController extends GetxController {
       return;
     }
 
-    if (channelController.channelNameAvailability.value == AvailabilityStatus.taken) {
-      AppSnackbar.warning('The chosen channel name is already taken. Please choose another.');
-      return;
+    if (channelController.channelNameAvailability.value != AvailabilityStatus.available) {
+      if (channelController.channelNameAvailability.value == AvailabilityStatus.taken) {
+        AppSnackbar.warning('The chosen channel name is already taken. Please choose another.');
+        return;
+      }
+
+      final nameStatus = await channelController.verifyChannelNameAvailabilityDirect(
+        channelController.channelName.text,
+      );
+
+      if (nameStatus == AvailabilityStatus.taken) {
+        AppSnackbar.warning('The chosen channel name is already taken. Please choose another.');
+        return;
+      } else if (nameStatus == AvailabilityStatus.invalid) {
+        AppSnackbar.warning(
+          channelController.channelNameAvailabilityMessage.value.isNotEmpty
+              ? channelController.channelNameAvailabilityMessage.value
+              : 'Please enter a valid channel name.',
+        );
+        return;
+      } else if (nameStatus == AvailabilityStatus.error) {
+        AppSnackbar.warning(
+          channelController.channelNameAvailabilityMessage.value.isNotEmpty
+              ? channelController.channelNameAvailabilityMessage.value
+              : 'Unable to verify channel name right now. Please check your connection and tap retry.',
+        );
+        return;
+      }
     }
 
     // 4. Channel Handle
@@ -440,14 +389,32 @@ class ChannelWizardViewController extends GetxController {
       return;
     }
 
-    if (channelController.customUrlAvailability.value == AvailabilityStatus.taken) {
-      AppSnackbar.warning('The chosen handle is already taken. Please select an available handle.');
-      return;
-    }
+    if (channelController.customUrlAvailability.value != AvailabilityStatus.available) {
+      if (channelController.customUrlAvailability.value == AvailabilityStatus.taken) {
+        AppSnackbar.warning('The chosen handle is already taken. Please select an available handle.');
+        return;
+      }
 
-    if (channelController.customUrlAvailability.value == AvailabilityStatus.checking) {
-      AppSnackbar.info('Verifying handle availability. Please wait a moment.');
-      return;
+      final handleStatus = await channelController.verifyCustomUrlAvailabilityDirect(
+        channelController.customUrl.text,
+      );
+
+      if (handleStatus == AvailabilityStatus.taken) {
+        AppSnackbar.warning('The chosen handle is already taken. Please select an available handle.');
+        return;
+      } else if (handleStatus == AvailabilityStatus.invalid) {
+        AppSnackbar.warning(
+          channelController.customUrlAvailabilityMessage.value.isNotEmpty
+              ? channelController.customUrlAvailabilityMessage.value
+              : 'Please enter a valid channel handle.',
+        );
+        return;
+      } else if (handleStatus == AvailabilityStatus.error) {
+        AppSnackbar.warning(
+          'Unable to verify handle availability right now. Please check your connection and tap retry.',
+        );
+        return;
+      }
     }
 
     // 5. Description
@@ -483,10 +450,8 @@ class ChannelWizardViewController extends GetxController {
       return;
     }
 
-    // 9. Plan Selection Default
-    if (channelController.selectedPlan.value.isEmpty) {
-      channelController.selectedPlan.value = 'standard';
-    }
+    // 9. Plan Selection Default (All new channels default to 100% Free Standard Plan)
+    channelController.selectedPlan.value = 'standard';
     channelController.planSelectionError.value = false;
 
     // 10. Organization / Company Custom Email Domain Check

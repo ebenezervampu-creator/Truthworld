@@ -133,7 +133,7 @@ class ChannelPlanComparisonScreen extends StatelessWidget {
                     Text(
                       isStandard
                           ? (isSmallScreen ? 'Standard' : 'Standard Selected')
-                          : (isSmallScreen ? 'Custom' : 'Custom Selected'),
+                          : (isSmallScreen ? 'Pro' : 'Pro Selected'),
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
@@ -271,7 +271,7 @@ class ChannelPlanComparisonScreen extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         Text(
-          'Standard vs Custom Channel',
+          'Standard vs Pro Channel',
           style: TextStyle(
             fontSize: isDesktop ? 32 : 24,
             fontWeight: FontWeight.w900,
@@ -338,7 +338,7 @@ class ChannelPlanComparisonScreen extends StatelessWidget {
                     Text(
                       isStandard
                           ? r'Standard Channel ($0/mo • 70% Ad Split)'
-                          : r'Custom Channel (100% Retention • From $15/mo)',
+                          : r'Pro Channel (100% Retention • From $15/mo)',
                       style: TextStyle(
                         fontSize: isSmallScreen ? 12 : 13,
                         fontWeight: FontWeight.bold,
@@ -363,7 +363,7 @@ class ChannelPlanComparisonScreen extends StatelessWidget {
                 label: Text(
                   isSmallScreen
                       ? 'Continue'
-                      : 'Continue with ${isStandard ? 'Standard' : 'Custom'}',
+                      : 'Continue with ${isStandard ? 'Standard' : 'Pro'}',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 style: ElevatedButton.styleFrom(

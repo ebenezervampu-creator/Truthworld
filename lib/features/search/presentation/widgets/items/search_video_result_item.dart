@@ -1,7 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
+import 'package:truthworld/core/services/user_languages_service.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -27,6 +29,7 @@ class SearchVideoResultItem extends StatelessWidget {
     final cleanThumb = result.thumbnail.trim().replaceAll(' ', '%20');
 
     return InkWell(
+      borderRadius: BorderRadius.circular(12),
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -55,6 +58,9 @@ class SearchVideoResultItem extends StatelessWidget {
                                 ? CachedNetworkImage(
                                     imageUrl: cleanThumb,
                                     fit: BoxFit.cover,
+                                    memCacheWidth: kIsWeb ? null : 1280,
+                                    maxWidthDiskCache: kIsWeb ? null : 1280,
+                                    filterQuality: FilterQuality.medium,
                                     placeholder: (context, url) =>
                                         const ColoredBox(
                                       color: AppColors.bgDivider,
@@ -194,14 +200,30 @@ class SearchVideoResultItem extends StatelessWidget {
                       }(),
                       const SizedBox(width: 6),
                       Expanded(
-                        child: Text(
-                          result.channelName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 12,
-                          ),
+                        child: Builder(
+                          builder: (context) {
+                            final isChannelTrusted = result.showVerifiedBadge ||
+                                (DeepLinkService.instance
+                                        .getChannelFromCache(result.channelName)
+                                        ?.showVerifiedBadge ??
+                                    false);
+                            return Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    result.channelName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
                         ),
                       ),
                     ],
@@ -238,17 +260,57 @@ class SearchVideoResultItem extends StatelessWidget {
                         ],
                         if (result.language != null &&
                             result.language!.isNotEmpty)
-                          Expanded(
-                            child: Text(
-                              result.language!.toUpperCase(),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppColors.textTertiary,
-                                fontSize: 11,
+                          () {
+                            final isPrimary =
+                                Get.isRegistered<UserLanguagesService>() &&
+                                UserLanguagesService.to
+                                    .isPrimaryLanguage(result.language);
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 1.5,
                               ),
-                            ),
-                          ),
+                              decoration: BoxDecoration(
+                                color: isPrimary
+                                    ? const Color(0xFF1E3A8A)
+                                        .withValues(alpha: 0.35)
+                                    : AppColors.bgDivider,
+                                borderRadius: BorderRadius.circular(3),
+                                border: isPrimary
+                                    ? Border.all(
+                                        color: const Color(0xFF3B82F6)
+                                            .withValues(alpha: 0.5),
+                                        width: 0.8,
+                                      )
+                                    : null,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (isPrimary) ...[
+                                    const Icon(
+                                      Icons.translate_rounded,
+                                      color: Color(0xFF60A5FA),
+                                      size: 10,
+                                    ),
+                                    const SizedBox(width: 3),
+                                  ],
+                                  Text(
+                                    result.language!.toUpperCase(),
+                                    style: TextStyle(
+                                      color: isPrimary
+                                          ? const Color(0xFF60A5FA)
+                                          : AppColors.textTertiary,
+                                      fontSize: 9,
+                                      fontWeight: isPrimary
+                                          ? FontWeight.w700
+                                          : FontWeight.normal,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }(),
                       ],
                     ),
                   ],

@@ -251,5 +251,53 @@ void main() {
       expect(find.byType(AudiencePage), findsOneWidget);
       expect(find.text('Audience Geography & Insights'), findsOneWidget);
     });
+
+    testWidgets('reconciles Indian state traffic and attributes Indian viewers to India instead of US', (tester) async {
+      final ctrl = Get.put(AudienceController());
+      // Simulate raw stats where proxy hop logged US, but states were Indian
+      final rawStats = {
+        'countryTraffic': {'US': 100},
+        'stateTraffic': {'Maharashtra': 60, 'Karnataka': 40},
+      };
+
+      final sanitized = ctrl.sanitizeAndReconcileTrafficForTesting(
+        rawStats['countryTraffic']!,
+        stateTraffic: rawStats['stateTraffic']!,
+        totalViewsCount: 100,
+      );
+
+      expect(sanitized['IN'], equals(100));
+      expect(sanitized.containsKey('US'), isFalse);
+    });
+
+    testWidgets('reconciles live user profiles to attribute audience to India when authentic viewers are Indian', (tester) async {
+      final ctrl = Get.put(AudienceController());
+      // Raw stats had US, but authentic user profiles in Firestore are from India
+      final rawCountryTraffic = {'US': 50};
+      final liveCountryCounts = {'IN': 45, 'US': 5};
+
+      final sanitized = ctrl.sanitizeAndReconcileTrafficForTesting(
+        rawCountryTraffic,
+        liveCountryCounts: liveCountryCounts,
+        totalViewsCount: 50,
+      );
+
+      expect(sanitized['IN'], isNotNull);
+      expect(sanitized['IN']!, greaterThanOrEqualTo(45));
+    });
+
+    testWidgets('merges country code aliases and deduplicates country audience cards', (tester) async {
+      final ctrl = Get.put(AudienceController());
+      final rawTraffic = {'IN': 60, 'India': 40};
+
+      ctrl.buildCompleteCountryItemsForTesting(rawTraffic, 100, 20);
+
+      // Must have exactly ONE entry for India
+      expect(ctrl.allCountryItems.length, equals(1));
+      expect(ctrl.allCountryItems.first.countryCode, equals('IN'));
+      expect(ctrl.allCountryItems.first.countryName, equals('India'));
+      expect(ctrl.allCountryItems.first.viewers, equals(100));
+      expect(ctrl.allCountryItems.first.viewerPercentage, equals(100.0));
+    });
   });
 }

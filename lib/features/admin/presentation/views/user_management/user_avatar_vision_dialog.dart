@@ -23,7 +23,7 @@ void showAvatarVisionInspectionDialog(
     context: context,
     builder: (dialogCtx) {
       return Dialog(
-        backgroundColor: const Color(0xFF1E1E1E),
+        backgroundColor: AppColors.bgSurface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
@@ -96,10 +96,10 @@ void showAvatarVisionInspectionDialog(
                         height: 130,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: const Color(0xFF2A2A2A),
+                          color: AppColors.bgSurface,
                           border: Border.all(
                             color: avatarStatus == 'APPROVED'
-                                ? const Color(0xFF2BA640)
+                                ? AppColors.success
                                 : (avatarStatus == 'REJECTED'
                                     ? AppColors.error
                                     : (avatarStatus == 'PENDING'
@@ -251,7 +251,7 @@ void showAvatarVisionInspectionDialog(
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF141414),
+                              color: AppColors.bgPage,
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
                                   color:
@@ -319,7 +319,7 @@ void showAvatarVisionInspectionDialog(
                     Expanded(
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2BA640),
+                          backgroundColor: AppColors.success,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
@@ -392,9 +392,9 @@ class UserVisionScoreTile extends StatelessWidget {
 
     Color color;
     if (score == 0) {
-      color = const Color(0xFF2BA640);
+      color = AppColors.success;
     } else if (score == 1) {
-      color = const Color(0xFF8BC34A);
+      color = AppColors.success;
     } else if (score == 2) {
       color = Colors.amber;
     } else if (score == 3) {
@@ -451,7 +451,7 @@ void showRejectAvatarPrompt(
   showDialog<void>(
     context: context,
     builder: (ctx) => AlertDialog(
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: AppColors.bgSurface,
       title: const Text(
         'Reject User Avatar',
         style: TextStyle(

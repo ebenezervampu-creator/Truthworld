@@ -1,6 +1,7 @@
 import * as admin from "firebase-admin";
 import { onRequest } from "firebase-functions/v2/https";
 import { requireAdmin, requireRecentAdmin } from "../utils/auth";
+import { applySecurityHeaders } from "../utils/securityHeaders";
 import { logger } from "firebase-functions/v2";
 import { purgeAllUserData } from "../users/userLifecycle";
 
@@ -10,16 +11,13 @@ if (!admin.apps.length) {
 
 export const searchUsers = onRequest(
   {
-    cors: [
-      "https://admin.truthworld.in",
-      "https://admin.truthworld.app",
-      "http://localhost:5173",
-    ],
+    cors: false,
     region: "asia-south1",
     minInstances: 0,
     maxInstances: 5,
   },
   async (req, res) => {
+    applySecurityHeaders(res);
     try {
       const adminUser = await requireAdmin(req, res);
       if (!adminUser) return;
@@ -72,16 +70,13 @@ export const searchUsers = onRequest(
 
 export const getUserSafetyProfile = onRequest(
   {
-    cors: [
-      "https://admin.truthworld.in",
-      "https://admin.truthworld.app",
-      "http://localhost:5173",
-    ],
+    cors: false,
     region: "asia-south1",
     minInstances: 0,
     maxInstances: 5,
   },
   async (req, res) => {
+    applySecurityHeaders(res);
     try {
       const adminUser = await requireAdmin(req, res);
       if (!adminUser) return;
@@ -122,16 +117,13 @@ export const getUserSafetyProfile = onRequest(
 
 export const moderateUser = onRequest(
   {
-    cors: [
-      "https://admin.truthworld.in",
-      "https://admin.truthworld.app",
-      "http://localhost:5173",
-    ],
+    cors: false,
     region: "asia-south1",
     minInstances: 0,
     maxInstances: 5,
   },
   async (req, res) => {
+    applySecurityHeaders(res);
     try {
       const adminUser = await requireAdmin(req, res);
       if (!adminUser) return;
@@ -151,6 +143,60 @@ export const moderateUser = onRequest(
 
       const normalizedAction = (action || "").trim().toLowerCase();
 
+      // Block moderation or deletion actions if target user has admin === true or entry in admin_members
+      const db = admin.firestore();
+      const targetUserDoc = await db.collection("users").doc(userId).get();
+      const targetUserData = targetUserDoc.data();
+      const targetEmail = (targetUserData?.email || "").toLowerCase();
+
+      let isTargetAdmin = false;
+      if (
+        targetUserData?.admin === true ||
+        targetUserData?.role === "admin" ||
+        targetUserData?.role === "Super Admin" ||
+        targetUserData?.role === "Owner"
+      ) {
+        isTargetAdmin = true;
+      }
+
+      if (!isTargetAdmin) {
+        const uidMemberDoc = await db.collection("admin_members").doc(userId).get();
+        if (uidMemberDoc.exists && uidMemberDoc.data()?.status !== "suspended") {
+          isTargetAdmin = true;
+        }
+      }
+
+      if (!isTargetAdmin && targetEmail) {
+        const emailMemberDoc = await db.collection("admin_members").doc(targetEmail).get();
+        if (emailMemberDoc.exists && emailMemberDoc.data()?.status !== "suspended") {
+          isTargetAdmin = true;
+        }
+      }
+
+      if (!isTargetAdmin) {
+        try {
+          const authUser = await admin.auth().getUser(userId);
+          const claims = authUser.customClaims || {};
+          if (claims.admin === true || claims.role === "admin" || claims.isSuperAdmin === true || claims.isDirector === true) {
+            isTargetAdmin = true;
+          }
+          if (!isTargetAdmin && authUser.email) {
+            const authEmailMember = await db.collection("admin_members").doc(authUser.email.toLowerCase()).get();
+            if (authEmailMember.exists && authEmailMember.data()?.status !== "suspended") {
+              isTargetAdmin = true;
+            }
+          }
+        } catch {
+          // Auth user lookup notice
+        }
+      }
+
+      if (isTargetAdmin) {
+        logger.warn(`[moderateUser] Blocked moderation action against administrator: ${userId}`);
+        res.status(403).json({ error: "Cannot moderate or delete an administrator account." });
+        return;
+      }
+
       // Require step-up re-authentication for high-impact destructive operations
       if (
         normalizedAction === "delete" ||
@@ -164,7 +210,6 @@ export const moderateUser = onRequest(
       }
 
       const actionReason = reason || `Admin moderation action: ${action}`;
-      const db = admin.firestore();
       const updates: Record<string, any> = {
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       };
@@ -251,16 +296,13 @@ export const moderateUser = onRequest(
 
 export const consolidateUserAccounts = onRequest(
   {
-    cors: [
-      "https://admin.truthworld.in",
-      "https://admin.truthworld.app",
-      "http://localhost:5173",
-    ],
+    cors: false,
     region: "asia-south1",
     minInstances: 0,
     maxInstances: 5,
   },
   async (req, res) => {
+    applySecurityHeaders(res);
     try {
       const adminUser = await requireRecentAdmin(req, res, 3600);
       if (!adminUser) return;
@@ -368,6 +410,34 @@ export const consolidateUserAccounts = onRequest(
         const legacyChannelId = legacyData.channelId as string | undefined;
 
         if (legacyChannelId) {
+          // Require verified email on both accounts before transferring channel ownership
+          let primaryEmailVerified = false;
+          let legacyEmailVerified = false;
+
+          try {
+            const primaryAuth = await admin.auth().getUser(primaryId);
+            primaryEmailVerified = primaryAuth.emailVerified === true;
+          } catch (authErr) {
+            logger.warn(`[consolidateUserAccounts] Primary auth lookup notice for ${primaryId}:`, authErr);
+          }
+
+          try {
+            const legacyAuth = await admin.auth().getUser(legacyDoc.id);
+            legacyEmailVerified = legacyAuth.emailVerified === true;
+          } catch (authErr) {
+            logger.warn(`[consolidateUserAccounts] Legacy auth lookup notice for ${legacyDoc.id}:`, authErr);
+          }
+
+          if (!primaryEmailVerified || !legacyEmailVerified) {
+            logger.warn(
+              `[consolidateUserAccounts] Channel transfer blocked for channel ${legacyChannelId}: both primary (${primaryId}, verified=${primaryEmailVerified}) and secondary (${legacyDoc.id}, verified=${legacyEmailVerified}) accounts must have verified email addresses.`
+            );
+            res.status(403).json({
+              error: "Both primary and secondary accounts must have verified email addresses before channel ownership can be transferred.",
+            });
+            return;
+          }
+
           channelRestored = legacyChannelId;
           await db.collection("channels").doc(legacyChannelId).update({
             ownerId: primaryId,

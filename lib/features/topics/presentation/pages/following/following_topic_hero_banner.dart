@@ -1,9 +1,11 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
 import 'package:truthworld/features/topics/presentation/widgets/topic_more_options_sheet.dart';
@@ -12,7 +14,7 @@ import 'package:truthworld/features/topics/presentation/widgets/topic_notificati
 /// Topic Header Banner matching the uploaded UI:
 /// - Rounded banner card with topic cover/thumbnail artwork on the right
 /// - Natural dark horizontal gradient overlay ensuring high contrast
-/// - Bold Topic Title & Subtitle/Description
+/// - Bold Topic Name & Subtitle/Description
 /// - Stats Row: Videos count, Followers count, Comments count (icon + stacked number & label)
 /// - Action Buttons:
 ///   - "✓ Following" pill button (white background with black text/icon, Zero White-on-White compliant)
@@ -36,7 +38,7 @@ class FollowingTopicHeroBanner extends StatelessWidget {
   void _handleShare(BuildContext context) {
     final url = DeepLinkService.topicUrl(topic.slug);
     ShareBottomSheet.show(
-      title: topic.title,
+      title: topic.name,
       url: url,
       thumbnailUrl: topic.thumbnailUrl ?? topic.coverImage,
       bannerUrl: topic.coverImage ?? topic.thumbnailUrl,
@@ -69,29 +71,33 @@ class FollowingTopicHeroBanner extends StatelessWidget {
 
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1400),
+        constraints: const BoxConstraints(maxWidth: 1440),
         child: Padding(
           padding: EdgeInsets.symmetric(
             horizontal: isMobile ? 12 : 20,
             vertical: 8,
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFF141416),
-                borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.08),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.45),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
+          child: Container(
+            width: double.infinity,
+            constraints: BoxConstraints(
+              minHeight: isDesktop ? 200 : (isTablet ? 170 : 150),
+            ),
+            decoration: BoxDecoration(
+              color: const Color(0xFF141416),
+              borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.08),
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.45),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(isMobile ? 15 : 19),
               child: Stack(
                 children: [
                   // 1. Background image (aligned to right to preserve the cross / sunset artwork)
@@ -117,9 +123,9 @@ class FollowingTopicHeroBanner extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          // Topic Title
+                          // Topic Name
                           Text(
-                            topic.title,
+                            topic.name,
                             style: TextStyle(
                               fontSize: isDesktop ? 28 : (isTablet ? 24 : 20),
                               fontWeight: FontWeight.w800,
@@ -229,12 +235,11 @@ class FollowingTopicHeroBanner extends StatelessWidget {
   }
 
   Widget _buildDescription() {
-    final text = topic.description.trim().isNotEmpty
-        ? topic.description.trim()
-        : 'Worship, praise, gospel, and faith-based music from creators around the world.';
+    final text = topic.description.trim();
+    if (text.isEmpty) return const SizedBox.shrink();
 
-    return Text(
-      text,
+    return ClickableUrlText(
+      text: text,
       style: const TextStyle(
         fontSize: 13,
         fontWeight: FontWeight.w400,
@@ -247,8 +252,7 @@ class FollowingTopicHeroBanner extends StatelessWidget {
   }
 
   Widget _buildStatsRow() {
-    final videoCount = totalVideosCount ??
-        (topic.videoCount > 0 ? topic.videoCount : 1);
+    final videoCount = totalVideosCount ?? topic.effectiveVideoCount;
     final videoCountText = FormatUtils.formatCount(videoCount);
     final videoLabel = videoCount == 1 ? 'Video' : 'Videos';
 
@@ -260,7 +264,7 @@ class FollowingTopicHeroBanner extends StatelessWidget {
       final commentCount = topic.commentCount > 0
           ? topic.commentCount
           : (controller.topicPostsMap[topic.id]?.length ?? 0);
-      final commentCountText = FormatUtils.formatCount(commentCount > 0 ? commentCount : 5);
+      final commentCountText = FormatUtils.formatCount(commentCount);
       final commentLabel = commentCount == 1 ? 'Comment' : 'Comments';
 
       return Row(
@@ -345,33 +349,44 @@ class FollowingTopicHeroBanner extends StatelessWidget {
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           // 1. Following / Follow Button (White background with black text/icon - Zero White-on-White Policy)
-          InkWell(
-            onTap: () => controller.toggleFollowTopic(topic),
+          Material(
+            color: Colors.white,
             borderRadius: BorderRadius.circular(20),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    isFollowed ? Icons.check_rounded : Icons.add_rounded,
-                    color: Colors.black,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    isFollowed ? 'Following' : 'Follow',
-                    style: const TextStyle(
+            child: InkWell(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                if (isFollowed) {
+                  TopicNotificationOptionsSheet.show(context, topic: topic);
+                } else {
+                  controller.toggleFollowTopic(topic);
+                }
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isFollowed ? Icons.check_rounded : Icons.add_rounded,
                       color: Colors.black,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
+                      size: 16,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 6),
+                    Text(
+                      isFollowed ? 'Following' : 'Follow',
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -406,24 +421,33 @@ class FollowingTopicHeroBanner extends StatelessWidget {
     required String tooltip,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: const Color(0xFF27272A),
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.10),
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            onTap();
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: const Color(0xFF27272A),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.10),
+              ),
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              icon,
+              color: Colors.white,
+              size: 18,
+            ),
           ),
-        ),
-        alignment: Alignment.center,
-        child: Icon(
-          icon,
-          color: Colors.white,
-          size: 18,
         ),
       ),
     );

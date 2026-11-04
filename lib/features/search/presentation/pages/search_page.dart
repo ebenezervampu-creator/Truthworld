@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' hide SearchBar, SearchController;
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/ai/models/ai_search_intent.dart';
+import 'package:truthworld/core/services/user_languages_service.dart';
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart';
 import 'package:truthworld/features/search/presentation/widgets/search_widgets.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -19,47 +20,63 @@ class SearchPage extends StatelessWidget {
     final colors = context.twColors;
     final typography = context.twTypography;
 
-    return Scaffold(
-      backgroundColor: colors.background,
-      appBar: AppBar(
+    return PopScope(
+      canPop: !_searchCtrl.showSuggestions.value,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_searchCtrl.showSuggestions.value) {
+          _searchCtrl.showSuggestions.value = false;
+          FocusScope.of(context).unfocus();
+        }
+      },
+      child: Scaffold(
         backgroundColor: colors.background,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: colors.textPrimary),
-          onPressed: () {
-            if (_searchCtrl.showSuggestions.value) {
-              _searchCtrl.showSuggestions.value = false;
-            } else {
-              Get.back();
-            }
-          },
-        ),
-        titleSpacing: 0,
-        title: Obx(
-          () => SearchBar(
-            controller: _searchController,
-            isLoading: _searchCtrl.isLoading,
-            onChanged: _searchCtrl.onSearchChanged,
-            onClear: _searchCtrl.clearSearch,
-            onSearchSubmitted: () {
-              if (_searchController.text.isNotEmpty) {
-                _searchCtrl.performSearch(_searchController.text);
+        appBar: AppBar(
+          backgroundColor: colors.background,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back, color: colors.textPrimary),
+            tooltip: 'Back',
+            onPressed: () {
+              if (_searchCtrl.showSuggestions.value) {
+                _searchCtrl.showSuggestions.value = false;
+                FocusScope.of(context).unfocus();
+              } else {
+                Get.back();
               }
             },
           ),
+          titleSpacing: 0,
+          title: Obx(
+            () => SearchBar(
+              controller: _searchController,
+              isLoading: _searchCtrl.isLoading,
+              onChanged: _searchCtrl.onSearchChanged,
+              onClear: _searchCtrl.clearSearch,
+              onSearchSubmitted: () {
+                if (_searchController.text.isNotEmpty) {
+                  FocusScope.of(context).unfocus();
+                  _searchCtrl.performSearch(_searchController.text);
+                }
+              },
+            ),
+          ),
         ),
-      ),
-      body: SafeArea(
-        child: Stack(
-          children: [
-            // Bottom Layer: Results and chips
+        body: SafeArea(
+          child: Stack(
+            children: [
+              // Bottom Layer: Results and chips
             Column(
               children: [
                 // Always-visible Scrollable Filter Chips row
                 Obx(() {
                   final activeFilter = _searchCtrl.selectedFilter.value;
+                  final userLang = Get.isRegistered<UserLanguagesService>()
+                      ? UserLanguagesService.to.primaryLanguage.value
+                      : 'English';
                   final filters = [
                     'All',
+                    if (userLang.isNotEmpty) 'In $userLang',
                     'Videos',
                     'Topics',
                     'Playlists',
@@ -128,7 +145,7 @@ class SearchPage extends StatelessWidget {
 
                     // CASE 1: Empty search state
                     if (query.isEmpty) {
-                      return _buildEmptyState();
+                      return _buildEmptyState(context);
                     }
 
                     // CASE 2: Loading state
@@ -155,13 +172,30 @@ class SearchPage extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: _searchCtrl.clearSearch,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.bgDivider,
-                                foregroundColor: AppColors.textPrimary,
-                              ),
-                              child: const Text('Clear'),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                OutlinedButton(
+                                  onPressed: _searchCtrl.clearSearch,
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.textPrimary,
+                                    side: const BorderSide(color: AppColors.bgDivider),
+                                  ),
+                                  child: const Text('Clear'),
+                                ),
+                                const SizedBox(width: 12),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    FocusScope.of(context).unfocus();
+                                    _searchCtrl.performSearch(_searchCtrl.searchQuery.value);
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: colors.brand,
+                                    foregroundColor: Colors.black,
+                                  ),
+                                  child: const Text('Retry'),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -218,6 +252,8 @@ class SearchPage extends StatelessWidget {
                       suggestion: sug,
                       onTap: () {
                         _searchController.text = sug.text;
+                        _searchCtrl.showSuggestions.value = false;
+                        FocusScope.of(context).unfocus();
                         if (sug.matchedResult != null) {
                           _searchCtrl.onResultTapped(sug.matchedResult!);
                         } else {
@@ -240,11 +276,12 @@ class SearchPage extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   /// Build empty search landing state with industry-standard suggestions
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(BuildContext context) {
     final filter = _searchCtrl.selectedFilter.value;
     final recommendedList = _searchCtrl.recommendedResults;
     final isRecLoading = _searchCtrl.isRecommendedLoading.value;
@@ -262,6 +299,7 @@ class SearchPage extends StatelessWidget {
                 recentSearches: _searchCtrl.recentSearches,
                 onSearchSelected: (query) {
                   _searchController.text = query;
+                  FocusScope.of(context).unfocus();
                   _searchCtrl.performSearch(query);
                 },
                 onClearAll: _searchCtrl.clearRecentSearches,
@@ -314,7 +352,10 @@ class SearchPage extends StatelessWidget {
                 final item = recommendedList[index];
                 return SearchResultCard(
                   result: item,
-                  onTap: () => _searchCtrl.onResultTapped(item),
+                  onTap: () {
+                    FocusScope.of(context).unfocus();
+                    _searchCtrl.onResultTapped(item);
+                  },
                 );
               },
             ),
@@ -385,7 +426,10 @@ class SearchPage extends StatelessWidget {
             final result = results[dataIndex];
             return SearchResultCard(
               result: result,
-              onTap: () => _searchCtrl.onResultTapped(result),
+              onTap: () {
+                FocusScope.of(context).unfocus();
+                _searchCtrl.onResultTapped(result);
+              },
             );
           },
         ),

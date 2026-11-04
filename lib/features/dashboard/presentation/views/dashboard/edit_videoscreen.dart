@@ -442,6 +442,35 @@ class EditVideoScreen extends StatelessWidget {
             ),
           ),
         ),
+        const SizedBox(height: 12),
+        Obx(
+          () => SwitchListTile(
+            title: Text(
+              'Allow comments for the video',
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            subtitle: Text(
+              'Turn comments on or off for this video',
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            value: controller.allowComments.value,
+            onChanged: (value) {
+              controller.allowComments.value = value;
+            },
+            activeThumbColor: Colors.black,
+            activeTrackColor: AppColors.brand,
+            tileColor: AppColors.bgSurface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: AppColors.bgDivider),
+            ),
+          ),
+        ),
       ],
     );
   }

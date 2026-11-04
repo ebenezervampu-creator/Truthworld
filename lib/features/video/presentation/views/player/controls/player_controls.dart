@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/controls/components/player_controls_barrel.dart';
+import 'package:truthworld/features/video/presentation/views/player/overlays/components/audio_only_overlay.dart';
 
 export 'package:truthworld/features/video/presentation/views/player/controls/components/player_controls_barrel.dart';
 
@@ -62,6 +63,16 @@ class MainControls extends StatelessWidget {
                   )
                 : const SizedBox.shrink(),
           ),
+
+          // Top theme switcher pill in audio-only mode (non-fullscreen)
+          if (!ctrl.isFullScreen.value &&
+              ctrl.isAudioOnly.value &&
+              !ctrl.isPiP.value)
+            Positioned(
+              top: 14,
+              right: 14,
+              child: AudioThemeSwitcherPill(ctrl: ctrl),
+            ),
 
           // Centre controls — play / prev / next
           Align(

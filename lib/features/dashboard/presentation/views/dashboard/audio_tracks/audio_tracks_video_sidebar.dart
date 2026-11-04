@@ -33,8 +33,8 @@ class AudioTracksVideoSidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        color: Color(0xFF161618),
-        border: Border(right: BorderSide(color: Color(0xFF27272A))),
+        color: AppColors.appBarSurface,
+        border: Border(right: BorderSide(color: AppColors.bgSurface)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -53,8 +53,6 @@ class AudioTracksVideoSidebar extends StatelessWidget {
                 Text(
                   'Select Video',
                   style: TextStyle(
-                    fontFamily: TWTypography.brandFamily,
-                    fontFamilyFallback: TWTypography.fallbackFamilies,
                     fontSize: compact ? 15 : 17,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
@@ -67,7 +65,7 @@ class AudioTracksVideoSidebar extends StatelessWidget {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF27272A),
+                    color: AppColors.bgSurface,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
@@ -89,9 +87,9 @@ class AudioTracksVideoSidebar extends StatelessWidget {
             child: Container(
               height: 42,
               decoration: BoxDecoration(
-                color: const Color(0xFF121212),
+                color: AppColors.bgInput,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFF27272A)),
+                border: Border.all(color: AppColors.bgSurface),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 10),
               child: Row(
@@ -178,7 +176,7 @@ class AudioTracksVideoSidebar extends StatelessWidget {
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? const Color(0xFF27272A)
+                                ? AppColors.bgSurface
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
@@ -200,7 +198,7 @@ class AudioTracksVideoSidebar extends StatelessWidget {
                                       height: compact ? 42 : 50,
                                       fit: BoxFit.cover,
                                       errorWidget: (_, _, _) => const ColoredBox(
-                                        color: Color(0xFF121212),
+                                        color: AppColors.bgInput,
                                         child: Icon(
                                           Icons.movie_rounded,
                                           color: Colors.white,
@@ -271,10 +269,10 @@ class AudioTracksVideoSidebar extends StatelessWidget {
                                             vertical: 1,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: const Color(0xFF121212),
+                                            color: AppColors.bgInput,
                                             borderRadius: BorderRadius.circular(4),
                                             border: Border.all(
-                                              color: const Color(0xFF27272A),
+                                              color: AppColors.bgSurface,
                                             ),
                                           ),
                                           child: Row(

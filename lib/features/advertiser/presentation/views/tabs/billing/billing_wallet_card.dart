@@ -20,9 +20,9 @@ class BillingWalletCard extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: const Color(0xFF161618),
+          color: AppColors.appBarSurface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF27272A)),
+          border: Border.all(color: AppColors.bgSurface),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -35,7 +35,7 @@ class BillingWalletCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF27272A),
+                        color: AppColors.bgSurface,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Icon(
@@ -99,7 +99,7 @@ class BillingWalletCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 20),
-            const Divider(color: Color(0xFF27272A), height: 1),
+            const Divider(color: AppColors.bgSurface, height: 1),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -124,9 +124,9 @@ class BillingWalletCard extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1E1E22),
+                          color: AppColors.bgSurface,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFF323238)),
+                          border: Border.all(color: AppColors.bgElevated),
                         ),
                         child: Text(
                           '+₹$amt',
@@ -147,9 +147,9 @@ class BillingWalletCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF121214),
+                color: AppColors.bgInput,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF27272A)),
+                border: Border.all(color: AppColors.bgSurface),
               ),
               child: Row(
                 children: [

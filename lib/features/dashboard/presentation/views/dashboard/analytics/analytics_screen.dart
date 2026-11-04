@@ -1,21 +1,33 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart';
 import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
+import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
 import 'package:truthworld/features/analytics/presentation/pages/creator_analytics_dashboard.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_header_bar.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_kpi_cards_grid.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_top_videos_card.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_viewer_engagement_card.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/recommendation_card_widget.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/live_subscribers_screen.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
+export 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_controller.dart';
+export 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_header_bar.dart';
+export 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_kpi_cards_grid.dart';
+export 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_top_videos_card.dart';
+export 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_viewer_engagement_card.dart';
+export 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/recommendation_card_widget.dart';
+
+/// Redesigned Studio Channel Analytics Screen inspired by the Channel Creation page:
+/// Modern dark zinc architecture, TruthWorld brand typography, real-time KPI overview,
+/// and AI recommendation intelligence with zero-setState declarative reactivity.
 class AnalyticsScreen extends StatelessWidget {
   const AnalyticsScreen({
     required this.channelId,
     required this.isDarkMode,
     super.key,
   });
+
   final String channelId;
   final bool isDarkMode;
 
@@ -26,198 +38,154 @@ class AnalyticsScreen extends StatelessWidget {
       tag: channelId,
     );
 
-    const bgPage = AppColors.bgPage;
-    const textPrimary = AppColors.textPrimary;
-    const textSecondary = AppColors.textSecondary;
-
     return Scaffold(
-      backgroundColor: bgPage,
+      backgroundColor: AppColors.bgPage,
       body: Obx(() {
         if (controller.rxIsLoading.value && controller.topVideos.isEmpty) {
           return const StudioLoadingIndicator(
             message: 'Loading channel analytics...',
           );
         }
-        if (controller.rxErrorMessage.value.isNotEmpty) {
+
+        if (controller.rxErrorMessage.value.isNotEmpty && controller.topVideos.isEmpty) {
           return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.error_outline_rounded,
-                  color: Colors.white,
-                  size: 44,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  controller.errorMessage,
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppColors.error,
-                    fontSize: 14,
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgPage,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.bgSurface),
+                    ),
+                    child: const Icon(
+                      Icons.error_outline_rounded,
+                      color: AppColors.error,
+                      size: 36,
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 14),
+                  Text(
+                    controller.rxErrorMessage.value,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      color: AppColors.textSecondary,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: controller.refreshAll,
+                    icon: const Icon(Icons.refresh_rounded, size: 16, color: Colors.black),
+                    label: const Text(
+                      'Retry',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.brand,
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         }
 
         return LayoutBuilder(
           builder: (context, constraints) {
+            final isDesktop = constraints.maxWidth >= 960;
             final isMobile = constraints.maxWidth < 650;
 
             return SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.symmetric(
+                horizontal: isDesktop ? 32 : 16,
+                vertical: isDesktop ? 24 : 16,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title & Subtitle Header Banner with responsive wrapping
-                  if (isMobile)
-                    Column(
+                  // ── Top Header Banner ──
+                  AnalyticsHeaderBar(
+                    controller: controller,
+                    channelId: channelId,
+                    isDesktop: isDesktop,
+                    isMobile: isMobile,
+                  ),
+                  const SizedBox(height: 18),
+
+                  // ── Date Range Filter Pills ──
+                  _buildDateRangeSelector(controller),
+                  const SizedBox(height: 20),
+
+                  // ── Performance KPI Cards Grid ──
+                  AnalyticsKpiCardsGrid(
+                    controller: controller,
+                    isMobile: isMobile,
+                  ),
+                  const SizedBox(height: 24),
+
+                  // ── Multi-Column Content Layout (Desktop) or Vertical Stack (Mobile) ──
+                  if (isDesktop)
+                    Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Channel Analytics',
-                          style: AppTextStyles.pageTitle.copyWith(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: textPrimary,
+                        // Left Column: Top Performing Content & Engagement Window
+                        Expanded(
+                          flex: 6,
+                          child: Column(
+                            children: [
+                              AnalyticsTopVideosCard(
+                                topVideos: controller.topVideos,
+                                channelId: channelId,
+                              ),
+                              const SizedBox(height: 24),
+                              const AnalyticsViewerEngagementCard(),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Real-time overview of channel performance and content insights',
-                          style: AppTextStyles.caption.copyWith(
-                            fontSize: 13,
-                            color: textSecondary,
+                        const SizedBox(width: 24),
+                        // Right Column: Real-Time Recommendation Intelligence
+                        Expanded(
+                          flex: 6,
+                          child: RecommendationCardWidget(
+                            isDarkMode: isDarkMode,
+                            channelId: channelId,
                           ),
-                        ),
-                        const SizedBox(height: 14),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            _buildLiveSubscribersButton(isDarkMode),
-                            _buildFullDashboardButton(),
-                          ],
                         ),
                       ],
                     )
                   else
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Column(
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Channel Analytics',
-                                style: AppTextStyles.pageTitle.copyWith(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: textPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Real-time overview of channel performance and content insights',
-                                style: AppTextStyles.caption.copyWith(
-                                  fontSize: 13,
-                                  color: textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
+                        RecommendationCardWidget(
+                          isDarkMode: isDarkMode,
+                          channelId: channelId,
                         ),
-                        const SizedBox(width: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          alignment: WrapAlignment.end,
-                          children: [
-                            _buildLiveSubscribersButton(isDarkMode),
-                            _buildFullDashboardButton(),
-                          ],
+                        const SizedBox(height: 20),
+                        AnalyticsTopVideosCard(
+                          topVideos: controller.topVideos,
+                          channelId: channelId,
                         ),
+                        const SizedBox(height: 20),
+                        const AnalyticsViewerEngagementCard(),
                       ],
                     ),
-                  const SizedBox(height: 24),
-
-                  // ── Real-Time Recommendation Intelligence ──
-                  RecommendationCardWidget(
-                    isDarkMode: isDarkMode,
-                    channelId: channelId,
-                  ),
                   const SizedBox(height: 28),
 
-                  // ── Top Performing Videos Section ──
-                  _buildTopVideosSection(
-                    controller.topVideos,
-                    textPrimary,
-                    textSecondary,
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Bottom View Analytics Banner
-                  Center(
-                    child: InkWell(
-                      onTap: () {
-                        Get.to<dynamic>(
-                          () => const CreatorAnalyticsDashboard(),
-                          arguments: {
-                            'channelId': channelId,
-                            'channelName': 'My Channel',
-                          },
-                        );
-                      },
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        width: isMobile ? double.infinity : null,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.brand.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: AppColors.brand.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: isMobile ? MainAxisSize.max : MainAxisSize.min,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.query_stats_rounded,
-                              color: Colors.white,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                'View Detailed Creator Analytics Dashboard',
-                                style: AppTextStyles.buttonText.copyWith(
-                                  color: AppColors.brand,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                ),
-                                textAlign: TextAlign.center,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            const Icon(
-                              Icons.arrow_forward_rounded,
-                              color: Colors.white,
-                              size: 14,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+                  // ── Bottom Detailed Dashboard Action ──
+                  _buildBottomDashboardBanner(isMobile),
                   const SizedBox(height: 32),
                 ],
               ),
@@ -228,246 +196,112 @@ class AnalyticsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildLiveSubscribersButton(bool isDarkMode) {
-    return InkWell(
-      onTap: () {
-        Get.to<dynamic>(
-          () => LiveSubscribersScreen(
-            isDarkMode: isDarkMode,
-            channelId: channelId,
-          ),
-        );
-      },
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 10,
-        ),
-        decoration: BoxDecoration(
-          color: AppColors.error.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: AppColors.error.withValues(alpha: 0.4),
-          ),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.sensors_rounded,
-              color: Colors.white,
-              size: 16,
-            ),
-            SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                'Live Subscribers',
-                style: TextStyle(
-                  color: AppColors.error,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            SizedBox(width: 4),
-            Icon(
-              Icons.arrow_forward_ios_rounded,
-              color: Colors.white,
-              size: 11,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget _buildDateRangeSelector(AnalyticsController controller) {
+    return Obx(() {
+      final currentRange = controller.selectedDateRange;
+      final ranges = AnalyticsDateRange.values
+          .where((r) => r != AnalyticsDateRange.custom)
+          .toList();
 
-  Widget _buildFullDashboardButton() {
-    return InkWell(
-      onTap: () {
-        Get.to<dynamic>(
-          () => const CreatorAnalyticsDashboard(),
-          arguments: {
-            'channelId': channelId,
-            'channelName': 'My Channel',
-          },
-        );
-      },
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 10,
-        ),
-        decoration: BoxDecoration(
-          color: AppColors.brand,
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.brand.withValues(alpha: 0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
         child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.analytics_rounded,
-              color: Colors.black,
-              size: 16,
-            ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                'Full Dashboard',
-                style: AppTextStyles.buttonText.copyWith(
-                  color: Colors.black,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
+          children: ranges.map((range) {
+            final isSelected = currentRange == range;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: InkWell(
+                onTap: () => controller.setDateRange(range),
+                borderRadius: BorderRadius.circular(20),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppColors.brand : AppColors.appBarSurface,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isSelected ? AppColors.brand : AppColors.bgSurface,
+                    ),
+                  ),
+                  child: Text(
+                    range.label,
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      color: isSelected ? Colors.black : AppColors.textSecondary,
+                      fontSize: 12,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    ),
+                  ),
                 ),
-                overflow: TextOverflow.ellipsis,
               ),
-            ),
-            const SizedBox(width: 4),
-            const Icon(
-              Icons.arrow_forward_ios_rounded,
-              color: Colors.black,
-              size: 12,
-            ),
-          ],
+            );
+          }).toList(),
         ),
-      ),
-    );
+      );
+    });
   }
 
-  Widget _buildTopVideosSection(
-    List<Video> topVideos,
-    Color textPrimary,
-    Color textSecondary,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.bgSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.bgDivider,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.stars_rounded, color: Colors.white, size: 22),
-              const SizedBox(width: 10),
-              Expanded(
+  Widget _buildBottomDashboardBanner(bool isMobile) {
+    return Center(
+      child: InkWell(
+        onTap: () {
+          Get.to<dynamic>(
+            () => const CreatorAnalyticsDashboard(),
+            arguments: {
+              'channelId': channelId,
+              'channelName': 'My Channel',
+            },
+          );
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: isMobile ? double.infinity : null,
+          padding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 14,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.appBarSurface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppColors.bgSurface,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: isMobile ? MainAxisSize.max : MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              Icon(
+                Icons.query_stats_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+              SizedBox(width: 10),
+              Flexible(
                 child: Text(
-                  'Top Performing Videos (by views)',
-                  style: AppTextStyles.titleMedium.copyWith(
-                    fontSize: 18,
+                  'Explore Deep Creator Analytics & Audience Retention',
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    color: Colors.white,
                     fontWeight: FontWeight.bold,
-                    color: textPrimary,
+                    fontSize: 13,
                   ),
+                  textAlign: TextAlign.center,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              SizedBox(width: 8),
+              Icon(
+                Icons.arrow_forward_rounded,
+                color: Colors.white,
+                size: 15,
+              ),
             ],
           ),
-          const SizedBox(height: 16),
-          if (topVideos.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Center(
-                child: Text(
-                  'No video data available yet.',
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: textSecondary,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-            )
-          else
-            Column(
-              children: [
-                for (var index = 0; index < topVideos.length; index++) ...[
-                  if (index > 0)
-                    const Divider(
-                      color: AppColors.bgDivider,
-                      height: 20,
-                    ),
-                  Material(
-                    color: Colors.transparent,
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: SizedBox(
-                        width: 80,
-                        child: AspectRatio(
-                          aspectRatio: 16 / 9,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: topVideos[index].thumbnailUrl.isNotEmpty
-                                ? CachedNetworkImage(
-                                    imageUrl: topVideos[index].thumbnailUrl,
-                                    fit: BoxFit.cover,
-                                    errorWidget: (context, url, err) =>
-                                        const ColoredBox(
-                                          color: AppColors.bgInput,
-                                          child: Icon(
-                                            Icons.play_circle_outline,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                  )
-                                : const ColoredBox(color: AppColors.bgInput),
-                          ),
-                        ),
-                      ),
-                      title: Text(
-                        topVideos[index].title,
-                        style: AppTextStyles.titleMedium.copyWith(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: textPrimary,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          '${NumberFormat.compact().format(topVideos[index].views)} views',
-                          style: AppTextStyles.caption.copyWith(
-                            color: textSecondary,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                      trailing: const Icon(
-                        Icons.arrow_forward_ios_rounded,
-                        size: 14,
-                        color: Colors.white,
-                      ),
-                      onTap: () {
-                        Get.to<dynamic>(
-                          () => const CreatorAnalyticsDashboard(),
-                          arguments: {
-                            'channelId': channelId,
-                            'videoId': topVideos[index].id,
-                            'videoTitle': topVideos[index].title,
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ],
-            ),
-        ],
+        ),
       ),
     );
   }

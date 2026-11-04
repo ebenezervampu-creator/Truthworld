@@ -118,6 +118,33 @@ class ExploreTopicsEmptyState extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(color: secondaryText, fontSize: 14),
               ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  if (isSearch) {
+                    controller.clearSearch();
+                  } else {
+                    controller.selectCategory('all');
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.textPrimary,
+                  foregroundColor: AppColors.bgPage,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+                child: Text(
+                  isSearch ? 'Clear Search' : 'Browse All Topics',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
             ],
           ),
         ),

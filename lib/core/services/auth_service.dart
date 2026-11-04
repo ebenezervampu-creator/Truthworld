@@ -20,6 +20,7 @@ import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/services/push_notification_service.dart';
 import 'package:truthworld/core/services/user_session_reset_manager.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 
 export 'auth/auth_barrel.dart';
@@ -81,17 +82,20 @@ class AuthService extends GetxService {
   Channel? get deletedChannel => _channelManager.deletedChannel;
   Rxn<Channel> get rxDeletedChannel => _channelManager.rxDeletedChannel;
 
-  void setUserChannel(Channel? channel) =>
-      _channelManager.setUserChannel(channel, _user.value?.uid);
+  void setUserChannel(Channel? channel, [String? uid]) =>
+      _channelManager.setUserChannel(channel, uid ?? _user.value?.uid);
 
   void setDeletedChannel(Channel? channel) =>
       _channelManager.setDeletedChannel(channel);
 
-  void clearUserChannel() =>
-      _channelManager.clearUserChannel(_user.value?.uid);
+  void clearUserChannel([String? uid]) =>
+      _channelManager.clearUserChannel(uid ?? _user.value?.uid);
 
   Future<Channel?> ensureChannelLoaded() =>
       _channelManager.ensureChannelLoaded(_user.value, _auth);
+
+  Future<Channel?> refreshUserChannel() =>
+      _channelManager.ensureChannelLoaded(_user.value, _auth, forceRefresh: true);
 
   // Premium delegation
   RxBool get isPremiumUser => _premiumManager.isPremiumUser;
@@ -158,6 +162,7 @@ class AuthService extends GetxService {
     userChannel: userChannel,
     hasChannel: hasChannel.value,
     user: user,
+    currentUid: uid,
   );
 
   String get activeHandle => _profileManager.getActiveHandle(
@@ -472,9 +477,15 @@ class AuthService extends GetxService {
 
     if (_lastHandledUid != null && _lastHandledUid != newUid) {
       _channelManager.clearUserChannel();
+      _profileManager.clearProfile();
       UserSessionResetManager.resetAllUserSessions();
     }
     _lastHandledUid = newUid;
+
+    if (isRealUser) {
+      _channelManager.initCachedChannelStatus(u.uid);
+      _profileManager.initCachedProfile(u.uid);
+    }
 
     _channelManager.updateChannelSubscription(isRealUser ? u : null);
     _profileManager.updateUserDocSubscription(
@@ -660,6 +671,75 @@ class AuthService extends GetxService {
     return credential;
   }
 
+  /// Returns whether the target platform is an Apple platform (iOS, macOS).
+  /// On Web (`kIsWeb`), Google Sign-In is used as the exclusive authentication provider.
+  static bool isApplePlatform([TargetPlatform? platform, bool? isWeb]) {
+    final runningOnWeb = isWeb ?? kIsWeb;
+    if (runningOnWeb && platform == null) return false;
+    final target = platform ?? defaultTargetPlatform;
+    return target == TargetPlatform.iOS || target == TargetPlatform.macOS;
+  }
+
+  /// Returns whether the target platform is Android.
+  static bool isAndroidPlatform([TargetPlatform? platform, bool? isWeb]) {
+    final runningOnWeb = isWeb ?? kIsWeb;
+    if (runningOnWeb && platform == null) return false;
+    final target = platform ?? defaultTargetPlatform;
+    return target == TargetPlatform.android;
+  }
+
+  /// Returns whether the target platform is Web.
+  static bool isWebPlatform([bool? isWeb]) {
+    return isWeb ?? kIsWeb;
+  }
+
+  /// Initiates sign-in directly across all apps.
+  static Future<void> prompt([BuildContext? context]) async {
+    final auth = Get.isRegistered<AuthService>()
+        ? AuthService.to
+        : Get.put(AuthService());
+    await auth.triggerPlatformSignIn();
+  }
+
+  /// Triggers platform sign-in directly (Google on Android/Web, Apple on native iOS/macOS).
+  Future<UserCredential?> triggerPlatformSignIn({
+    TargetPlatform? platformOverride,
+    bool? isWebOverride,
+  }) async {
+    final isApple = isApplePlatform(platformOverride, isWebOverride);
+
+    try {
+      final credential = isApple
+          ? await signInWithApple()
+          : await signInWithGoogle();
+      return credential;
+    } on GoogleSignInException catch (e) {
+      if (e.code == 'redirecting') return null;
+      if (e.code == 'user-cancelled' ||
+          e.code == 'popup-closed' ||
+          e.code == 'popup-closed-by-user') {
+        return null;
+      }
+      AppSnackbar.error(e.displayMessage);
+      return null;
+    } on AppleSignInException catch (e) {
+      if (e.code == 'redirecting') return null;
+      if (e.code == 'user-cancelled') return null;
+      AppSnackbar.error(e.displayMessage);
+      return null;
+    } catch (e, st) {
+      ErrorHandler.log(e, stackTrace: st, tag: 'AuthService.triggerPlatformSignIn');
+      AppSnackbar.error('Unable to complete sign-in. Please try again.');
+      return null;
+    } finally {
+      if (isAuthenticated.value && (needsOnboarding.value || hasPendingOnboardingPrompt)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          checkAndPromptOnboarding();
+        });
+      }
+    }
+  }
+
   /// Initiates phone number verification by sending an SMS OTP.
   Future<void> verifyPhoneNumber({
     required String phoneNumber,
@@ -760,51 +840,15 @@ class AuthService extends GetxService {
       await syncCurrentUser();
     } on FirebaseAuthException catch (e) {
       if (e.code == 'credential-already-in-use') {
-        // An existing account already holds this phone number. Merge and delete duplicate.
-        await _mergeDuplicatePhoneAccount(
-          phoneCredential: credential,
-          phoneNumber: normalizedPhone,
-        );
-      } else {
-        rethrow;
-      }
-    }
-  }
-
-  Future<void> _mergeDuplicatePhoneAccount({
-    required PhoneAuthCredential phoneCredential,
-    required String phoneNumber,
-  }) async {
-    String? duplicateIdToken;
-    FirebaseApp? tempApp;
-
-    try {
-      try {
-        tempApp = Firebase.app('secondaryApp_accountMerge');
-      } catch (_) {
-        tempApp = await Firebase.initializeApp(
-          name: 'secondaryApp_accountMerge',
-          options: Firebase.app().options,
+        throw const PhoneAuthException(
+          message: 'This phone number is already linked to another account.',
+          userMessage:
+              'This phone number is already linked to another account. Please use a different phone number.',
+          code: 'credential-already-in-use',
         );
       }
-
-      final tempAuth = FirebaseAuth.instanceFor(app: tempApp);
-      final dupUserCredential =
-          await tempAuth.signInWithCredential(phoneCredential);
-      duplicateIdToken = await dupUserCredential.user?.getIdToken();
-      await tempAuth.signOut();
-    } catch (e, s) {
-      ErrorHandler.log(
-        e,
-        stackTrace: s,
-        tag: 'AuthService._mergeDuplicatePhoneAccount.token',
-      );
+      rethrow;
     }
-
-    await _callMergeDuplicateAccount(
-      duplicateIdToken: duplicateIdToken,
-      phoneNumber: phoneNumber,
-    );
   }
 
   /// Links Google email to the current account.
@@ -828,8 +872,10 @@ class AuthService extends GetxService {
           await currentUser.linkWithPopup(provider);
         } on FirebaseAuthException catch (e) {
           if (e.code == 'credential-already-in-use') {
-            await _callMergeDuplicateAccount(
-              email: e.email ?? currentUser.email,
+            throw const GoogleSignInException(
+              message:
+                  'This Google account is already linked to another TruthWorld user.',
+              code: 'credential-already-in-use',
             );
           } else {
             rethrow;
@@ -842,9 +888,10 @@ class AuthService extends GetxService {
           await currentUser.linkWithCredential(credential);
         } on FirebaseAuthException catch (e) {
           if (e.code == 'credential-already-in-use') {
-            await _mergeDuplicateGoogleAccount(
-              googleCredential: credential,
-              email: email,
+            throw const GoogleSignInException(
+              message:
+                  'This Google account is already linked to another TruthWorld user.',
+              code: 'credential-already-in-use',
             );
           } else {
             rethrow;
@@ -859,42 +906,6 @@ class AuthService extends GetxService {
       ErrorHandler.log(e, stackTrace: s, tag: 'AuthService.linkGoogleEmail');
       rethrow;
     }
-  }
-
-  Future<void> _mergeDuplicateGoogleAccount({
-    required AuthCredential googleCredential,
-    String? email,
-  }) async {
-    String? duplicateIdToken;
-    FirebaseApp? tempApp;
-
-    try {
-      try {
-        tempApp = Firebase.app('secondaryApp_accountMerge');
-      } catch (_) {
-        tempApp = await Firebase.initializeApp(
-          name: 'secondaryApp_accountMerge',
-          options: Firebase.app().options,
-        );
-      }
-
-      final tempAuth = FirebaseAuth.instanceFor(app: tempApp);
-      final dupUserCredential =
-          await tempAuth.signInWithCredential(googleCredential);
-      duplicateIdToken = await dupUserCredential.user?.getIdToken();
-      await tempAuth.signOut();
-    } catch (e, s) {
-      ErrorHandler.log(
-        e,
-        stackTrace: s,
-        tag: 'AuthService._mergeDuplicateGoogleAccount.token',
-      );
-    }
-
-    await _callMergeDuplicateAccount(
-      duplicateIdToken: duplicateIdToken,
-      email: email,
-    );
   }
 
   /// Sends a verification email to the user or verifies before updating email.
@@ -916,7 +927,12 @@ class AuthService extends GetxService {
         await currentUser.verifyBeforeUpdateEmail(trimmedEmail);
       } on FirebaseAuthException catch (e) {
         if (e.code == 'email-already-in-use') {
-          await _callMergeDuplicateAccount(email: trimmedEmail);
+          throw const AuthException(
+            message: 'This email is already in use by another account.',
+            userMessage:
+                'This email is already in use by another account. Please use a different email address.',
+            code: 'email-already-in-use',
+          );
         } else {
           rethrow;
         }
@@ -956,28 +972,6 @@ class AuthService extends GetxService {
         u,
         onNeedsOnboardingChanged: (needs) => needsOnboarding.value = needs,
       );
-    }
-  }
-
-  /// Calls backend mergeDuplicateAccount Cloud Function to unify duplicate accounts and delete the duplicate.
-  Future<void> _callMergeDuplicateAccount({
-    String? duplicateIdToken,
-    String? phoneNumber,
-    String? email,
-  }) async {
-    final functions = FirebaseFunctions.instanceFor(region: 'asia-south1');
-    final callable = functions.httpsCallable('mergeDuplicateAccount');
-    final payload = <String, dynamic>{};
-    if (duplicateIdToken != null) payload['duplicateIdToken'] = duplicateIdToken;
-    if (phoneNumber != null) payload['phoneNumber'] = phoneNumber;
-    if (email != null) payload['email'] = email;
-    await callable.call<Map<String, dynamic>>(payload);
-
-    final currentUser = _auth.currentUser;
-    if (currentUser != null) {
-      await currentUser.reload();
-      _user.value = _auth.currentUser;
-      await syncCurrentUser();
     }
   }
 

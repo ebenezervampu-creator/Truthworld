@@ -13,7 +13,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': '中文',
       'speakers': '~1.1 Billion speakers',
       'rank': 2,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'hi',
@@ -21,7 +21,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'हिन्दी',
       'speakers': '~610 Million speakers',
       'rank': 3,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'es',
@@ -29,7 +29,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'Español',
       'speakers': '~560 Million speakers',
       'rank': 4,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'fr',
@@ -37,7 +37,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'Français',
       'speakers': '~310 Million speakers',
       'rank': 5,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'ar',
@@ -45,7 +45,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'العربية',
       'speakers': '~274 Million speakers',
       'rank': 6,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'bn',
@@ -53,7 +53,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'বাংলা',
       'speakers': '~273 Million speakers',
       'rank': 7,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'pt',
@@ -61,7 +61,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'Português',
       'speakers': '~264 Million speakers',
       'rank': 8,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'ru',
@@ -69,7 +69,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'Русский',
       'speakers': '~255 Million speakers',
       'rank': 9,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'ur',
@@ -77,7 +77,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'اردو',
       'speakers': '~232 Million speakers',
       'rank': 10,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'id',
@@ -85,7 +85,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'Bahasa Indonesia',
       'speakers': '~200 Million speakers',
       'rank': 11,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'de',
@@ -93,7 +93,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'Deutsch',
       'speakers': '~134 Million speakers',
       'rank': 12,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'ja',
@@ -101,7 +101,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': '日本語',
       'speakers': '~125 Million speakers',
       'rank': 13,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'pcm',
@@ -109,7 +109,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'Naijá',
       'speakers': '~120 Million speakers',
       'rank': 14,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'mr',
@@ -117,7 +117,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'मराठी',
       'speakers': '~99 Million speakers',
       'rank': 15,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'te',
@@ -125,7 +125,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'తెలుగు',
       'speakers': '~96 Million speakers',
       'rank': 16,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'tr',
@@ -133,7 +133,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'Türkçe',
       'speakers': '~88 Million speakers',
       'rank': 17,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'ta',
@@ -141,7 +141,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'தமிழ்',
       'speakers': '~86 Million speakers',
       'rank': 18,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'yue',
@@ -149,7 +149,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': '粵語',
       'speakers': '~86 Million speakers',
       'rank': 19,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'vi',
@@ -157,7 +157,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'Tiếng Việt',
       'speakers': '~85 Million speakers',
       'rank': 20,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'tl',
@@ -165,7 +165,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'Filipino',
       'speakers': '~83 Million speakers',
       'rank': 21,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'wuu',
@@ -173,7 +173,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': '吴语',
       'speakers': '~82 Million speakers',
       'rank': 22,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'ko',
@@ -181,7 +181,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': '한국어',
       'speakers': '~82 Million speakers',
       'rank': 23,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'fa',
@@ -189,7 +189,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'فارسی',
       'speakers': '~77 Million speakers',
       'rank': 24,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'ha',
@@ -197,7 +197,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'Hausa',
       'speakers': '~77 Million speakers',
       'rank': 25,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'sw',
@@ -205,7 +205,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'Kiswahili',
       'speakers': '~71 Million speakers',
       'rank': 26,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'jv',
@@ -213,7 +213,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'Basa Jawa',
       'speakers': '~68 Million speakers',
       'rank': 27,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'it',
@@ -221,7 +221,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'Italiano',
       'speakers': '~68 Million speakers',
       'rank': 28,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'pa',
@@ -229,7 +229,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'ਪੰਜਾਬੀ',
       'speakers': '~66 Million speakers',
       'rank': 29,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'kn',
@@ -237,7 +237,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'ಕನ್ನಡ',
       'speakers': '~64 Million speakers',
       'rank': 30,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'gu',
@@ -245,7 +245,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'ગુજરાતી',
       'speakers': '~62 Million speakers',
       'rank': 31,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'th',
@@ -253,7 +253,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'ไทย',
       'speakers': '~61 Million speakers',
       'rank': 32,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'am',
@@ -261,7 +261,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'አማርኛ',
       'speakers': '~57 Million speakers',
       'rank': 33,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'bho',
@@ -269,7 +269,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'भोजपुरी',
       'speakers': '~52 Million speakers',
       'rank': 34,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'pl',
@@ -277,7 +277,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'Polski',
       'speakers': '~45 Million speakers',
       'rank': 35,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'yo',
@@ -285,7 +285,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'Yorùbá',
       'speakers': '~45 Million speakers',
       'rank': 36,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'my',
@@ -293,7 +293,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'မြန်မာ',
       'speakers': '~43 Million speakers',
       'rank': 37,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'ml',
@@ -301,7 +301,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'മലയാളം',
       'speakers': '~38 Million speakers',
       'rank': 38,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'or',
@@ -309,7 +309,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'ଓଡ଼ିଆ',
       'speakers': '~38 Million speakers',
       'rank': 39,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'mai',
@@ -317,7 +317,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'मैथिली',
       'speakers': '~34 Million speakers',
       'rank': 40,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'ms',
@@ -325,7 +325,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'Bahasa Melayu',
       'speakers': '~33 Million speakers',
       'rank': 41,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'uk',
@@ -333,7 +333,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'Українська',
       'speakers': '~33 Million speakers',
       'rank': 42,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'su',
@@ -341,7 +341,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'Basa Sunda',
       'speakers': '~32 Million speakers',
       'rank': 43,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'ig',
@@ -349,7 +349,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'Igbo',
       'speakers': '~31 Million speakers',
       'rank': 44,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'uz',
@@ -357,7 +357,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'Oʻzbekcha',
       'speakers': '~30 Million speakers',
       'rank': 45,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'sd',
@@ -365,7 +365,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'سنڌي',
       'speakers': '~30 Million speakers',
       'rank': 46,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'ro',
@@ -373,7 +373,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'Română',
       'speakers': '~28 Million speakers',
       'rank': 47,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'nl',
@@ -381,7 +381,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'Nederlands',
       'speakers': '~25 Million speakers',
       'rank': 48,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'ps',
@@ -389,7 +389,7 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'پښتو',
       'speakers': '~23 Million speakers',
       'rank': 49,
-      'isAccepted': false,
+      'isAccepted': true,
     },
     {
       'code': 'ne',
@@ -397,6 +397,6 @@ const List<Map<String, dynamic>> worldLanguagesTier1 = [
       'native': 'नेपाली',
       'speakers': '~20 Million speakers',
       'rank': 50,
-      'isAccepted': false,
+      'isAccepted': true,
     },
 ];

@@ -18,8 +18,19 @@ import 'package:truthworld/theme/app_theme.dart';
 
 class PlaylistsManagementController extends BaseController
     with ContentValidationMixin {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
+  PlaylistsManagementController({
+    FirebaseFirestore? firestore,
+    FirebaseStorage? storage,
+  })  : _customFirestore = firestore,
+        _customStorage = storage;
+
+  final FirebaseFirestore? _customFirestore;
+  final FirebaseStorage? _customStorage;
+
+  FirebaseFirestore get _firestore =>
+      _customFirestore ?? FirebaseFirestore.instance;
+  FirebaseStorage get _storage =>
+      _customStorage ?? FirebaseStorage.instance;
 
   // Reactive State
   final RxString searchQuery = ''.obs;
@@ -556,6 +567,12 @@ class PlaylistsManagementController extends BaseController
 
   /// Delete a playlist (moves to Trash for 30 days)
   Future<bool> deletePlaylist(String playlistId) async {
+    if (playlistId == 'watchlater' ||
+        playlistId.toLowerCase().trim() == 'watch later') {
+      AppSnackbar.warning('The Watch Later playlist cannot be moved to Trash.');
+      return false;
+    }
+
     try {
       await _firestore
           .collection(FirestoreCollections.playlists)

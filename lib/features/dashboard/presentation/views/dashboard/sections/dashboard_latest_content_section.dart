@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/studio_interactive_card.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -101,11 +102,12 @@ class DashboardLatestContentSection extends StatelessWidget {
               itemBuilder: (context, index) {
                 final video = videos[index];
                 return TweenAnimationBuilder<double>(
-                  duration: Duration(milliseconds: 300 + (index * 100)),
+                  duration: Duration(milliseconds: 280 + (index * 60)),
+                  curve: Curves.easeOutCubic,
                   tween: Tween(begin: 0, end: 1),
                   builder: (context, value, child) {
                     return Transform.translate(
-                      offset: Offset(20 * (1 - value), 0),
+                      offset: Offset(0, 14 * (1 - value)),
                       child: Opacity(
                         opacity: value,
                         child: DashboardContentCard(
@@ -145,25 +147,13 @@ class DashboardContentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.bgDivider,
-        ),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () {
-            HapticFeedback.lightImpact();
-            onTap?.call();
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
+    return StudioInteractiveCard(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap?.call();
+      },
+      padding: const EdgeInsets.all(14),
+      child: Row(
               children: [
                 Container(
                   width: isMobile ? 120 : 160,
@@ -292,9 +282,6 @@ class DashboardContentCard extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-        ),
-      ),
     );
   }
 }

@@ -432,28 +432,28 @@ class ChannelNotificationsGuideModal extends StatelessWidget {
                     title: 'Creator Review First (Fact Verification)',
                     description:
                         'You are in full control! When we check facts in your video, only YOU can see the notes at first. Viewers cannot see anything until you review and click Approve.',
-                    iconColor: const Color(0xFF34D399),
+                    iconColor: AppColors.success,
                   ),
                   _buildPillarCard(
                     icon: Icons.shield_outlined,
                     title: 'Zero Arbitrary Strikes & Channel Safety',
                     description:
                         'Your channel is 100% safe. If something needs a quick adjustment (like matching your language), it never counts as a strike. You can fix it anytime with zero stress.',
-                    iconColor: const Color(0xFFFBBF24),
+                    iconColor: AppColors.warning,
                   ),
                   _buildPillarCard(
                     icon: Icons.video_library_rounded,
                     title: 'Video Pipeline & Processing',
                     description:
                         'We prepare your video automatically so it looks crisp and sounds great on all devices. You get a quick ping as soon as it is live for everyone!',
-                    iconColor: const Color(0xFF60A5FA),
+                    iconColor: AppColors.textLink,
                   ),
                   _buildPillarCard(
                     icon: Icons.emoji_events_rounded,
                     title: 'Milestones & Popular Videos',
                     description:
                         'Celebrate your wins! We alert you whenever you reach a new subscriber goal or when lots of people are watching and commenting on your video.',
-                    iconColor: const Color(0xFFFBBF24),
+                    iconColor: AppColors.warning,
                   ),
                   _buildPillarCard(
                     icon: Icons.auto_awesome_rounded,

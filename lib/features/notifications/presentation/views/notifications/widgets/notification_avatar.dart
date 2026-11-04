@@ -260,18 +260,31 @@ class DynamicNotificationAvatar extends StatelessWidget {
     final cleanName = displayName.trim().replaceAll('@', '');
     final lowerName = cleanName.toLowerCase();
     final alertType = item.alert?.type.toLowerCase() ?? '';
+    final alertCat = item.alert?.category.toLowerCase() ?? '';
 
     final isTruthWorld = lowerName == 'truthworld' ||
         lowerName.contains('truthworld') ||
         alertType == 'system' ||
         alertType == 'announcement' ||
-        alertType == 'admin';
+        alertType == 'admin' ||
+        alertType.contains('moderation') ||
+        alertType.contains('verification') ||
+        alertCat == 'moderation' ||
+        alertCat == 'verification' ||
+        alertCat == 'policy';
 
     if (isTruthWorld) {
       return const AppLogo(size: 40);
     }
 
-    final initial = cleanName.isNotEmpty ? cleanName[0].toUpperCase() : '';
+    var initial = '';
+    final letterMatch = RegExp('[a-zA-Z0-9]').firstMatch(cleanName);
+    if (letterMatch != null) {
+      initial = letterMatch.group(0)!.toUpperCase();
+    } else if (cleanName.characters.isNotEmpty) {
+      initial = cleanName.characters.first;
+    }
+
     final bgColor = NotificationNavigationHandler.getAvatarColor(cleanName);
 
     return Container(

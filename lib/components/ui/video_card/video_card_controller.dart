@@ -32,7 +32,7 @@ class VideoCardController extends GetxController implements HoverPreviewClient {
   @override
   final bool disableHoverPreview;
   final String heroPrefix;
-  final VoidCallback? customOnTap;
+  VoidCallback? customOnTap;
 
   final RxBool _isHovered = false.obs;
   @override
@@ -47,9 +47,10 @@ class VideoCardController extends GetxController implements HoverPreviewClient {
   final RxBool isLoadingVideo = false.obs;
   late final Worker _muteWorker;
 
-  static final Map<String, Map<String, String>> _channelCache = {};
+  static final Map<String, Map<String, dynamic>> _channelCache = {};
   final RxString realChannelAvatarUrl = ''.obs;
   final RxString realChannelName = ''.obs;
+  final RxBool isChannelTrusted = false.obs;
 
   bool _isDisposed = false;
   @override
@@ -68,6 +69,9 @@ class VideoCardController extends GetxController implements HoverPreviewClient {
       realChannelAvatarUrl.value = initialAvatar;
     }
     realChannelName.value = video.channelName;
+    final cachedChannel = DeepLinkService.instance
+        .getChannelFromCache(video.channelId.isNotEmpty ? video.channelId : video.channelName);
+    isChannelTrusted.value = video.showVerifiedBadge || (cachedChannel?.showVerifiedBadge ?? false);
     loadRealChannelData();
     syncRealtimeViewsIfNeeded();
 
@@ -90,23 +94,27 @@ class VideoCardController extends GetxController implements HoverPreviewClient {
         : video.ownerId.trim();
     if (effectiveChannelId.isEmpty) return;
 
-    if (realChannelAvatarUrl.value.isNotEmpty &&
-        realChannelName.value.isNotEmpty) {
-      return;
-    }
-
     final cached = _channelCache[effectiveChannelId];
     if (cached != null) {
-      if (cached['avatar']?.isNotEmpty ?? false) {
-        realChannelAvatarUrl.value = cached['avatar']!;
+      if ((cached['avatar'] as String?)?.isNotEmpty ?? false) {
+        realChannelAvatarUrl.value = cached['avatar'] as String;
       }
-      if (cached['name']?.isNotEmpty ?? false) {
-        realChannelName.value = cached['name']!;
+      if ((cached['name'] as String?)?.isNotEmpty ?? false) {
+        realChannelName.value = cached['name'] as String;
+      }
+      if (cached['isTrusted'] == true) {
+        isChannelTrusted.value = true;
       }
       if (realChannelAvatarUrl.value.isNotEmpty &&
           realChannelName.value.isNotEmpty) {
         return;
       }
+    }
+
+    if (realChannelAvatarUrl.value.isNotEmpty &&
+        realChannelName.value.isNotEmpty &&
+        isChannelTrusted.value) {
+      return;
     }
 
     try {
@@ -162,16 +170,25 @@ class VideoCardController extends GetxController implements HoverPreviewClient {
                     ? (data['displayName'] as String).trim()
                     : '';
 
+        final isTrusted = (data['trustedModerationBypass'] as bool?) ??
+            (data['bypassModeration'] as bool?) ??
+            (data['trustedChannel'] as bool?) ??
+            false;
+        if (isTrusted) {
+          isChannelTrusted.value = true;
+        }
+
         if (avatar.isNotEmpty) {
           realChannelAvatarUrl.value = avatar;
         }
         if (name.isNotEmpty) {
           realChannelName.value = name;
         }
-        if (avatar.isNotEmpty || name.isNotEmpty) {
+        if (avatar.isNotEmpty || name.isNotEmpty || isTrusted) {
           _channelCache[effectiveChannelId] = {
             'avatar': avatar,
             'name': name,
+            'isTrusted': isTrusted,
           };
         }
       }

@@ -18,20 +18,18 @@ class TopicSelectionBottomSheet extends StatelessWidget {
     this.onTopicSelected,
   });
 
-  final dynamic controller;
+  final TopicSelectionHost controller;
   final Function(bool isDark) onCreateNewTopicRequested;
   final Function(Topic? topic)? onTopicSelected;
 
   /// Present as modal bottom sheet
   static void show(
     BuildContext context,
-    dynamic controller, {
+    TopicSelectionHost controller, {
     required Function(bool isDark) onCreateNewTopic,
     Function(Topic? topic)? onTopicSelected,
   }) {
-    if (controller != null && controller.topicSearchQuery != null) {
-      controller.topicSearchQuery.value = '';
-    }
+    controller.topicSearchQuery.value = '';
 
     showModalBottomSheet(
       context: context,
@@ -48,13 +46,11 @@ class TopicSelectionBottomSheet extends StatelessWidget {
   /// Present as centered popup dialog
   static Future<void> showPopupDialog(
     BuildContext context,
-    dynamic controller, {
+    TopicSelectionHost controller, {
     required Function(bool isDark) onCreateNewTopic,
     Function(Topic? topic)? onTopicSelected,
   }) async {
-    if (controller != null && controller.topicSearchQuery != null) {
-      controller.topicSearchQuery.value = '';
-    }
+    controller.topicSearchQuery.value = '';
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -139,8 +135,7 @@ class TopicSelectionBottomSheet extends StatelessWidget {
               // Scrollable Content
               Expanded(
                 child: Obx(() {
-                  final isLoading =
-                      controller?.isTopicsLoading?.value as bool? ?? false;
+                  final isLoading = controller.isTopicsLoading.value;
                   if (isLoading) {
                     return Center(
                       child: Column(
@@ -162,13 +157,8 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                     );
                   }
 
-                  final query =
-                      (controller?.topicSearchQuery?.value as String? ?? '')
-                          .trim()
-                          .toLowerCase();
-                  final allTopics = List<Topic>.from(
-                    controller?.availableTopics as Iterable? ?? [],
-                  );
+                  final query = controller.topicSearchQuery.value.trim().toLowerCase();
+                  final allTopics = controller.availableTopics;
 
                   // Rank topics dynamically for the video
                   final rankedMatches =
@@ -181,7 +171,7 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                   final filteredMatches = rankedMatches.where((match) {
                     if (query.isEmpty) return true;
                     final t = match.topic;
-                    if (t.title.toLowerCase().contains(query)) return true;
+                    if (t.name.toLowerCase().contains(query)) return true;
                     if (t.slug.toLowerCase().contains(query)) return true;
                     if (t.handle.toLowerCase().contains(query)) return true;
                     if (t.category.toLowerCase().contains(query)) return true;
@@ -191,8 +181,7 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                     return false;
                   }).toList();
 
-                  final selectedId =
-                      controller?.selectedTopicId?.value as String? ?? '';
+                  final selectedId = controller.selectedTopicId.value;
 
                   // Top Hero Topic (#1 Recommendation for this video)
                   TopicMatchInfo? featuredMatch;
@@ -207,110 +196,145 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                       ? filteredMatches.first
                       : (rankedMatches.isNotEmpty ? rankedMatches.first : null);
 
-                  final hasDraft = controller?.newTopicData != null &&
-                      (controller.newTopicData as Map).isNotEmpty;
+                  final hasDraft = controller.newTopicData.isNotEmpty;
 
-                  return ListView(
-                    controller: scrollController,
-                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
-                    children: [
-                      // "None" Topic Option Chip
-                      TopicNoneOptionChip(
-                        isDark: isDark,
-                        textColor: textColor,
-                        subtextColor: subtextColor,
-                        borderColor: borderColor,
-                        controller: controller,
-                        onTopicSelected: onTopicSelected,
+                  final heroKey = featuredMatch != null
+                      ? (featuredMatch.topic.slug.isNotEmpty
+                          ? featuredMatch.topic.slug
+                          : featuredMatch.topic.id)
+                      : '';
+                  final isHeroSelected =
+                      heroKey.isNotEmpty && controller.isTopicSelected(heroKey);
+
+                  return RefreshIndicator(
+                    color: Colors.white,
+                    backgroundColor:
+                        isDark ? const Color(0xFF1E293B) : Colors.white,
+                    onRefresh: () async {
+                      await controller.fetchAvailableTopics();
+                    },
+                    child: CustomScrollView(
+                      controller: scrollController,
+                      physics: const AlwaysScrollableScrollPhysics(
+                        parent: BouncingScrollPhysics(),
                       ),
-                      const SizedBox(height: 16),
+                      slivers: [
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                          sliver: SliverList(
+                            delegate: SliverChildListDelegate([
+                              // "None" Topic Option Chip
+                              TopicNoneOptionChip(
+                                isDark: isDark,
+                                textColor: textColor,
+                                subtextColor: subtextColor,
+                                borderColor: borderColor,
+                                controller: controller,
+                                onTopicSelected: onTopicSelected,
+                              ),
+                              const SizedBox(height: 16),
 
-                      // Draft Topic Option Card (if active draft exists)
-                      if (hasDraft) ...[
-                        TopicDraftOptionCard(
-                          isDark: isDark,
-                          borderColor: borderColor,
-                          controller: controller,
+                              // Draft Topic Option Card (if active draft exists)
+                              if (hasDraft) ...[
+                                TopicDraftOptionCard(
+                                  isDark: isDark,
+                                  borderColor: borderColor,
+                                  controller: controller,
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+
+                              // 1. TOP HERO CONTAINER (#1 Recommended Topic for this Video)
+                              if (featuredMatch != null && query.isEmpty) ...[
+                                TopicHeroCard(
+                                  match: featuredMatch,
+                                  isSelected: isHeroSelected,
+                                  isDark: isDark,
+                                  textColor: textColor,
+                                  subtextColor: subtextColor,
+                                  borderColor: borderColor,
+                                  controller: controller,
+                                  onTopicSelected: onTopicSelected,
+                                ),
+                                const SizedBox(height: 24),
+                              ],
+
+                              // 2. MIDDLE SECTION HEADER
+                              Padding(
+                                padding:
+                                    const EdgeInsets.only(left: 4, bottom: 12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Add video to topics (Up to 3)',
+                                      style:
+                                          AppTextStyles.headlineSmall.copyWith(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: textColor,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Topics ranked by relevance for your video • Max 1 own topic + up to 2 public topics',
+                                      style: AppTextStyles.caption.copyWith(
+                                        fontSize: 13,
+                                        color: subtextColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ]),
+                          ),
                         ),
-                        const SizedBox(height: 16),
-                      ],
 
-                      // 1. TOP HERO CONTAINER (#1 Recommended Topic for this Video)
-                      if (featuredMatch != null && query.isEmpty) ...[
-                        TopicHeroCard(
-                          match: featuredMatch,
-                          isSelected: selectedId == featuredMatch.topic.slug ||
-                              selectedId == featuredMatch.topic.id,
-                          isDark: isDark,
-                          textColor: textColor,
-                          subtextColor: subtextColor,
-                          borderColor: borderColor,
-                          controller: controller,
-                          onTopicSelected: onTopicSelected,
-                        ),
-                        const SizedBox(height: 24),
-                      ],
-
-                      // 2. MIDDLE SECTION HEADER
-                      Padding(
-                        padding: const EdgeInsets.only(left: 4, bottom: 12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Add this video to another topic',
-                              style: AppTextStyles.headlineSmall.copyWith(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: textColor,
+                        // 3. TOPIC CARDS LIST (Ranked topics below section header)
+                        if (filteredMatches.isEmpty)
+                          SliverPadding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
+                            sliver: SliverToBoxAdapter(
+                              child: TopicSelectionEmptyState(
+                                query: query,
+                                textColor: textColor,
+                                subtextColor: subtextColor,
+                                isDark: isDark,
+                                borderColor: borderColor,
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Topics ranked by relevance for your video',
-                              style: AppTextStyles.caption.copyWith(
-                                fontSize: 13,
-                                color: subtextColor,
-                              ),
+                          )
+                        else
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+                            sliver: SliverList.separated(
+                              itemCount: filteredMatches.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 12),
+                              itemBuilder: (context, index) {
+                                final match = filteredMatches[index];
+                                final matchKey = match.topic.slug.isNotEmpty
+                                    ? match.topic.slug
+                                    : match.topic.id;
+                                final isSelected = controller.isTopicSelected(matchKey);
+                                return TopicListItemCard(
+                                  match: match,
+                                  isSelected: isSelected,
+                                  isDark: isDark,
+                                  textColor: textColor,
+                                  subtextColor: subtextColor,
+                                  borderColor: borderColor,
+                                  controller: controller,
+                                  onTopicSelected: onTopicSelected,
+                                );
+                              },
                             ),
-                          ],
-                        ),
-                      ),
-
-                      // 3. TOPIC CARDS LIST (Ranked topics below section header)
-                      if (filteredMatches.isEmpty)
-                        TopicSelectionEmptyState(
-                          query: query,
-                          textColor: textColor,
-                          subtextColor: subtextColor,
-                          isDark: isDark,
-                          borderColor: borderColor,
-                        )
-                      else
-                        ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: filteredMatches.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            final match = filteredMatches[index];
-                            final isSelected = selectedId ==
-                                    match.topic.slug ||
-                                selectedId == match.topic.id;
-                            return TopicListItemCard(
-                              match: match,
-                              isSelected: isSelected,
-                              isDark: isDark,
-                              textColor: textColor,
-                              subtextColor: subtextColor,
-                              borderColor: borderColor,
-                              controller: controller,
-                              onTopicSelected: onTopicSelected,
-                            );
-                          },
-                        ),
-                    ],
+                          ),
+                      ],
+                    ),
                   );
                 }),
               ),

@@ -1,3 +1,4 @@
+import { isSessionRecent } from "../utils/securityHeaders";
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
@@ -166,9 +167,15 @@ export const reviewFraudFlag = onCall(
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
 
-    // Verify admin role via server-minted custom claim only
-    const isAdmin = request.auth?.token?.admin === true;
-    if (!isAdmin) throw new HttpsError("permission-denied", "Admin access required.");
+    // Verify admin role via server-minted custom claim only and enforce verified email & step-up auth
+    const token = request.auth?.token;
+    const isAdmin = token?.admin === true && token?.email_verified === true;
+    if (!isAdmin) throw new HttpsError("permission-denied", "Verified admin access required.");
+
+    const authTime = token?.auth_time as number | undefined;
+    if (!isSessionRecent(authTime, 3600)) {
+      throw new HttpsError("permission-denied", "Recent authentication required for high-impact fraud review.");
+    }
     const db = admin.firestore();
 
     const { channelId, resolution } = (request.data ?? {}) as {

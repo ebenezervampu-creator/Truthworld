@@ -140,6 +140,12 @@ mixin UploadQuotaMixin on UploadControllerBase {
 
   void selectChannel(Channel channel) {
     updateState((s) => s.copyWith(selectedChannel: channel));
+    if (resumedVideoDraft.value == null) {
+      final cat = resolveChannelFirstCategory(channel);
+      if (cat.isNotEmpty) {
+        selectedCategory.value = cat;
+      }
+    }
     refreshDailyUploadQuota();
   }
 
@@ -154,6 +160,12 @@ mixin UploadQuotaMixin on UploadControllerBase {
       if (channels.isEmpty) {
         channels.value = [authCh];
         selectedChannel.value = authCh;
+        if (resumedVideoDraft.value == null) {
+          final cat = resolveChannelFirstCategory(authCh);
+          if (cat.isNotEmpty && (selectedCategory.value.isEmpty || selectedCategory.value == 'Other')) {
+            selectedCategory.value = cat;
+          }
+        }
       }
       isChannelsLoading.value = false;
     } else {
@@ -261,13 +273,26 @@ mixin UploadQuotaMixin on UploadControllerBase {
 
               if (selectedChannel.value == null ||
                   !channels.any((c) => c.id == selectedChannel.value!.id)) {
-                selectedChannel.value = matched ?? channels.first;
+                final chosen = matched ?? channels.first;
+                selectedChannel.value = chosen;
+                if (resumedVideoDraft.value == null) {
+                  final cat = resolveChannelFirstCategory(chosen);
+                  if (cat.isNotEmpty && (selectedCategory.value.isEmpty || selectedCategory.value == 'Other')) {
+                    selectedCategory.value = cat;
+                  }
+                }
                 refreshDailyUploadQuota();
                 debugPrint(
                   'Auto-selected channel: ${selectedChannel.value?.channelName}',
                 );
               } else if (matched != null && selectedChannel.value!.id != matched.id) {
                 selectedChannel.value = matched;
+                if (resumedVideoDraft.value == null) {
+                  final cat = resolveChannelFirstCategory(matched);
+                  if (cat.isNotEmpty && (selectedCategory.value.isEmpty || selectedCategory.value == 'Other')) {
+                    selectedCategory.value = cat;
+                  }
+                }
                 refreshDailyUploadQuota();
               }
             }

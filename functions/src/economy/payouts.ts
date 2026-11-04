@@ -4,6 +4,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import { reconcileChannelSettlement } from "./settlementService";
+import { getBigQueryAnalyticsService } from "../analytics/bigqueryService";
 
 const db = () => admin.firestore();
 
@@ -48,6 +49,22 @@ export const onPayoutRequestCreated = onDocumentCreated(
         rejectReason: reason,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+
+      try {
+        getBigQueryAnalyticsService().enqueuePayoutTransaction({
+          payout_id: requestId,
+          timestamp: new Date().toISOString(),
+          transfer_reference: `REJECT-${requestId.slice(0, 8)}`,
+          channel_id: channelId || "unknown",
+          user_id: userId || "unknown",
+          amount_inr: Number(amount || 0),
+          payment_method: paymentMethod || "Unknown",
+          payout_status: "rejected",
+          hold_or_reject_reason: reason,
+        });
+      } catch (bqErr) {
+        logger.warn("[Payouts] BigQuery payout rejection streaming warning", { err: String(bqErr) });
+      }
     };
 
     const hold = async (reason: string, logMsg: string) => {
@@ -57,6 +74,22 @@ export const onPayoutRequestCreated = onDocumentCreated(
         holdReason: reason,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+
+      try {
+        getBigQueryAnalyticsService().enqueuePayoutTransaction({
+          payout_id: requestId,
+          timestamp: new Date().toISOString(),
+          transfer_reference: `HOLD-${requestId.slice(0, 8)}`,
+          channel_id: channelId || "unknown",
+          user_id: userId || "unknown",
+          amount_inr: Number(amount || 0),
+          payment_method: paymentMethod || "Unknown",
+          payout_status: "held",
+          hold_or_reject_reason: reason,
+        });
+      } catch (bqErr) {
+        logger.warn("[Payouts] BigQuery payout hold streaming warning", { err: String(bqErr) });
+      }
     };
 
     // ── 1. Minimum threshold ─────────────────────────────────────────────────
@@ -106,7 +139,8 @@ export const onPayoutRequestCreated = onDocumentCreated(
       dayUTC === 1 || dayUTC === 2 ||
       dayUS === 1 || dayUS === 2;
 
-    const bypassScheduleCheck = channelData.allowAnytimePayout === true || data.bypassScheduleCheck === true;
+    // 🛡️ Security Invariant (TW-ECON-03): Client document data MUST NEVER bypass schedule gates.
+    const bypassScheduleCheck = channelData.allowAnytimePayout === true;
     if (!isPayoutWindow && !bypassScheduleCheck) {
       await reject(
         "Creator revenue withdrawals are only permitted during the monthly payout window (1st of the month, with a 1-day grace period on the 2nd). Any unwithdrawn earnings safely roll over to next month's payout window.",
@@ -137,8 +171,8 @@ export const onPayoutRequestCreated = onDocumentCreated(
       return;
     }
 
-    // ── 2b. Custom Channel Viral Surge Withdrawal Hold ──────────────────────
-    if (channelData.channelType === "custom") {
+    // ── 2b. Pro Channel Viral Surge Withdrawal Hold ──────────────────────
+    if (channelData.channelType === "custom" || channelData.channelType === "pro" || channelData.type === "custom" || channelData.type === "pro") {
       const infra = channelData.infraConfig;
       const usedBytes = Number(infra?.bandwidthUsedBytesThisMonth || 0);
       const quotaBytes = Number(infra?.bandwidthQuotaBytesThisMonth || 0);
@@ -148,8 +182,8 @@ export const onPayoutRequestCreated = onDocumentCreated(
 
       if (isSurgeHeld) {
         await hold(
-          "TruthWorld has fronted and paid 100% of your viral infrastructure surge costs so your viewers enjoy uninterrupted streaming. Revenue withdrawals are temporarily on hold until your custom channel plan is upgraded to cover the surge bandwidth.",
-          `custom channel ${channelId} exceeded bandwidth quota (${usedBytes} > ${quotaBytes}) - withdrawal held pending plan upgrade`
+          "TruthWorld has fronted and paid 100% of your viral infrastructure surge costs so your viewers enjoy uninterrupted streaming. Revenue withdrawals are temporarily on hold until your Pro Channel plan is upgraded to cover the surge bandwidth.",
+          `pro channel ${channelId} exceeded bandwidth quota (${usedBytes} > ${quotaBytes}) - withdrawal held pending plan upgrade`
         );
         return;
       }
@@ -166,7 +200,7 @@ export const onPayoutRequestCreated = onDocumentCreated(
 
     // ── 3b. Authentic View Qualification Gate (Anti-Bot Farming) ──────────────
     // A channel must meet the authentic qualification threshold (minimum 1,000 qualified views
-    // and 10 hours / 600 mins watch time on authentic content) to unlock revenue cash withdrawals.
+    // and 30 hours / 1800 mins watch time on authentic content) to unlock revenue cash withdrawals.
     const isChannelMonetized =
       channelData.isMonetized === true ||
       channelData.monetizationEnabled === true ||
@@ -184,10 +218,10 @@ export const onPayoutRequestCreated = onDocumentCreated(
       (Number(channelData.totalWatchTimeSeconds ?? 0) / 60)
     );
 
-    if (!isChannelMonetized && (qualifiedViews < 1000 || watchMinutes < 600)) {
+    if (!isChannelMonetized && (qualifiedViews < 1000 || watchMinutes < 1800)) {
       await reject(
-        "Channel has not met authentic view qualification (minimum 1,000 qualified views and 10 hours watch time required for monetization payouts).",
-        `unqualified channel: qualifiedViews=${qualifiedViews} < 1000 or watchMinutes=${Math.round(watchMinutes)} < 600`
+        "Channel has not met authentic view qualification (minimum 1,000 qualified views and 30 hours watch time required for monetization payouts).",
+        `unqualified channel: qualifiedViews=${qualifiedViews} < 1000 or watchMinutes=${Math.round(watchMinutes)} < 1800`
       );
       return;
     }
@@ -390,6 +424,24 @@ export const onPayoutRequestCreated = onDocumentCreated(
             transferReference: transferRef,
           },
         });
+      }
+
+      // ── Stream Approved/Processing Payout to BigQuery (Non-blocking) ──
+      try {
+        getBigQueryAnalyticsService().enqueuePayoutTransaction({
+          payout_id: requestId,
+          timestamp: new Date().toISOString(),
+          transfer_reference: transferRef,
+          channel_id: channelId || "unknown",
+          user_id: userId || "unknown",
+          amount_inr: payoutAmount,
+          payment_method: paymentMethod || "Bank Account",
+          payout_status: "processing",
+          tds_deducted_inr: 0,
+          net_disbursed_inr: payoutAmount,
+        });
+      } catch (bqErr) {
+        logger.warn("[Payouts] BigQuery payout processing streaming warning", { err: String(bqErr) });
       }
 
       logger.info(`[Payouts] Scheduled payout ${transferRef} for ${beneficiaryName || "Creator"} — ₹${payoutAmount}`);
@@ -647,9 +699,9 @@ export const triggerMonthlyAutoDisbursementManual = onCall(
   { region: "asia-south1", memory: "512MiB" },
   async (request) => {
     const userId = request.auth?.uid;
-    const isAdmin = request.auth?.token?.admin === true;
+    const isAdmin = request.auth?.token?.admin === true && request.auth?.token?.email_verified === true;
     if (!userId || !isAdmin) {
-      throw new HttpsError("permission-denied", "Admin privileges required.");
+      throw new HttpsError("permission-denied", "Verified admin privileges required.");
     }
 
     const { targetChannelId, dryRun } = (request.data || {}) as { targetChannelId?: string; dryRun?: boolean };
@@ -662,7 +714,7 @@ export const triggerMonthlyAutoDisbursementManual = onCall(
       return { success: true, result };
     } catch (err: any) {
       logger.error("[triggerMonthlyAutoDisbursementManual] Error:", err);
-      throw new HttpsError("internal", err?.message || "Failed to trigger auto disbursement.");
+      throw new HttpsError("internal", "Unable to trigger auto disbursement. Please try again later.");
     }
   }
 );

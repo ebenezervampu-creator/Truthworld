@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:video_player/video_player.dart';
 
@@ -27,12 +28,15 @@ mixin TowerPlayerGesturesMixin on GetxController {
   RxBool get isMuted;
   RxDouble get volume;
   VideoPlayerController get videoPlayerController;
+  VideoPlayerController? get audioTrackController;
+  bool get hasAlternateAudioTrack;
   TimerBag get timers;
   Future<void> seekRelative(int seconds, {bool showFeedbackToast = true});
   int get seekStepSeconds;
   bool get isZoomedIn;
   void resetZoom({bool animated = false});
   void showToast(String msg);
+  VideoController? get videoController;
 
   // Swipe HUD
   final RxDouble brightness = 1.0.obs;
@@ -205,15 +209,30 @@ mixin TowerPlayerGesturesMixin on GetxController {
   void onInteraction() {
     if (kIsWeb && isHoverSuppressed) return;
     if (!controlsVisible.value) controlsVisible.value = true;
-    if (!isMuted.value && videoPlayerController.value.volume == 0.0) {
-      try {
-        videoPlayerController.setVolume(volume.value > 0 ? volume.value : 1.0);
-      } catch (e, s) {
-        ErrorHandler.log(
-          e,
-          stackTrace: s,
-          tag: 'TowerPlayerGesturesMixin.onInteraction',
-        );
+    if (!isMuted.value) {
+      if (hasAlternateAudioTrack) {
+        if (videoPlayerController.value.volume > 0.0) {
+          try {
+            videoPlayerController.setVolume(0.0);
+          } catch (_) {}
+        }
+        if (audioTrackController != null &&
+            audioTrackController!.value.isInitialized &&
+            audioTrackController!.value.volume == 0.0) {
+          try {
+            audioTrackController!.setVolume(volume.value > 0 ? volume.value : 1.0);
+          } catch (_) {}
+        }
+      } else if (videoPlayerController.value.volume == 0.0) {
+        try {
+          videoPlayerController.setVolume(volume.value > 0 ? volume.value : 1.0);
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'TowerPlayerGesturesMixin.onInteraction',
+          );
+        }
       }
     }
     if (!isDragging.value) startHideTimer();
@@ -274,40 +293,119 @@ mixin TowerPlayerGesturesMixin on GetxController {
 
   Offset _dragStartPos = Offset.zero;
   Offset _dragAccumulated = Offset.zero;
+  Size _dragViewportSize = Size.zero;
   bool _intentResolved = false;
   bool _isVerticalSwipeActive = false;
+  bool _isMoreVideosSwipe = false;
+
+  /// Checks whether a local touch/scroll point is located in the Jio Hotstar
+  /// More Videos trigger zone: the horizontal middle of the player, strictly
+  /// in the area down of the pause/play and next/previous video buttons.
+  bool isInMoreVideosZone(Offset localPosition, Size size) {
+    if (size.width <= 0 || size.height <= 0) return false;
+
+    // Horizontally: middle of the video player (between 25% and 75% width)
+    final isMiddleX = localPosition.dx >= size.width * 0.25 &&
+        localPosition.dx <= size.width * 0.75;
+
+    // Vertically: strictly down of the pause/play and previous/next buttons
+    // Center controls are at height * 0.5 with ~32-36px button radius
+    final centerControlsBottom = (size.height * 0.5) + 30.0;
+    final isDownOfCenterControls = localPosition.dy >= centerControlsBottom &&
+        localPosition.dy <= size.height;
+
+    return isMiddleX && isDownOfCenterControls;
+  }
 
   void onVerticalDragStart(DragStartDetails d, Size size) {
     _dragStartPos = d.localPosition;
+    _dragViewportSize = size;
     _dragAccumulated = Offset.zero;
     _intentResolved = false;
     _isVerticalSwipeActive = false;
+    _isMoreVideosSwipe =
+        isFullScreen.value && isInMoreVideosZone(d.localPosition, size);
   }
 
   void onVerticalDragUpdate(DragUpdateDetails d, Size size) {
+    _dragViewportSize = size;
     _dragAccumulated += d.delta;
 
-    // Movement intent threshold (12px): ensures intentional vertical movement
+    // Movement intent threshold: ensures intentional vertical movement
     if (!_intentResolved) {
-      if (_dragAccumulated.dy.abs() > 12.0 || _dragAccumulated.dx.abs() > 12.0) {
-        _intentResolved = true;
-        // Only activate if vertical movement is dominant (avoids accidental triggers)
-        if (_dragAccumulated.dy.abs() > _dragAccumulated.dx.abs() * 1.25) {
+      if (!isFullScreen.value) {
+        final isScrolledDown = videoController?.isWatchScrolledDown ?? false;
+        // In portrait mode:
+        // Downward drag when at top -> miniplayer drag
+        // Upward drag OR downward drag when already scrolled down -> scroll the watch feed!
+        if (_dragAccumulated.dy > 6.0 && !isScrolledDown) {
+          _intentResolved = true;
           _isVerticalSwipeActive = true;
           cancelPendingTap();
+          videoController?.onDragDownStart();
+        } else if (_dragAccumulated.dy < -6.0 || (_dragAccumulated.dy > 6.0 && isScrolledDown)) {
+          _intentResolved = true;
+          _isVerticalSwipeActive = true;
+          cancelPendingTap();
+          videoController?.onFeedDragStart(
+            DragStartDetails(
+              globalPosition: d.globalPosition,
+              localPosition: d.localPosition,
+            ),
+          );
+        } else if (_dragAccumulated.dx.abs() > 32.0 && _dragAccumulated.dy.abs() < 10.0) {
+          _intentResolved = true;
+          _isVerticalSwipeActive = false;
+        }
+      } else {
+        if (_dragAccumulated.dy.abs() > 12.0 || _dragAccumulated.dx.abs() > 12.0) {
+          _intentResolved = true;
+          // Only activate if vertical movement is dominant (avoids accidental triggers)
+          if (_dragAccumulated.dy.abs() > _dragAccumulated.dx.abs() * 1.25) {
+            _isVerticalSwipeActive = true;
+            cancelPendingTap();
+          }
         }
       }
     }
 
     if (!_isVerticalSwipeActive || size.height <= 0) return;
 
-    // In fullscreen, if drag starts from lower half and moves upward,
-    // this is a scroll-up gesture to show recommended videos. Avoid volume/brightness trigger.
-    if (isFullScreen.value && _dragStartPos.dy > size.height * 0.45 && _dragAccumulated.dy < 0) {
+    // When NOT in fullscreen mode (portrait watch view):
+    // Dragging down from top minimizes to miniplayer like YouTube!
+    // Dragging up or dragging while scrolled down feeds smoothly to watch scroll feed!
+    if (!isFullScreen.value) {
+      if ((videoController?.dragDownOffset.value ?? 0) > 0 ||
+          (_dragAccumulated.dy > 0 &&
+              !(videoController?.isWatchScrolledDown ?? false) &&
+              videoController?.feedDrag == null)) {
+        cancelPendingTap();
+        videoController?.onDragDownDelta(d.delta.dy);
+      } else {
+        cancelPendingTap();
+        videoController?.onFeedDragUpdate(d);
+      }
       return;
     }
 
-    final isLeft = _dragStartPos.dx < size.width / 2;
+    // In fullscreen:
+    // If drag started in More Videos zone (middle area down of center controls) and moving upward:
+    // Dedicated to opening More Videos like Jio Hotstar; avoid volume/brightness HUDs.
+    if (_isMoreVideosSwipe && _dragAccumulated.dy < 0) {
+      return;
+    }
+
+    // If More Videos is currently open and user is swiping down to dismiss:
+    if (showMoreVideos.value && _dragAccumulated.dy > 0) {
+      return;
+    }
+
+    // Dedicated Brightness & Volume zones like Jio Hotstar:
+    // Left vertical zone (left 35% of player) = Screen Brightness
+    // Right vertical zone (right 35% of player) = Audio Volume
+    // Middle vertical zone (35% to 65%) = Neither brightness nor volume
+    final isLeft = _dragStartPos.dx < size.width * 0.35;
+    final isRight = _dragStartPos.dx > size.width * 0.65;
     final delta = -d.delta.dy / size.height;
 
     if (isLeft) {
@@ -315,7 +413,7 @@ mixin TowerPlayerGesturesMixin on GetxController {
       brightness.value = (brightness.value + delta).clamp(0.0, 1.0);
       showSwipeBrightnessHUD.value = true;
       swipeBrightnessLevel.value = brightness.value;
-    } else {
+    } else if (isRight) {
       // Right vertical zone = Audio Volume
       final newVol = (volume.value + delta).clamp(0.0, 1.0);
       setVolume(newVol);
@@ -330,23 +428,64 @@ mixin TowerPlayerGesturesMixin on GetxController {
     _intentResolved = false;
     _isVerticalSwipeActive = false;
 
-    final velocity = d.primaryVelocity ?? 0;
+    final velocity = d.primaryVelocity ?? d.velocity.pixelsPerSecond.dy;
 
-    // In fullscreen: upward swipe opens More Videos, downward swipe when open closes it
-    if (isFullScreen.value) {
-      if (velocity < -250 || _dragAccumulated.dy < -50) {
-        openMoreVideos();
+    // When NOT in fullscreen mode:
+    if (!isFullScreen.value) {
+      final currentDrag = videoController?.dragDownOffset.value ?? 0.0;
+      if (currentDrag > 0) {
+        videoController?.onDragDownEnd(velocity);
         return;
-      } else if (showMoreVideos.value && (velocity > 250 || _dragAccumulated.dy > 50)) {
+      }
+      if (videoController?.feedDrag != null) {
+        videoController?.onFeedDragEnd(d);
+        return;
+      }
+      videoController?.onDragDownCancel();
+      if (velocity < -500 && (videoController?.currentWatchScrollOffset ?? 0.0) <= 0.0) {
+        toggleFullscreen();
+      }
+      return;
+    }
+
+    // In fullscreen:
+    if (isFullScreen.value) {
+      // 1. If More Videos is open and user swipes down, close it
+      if (showMoreVideos.value && (velocity > 200 || _dragAccumulated.dy > 40)) {
         closeMoreVideos();
+        _isMoreVideosSwipe = false;
+        return;
+      }
+
+      // 2. Exactly like Jio Hotstar: ONLY open More Videos when gesture originated
+      // in the middle of the player down of the pause/play and next/previous icons:
+      final originatedInMoreVideosZone = _isMoreVideosSwipe ||
+          isInMoreVideosZone(_dragStartPos, _dragViewportSize);
+
+      if (originatedInMoreVideosZone &&
+          (velocity < -200 || _dragAccumulated.dy < -40)) {
+        openMoreVideos();
+        _isMoreVideosSwipe = false;
         return;
       }
     }
+    _isMoreVideosSwipe = false;
 
     if (velocity < -500) {
       if (!isFullScreen.value) toggleFullscreen();
     } else if (velocity > 500) {
-      if (isFullScreen.value) toggleFullscreen();
+      if (isFullScreen.value && !showMoreVideos.value) toggleFullscreen();
+    }
+  }
+
+  void onVerticalDragCancel() {
+    showSwipeBrightnessHUD.value = false;
+    showSwipeVolumeHUD.value = false;
+    _intentResolved = false;
+    _isVerticalSwipeActive = false;
+    if (!isFullScreen.value) {
+      videoController?.onDragDownCancel();
+      videoController?.onFeedDragCancel();
     }
   }
 }

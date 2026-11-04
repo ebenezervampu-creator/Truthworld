@@ -1,9 +1,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/video_options_sheet.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/widgets/channel_verified_badge.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -91,84 +94,116 @@ class FollowingTopicVideoCard extends StatelessWidget {
   // GRID CARD LAYOUT (Matches uploaded UI screenshot)
   // ==========================================================================
   Widget _buildGridCard(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF161618),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // 1. Thumbnail with Badges
-          _buildThumbnailStack(context),
-
-          // 2. Metadata Section Below Thumbnail
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Channel / Topic Avatar (Blue rounded square with play icon)
-                _buildChannelAvatar(),
-                const SizedBox(width: 10),
-
-                // Video Title, Channel Name, Views & Date
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        video.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                          height: 1.25,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        video.channelName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF999999),
-                          fontWeight: FontWeight.w400,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${FormatUtils.formatCount(video.views)} views • ${_formatUploadDate()}',
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          color: Color(0xFF777777),
-                          fontWeight: FontWeight.w400,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // 3-dots Menu Button
-                IconButton(
-                  icon: const Icon(
-                    Icons.more_vert,
-                    size: 18,
-                    color: Color(0xFFAAAAAA),
-                  ),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                  onPressed: () => VideoOptionsSheet.show(context, video),
-                ),
-              ],
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: _handleVideoTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF161618),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.06),
             ),
           ),
-        ],
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 1. Thumbnail with Badges
+              _buildThumbnailStack(context),
+
+              // 2. Metadata Section Below Thumbnail
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Channel / Topic Avatar (Blue rounded square with play icon)
+                    _buildChannelAvatar(),
+                    const SizedBox(width: 10),
+
+                    // Video Title, Channel Name, Views & Date
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            video.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              height: 1.25,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  video.channelName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF999999),
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                ),
+                              ),
+                              if (video.showVerifiedBadge ||
+                                  (DeepLinkService.instance
+                                          .getChannelFromCache(video.channelId)
+                                          ?.showVerifiedBadge ??
+                                      false) ||
+                                  (DeepLinkService.instance
+                                          .getChannelFromCache(video.channelName)
+                                          ?.showVerifiedBadge ??
+                                      false)) ...[
+                                const SizedBox(width: 4),
+                                const ChannelVerifiedBadge(size: 12),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${FormatUtils.formatCount(video.views)} views • ${_formatUploadDate()}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              color: Color(0xFF777777),
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // 3-dots Menu Button
+                    IconButton(
+                      icon: const Icon(
+                        Icons.more_vert,
+                        size: 18,
+                        color: Color(0xFFAAAAAA),
+                      ),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      onPressed: () => VideoOptionsSheet.show(context, video),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -182,24 +217,29 @@ class FollowingTopicVideoCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF161618),
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.06),
+        ),
       ),
       clipBehavior: Clip.antiAlias,
       child: isMobile
           ? _buildGridCard(context)
-          : Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: 240,
-                  child: _buildThumbnailStack(context),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+          : MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: _handleVideoTap,
+                behavior: HitTestBehavior.opaque,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 240,
+                      child: _buildThumbnailStack(context),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _buildChannelAvatar(),
@@ -207,6 +247,7 @@ class FollowingTopicVideoCard extends StatelessWidget {
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
                                     video.title,
@@ -220,19 +261,40 @@ class FollowingTopicVideoCard extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(height: 6),
-                                  Text(
-                                    video.channelName,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: Color(0xFF999999),
-                                      fontWeight: FontWeight.w400,
-                                    ),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          video.channelName,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Color(0xFF999999),
+                                            fontWeight: FontWeight.w400,
+                                          ),
+                                        ),
+                                      ),
+                                      if (video.showVerifiedBadge ||
+                                          (DeepLinkService.instance
+                                                  .getChannelFromCache(video.channelId)
+                                                  ?.showVerifiedBadge ??
+                                              false) ||
+                                          (DeepLinkService.instance
+                                                  .getChannelFromCache(video.channelName)
+                                                  ?.showVerifiedBadge ??
+                                              false)) ...[
+                                        const SizedBox(width: 4),
+                                        const ChannelVerifiedBadge(size: 13),
+                                      ],
+                                    ],
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
                                     '${FormatUtils.formatCount(video.views)} views • ${_formatUploadDate()}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                       fontSize: 12,
                                       color: Color(0xFF777777),
@@ -252,11 +314,11 @@ class FollowingTopicVideoCard extends StatelessWidget {
                             ),
                           ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
     );
   }
@@ -275,6 +337,9 @@ class FollowingTopicVideoCard extends StatelessWidget {
             child: CachedNetworkImage(
               imageUrl: video.thumbnailUrl,
               fit: BoxFit.cover,
+              memCacheWidth: kIsWeb ? null : 1280,
+              maxWidthDiskCache: kIsWeb ? null : 1280,
+              filterQuality: FilterQuality.medium,
               placeholder: (context, url) => Container(
                 color: const Color(0xFF222224),
               ),
@@ -317,7 +382,7 @@ class FollowingTopicVideoCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      topic.title,
+                      topic.name,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 10,
@@ -364,7 +429,7 @@ class FollowingTopicVideoCard extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (video.isFactChecked) ...[
+                  if (video.hasPublicAiCredibility) ...[
                     const Icon(
                       Icons.verified_rounded,
                       color: Color(0xFF00E676),

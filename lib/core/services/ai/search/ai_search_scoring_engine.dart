@@ -1,7 +1,11 @@
+import 'package:get/get.dart';
+import 'package:truthworld/core/constants/app_categories.dart';
 import 'package:truthworld/core/services/ai/models/ai_search_intent.dart';
+import 'package:truthworld/core/services/user_languages_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/video/data/models/ai_features.dart';
 
 /// Relevance scoring engine for channels, topics, and search results against AI search intents.
 class AiSearchScoringEngine {
@@ -13,7 +17,11 @@ class AiSearchScoringEngine {
 
   /// Scores a channel against the parsed AI intent
   /// Returns 0.0 if not a match, or a positive relevance score.
-  double scoreChannel(Channel channel, AiSearchIntent intent) {
+  double scoreChannel(
+    Channel channel,
+    AiSearchIntent intent, {
+    String? userPrimaryLanguage,
+  }) {
     // Check exclusions first
     final lowerName = channel.name.toLowerCase();
     final lowerHandle = channel.handle.toLowerCase();
@@ -52,6 +60,22 @@ class AiSearchScoringEngine {
         // Strict language filter: if query explicitly specified a language,
         // channels that don't match the language are excluded
         return 0.0;
+      }
+    } else {
+      final userPrimary = (userPrimaryLanguage != null &&
+              userPrimaryLanguage.trim().isNotEmpty)
+          ? userPrimaryLanguage.trim()
+          : (Get.isRegistered<UserLanguagesService>()
+              ? UserLanguagesService.to.primaryLanguage.value
+              : null);
+      if (userPrimary != null &&
+          userPrimary.isNotEmpty &&
+          channelLang.isNotEmpty) {
+        final targetCode = normalizeLanguageCode(userPrimary);
+        final cLangCode = normalizeLanguageCode(channelLang);
+        if (cLangCode == targetCode) {
+          score += 25.0; // Primary language preference boost for channel
+        }
       }
     }
 
@@ -116,7 +140,7 @@ class AiSearchScoringEngine {
 
   /// Scores a topic against the parsed AI intent
   double scoreTopic(Topic topic, AiSearchIntent intent) {
-    final lowerTitle = topic.title.toLowerCase();
+    final lowerTitle = topic.name.toLowerCase();
     final lowerSlug = topic.slug.toLowerCase();
     final lowerDesc = topic.description.toLowerCase();
     final lowerCat = topic.category.toLowerCase();
@@ -190,7 +214,11 @@ class AiSearchScoringEngine {
 
   /// Scores any SearchResult (video, channel, topic, playlist) against the parsed AI intent
   /// Returns 0.0 if not a match, or a positive relevance score.
-  double scoreSearchResult(SearchResult item, AiSearchIntent intent) {
+  double scoreSearchResult(
+    SearchResult item,
+    AiSearchIntent intent, {
+    String? userPrimaryLanguage,
+  }) {
     final lowerTitle = item.title.toLowerCase();
     final lowerChannel = item.channelName.toLowerCase();
     final lowerCat = (item.category ?? '').toLowerCase();
@@ -228,6 +256,22 @@ class AiSearchScoringEngine {
         // Strict language filter: if query explicitly specified a language,
         // results that don't match the language are excluded
         return 0.0;
+      }
+    } else {
+      final userPrimary = (userPrimaryLanguage != null &&
+              userPrimaryLanguage.trim().isNotEmpty)
+          ? userPrimaryLanguage.trim()
+          : (Get.isRegistered<UserLanguagesService>()
+              ? UserLanguagesService.to.primaryLanguage.value
+              : null);
+      if (userPrimary != null &&
+          userPrimary.isNotEmpty &&
+          itemLang.isNotEmpty) {
+        final targetCode = normalizeLanguageCode(userPrimary);
+        final itemLangCode = normalizeLanguageCode(itemLang);
+        if (itemLangCode == targetCode) {
+          score += 30.0; // Primary language preference boost for search result
+        }
       }
     }
 
@@ -296,6 +340,20 @@ class AiSearchScoringEngine {
       final daysOld = DateTime.now().difference(item.createdAt.toDate()).inDays;
       if (daysOld >= 0 && daysOld < 30) {
         score += (30 - daysOld) * 0.2;
+      }
+
+      // Fact-Checking Priority Boost (10 High-Credibility Categories)
+      if (item.type == ResultType.video &&
+          item.category != null &&
+          AppCategories.isFactCheckRelevant(item.category!)) {
+        if (item.isFactChecked || item.trustScore >= 3.5) {
+          score += 45.0; // Major priority push for fact-checked content
+          if (item.trustScore >= 4.0) {
+            score += 15.0; // Extra bonus for exceptional credibility
+          }
+        } else if (item.trustScore > 0.0 && item.trustScore < 2.0) {
+          score -= 30.0; // Demote low-credibility/flagged content
+        }
       }
     }
 

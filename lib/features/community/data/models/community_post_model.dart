@@ -37,6 +37,7 @@ class CommunityPostModel {
     this.isDislikeEnabled = true,
     this.showDislikeCount = true,
     this.isCommentsEnabled = true,
+    this.isChannelTrusted = false,
   });
 
   factory CommunityPostModel.fromMap(Map<String, dynamic> map) {
@@ -119,8 +120,16 @@ class CommunityPostModel {
       commentCount: parseInt(map['commentCount']),
       views: parseInt(map['views']),
       downloads: parseInt(map['downloads']),
-      likedBy: parseStringList(map['likedby'] ?? map['likedBy']),
-      dislikedBy: parseStringList(map['dislikedby'] ?? map['dislikedBy']),
+      likedBy: () {
+        final listA = parseStringList(map['likedBy']);
+        final listB = parseStringList(map['likedby']);
+        return <String>{...listA, ...listB}.toList();
+      }(),
+      dislikedBy: () {
+        final listA = parseStringList(map['dislikedBy']);
+        final listB = parseStringList(map['dislikedby']);
+        return <String>{...listA, ...listB}.toList();
+      }(),
       shares: parseStringList(map['shares']),
       isKidFriendly: map['isKidFriendly'] == true,
       processed: map['processed'] == true,
@@ -129,8 +138,15 @@ class CommunityPostModel {
       isDislikeEnabled: map['isDislikeEnabled'] != false,
       showDislikeCount: map['showDislikeCount'] != false && map['showDislikesCount'] != false,
       isCommentsEnabled: map['isCommentsEnabled'] != false,
+      isChannelTrusted: (map['channelTrustedModerationBypass'] as bool?) ??
+          (map['isChannelTrusted'] as bool?) ??
+          (map['trustedModerationBypass'] as bool?) ??
+          false,
     );
   }
+  final bool isChannelTrusted;
+  /// Blue Checkmark badges are completely discontinued platform-wide for channels.
+  bool get showVerifiedBadge => false;
   final String id;
   final String title;
   final String description;
@@ -169,6 +185,11 @@ class CommunityPostModel {
       status == 'deletion_pending' ||
       status == 'trashed';
 
+  bool get isOnHold =>
+      status.toLowerCase() == 'onhold' ||
+      status.toLowerCase() == 'hold' ||
+      status.toLowerCase() == 'on_hold';
+
   bool get isDraft {
     final vis = visibility.trim().toLowerCase();
     final cat = selectedCategory.trim().toLowerCase();
@@ -180,7 +201,7 @@ class CommunityPostModel {
     return false;
   }
 
-  bool get isValid => id.isNotEmpty && !isDraft && !isDeleted;
+  bool get isValid => id.isNotEmpty && !isDraft && !isDeleted && !isOnHold;
 
   Map<String, dynamic> toMap() => {
     'id': id,
@@ -210,7 +231,9 @@ class CommunityPostModel {
     'views': views,
     'downloads': downloads,
     'likedby': likedBy,
+    'likedBy': likedBy,
     'dislikedby': dislikedBy,
+    'dislikedBy': dislikedBy,
     'shares': shares,
     'isKidFriendly': isKidFriendly,
     'processed': processed,

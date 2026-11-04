@@ -22,10 +22,10 @@ class AudioDubsTrackItem extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF121212),
+        color: AppColors.bgInput,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: const Color(0xFF27272A),
+          color: AppColors.bgSurface,
         ),
       ),
       child: Row(
@@ -33,7 +33,7 @@ class AudioDubsTrackItem extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: const BoxDecoration(
-              color: Color(0xFF27272A),
+              color: AppColors.bgSurface,
               shape: BoxShape.circle,
             ),
             child: const Icon(

@@ -1,7 +1,23 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get/get.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/connectivity_service.dart';
+import 'package:truthworld/features/analytics/data/services/video_presence_service.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification_dashboard_page.dart';
+import '../../test_helpers/mock_firebase.dart';
 
 void main() {
+  setUpAll(() async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    await setupMockFirebase();
+    if (!Get.isRegistered<AuthService>()) {
+      Get.put<AuthService>(AuthService(), permanent: true);
+    }
+    if (!Get.isRegistered<ConnectivityService>()) {
+      Get.put<ConnectivityService>(ConnectivityService(), permanent: true);
+    }
+  });
   group('TruthVerificationDashboardPage.hasFactChecking', () {
     test('returns true when isFactChecked is explicitly true', () {
       final data = <String, dynamic>{
@@ -201,6 +217,136 @@ void main() {
       expect(item.factualAccuracyLabel, '100%');
       expect(item.verificationState, 'VERIFIED_MULTIMODAL_CONSENSUS');
       expect(item.consensusValidationStatus, 'VERIFIED_MULTIMODAL_CONSENSUS');
+    });
+
+    testWidgets('TruthVerificationVideoCard renders without category, without media authenticity, without export dossier, and with more vertical button', (tester) async {
+      final item = VideoFactCheckItem(
+        id: 'v1',
+        title: 'Test Verification Video',
+        thumbnailUrl: '',
+        truthScore: 0.95,
+        factCheckReviewMode: 'open_to_users',
+        isFactCheckApproved: true,
+        claims: [],
+        summary: 'Summary text',
+        domain: 'Linguistics',
+        createdAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TruthVerificationVideoCard(
+              video: item,
+              channelId: 'ch1',
+              isDarkMode: false,
+              onToggleApproval: (_, _) {},
+              onApprove: (_) {},
+            ),
+          ),
+        ),
+      );
+
+      // Verify "Export Dossier" is not present
+      expect(find.text('Export Dossier'), findsNothing);
+
+      // Verify "Media Authenticity Verified" is not present
+      expect(find.text('Media Authenticity Verified'), findsNothing);
+
+      // Verify "Truth Score" is never present or displayed anywhere
+      expect(find.textContaining('Truth Score'), findsNothing);
+      expect(find.textContaining('truth score'), findsNothing);
+
+      // Verify video category/domain "Linguistics" is not present
+      expect(find.text('Linguistics'), findsNothing);
+
+      // Verify more vertical button (PopupMenuButton) is present
+      expect(find.byIcon(Icons.more_vert_rounded), findsOneWidget);
+
+      // Verify Inspect Full Report is present
+      expect(find.text('Inspect Full Report'), findsOneWidget);
+
+      // Tap more vertical button and verify options
+      await tester.tap(find.byIcon(Icons.more_vert_rounded));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.widgetWithText(
+          PopupMenuItem<String>,
+          'Approved (Visible to Viewers)',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.widgetWithText(PopupMenuItem<String>, 'Make Private'),
+        findsOneWidget,
+      );
+      expect(
+        find.widgetWithText(
+          PopupMenuItem<String>,
+          'Talk to AI (Add Sources)',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.widgetWithText(PopupMenuItem<String>, 'Dispute'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('Tapping Inspect Full Report opens TruthVerificationFullInspectorPage on a separate page', (tester) async {
+      final item = VideoFactCheckItem(
+        id: 'v_inspect_1',
+        title: 'Deep-dive Analysis Video',
+        thumbnailUrl: '',
+        factCheckReviewMode: 'open_to_users',
+        isFactCheckApproved: true,
+        claims: [],
+        summary: 'Detailed summary',
+        domain: 'Science',
+        createdAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: Scaffold(
+            body: TruthVerificationVideoCard(
+              video: item,
+              channelId: 'ch1',
+              isDarkMode: false,
+              onToggleApproval: (_, _) {},
+              onApprove: (_) {},
+            ),
+          ),
+        ),
+      );
+
+      // Verify Inspect Full Report button is displayed
+      final inspectButton = find.text('Inspect Full Report');
+      expect(inspectButton, findsOneWidget);
+
+      // Tap Inspect Full Report
+      await tester.tap(inspectButton);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
+
+      // Verify TruthVerificationFullInspectorPage is opened on a separate page
+      expect(find.byType(TruthVerificationFullInspectorPage), findsOneWidget);
+      expect(find.text('Fact-Check & Verification Report'), findsOneWidget);
+      expect(find.text('Deep-dive Analysis Video'), findsWidgets);
+      expect(find.byIcon(Icons.arrow_back_rounded), findsOneWidget);
+      expect(find.text('Talk to AI (Add Sources)'), findsOneWidget);
+      expect(find.text('Dispute'), findsOneWidget);
+
+      // Tap back button and verify returning to video card list
+      await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
+      await VideoPresenceService.to.stopWatching(immediate: true);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TruthVerificationFullInspectorPage), findsNothing);
+      expect(find.text('Inspect Full Report'), findsOneWidget);
     });
   });
 }

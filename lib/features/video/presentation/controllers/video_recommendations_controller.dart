@@ -10,6 +10,7 @@ import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/core/services/algorithm/scored_video.dart';
 import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/user_languages_service.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
@@ -57,6 +58,7 @@ class VideoRecommendationsController extends BaseController {
   }
 
   Worker? _filterWorker;
+  Worker? _langWorker;
 
   @override
   void onInit() {
@@ -64,6 +66,13 @@ class VideoRecommendationsController extends BaseController {
 
     // Auto-load tab data on-demand whenever user switches filter tabs
     _filterWorker = ever(selectedRecommendationFilter, ensureFilterVideosLoaded);
+
+    if (Get.isRegistered<UserLanguagesService>()) {
+      _langWorker = ever(UserLanguagesService.to.primaryLanguage, (_) {
+        clearCandidatePoolCache();
+        fetchRecommendations();
+      });
+    }
 
     final currentPlaylist = getCurrentPlaylist?.call();
     final isPlaylist =
@@ -79,8 +88,8 @@ class VideoRecommendationsController extends BaseController {
     final isTopic =
         (getNavigatedFromTopic?.call() ?? false) || currentTopic != null;
     if (isTopic) {
-      final topicTitle = currentTopic?.title.trim() ??
-          (videoTopicsList.isNotEmpty ? videoTopicsList.first.title.trim() : '');
+      final topicTitle = currentTopic?.name.trim() ??
+          (videoTopicsList.isNotEmpty ? videoTopicsList.first.name.trim() : '');
       if (topicTitle.isNotEmpty) {
         selectedRecommendationFilter.value = topicTitle;
       }
@@ -90,6 +99,7 @@ class VideoRecommendationsController extends BaseController {
   @override
   void onClose() {
     _filterWorker?.dispose();
+    _langWorker?.dispose();
     super.onClose();
   }
 
@@ -97,10 +107,70 @@ class VideoRecommendationsController extends BaseController {
   final RxList<Video> recommendedVideos = <Video>[].obs;
   final RxList<CommunityPostModel> communityPosts = <CommunityPostModel>[].obs;
   final RxList<Video> moreFromChannel = <Video>[].obs;
+  final RxList<Video> flipVideos = <Video>[].obs;
+  final RxBool hasEvaluatedFlip = false.obs;
   final RxBool isLoadingRecommendations = true.obs;
   final RxBool isTabLoading = false.obs;
   final RxString selectedRecommendationFilter = 'All'.obs;
   final RxInt recommendationActiveTab = 0.obs;
+
+  /// Whether at least one video is available for Flip Coin.
+  bool get hasFlipCoinVideos {
+    if (flipVideos.isNotEmpty) return true;
+    if (!hasEvaluatedFlip.value) {
+      final video = getVideo();
+      if (video.coinBattlePairVideoId != null &&
+          video.coinBattlePairVideoId!.trim().isNotEmpty) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Whether at least one video is available for a tag or category filter.
+  bool hasVideosForTag(String tagOrCategory) {
+    final cleanFilter = tagOrCategory.trim();
+    if (cleanFilter.isEmpty) return false;
+
+    // 1. Check tag cache if already queried with videos
+    if (tagVideosCache.containsKey(cleanFilter) &&
+        tagVideosCache[cleanFilter]!.isNotEmpty) {
+      return true;
+    }
+
+    final filterLower = cleanFilter.toLowerCase();
+    final currentId = getVideo().id;
+
+    // 2. Check currently recommended videos (in-memory)
+    final hasInRecommended = recommendedVideos.any((v) {
+      if (v.id == currentId) return false;
+      final tagMatch = v.tags.any((t) => t.trim().toLowerCase() == filterLower);
+      final categoryMatch = v.category.trim().toLowerCase() == filterLower;
+      final titleLower = v.title.toLowerCase();
+      final descLower = v.description.toLowerCase();
+      return tagMatch ||
+          categoryMatch ||
+          titleLower.contains(filterLower) ||
+          descLower.contains(filterLower);
+    });
+    if (hasInRecommended) return true;
+
+    // 3. Check candidate pool memory cache
+    final hasInCandidatePool = _candidatePoolMemoryCache.any((v) {
+      if (v.id == currentId) return false;
+      final tagMatch = v.tags.any((t) => t.trim().toLowerCase() == filterLower);
+      final categoryMatch = v.category.trim().toLowerCase() == filterLower;
+      final titleLower = v.title.toLowerCase();
+      final descLower = v.description.toLowerCase();
+      return tagMatch ||
+          categoryMatch ||
+          titleLower.contains(filterLower) ||
+          descLower.contains(filterLower);
+    });
+    if (hasInCandidatePool) return true;
+
+    return false;
+  }
 
   // Track in-flight tab requests to avoid duplicate parallel queries
   final Set<String> _loadingFilterIds = {};
@@ -175,27 +245,43 @@ class VideoRecommendationsController extends BaseController {
     final isTopic =
         (getNavigatedFromTopic?.call() ?? false) || currentTopic != null;
     if (isTopic) {
-      final topicTitle = currentTopic?.title.trim() ??
-          (videoTopicsList.isNotEmpty ? videoTopicsList.first.title.trim() : '');
+      final topicTitle = currentTopic?.name.trim() ??
+          (videoTopicsList.isNotEmpty ? videoTopicsList.first.name.trim() : '');
       if (topicTitle.isNotEmpty && !list.contains(topicTitle)) {
         list.add(topicTitle);
       }
     }
 
-    list.add('Flip Coin');
-
-    // 2. Channel tab
+    // Channel tab (shown before Flip Coin)
     if (video.channelName.trim().isNotEmpty) {
-      list.add('From ${video.channelName.trim()}');
+      final channelTab = 'From ${video.channelName.trim()}';
+      if (!list.contains(channelTab)) {
+        list.add(channelTab);
+      }
     }
 
-    // 3. Tags / Category
+    // Only show Flip Coin tab when there is at least one video available!
+    if (hasFlipCoinVideos) {
+      list.add('Flip Coin');
+    }
+
+    // Tags / Category (only shown if at least one matching video exists)
+    var addedTag = false;
     if (video.tags.isNotEmpty) {
       for (final t in video.tags.take(3)) {
         final cleanTag = t.trim();
-        if (cleanTag.isNotEmpty && !list.contains(cleanTag)) list.add(cleanTag);
+        if (cleanTag.isNotEmpty &&
+            !list.contains(cleanTag) &&
+            hasVideosForTag(cleanTag)) {
+          list.add(cleanTag);
+          addedTag = true;
+        }
       }
-    } else if (video.category.trim().isNotEmpty && !list.contains(video.category.trim())) {
+    }
+    if (!addedTag &&
+        video.category.trim().isNotEmpty &&
+        !list.contains(video.category.trim()) &&
+        hasVideosForTag(video.category.trim())) {
       list.add(video.category.trim());
     }
 
@@ -205,8 +291,11 @@ class VideoRecommendationsController extends BaseController {
   List<Video> get filteredRecommendedVideos {
     final video = getVideo();
     final filter = selectedRecommendationFilter.value;
-    if (filter == 'All' || filter == 'Flip Coin') {
+    if (filter == 'All') {
       return recommendedVideos;
+    }
+    if (filter == 'Flip Coin') {
+      return flipVideos.isNotEmpty ? flipVideos : recommendedVideos;
     }
 
     // Check if filter is a Playlist tab
@@ -245,7 +334,7 @@ class VideoRecommendationsController extends BaseController {
     final currentTopic = getCurrentTopic?.call();
     final topicVideos = getTopicVideos?.call() ?? <Video>[];
     if (currentTopic != null) {
-      final tName = currentTopic.title.trim();
+      final tName = currentTopic.name.trim();
       if (filter == tName || filter == 'Topic: $tName') {
         if (topicVideos.isNotEmpty) return topicVideos;
         final cached = topicVideosCache[currentTopic.id];
@@ -255,11 +344,11 @@ class VideoRecommendationsController extends BaseController {
 
     if (filter.startsWith('Topic: ')) {
       final topicTitle = filter.replaceFirst('Topic: ', '');
-      if (currentTopic != null && currentTopic.title == topicTitle) {
+      if (currentTopic != null && currentTopic.name == topicTitle) {
         if (topicVideos.isNotEmpty) return topicVideos;
       }
       final matchedTopic = videoTopicsList.firstWhereOrNull(
-        (t) => t.title == topicTitle,
+        (t) => t.name == topicTitle,
       );
       if (matchedTopic != null) {
         final cached = topicVideosCache[matchedTopic.id];
@@ -268,7 +357,7 @@ class VideoRecommendationsController extends BaseController {
     }
 
     final matchedTopicDirect = videoTopicsList.firstWhereOrNull(
-      (t) => t.title == filter,
+      (t) => t.name == filter,
     );
     if (matchedTopicDirect != null) {
       final cached = topicVideosCache[matchedTopicDirect.id];
@@ -430,8 +519,8 @@ class VideoRecommendationsController extends BaseController {
         selectedRecommendationFilter.value = pName;
       }
     } else if (isTopic) {
-      final tTitle = currentTopic?.title.trim() ??
-          (videoTopicsList.isNotEmpty ? videoTopicsList.first.title.trim() : '');
+      final tTitle = currentTopic?.name.trim() ??
+          (videoTopicsList.isNotEmpty ? videoTopicsList.first.name.trim() : '');
       if (tTitle.isNotEmpty &&
           (selectedRecommendationFilter.value == 'All' ||
            !recommendationFilters.contains(selectedRecommendationFilter.value))) {
@@ -479,7 +568,7 @@ class VideoRecommendationsController extends BaseController {
         if (passedTopicVids != null && passedTopicVids.isNotEmpty) {
           topicVideosCache[currentTopic.id] = passedTopicVids;
         } else {
-          unawaited(ensureFilterVideosLoaded(currentTopic.title));
+          unawaited(ensureFilterVideosLoaded(currentTopic.name));
         }
       }
 
@@ -548,6 +637,11 @@ class VideoRecommendationsController extends BaseController {
         }
 
         recommendedVideos.value = rankedList.isNotEmpty ? rankedList : rawRecommended;
+
+        // Populate Flip Coin candidates in background to determine if Flip Coin tab should appear
+        unawaited(_populateFlipVideos(video, rawRecommended));
+        // Populate Tag/Category videos in background to determine which tag tabs should appear
+        unawaited(_populateTagVideos(video, rawRecommended));
       }
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'VideoRecommendationsController.fetchRecommendations');
@@ -580,8 +674,212 @@ class VideoRecommendationsController extends BaseController {
         recommendedVideos.value = candidates;
         isLoadingRecommendations.value = false;
       }
+      _populateFlipVideosSync(video, candidates);
+      _populateTagVideosSync(video, candidates);
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'VideoRecommendationsController._rankAndApplyFast');
+    }
+  }
+
+  Future<void> _populateFlipVideos(Video video, List<Video> candidates) async {
+    try {
+      final candidatePool = List<Video>.from(candidates);
+
+      if (video.coinBattlePairVideoId != null &&
+          video.coinBattlePairVideoId!.trim().isNotEmpty) {
+        final pairId = video.coinBattlePairVideoId!.trim();
+        final alreadyInPool = candidatePool.any((v) => v.id == pairId);
+        if (!alreadyInPool) {
+          try {
+            final pairDoc = await FirebaseFirestore.instance
+                .collection(FirestoreCollections.videos)
+                .doc(pairId)
+                .getCacheFirst();
+            if (pairDoc.exists && pairDoc.data() != null) {
+              final cand = Video.fromDocumentSnapshot(pairDoc);
+              if (VideoVisibilityPolicy.isVisibleForRecommendation(cand)) {
+                candidatePool.add(cand);
+              }
+            }
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'VideoRecommendationsController._populateFlipVideos.pair');
+          }
+        }
+      }
+
+      var rankedOpposite = <Video>[];
+      if (Get.isRegistered<TruthworldAlgorithm>()) {
+        final algorithm = Get.find<TruthworldAlgorithm>();
+        final scored = algorithm.rankVideosForCurrentVideoOpposite(
+          video,
+          candidatePool,
+        );
+        rankedOpposite = scored.map((s) => s.video).toList();
+      } else if (Get.isRegistered<FlipCoinService>()) {
+        final flipService = Get.find<FlipCoinService>();
+        rankedOpposite = candidatePool.where((c) {
+          return flipService.evaluateVideoContrast(video, c).qualifies;
+        }).toList();
+      }
+
+      flipVideos.assignAll(rankedOpposite);
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'VideoRecommendationsController._populateFlipVideos');
+    } finally {
+      hasEvaluatedFlip.value = true;
+    }
+  }
+
+  void _populateFlipVideosSync(Video video, List<Video> candidates) {
+    if (candidates.isEmpty) return;
+    try {
+      var rankedOpposite = <Video>[];
+      if (Get.isRegistered<TruthworldAlgorithm>()) {
+        final algorithm = Get.find<TruthworldAlgorithm>();
+        final scored = algorithm.rankVideosForCurrentVideoOpposite(
+          video,
+          candidates,
+        );
+        rankedOpposite = scored.map((s) => s.video).toList();
+      } else if (Get.isRegistered<FlipCoinService>()) {
+        final flipService = Get.find<FlipCoinService>();
+        rankedOpposite = candidates.where((c) {
+          return flipService.evaluateVideoContrast(video, c).qualifies;
+        }).toList();
+      }
+
+      if (rankedOpposite.isNotEmpty) {
+        flipVideos.assignAll(rankedOpposite);
+      }
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'VideoRecommendationsController._populateFlipVideosSync');
+    }
+  }
+
+  void _populateTagVideosSync(Video video, List<Video> candidates) {
+    if (candidates.isEmpty) return;
+    try {
+      final candidateTags = <String>[];
+      if (video.tags.isNotEmpty) {
+        for (final t in video.tags.take(3)) {
+          final clean = t.trim();
+          if (clean.isNotEmpty && !candidateTags.contains(clean)) {
+            candidateTags.add(clean);
+          }
+        }
+      } else if (video.category.trim().isNotEmpty) {
+        candidateTags.add(video.category.trim());
+      }
+
+      for (final tag in candidateTags) {
+        final filterLower = tag.toLowerCase();
+        final matches = candidates.where((v) {
+          if (v.id == video.id) return false;
+          final tagMatch = v.tags.any((t) => t.trim().toLowerCase() == filterLower);
+          final categoryMatch = v.category.trim().toLowerCase() == filterLower;
+          final titleLower = v.title.toLowerCase();
+          final descLower = v.description.toLowerCase();
+          return tagMatch ||
+              categoryMatch ||
+              titleLower.contains(filterLower) ||
+              descLower.contains(filterLower);
+        }).toList();
+
+        if (matches.isNotEmpty) {
+          tagVideosCache[tag] = matches;
+        }
+      }
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'VideoRecommendationsController._populateTagVideosSync');
+    }
+  }
+
+  Future<void> _populateTagVideos(Video video, List<Video> candidates) async {
+    try {
+      final candidateTags = <String>[];
+      if (video.tags.isNotEmpty) {
+        for (final t in video.tags.take(3)) {
+          final clean = t.trim();
+          if (clean.isNotEmpty && !candidateTags.contains(clean)) {
+            candidateTags.add(clean);
+          }
+        }
+      } else if (video.category.trim().isNotEmpty) {
+        candidateTags.add(video.category.trim());
+      }
+
+      if (candidateTags.isEmpty) return;
+
+      for (final tag in candidateTags) {
+        // If already cached with videos, skip
+        if (tagVideosCache.containsKey(tag) && tagVideosCache[tag]!.isNotEmpty) {
+          continue;
+        }
+
+        // Check if candidates list has matches
+        final filterLower = tag.toLowerCase();
+        final poolMatches = candidates.where((v) {
+          if (v.id == video.id) return false;
+          final tagMatch = v.tags.any((t) => t.trim().toLowerCase() == filterLower);
+          final categoryMatch = v.category.trim().toLowerCase() == filterLower;
+          final titleLower = v.title.toLowerCase();
+          final descLower = v.description.toLowerCase();
+          return tagMatch ||
+              categoryMatch ||
+              titleLower.contains(filterLower) ||
+              descLower.contains(filterLower);
+        }).toList();
+
+        if (poolMatches.isNotEmpty) {
+          tagVideosCache[tag] = poolMatches;
+          continue;
+        }
+
+        // Query Firestore if not evaluated yet
+        if (!tagVideosCache.containsKey(tag)) {
+          try {
+            final tagSnapshot = await FirebaseFirestore.instance
+                .collection(FirestoreCollections.videos)
+                .where('tags', arrayContains: tag)
+                .limit(10)
+                .getCacheFirst()
+                .catchError((e, s) {
+                  ErrorHandler.log(e, stackTrace: s, tag: 'VideoRecommendationsController._populateTagVideos.tag');
+                  return FirebaseFirestore.instance.collection(FirestoreCollections.videos).limit(0).get();
+                });
+
+            var loaded = tagSnapshot.docs
+                .map(Video.fromDocumentSnapshot)
+                .where((v) => v.id != video.id)
+                .where(VideoVisibilityPolicy.isVisibleForRecommendation)
+                .toList();
+
+            if (loaded.isEmpty) {
+              final catSnapshot = await FirebaseFirestore.instance
+                  .collection(FirestoreCollections.videos)
+                  .where('category', isEqualTo: tag)
+                  .limit(10)
+                  .getCacheFirst()
+                  .catchError((e, s) {
+                    ErrorHandler.log(e, stackTrace: s, tag: 'VideoRecommendationsController._populateTagVideos.category');
+                    return FirebaseFirestore.instance.collection(FirestoreCollections.videos).limit(0).get();
+                  });
+
+              loaded = catSnapshot.docs
+                  .map(Video.fromDocumentSnapshot)
+                  .where((v) => v.id != video.id)
+                  .where(VideoVisibilityPolicy.isVisibleForRecommendation)
+                  .toList();
+            }
+
+            tagVideosCache[tag] = loaded;
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'VideoRecommendationsController._populateTagVideos.query');
+          }
+        }
+      }
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'VideoRecommendationsController._populateTagVideos');
     }
   }
 
@@ -635,10 +933,14 @@ class VideoRecommendationsController extends BaseController {
         video,
         candidateList,
       );
-      recommendedVideos.value = ranked.map((s) => s.video).toList();
+      final rankedVids = ranked.map((s) => s.video).toList();
+      flipVideos.assignAll(rankedVids);
+      recommendedVideos.value = rankedVids;
     } else {
+      flipVideos.assignAll(candidateList);
       recommendedVideos.value = candidateList;
     }
+    hasEvaluatedFlip.value = true;
   }
 
   Future<void> _loadPlaylistVideosIntoCache(PlaylistModel playlist) async {
@@ -809,11 +1111,11 @@ class VideoRecommendationsController extends BaseController {
 
     // 2. Check Topic match
     var matchedTopic = videoTopicsList.firstWhereOrNull(
-      (t) => t.title.trim() == cleanFilter || 'Topic: ${t.title.trim()}' == cleanFilter,
+      (t) => t.name.trim() == cleanFilter || 'Topic: ${t.name.trim()}' == cleanFilter,
     );
     final currentTopic = getCurrentTopic?.call();
     if (matchedTopic == null && currentTopic != null) {
-      final tTitle = currentTopic.title.trim();
+      final tTitle = currentTopic.name.trim();
       if (tTitle == cleanFilter || 'Topic: $tTitle' == cleanFilter) {
         matchedTopic = currentTopic;
       }
@@ -845,10 +1147,10 @@ class VideoRecommendationsController extends BaseController {
             .where(VideoVisibilityPolicy.isVisibleForRecommendation)
             .toList();
 
-        if (topicVids.isEmpty && matchedTopic.title.trim().isNotEmpty) {
+        if (topicVids.isEmpty && matchedTopic.name.trim().isNotEmpty) {
           final fallbackQuery = await FirebaseFirestore.instance
               .collection(FirestoreCollections.videos)
-              .where('topics', arrayContains: matchedTopic.title.trim())
+              .where('topics', arrayContains: matchedTopic.name.trim())
               .limit(20)
               .getCacheFirst()
               .catchError((e, s) {

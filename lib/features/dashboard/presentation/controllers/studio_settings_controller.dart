@@ -10,6 +10,9 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/content_validator.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_view_controller.dart';
+import 'package:truthworld/routes/app_routes.dart';
 
 /// Controller for Studio Settings
 /// Manages user settings, channel info and monetization preferences
@@ -22,10 +25,14 @@ class StudioSettingsController extends BaseController {
   final RxBool isDeletingChannel = false.obs;
   final RxBool isLoggingOut = false.obs;
 
-  late DocumentReference _userRef;
+  DocumentReference? _userRef;
+
+  /// Whether _userRef has been initialized (user was authenticated during loadUserData).
+  bool get _hasUserRef => _userRef != null;
 
   void clearSettings() {
     userData.clear();
+    _userRef = null;
     isLoadingData.value = false;
   }
 
@@ -54,7 +61,7 @@ class StudioSettingsController extends BaseController {
       _userRef = _firestore
           .collection(FirestoreCollections.users)
           .doc(user.uid);
-      final doc = await _userRef.get();
+      final doc = await _userRef!.get();
 
       if (doc.exists) {
         userData.assignAll(Map<String, dynamic>.from(doc.data()! as Map));
@@ -104,11 +111,15 @@ class StudioSettingsController extends BaseController {
 
   /// Toggle "No ads for members" with 30% platform cut on memberships.
   Future<void> toggleNoAdsForMembers(bool enabled) async {
+    if (!_hasUserRef) {
+      showWarning('Please sign in to change this setting.');
+      return;
+    }
     try {
       userData['noAdsForMembers'] = enabled;
       userData.refresh();
 
-      await _userRef.update({'noAdsForMembers': enabled});
+      await _userRef!.update({'noAdsForMembers': enabled});
 
       String? targetChannelId;
       if (Get.isRegistered<AuthService>() && AuthService.to.userChannel != null) {
@@ -159,9 +170,14 @@ class StudioSettingsController extends BaseController {
   }
 
   Future<void> updateField(String field, dynamic value) async {
-    if (value is String && (field == 'displayName' || field == 'channelHandle')) {
+    var effectiveValue = value;
+    if (field == 'channelHandle' && value is String) {
+      effectiveValue = value.trim().replaceFirst(RegExp('^@+'), '');
+    }
+
+    if (effectiveValue is String && (field == 'displayName' || field == 'channelHandle')) {
       final validation = ContentValidator.validate(
-        value,
+        effectiveValue,
         fieldName: field == 'channelHandle' ? 'Channel Handle' : 'Channel Name',
       );
       if (!validation.isValid) {
@@ -171,12 +187,50 @@ class StudioSettingsController extends BaseController {
       }
     }
 
+    if (!_hasUserRef) {
+      showWarning('Please sign in to save changes.');
+      return;
+    }
+
     try {
       // Optimistic update
-      userData[field] = value;
+      userData[field] = effectiveValue;
       userData.refresh();
 
-      await _userRef.update({field: value});
+      await _userRef!.update({field: effectiveValue});
+
+      // Keep channel doc in sync if applicable
+      if (field == 'displayName' || field == 'channelHandle') {
+        String? targetChannelId;
+        if (Get.isRegistered<AuthService>() && AuthService.to.userChannel != null) {
+          targetChannelId = AuthService.to.userChannel!.id;
+        }
+        final user = _auth.currentUser;
+        if ((targetChannelId == null || targetChannelId.isEmpty) && user != null) {
+          final query = await _firestore
+              .collection(FirestoreCollections.channels)
+              .where('ownerId', isEqualTo: user.uid)
+              .get();
+          if (query.docs.isNotEmpty) {
+            targetChannelId = query.docs.first.id;
+          }
+        }
+        if (targetChannelId != null && targetChannelId.isNotEmpty) {
+          final updateMap = <String, dynamic>{
+            'updatedAt': FieldValue.serverTimestamp(),
+          };
+          if (field == 'displayName') {
+            updateMap['name'] = effectiveValue;
+          } else if (field == 'channelHandle') {
+            updateMap['handle'] = effectiveValue;
+            updateMap['channelHandle'] = effectiveValue;
+          }
+          await _firestore
+              .collection(FirestoreCollections.channels)
+              .doc(targetChannelId)
+              .set(updateMap, SetOptions(merge: true));
+        }
+      }
     } catch (e) {
       ErrorHandler.log(e, tag: 'StudioSettingsController');
       showWarning('Unable to save changes. Please try again.');
@@ -189,6 +243,11 @@ class StudioSettingsController extends BaseController {
     String child,
     dynamic value,
   ) async {
+    if (!_hasUserRef) {
+      showWarning('Please sign in to save changes.');
+      return;
+    }
+
     try {
       final updated = Map<String, dynamic>.from(userData[parent] ?? {});
       updated[child] = value;
@@ -197,7 +256,7 @@ class StudioSettingsController extends BaseController {
       userData[parent] = updated;
       userData.refresh();
 
-      await _userRef.update({parent: updated});
+      await _userRef!.update({parent: updated});
     } catch (e) {
       ErrorHandler.log(e, tag: 'StudioSettingsController');
       showWarning('Unable to save changes. Please try again.');
@@ -268,19 +327,21 @@ class StudioSettingsController extends BaseController {
       });
 
       // Update user doc in Firestore to retain channelId for grace period recovery
-      try {
-        await _userRef.set({
-          'channelId': targetChannelId,
-          'deletedChannelId': targetChannelId,
-          'hasChannel': false,
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      } catch (e, stackTrace) {
-        ErrorHandler.log(
-          e,
-          stackTrace: stackTrace,
-          tag: 'StudioSettingsController.deleteChannel.updateUserDoc',
-        );
+      if (_hasUserRef) {
+        try {
+          await _userRef!.set({
+            'channelId': targetChannelId,
+            'deletedChannelId': targetChannelId,
+            'hasChannel': false,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        } catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'StudioSettingsController.deleteChannel.updateUserDoc',
+          );
+        }
       }
 
       // Update AuthService state if available
@@ -305,12 +366,22 @@ class StudioSettingsController extends BaseController {
   Future<void> handleSignOut() async {
     try {
       isLoggingOut.value = true;
-      clearSettings();
+      if (Get.isRegistered<DashboardController>()) {
+        Get.find<DashboardController>().setSelectedIndex(1);
+      }
+      if (Get.isRegistered<DashboardViewController>()) {
+        final viewCtrl = Get.find<DashboardViewController>();
+        // Stop in-flight animations before disposing route tree to prevent
+        // "AnimationController used after dispose" errors.
+        viewCtrl.stopAllAnimations();
+        viewCtrl.clearChannelSession();
+      }
       if (Get.isRegistered<AuthService>()) {
         await AuthService.to.signOut();
       } else {
         await _auth.signOut();
       }
+      clearSettings();
       AppSnackbar.success('You have been successfully signed out.');
       final isStudioContext = AppFlavor.isStudio ||
           Get.currentRoute.toLowerCase().startsWith('/studio') ||
@@ -318,7 +389,7 @@ class StudioSettingsController extends BaseController {
               (Uri.base.host.toLowerCase().startsWith('studio') ||
                   Uri.base.path.toLowerCase().startsWith('/studio')));
       if (isStudioContext) {
-        Get.offAllNamed('/studio');
+        Get.offAllNamed(AppRoutes.studio);
       } else {
         Get.offAllNamed('/');
       }

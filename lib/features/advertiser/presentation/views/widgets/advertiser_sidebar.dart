@@ -46,11 +46,11 @@ class AdvertiserSidebar extends StatelessWidget {
     AdvertiserPortalController controller,
   ) {
     return Drawer(
-      backgroundColor: const Color(0xFF161618),
+      backgroundColor: AppColors.appBarSurface,
       child: Column(
         children: [
           _buildSidebarHeader(context),
-          const Divider(color: Color(0xFF27272A), height: 1),
+          const Divider(color: AppColors.bgSurface, height: 1),
           Expanded(
             child: _buildSidebarItems(context, controller, isDrawer: true),
           ),
@@ -65,9 +65,9 @@ class AdvertiserSidebar extends StatelessWidget {
   ) {
     return Container(
       decoration: const BoxDecoration(
-        color: Color(0xFF161618),
+        color: AppColors.appBarSurface,
         border: Border(
-          right: BorderSide(color: Color(0xFF27272A)),
+          right: BorderSide(color: AppColors.bgSurface),
         ),
       ),
       child: SizedBox(
@@ -76,7 +76,7 @@ class AdvertiserSidebar extends StatelessWidget {
         child: Column(
           children: [
             _buildSidebarHeader(context),
-            const Divider(color: Color(0xFF27272A), height: 1),
+            const Divider(color: AppColors.bgSurface, height: 1),
             Expanded(
               child: _buildSidebarItems(context, controller, isDrawer: false),
             ),
@@ -143,7 +143,6 @@ class AdvertiserSidebar extends StatelessWidget {
       Icons.groups_rounded,
       Icons.handshake_rounded,
       Icons.perm_media_rounded,
-      Icons.science_rounded,
       Icons.settings_rounded,
     ];
 

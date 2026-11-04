@@ -1,3 +1,4 @@
+import { applySecurityHeaders } from "../utils/securityHeaders";
 import * as admin from "firebase-admin";
 import { onRequest } from "firebase-functions/v2/https";
 import { requireRecentAdmin } from "../utils/auth";
@@ -9,16 +10,13 @@ if (!admin.apps.length) {
 
 export const adminBulkModerate = onRequest(
   {
-    cors: [
-      "https://admin.truthworld.in",
-      "https://admin.truthworld.app",
-      "http://localhost:5173",
-    ],
+    cors: true,
     region: "asia-south1",
     minInstances: 0,
     maxInstances: 5,
   },
   async (req, res) => {
+    applySecurityHeaders(res);
     try {
       const adminUser = await requireRecentAdmin(req, res, 3600);
       if (!adminUser) return;
@@ -51,7 +49,7 @@ export const adminBulkModerate = onRequest(
             }
             return { id, success: true };
           } catch (e: any) {
-            return { id, success: false, error: e.message };
+            return { id, success: false, error: "Failed to process item moderation." };
           }
         })
       );
@@ -60,7 +58,7 @@ export const adminBulkModerate = onRequest(
         if (r.status === "fulfilled") {
             return r.value;
         } else {
-            return { id: itemIds[index], success: false, error: r.reason };
+            return { id: itemIds[index], success: false, error: "Failed to process item moderation." };
         }
       });
 

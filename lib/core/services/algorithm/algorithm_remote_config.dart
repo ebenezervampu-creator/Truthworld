@@ -62,6 +62,7 @@ class AlgorithmRemoteConfig extends GetxService {
             'penalty': 0.07,
             'knowledgeQuality': 0.10,
             'twoTowerAffinity': 0.12,
+            'languageAffinity': 0.15,
           },
           'homeFeedCategory': {
             'topicAffinity': 0.08,
@@ -74,6 +75,7 @@ class AlgorithmRemoteConfig extends GetxService {
             'penalty': 0.08,
             'knowledgeQuality': 0.00,
             'twoTowerAffinity': 0.14,
+            'languageAffinity': 0.15,
           },
           'videoRelated': {
             'topicAffinity': 0.22,
@@ -86,6 +88,7 @@ class AlgorithmRemoteConfig extends GetxService {
             'penalty': 0.07,
             'knowledgeQuality': 0.08,
             'twoTowerAffinity': 0.12,
+            'languageAffinity': 0.15,
           },
           'autoplayNext': {
             'topicAffinity': 0.18,
@@ -98,6 +101,7 @@ class AlgorithmRemoteConfig extends GetxService {
             'penalty': 0.07,
             'knowledgeQuality': 0.00,
             'twoTowerAffinity': 0.14,
+            'languageAffinity': 0.16,
           },
           'searchResults': {
             'topicAffinity': 0.07,
@@ -110,6 +114,7 @@ class AlgorithmRemoteConfig extends GetxService {
             'penalty': 0.04,
             'knowledgeQuality': 0.12,
             'twoTowerAffinity': 0.15,
+            'languageAffinity': 0.15,
           },
           'subscriptionFeed': {
             'topicAffinity': 0.08,
@@ -122,6 +127,7 @@ class AlgorithmRemoteConfig extends GetxService {
             'penalty': 0.05,
             'knowledgeQuality': 0.00,
             'twoTowerAffinity': 0.10,
+            'languageAffinity': 0.10,
           },
           'trending': {
             'topicAffinity': 0.04,
@@ -134,6 +140,7 @@ class AlgorithmRemoteConfig extends GetxService {
             'penalty': 0.08,
             'knowledgeQuality': 0.00,
             'twoTowerAffinity': 0.06,
+            'languageAffinity': 0.08,
           },
           'discoverChannels': {
             'topicAffinity': 0.25,
@@ -146,6 +153,7 @@ class AlgorithmRemoteConfig extends GetxService {
             'penalty': 0.10,
             'knowledgeQuality': 0.00,
             'twoTowerAffinity': 0.16,
+            'languageAffinity': 0.12,
           },
           'exploreTopics': {
             'topicAffinity': 0.28,
@@ -158,6 +166,7 @@ class AlgorithmRemoteConfig extends GetxService {
             'penalty': 0.08,
             'knowledgeQuality': 0.00,
             'twoTowerAffinity': 0.14,
+            'languageAffinity': 0.10,
           },
           'shortsFeed': {
             'topicAffinity': 0.16,
@@ -170,6 +179,7 @@ class AlgorithmRemoteConfig extends GetxService {
             'penalty': 0.07,
             'knowledgeQuality': 0.00,
             'twoTowerAffinity': 0.10,
+            'languageAffinity': 0.16,
           },
           'endScreen': {
             'topicAffinity': 0.18,
@@ -182,6 +192,7 @@ class AlgorithmRemoteConfig extends GetxService {
             'penalty': 0.14,
             'knowledgeQuality': 0.00,
             'twoTowerAffinity': 0.14,
+            'languageAffinity': 0.14,
           },
           'unexplored': {
             'topicAffinity': 0.11,
@@ -194,6 +205,7 @@ class AlgorithmRemoteConfig extends GetxService {
             'penalty': 0.05,
             'knowledgeQuality': 0.14,
             'twoTowerAffinity': 0.15,
+            'languageAffinity': 0.15,
           },
         },
       };

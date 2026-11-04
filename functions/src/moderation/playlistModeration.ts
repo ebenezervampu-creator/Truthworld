@@ -5,8 +5,61 @@ import { getVertexAI } from "../pipeline/utils/ai-client";
 import { PIPELINE_CONFIG } from "../pipeline/config";
 import { extractCandidateText } from "../pipeline/utils/ai-utils";
 import { COMMUNITY_GUIDELINES_TEXT, MODERATION_RESPONSE_SCHEMA } from "./communityGuidelinesPrompt";
+import { isPlaylistsBypassed } from "./moderationModes";
+import { notifyUser } from "../notifications/notifications";
 
 const db = () => admin.firestore();
+
+async function notifyPlaylistModeration(
+  playlistId: string,
+  playlistData: any,
+  status: string,
+  reason: string
+) {
+  try {
+    const userId = playlistData?.userId || playlistData?.ownerId || playlistData?.creatorId;
+    if (!userId) return;
+
+    const name = playlistData?.name || playlistData?.playlistName || "your playlist";
+    if (status === "verificationRejected" || status === "rejected") {
+      await notifyUser({
+        userId,
+        type: "verification_result",
+        severity: "priority",
+        title: "Content Moderation Rejected",
+        message: `Your playlist "${name}" was rejected by content moderation: ${reason}. Please update playlist details to comply with guidelines.`,
+        actionUrl: "/studio",
+        targetApp: "all",
+        metadata: {
+          playlistId,
+          playlistName: name,
+          reason,
+          itemType: "playlist",
+          category: "moderation",
+        },
+      });
+    } else if (status === "underReview") {
+      await notifyUser({
+        userId,
+        type: "verification_result",
+        severity: "warning",
+        title: "Playlist Under Manual Review",
+        message: `Your playlist "${name}" is held for manual review: ${reason}.`,
+        actionUrl: "/studio",
+        targetApp: "all",
+        metadata: {
+          playlistId,
+          playlistName: name,
+          reason,
+          itemType: "playlist",
+          category: "moderation",
+        },
+      });
+    }
+  } catch (err) {
+    logger.error("[notifyPlaylistModeration] Error notifying user:", err);
+  }
+}
 
 /**
  * Common moderation logic shared by public and private playlists.
@@ -39,10 +92,26 @@ async function moderatePlaylist(
     cleanName.startsWith("untitled")
   ) {
     logger.info(`[moderatePlaylist] Rejecting placeholder playlist ${playlistId}: "${nameAfter}"`);
+    const placeholderRsn = "Playlist name is a placeholder (e.g. 'Playlist', 'Untitled') and cannot be published.";
     await updateRef.update({
       geminiApproved: false,
       status: "verificationRejected",
-      moderationReason: "Playlist name is a placeholder (e.g. 'Playlist', 'Untitled') and cannot be published.",
+      moderationReason: placeholderRsn,
+      updatedAt: admin.firestore.Timestamp.now(),
+    });
+    await notifyPlaylistModeration(playlistId, afterData, "verificationRejected", placeholderRsn);
+    return;
+  }
+
+  // Check if Playlist moderation is in Admin Only mode (Gemini bypassed)
+  const bypassed = await isPlaylistsBypassed();
+  if (bypassed) {
+    logger.info(`[moderatePlaylist] Playlists moderation toggle is ON (Admin Only). Bypassing Gemini AI for playlist ${playlistId} and holding for Admin manual review.`);
+    await updateRef.update({
+      geminiApproved: false,
+      status: "underReview",
+      moderationReason: "Routed to Admin for manual review (Gemini AI bypassed).",
+      bypassGemini: true,
       updatedAt: admin.firestore.Timestamp.now(),
     });
     return;
@@ -100,6 +169,10 @@ Respond only with the JSON schema specified in your system instructions.`;
         updatedAt: admin.firestore.Timestamp.now(),
       });
 
+      if (!approved) {
+        await notifyPlaylistModeration(playlistId, afterData, "verificationRejected", reason);
+      }
+
       return; // Success — exit retry loop
     } catch (err) {
       logger.error(`[moderatePlaylist] Attempt ${attempt + 1}/${MAX_RETRIES} failed for playlist ${playlistId}:`, err);
@@ -113,13 +186,15 @@ Respond only with the JSON schema specified in your system instructions.`;
   }
 
   // Retries exhausted
+  const retryRsn = `Moderation check failed after ${MAX_RETRIES} attempts. Playlist is held for manual review.`;
   logger.error(`[moderatePlaylist] All ${MAX_RETRIES} retries exhausted for playlist ${playlistId}. Marking as verificationRejected.`);
   await updateRef.update({
     geminiApproved: false,
     status: "verificationRejected",
-    moderationReason: `Moderation check failed after ${MAX_RETRIES} attempts. Playlist is held for manual review.`,
+    moderationReason: retryRsn,
     updatedAt: admin.firestore.Timestamp.now(),
   });
+  await notifyPlaylistModeration(playlistId, afterData, "verificationRejected", retryRsn);
 }
 
 // 🛡️ ON PUBLIC PLAYLIST WRITTEN

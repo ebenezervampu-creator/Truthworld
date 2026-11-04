@@ -6,6 +6,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
 import 'package:truthworld/features/topics/presentation/widgets/topic_more_options_sheet.dart';
@@ -64,32 +65,32 @@ class TopicHeroWidget extends StatelessWidget {
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1400),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(isMobile ? 18 : 24),
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: const Color(0xFF141418),
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF1E1E24),
-                    Color(0xFF121215),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(isMobile ? 18 : 24),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.12),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.45),
-                    blurRadius: 28,
-                    offset: const Offset(0, 10),
-                  ),
+          child: Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: const Color(0xFF141418),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF1E1E24),
+                  Color(0xFF121215),
                 ],
               ),
+              borderRadius: BorderRadius.circular(isMobile ? 18 : 24),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.12),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.45),
+                  blurRadius: 28,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(isMobile ? 17 : 23),
               child: Stack(
                 children: [
                   // 1. Subtle ambient backdrop (only if wide coverImage exists)
@@ -134,7 +135,7 @@ class TopicHeroWidget extends StatelessWidget {
                                         _buildCategoryBadge(currentTopic),
                                         const SizedBox(height: 8),
                                         Text(
-                                          currentTopic.title,
+                                          currentTopic.name,
                                           style: const TextStyle(
                                             fontSize: 22,
                                             fontWeight: FontWeight.w800,
@@ -178,7 +179,7 @@ class TopicHeroWidget extends StatelessWidget {
                                     _buildCategoryBadge(currentTopic),
                                     const SizedBox(height: 12),
                                     Text(
-                                      currentTopic.title,
+                                      currentTopic.name,
                                       style: TextStyle(
                                         fontSize: isDesktop ? 34 : 26,
                                         fontWeight: FontWeight.w800,
@@ -377,7 +378,7 @@ class TopicHeroWidget extends StatelessWidget {
 
     if (desc.contains('\n')) {
       final firstLine = desc.split('\n').first.trim();
-      if (firstLine.isNotEmpty && firstLine != topic.title) {
+      if (firstLine.isNotEmpty && firstLine != topic.name) {
         subtitleText = firstLine;
       }
     } else if (topic.tags.isNotEmpty) {
@@ -431,8 +432,8 @@ class TopicHeroWidget extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              bodyText,
+            ClickableUrlText(
+              text: bodyText,
               style: TextStyle(
                 fontSize: isDesktop ? 14 : 13,
                 color: const Color(0xFFAAAAAA),
@@ -643,7 +644,16 @@ class TopicHeroWidget extends StatelessWidget {
             onTap: () {
               final url = DeepLinkService.topicUrl(topic.slug);
               Clipboard.setData(ClipboardData(text: url));
-              ShareBottomSheet.show(title: topic.title, url: url);
+              ShareBottomSheet.show(
+                title: topic.name,
+                url: url,
+                thumbnailUrl: topic.coverImage ?? topic.thumbnailUrl,
+                bannerUrl: topic.coverImage ?? topic.thumbnailUrl,
+                followerCount: topic.followerCount,
+                videoCount: topic.videoCount,
+                handle: topic.slug,
+                type: 'topic',
+              );
             },
           ),
 

@@ -115,6 +115,16 @@ export class Tier0KnowledgeService {
       url: "https://www.cdc.gov/antibiotic-use/index.html",
       domain: "cdc.gov",
     },
+    {
+      title: "Turmeric Water Cures Cancer (Refuted)",
+      keywords: ["turmeric", "curcumin", "cancer", "cure", "water", "drinking"],
+      patterns: [/turmeric (water )?(cures|treats|prevents) cancer/i, /drinking turmeric (water )?(cures|treats|prevents) cancer/i, /curcumin (cures|treats) cancer/i, /cancer cure (is |with )?turmeric/i],
+      status: "false_claim",
+      reasoning: "Contradicted by medical and oncological consensus. While curcumin (a compound in turmeric) has been investigated in laboratory in-vitro studies for anti-inflammatory properties, there is zero reliable clinical trial evidence that drinking turmeric water cures cancer in humans. Health authorities (including the National Cancer Institute, Cancer Research UK, and WHO) warn that unproven natural remedies must never replace evidence-based oncology treatments.",
+      source: "National Cancer Institute (NCI) / Cancer Research UK",
+      url: "https://www.cancerresearchuk.org/about-cancer/treatment/complementary-alternative-therapies/individual-therapies/turmeric",
+      domain: "cancerresearchuk.org",
+    },
 
     // ── Geopolitical & Treaty Baselines ──
     {

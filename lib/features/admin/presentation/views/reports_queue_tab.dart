@@ -34,7 +34,7 @@ class ReportsQueueTab extends StatelessWidget {
 
       final filterBar = Container(
         padding: const EdgeInsets.all(12),
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
@@ -120,7 +120,7 @@ class ReportsQueueTab extends StatelessWidget {
                 'Anonymous User';
 
             return Material(
-              color: isSelected ? const Color(0xFF212121) : Colors.transparent,
+              color: isSelected ? AppColors.bgSurface : Colors.transparent,
               child: InkWell(
                 onTap: () {
                   controller.selectedReport.value = report;
@@ -137,7 +137,7 @@ class ReportsQueueTab extends StatelessWidget {
                         width: 40,
                         height: 40,
                         decoration: const BoxDecoration(
-                          color: Color(0xFF212121),
+                          color: AppColors.bgSurface,
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
@@ -351,7 +351,7 @@ class ReportsQueueTab extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF181818),
+                    color: AppColors.bgPage,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                   ),
@@ -372,7 +372,7 @@ class ReportsQueueTab extends StatelessWidget {
                             placeholder: (context, url) => Container(
                               width: 120,
                               height: 68,
-                              color: const Color(0xFF212121),
+                              color: AppColors.bgSurface,
                               child: const Center(
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
@@ -385,7 +385,7 @@ class ReportsQueueTab extends StatelessWidget {
                             errorWidget: (context, url, error) => Container(
                               width: 120,
                               height: 68,
-                              color: const Color(0xFF212121),
+                              color: AppColors.bgSurface,
                               child: const Icon(
                                 Icons.broken_image,
                                 color: Colors.white,
@@ -398,7 +398,7 @@ class ReportsQueueTab extends StatelessWidget {
                           width: 120,
                           height: 68,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF212121),
+                            color: AppColors.bgSurface,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Icon(
@@ -451,7 +451,7 @@ class ReportsQueueTab extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF181818),
+                    color: AppColors.bgPage,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                   ),
@@ -501,7 +501,7 @@ class ReportsQueueTab extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF181818),
+                  color: AppColors.bgPage,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                 ),

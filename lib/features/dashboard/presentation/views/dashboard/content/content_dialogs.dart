@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/content/content_ai_features_dialog.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/edit_videoscreen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_content_details_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
@@ -148,14 +149,129 @@ import 'package:truthworld/theme/app_theme.dart';
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(10),
-                  decoration: const BoxDecoration(
-                    color: AppColors.infoContainer,
+                  decoration: BoxDecoration(
+                    color: AppColors.bgSurface,
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
-                    Icons.lock_open_rounded,
-                    color: AppColors.textPrimary,
+                    Icons.record_voice_over_rounded,
+                    color: Colors.white,
                     size: 22,
+                  ),
+                ),
+                title: Text(
+                  'Video Dubbing & Neural Lip-Sync',
+                  style: AppTextStyles.titleMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontFamily: TWTypography.brandFamily,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                subtitle: Text(
+                  'Video Pro (\$4) & Video Ultra (\$5) with LatentSync 1080p & Voice Cloning',
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                onTap: () {
+                  Get.back<void>();
+                  showGenerateAIFeaturesDialog(
+                    context,
+                    video,
+                    controller,
+                    initialFeatures: {'dubbing'},
+                    initialDubbingTier: 'video_pro',
+                  );
+                },
+              ),
+              const Divider(height: 16, color: AppColors.bgDivider),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgSurface,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.graphic_eq_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+                title: Text(
+                  'Audio Dubbing Studio',
+                  style: AppTextStyles.titleMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontFamily: TWTypography.brandFamily,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                subtitle: Text(
+                  'Starter (\$1), Pro (\$2), & Ultra (\$3) with Chirp HD & ElevenLabs v4',
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                onTap: () {
+                  Get.back<void>();
+                  showGenerateAIFeaturesDialog(
+                    context,
+                    video,
+                    controller,
+                    initialFeatures: {'dubbing'},
+                    initialDubbingTier: 'audio_starter',
+                  );
+                },
+              ),
+              const Divider(height: 16, color: AppColors.bgDivider),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgSurface,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+                title: Text(
+                  'AI Features & Fact-Checking',
+                  style: AppTextStyles.titleMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontFamily: TWTypography.brandFamily,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                subtitle: Text(
+                  'Auto-Chapters, summaries, fact-checks, captions & pipeline tools',
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                onTap: () {
+                  Get.back<void>();
+                  showGenerateAIFeaturesDialog(
+                    context,
+                    video,
+                    controller,
+                  );
+                },
+              ),
+              const Divider(height: 16, color: AppColors.bgDivider),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgSurface,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.lock_open_rounded,
+                    color: Colors.white,
+                    size: 20,
                   ),
                 ),
                 title: Text(
@@ -385,236 +501,362 @@ import 'package:truthworld/theme/app_theme.dart';
     if (initial == 'subscribers') initial = 'subscribers_only';
     final selected = initial.obs;
 
-    final options = <({String value, String title, String subtitle, IconData icon, Color color})>[
+    final mediaQuery = MediaQuery.maybeOf(context);
+    final isMobile = (mediaQuery?.size.width ?? 800) < 600;
+
+    if (isMobile) {
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetCtx) => ChangeVisibilityModalContent(
+          video: video,
+          controller: controller,
+          selected: selected,
+          isBottomSheet: true,
+        ),
+      );
+    } else {
+      Get.dialog<void>(
+        Dialog(
+          backgroundColor: AppColors.bgPage,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: AppColors.bgSurface),
+          ),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: ChangeVisibilityModalContent(
+              video: video,
+              controller: controller,
+              selected: selected,
+              isBottomSheet: false,
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+class ChangeVisibilityModalContent extends StatelessWidget {
+  const ChangeVisibilityModalContent({
+    required this.video,
+    required this.controller,
+    required this.selected,
+    required this.isBottomSheet,
+    super.key,
+  });
+
+  final Video video;
+  final VideoManagementController controller;
+  final RxString selected;
+  final bool isBottomSheet;
+
+  @override
+  Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.maybeOf(context);
+    final screenHeight = mediaQuery?.size.height ?? 800.0;
+    final maxHeight = screenHeight * (isBottomSheet ? 0.88 : 0.85);
+
+    const options = [
       (
         value: 'public',
         title: 'Public',
         subtitle: 'Everyone can search for and watch this video on Truthworld',
         icon: Icons.public_rounded,
-        color: AppColors.success,
       ),
       (
         value: 'private',
         title: 'Private',
         subtitle: 'Only you can view this video in your channel studio',
         icon: Icons.lock_outline_rounded,
-        color: AppColors.error,
       ),
       (
         value: 'members_only',
         title: 'Members Only',
         subtitle: 'Exclusive access for paid channel members with an active tier',
         icon: Icons.card_membership_rounded,
-        color: AppColors.info,
       ),
       (
         value: 'subscribers_only',
         title: 'Subscribers Only',
         subtitle: 'Exclusive access for users subscribed to your channel',
         icon: Icons.subscriptions_rounded,
-        color: AppColors.info,
       ),
       (
         value: 'unlisted',
         title: 'Unlisted',
         subtitle: 'Anyone with the video link can watch (hidden from search & feed)',
         icon: Icons.link_rounded,
-        color: AppColors.textSecondary,
       ),
     ];
 
-    Get.dialog<void>(
-      Dialog(
-        backgroundColor: AppColors.bgSurface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.bgDivider),
-        ),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 500),
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.bgSurfaceHover,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.lock_open_rounded,
-                      color: AppColors.textPrimary,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Change Visibility & Access',
-                          style: AppTextStyles.titleLarge.copyWith(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.bold,
-                            fontFamily: TWTypography.brandFamily,
-                            fontSize: 18,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          video.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.caption.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              const Divider(color: AppColors.bgDivider, height: 1),
-              const SizedBox(height: 12),
-              ...options.map((opt) {
-                final val = opt.value;
-                final title = opt.title;
-                final subtitle = opt.subtitle;
-                final icon = opt.icon;
-                final color = opt.color;
-
-                return Obx(() {
-                  final isSelected = selected.value == val;
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: InkWell(
-                      onTap: () {
-                        selected.value = val;
-                      },
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? color.withValues(alpha: 0.12)
-                              : AppColors.bgInput.withValues(alpha: 0.4),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isSelected
-                                ? color
-                                : AppColors.bgDivider.withValues(alpha: 0.5),
-                            width: isSelected ? 1.5 : 1,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: color.withValues(alpha: 0.15),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                icon,
-                                size: 18,
-                                color: color,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    title,
-                                    style: AppTextStyles.bodyMedium.copyWith(
-                                      color: AppColors.textPrimary,
-                                      fontWeight: isSelected
-                                          ? FontWeight.bold
-                                          : FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    subtitle,
-                                    style: AppTextStyles.caption.copyWith(
-                                      color: AppColors.textSecondary,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Radio<String>(
-                              value: val,
-                              groupValue: selected.value,
-                              onChanged: (v) {
-                                if (v != null) selected.value = v;
-                              },
-                              activeColor: color,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                });
-              }),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: Get.back<void>,
-                    child: Text(
-                      'Cancel',
-                      style: AppTextStyles.buttonText.copyWith(
-                        color: AppColors.textSecondary,
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: maxHeight,
+        maxWidth: 480,
+      ),
+      child: Material(
+        color: AppColors.bgPage,
+        borderRadius: isBottomSheet
+            ? const BorderRadius.vertical(top: Radius.circular(24))
+            : BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              isBottomSheet ? 12 : 20,
+              20,
+              20,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (isBottomSheet)
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.bgElevated,
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.brand,
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 10,
-                      ),
-                      shape: RoundedRectangleBorder(
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.bgSurface,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                    ),
-                    onPressed: () {
-                      controller.changeVideoVisibility(video.id, selected.value);
-                      Get.back<void>();
-                    },
-                    child: const Text(
-                      'Save Visibility',
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.bold,
+                      child: const Icon(
+                        Icons.lock_open_rounded,
+                        color: Colors.white,
+                        size: 20,
                       ),
                     ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Change Visibility & Access',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: -0.3,
+                              fontFamily: TWTypography.uiFamily,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            video.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                              fontFamily: TWTypography.uiFamily,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white, size: 20),
+                      tooltip: 'Close',
+                      splashRadius: 18,
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                const Divider(color: AppColors.bgSurface, height: 1, thickness: 1),
+                const SizedBox(height: 12),
+                const Text(
+                  'Choose who can discover and watch this video.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                    fontFamily: TWTypography.uiFamily,
                   ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(height: 14),
+                Flexible(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: options.map((opt) {
+                        return Obx(() {
+                          final isSelected = selected.value == opt.value;
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? Colors.white.withValues(alpha: 0.05)
+                                  : AppColors.bgInput,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppColors.bgSurface,
+                                width: isSelected ? 1.5 : 1,
+                              ),
+                            ),
+                            child: InkWell(
+                              onTap: () {
+                                selected.value = opt.value;
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 12,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.bgSurface,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Icon(
+                                        opt.icon,
+                                        color: Colors.white,
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            opt.title,
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: isSelected
+                                                  ? FontWeight.bold
+                                                  : FontWeight.w600,
+                                              color: Colors.white,
+                                              fontFamily: TWTypography.uiFamily,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            opt.subtitle,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: AppColors.textSecondary,
+                                              fontFamily: TWTypography.uiFamily,
+                                              height: 1.3,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    if (isSelected)
+                                      const Icon(
+                                        Icons.check_circle,
+                                        color: Colors.white,
+                                        size: 20,
+                                      )
+                                    else
+                                      const Icon(
+                                        Icons.radio_button_unchecked,
+                                        color: AppColors.textDisabled,
+                                        size: 20,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        });
+                      }).toList(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Divider(color: AppColors.bgSurface, height: 1, thickness: 1),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.textSecondary,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: TWTypography.uiFamily,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 22,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: () {
+                        controller.changeVideoVisibility(video.id, selected.value);
+                        Navigator.of(context).pop();
+                      },
+                      child: const Text(
+                        'Save Visibility',
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          fontFamily: TWTypography.uiFamily,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+}
 
 
   void showDeleteVideoDialog(

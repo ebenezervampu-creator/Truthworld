@@ -90,7 +90,7 @@ class CampaignWizardFormatStep extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF18181B),
+                color: AppColors.bgPage,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: AppColors.brand.withValues(alpha: 0.5),

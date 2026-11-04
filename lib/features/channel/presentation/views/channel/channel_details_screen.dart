@@ -4,7 +4,9 @@ import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/details/channel_details_widgets.dart';
+import 'package:truthworld/theme/app_theme.dart' hide kDesktopBreakpoint, kTabletBreakpoint;
 
+export 'package:truthworld/features/channel/presentation/views/channel/channel_description_screen.dart';
 export 'package:truthworld/features/channel/presentation/views/channel/details/channel_details_widgets.dart';
 
 /// Channel Details Page.
@@ -38,9 +40,12 @@ class ChannelDetailsPage extends GetView<ChannelController> {
         if (controller.selectedChannel.value?.channelId != targetChannel.channelId) {
           controller.initForChannelDetails(targetChannel);
           controller.startPageAnimations();
-        } else if (!controller.pageFadeAnimationController.isCompleted &&
-            !controller.pageFadeAnimationController.isAnimating) {
-          controller.startPageAnimations();
+        } else {
+          controller.checkChannelContent(targetChannel.channelId);
+          if (!controller.pageFadeAnimationController.isCompleted &&
+              !controller.pageFadeAnimationController.isAnimating) {
+            controller.startPageAnimations();
+          }
         }
       } else {
         final channelTarget =
@@ -130,15 +135,8 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     bool isDesktop = false,
     bool isTablet = false,
   }) {
-    final activeTabs = controller.activeTabs;
-    final tabCount = activeTabs.length;
-
-    return DefaultTabController(
-      key: ValueKey(
-        'tab-controller-${channel.channelId}-${activeTabs.join(",")}',
-      ),
-      length: tabCount,
-      child: NestedScrollView(
+    if (channel.isOnHold) {
+      return NestedScrollView(
         controller: controller.scrollController,
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [
@@ -159,55 +157,127 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                 isTablet: isTablet,
               ),
             ),
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: ChannelSliverTabBarDelegate(
-                _buildChannelTabBar(activeTabs),
-                maxHeight: 48,
-              ),
-            ),
           ];
         },
-        body: TabBarView(
-          children: activeTabs.map((tabName) {
-            switch (tabName) {
-              case 'Home':
-                return ChannelHomeTabView(
-                  channel: channel,
-                  isDesktop: isDesktop,
-                  isTablet: isTablet,
-                );
-              case 'Videos':
-                return ChannelVideosTabView(
-                  channel: channel,
-                  isDesktop: isDesktop,
-                  isTablet: isTablet,
-                );
-              case 'Topics':
-                return ChannelTopicsTabView(
-                  channel: channel,
-                  isDesktop: isDesktop,
-                  isTablet: isTablet,
-                );
-              case 'Playlists':
-                return ChannelPlaylistsTabView(
-                  channel: channel,
-                  isDesktop: isDesktop,
-                  isTablet: isTablet,
-                );
-              case 'Posts':
-                return ChannelPostsTabView(
-                  channel: channel,
-                  isDesktop: isDesktop,
-                  isTablet: isTablet,
-                );
-              default:
-                return const SizedBox.shrink();
-            }
-          }).toList(),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.pause_circle_outline_rounded,
+                  size: 56,
+                  color: Color(0xFFF59E0B),
+                ),
+                SizedBox(height: 16),
+                Text(
+                  'This channel is currently on hold',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: TWTypography.brandFamily,
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Content for this channel has been temporarily paused by moderation.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-      ),
-    );
+      );
+    }
+
+    return Obx(() {
+      final activeTabs = controller.activeTabs;
+      final tabCount = activeTabs.length;
+
+      return DefaultTabController(
+        key: ValueKey(
+          'tab-controller-${channel.channelId}-${activeTabs.join(",")}',
+        ),
+        length: tabCount,
+        child: NestedScrollView(
+          controller: controller.scrollController,
+          headerSliverBuilder: (context, innerBoxIsScrolled) {
+            return [
+              SliverToBoxAdapter(
+                child: ChannelBannerWidget(
+                  channel: channel,
+                  controller: controller,
+                  isDesktop: isDesktop,
+                  isTablet: isTablet,
+                  isDashboard: isDashboard,
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: ChannelHeaderWidget(
+                  channel: channel,
+                  controller: controller,
+                  isDesktop: isDesktop,
+                  isTablet: isTablet,
+                ),
+              ),
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: ChannelSliverTabBarDelegate(
+                  _buildChannelTabBar(activeTabs),
+                  maxHeight: 48,
+                ),
+              ),
+            ];
+          },
+          body: TabBarView(
+            children: activeTabs.map((tabName) {
+              switch (tabName) {
+                case 'Home':
+                  return ChannelHomeTabView(
+                    channel: channel,
+                    isDesktop: isDesktop,
+                    isTablet: isTablet,
+                  );
+                case 'Videos':
+                  return ChannelVideosTabView(
+                    channel: channel,
+                    isDesktop: isDesktop,
+                    isTablet: isTablet,
+                  );
+                case 'Topics':
+                  return ChannelTopicsTabView(
+                    channel: channel,
+                    isDesktop: isDesktop,
+                    isTablet: isTablet,
+                  );
+                case 'Playlists':
+                  return ChannelPlaylistsTabView(
+                    channel: channel,
+                    isDesktop: isDesktop,
+                    isTablet: isTablet,
+                  );
+                case 'Posts':
+                  return ChannelPostsTabView(
+                    channel: channel,
+                    isDesktop: isDesktop,
+                    isTablet: isTablet,
+                  );
+                default:
+                  return const SizedBox.shrink();
+              }
+            }).toList(),
+          ),
+        ),
+      );
+    });
   }
 
   Widget _buildChannelTabBar(List<String> activeTabs) {

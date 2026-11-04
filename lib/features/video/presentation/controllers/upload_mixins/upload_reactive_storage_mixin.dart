@@ -6,6 +6,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/app_categories.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -131,6 +132,9 @@ mixin UploadReactiveStorageMixin on UploadControllerBase {
       }
       if (aiDiarizationEnabled.value != s.aiDiarizationEnabled) {
         aiDiarizationEnabled.value = s.aiDiarizationEnabled;
+      }
+      if (aiLipSyncEnabled.value != s.aiLipSyncEnabled) {
+        aiLipSyncEnabled.value = s.aiLipSyncEnabled;
       }
       if (aiSummaryEnabled.value != s.aiSummaryEnabled) {
         aiSummaryEnabled.value = s.aiSummaryEnabled;
@@ -258,7 +262,16 @@ mixin UploadReactiveStorageMixin on UploadControllerBase {
   }
 
   void bindLegacyPrimitiveSync() {
-    addWorker(ever(selectedChannel, (c) => syncPrimitiveToState((s) => s.copyWith(selectedChannel: c))));
+    addWorker(ever(selectedChannel, (c) {
+      syncPrimitiveToState((s) => s.copyWith(selectedChannel: c));
+      if (resumedVideoDraft.value == null && c != null) {
+        final cat = resolveChannelFirstCategory(c);
+        if (cat.isNotEmpty && (selectedCategory.value.isEmpty || selectedCategory.value == 'Other')) {
+          selectedCategory.value = cat;
+        }
+      }
+    }));
+    addWorker(ever(selectedCategory, (v) => syncPrimitiveToState((s) => s.copyWith(selectedCategory: v))));
     addWorker(ever(todayUploadedDurationSeconds, (v) => syncPrimitiveToState((s) => s.copyWith(todayUploadedDurationSeconds: v))));
     addWorker(ever(remainingDailyDurationSeconds, (v) => syncPrimitiveToState((s) => s.copyWith(remainingDailyDurationSeconds: v))));
     addWorker(ever(isDailyLimitReached, (v) => syncPrimitiveToState((s) => s.copyWith(isDailyLimitReached: v))));
@@ -284,6 +297,7 @@ mixin UploadReactiveStorageMixin on UploadControllerBase {
     addWorker(ever(aiGenerateSubtitles, (v) => syncPrimitiveToState((s) => s.copyWith(aiGenerateSubtitles: v))));
     addWorker(ever(aiGenerateDubbing, (v) => syncPrimitiveToState((s) => s.copyWith(aiGenerateDubbing: v))));
     addWorker(ever(aiDiarizationEnabled, (v) => syncPrimitiveToState((s) => s.copyWith(aiDiarizationEnabled: v))));
+    addWorker(ever(aiLipSyncEnabled, (v) => syncPrimitiveToState((s) => s.copyWith(aiLipSyncEnabled: v))));
     addWorker(ever(aiSummaryEnabled, (v) => syncPrimitiveToState((s) => s.copyWith(aiSummaryEnabled: v))));
     addWorker(ever(aiFactCheckEnabled, (v) => syncPrimitiveToState((s) => s.copyWith(aiFactCheckEnabled: v))));
     addWorker(ever(aiFactCheckTier, (v) => syncPrimitiveToState((s) => s.copyWith(aiFactCheckTier: v))));
@@ -374,9 +388,34 @@ mixin UploadReactiveStorageMixin on UploadControllerBase {
   // ignore: cancel_subscriptions
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? statusListener;
 
+  /// Resolves the primary category from the channel selection.
+  /// Falls back to the first available category if no channel category is found, avoiding 'Other'.
+  @override
+  String resolveChannelFirstCategory([Channel? channel]) {
+    final ch = channel ??
+        selectedChannel.value ??
+        (Get.isRegistered<AuthService>() ? AuthService.to.userChannel : null);
+    if (ch != null) {
+      var candidate = '';
+      if (ch.categories.isNotEmpty) {
+        candidate = ch.categories.first.trim();
+      } else if (ch.category.trim().isNotEmpty) {
+        candidate = ch.category.split(',').first.trim();
+      }
+      if (candidate.isNotEmpty) {
+        final match = videoCategories.firstWhereOrNull(
+          (c) => c.toLowerCase() == candidate.toLowerCase(),
+        );
+        if (match != null) return match;
+        return candidate;
+      }
+    }
+    return videoCategories.isNotEmpty ? videoCategories.first : '';
+  }
+
   // Category & Metadata
   @override
-  final RxString selectedCategory = 'Other'.obs;
+  late final RxString selectedCategory = resolveChannelFirstCategory().obs;
   @override
   final RxString selectedVisibility = 'Public'.obs;
   @override
@@ -410,7 +449,7 @@ mixin UploadReactiveStorageMixin on UploadControllerBase {
   @override
   final RxString descriptionValidationReason = ''.obs;
   @override
-  final RxBool hasConfirmedCopyrightDeclaration = false.obs;
+  final RxBool hasConfirmedCopyrightDeclaration = true.obs;
   @override
   final RxString videoModerationStatus = 'PENDING'.obs;
   @override
@@ -422,19 +461,27 @@ mixin UploadReactiveStorageMixin on UploadControllerBase {
   @override
   final RxBool aiTranscriptEnabled = true.obs;
   @override
-  final RxBool aiChaptersEnabled = true.obs;
+  final RxBool aiChaptersEnabled = false.obs;
   @override
   final RxBool aiGenerateSubtitles = true.obs;
   @override
   final RxBool aiGenerateDubbing = false.obs;
   @override
-  final RxBool aiDiarizationEnabled = true.obs;
+  final RxBool aiDiarizationEnabled = false.obs;
+  @override
+  final RxBool aiLipSyncEnabled = false.obs;
   @override
   final RxBool aiSummaryEnabled = true.obs;
   @override
   final RxList<String> aiTranslationLanguages = <String>[].obs;
   @override
   final RxList<String> aiDubbingLanguages = <String>[].obs;
+  @override
+  final RxString aiDubbingTier = 'audio_starter'.obs;
+  @override
+  final RxBool aiCinemaGradeEnabled = false.obs;
+  @override
+  final RxBool aiStemIsolationEnabled = false.obs;
   @override
   final RxBool aiTTSEnabled = false.obs;
   @override
@@ -453,6 +500,8 @@ mixin UploadReactiveStorageMixin on UploadControllerBase {
   // Topics
   @override
   final RxString selectedTopicId = ''.obs;
+  @override
+  final RxList<String> selectedTopicIds = <String>[].obs;
   @override
   final RxList<Topic> availableTopics = <Topic>[].obs;
   @override

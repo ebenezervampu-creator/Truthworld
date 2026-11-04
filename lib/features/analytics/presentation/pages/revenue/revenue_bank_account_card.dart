@@ -22,9 +22,11 @@ Widget buildDirectBankAccountCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isCompact = constraints.maxWidth < 360;
+
+              final iconWidget = Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: AppColors.bgSurfaceHover,
@@ -36,33 +38,36 @@ Widget buildDirectBankAccountCard(
                   color: Colors.white,
                   size: 20,
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Direct Bank Account Arrangement',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
+              );
+
+              final textContent = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Direct Bank Account Arrangement',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
                     ),
-                    Text(
-                      isLinked
-                          ? 'Ready for instant NEFT / IMPS revenue credit'
-                          : 'Set up your bank account for direct revenue withdrawals',
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11.5,
-                      ),
+                  ),
+                  Text(
+                    isLinked
+                        ? 'Ready for instant NEFT / IMPS revenue credit'
+                        : 'Set up your bank account for direct revenue withdrawals',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11.5,
                     ),
-                  ],
-                ),
-              ),
-              Container(
+                  ),
+                ],
+              );
+
+              final badgeWidget = Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: AppColors.bgSurfaceHover,
@@ -79,8 +84,35 @@ Widget buildDirectBankAccountCard(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
-            ],
+              );
+
+              if (isCompact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        iconWidget,
+                        const SizedBox(width: 10),
+                        Expanded(child: textContent),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    badgeWidget,
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  iconWidget,
+                  const SizedBox(width: 12),
+                  Expanded(child: textContent),
+                  const SizedBox(width: 8),
+                  badgeWidget,
+                ],
+              );
+            },
           ),
           const SizedBox(height: 14),
           if (isLinked) ...[

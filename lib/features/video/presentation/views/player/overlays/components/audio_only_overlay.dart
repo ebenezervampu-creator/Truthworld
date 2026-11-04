@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/components/audio_themes/audio_themes_barrel.dart';
+import 'package:truthworld/features/video/presentation/widgets/audio_themes_bottom_sheet.dart';
 
 /// AudioOnlyOverlay: Multi-theme audio playback stage for TruthWorld.
 /// Replaces wireframes with production-grade music themes (Ambient Glow, Retro Vinyl, Cyber Spectrum, Lyrical Stage, Zen Aura).
@@ -31,92 +32,25 @@ class AudioOnlyOverlay extends StatelessWidget {
         );
       }
 
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          // ── Active Music Theme Stage ─────────────────────────────────────
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            layoutBuilder: (currentChild, previousChildren) => Stack(
-              fit: StackFit.expand,
-              children: [
-                ...previousChildren,
-                ?currentChild,
-              ],
-            ),
-            child: KeyedSubtree(
-              key: ValueKey<AudioPlayerTheme>(activeTheme),
-              child: _buildThemeStage(
-                activeTheme: activeTheme,
-                isPlaying: isPlaying,
-                video: video,
-                currentSubtitle: currentSub,
-              ),
-            ),
+      // ── Active Music Theme Stage ─────────────────────────────────────
+      return AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        layoutBuilder: (currentChild, previousChildren) => Stack(
+          fit: StackFit.expand,
+          children: [
+            ...previousChildren,
+            ?currentChild,
+          ],
+        ),
+        child: KeyedSubtree(
+          key: ValueKey<AudioPlayerTheme>(activeTheme),
+          child: _buildThemeStage(
+            activeTheme: activeTheme,
+            isPlaying: isPlaying,
+            video: video,
+            currentSubtitle: currentSub,
           ),
-
-          // ── Top Theme Switcher Pill (Hidden in PiP) ──────────────────────
-          if (!ctrl.isPiP.value)
-            Positioned(
-              top: 14,
-              right: 14,
-              child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () {
-                  ctrl.activePanel.value = 'audio_theme';
-                  ctrl.settingsOpen.value = true;
-                  ctrl.controlsVisible.value = true;
-                },
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.65),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.2),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.4),
-                        blurRadius: 8,
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        activeTheme.icon,
-                        size: 13,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        activeTheme.displayName,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.unfold_more_rounded,
-                        size: 13,
-                        color: Colors.white.withValues(alpha: 0.7),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       );
     });
   }
@@ -180,5 +114,73 @@ class AudioOnlyOverlay extends StatelessWidget {
           video: video,
         );
     }
+  }
+}
+
+/// Theme Switcher Pill elevated to player controls so it respects controls visibility
+/// and avoids overlapping action docks in fullscreen.
+class AudioThemeSwitcherPill extends StatelessWidget {
+  const AudioThemeSwitcherPill({required this.ctrl, super.key});
+  final TowerPlayerController ctrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final activeTheme = TowerPlayerPreferences.globalAudioTheme.value;
+
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            AudioThemesBottomSheet.show(context, ctrl: ctrl);
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 5,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.65),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.2),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  blurRadius: 8,
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  activeTheme.icon,
+                  size: 13,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  activeTheme.displayName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.unfold_more_rounded,
+                  size: 13,
+                  color: Colors.white.withValues(alpha: 0.7),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    });
   }
 }

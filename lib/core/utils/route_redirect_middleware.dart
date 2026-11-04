@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/deep_link/deep_link_url_parser.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 
@@ -68,6 +69,55 @@ class ChannelDetailsRedirectMiddleware extends GetMiddleware {
     }
     // No valid channel — redirect to home
     return const RouteSettings(name: '/');
+  }
+}
+
+/// Middleware that intercepts catch-all creator handle route (`/:handle`).
+/// Strictly prevents hijacking video, watch, query strings, or reserved platform routes,
+/// and redirects to the proper video or core route instead of failing on ChannelDetailsPage.
+class HandleRouteGuardMiddleware extends GetMiddleware {
+  @override
+  int? get priority => 1;
+
+  @override
+  RouteSettings? redirect(String? route) {
+    final handle = (Get.parameters['handle'] ?? '').trim();
+    if (handle.isEmpty) return null;
+
+    final handleLower = handle.toLowerCase();
+
+    // 1. If handle is in reserved routes list, do not treat as channel handle
+    if (DeepLinkUrlParser.reservedRoutes.contains(handleLower)) {
+      return RouteSettings(name: '/$handleLower', arguments: Get.arguments);
+    }
+
+    // 2. If handle contains watch, video, or query params (e.g. watch?v=ID or watch%3Fv=ID)
+    if (handleLower.startsWith('watch') ||
+        handleLower.startsWith('video') ||
+        handleLower.contains('v=') ||
+        handleLower.contains('%3fv=')) {
+      String? videoId;
+      if (handle.contains('v=')) {
+        final parts = handle.split('v=');
+        if (parts.length > 1) {
+          videoId = parts[1].split('&')[0];
+        }
+      }
+      if (videoId != null && videoId.isNotEmpty) {
+        return RouteSettings(
+          name: '/watch?v=$videoId',
+          arguments: Get.arguments,
+        );
+      }
+      return const RouteSettings(name: '/');
+    }
+
+    // 3. If handle contains invalid handle characters like ? or = or %
+    if (handle.contains('?') || handle.contains('=') || handle.contains('%')) {
+      return const RouteSettings(name: '/');
+    }
+
+    return null; // Valid channel handle - allow proceeding to ChannelDetailsPage
   }
 }
 
@@ -287,6 +337,32 @@ class RouteStackObserver extends NavigatorObserver {
   /// If Home is already in the Navigator history, pops back to it (`Get.until`).
   /// Otherwise, replaces the stack with Home (`Get.offAllNamed('/')`).
   static void navigateToHome() {
+    final currentRoute = Get.currentRoute;
+    final isAtHome = currentRoute == '/' || currentRoute == '/home';
+
+    if (isAtHome) {
+      if (Get.isRegistered<HomeController>()) {
+        final homeCtrl = Get.find<HomeController>();
+        if (homeCtrl.sideNavSelectedIndex.value != HomeController.indexHome) {
+          homeCtrl.onSideNavItemSelect(HomeController.indexHome);
+          return;
+        } else {
+          // Already on Home feed: scroll to top
+          if (homeCtrl.scrollController.hasClients) {
+            if (homeCtrl.scrollController.offset > 0) {
+              homeCtrl.scrollController.animateTo(
+                0,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOutCubic,
+              );
+              return;
+            }
+          }
+        }
+      }
+      return;
+    }
+
     final hasHomeInStack = routeStack.isNotEmpty &&
         routeStack.any((r) =>
             r.settings.name == '/' ||

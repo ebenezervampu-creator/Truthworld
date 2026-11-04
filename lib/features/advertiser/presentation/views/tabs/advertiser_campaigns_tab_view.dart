@@ -149,9 +149,9 @@ class AdvertiserCampaignsTabView extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 40),
       decoration: BoxDecoration(
-        color: const Color(0xFF161618),
+        color: AppColors.appBarSurface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgSurface),
       ),
       child: const Column(
         children: [

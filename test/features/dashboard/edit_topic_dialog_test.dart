@@ -40,18 +40,19 @@ class FakeTopicManagementController extends TopicManagementController {
   @override
   Future<bool> updateTopic({
     required Topic topic,
-    required String title,
     required String description,
     required String category,
     required List<String> selectedVideoIds,
     required TopicVisibilityType visibilityType,
+    String? name,
+    String? title,
     String? accessCode,
     String? thumbnailUrl,
     bool showSuccessFeedback = false,
   }) async {
     updateTopicCalled = true;
     lastUpdatedTopic = topic;
-    lastUpdatedTitle = title;
+    lastUpdatedTitle = name ?? title;
     lastSelectedVideoIds = selectedVideoIds;
     return updateTopicResult;
   }
@@ -200,7 +201,7 @@ void main() {
 
       expect(find.text('Edit Topic'), findsOneWidget);
       expect(find.byIcon(Icons.close_rounded), findsOneWidget);
-      expect(find.text('Topic Title'), findsOneWidget);
+      expect(find.text('Topic Name'), findsOneWidget);
       expect(find.text('Description'), findsOneWidget);
       expect(find.text('Category'), findsOneWidget);
       expect(find.text('Visibility Type'), findsOneWidget);

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
@@ -17,7 +18,6 @@ import 'package:truthworld/features/channel/presentation/controllers/channel_sub
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/theme/app_theme.dart';
 
 mixin ChannelDetailsMixin on ChannelControllerBase {
   void fetchChannel(String channelId) {
@@ -26,6 +26,7 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
       rxIsLoading.value = false;
       return;
     }
+    subController.fetchSubscriberCount(cleanId);
     rxIsLoading.value = true;
     firestore
         .collection(ChannelControllerBase.channelsCol)
@@ -34,6 +35,11 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
         .then((doc) {
           if (doc.exists) {
             selectedChannel.value = Channel.fromDocumentSnapshot(doc);
+            final verifiedCount = subController.getSubscriberCount(
+              cleanId,
+              fallback: selectedChannel.value?.subscriberCount,
+            );
+            subscriberCount.value = verifiedCount;
           }
           rxIsLoading.value = false;
         })
@@ -48,44 +54,82 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
         });
   }
 
-  Future<void> shareChannel(String channelId) async {
-    final channel = selectedChannel.value;
+  Future<void> shareChannel(String channelId, [Channel? fallbackChannel]) async {
+    final channel = selectedChannel.value ?? fallbackChannel;
     if (channel == null) return;
 
-    Get.find<MainController>().shareChannel(
-      channelId,
-      channel.channelName,
-      avatarUrl: channel.avatarUrl.isNotEmpty ? channel.avatarUrl : null,
-      bannerUrl: channel.bannerUrl.isNotEmpty ? channel.bannerUrl : null,
-      handle: channel.handle,
-      subscriberCount: channel.subscriberCount,
-      videoCount: channel.videoCount,
-      subtitle: channel.description.isNotEmpty ? channel.description : null,
-    );
+    final rawBanner = channel.bannerImageUrl.isNotEmpty
+        ? channel.bannerImageUrl
+        : channel.bannerUrl;
+    final banner = rawBanner.trim().replaceAll(' ', '%20');
+
+    if (Get.isRegistered<MainController>()) {
+      Get.find<MainController>().shareChannel(
+        channelId,
+        channel.channelName,
+        avatarUrl: channel.avatarUrl.isNotEmpty ? channel.avatarUrl : null,
+        bannerUrl: banner.isNotEmpty ? banner : null,
+        handle: channel.handle,
+        subscriberCount: channel.subscriberCount,
+        videoCount: channel.videoCount,
+        subtitle: channel.description.isNotEmpty ? channel.description : null,
+      );
+    } else {
+      final url = DeepLinkService.channelUrl(channelId, handle: channel.handle);
+      ShareBottomSheet.show(
+        title: channel.channelName,
+        url: url,
+        avatarUrl: channel.avatarUrl.isNotEmpty ? channel.avatarUrl : null,
+        bannerUrl: banner.isNotEmpty ? banner : null,
+        thumbnailUrl: banner.isNotEmpty
+            ? banner
+            : (channel.avatarUrl.isNotEmpty ? channel.avatarUrl : null),
+        handle: channel.handle,
+        subscriberCount: channel.subscriberCount,
+        videoCount: channel.videoCount,
+        subtitle: channel.description.isNotEmpty ? channel.description : null,
+        type: 'channel',
+      );
+    }
   }
 
   // Methods for Channel Details Page
   Future<void> loadChannelFromDeepLink(String channelIdOrHandle) async {
-    final cached = DeepLinkService.instance.getChannelFromCache(channelIdOrHandle);
+    final cleanInput = channelIdOrHandle.trim();
+    if (cleanInput.isEmpty) return;
+
+    // Safety guard: If accidentally called with a video watch query string, redirect to video screen
+    if (cleanInput.contains('watch') || cleanInput.contains('v=')) {
+      String? videoId;
+      if (cleanInput.contains('v=')) {
+        final parts = cleanInput.split('v=');
+        if (parts.length > 1) {
+          videoId = parts[1].split('&')[0];
+        }
+      }
+      if (videoId != null && videoId.isNotEmpty) {
+        unawaited(Get.offNamed<void>('/watch?v=$videoId'));
+        return;
+      }
+    }
+
+    final cached = DeepLinkService.instance.getChannelFromCache(cleanInput);
     if (cached != null) {
-      debugPrint('[ChannelController] ⚡ 0ms instant cache hit for channel: $channelIdOrHandle');
+      debugPrint('[ChannelController] ⚡ 0ms instant cache hit for channel: $cleanInput');
       initForChannelDetails(cached);
       return;
     }
 
     try {
-      debugPrint('[ChannelController] ⏳ Loading deep-linked channel from Firestore: $channelIdOrHandle');
-      final channel = await DeepLinkService.instance.loadChannel(channelIdOrHandle);
+      debugPrint('[ChannelController] ⏳ Loading deep-linked channel from Firestore: $cleanInput');
+      final channel = await DeepLinkService.instance.loadChannel(cleanInput);
       if (channel != null) {
         DeepLinkService.instance.cacheChannel(channel);
         initForChannelDetails(channel);
       } else {
-        AppSnackbar.show(
-          'Channel Not Found',
-          'No channel found for $channelIdOrHandle',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: AppColors.bgSurface,
-          colorText: AppColors.textPrimary,
+        AppSnackbar.error(
+          'This channel could not be found. It may have been removed or renamed.',
+          title: 'Channel Unavailable',
         );
       }
     } catch (e, stackTrace) {
@@ -100,8 +144,9 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
   void initForChannelDetails(Channel channel) {
     DeepLinkService.instance.cacheChannel(channel);
     if (selectedChannel.value?.channelId == channel.channelId) {
-      // Already initialized for this channel, just ensure listeners are attached
+      // Already initialized for this channel, just ensure listeners and content are attached
       _attachScrollListener();
+      checkChannelContent(channel.channelId);
       return;
     }
 
@@ -109,8 +154,13 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
     clearChannelDetailsState();
 
     selectedChannel.value = channel;
-    subscriberCount.value = channel.subscriberCount;
-    ChannelSubscriptionController.channelSubscriberCounts[channel.channelId] = channel.subscriberCount;
+    final verifiedCount = subController.getSubscriberCount(
+      channel.channelId,
+      fallback: channel.subscriberCount,
+    );
+    subscriberCount.value = verifiedCount;
+    ChannelSubscriptionController.channelSubscriberCounts[channel.channelId] = verifiedCount;
+    subController.fetchSubscriberCount(channel.channelId);
     subController.hasChannelMemberships.value = channel.hasMemberships;
     hasVideos.value = channel.videoCount > 0;
 
@@ -278,8 +328,26 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
     }
   }
 
+  /// Whether current viewer is the owner of the selected channel.
+  bool get isOwnerOfCurrentChannel {
+    final currentUser = auth.currentUser;
+    final ownerId = selectedChannel.value?.ownerId;
+    return currentUser != null &&
+        (ownerId == currentUser.uid ||
+            (selectedChannel.value?.id != null &&
+                selectedChannel.value!.id ==
+                    AuthService.to.userChannel?.id));
+  }
+
   Future<void> loadInitialVideos() async {
     if (selectedChannel.value == null) return;
+    if (selectedChannel.value!.isOnHold) {
+      videos.clear();
+      hasVideos.value = false;
+      channelVideoCount.value = 0;
+      isLoadingVideos.value = false;
+      return;
+    }
     isLoadingVideos.value = true;
     try {
       var query = firestore
@@ -305,19 +373,13 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
         query = query.orderBy('uploadedAt', descending: true);
       }
 
-      final currentUser = auth.currentUser;
-      final isChannelOwner = currentUser != null &&
-          (selectedChannel.value?.ownerId == currentUser.uid ||
-           (selectedChannel.value?.channelId != null &&
-            selectedChannel.value!.channelId == AuthService.to.userChannel?.channelId));
-
       final snapshot = await query.limit(12).getCacheFirst();
 
       if (snapshot.docs.isNotEmpty) {
+        final isOwner = isOwnerOfCurrentChannel;
         videos.value = snapshot.docs
             .map(Video.fromDocumentSnapshot)
-            .where(VideoVisibilityPolicy.isValidVideo)
-            .where((v) => isChannelOwner || !v.isPrivate)
+            .where((v) => VideoVisibilityPolicy.isVisibleForChannel(v, isChannelOwner: isOwner))
             .toList();
         lastVideoDocument.value = snapshot.docs.last;
         hasVideos.value = videos.isNotEmpty;
@@ -347,6 +409,7 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
   }
 
   Future<void> loadMoreVideos() async {
+    if (selectedChannel.value?.isOnHold == true) return;
     if (lastVideoDocument.value == null ||
         isLoadingMore.value ||
         selectedChannel.value == null) {
@@ -354,12 +417,6 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
     }
     isLoadingMore.value = true;
     try {
-      final currentUser = auth.currentUser;
-      final isChannelOwner = currentUser != null &&
-          (selectedChannel.value?.ownerId == currentUser.uid ||
-           (selectedChannel.value?.channelId != null &&
-            selectedChannel.value!.channelId == AuthService.to.userChannel?.channelId));
-
       var query = firestore
           .collection(FirestoreCollections.videos)
           .where('channelId', isEqualTo: selectedChannel.value!.channelId);
@@ -387,11 +444,11 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
           .limit(12)
           .getCacheFirst();
       if (snapshot.docs.isNotEmpty) {
+        final isOwner = isOwnerOfCurrentChannel;
         videos.addAll(
           snapshot.docs
               .map(Video.fromDocumentSnapshot)
-              .where(VideoVisibilityPolicy.isValidVideo)
-              .where((v) => isChannelOwner || !v.isPrivate)
+              .where((v) => VideoVisibilityPolicy.isVisibleForChannel(v, isChannelOwner: isOwner))
               .toList(),
         );
         lastVideoDocument.value = snapshot.docs.last;
@@ -443,32 +500,20 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
 
   Future<void> fetchChannelVideoCount(String channelId) async {
     try {
-      final currentUser = auth.currentUser;
-      final isOwner = currentUser != null &&
-          (selectedChannel.value?.ownerId == currentUser.uid ||
-           (selectedChannel.value?.channelId != null &&
-            selectedChannel.value!.channelId == AuthService.to.userChannel?.channelId));
-
-      if (isOwner) {
+      try {
         final countSnap = await firestore
             .collection(FirestoreCollections.videos)
             .where('channelId', isEqualTo: channelId)
+            .where('visibility', whereIn: const ['public', 'Public'])
             .count()
             .get();
-        channelVideoCount.value = countSnap.count ?? 0;
-      } else {
-        try {
-          final countSnap = await firestore
-              .collection(FirestoreCollections.videos)
-              .where('channelId', isEqualTo: channelId)
-              .where('visibility', isEqualTo: 'Public')
-              .count()
-              .get();
-          channelVideoCount.value = countSnap.count ?? 0;
-        } catch (_) {
-          channelVideoCount.value =
-              videos.where((v) => !v.isPrivate).length;
-        }
+        final c = countSnap.count ?? 0;
+        channelVideoCount.value = c > 0
+            ? c
+            : videos.where(VideoVisibilityPolicy.isVisibleForChannel).length;
+      } catch (_) {
+        channelVideoCount.value =
+            videos.where(VideoVisibilityPolicy.isVisibleForChannel).length;
       }
     } catch (e, stackTrace) {
       ErrorHandler.log(
@@ -481,88 +526,171 @@ mixin ChannelDetailsMixin on ChannelControllerBase {
 
   Future<void> checkChannelContent(String channelId) async {
     try {
-      final currentUser = auth.currentUser;
-      final isOwner = currentUser != null &&
-          (selectedChannel.value?.ownerId == currentUser.uid ||
-           (selectedChannel.value?.channelId != null &&
-            selectedChannel.value!.channelId == AuthService.to.userChannel?.channelId));
+      final isOwner = isOwnerOfCurrentChannel;
+      final ownerId = selectedChannel.value?.ownerId;
 
       // Performance & Cost Optimization: Skip video query if already verified from channel.videoCount
       final needsVideoQuery = !hasVideos.value &&
           (selectedChannel.value == null || selectedChannel.value!.videoCount <= 0);
 
-      final results = await Future.wait([
-        if (needsVideoQuery)
-          firestore
-              .collection(FirestoreCollections.videos)
-              .where('channelId', isEqualTo: channelId)
-              .limit(1)
-              .getCacheFirst()
-        else
-          Future.value(),
-        firestore
-            .collection('public_playlists')
-            .where('channelId', isEqualTo: channelId)
-            .limit(1)
-            .getCacheFirst(),
-        firestore
-            .collection(FirestoreCollections.community)
-            .where('channelId', isEqualTo: channelId)
-            .limit(1)
-            .getCacheFirst(),
-        firestore
-            .collection(FirestoreCollections.topics)
-            .where('channelId', isEqualTo: channelId)
-            .limit(3)
-            .getCacheFirst(),
+      await Future.wait([
+        // 1. Check videos
+        (() async {
+          if (!needsVideoQuery) return;
+          try {
+            final snap = await firestore
+                .collection(FirestoreCollections.videos)
+                .where('channelId', isEqualTo: channelId)
+                .limit(10)
+                .getCacheFirst();
+            final hasAnyVisibleVideo = snap.docs.any((doc) {
+              final data = doc.data() as Map<String, dynamic>?;
+              if (data == null) return false;
+              final vis = (data['visibility'] as String?)?.toLowerCase() ?? 'public';
+              if (isOwner && (vis == 'private' || vis == 'private_draft' || vis == 'unlisted')) {
+                return true;
+              }
+              final isDiscoverable = vis == 'public' ||
+                  vis.isEmpty ||
+                  vis == 'members_only' ||
+                  vis == 'members' ||
+                  vis == 'subscribers_only' ||
+                  vis == 'subscribers';
+              return isDiscoverable && VideoVisibilityPolicy.isMapValid(data);
+            });
+            hasVideos.value = hasAnyVisibleVideo;
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'ChannelDetailsMixin.checkChannelContent.videos');
+          }
+        })(),
+
+        // 2. Check playlists
+        (() async {
+          try {
+            final snap = await firestore
+                .collection('public_playlists')
+                .where('channelId', isEqualTo: channelId)
+                .limit(1)
+                .getCacheFirst();
+            final hasAnyPlaylist = snap.docs.any((doc) {
+              final data = doc.data() as Map<String, dynamic>?;
+              if (data == null) return false;
+              final thumb = (data['thumbnailUrl'] as String?)?.trim() ?? '';
+              final vCount = (data['videoCount'] as num?)?.toInt() ?? 0;
+              final videoIds = data['videoIds'] as List?;
+              return thumb.isNotEmpty || vCount > 0 || (videoIds != null && videoIds.isNotEmpty);
+            });
+            hasPlaylists.value = hasAnyPlaylist;
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'ChannelDetailsMixin.checkChannelContent.playlists');
+          }
+        })(),
+
+        // 3. Check community posts
+        (() async {
+          try {
+            // Check primary collection 'Community' by channelId
+            var snap = await firestore
+                .collection(FirestoreCollections.community)
+                .where('channelId', isEqualTo: channelId)
+                .limit(5)
+                .getCacheFirst();
+
+            // Fallback: check lowercase 'community' by channelId
+            if (snap.docs.isEmpty) {
+              snap = await firestore
+                  .collection('community')
+                  .where('channelId', isEqualTo: channelId)
+                  .limit(5)
+                  .getCacheFirst();
+            }
+
+            // Fallback: check by ownerId if different from channelId
+            if (snap.docs.isEmpty && ownerId != null && ownerId.isNotEmpty && ownerId != channelId) {
+              snap = await firestore
+                  .collection(FirestoreCollections.community)
+                  .where('ownerId', isEqualTo: ownerId)
+                  .limit(5)
+                  .getCacheFirst();
+              if (snap.docs.isEmpty) {
+                snap = await firestore
+                    .collection('community')
+                    .where('ownerId', isEqualTo: ownerId)
+                    .limit(5)
+                    .getCacheFirst();
+              }
+            }
+
+            final hasAnyPost = snap.docs.any((doc) {
+              final data = doc.data() as Map<String, dynamic>?;
+              if (data == null) return false;
+              final postId = (data['id'] as String?) ?? doc.id;
+              final title = (data['title'] as String?)?.trim().toLowerCase() ?? '';
+              final desc = (data['description'] as String?)?.trim().toLowerCase() ?? '';
+
+              // Zero-mock policy filter
+              if (postId == '8Zq2KuYIgm9m8kgogAE3' ||
+                  title == 'our first video' ||
+                  title.startsWith('our first video') ||
+                  (title.contains('first video') && (desc.contains('hi every one') || desc.isEmpty))) {
+                return false;
+              }
+
+              final status = (data['status'] as String?)?.toLowerCase();
+              if (status == 'deleted' || status == 'trashed' || status == 'deletion_pending') {
+                return false;
+              }
+
+              if (isOwner) return true;
+              final vis = (data['visibility'] as String?)?.toLowerCase() ?? 'public';
+              return vis == 'public' || vis == 'subscribers' || vis == 'members';
+            });
+            hasPosts.value = hasAnyPost;
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'ChannelDetailsMixin.checkChannelContent.posts');
+          }
+        })(),
+
+        // 4. Check topics
+        (() async {
+          try {
+            var snap = await firestore
+                .collection(FirestoreCollections.topics)
+                .where('channelId', isEqualTo: channelId)
+                .limit(10)
+                .getCacheFirst();
+
+            if (snap.docs.isEmpty && ownerId != null && ownerId.isNotEmpty && ownerId != channelId) {
+              snap = await firestore
+                  .collection(FirestoreCollections.topics)
+                  .where('creatorId', isEqualTo: ownerId)
+                  .limit(10)
+                  .getCacheFirst();
+            }
+
+            final hasAnyTopic = snap.docs.any((doc) {
+              try {
+                final topic = Topic.fromDocumentSnapshot(doc);
+                if (topic.isArchivedOrDeleted) return false;
+                if (topic.name.trim().isEmpty || topic.slug.trim().isEmpty) return false;
+                final hasContent = topic.videoCount > 0 ||
+                    topic.featuredVideoIds.isNotEmpty ||
+                    topic.postCount > 0;
+                if (!hasContent && !isOwner) return false;
+                if (isOwner) return true;
+                if (topic.visibilityType == TopicVisibilityType.public) return true;
+                if (topic.visibilityType == TopicVisibilityType.channelOnly && isSubscribed.value) return true;
+                return false;
+              } catch (_) {
+                return false;
+              }
+            });
+            hasTopics.value = hasAnyTopic;
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'ChannelDetailsMixin.checkChannelContent.topics');
+          }
+        })(),
       ]);
-
-      if (needsVideoQuery && results[0] != null) {
-        final videoDocs = results[0]!.docs;
-        final hasAnyVisibleVideo = videoDocs.any((doc) {
-          final data = doc.data() as Map<String, dynamic>?;
-          if (data == null) return false;
-          final vis = (data['visibility'] as String?)?.toLowerCase() ?? 'public';
-          return isOwner || (vis != 'private' && vis != 'draft');
-        });
-        hasVideos.value = hasAnyVisibleVideo;
-      }
-
-      final playlistDocs = results[1]!.docs;
-      final hasAnyPlaylist = playlistDocs.any((doc) {
-        final data = doc.data() as Map<String, dynamic>?;
-        if (data == null) return false;
-        final thumb = (data['thumbnailUrl'] as String?)?.trim() ?? '';
-        final vCount = (data['videoCount'] as num?)?.toInt() ?? 0;
-        final videoIds = data['videoIds'] as List?;
-        return thumb.isNotEmpty || vCount > 0 || (videoIds != null && videoIds.isNotEmpty);
-      });
-      hasPlaylists.value = hasAnyPlaylist;
-
-      final postDocs = results[2]!.docs;
-      final hasAnyPost = postDocs.any((doc) {
-        final data = doc.data() as Map<String, dynamic>?;
-        if (data == null) return false;
-        if (isOwner) return true;
-        final vis = (data['visibility'] as String?)?.toLowerCase() ?? 'public';
-        return vis == 'public' || vis == 'subscribers' || vis == 'members';
-      });
-      hasPosts.value = hasAnyPost;
-
-      final topicDocs = results[3]!.docs;
-      final hasAnyTopic = topicDocs.any((doc) {
-        try {
-          final topic = Topic.fromDocumentSnapshot(doc);
-          if (!topic.isValidTopic || (topic.videoCount <= 0 && topic.featuredVideoIds.isEmpty)) return false;
-          if (isOwner) return true;
-          if (topic.visibilityType == TopicVisibilityType.public) return true;
-          if (topic.visibilityType == TopicVisibilityType.channelOnly && isSubscribed.value) return true;
-          return false;
-        } catch (_) {
-          return false;
-        }
-      });
-      hasTopics.value = hasAnyTopic;
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,

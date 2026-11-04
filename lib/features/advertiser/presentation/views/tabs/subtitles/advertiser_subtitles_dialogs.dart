@@ -11,10 +11,10 @@ void showAddSubtitlesTrackDialog(AdvertiserPortalController controller) {
   Get.dialog(
     Obx(
       () => AlertDialog(
-        backgroundColor: const Color(0xFF161618),
+        backgroundColor: AppColors.appBarSurface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFF27272A)),
+          side: const BorderSide(color: AppColors.bgSurface),
         ),
         title: const Text(
           'Add Subtitles Track',
@@ -41,14 +41,14 @@ void showAddSubtitlesTrackDialog(AdvertiserPortalController controller) {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFF121212),
+                color: AppColors.bgInput,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFF27272A)),
+                border: Border.all(color: AppColors.bgSurface),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: selectedLang.value,
-                  dropdownColor: const Color(0xFF161618),
+                  dropdownColor: AppColors.appBarSurface,
                   iconEnabledColor: Colors.white,
                   isExpanded: true,
                   items: [
@@ -126,10 +126,10 @@ void showUploadSubtitlesDialog(AdvertiserPortalController controller) {
   Get.dialog(
     Obx(
       () => AlertDialog(
-        backgroundColor: const Color(0xFF161618),
+        backgroundColor: AppColors.appBarSurface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFF27272A)),
+          side: const BorderSide(color: AppColors.bgSurface),
         ),
         title: const Text(
           'Upload Custom Subtitles',
@@ -166,14 +166,14 @@ void showUploadSubtitlesDialog(AdvertiserPortalController controller) {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFF121212),
+                color: AppColors.bgInput,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFF27272A)),
+                border: Border.all(color: AppColors.bgSurface),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: selectedLang.value,
-                  dropdownColor: const Color(0xFF161618),
+                  dropdownColor: AppColors.appBarSurface,
                   iconEnabledColor: Colors.white,
                   isExpanded: true,
                   items: [
@@ -227,12 +227,12 @@ void showUploadSubtitlesDialog(AdvertiserPortalController controller) {
                   vertical: 12,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF121212),
+                  color: AppColors.bgInput,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: selectedFile.value != null
-                        ? const Color(0xFF10B981)
-                        : const Color(0xFF27272A),
+                        ? AppColors.success
+                        : AppColors.bgSurface,
                   ),
                 ),
                 child: Row(
@@ -292,7 +292,7 @@ void showUploadSubtitlesDialog(AdvertiserPortalController controller) {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: Colors.black,
-              disabledBackgroundColor: const Color(0xFF27272A),
+              disabledBackgroundColor: AppColors.bgSurface,
               disabledForegroundColor: AppColors.textSecondary,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),

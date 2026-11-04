@@ -24,18 +24,6 @@ class TruthVerificationStatsBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    var totalTruthScoreSum = 0.0;
-    var totalScoredVideos = 0;
-    for (final v in videos) {
-      if (v.truthScore > 0) {
-        totalTruthScoreSum += v.truthScore;
-        totalScoredVideos++;
-      }
-    }
-    final overallTruthScore = totalScoredVideos > 0
-        ? (totalTruthScoreSum / totalScoredVideos).clamp(0.0, 1.0)
-        : (allClaims.isNotEmpty ? 0.88 : 0.0);
-
     final pendingApprovalCount =
         videos.where((v) => v.isPendingApproval).length;
     final concernsCount =
@@ -70,7 +58,7 @@ class TruthVerificationStatsBar extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'World-Class Verification Console: interactive timeline, claim diagnostics, AI coach & dossier export.',
+                    'World-Class Verification Console: interactive timeline, claim diagnostics & AI coach.',
                     style: TextStyle(
                       fontFamily: TWTypography.uiFamily,
                       fontSize: 12.5,
@@ -149,18 +137,13 @@ class TruthVerificationStatsBar extends StatelessWidget {
             final isDesktop = constraints.maxWidth > 750;
             final isMobile = constraints.maxWidth < 480;
 
-            final scoreMetric = _buildMetricTile(
-              title: 'Channel Credibility',
-              value: overallTruthScore > 0
-                  ? '${(overallTruthScore * 100).toInt()}%'
-                  : 'N/A',
-              subtitle: 'Epistemic Trust Score',
-              icon: Icons.shield_rounded,
-              color: overallTruthScore >= 0.8
-                  ? AppColors.success
-                  : (overallTruthScore >= 0.5
-                      ? AppColors.warning
-                      : AppColors.info),
+            final videosMetric = _buildMetricTile(
+              title: 'Evaluated Videos',
+              value: '${videos.length}',
+              subtitle:
+                  '${videos.where((v) => v.isFactCheckApproved).length} visible to viewers',
+              icon: Icons.video_library_rounded,
+              color: AppColors.info,
             );
 
             final assertionsMetric = _buildMetricTile(
@@ -199,7 +182,7 @@ class TruthVerificationStatsBar extends StatelessWidget {
             if (isDesktop) {
               return Row(
                 children: [
-                  Expanded(child: scoreMetric),
+                  Expanded(child: videosMetric),
                   const SizedBox(width: 12),
                   Expanded(child: assertionsMetric),
                   const SizedBox(width: 12),
@@ -215,7 +198,7 @@ class TruthVerificationStatsBar extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Expanded(child: scoreMetric),
+                      Expanded(child: videosMetric),
                       const SizedBox(width: 10),
                       Expanded(child: assertionsMetric),
                     ],
@@ -236,7 +219,7 @@ class TruthVerificationStatsBar extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Expanded(child: scoreMetric),
+                    Expanded(child: videosMetric),
                     const SizedBox(width: 12),
                     Expanded(child: assertionsMetric),
                   ],
@@ -310,7 +293,7 @@ class TruthVerificationStatsBar extends StatelessWidget {
         color: isDarkMode ? AppColors.bgSurface : Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isDarkMode ? AppColors.bgDivider : const Color(0xFFE5E7EB),
+          color: isDarkMode ? AppColors.bgDivider : AppColors.textPrimary,
         ),
         boxShadow: [
           BoxShadow(
@@ -394,7 +377,7 @@ class TruthVerificationStatsBar extends StatelessWidget {
           color: isSelected
               ? (isDarkMode
                   ? AppColors.bgSurfaceHover
-                  : const Color(0xFFE5E7EB))
+                  : AppColors.textPrimary)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
@@ -427,7 +410,7 @@ class TruthVerificationStatsBar extends StatelessWidget {
                     ? (isDarkMode ? Colors.black54 : Colors.white)
                     : (isDarkMode
                         ? AppColors.bgSurface
-                        : const Color(0xFFF3F4F6)),
+                        : AppColors.textPrimary),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(

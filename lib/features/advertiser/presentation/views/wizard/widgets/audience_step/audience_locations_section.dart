@@ -76,11 +76,11 @@ class AudienceLocationsSection extends StatelessWidget {
                         showCheckmark: isSelected,
                         checkmarkColor: isSelected ? Colors.black : Colors.white,
                         selectedColor: AppColors.brand,
-                        backgroundColor: const Color(0xFF18181B),
+                        backgroundColor: AppColors.bgPage,
                         side: BorderSide(
                           color: isSelected
                               ? AppColors.brand
-                              : const Color(0xFF27272A),
+                              : AppColors.bgSurface,
                         ),
                         onSelected: (selected) {
                           if (selected) {
@@ -159,17 +159,17 @@ class AudienceLocationsSection extends StatelessWidget {
                                 vertical: 10,
                               ),
                               filled: true,
-                              fillColor: const Color(0xFF18181B),
+                              fillColor: AppColors.bgPage,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                                 borderSide: const BorderSide(
-                                  color: Color(0xFF27272A),
+                                  color: AppColors.bgSurface,
                                 ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                                 borderSide: const BorderSide(
-                                  color: Color(0xFF27272A),
+                                  color: AppColors.bgSurface,
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
@@ -210,7 +210,7 @@ class AudienceLocationsSection extends StatelessWidget {
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF27272A),
+                          backgroundColor: AppColors.bgSurface,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 14,
                             vertical: 10,
@@ -238,10 +238,10 @@ class AudienceLocationsSection extends StatelessWidget {
                       margin: const EdgeInsets.only(top: 8),
                       constraints: const BoxConstraints(maxHeight: 280),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF141417),
+                        color: AppColors.bgPage,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: const Color(0xFF27272A),
+                          color: AppColors.bgSurface,
                         ),
                         boxShadow: [
                           BoxShadow(
@@ -262,7 +262,7 @@ class AudienceLocationsSection extends StatelessWidget {
                                 horizontal: 12,
                                 vertical: 8,
                               ),
-                              color: const Color(0xFF1A1A1E),
+                              color: AppColors.bgPage,
                               child: Row(
                                 children: [
                                   const Icon(
@@ -300,7 +300,7 @@ class AudienceLocationsSection extends StatelessWidget {
                               ),
                             ),
                             const Divider(
-                              color: Color(0xFF27272A),
+                              color: AppColors.bgSurface,
                               height: 1,
                             ),
                             if (suggestions.isEmpty && !isLoading)
@@ -373,7 +373,7 @@ class AudienceLocationsSection extends StatelessWidget {
                                   itemCount: suggestions.length,
                                   separatorBuilder: (context, index) =>
                                       const Divider(
-                                    color: Color(0xFF1E1E22),
+                                    color: AppColors.bgSurface,
                                     height: 1,
                                   ),
                                   itemBuilder: (ctx, idx) {
@@ -460,13 +460,12 @@ class AudienceLocationsSection extends StatelessWidget {
                                               ),
                                               decoration: BoxDecoration(
                                                 color:
-                                                    const Color(0xFF202024),
+                                                    AppColors.bgSurface,
                                                 borderRadius:
                                                     BorderRadius.circular(
                                                         4),
                                                 border: Border.all(
-                                                  color: const Color(
-                                                      0xFF2F2F35),
+                                                  color: AppColors.searchBorder,
                                                 ),
                                               ),
                                               child: Text(
@@ -523,7 +522,7 @@ class AudienceLocationsSection extends StatelessWidget {
                             size: 14,
                           ),
                           onDeleted: () => selectedLocations.remove(loc),
-                          backgroundColor: const Color(0xFF27272A),
+                          backgroundColor: AppColors.bgSurface,
                           padding: const EdgeInsets.all(4),
                           materialTapTargetSize:
                               MaterialTapTargetSize.shrinkWrap,

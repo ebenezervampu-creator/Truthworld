@@ -1,7 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/features/admin/presentation/views/dashboard_components/admin_change_password_dialog.dart';
+import 'package:truthworld/features/admin/presentation/views/dashboard_components/admin_notification_bell.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class AdminHeader extends StatelessWidget implements PreferredSizeWidget {
@@ -22,7 +24,7 @@ class AdminHeader extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     return AppBar(
-      backgroundColor: const Color(0xFF181818),
+      backgroundColor: AppColors.bgPage,
       elevation: 0,
       automaticallyImplyLeading: false,
       titleSpacing: isDesktop ? 24 : 8,
@@ -97,6 +99,10 @@ class AdminHeader extends StatelessWidget implements PreferredSizeWidget {
             color: Colors.white,
           ),
         ),
+        AdminNotificationBell(controller: controller),
+        const SizedBox(width: 4),
+        _buildAdminAvatar(context),
+        const SizedBox(width: 6),
         Padding(
           padding: const EdgeInsets.only(right: 12),
           child: TextButton.icon(
@@ -123,5 +129,39 @@ class AdminHeader extends StatelessWidget implements PreferredSizeWidget {
         child: Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
       ),
     );
+  }
+
+  Widget _buildAdminAvatar(BuildContext context) {
+    return Obx(() {
+      final email = controller.isAdmin.value
+          ? (FirebaseAuth.instance.currentUser?.email ??
+              (controller.currentAdminEmail.value.isNotEmpty
+                  ? controller.currentAdminEmail.value
+                  : 'Admin'))
+          : 'Admin';
+      final initial = email.isNotEmpty ? email[0].toUpperCase() : 'A';
+      return Tooltip(
+        message: email,
+        child: Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+          ),
+          child: CircleAvatar(
+            radius: 15,
+            backgroundColor: AppColors.bgSurface,
+            child: Text(
+              initial,
+              style: const TextStyle(
+                fontFamily: TWTypography.brandFamily,
+                color: AppColors.textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      );
+    });
   }
 }

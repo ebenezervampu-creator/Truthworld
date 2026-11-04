@@ -355,25 +355,59 @@ mixin ChannelCreationMixin on ChannelControllerBase {
           : customUrlText.trim();
       final handleLower = cleanHandle.toLowerCase();
 
-      // 1. Check handle availability against existing channels collection
-      final handleQuery = await firestore
-          .collection(ChannelControllerBase.channelsCol)
-          .where('handleLowercase', isEqualTo: handleLower)
-          .limit(1)
-          .get();
+      // 1. Check handle availability against existing channels collection with resilient timeout
+      try {
+        final handleQuery = await firestore
+            .collection(ChannelControllerBase.channelsCol)
+            .where('handleLowercase', isEqualTo: handleLower)
+            .limit(1)
+            .get()
+            .timeout(const Duration(seconds: 5));
 
-      if (handleQuery.docs.isNotEmpty) {
-        showErrorSnackbar('Handle "@$cleanHandle" is already taken. Please choose a different handle.');
-        isSubmitting.value = false;
-        return;
+        if (handleQuery.docs.isNotEmpty) {
+          final docData = handleQuery.docs.first.data();
+          final ownerId = (docData['ownerId'] ?? docData['userId']) as String?;
+          final status = (docData['status'] as String? ?? 'active').toLowerCase();
+          if (status != 'deleted' && (ownerId == null || ownerId != uid)) {
+            showErrorSnackbar('Handle "@$cleanHandle" is already taken. Please choose a different handle.');
+            isSubmitting.value = false;
+            return;
+          }
+        }
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'ChannelCreationMixin.checkHandleAvailability');
       }
 
-      // Also check channel_handles collection
+      // Check channel name availability with resilient timeout
+      try {
+        final nameQuery = await firestore
+            .collection(ChannelControllerBase.channelsCol)
+            .where('nameLowercase', isEqualTo: channelNameText.toLowerCase())
+            .limit(1)
+            .get()
+            .timeout(const Duration(seconds: 5));
+
+        if (nameQuery.docs.isNotEmpty) {
+          final docData = nameQuery.docs.first.data();
+          final ownerId = (docData['ownerId'] ?? docData['userId']) as String?;
+          final status = (docData['status'] as String? ?? 'active').toLowerCase();
+          if (status != 'deleted' && (ownerId == null || ownerId != uid)) {
+            showErrorSnackbar('Channel name "$channelNameText" is already taken. Please choose a different name.');
+            isSubmitting.value = false;
+            return;
+          }
+        }
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'ChannelCreationMixin.checkNameAvailability');
+      }
+
+      // Also check channel_handles collection with resilient timeout
       try {
         final existingHandleDoc = await firestore
             .collection('channel_handles')
             .doc(handleLower)
-            .get();
+            .get()
+            .timeout(const Duration(seconds: 5));
         if (existingHandleDoc.exists && existingHandleDoc.data()?['ownerId'] != uid) {
           showErrorSnackbar('Handle "@$cleanHandle" is already claimed. Please choose a different handle.');
           isSubmitting.value = false;
@@ -508,6 +542,56 @@ mixin ChannelCreationMixin on ChannelControllerBase {
         });
       } catch (e, s) {
         ErrorHandler.log(e, stackTrace: s, tag: 'ChannelCreationMixin.updateHandleRegistry');
+      }
+
+      // 4.1 Seed Welcome to Creator Studio Notification in Firestore
+      try {
+        final welcomeNotifId = 'welcome_$newChannelId';
+        final welcomeData = {
+          'id': welcomeNotifId,
+          'userId': uid,
+          'channelId': newChannelId,
+          'type': 'channel_notifications',
+          'category': 'channel',
+          'severity': 'info',
+          'priority': 'medium',
+          'targetApp': 'studio',
+          'title': 'Welcome to Creator Studio: $channelNameText',
+          'message':
+              'Your channel @$cleanHandle is registered and ready. Channel health is in good standing with zero policy strikes.',
+          'actionUrl': '/studio',
+          'metadata': {
+            'channelId': newChannelId,
+            'channelName': channelNameText,
+            'handle': cleanHandle,
+            'tab': 0,
+            'category': 'channel',
+            'targetApp': 'studio',
+          },
+          'read': false,
+          'createdAt': DateTime.now().millisecondsSinceEpoch,
+          'pushSent': true,
+        };
+        final notifBatch = firestore.batch();
+        notifBatch.set(
+          firestore.collection('user_notifications').doc(welcomeNotifId),
+          welcomeData,
+        );
+        notifBatch.set(
+          firestore
+              .collection(FirestoreCollections.users)
+              .doc(uid)
+              .collection('notifications_active')
+              .doc(welcomeNotifId),
+          welcomeData,
+        );
+        await notifBatch.commit();
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'ChannelCreationMixin.seedWelcomeNotification',
+        );
       }
 
       // 5. Clean up drafts if any

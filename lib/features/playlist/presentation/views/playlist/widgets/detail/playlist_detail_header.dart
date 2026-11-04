@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/widgets/detail/playlist_action_buttons.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/widgets/detail/playlist_channel_header_info.dart';
@@ -128,8 +129,8 @@ class PlaylistDescriptionWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          description,
+        ClickableUrlText(
+          text: description,
           style: const TextStyle(
             fontSize: 14,
             color: ytTextSecondary,

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
@@ -17,6 +18,9 @@ class PlaylistCrudManager with ContentValidationMixin {
     required this.getUserId,
     required this.syncManager,
     required this.refreshPlaylistsTick,
+    this.getWatchLaterPlaylist,
+    this.getWatchLaterThumbnail,
+    this.getWatchLaterCount,
     FirebaseFirestore? firestore,
   }) : _firestore = firestore ?? FirebaseFirestore.instance;
 
@@ -24,6 +28,9 @@ class PlaylistCrudManager with ContentValidationMixin {
   final String Function() getUserId;
   final PlaylistSyncManager syncManager;
   final VoidCallback refreshPlaylistsTick;
+  final PlaylistModel? Function()? getWatchLaterPlaylist;
+  final String Function()? getWatchLaterThumbnail;
+  final int Function()? getWatchLaterCount;
 
   Future<PlaylistModel?> createPlayList(
     String playlistName, {
@@ -139,6 +146,17 @@ class PlaylistCrudManager with ContentValidationMixin {
 
   Future<void> deletePlaylist(String playlistId, bool isPublic) async {
     final user = getUserId();
+    if (user.isEmpty) {
+      AppSnackbar.warning('Please sign in to delete playlists.');
+      return;
+    }
+
+    if (playlistId == 'watchlater' ||
+        playlistId.toLowerCase().trim() == 'watch later') {
+      AppSnackbar.warning('The Watch Later playlist cannot be deleted.');
+      return;
+    }
+
     try {
       final ref = isPublic
           ? _firestore.collection('public_playlists').doc(playlistId)
@@ -147,6 +165,10 @@ class PlaylistCrudManager with ContentValidationMixin {
                 .doc(user)
                 .collection(FirestoreCollections.playlists)
                 .doc(playlistId);
+
+      final removedPlaylist = isPublic
+          ? syncManager.publicPlaylists.firstWhereOrNull((p) => p.id == playlistId)
+          : syncManager.playlists.firstWhereOrNull((p) => p.id == playlistId);
 
       await ref.update({
         'status': 'deletion_pending',
@@ -160,10 +182,53 @@ class PlaylistCrudManager with ContentValidationMixin {
         });
       } catch (_) {}
 
-      AppSnackbar.success('Playlist moved to Trash. It will be retained for 30 days.');
+      if (isPublic) {
+        syncManager.publicPlaylists.removeWhere((p) => p.id == playlistId);
+      } else {
+        syncManager.playlists.removeWhere((p) => p.id == playlistId);
+      }
+      refreshPlaylistsTick();
+
+      AppSnackbar.success(
+        'Playlist deleted',
+        actionLabel: 'Undo',
+        onAction: () async {
+          try {
+            await ref.update({
+              'status': 'active',
+              'deletionRequestedAt': FieldValue.delete(),
+            });
+            try {
+              await _firestore
+                  .collection(FirestoreCollections.playlists)
+                  .doc(playlistId)
+                  .update({
+                'status': 'active',
+                'deletionRequestedAt': FieldValue.delete(),
+              });
+            } catch (_) {}
+
+            if (removedPlaylist != null) {
+              if (isPublic) {
+                if (!syncManager.publicPlaylists.any((p) => p.id == playlistId)) {
+                  syncManager.publicPlaylists.add(removedPlaylist);
+                }
+              } else {
+                if (!syncManager.playlists.any((p) => p.id == playlistId)) {
+                  syncManager.playlists.add(removedPlaylist);
+                }
+              }
+            }
+            refreshPlaylistsTick();
+            AppSnackbar.success('Playlist restored');
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'PlaylistCrudManager.undoDelete');
+          }
+        },
+      );
     } catch (e) {
       ErrorHandler.log(e);
-      AppSnackbar.error('Unable to move playlist to Trash. Please try again.');
+      AppSnackbar.error('Unable to delete playlist. Please try again.');
     }
   }
 
@@ -171,6 +236,12 @@ class PlaylistCrudManager with ContentValidationMixin {
     String playlistId, {
     required bool isPublic,
   }) async {
+    if (playlistId == 'watchlater' ||
+        playlistId.toLowerCase().trim() == 'watch later') {
+      final wl = getWatchLaterPlaylist?.call();
+      if (wl != null) return wl;
+    }
+
     final user = getUserId();
     final doc = isPublic
         ? await _firestore.collection('public_playlists').doc(playlistId).get()
@@ -192,6 +263,12 @@ class PlaylistCrudManager with ContentValidationMixin {
     String newName,
     bool isPublic,
   ) async {
+    if (playlistId == 'watchlater' ||
+        playlistId.toLowerCase().trim() == 'watch later') {
+      AppSnackbar.warning('The Watch Later playlist cannot be renamed.');
+      return;
+    }
+
     final validation = ContentValidator.validate(
       newName,
       fieldName: 'Playlist Name',
@@ -313,22 +390,55 @@ class PlaylistCrudManager with ContentValidationMixin {
     }
   }
 
-  Future<void> sharePlaylist(String playlistId, {String? name}) async {
+  Future<void> sharePlaylist(
+    String playlistId, {
+    String? name,
+    String? thumbnailUrl,
+    int? videoCount,
+    String? channelName,
+  }) async {
     try {
-      final playlist = syncManager.playlists
+      var playlist = syncManager.playlists
               .firstWhereOrNull((p) => p.id == playlistId) ??
           syncManager.publicPlaylists
               .firstWhereOrNull((p) => p.id == playlistId);
 
-      final playlistName = name ?? playlist?.playlistName ?? 'Playlist';
-      final thumbnailUrl = playlist?.thumbnailUrl;
-      final videoCount = playlist?.videoCount;
+      final isWatchLater = playlistId == 'watchlater' ||
+          playlistId == 'watch_later' ||
+          playlist?.playlistName.toLowerCase().trim() == 'watch later';
+
+      if (playlist == null && isWatchLater) {
+        playlist = getWatchLaterPlaylist?.call();
+      }
+
+      final wlThumb = getWatchLaterThumbnail?.call() ?? '';
+      final wlCount = getWatchLaterCount?.call() ?? 0;
+
+      final playlistName = name ??
+          playlist?.playlistName ??
+          (isWatchLater ? 'Watch Later' : 'Playlist');
+      final effectiveThumb = (thumbnailUrl != null && thumbnailUrl.isNotEmpty)
+          ? thumbnailUrl
+          : (playlist?.thumbnailUrl.isNotEmpty == true
+              ? playlist!.thumbnailUrl
+              : (isWatchLater ? wlThumb : ''));
+      final effectiveCount = videoCount ??
+          playlist?.effectiveVideoCount ??
+          (isWatchLater ? wlCount : 0);
+
+      final user = FirebaseAuth.instance.currentUser;
+      final defaultChannel = (user?.displayName?.isNotEmpty == true)
+          ? user!.displayName!
+          : 'TruthWorld';
+      final effectiveChannel = channelName ??
+          (playlist?.channelId.isEmpty != false ? defaultChannel : null);
 
       Get.find<MainController>().sharePlaylist(
         playlistId,
         playlistName,
-        thumbnailUrl: thumbnailUrl,
-        videoCount: videoCount,
+        thumbnailUrl: effectiveThumb,
+        videoCount: effectiveCount,
+        channelName: effectiveChannel,
       );
     } catch (e, stackTrace) {
       logger.error(

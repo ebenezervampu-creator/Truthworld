@@ -96,5 +96,37 @@ void main() {
       expect(await hasOfflineVideo('test_vid_123'), isFalse);
       expect(await onDiskFile.exists(), isFalse);
     });
+
+    test('Saves HLS/DASH streaming metadata and resolves direct stream URL without proxy', () async {
+      final hlsVideo = OfflineVideo(
+        id: 'hls_stream_456',
+        title: 'HLS Stream Video',
+        channelName: 'Truthworld Tech',
+        channelImage: 'https://example.com/avatar.jpg',
+        views: '45.2K',
+        thumbnailUrl: 'https://example.com/thumb_hls.jpg',
+        downloadedAt: DateTime.now(),
+        videoUrl: 'https://cdn.truthworld.com/streams/hls_stream_456/master.m3u8',
+      );
+
+      await saveOfflineVideoMetadata('hls_stream_456', hlsVideo);
+
+      // Verify existence
+      expect(await hasOfflineVideo('hls_stream_456'), isTrue);
+
+      // Verify metadata is stored
+      final meta = await getOfflineVideoMetadata('hls_stream_456');
+      expect(meta, isNotNull);
+      expect(meta!.videoUrl, equals('https://cdn.truthworld.com/streams/hls_stream_456/master.m3u8'));
+
+      // Verify getOfflinePlaybackUrl returns direct HLS/DASH stream URL without localhost proxy
+      final playbackUrl = await getOfflinePlaybackUrl('hls_stream_456');
+      expect(playbackUrl, equals('https://cdn.truthworld.com/streams/hls_stream_456/master.m3u8'));
+      expect(playbackUrl!.startsWith('http://127.0.0.1:'), isFalse);
+
+      // Verify cleanup
+      await deleteVideo('hls_stream_456');
+      expect(await hasOfflineVideo('hls_stream_456'), isFalse);
+    });
   });
 }

@@ -80,7 +80,9 @@ class MembershipsAnalyticsTab extends StatelessWidget {
                         child: Text(
                           noAds
                               ? '70% TO CREATOR (CHANNEL PREMIUM)'
-                              : '100% TO CREATOR',
+                              : (controller.isCustomChannel.value
+                                  ? '100% TO CREATOR'
+                                  : '90% TO CREATOR (10% FEE)'),
                           style: TextStyle(
                             color: noAds
                                 ? (isDarkMode
@@ -124,7 +126,9 @@ class MembershipsAnalyticsTab extends StatelessWidget {
                               child: Text(
                                 noAds
                                     ? '70% TO CREATOR (CHANNEL PREMIUM)'
-                                    : '100% TO CREATOR',
+                                    : (controller.isCustomChannel.value
+                                        ? '100% TO CREATOR'
+                                        : '90% TO CREATOR (10% FEE)'),
                                 style: TextStyle(
                                   color: noAds
                                       ? (isDarkMode

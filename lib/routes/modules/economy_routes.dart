@@ -6,6 +6,7 @@ import 'package:truthworld/features/premium/presentation/bindings/premium_bindin
 import 'package:truthworld/features/premium/presentation/views/premium_plans_screen.dart'
     deferred as premium_plans;
 import 'package:truthworld/routes/app_routes.dart';
+import 'package:truthworld/routes/app_transitions.dart';
 
 /// Lightweight transparent handoff screen that auto-pops itself when payment deep links return.
 class PaymentHandoffScreen extends StatelessWidget {
@@ -33,25 +34,24 @@ class EconomyRoutes {
         loader: premium_plans.loadLibrary,
         builder: () => premium_plans.PremiumPlansScreen(),
       ),
+      transition: AppTransitions.modal,
+      transitionDuration: AppTransitions.modalDuration,
+      curve: AppTransitions.modalCurve,
       binding: PremiumBinding(),
-    ),
-    GetPage(
-      name: AppRoutes.userWallet,
-      page: () => const SizedBox.shrink(),
-      middlewares: [AuthGuard(), WalletRedirectMiddleware()],
-    ),
-    GetPage(
-      name: AppRoutes.wallet,
-      page: () => const SizedBox.shrink(),
-      middlewares: [AuthGuard(), WalletRedirectMiddleware()],
     ),
     GetPage(
       name: AppRoutes.paymentResult,
       page: () => const PaymentHandoffScreen(),
+      transition: AppTransitions.peer,
+      transitionDuration: AppTransitions.peerDuration,
+      curve: AppTransitions.peerCurve,
     ),
     GetPage(
       name: AppRoutes.checkout,
       page: () => const PaymentHandoffScreen(),
+      transition: AppTransitions.peer,
+      transitionDuration: AppTransitions.peerDuration,
+      curve: AppTransitions.peerCurve,
     ),
   ];
 }

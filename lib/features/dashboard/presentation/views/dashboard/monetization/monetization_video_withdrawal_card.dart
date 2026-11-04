@@ -3,19 +3,20 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:percent_indicator/percent_indicator.dart';
+import 'package:truthworld/features/analytics/presentation/controllers/creator_analytics_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/monetization_ai_features_modal.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/monetization_card_container.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
 /// Target threshold in watch hours required for unlocking per-video cash-outs.
-const double kCashOutWatchHoursThreshold = 10.0;
+const double kCashOutWatchHoursThreshold = 30.0;
 
 /// Target threshold in view count required for unlocking per-video cash-outs.
 const int kCashOutViewsThreshold = 1000;
 
-/// Section showing per-video progress toward the 1,000 views and 10-hour cash-out threshold.
+/// Section showing per-video progress toward the 1,000 views and 30-hour cash-out threshold.
 /// Styled with exact Library theme and monochrome metrics.
 class PerVideoWithdrawalSection extends StatelessWidget {
   const PerVideoWithdrawalSection({
@@ -32,17 +33,39 @@ class PerVideoWithdrawalSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const MonetizationSectionTitle(
-            title: 'Video Cash-Out Eligibility (1,000 Views & 10 Hours)',
+            title: 'Video Cash-Out Eligibility (1,000 Views & 30 Hours)',
           ),
           const SizedBox(height: 8),
           const Text(
-            'Track views and watch hours per video. Once any video reaches 1,000 views & 10 hours watch time and KYC is completed, channel monetization is ON and all videos generate revenue. Earnings become withdrawable per video after reaching 1,000 views and 10 hours of watch time; otherwise, wait or spend immediately on TruthWorld AI features (dubbing, subtitles, etc.)!',
+            'Track views and watch hours per video. Once any video reaches 1,000 views & 30 hours watch time and KYC is completed, channel monetization is ON and all videos generate revenue. Earnings become withdrawable per video after reaching 1,000 views and 30 hours of watch time.',
             style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 16),
           Obx(() {
-            final videos = controller.recentVideos;
+            final videos = controller.recentVideos.isNotEmpty
+                ? controller.recentVideos
+                : (Get.isRegistered<VideoManagementController>() &&
+                        Get.find<VideoManagementController>().channelVideos.isNotEmpty
+                    ? Get.find<VideoManagementController>().channelVideos
+                    : (Get.isRegistered<CreatorAnalyticsController>() &&
+                            Get.find<CreatorAnalyticsController>().channelVideos.isNotEmpty
+                        ? Get.find<CreatorAnalyticsController>().channelVideos
+                        : controller.recentVideos));
             if (videos.isEmpty) {
+              if (controller.rxIsLoading.value) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24.0),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
+                );
+              }
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                controller.ensureVideosLoaded();
+              });
               return Container(
                 padding: const EdgeInsets.all(20),
                 alignment: Alignment.center,
@@ -148,7 +171,7 @@ class VideoWithdrawalRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${NumberFormat.compact().format(video.viewCount)}/1K views • ${watchHours.toStringAsFixed(1)}/10.0 hrs watch time',
+                    '${NumberFormat.compact().format(video.viewCount)}/1K views • ${watchHours.toStringAsFixed(1)}/30.0 hrs watch time',
                     style: const TextStyle(
                       fontSize: 11,
                       color: AppColors.textSecondary,
@@ -174,10 +197,10 @@ class VideoWithdrawalRow extends StatelessWidget {
               child: Text(
                 isEligibleForCashOut
                     ? 'Cash-Out Ready'
-                    : (watchHours < 10.0 && video.viewCount < 1000
-                        ? 'Locked (<1K views & <10h)'
-                        : (watchHours < 10.0
-                            ? 'Locked (${watchHours.toStringAsFixed(1)}h/10h)'
+                    : (watchHours < 30.0 && video.viewCount < 1000
+                        ? 'Locked (<1K views & <30h)'
+                        : (watchHours < 30.0
+                            ? 'Locked (${watchHours.toStringAsFixed(1)}h/30h)'
                             : 'Locked (${video.viewCount}/1K views)')),
                 style: TextStyle(
                   fontSize: 10,
@@ -189,46 +212,13 @@ class VideoWithdrawalRow extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: LinearPercentIndicator(
-                lineHeight: 6,
-                percent: progress,
-                progressColor: Colors.white,
-                backgroundColor: const Color(0xFF27272A),
-                barRadius: const Radius.circular(3),
-                padding: EdgeInsets.zero,
-              ),
-            ),
-            const SizedBox(width: 12),
-            InkWell(
-              onTap: () =>
-                  SpendRevenueBottomSheet.show(context, controller, video),
-              borderRadius: BorderRadius.circular(6),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.auto_awesome_rounded,
-                      color: Colors.white,
-                      size: 14,
-                    ),
-                    SizedBox(width: 4),
-                    Text(
-                      'Use for AI Tools',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+        LinearPercentIndicator(
+          lineHeight: 6,
+          percent: progress,
+          progressColor: Colors.white,
+          backgroundColor: AppColors.bgSurface,
+          barRadius: const Radius.circular(3),
+          padding: EdgeInsets.zero,
         ),
       ],
     );

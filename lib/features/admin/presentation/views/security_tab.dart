@@ -123,7 +123,7 @@ class SecurityTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
@@ -212,7 +212,7 @@ class SecurityTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
@@ -328,7 +328,7 @@ class SecurityTab extends StatelessWidget {
                         'Investigate',
                         style: TextStyle(
                           fontFamily: TWTypography.uiFamily,
-                          color: Color(0xFF42A5F5),
+                          color: AppColors.info,
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                         ),
@@ -348,7 +348,7 @@ class SecurityTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
@@ -475,7 +475,7 @@ class SecurityTab extends StatelessWidget {
               'Investigate',
               style: TextStyle(
                 fontFamily: TWTypography.uiFamily,
-                color: Color(0xFF42A5F5),
+                color: AppColors.info,
                 fontWeight: FontWeight.bold,
                 fontSize: 12,
               ),
@@ -490,7 +490,7 @@ class SecurityTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
@@ -545,7 +545,7 @@ class SecurityTab extends StatelessWidget {
             const SizedBox(height: 16),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF242424),
+                backgroundColor: AppColors.bgSurface,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),

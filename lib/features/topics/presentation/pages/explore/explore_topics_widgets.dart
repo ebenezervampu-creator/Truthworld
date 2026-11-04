@@ -8,4 +8,5 @@ export 'explore_topics_featured_section.dart';
 export 'explore_topics_filter_bar.dart';
 export 'explore_topics_page_view.dart';
 export 'explore_topics_search_bar.dart';
+export 'explore_topics_search_results.dart';
 export 'explore_topics_video_section.dart';

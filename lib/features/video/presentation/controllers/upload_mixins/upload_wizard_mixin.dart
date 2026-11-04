@@ -95,6 +95,15 @@ mixin UploadWizardMixin on UploadControllerBase {
       selectedVisibility.value = video.visibility;
     }
 
+    if (video.isScheduled || video.scheduledPublishAt != null) {
+      isScheduled.value = true;
+      if (video.scheduledPublishAt != null) {
+        scheduledDate.value = video.scheduledPublishAt!;
+      }
+    } else {
+      isScheduled.value = false;
+    }
+
     if (video.tags.isNotEmpty) {
       tagController.text = video.tags.join(', ');
     }

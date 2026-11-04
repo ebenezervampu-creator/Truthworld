@@ -8,7 +8,7 @@ const db = () => admin.firestore();
  * 📅 AUTOMATED MONTHLY ZERO-WASTE PLAN BALANCE ROLLOVER
  *
  * Runs automatically at 00:00 IST on the 1st day of each month.
- * Scans all Custom Channels, computes unspent infra budget from the previous month,
+ * Scans all Pro Channels, computes unspent infra budget from the previous month,
  * and rolls over 100% of the unspent balance into `rolloverCreditUSD` down to the exact cent.
  *
  * All operations are server-governed inside atomic transactions.
@@ -30,11 +30,11 @@ export const monthlyZeroWasteRollover = onSchedule(
         .get();
 
       if (channelsSnap.empty) {
-        logger.info("[MonthlyRollover] No custom channels found.");
+        logger.info("[MonthlyRollover] No pro channels found.");
         return;
       }
 
-      logger.info(`[MonthlyRollover] Processing ${channelsSnap.size} custom channels...`);
+      logger.info(`[MonthlyRollover] Processing ${channelsSnap.size} pro channels...`);
 
       let totalRolledOverUSD = 0;
       let channelsProcessed = 0;
@@ -49,7 +49,10 @@ export const monthlyZeroWasteRollover = onSchedule(
 
           const data = freshSnap.data() || {};
           const infra = data.infraConfig || {};
-          const planBudget = Number(infra.flatPlatformFee || 15.0);
+
+          // 🛡️ Security Invariant (TW-ECON-07): Only active, paid custom plans are eligible for rollover credits
+          const isPlanActive = infra.planStatus === "active" && !data.fraudReviewFlag && !data.payoutsBlocked;
+          const planBudget = isPlanActive ? Number(infra.flatPlatformFee || 0) : 0;
           const currentSpent = Number(infra.currentMonthInfraCost || 0);
 
           const unspent = Math.max(0, Number((planBudget - currentSpent).toFixed(2)));

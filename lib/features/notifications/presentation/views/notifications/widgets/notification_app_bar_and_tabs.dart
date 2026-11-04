@@ -62,6 +62,7 @@ class NotificationAppBar extends StatelessWidget {
             const PopupMenuItem(
               value: 'mark_all_read',
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     Icons.done_all_rounded,
@@ -69,7 +70,12 @@ class NotificationAppBar extends StatelessWidget {
                     color: AppColors.textPrimary,
                   ),
                   SizedBox(width: 12),
-                  Text('Mark all as read'),
+                  Flexible(
+                    child: Text(
+                      'Mark all as read',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -113,7 +119,7 @@ class NotificationSearchBar extends StatelessWidget {
   }
 }
 
-/// Horizontal category tab pills (All, Topics, Comments, Mentions).
+/// Horizontal category tab pills (All, Verifications, Studio Alerts, Topics, Comments, Mentions).
 class NotificationPillTabs extends StatelessWidget {
   const NotificationPillTabs({
     required this.viewController,
@@ -127,19 +133,21 @@ class NotificationPillTabs extends StatelessWidget {
     return Container(
       height: 48,
       padding: const EdgeInsets.symmetric(vertical: 6),
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        children: [
-          _buildPillButton(title: 'All', index: 0),
-          const SizedBox(width: 8),
-          _buildPillButton(title: 'Topics', index: 1),
-          const SizedBox(width: 8),
-          _buildPillButton(title: 'Comments', index: 2),
-          const SizedBox(width: 8),
-          _buildPillButton(title: 'Mentions', index: 3),
-        ],
-      ),
+      child: Obx(() {
+        final tabs = viewController.activeTabs;
+        return ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemCount: tabs.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (context, index) {
+            return _buildPillButton(
+              title: tabs[index].title,
+              index: index,
+            );
+          },
+        );
+      }),
     );
   }
 

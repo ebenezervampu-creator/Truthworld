@@ -1,4 +1,5 @@
 import 'package:truthworld/features/search/data/models/search_result.dart';
+import 'package:truthworld/features/video/data/models/ai_features.dart';
 
 /// Helper methods for query normalization, validation, and multi-criteria search filtering.
 class SearchFilterHelper {
@@ -23,13 +24,25 @@ class SearchFilterHelper {
     return (true, trimmed, '');
   }
 
-  /// Filter search results based on category chip, watched status, upload age, or live stream status
+  /// Filter search results based on category chip, watched status, upload age, language, or live stream status
   static List<SearchResult> applyFilter({
     required List<SearchResult> results,
     required String filter,
     required Set<String> watchedVideoIds,
+    String? userPrimaryLanguage,
   }) {
     var list = results;
+
+    // Primary or specific language filter chip (e.g. "In English", "In Spanish")
+    if (filter.startsWith('In ')) {
+      final langTarget = filter.substring(3).trim();
+      final targetCode = normalizeLanguageCode(langTarget);
+      list = list.where((r) {
+        if (r.language == null || r.language!.trim().isEmpty) return false;
+        return normalizeLanguageCode(r.language) == targetCode;
+      }).toList();
+      return list;
+    }
 
     if (filter == 'Videos') {
       list = list.where((r) => r.type == ResultType.video).toList();

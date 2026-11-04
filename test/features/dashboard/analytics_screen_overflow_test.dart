@@ -163,4 +163,26 @@ void main() {
     }
     expect(exception, isNull);
   });
+
+  testWidgets('AnalyticsScreen does not show Live Subscribers button (handled in Audience tab)', (tester) async {
+    final controller = Get.put(
+      AnalyticsController(channelId: 'test_channel_id_no_live_subs'),
+      tag: 'test_channel_id_no_live_subs',
+    );
+    controller.rxIsLoading.value = false;
+
+    await tester.pumpWidget(
+      const GetMaterialApp(
+        home: AnalyticsScreen(
+          channelId: 'test_channel_id_no_live_subs',
+          isDarkMode: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AnalyticsScreen), findsOneWidget);
+    expect(find.text('Live Subscribers'), findsNothing);
+    expect(find.text('Full Dashboard'), findsOneWidget);
+  });
 }

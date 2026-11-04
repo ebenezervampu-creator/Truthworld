@@ -230,7 +230,8 @@ export const addCommentNested = onCall(
       return { success: true, commentId: docRef.id };
     } catch (err) {
       logger.error("[addCommentNested] Error:", err);
-      throw new HttpsError("internal", `Failed to create comment: ${(err as Error)?.message || String(err)}`);
+      if (err instanceof HttpsError) throw err;
+      throw new HttpsError("internal", "Unable to create comment at this time. Please try again.");
     }
   }
 );
@@ -348,10 +349,47 @@ export const addReplyNested = onCall(
         logger.warn("[addReplyNested] Failed to update comment reply status:", updateErr);
       }
 
+      // Notify parent comment author of new reply
+      try {
+        const parentAuthorId = commentDoc.data()?.userId;
+        if (parentAuthorId && parentAuthorId !== userId) {
+          const videoCreatorName = videoDoc.data()?.channelName || videoDoc.data()?.creatorName || "Creator";
+          const displayName = channelName || userName || "Someone";
+          const truncatedReply = sanitizedText.length > 60 ? sanitizedText.slice(0, 60) + "..." : sanitizedText;
+
+          const title = isCreatorReply
+            ? `${videoCreatorName} replied to your comment!`
+            : (channelName ? `${channelName} replied to your comment` : `${displayName} replied to your comment`);
+
+          await notifyUser({
+            userId: parentAuthorId,
+            type: "comment_reply",
+            severity: "info",
+            title,
+            message: `${displayName}: "${truncatedReply}"`,
+            actionUrl: `/watch?v=${videoId}&commentId=${commentId}&replyId=${docRef.id}`,
+            targetApp: "all",
+            metadata: {
+              videoId,
+              commentId,
+              replyId: docRef.id,
+              replierId: userId,
+              replierName: displayName,
+              avatarUrl: channelProfilePicUrl || userProfilePicUrl || "",
+              isCreatorReply,
+              isChannel: !!channelName || isCreatorReply,
+            },
+          });
+        }
+      } catch (notifyErr) {
+        logger.warn("[addReplyNested] Non-fatal notification error:", notifyErr);
+      }
+
       return { success: true, replyId: docRef.id };
     } catch (err) {
       logger.error("[addReplyNested] Error:", err);
-      throw new HttpsError("internal", `Failed to create reply: ${(err as Error)?.message || String(err)}`);
+      if (err instanceof HttpsError) throw err;
+      throw new HttpsError("internal", "Unable to create reply at this time. Please try again.");
     }
   }
 );
@@ -386,6 +424,8 @@ export const toggleCommentInteraction = onCall(
     let oldType: "like" | "dislike" | null = null;
     let commentAuthorId = "";
     let commentText = "";
+    let isCreatorLiking = false;
+    let videoCreatorName = "Creator";
 
     try {
       await db().runTransaction(async (tx) => {
@@ -402,8 +442,8 @@ export const toggleCommentInteraction = onCall(
         const videoSnap = await tx.get(db().collection("videos").doc(videoId));
         const videoData = videoSnap.data() || {};
         const videoCreatorId = videoData.ownerId || videoData.userId || "";
-        const videoCreatorName = videoData.channelName || videoData.creatorName || "Creator";
-        const isCreatorLiking = userId === videoCreatorId;
+        videoCreatorName = videoData.channelName || videoData.creatorName || "Creator";
+        isCreatorLiking = userId === videoCreatorId;
 
         // Determine old interaction type
         let foundLegacy = false;
@@ -529,18 +569,30 @@ export const toggleCommentInteraction = onCall(
             }
           }
           const truncatedText = commentText.length > 60 ? commentText.slice(0, 60) + "..." : commentText;
+          const isCreator = isCreatorLiking;
+          const notifTitle = isCreator
+            ? `${videoCreatorName} ❤️ liked your comment!`
+            : (asChannel ? `${likerName} liked your comment` : "New Comment Like");
+          const notifMessage = isCreator
+            ? `${videoCreatorName} liked your comment: "${truncatedText}"`
+            : `${likerName} liked your comment: "${truncatedText}"`;
+
           await notifyUser({
             userId: commentAuthorId,
             type: "comment_like",
             severity: "info",
-            title: "New Comment Like",
-            message: `${likerName} liked your comment: "${truncatedText}"`,
-            actionUrl: `/watch/${videoId}`,
+            title: notifTitle,
+            message: notifMessage,
+            actionUrl: `/watch?v=${videoId}&commentId=${commentId}`,
+            targetApp: "all",
             metadata: {
               videoId,
               commentId,
               likerId: userId,
               userAvatar: likerAvatar,
+              isCreator,
+              isHeart: isCreator,
+              isChannel: asChannel || isCreator,
             }
           });
         } catch (notifyErr) {
@@ -551,7 +603,8 @@ export const toggleCommentInteraction = onCall(
       return { success: true };
     } catch (err) {
       logger.error("[toggleCommentInteraction] Error:", err);
-      throw new HttpsError("internal", `Failed to update interaction: ${(err as Error)?.message || String(err)}`);
+      if (err instanceof HttpsError) throw err;
+      throw new HttpsError("internal", "Unable to update interaction at this time. Please try again.");
     }
   }
 );
@@ -717,20 +770,37 @@ export const toggleReplyInteraction = onCall(
               }
             }
           }
+
+          const videoSnap = await db().collection("videos").doc(videoId).get();
+          const videoData = videoSnap.data() || {};
+          const videoCreatorId = videoData.ownerId || videoData.userId || "";
+          const videoCreatorName = videoData.channelName || videoData.creatorName || "Creator";
+          const isCreator = userId === videoCreatorId;
+
           const truncatedText = replyText.length > 60 ? replyText.slice(0, 60) + "..." : replyText;
+          const notifTitle = isCreator
+            ? `${videoCreatorName} liked your reply!`
+            : (asChannel ? `${likerName} liked your reply` : "New Reply Like");
+          const notifMessage = isCreator
+            ? `${videoCreatorName} liked your reply: "${truncatedText}"`
+            : `${likerName} liked your reply: "${truncatedText}"`;
+
           await notifyUser({
             userId: replyAuthorId,
             type: "comment_like",
             severity: "info",
-            title: "New Reply Like",
-            message: `${likerName} liked your reply: "${truncatedText}"`,
-            actionUrl: `/watch/${videoId}`,
+            title: notifTitle,
+            message: notifMessage,
+            actionUrl: `/watch?v=${videoId}&commentId=${commentId}&replyId=${replyId}`,
+            targetApp: "all",
             metadata: {
               videoId,
               commentId,
               replyId,
               likerId: userId,
               userAvatar: likerAvatar,
+              isCreator,
+              isChannel: asChannel || isCreator,
             }
           });
         } catch (notifyErr) {
@@ -741,7 +811,8 @@ export const toggleReplyInteraction = onCall(
       return { success: true };
     } catch (err) {
       logger.error("[toggleReplyInteraction] Error:", err);
-      throw new HttpsError("internal", `Failed to update reply interaction: ${(err as Error)?.message || String(err)}`);
+      if (err instanceof HttpsError) throw err;
+      throw new HttpsError("internal", "Unable to update interaction at this time. Please try again.");
     }
   }
 );
@@ -773,7 +844,8 @@ export const deleteCommentNested = onCall(
       const videoSnap = await db().collection("videos").doc(videoId).get();
       const videoOwnerId = videoSnap.data()?.userId || videoSnap.data()?.ownerId;
 
-      if (data?.userId !== userId && videoOwnerId !== userId) {
+      const isAdmin = request.auth?.token?.admin === true && request.auth?.token?.email_verified === true;
+      if (data?.userId !== userId && videoOwnerId !== userId && !isAdmin) {
         throw new HttpsError("permission-denied", "Unauthorized to delete this comment.");
       }
 
@@ -792,7 +864,8 @@ export const deleteCommentNested = onCall(
     } catch (err) {
       if (err instanceof HttpsError) throw err;
       logger.error("[deleteCommentNested] Error:", err);
-      throw new HttpsError("internal", `Failed to delete comment: ${(err as Error)?.message || String(err)}`);
+      if (err instanceof HttpsError) throw err;
+      throw new HttpsError("internal", "Unable to delete comment at this time. Please try again.");
     }
   }
 );
@@ -827,7 +900,8 @@ export const deleteReplyNested = onCall(
       const videoSnap = await db().collection("videos").doc(videoId).get();
       const videoOwnerId = videoSnap.data()?.userId || videoSnap.data()?.ownerId;
 
-      if (data?.userId !== userId && videoOwnerId !== userId) {
+      const isAdmin = request.auth?.token?.admin === true && request.auth?.token?.email_verified === true;
+      if (data?.userId !== userId && videoOwnerId !== userId && !isAdmin) {
         throw new HttpsError("permission-denied", "Unauthorized to delete this reply.");
       }
 
@@ -836,7 +910,8 @@ export const deleteReplyNested = onCall(
     } catch (err) {
       if (err instanceof HttpsError) throw err;
       logger.error("[deleteReplyNested] Error:", err);
-      throw new HttpsError("internal", `Failed to delete reply: ${(err as Error)?.message || String(err)}`);
+      if (err instanceof HttpsError) throw err;
+      throw new HttpsError("internal", "Unable to delete reply at this time. Please try again.");
     }
   }
 );
@@ -901,7 +976,8 @@ export const reportCommentNested = onCall(
       return { success: true };
     } catch (err) {
       logger.error("[reportCommentNested] Error:", err);
-      throw new HttpsError("internal", `Failed to file report: ${(err as Error)?.message || String(err)}`);
+      if (err instanceof HttpsError) throw err;
+      throw new HttpsError("internal", "Unable to file report at this time. Please try again.");
     }
   }
 );
@@ -976,7 +1052,8 @@ export const addTopicComment = onCall(
       return { success: true, commentId: docRef.id };
     } catch (err) {
       logger.error("[addTopicComment] Error:", err);
-      throw new HttpsError("internal", `Failed to create topic comment: ${(err as Error)?.message || String(err)}`);
+      if (err instanceof HttpsError) throw err;
+      throw new HttpsError("internal", "Unable to add topic comment at this time. Please try again.");
     }
   }
 );
@@ -1056,10 +1133,44 @@ export const addTopicReply = onCall(
         logger.warn("[addTopicReply] Counter update skipped:", countErr);
       }
 
+      // Notify parent topic comment author
+      try {
+        const commentSnap = await db().collection("topics").doc(topicId).collection("comments").doc(commentId).get();
+        const parentAuthorId = commentSnap.data()?.userId;
+        if (parentAuthorId && parentAuthorId !== userId) {
+          const topicSnap = await db().collection("topics").doc(topicId).get();
+          const topicTitle = (topicSnap.data()?.title || topicSnap.data()?.name || "Topic").toString();
+          const displayName = channelName || userName || "Someone";
+          const truncatedReply = sanitizedText.length > 60 ? sanitizedText.slice(0, 60) + "..." : sanitizedText;
+
+          await notifyUser({
+            userId: parentAuthorId,
+            type: "comment_reply",
+            severity: "info",
+            title: channelName ? `${channelName} replied in ${topicTitle}` : `New Reply in ${topicTitle}`,
+            message: `${displayName}: "${truncatedReply}"`,
+            actionUrl: `/topic/${topicId}?commentId=${commentId}&replyId=${docRef.id}`,
+            targetApp: "all",
+            metadata: {
+              topicId,
+              commentId,
+              replyId: docRef.id,
+              replierId: userId,
+              replierName: displayName,
+              avatarUrl: channelProfilePicUrl || userProfilePicUrl || "",
+              isChannel: !!channelName,
+            },
+          });
+        }
+      } catch (notifyErr) {
+        logger.warn("[addTopicReply] Non-fatal notification error:", notifyErr);
+      }
+
       return { success: true, replyId: docRef.id };
     } catch (err) {
       logger.error("[addTopicReply] Error:", err);
-      throw new HttpsError("internal", `Failed to create topic reply: ${(err as Error)?.message || String(err)}`);
+      if (err instanceof HttpsError) throw err;
+      throw new HttpsError("internal", "Unable to add topic reply at this time. Please try again.");
     }
   }
 );

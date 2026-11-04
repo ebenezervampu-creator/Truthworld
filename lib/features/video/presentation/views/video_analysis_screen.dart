@@ -1,10 +1,6 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/core/utils/format_utils.dart';
-import 'package:truthworld/core/widgets/truth_lottie_animation.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_widgets.dart';
@@ -34,6 +30,28 @@ class VideoAnalysisScreen extends StatelessWidget {
     VideoController? controller,
     int initialTabIndex = 0,
   }) {
+    // 1. Pre-initialize analysis controller and selected tab to eliminate first-frame latency
+    final tag = video.id;
+    if (!Get.isRegistered<VideoAnalysisController>(tag: tag)) {
+      Get.put(VideoAnalysisController(), tag: tag);
+    }
+    Get.find<VideoAnalysisController>(tag: tag).setSelectedTab(initialTabIndex);
+
+    // 2. Pre-fetch fact-check data ahead of route transition
+    final effectiveVideoCtrl = controller ??
+        (Get.isRegistered<VideoController>(tag: tag)
+            ? Get.find<VideoController>(tag: tag)
+            : (Get.isRegistered<VideoController>()
+                ? Get.find<VideoController>()
+                : null));
+
+    if (effectiveVideoCtrl != null &&
+        effectiveVideoCtrl.factCheckData.isEmpty &&
+        !effectiveVideoCtrl.hasAttemptedFactCheck.value &&
+        video.factCheckUrl.isNotEmpty) {
+      effectiveVideoCtrl.loadFactCheckData(video.factCheckUrl);
+    }
+
     return Get.to<T>(
           () => VideoAnalysisScreen(
             video: video,
@@ -47,8 +65,9 @@ class VideoAnalysisScreen extends StatelessWidget {
             'initialTabIndex': initialTabIndex,
             'videoId': video.id,
           },
-          transition: Transition.rightToLeft,
-          duration: const Duration(milliseconds: 250),
+          transition: Transition.rightToLeftWithFade,
+          curve: Curves.easeOutCubic,
+          duration: const Duration(milliseconds: 320),
         ) ??
         Future.value();
   }
@@ -181,56 +200,28 @@ class VideoAnalysisScreen extends StatelessWidget {
             }
           },
         ),
-        titleSpacing: 0,
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(5),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: TruthLottieAnimation.verifiedShield(size: 20),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Truth Intelligence & Credibility',
-                    style: GoogleFonts.roboto(
-                      color: Colors.white,
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    'Independent Empirical Verification',
-                    style: GoogleFonts.roboto(
-                      color: AppColors.textSecondary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        title: Text(
+          'Ai Check',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         actions: [
           IconButton(
             icon: const Icon(
-              Icons.refresh_rounded,
+              Icons.chat_bubble_outline_rounded,
               color: Colors.white,
               size: 20,
             ),
-            tooltip: 'Refresh Analysis',
+            tooltip: 'Ask AI',
             onPressed: () {
-              if (video.factCheckUrl.isNotEmpty) {
-                effectiveVideoCtrl.loadFactCheckData(video.factCheckUrl);
-              }
+              AskAiScreen.open(
+                context,
+                video: video,
+                controller: effectiveVideoCtrl,
+              );
             },
           ),
           const SizedBox(width: 8),
@@ -277,149 +268,11 @@ class VideoAnalysisScreen extends StatelessWidget {
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 860),
-        child: Column(
-          children: [
-            _buildVideoContextCard(context, video),
-            Expanded(
-              child: VideoAnalysisView(
-                video: video,
-                videoCtrl: videoCtrl,
-                analysisCtrl: analysisCtrl,
-              ),
-            ),
-          ],
+        child: VideoAnalysisView(
+          video: video,
+          videoCtrl: videoCtrl,
+          analysisCtrl: analysisCtrl,
         ),
-      ),
-    );
-  }
-
-  Widget _buildVideoContextCard(BuildContext context, Video video) {
-    // 1. Format duration
-    final durationStr = video.durationValue.inSeconds > 0
-        ? FormatUtils.formatDuration(video.durationValue)
-        : (video.duration.isNotEmpty ? video.duration : '00:00');
-
-    // 2. Resolve title and subtitle
-    var mainTitle = video.title.trim();
-    var subtitle = '';
-
-    if (mainTitle.contains(' - ')) {
-      final parts = mainTitle.split(' - ');
-      mainTitle = parts.first.trim();
-      subtitle = parts.sublist(1).join(' - ').trim();
-    } else if (mainTitle.contains(' | ')) {
-      final parts = mainTitle.split(' | ');
-      mainTitle = parts.first.trim();
-      subtitle = parts.sublist(1).join(' | ').trim();
-    } else if (mainTitle.contains('? ') && mainTitle.indexOf('? ') < mainTitle.length - 2) {
-      final idx = mainTitle.indexOf('? ');
-      subtitle = mainTitle.substring(idx + 2).trim();
-      mainTitle = mainTitle.substring(0, idx + 1).trim();
-    }
-
-    if (subtitle.isEmpty) {
-      if (video.channelName.isNotEmpty) {
-        subtitle = video.channelName;
-      } else if (video.description.isNotEmpty) {
-        subtitle = video.description.split('\n').first.trim();
-      } else {
-        subtitle = 'The Science & Truth Explained';
-      }
-    }
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
-      child: Row(
-        children: [
-          // 1. Video Thumbnail with Duration Pill
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: SizedBox(
-              width: 120,
-              height: 68,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (video.thumbnailUrl.isNotEmpty)
-                    CachedNetworkImage(
-                      imageUrl: video.thumbnailUrl,
-                      fit: BoxFit.cover,
-                      placeholder: (c, u) => ColoredBox(
-                        color: Colors.white.withValues(alpha: 0.05),
-                        child: const Center(
-                          child: Icon(Icons.image, size: 18, color: AppColors.textTertiary),
-                        ),
-                      ),
-                      errorWidget: (c, u, e) => ColoredBox(
-                        color: Colors.white.withValues(alpha: 0.05),
-                        child: const Icon(Icons.broken_image, size: 18, color: AppColors.textTertiary),
-                      ),
-                    )
-                  else
-                    ColoredBox(
-                      color: Colors.white.withValues(alpha: 0.05),
-                      child: const Icon(Icons.videocam, size: 18, color: AppColors.textTertiary),
-                    ),
-
-                  // Duration Pill Overlay on Bottom Right
-                  Positioned(
-                    bottom: 4,
-                    right: 4,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.8),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        durationStr,
-                        style: GoogleFonts.roboto(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-
-          // 2. Title & Subtitle
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  mainTitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.roboto(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    height: 1.25,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.roboto(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -433,7 +286,7 @@ class VideoAnalysisScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 19),
           onPressed: Get.back,
         ),
-        title: const Text('Truth Intelligence & Credibility', style: TextStyle(color: Colors.white, fontSize: 16)),
+        title: const Text('Ai Check', style: TextStyle(color: Colors.white, fontSize: 16)),
       ),
       body: const Center(
         child: Padding(
@@ -460,7 +313,7 @@ class VideoAnalysisScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 19),
           onPressed: Get.back,
         ),
-        title: const Text('Truth Intelligence & Credibility', style: TextStyle(color: Colors.white, fontSize: 16)),
+        title: const Text('Ai Check', style: TextStyle(color: Colors.white, fontSize: 16)),
       ),
       body: Center(
         child: Padding(

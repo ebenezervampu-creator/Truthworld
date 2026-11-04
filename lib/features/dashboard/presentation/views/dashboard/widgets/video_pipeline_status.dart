@@ -501,14 +501,10 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                     label: 'Unassessed Claims',
                     color: AppColors.textTertiary,
                   )
-                else if (hasCredibilityResults && effectiveTrustScore > 0 && cred.claims.isNotEmpty)
+                else if (hasCredibilityResults && cred.claims.isNotEmpty)
                   _buildMiniBadge(
-                    label: '${effectiveTrustScore.toInt()}% Trust Score',
-                    color: effectiveTrustScore >= 75
-                        ? AppColors.success
-                        : (effectiveTrustScore >= 50
-                            ? AppColors.warning
-                            : AppColors.error),
+                    label: '${cred.claims.length} Claims Verified',
+                    color: AppColors.success,
                   )
                 else if (rawCredibilityStatus == 'in_progress')
                   _buildMiniBadge(

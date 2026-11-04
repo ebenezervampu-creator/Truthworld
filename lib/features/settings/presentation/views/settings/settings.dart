@@ -62,6 +62,7 @@ class SettingsScreen extends StatelessWidget {
       elevation: 0,
       centerTitle: context.isMobile,
       leading: IconButton(
+        tooltip: 'Back',
         icon: Icon(
           Icons.arrow_back,
           color: context.colors.textPrimary,
@@ -69,10 +70,16 @@ class SettingsScreen extends StatelessWidget {
         ),
         onPressed: () {
           if (isDashboard) {
-            Get.find<HomeController>().sideNavSelectedIndex.value =
-                HomeController.indexLibrary;
+            if (Get.isRegistered<HomeController>()) {
+              Get.find<HomeController>().sideNavSelectedIndex.value =
+                  HomeController.indexLibrary;
+            } else {
+              Get.offAllNamed('/');
+            }
+          } else if (Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
           } else {
-            Get.back();
+            Get.offAllNamed('/');
           }
         },
       ),
@@ -100,7 +107,7 @@ class SettingsScreen extends StatelessWidget {
           SizedBox(height: context.layoutSpacing),
           const AdvancedDiagnosticsSection(),
           SizedBox(height: context.layoutSpacing),
-          const LegalAboutSection(),
+          LegalAboutSection(isDashboard: isDashboard),
         ],
       ),
     );

@@ -1,7 +1,9 @@
+import * as crypto from "crypto";
 import { onCall } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import * as admin from "firebase-admin";
 import { computeTextEmbedding } from "./embeddingService";
+import { getBigQueryAnalyticsService } from "../analytics/bigqueryService";
 
 // ─── Shared Types ────────────────────────────────────────────────────────────
 
@@ -66,7 +68,7 @@ const L2_TTL_MS        = 15 * 60 * 1000; // 15 minutes
  * Replaces non-alphanumeric characters (except `-`) with `_` and caps at 1,400 bytes.
  */
 function toCacheDocId(key: string): string {
-  return key.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 1400);
+  return crypto.createHash("sha256").update(key).digest("hex");
 }
 
 async function l2Get(key: string): Promise<SearchResultItem[] | null> {
@@ -167,6 +169,36 @@ function runVectorQuery(
   return vectorQuery.get() as Promise<admin.firestore.QuerySnapshot>;
 }
 
+
+/**
+ * Verifies whether a video document is safe and discoverable in search indices.
+ * Excludes drafts, uploading, suspended, blocked, deleted, and rejected moderation videos.
+ */
+function isVideoDiscoverable(vData: admin.firestore.DocumentData): boolean {
+  const vis = (vData.visibility || "public").toLowerCase();
+  const status = (vData.status || "ready").toLowerCase();
+  const isPublicOrMember =
+    vis === "public" ||
+    vis === "members_only" ||
+    vis === "members" ||
+    vis === "subscribers_only" ||
+    vis === "subscribers";
+
+  if (!isPublicOrMember || vis === "private" || vis === "unlisted") return false;
+  if (
+    status === "draft" ||
+    status === "uploading" ||
+    status === "suspended" ||
+    status === "blocked" ||
+    vData.isDeleted === true ||
+    vData.moderationStatus === "rejected" ||
+    vData.copyrightStrike === true
+  ) {
+    return false;
+  }
+  return true;
+}
+
 // ─── Main Cloud Function ─────────────────────────────────────────────────────
 export const searchTruthWorld = onCall(
   {
@@ -201,10 +233,30 @@ export const searchTruthWorld = onCall(
 
     if (!rawQuery) return [];
 
-    const cleanQuery = rawQuery.replace(/[^\w\s@\-_]/g, "").trim();
+    const cleanQuery = rawQuery.replace(/[^\w\s@\-_]/g, "").trim().slice(0, 200);
     if (!cleanQuery) return [];
 
     const cacheKey = `${activeFilter.toLowerCase()}:::${cleanQuery.toLowerCase()}`;
+
+    // ── Non-blocking BigQuery Stream Helper ────────────────────────────────
+    const streamSearchAnalytics = (mode: string, count: number) => {
+      try {
+        const bq = getBigQueryAnalyticsService();
+        bq.enqueueSearchQuery({
+          query_id: `q_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          timestamp: new Date().toISOString(),
+          query_text: cleanQuery,
+          filter: activeFilter,
+          search_mode: mode,
+          results_count: count,
+          latency_ms: Date.now() - startTime,
+          user_id: uid === "guest" ? null : uid,
+          is_zero_result: count === 0,
+        });
+      } catch (bqErr) {
+        logger.warn("[searchTruthWorld] BigQuery search analytics warning", { err: String(bqErr) });
+      }
+    };
 
     // ── Bug Fix #1: Two-Level Cache Lookup ────────────────────────────────
 
@@ -214,6 +266,7 @@ export const searchTruthWorld = onCall(
       logger.info("[searchTruthWorld] L1 cache hit", {
         query: cleanQuery, filter: activeFilter, latencyMs: Date.now() - startTime,
       });
+      streamSearchAnalytics("cache_l1", l1Hit.length);
       return l1Hit;
     }
 
@@ -224,6 +277,7 @@ export const searchTruthWorld = onCall(
       logger.info("[searchTruthWorld] L2 cache hit", {
         query: cleanQuery, filter: activeFilter, latencyMs: Date.now() - startTime,
       });
+      streamSearchAnalytics("cache_l2", l2Hit.length);
       return l2Hit;
     }
 
@@ -248,6 +302,17 @@ export const searchTruthWorld = onCall(
 
         for (const doc of channelSnap.docs) {
           const cData = doc.data();
+          const isSuspended =
+            cData.status === "suspended" ||
+            cData.status === "banned" ||
+            cData.status === "deleted" ||
+            cData.status === "onHold" ||
+            cData.status === "hold" ||
+            cData.isSuspended === true ||
+            cData.isBanned === true ||
+            cData.isActive === false ||
+            cData.isPublic === false;
+          if (isSuspended) continue;
           const channelTitle =
             cData.channelName || cData.name || cData.displayName || "Channel";
           const avatar =
@@ -309,10 +374,7 @@ export const searchTruthWorld = onCall(
             vectorSearchSuccessful = true;
             for (const doc of vectorSnap.docs) {
               const vData = doc.data();
-              const vis    = (vData.visibility || "public").toLowerCase();
-              const status = (vData.status || "ready").toLowerCase();
-
-              if (vis === "private" || status === "draft" || status === "uploading") {
+              if (!isVideoDiscoverable(vData)) {
                 continue;
               }
 
@@ -354,14 +416,12 @@ export const searchTruthWorld = onCall(
           const keywordSnap = await db
             .collection("videos")
             .where("keywords", "array-contains", lowerQ)
-            .where("visibility", "==", "public")
             .limit(requestedLimit)
             .get();
 
           for (const doc of keywordSnap.docs) {
             const vData = doc.data();
-            const status = (vData.status || "ready").toLowerCase();
-            if (status === "draft" || status === "uploading") continue;
+            if (!isVideoDiscoverable(vData)) continue;
 
             resultsMap.set(`video_${doc.id}`, {
               id: doc.id,
@@ -388,12 +448,12 @@ export const searchTruthWorld = onCall(
               .collection("videos")
               .where("title", ">=", cleanQuery)
               .where("title", "<=", cleanQuery + "\uf8ff")
-              .where("visibility", "==", "public")
               .limit(10)
               .get();
 
             for (const doc of prefixSnap.docs) {
               const vData = doc.data();
+              if (!isVideoDiscoverable(vData)) continue;
               if (resultsMap.has(`video_${doc.id}`)) continue;
               resultsMap.set(`video_${doc.id}`, {
                 id: doc.id,
@@ -438,6 +498,14 @@ export const searchTruthWorld = onCall(
 
         for (const doc of topicSnap.docs) {
           const tData = doc.data();
+          if (
+            tData.isActive === false ||
+            tData.isSuspended === true ||
+            tData.status === "suspended" ||
+            tData.status === "deleted"
+          ) {
+            continue;
+          }
           const topicTitle =
             tData.title || tData.name || tData.slug || "Topic";
           resultsMap.set(`topic_${doc.id}`, {
@@ -483,6 +551,42 @@ export const searchTruthWorld = onCall(
       latencyMs: Date.now() - startTime,
     });
 
+    streamSearchAnalytics(cleanQuery.startsWith("@") ? "channel_handle" : "hybrid_semantic", sliced.length);
+
     return sliced;
   },
+);
+
+/**
+ * 🎯 RECORD SEARCH CLICKTHROUGH
+ * Tracks search attribution & rank click-through events into BigQuery.
+ */
+export const recordSearchClickthrough = onCall(
+  { region: "asia-south1", memory: "256MiB" },
+  async (request) => {
+    const uid = request.auth?.uid ?? null;
+    const data = request.data || {};
+    const { queryId, query, itemId, itemType, rankPosition, timeToClickSec } = data;
+
+    if (!query || !itemId) return { success: false, reason: "missing_fields" };
+
+    try {
+      const bq = getBigQueryAnalyticsService();
+      bq.enqueueSearchClickthrough({
+        click_id: `clk_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        timestamp: new Date().toISOString(),
+        query_id: queryId || `q_${Date.now()}`,
+        query_text: String(query).slice(0, 200),
+        item_id: String(itemId),
+        item_type: String(itemType || "video"),
+        rank_position: Math.max(1, Number(rankPosition) || 1),
+        time_to_click_sec: typeof timeToClickSec === "number" ? timeToClickSec : null,
+        user_id: uid,
+      });
+      return { success: true };
+    } catch (err: unknown) {
+      logger.warn("[recordSearchClickthrough] Warning streaming clickthrough to BigQuery", { err: String(err) });
+      return { success: false, error: "streaming_failure" };
+    }
+  }
 );

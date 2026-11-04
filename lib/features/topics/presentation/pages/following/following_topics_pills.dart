@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
@@ -19,6 +20,7 @@ class FollowingTopicsPills extends StatelessWidget {
   final void Function(Topic topic)? onTopicDetailsTap;
 
   void _handleTopicTap(Topic topic, bool isSelected) {
+    HapticFeedback.selectionClick();
     if (isSelected) {
       if (onTopicDetailsTap != null) {
         onTopicDetailsTap!(topic);
@@ -47,7 +49,7 @@ class FollowingTopicsPills extends StatelessWidget {
 
       return Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1400),
+          constraints: const BoxConstraints(maxWidth: 1440),
           child: Container(
             height: 42,
             margin: const EdgeInsets.only(top: 4, bottom: 12),
@@ -61,7 +63,10 @@ class FollowingTopicsPills extends StatelessWidget {
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: GestureDetector(
-                      onTap: () => controller.selectTopic(null),
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        controller.selectTopic(null);
+                      },
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.symmetric(
@@ -128,7 +133,7 @@ class FollowingTopicsPills extends StatelessWidget {
                         children: [
                           Flexible(
                             child: Text(
-                              topic.title,
+                              topic.name,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(

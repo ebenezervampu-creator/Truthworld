@@ -7,6 +7,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/user_preferences_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/utils/get_instance_extensions.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_feed_controller.dart';
@@ -112,8 +113,14 @@ class HomeDiscoveryController extends BaseController {
             .map((data) => Topic.fromMap(Map<String, dynamic>.from(data)))
             .where((t) => t.isValidTopic)
             .toList();
-        if (cachedTopics.isNotEmpty) {
-          featuredTopics.assignAll(cachedTopics);
+        final userPrefs = Get.isRegistered<UserPreferencesService>()
+            ? UserPreferencesService.to
+            : null;
+        final filteredTopics = userPrefs != null
+            ? userPrefs.filterTopics(cachedTopics)
+            : cachedTopics;
+        if (filteredTopics.isNotEmpty) {
+          featuredTopics.assignAll(filteredTopics);
           isLoadingFeaturedTopics.value = false;
         }
       }
@@ -128,8 +135,14 @@ class HomeDiscoveryController extends BaseController {
 
   void saveFeaturedTopicsToCache() {
     try {
+      final userPrefs = Get.isRegistered<UserPreferencesService>()
+          ? UserPreferencesService.to
+          : null;
       final dataToCache = featuredTopics
-          .where((t) => t.isValidTopic && t.videoCount > 0)
+          .where((t) =>
+              t.isValidTopic &&
+              t.videoCount > 0 &&
+              (userPrefs == null || !userPrefs.isTopicBlocked(t)))
           .map((t) => t.toCacheMap())
           .toList();
       _storage.write(_kFeaturedTopicsCacheKey, dataToCache);
@@ -146,19 +159,23 @@ class HomeDiscoveryController extends BaseController {
     try {
       if (featuredTopics.isEmpty) isLoadingFeaturedTopics.value = true;
       var topicsList = <Topic>[];
+      final userPrefs = Get.isRegistered<UserPreferencesService>()
+          ? UserPreferencesService.to
+          : null;
 
       // Tier 1: isFeatured query
       try {
         final snapshot = await _firestore
             .collection('topics')
             .where('isFeatured', isEqualTo: true)
-            .limit(10)
+            .limit(15)
             .getCacheFirst();
         if (snapshot.docs.isNotEmpty) {
-          topicsList = snapshot.docs
+          final raw = snapshot.docs
               .map(Topic.fromDocumentSnapshot)
               .where((t) => t.isValidTopic && t.videoCount > 0)
               .toList();
+          topicsList = userPrefs != null ? userPrefs.filterTopics(raw) : raw;
         }
       } catch (e, stackTrace) {
         ErrorHandler.log(
@@ -175,13 +192,14 @@ class HomeDiscoveryController extends BaseController {
               .collection('topics')
               .where('status', isEqualTo: 'active')
               .orderBy('videoCount', descending: true)
-              .limit(10)
+              .limit(15)
               .getCacheFirst();
           if (fallbackSnapshot.docs.isNotEmpty) {
-            topicsList = fallbackSnapshot.docs
-              .map(Topic.fromDocumentSnapshot)
-              .where((t) => t.isValidTopic && t.videoCount > 0)
-              .toList();
+            final raw = fallbackSnapshot.docs
+                .map(Topic.fromDocumentSnapshot)
+                .where((t) => t.isValidTopic && t.videoCount > 0)
+                .toList();
+            topicsList = userPrefs != null ? userPrefs.filterTopics(raw) : raw;
           }
         } catch (e, stackTrace) {
           ErrorHandler.log(
@@ -198,13 +216,14 @@ class HomeDiscoveryController extends BaseController {
           final fallbackSnapshot2 = await _firestore
               .collection('topics')
               .where('status', isEqualTo: 'active')
-              .limit(15)
+              .limit(20)
               .getCacheFirst();
           if (fallbackSnapshot2.docs.isNotEmpty) {
-            topicsList = fallbackSnapshot2.docs
+            final raw = fallbackSnapshot2.docs
                 .map(Topic.fromDocumentSnapshot)
                 .where((t) => t.isValidTopic && t.videoCount > 0)
                 .toList();
+            topicsList = userPrefs != null ? userPrefs.filterTopics(raw) : raw;
           }
         } catch (e, stackTrace) {
           ErrorHandler.log(
@@ -326,8 +345,7 @@ class HomeDiscoveryController extends BaseController {
 
   String _capitalizeCategory(String cat) {
     if (cat.isEmpty) return cat;
-    final trimmed = cat.trim();
-    return categories.firstWhere((c) => c.toLowerCase() == trimmed.toLowerCase(), orElse: () => trimmed[0].toUpperCase() + trimmed.substring(1));
+    return AppCategories.normalizeCategory(cat);
   }
 
   Future<void> fetchAvailableCategories() async {

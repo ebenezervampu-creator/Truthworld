@@ -386,7 +386,7 @@ class MemberItemCard extends StatelessWidget {
                   height: 10,
                   decoration: BoxDecoration(
                     color: member.status.toLowerCase() == 'active'
-                        ? const Color(0xFF10B981)
+                        ? AppColors.success
                         : Colors.orange,
                     shape: BoxShape.circle,
                     border: Border.all(
@@ -426,11 +426,11 @@ class MemberItemCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       constraints: const BoxConstraints(maxWidth: 140),
                       decoration: BoxDecoration(
-                        color: (tier?.badgeColor ?? const Color(0xFF10B981))
+                        color: (tier?.badgeColor ?? AppColors.success)
                             .withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(5),
                         border: Border.all(
-                          color: (tier?.badgeColor ?? const Color(0xFF10B981))
+                          color: (tier?.badgeColor ?? AppColors.success)
                               .withValues(alpha: 0.35),
                           width: 0.8,
                         ),
@@ -441,7 +441,7 @@ class MemberItemCard extends StatelessWidget {
                           fontSize: 10.5,
                           fontWeight: FontWeight.bold,
                           color: tier?.badgeColor ??
-                              (isDarkMode ? const Color(0xFF34D399) : const Color(0xFF059669)),
+                              (isDarkMode ? AppColors.success : const Color(0xFF059669)),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

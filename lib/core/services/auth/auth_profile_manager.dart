@@ -6,7 +6,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
@@ -139,10 +138,25 @@ class AuthProfileManager {
     Channel? userChannel,
     bool hasChannel = false,
     User? user,
+    String? currentUid,
   }) {
     // When user has a channel, channel avatar takes precedence
-    if (hasChannel && userChannel != null && userChannel.avatarUrl.isNotEmpty) {
-      return userChannel.avatarUrl;
+    if (hasChannel) {
+      if (userChannel != null && userChannel.avatarUrl.isNotEmpty) {
+        return userChannel.avatarUrl;
+      }
+      final resolvedUid = currentUid ?? user?.uid;
+      if (resolvedUid != null && resolvedUid.isNotEmpty) {
+        try {
+          final cached =
+              GetStorage().read<String>('channel_avatar_$resolvedUid');
+          if (cached != null && cached.isNotEmpty) {
+            return cached;
+          }
+        } catch (_) {}
+      }
+      // If the user has a channel, NEVER leak personal/external account avatar!
+      return '';
     }
     if (userPhotoUrl.value != null && userPhotoUrl.value!.isNotEmpty) {
       return userPhotoUrl.value!;
@@ -461,12 +475,6 @@ class AuthProfileManager {
 
     // Only prompt if onboarding is actually flagged as needed (new signed user)
     if (!needsOnboarding.value && !_pendingOnboardingPrompt) return;
-
-    // If an authentication bottom sheet is currently open, defer prompt until it closes
-    if (AuthBottomSheet.isOpen) {
-      _pendingOnboardingPrompt = true;
-      return;
-    }
     _pendingOnboardingPrompt = false;
 
     final ctx = context ?? Get.key.currentContext ?? Get.context;

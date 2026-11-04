@@ -27,7 +27,9 @@ class Home extends GetView<HomeController> {
   Widget build(BuildContext context) {
     // Check if we need to open a playlist detail
     final args = Get.arguments;
-    if (args != null && args['openPlaylist'] != null) {
+    if (args != null &&
+        args['openPlaylist'] != null &&
+        controller.selectedPlaylist.value == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         controller.navigateToPlaylistDetail(args['openPlaylist']);
       });

@@ -74,7 +74,7 @@ class ChannelWizardDesktopLayout extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 24),
-        // Bottom Row: Visibility, Country, Language & Channel Plan
+        // Bottom Row: Visibility, Country & Language
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -94,13 +94,6 @@ class ChannelWizardDesktopLayout extends StatelessWidget {
             const SizedBox(width: 16),
             Expanded(
               child: ChannelWizardLanguageCard(
-                controller: channelController,
-                isDarkMode: isDarkMode,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: ChannelWizardPlanCard(
                 controller: channelController,
                 isDarkMode: isDarkMode,
               ),

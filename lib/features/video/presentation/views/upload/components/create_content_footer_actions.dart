@@ -4,7 +4,7 @@ import 'package:truthworld/features/video/presentation/controllers/create_conten
 import 'package:truthworld/features/video/presentation/controllers/upload_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Desktop Footer Actions Bar
+/// Desktop Footer Actions Bar (Save, Schedule, Publish)
 class CreateContentDesktopFooterActions extends StatelessWidget {
   const CreateContentDesktopFooterActions({
     required this.contentController,
@@ -19,11 +19,13 @@ class CreateContentDesktopFooterActions extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(() {
       final isUploading = uploadController.isUploading.value;
+      final isScheduled = uploadController.isScheduled.value;
       final canPublish = contentController.canPublishVideo();
 
       return Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
+          // 1. Discard
           OutlinedButton(
             onPressed: isUploading
                 ? null
@@ -36,12 +38,14 @@ class CreateContentDesktopFooterActions extends StatelessWidget {
             child: const Text('Discard', style: TextStyle(color: Colors.white70)),
           ),
           const SizedBox(width: 16),
+
+          // 2. Save (formerly Save Draft)
           OutlinedButton.icon(
             onPressed: isUploading
                 ? null
                 : () => contentController.handleVideoUpload(isDraft: true),
             icon: const Icon(Icons.save_as_outlined, color: Colors.white, size: 18),
-            label: const Text('Save Draft', style: TextStyle(color: Colors.white)),
+            label: const Text('Save', style: TextStyle(color: Colors.white)),
             style: OutlinedButton.styleFrom(
               side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -49,10 +53,41 @@ class CreateContentDesktopFooterActions extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
+
+          // 3. Mode switcher button (Schedule toggle when in publish mode, or Publish toggle when in schedule mode)
+          if (!isScheduled)
+            OutlinedButton.icon(
+              onPressed: isUploading
+                  ? null
+                  : () => contentController.activateScheduleMode(context),
+              icon: const Icon(Icons.schedule_outlined, color: Colors.white, size: 18),
+              label: const Text('Schedule', style: TextStyle(color: Colors.white)),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            )
+          else
+            OutlinedButton.icon(
+              onPressed: isUploading
+                  ? null
+                  : () => uploadController.isScheduled.value = false,
+              icon: const Icon(Icons.public, color: Colors.white, size: 18),
+              label: const Text('Publish', style: TextStyle(color: Colors.white)),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          const SizedBox(width: 16),
+
+          // 4. Primary CTA Button: 'Publish' or 'Schedule' (YouTube style)
           ElevatedButton(
             onPressed: isUploading || !canPublish
                 ? null
-                : contentController.handleVideoUpload,
+                : () => contentController.handleVideoUpload(isDraft: false),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brand,
               foregroundColor: Colors.black,
@@ -65,7 +100,10 @@ class CreateContentDesktopFooterActions extends StatelessWidget {
                     width: 20,
                     child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2),
                   )
-                : const Text('Publish Video', style: TextStyle(fontWeight: FontWeight.bold)),
+                : Text(
+                    isScheduled ? 'Schedule' : 'Publish',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
           ),
         ],
       );
@@ -73,7 +111,7 @@ class CreateContentDesktopFooterActions extends StatelessWidget {
   }
 }
 
-/// Mobile Sticky Bottom Footer Actions Bar
+/// Mobile Sticky Bottom Footer Actions Bar (Save, Schedule, Publish)
 class CreateContentMobileFooterActions extends StatelessWidget {
   const CreateContentMobileFooterActions({
     required this.contentController,
@@ -88,6 +126,7 @@ class CreateContentMobileFooterActions extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(() {
       final isUploading = uploadController.isUploading.value;
+      final isScheduled = uploadController.isScheduled.value;
       final canPublish = contentController.canPublishVideo();
 
       return Container(
@@ -100,7 +139,9 @@ class CreateContentMobileFooterActions extends StatelessWidget {
         ),
         child: Row(
           children: [
+            // 1. Save (formerly Save Draft)
             Expanded(
+              flex: 1,
               child: OutlinedButton(
                 onPressed: isUploading
                     ? null
@@ -110,16 +151,44 @@ class CreateContentMobileFooterActions extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text('Save Draft', style: TextStyle(color: Colors.white)),
+                child: const Text('Save', style: TextStyle(color: Colors.white, fontSize: 13)),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
+
+            // 2. Secondary toggle (Schedule when not scheduled, or Publish when scheduled)
+            Expanded(
+              flex: 1,
+              child: OutlinedButton(
+                onPressed: isUploading
+                    ? null
+                    : () {
+                        if (isScheduled) {
+                          uploadController.isScheduled.value = false;
+                        } else {
+                          contentController.activateScheduleMode(context);
+                        }
+                      },
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: Text(
+                  isScheduled ? 'Publish' : 'Schedule',
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+
+            // 3. Primary CTA: 'Publish' or 'Schedule'
             Expanded(
               flex: 2,
               child: ElevatedButton(
                 onPressed: isUploading || !canPublish
                     ? null
-                    : contentController.handleVideoUpload,
+                    : () => contentController.handleVideoUpload(isDraft: false),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.brand,
                   foregroundColor: Colors.black,
@@ -132,7 +201,10 @@ class CreateContentMobileFooterActions extends StatelessWidget {
                         width: 20,
                         child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2),
                       )
-                    : const Text('Publish Video', style: TextStyle(fontWeight: FontWeight.bold)),
+                    : Text(
+                        isScheduled ? 'Schedule' : 'Publish',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
               ),
             ),
           ],

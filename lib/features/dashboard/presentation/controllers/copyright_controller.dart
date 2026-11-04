@@ -122,7 +122,7 @@ class CopyrightController extends BaseController
         'noticeType': 'DMCA Takedown Request',
         'status': isScheduled7Day ? 'SCHEDULED_7_DAY_NOTICE' : 'PENDING_TAKEDOWN',
         'isScheduled7Day': isScheduled7Day,
-        'createdAt': Timestamp.now(),
+        'createdAt': FieldValue.serverTimestamp(),
       });
       return true;
     } catch (e, stackTrace) {
@@ -151,7 +151,7 @@ class CopyrightController extends BaseController
         'disputeReason': reason,
         'explanation': explanation,
         'status': 'UNDER_REVIEW',
-        'createdAt': Timestamp.now(),
+        'createdAt': FieldValue.serverTimestamp(),
       });
       return true;
     } catch (e, stackTrace) {

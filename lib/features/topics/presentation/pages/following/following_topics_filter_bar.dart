@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
 
@@ -74,6 +75,7 @@ class FollowingTopicsFilterBar extends StatelessWidget {
                       ),
                     ),
                     onTap: () {
+                      HapticFeedback.selectionClick();
                       controller.setSortOrder(option);
                       Get.back<void>();
                     },
@@ -91,7 +93,7 @@ class FollowingTopicsFilterBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1400),
+        constraints: const BoxConstraints(maxWidth: 1440),
         child: Padding(
           padding: EdgeInsets.symmetric(
             horizontal: isMobile ? 12 : 20,
@@ -158,7 +160,10 @@ class FollowingTopicsFilterBar extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.only(right: 8),
         child: InkWell(
-          onTap: () => controller.setVideoFilter(filter),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            controller.setVideoFilter(filter);
+          },
           borderRadius: BorderRadius.circular(20),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
@@ -191,7 +196,10 @@ class FollowingTopicsFilterBar extends StatelessWidget {
       final currentSort = controller.selectedSortOrder.value;
 
       return InkWell(
-        onTap: () => _showSortMenu(context),
+        onTap: () {
+          HapticFeedback.lightImpact();
+          _showSortMenu(context);
+        },
         borderRadius: BorderRadius.circular(20),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -258,7 +266,10 @@ class FollowingTopicsFilterBar extends StatelessWidget {
           children: [
             // Grid Toggle Button
             InkWell(
-              onTap: () => controller.setGridView(true),
+              onTap: () {
+                HapticFeedback.selectionClick();
+                controller.setGridView(true);
+              },
               borderRadius: BorderRadius.circular(7),
               child: Container(
                 padding: const EdgeInsets.all(6),
@@ -280,7 +291,10 @@ class FollowingTopicsFilterBar extends StatelessWidget {
 
             // List Toggle Button
             InkWell(
-              onTap: () => controller.setGridView(false),
+              onTap: () {
+                HapticFeedback.selectionClick();
+                controller.setGridView(false);
+              },
               borderRadius: BorderRadius.circular(7),
               child: Container(
                 padding: const EdgeInsets.all(6),

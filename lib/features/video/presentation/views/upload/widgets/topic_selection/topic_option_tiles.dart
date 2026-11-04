@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/presentation/views/upload/widgets/topic_selection/topic_match_info.dart';
+import 'package:truthworld/features/video/presentation/views/upload/widgets/topic_selection/topic_selection_host.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// "None" topic option chip to allow standalone video publishing.
@@ -19,16 +20,18 @@ class TopicNoneOptionChip extends StatelessWidget {
   final Color textColor;
   final Color subtextColor;
   final Color borderColor;
-  final dynamic controller;
+  final TopicSelectionHost controller;
   final Function(Topic? topic)? onTopicSelected;
 
   @override
   Widget build(BuildContext context) {
-    final selectedId =
-        controller?.selectedTopicId?.value as String? ?? '';
-    final newTopicData = controller?.newTopicData as Map<String, dynamic>?;
-    final isSelected =
-        selectedId.isEmpty && (newTopicData == null || newTopicData.isEmpty);
+    final selectedId = controller.selectedTopicId.value;
+    final hasSelectedTopicIds =
+        controller.selectedTopicIds?.isNotEmpty ?? false;
+    final newTopicData = controller.newTopicData;
+    final isSelected = selectedId.isEmpty &&
+        !hasSelectedTopicIds &&
+        newTopicData.isEmpty;
 
     return InkWell(
       onTap: () => TopicRecommendationEngine.handleNoneTopicSelection(
@@ -107,15 +110,16 @@ class TopicDraftOptionCard extends StatelessWidget {
 
   final bool isDark;
   final Color borderColor;
-  final dynamic controller;
+  final TopicSelectionHost controller;
 
   @override
   Widget build(BuildContext context) {
-    final selectedId =
-        controller?.selectedTopicId?.value as String? ?? '';
+    final selectedId = controller.selectedTopicId.value;
     final isSelected = selectedId == 'new_topic_draft';
-    final newTopicData = controller?.newTopicData as Map<String, dynamic>? ?? {};
-    final title = newTopicData['title'] as String? ?? 'Untitled Draft';
+    final newTopicData = controller.newTopicData;
+    final title = (newTopicData['name'] as String?) ??
+        (newTopicData['title'] as String?) ??
+        'Untitled Draft';
 
     return InkWell(
       onTap: () => TopicRecommendationEngine.handleDraftTopicSelection(

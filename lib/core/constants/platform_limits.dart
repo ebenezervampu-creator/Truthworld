@@ -22,7 +22,7 @@ class PlatformLimits {
   /// Helpful message when standard channel cap is reached
   static const String standardChannelLimitMessage =
       'Phase 1 standard channel capacity ($maxStandardChannels channels) has been reached. '
-      'Custom Channels have zero restrictions and can be created immediately, '
+      'Pro Channels have zero restrictions and can be created immediately, '
       'or you can apply for the standard creator waitlist.';
 
   /// Helpful message when user registration cap is reached

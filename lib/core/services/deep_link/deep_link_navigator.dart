@@ -12,6 +12,7 @@ import 'package:truthworld/core/services/deep_link/deep_link_url_parser.dart';
 import 'package:truthworld/core/services/deep_link/parsed_truthworld_url.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/core/utils/web_platform_utils.dart';
+import 'package:truthworld/core/widgets/truthworld_splash_screen.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
@@ -93,6 +94,9 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
       await Future<void>.delayed(const Duration(milliseconds: 50));
       attempts++;
     }
+
+    // Dismiss splash overlay immediately on deep-link resolution for zero latency
+    TruthworldSplashScreen.dismiss();
 
     final parsed = DeepLinkUrlParser.parseUrl(clean);
 
@@ -253,9 +257,9 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
     );
 
     if (replace) {
-      AppNavigator.offNamed(routeUrl, arguments: args, preventDuplicates: false);
+      AppNavigator.offNamed(routeUrl, arguments: args);
     } else {
-      AppNavigator.toNamed(routeUrl, arguments: args, preventDuplicates: false);
+      AppNavigator.toNamed(routeUrl, arguments: args);
     }
   }
 
@@ -302,9 +306,9 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
     );
 
     if (replace) {
-      AppNavigator.offNamed(routeUrl, arguments: args, preventDuplicates: false);
+      AppNavigator.offNamed(routeUrl, arguments: args);
     } else {
-      AppNavigator.toNamed(routeUrl, arguments: args, preventDuplicates: false);
+      AppNavigator.toNamed(routeUrl, arguments: args);
     }
   }
 
@@ -327,9 +331,9 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
     );
 
     if (replace) {
-      AppNavigator.offNamed(routeUrl, arguments: args, preventDuplicates: false);
+      AppNavigator.offNamed(routeUrl, arguments: args);
     } else {
-      AppNavigator.toNamed(routeUrl, arguments: args, preventDuplicates: false);
+      AppNavigator.toNamed(routeUrl, arguments: args);
     }
   }
 
@@ -352,9 +356,9 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
     );
 
     if (replace) {
-      AppNavigator.offNamed(routeUrl, arguments: args, preventDuplicates: false);
+      AppNavigator.offNamed(routeUrl, arguments: args);
     } else {
-      AppNavigator.toNamed(routeUrl, arguments: args, preventDuplicates: false);
+      AppNavigator.toNamed(routeUrl, arguments: args);
     }
   }
 
@@ -377,9 +381,9 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
     );
 
     if (replace) {
-      AppNavigator.offNamed(routeUrl, arguments: args, preventDuplicates: false);
+      AppNavigator.offNamed(routeUrl, arguments: args);
     } else {
-      AppNavigator.toNamed(routeUrl, arguments: args, preventDuplicates: false);
+      AppNavigator.toNamed(routeUrl, arguments: args);
     }
   }
 
@@ -445,7 +449,10 @@ mixin DeepLinkNavigator on DeepLinkCacheManager {
     try {
       final currentPath = path ??
           (Uri.base.path + (Uri.base.hasQuery ? '?${Uri.base.query}' : ''));
-      final clean = currentPath.replaceFirst(RegExp(r'^\/+'), '');
+      // TW-SEC-01: Sanitize clean path to strip '#', ';', whitespace, and control characters to prevent Intent injection
+      final clean = currentPath
+          .replaceAll(RegExp(r'[#;\s\x00-\x1F\x7F]'), '')
+          .replaceFirst(RegExp(r'^\/+'), '');
       final isAndroid = defaultTargetPlatform == TargetPlatform.android;
 
       final urlStr = isAndroid

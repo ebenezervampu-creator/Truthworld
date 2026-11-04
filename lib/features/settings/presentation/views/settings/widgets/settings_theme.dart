@@ -57,6 +57,21 @@ ThemeData getSettingsTheme(BuildContext context) {
   );
 
   return buildAppTheme().copyWith(
+    scaffoldBackgroundColor: homeColors.background,
+    cardColor: homeColors.surface,
+    dividerColor: homeColors.divider,
+    canvasColor: homeColors.surface,
+    dialogBackgroundColor: homeColors.surface,
+    colorScheme: ColorScheme.dark(
+      primary: homeColors.brand,
+      secondary: homeColors.brandVariant,
+      surface: homeColors.surface,
+      error: homeColors.error,
+      onSurface: homeColors.textPrimary,
+      surfaceContainer: homeColors.surfaceContainer,
+      surfaceContainerHigh: homeColors.surfaceContainerHigh,
+      surfaceContainerHighest: homeColors.surfaceContainerHighest,
+    ),
     extensions: [
       homeColors,
       homeTypography,

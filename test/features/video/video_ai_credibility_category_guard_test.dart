@@ -13,14 +13,49 @@ import 'package:truthworld/features/video/presentation/controllers/video_control
 import 'package:truthworld/features/video/presentation/controllers/video_engagement_controller.dart';
 import 'package:truthworld/features/video/presentation/widgets/video_action_buttons.dart';
 import 'package:truthworld/features/video/presentation/widgets/video_fact_check_card.dart';
+import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
+import 'package:truthworld/features/video/presentation/views/player/controls/fullscreen_actions_bar.dart';
+import 'package:truthworld/features/video/presentation/views/player/overlays/player_fact_check_overlay.dart';
+import 'package:video_player/video_player.dart';
+import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 
 import '../../test_helpers/mock_firebase.dart';
+
+class _FakeVideoPlayerPlatform extends VideoPlayerPlatform {
+  @override
+  Future<void> init() async {}
+  @override
+  Future<void> dispose(int textureId) async {}
+  @override
+  Future<int?> create(DataSource dataSource) async => 1;
+  @override
+  Future<void> setLooping(int textureId, bool looping) async {}
+  @override
+  Future<void> play(int textureId) async {}
+  @override
+  Future<void> pause(int textureId) async {}
+  @override
+  Future<void> setVolume(int textureId, double volume) async {}
+  @override
+  Future<void> setPlaybackSpeed(int textureId, double speed) async {}
+  @override
+  Future<void> seekTo(int textureId, Duration position) async {}
+  @override
+  Future<Duration> getPosition(int textureId) async => Duration.zero;
+  @override
+  Stream<VideoEvent> videoEventsFor(int textureId) => const Stream.empty();
+  @override
+  Widget buildView(int textureId) => const SizedBox();
+  @override
+  Future<void> setMixWithOthers(bool mixWithOthers) async {}
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(() async {
     GoogleFonts.config.allowRuntimeFetching = false;
+    VideoPlayerPlatform.instance = _FakeVideoPlayerPlatform();
     await setupMockFirebase();
   });
 
@@ -195,6 +230,147 @@ void main() {
       // Verify that the shield verification button after dislike is NOT present
       expect(find.byIcon(Icons.verified_user_outlined), findsNothing);
       expect(find.byIcon(Icons.verified_user_rounded), findsNothing);
+    });
+
+    test('5. Spiritual videos are strictly non-credibility categories and have no AI credibility', () {
+      final spiritualVideo1 = Video(
+        id: 'vid_spirit_1',
+        title: 'Choosen one series 1 season 2',
+        description: 'Spiritual series',
+        thumbnailUrl: 'https://example.com/thumb.jpg',
+        ownerId: 'owner_spirit',
+        channelId: 'chan_spirit',
+        channelName: 'Ebenezer Vampu',
+        category: 'Spirituality',
+        tags: const ['faith', 'devotional'],
+      );
+
+      final spiritualVideo2 = Video(
+        id: 'vid_spirit_2',
+        title: 'Morning Meditation & Prayer',
+        description: 'Daily spiritual reflection',
+        thumbnailUrl: 'https://example.com/thumb.jpg',
+        ownerId: 'owner_spirit',
+        channelId: 'chan_spirit',
+        channelName: 'Spiritual Guides',
+        category: 'Spiritual',
+        tags: const ['spiritual', 'prayer'],
+      );
+
+      expect(spiritualVideo1.isNonCredibilityCategory, isTrue);
+      expect(spiritualVideo1.hasAiCredibility, isFalse);
+
+      expect(spiritualVideo2.isNonCredibilityCategory, isTrue);
+      expect(spiritualVideo2.hasAiCredibility, isFalse);
+    });
+
+    testWidgets('6. FullscreenFloatingActionDock hides Claims & Fact-Check option for spiritual & un-factchecked videos', (tester) async {
+      final vpc = VideoPlayerController.networkUrl(Uri.parse('https://example.com/test.mp4'));
+      final playerCtrl = TowerPlayerController(videoPlayerController: vpc, tag: 'test_player_spirit');
+      final videoCtrl = VideoController();
+      addTearDown(() {
+        playerCtrl.timers.cancelAll();
+        playerCtrl.cancelPendingTap();
+        playerCtrl.abr.dispose();
+        TowerPlayerRegistry.unregister(playerCtrl);
+      });
+
+      // Spiritual video without fact-checking
+      final spiritualVideo = Video(
+        id: 'vid_spirit_fs',
+        title: 'Choosen one series',
+        description: 'Spiritual discourse',
+        thumbnailUrl: 'https://example.com/thumb.jpg',
+        ownerId: 'owner_spirit',
+        channelId: 'chan_spirit',
+        channelName: 'Ebenezer Vampu',
+        category: 'Spirituality',
+        tags: const ['spiritual'],
+        isFactChecked: false,
+      );
+
+      videoCtrl.video = spiritualVideo;
+      videoCtrl.rxVideo.value = spiritualVideo;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: FullscreenFloatingActionDock(
+              ctrl: playerCtrl,
+              vc: videoCtrl,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Claims / Fact-Check icons MUST NOT be present
+      expect(find.byIcon(Icons.fact_check_outlined), findsNothing);
+      expect(find.byIcon(Icons.fact_check_rounded), findsNothing);
+
+      // Now set a science video that IS fact-checked
+      final factCheckedVideo = Video(
+        id: 'vid_science_fs',
+        title: 'Space Exploration Discovery',
+        description: 'Documentary',
+        thumbnailUrl: 'https://example.com/thumb.jpg',
+        ownerId: 'owner_sci',
+        channelId: 'chan_sci',
+        channelName: 'Science Hub',
+        category: 'Science',
+        isFactChecked: true,
+        factCheckUrl: 'https://example.com/factcheck.json',
+        tags: const ['science'],
+      );
+
+      videoCtrl.video = factCheckedVideo;
+      videoCtrl.rxVideo.value = factCheckedVideo;
+      await tester.pump();
+
+      // Now fact-check option MUST appear
+      expect(find.byIcon(Icons.fact_check_outlined), findsOneWidget);
+    });
+
+    testWidgets('7. FactCheckOverlay auto-dismisses on spiritual video and yields SizedBox.shrink', (tester) async {
+      final vpc = VideoPlayerController.networkUrl(Uri.parse('https://example.com/test.mp4'));
+      final playerCtrl = TowerPlayerController(videoPlayerController: vpc, tag: 'test_player_overlay');
+      final videoCtrl = VideoController();
+      addTearDown(() {
+        playerCtrl.timers.cancelAll();
+        playerCtrl.cancelPendingTap();
+        playerCtrl.abr.dispose();
+        TowerPlayerRegistry.unregister(playerCtrl);
+      });
+
+      final spiritualVideo = Video(
+        id: 'vid_spirit_overlay',
+        title: 'Choosen one series',
+        description: 'Spiritual series',
+        thumbnailUrl: 'https://example.com/thumb.jpg',
+        ownerId: 'owner_spirit',
+        channelId: 'chan_spirit',
+        channelName: 'Ebenezer Vampu',
+        category: 'Spirituality',
+        tags: const ['faith'],
+      );
+
+      videoCtrl.video = spiritualVideo;
+      videoCtrl.rxVideo.value = spiritualVideo;
+      playerCtrl.showFactCheckPopup.value = true;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: FactCheckOverlay(ctrl: playerCtrl),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // FactCheckOverlay should have automatically closed itself
+      expect(playerCtrl.showFactCheckPopup.value, isFalse);
+      expect(find.text('Not Fact-Checked Yet'), findsNothing);
+      expect(find.text('Fact-Check This Video'), findsNothing);
     });
   });
 }

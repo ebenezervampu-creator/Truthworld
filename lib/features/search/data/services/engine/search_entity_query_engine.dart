@@ -84,7 +84,6 @@ class SearchEntityQueryEngine {
           final s = await _firestore
               .collection('videos')
               .where('keywords', arrayContains: tok)
-              .where('visibility', isEqualTo: 'public')
               .limit(10)
               .getCacheFirst();
           for (final doc in s.docs) {
@@ -104,6 +103,7 @@ class SearchEntityQueryEngine {
           final homeCtrl = Get.find<HomeController>();
           final localMatches = homeCtrl.videos
               .whereType<Video>()
+              .where(VideoVisibilityPolicy.isVisibleForSearch)
               .where((v) {
                 final t = v.title.toLowerCase();
                 final c = v.channelName.toLowerCase();
@@ -253,7 +253,7 @@ class SearchEntityQueryEngine {
       if (!item.isValid) return;
       if (data != null) {
         final vis = (data['visibility'] as String?)?.toLowerCase();
-        if (vis == 'private') return;
+        if (vis == 'private' || vis == 'unlisted') return;
         final count = (data['videoCount'] as num?)?.toInt() ??
             (data['videosCount'] as num?)?.toInt() ??
             (data['videoIds'] as List?)?.length ??

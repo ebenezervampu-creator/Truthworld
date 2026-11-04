@@ -12,7 +12,7 @@ class MatchToolHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
+    final bgColor = isDarkMode ? AppColors.bgSurface : Colors.white;
     final primaryTextColor = isDarkMode ? AppColors.textPrimary : Colors.black87;
     final secondaryTextColor =
         isDarkMode ? AppColors.textSecondary : Colors.black54;

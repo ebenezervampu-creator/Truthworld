@@ -3,6 +3,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions/v2';
 import * as crypto from 'crypto';
+import { isCallableAdmin } from '../utils/auth';
 import {
   FraudSignalType,
   FraudSeverity,
@@ -356,13 +357,13 @@ export const rollbackFraudulentViews = onCall({
   memory: '512MiB',
   timeoutSeconds: 300,
 }, async (request) => {
-  if (request.auth?.token?.admin !== true) {
-    throw new HttpsError('permission-denied', 'Admin access required.');
+  if (!isCallableAdmin(request.auth)) {
+    throw new HttpsError('permission-denied', 'Verified admin access required.');
   }
   
-  const { videoId, fromTimestamp, toTimestamp, action } = request.data;
-  if (!videoId || !fromTimestamp || !toTimestamp || !action) {
-    throw new HttpsError('invalid-argument', 'Missing required arguments: videoId, fromTimestamp, toTimestamp, action');
+  const { videoId, fromTimestamp, toTimestamp, action } = request.data || {};
+  if (!videoId || typeof videoId !== 'string' || !/^[a-zA-Z0-9_-]{5,64}$/.test(videoId) || !fromTimestamp || !toTimestamp || !action) {
+    throw new HttpsError('invalid-argument', 'Missing or invalid required arguments: videoId, fromTimestamp, toTimestamp, action');
   }
   if (action !== 'rollback' && action !== 'preview') {
     throw new HttpsError('invalid-argument', 'action must be "rollback" or "preview"');

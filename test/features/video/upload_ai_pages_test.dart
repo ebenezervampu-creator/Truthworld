@@ -8,6 +8,7 @@ import 'package:truthworld/features/video/presentation/controllers/upload_contro
 import 'package:truthworld/features/video/presentation/controllers/upload_dubbing_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_subtitles_controller.dart';
 import 'package:truthworld/features/video/presentation/views/upload/pages/upload_dubbing_page.dart';
+import 'package:truthworld/features/video/presentation/views/upload/pages/upload_subtitles_and_dubbing_page.dart';
 import 'package:truthworld/features/video/presentation/views/upload/pages/upload_subtitles_page.dart';
 import 'package:truthworld/features/video/presentation/views/upload/widgets/create_content_ai_section.dart';
 
@@ -52,19 +53,19 @@ void main() {
   group('Upload Subtitles Controller & Page Tests', () {
     test('1. Calculates flat pricing at-cost (0% platform profit) for standard and custom channels', () {
       final uploadCtrl = Get.put(UploadController());
-      uploadCtrl.videoDurationSeconds.value = 400; // 5-10 min tier -> $0.05 / lang at-cost
+      uploadCtrl.videoDurationSeconds.value = 60; // 1 min -> $0.05 / lang at-cost
       uploadCtrl.selectedChannel.value = createTestChannel();
 
       final subCtrl = Get.put(UploadSubtitlesController());
       expect(subCtrl.flatSubtitleRatePerLang, equals(0.05));
 
       subCtrl.selectedLanguages.addAll(['Spanish', 'French', 'German']);
-      expect(subCtrl.calculatedCost, equals(0.15));
+      expect(subCtrl.calculatedCost, equals(0.09));
 
       // Switch to custom channel (exact same at-cost rate)
       uploadCtrl.selectedChannel.value = createTestChannel(isCustom: true);
       expect(subCtrl.flatSubtitleRatePerLang, equals(0.05));
-      expect(subCtrl.calculatedCost, equals(0.15));
+      expect(subCtrl.calculatedCost, equals(0.09));
     });
 
     test('2. Subtitles for dubbed languages are complimentary (free)', () {
@@ -178,7 +179,7 @@ void main() {
   group('Upload Dubbing Controller & Page Tests', () {
     test('1. Calculates dubbing cost and duration tiers properly at-cost', () {
       final uploadCtrl = Get.put(UploadController());
-      uploadCtrl.videoDurationSeconds.value = 500; // 5-10 min tier -> $0.50 at-cost
+      uploadCtrl.videoDurationSeconds.value = 300; // 5 min -> $0.50 at-cost ($0.10/min)
       uploadCtrl.selectedChannel.value = createTestChannel();
 
       final dubCtrl = Get.put(UploadDubbingController());
@@ -282,7 +283,7 @@ void main() {
       expect(uploadCtrl.allowRatings.value, isFalse);
     });
 
-    testWidgets('2. CreateContentAISection renders direct Truth Verification card with 100% FREE badge and toggles cleanly', (tester) async {
+    testWidgets('2. CreateContentAISection renders direct Truth Verification card without 100% FREE badge and toggles cleanly', (tester) async {
       final uploadCtrl = Get.put(UploadController());
       uploadCtrl.selectedChannel.value = createTestChannel();
       uploadCtrl.videoDurationSeconds.value = 600;
@@ -294,12 +295,13 @@ void main() {
 
       // Verify direct card elements
       expect(find.text('Truth Verification (Full Ground Truth)'), findsOneWidget);
-      expect(find.text('100% FREE'), findsOneWidget);
-      expect(find.text('Epistemic multi-source AI verification & Truth Score'), findsOneWidget);
+      expect(find.text('100% FREE'), findsNothing);
+      expect(find.textContaining('Epistemic multi-source AI verification powered by Google Cloud'), findsNothing);
+      expect(find.text('Epistemic multi-source AI verification & claim citations'), findsOneWidget);
 
       // Verify no subpage configure buttons exist
-      expect(find.text('Configure Depth Tiers & Pricing →'), findsNothing);
-      expect(find.text('View Fact-Checking & Sources →'), findsNothing);
+      expect(find.text('Configure Depth Tiers & Pricing â†’'), findsNothing);
+      expect(find.text('View Fact-Checking & Sources â†’'), findsNothing);
 
       // Direct toggle interaction
       expect(uploadCtrl.aiFactCheckEnabled.value, isFalse);
@@ -307,6 +309,107 @@ void main() {
       await tester.tap(factCheckSwitch);
       await tester.pumpAndSettle();
       expect(uploadCtrl.aiFactCheckEnabled.value, isTrue);
+    });
+  });
+
+  group('Separated Studio Sections Tests', () {
+    testWidgets('1. CreateContentSubtitlesDubbingSection renders Subtitles and Dubbing section cleanly', (tester) async {
+      final uploadCtrl = Get.put(UploadController());
+      uploadCtrl.selectedChannel.value = createTestChannel();
+      uploadCtrl.videoDurationSeconds.value = 300;
+
+      await pumpPageInHarness(
+        tester,
+        CreateContentSubtitlesDubbingSection(uploadController: uploadCtrl),
+      );
+
+      expect(find.text('10. Subtitles and Dubbing'), findsOneWidget);
+      expect(find.text('AI Subtitles & Translation'), findsOneWidget);
+      expect(find.text('AI Voice Dubbing & Localization'), findsOneWidget);
+      expect(find.textContaining('Configure Subtitles & Dubbing'), findsOneWidget);
+    });
+
+    testWidgets('2. CreateContentTruthVerificationSection renders 11. TruthWorld Verification standalone cleanly', (tester) async {
+      final uploadCtrl = Get.put(UploadController());
+      uploadCtrl.selectedChannel.value = createTestChannel();
+
+      await pumpPageInHarness(
+        tester,
+        CreateContentTruthVerificationSection(uploadController: uploadCtrl),
+      );
+
+      expect(find.text('11. TruthWorld Verification'), findsOneWidget);
+      expect(find.text('100% FREE'), findsNothing);
+      expect(find.textContaining('Epistemic multi-source AI verification powered by Google Cloud'), findsNothing);
+      expect(find.text('Truth Verification (Full Ground Truth)'), findsOneWidget);
+
+      // Toggle ON
+      expect(uploadCtrl.aiFactCheckEnabled.value, isFalse);
+      final toggleSwitch = find.byType(Switch).first;
+      await tester.tap(toggleSwitch);
+      await tester.pumpAndSettle();
+      expect(uploadCtrl.aiFactCheckEnabled.value, isTrue);
+
+      // Verify review mode selector and complex options are removed (only ON/OFF toggle, public by default)
+      expect(find.text('Fact-Check Results Delivery'), findsNothing);
+      expect(find.text('Open for user directly'), findsNothing);
+      expect(find.text('Show results first to you'), findsNothing);
+      expect(uploadCtrl.aiFactCheckReviewMode.value, equals('open_to_users'));
+    });
+
+    testWidgets('3. CreateContentSpeakerDiarizationSection renders 12. Speaker Diarization and toggles', (tester) async {
+      final uploadCtrl = Get.put(UploadController());
+
+      await pumpPageInHarness(
+        tester,
+        CreateContentSpeakerDiarizationSection(uploadController: uploadCtrl),
+      );
+
+      expect(find.text('12. Speaker Diarization'), findsOneWidget);
+      expect(find.text('Identify and label multiple speakers'), findsOneWidget);
+
+      expect(uploadCtrl.aiDiarizationEnabled.value, isFalse);
+      final toggleSwitch = find.byType(Switch).first;
+      await tester.tap(toggleSwitch);
+      await tester.pumpAndSettle();
+      expect(uploadCtrl.aiDiarizationEnabled.value, isTrue);
+    });
+
+    testWidgets('4. CreateContentAutoChaptersSection renders 13. Auto Chapters and toggles', (tester) async {
+      final uploadCtrl = Get.put(UploadController());
+
+      await pumpPageInHarness(
+        tester,
+        CreateContentAutoChaptersSection(uploadController: uploadCtrl),
+      );
+
+      expect(find.text('13. Auto Chapters'), findsOneWidget);
+      expect(find.text('Generate smart video timestamp chapters'), findsOneWidget);
+
+      expect(uploadCtrl.aiChaptersEnabled.value, isFalse);
+      final toggleSwitch = find.byType(Switch).first;
+      await tester.tap(toggleSwitch);
+      await tester.pumpAndSettle();
+      expect(uploadCtrl.aiChaptersEnabled.value, isTrue);
+    });
+
+    testWidgets('5. UploadSubtitlesAndDubbingPage renders dedicated configuration page cleanly', (tester) async {
+      await pumpPageInHarness(
+        tester,
+        const UploadSubtitlesAndDubbingPage(),
+        onBeforePump: () {
+          final uploadCtrl = Get.put(UploadController());
+          uploadCtrl.selectedChannel.value = createTestChannel();
+          uploadCtrl.videoDurationSeconds.value = 360;
+        },
+      );
+
+      expect(find.text('Subtitles and Dubbing'), findsWidgets);
+      expect(find.text('AI Subtitles & Translation (130+ Languages)'), findsOneWidget);
+      expect(find.text('AI Audio Translation & Dubbing (70+ Languages)'), findsOneWidget);
+      expect(find.text('DUBBING IS NOT FREE'), findsOneWidget);
+      expect(find.text('Live Pricing Breakdown'), findsOneWidget);
+      expect(find.text('Save & Return to Studio'), findsOneWidget);
     });
   });
 }

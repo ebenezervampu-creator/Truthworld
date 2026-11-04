@@ -16,6 +16,7 @@ class AudioTracksLanguageManager {
   final RxString activeTab = 'tracks'.obs; // 'tracks' or 'languages'
   final RxList<String> availableLanguages = <String>[].obs;
   final RxString selectedLanguage = ''.obs;
+  final RxMap<String, String> customLanguages = <String, String>{}.obs;
 
   final RxList<LanguageRequest> languageRequests = <LanguageRequest>[].obs;
   final RxList<LanguageRequest> clientLanguageRequests =
@@ -83,19 +84,60 @@ class AudioTracksLanguageManager {
     required void Function(String langCode) onLanguageAdded,
     required void Function(String message) onShowSuccess,
   }) {
-    if (availableLanguages.contains(langCode)) {
+    final cleanCode = langCode.trim().toLowerCase();
+    if (availableLanguages.contains(cleanCode)) {
       switchLanguageTrack(
-        langCode,
+        cleanCode,
         onLanguageSwitched: onLanguageAdded,
       );
       return;
     }
-    availableLanguages.add(langCode);
-    selectedLanguage.value = langCode;
-    onLanguageAdded(langCode);
+    availableLanguages.add(cleanCode);
+    selectedLanguage.value = cleanCode;
+    onLanguageAdded(cleanCode);
+    final displayName =
+        customLanguages[cleanCode] ?? getSupportedLanguageName(cleanCode);
     onShowSuccess(
-      'Added new secondary audio target layer: ${getSupportedLanguageName(langCode)}',
+      'Added new secondary audio target layer: $displayName',
     );
+  }
+
+  /// Registers a custom language and activates it as a layer.
+  void addCustomLanguage(
+    String langCode,
+    String langName, {
+    required void Function(String langCode) onLanguageAdded,
+    required void Function(String message) onShowSuccess,
+  }) {
+    final cleanCode = langCode.trim().toLowerCase();
+    final cleanName = langName.trim();
+    if (cleanCode.isEmpty || cleanName.isEmpty) return;
+    customLanguages[cleanCode] = cleanName;
+    addLanguageLayer(
+      cleanCode,
+      onLanguageAdded: onLanguageAdded,
+      onShowSuccess: onShowSuccess,
+    );
+  }
+
+  /// Removes a language layer from available languages.
+  void removeLanguageLayer(
+    String langCode, {
+    required String baseLang,
+    required void Function(String langCode) onLanguageRemoved,
+    required void Function(String message) onShowSuccess,
+  }) {
+    final cleanCode = langCode.trim().toLowerCase();
+    if (cleanCode == baseLang.toLowerCase()) return;
+    if (!availableLanguages.contains(cleanCode)) return;
+    availableLanguages.remove(cleanCode);
+    if (selectedLanguage.value == cleanCode) {
+      selectedLanguage.value = baseLang;
+    }
+    onLanguageRemoved(cleanCode);
+    final displayName =
+        customLanguages[cleanCode] ?? getSupportedLanguageName(cleanCode);
+    onShowSuccess('Removed language layer: $displayName');
   }
 
   /// Clears state when no video is selected.

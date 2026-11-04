@@ -1,6 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/app_categories.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/algorithm/diversity_config.dart';
@@ -21,12 +23,72 @@ mixin HomeFeedCachePersonalizationMixin on HomeFeedControllerBase {
 
   @override
   bool matchesCategory(Video v, String cat) {
-    final target = _normalizedCatCache[cat] ??= cat.trim().toLowerCase();
-    final tokens = v.categoryTokens;
-    if (tokens.contains(target)) return true;
-    for (final token in tokens) {
-      if (token.contains(target) || target.contains(token)) return true;
+    final cleanCat = cat.trim().toLowerCase();
+    if (cleanCat.isEmpty || cleanCat == 'all') return true;
+
+    final targetNorm = _normalizedCatCache[cat] ??=
+        AppCategories.normalizeCategory(cat).toLowerCase();
+
+    // 1. Direct category match & normalized category match
+    final vCat = v.category.trim().toLowerCase();
+    if (vCat.isNotEmpty) {
+      if (vCat == cleanCat || vCat == targetNorm) return true;
+      final normVCat = AppCategories.normalizeCategory(v.category).toLowerCase();
+      if (normVCat == cleanCat || normVCat == targetNorm) return true;
+
+      final vParts = vCat.split(RegExp(r'[\/&,]')).map((s) => s.trim().toLowerCase());
+      if (vParts.contains(cleanCat) || vParts.contains(targetNorm)) return true;
+
+      final targetParts = cleanCat.split(RegExp(r'[\/&,]')).map((s) => s.trim().toLowerCase());
+      if (targetParts.contains(vCat) || targetParts.contains(normVCat)) return true;
     }
+
+    // 2. VideoCategory or effectiveCategory match if present
+    final effectiveCat = (v.effectiveCategory ?? '').trim().toLowerCase();
+    if (effectiveCat.isNotEmpty) {
+      if (effectiveCat == cleanCat || effectiveCat == targetNorm) return true;
+      final normEff = AppCategories.normalizeCategory(effectiveCat).toLowerCase();
+      if (normEff == cleanCat || normEff == targetNorm) return true;
+    }
+
+    // 3. Exact tag match or normalized tag match (word-bounded, zero loose substring bleed)
+    for (final tag in v.tags) {
+      final t = tag.trim().toLowerCase();
+      if (t.isEmpty) continue;
+      if (t == cleanCat || t == targetNorm) return true;
+      if (AppCategories.normalizeCategory(t).toLowerCase() == cleanCat ||
+          AppCategories.normalizeCategory(t).toLowerCase() == targetNorm) {
+        return true;
+      }
+      final words = t.split(RegExp(r'[\s\-_]+'));
+      for (final word in words) {
+        if (word == cleanCat || word == targetNorm) return true;
+        if (AppCategories.normalizeCategory(word).toLowerCase() == cleanCat ||
+            AppCategories.normalizeCategory(word).toLowerCase() == targetNorm) {
+          return true;
+        }
+      }
+    }
+
+    // 4. Exact topic match or normalized topic match (word-bounded, zero loose substring bleed)
+    for (final topic in v.topics) {
+      final t = topic.trim().toLowerCase();
+      if (t.isEmpty) continue;
+      if (t == cleanCat || t == targetNorm) return true;
+      if (AppCategories.normalizeCategory(t).toLowerCase() == cleanCat ||
+          AppCategories.normalizeCategory(t).toLowerCase() == targetNorm) {
+        return true;
+      }
+      final words = t.split(RegExp(r'[\s\-_]+'));
+      for (final word in words) {
+        if (word == cleanCat || word == targetNorm) return true;
+        if (AppCategories.normalizeCategory(word).toLowerCase() == cleanCat ||
+            AppCategories.normalizeCategory(word).toLowerCase() == targetNorm) {
+          return true;
+        }
+      }
+    }
+
     return false;
   }
 
@@ -104,15 +166,25 @@ mixin HomeFeedCachePersonalizationMixin on HomeFeedControllerBase {
 
         if (cat == 'Unexplored' || cat == '🧭 Unexplored') {
           final watchedIds = getWatchedVideoIds();
-          final validUnexplored =
-              cachedVideos.where((v) => !watchedIds.contains(v.id)).toList();
+          final seenIds = <String>{};
+          final validUnexplored = cachedVideos
+              .where((v) =>
+                  v.id.isNotEmpty &&
+                  !watchedIds.contains(v.id) &&
+                  seenIds.add(v.id))
+              .toList();
           if (validUnexplored.isEmpty) {
             return;
           }
           videos.assignAll(validUnexplored);
         } else if (!isSpecialTab) {
-          final validForCategory =
-              cachedVideos.where((v) => matchesCategory(v, cat)).toList();
+          final seenIds = <String>{};
+          final validForCategory = cachedVideos
+              .where((v) =>
+                  v.id.isNotEmpty &&
+                  matchesCategory(v, cat) &&
+                  seenIds.add(v.id))
+              .toList();
           if (validForCategory.isEmpty) {
             return;
           }
@@ -125,9 +197,16 @@ mixin HomeFeedCachePersonalizationMixin on HomeFeedControllerBase {
             diversityConfig: DiversityConfig.homeFeed,
           );
           final rankedVideos = ranked.map((s) => s.video).toList();
-          videos.assignAll(rankedVideos.isNotEmpty ? rankedVideos : cachedVideos);
+          final seenIds = <String>{};
+          final distinct = (rankedVideos.isNotEmpty ? rankedVideos : cachedVideos)
+              .where((v) => v.id.isNotEmpty && seenIds.add(v.id))
+              .toList();
+          videos.assignAll(distinct);
         } else {
-          videos.assignAll(cachedVideos);
+          final seenIds = <String>{};
+          videos.assignAll(
+            cachedVideos.where((v) => v.id.isNotEmpty && seenIds.add(v.id)).toList(),
+          );
         }
         mixHomeFeed();
         isLoadingVideos.value = false;
@@ -153,7 +232,10 @@ mixin HomeFeedCachePersonalizationMixin on HomeFeedControllerBase {
         if (v.thumbnailUrl.isNotEmpty) {
           try {
             precacheImage(
-              CachedNetworkImageProvider(v.thumbnailUrl, maxWidth: 720),
+              CachedNetworkImageProvider(
+                v.thumbnailUrl,
+                maxWidth: kIsWeb ? null : 1280,
+              ),
               context,
             );
           } catch (_) {}
@@ -220,14 +302,22 @@ mixin HomeFeedCachePersonalizationMixin on HomeFeedControllerBase {
     final isAuth =
         Get.isRegistered<AuthService>() && authService.isAuthenticated.value;
 
-    while (videoIndex < videos.length) {
-      for (var i = 0; i < 6 && videoIndex < videos.length; i++) {
-        mixed.add(videos[videoIndex++]);
+    final seenVideoIds = <String>{};
+    final uniqueVideos = <Video>[];
+    for (final v in videos) {
+      if (v.id.isNotEmpty && seenVideoIds.add(v.id)) {
+        uniqueVideos.add(v);
+      }
+    }
+
+    while (videoIndex < uniqueVideos.length) {
+      for (var i = 0; i < 6 && videoIndex < uniqueVideos.length; i++) {
+        mixed.add(uniqueVideos[videoIndex++]);
       }
       if (isAuth && postIndex < communityPosts.length && selectedCategory == 'All') {
         mixed.add(communityPosts[postIndex++]);
       }
-      if (homepageAds.isNotEmpty && videoIndex < videos.length) {
+      if (homepageAds.isNotEmpty && videoIndex < uniqueVideos.length) {
         mixed.add(homepageAds[adIndex++ % homepageAds.length]);
       }
     }

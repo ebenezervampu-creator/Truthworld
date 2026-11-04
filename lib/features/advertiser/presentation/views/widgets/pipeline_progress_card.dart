@@ -15,9 +15,9 @@ class PipelineProgressCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF161618),
+        color: AppColors.appBarSurface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgSurface),
       ),
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -48,7 +48,7 @@ class PipelineProgressCard extends StatelessWidget {
           const SizedBox(height: 12),
           LinearProgressIndicator(
             value: progress,
-            backgroundColor: const Color(0xFF27272A),
+            backgroundColor: AppColors.bgSurface,
             valueColor: const AlwaysStoppedAnimation(AppColors.brand),
           ),
         ],

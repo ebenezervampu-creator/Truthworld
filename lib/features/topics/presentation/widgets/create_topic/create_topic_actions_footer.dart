@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -33,6 +34,7 @@ Widget buildCreateTopicDesktopFooterActions(
           onPressed: controller.isSubmitting.value
               ? null
               : () async {
+                  HapticFeedback.lightImpact();
                   final isValid = await controller.validateFormBeforeSubmit();
                   if (!isValid) return;
                   controller.isSubmitting.value = true;
@@ -113,6 +115,7 @@ Widget buildCreateTopicMobileStickyFooter(
           onPressed: controller.isSubmitting.value
               ? null
               : () async {
+                  HapticFeedback.lightImpact();
                   final isValid = await controller.validateFormBeforeSubmit();
                   if (!isValid) return;
                   controller.isSubmitting.value = true;
@@ -147,12 +150,20 @@ Widget buildCreateTopicMobileStickyFooter(
             ),
           ),
           child: controller.isSubmitting.value
-              ? const CircularProgressIndicator(color: Colors.black)
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    color: Colors.black,
+                    strokeWidth: 2,
+                  ),
+                )
               : const Text(
                   'Create Topic',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
+                    color: Colors.black,
                   ),
                 ),
         );

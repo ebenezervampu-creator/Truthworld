@@ -19,6 +19,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 
 
@@ -144,7 +145,9 @@ class VideoController extends BaseController
 
 
 
-        VideoEngagementActionsMixin
+        VideoEngagementActionsMixin,
+
+        VideoDragToMiniplayerMixin
 
 
 
@@ -876,22 +879,23 @@ class VideoController extends BaseController
 
 
 
+  String get _engagementTag => video.id.isNotEmpty
+      ? 'video_${video.id}'
+      : (tag != null ? 'video_$tag' : 'video_engagement');
+
   VideoEngagementController? _engagementController;
   @override
   VideoEngagementController get engagementController {
-    if (_engagementController != null) return _engagementController!;
-    final effectiveTag = tag ?? (video.id.isNotEmpty ? video.id : null);
-    if (effectiveTag != null && Get.isRegistered<VideoEngagementController>(tag: effectiveTag)) {
-      final ctrl = Get.find<VideoEngagementController>(tag: effectiveTag);
+    if (_engagementController != null && !_engagementController!.isClosed) {
+      return _engagementController!;
+    }
+    final engTag = _engagementTag;
+    if (Get.isRegistered<VideoEngagementController>(tag: engTag)) {
+      final ctrl = Get.find<VideoEngagementController>(tag: engTag);
       _engagementController = ctrl;
       return ctrl;
     }
-    if (Get.isRegistered<VideoEngagementController>()) {
-      final ctrl = Get.find<VideoEngagementController>();
-      _engagementController = ctrl;
-      return ctrl;
-    }
-    final ctrl = Get.put(VideoEngagementController(), tag: effectiveTag);
+    final ctrl = Get.put(VideoEngagementController(), tag: engTag);
     _engagementController = ctrl;
     return ctrl;
   }
@@ -1340,6 +1344,19 @@ class VideoController extends BaseController
 
   final RxBool isFullScreen = false.obs;
 
+  void exitFullscreen() {
+    isFullScreen.value = false;
+    try {
+      if (video.id.isNotEmpty &&
+          Get.isRegistered<TowerPlayerController>(tag: video.id)) {
+        final tpc = Get.find<TowerPlayerController>(tag: video.id);
+        if (tpc.isFullScreen.value) {
+          tpc.toggleFullscreen();
+        }
+      }
+    } catch (_) {}
+  }
+
 
 
   final RxInt mobileTabIndex = 0.obs;
@@ -1375,10 +1392,10 @@ class VideoController extends BaseController
 
 
   @override
-
-
-
   final Rx<VideoResolutionV2?> currentResolution = Rx<VideoResolutionV2?>(null);
+
+  @override
+  final RxSet<String> blacklistedStreamUrls = <String>{}.obs;
 
 
 
@@ -1391,10 +1408,13 @@ class VideoController extends BaseController
 
 
   @override
-
-
-
   final RxList<AudioTrack> availableAudioTracks = <AudioTrack>[].obs;
+
+  @override
+  final RxList<VideoTrack> availableVideoTracks = <VideoTrack>[].obs;
+
+  @override
+  final Rx<VideoTrack?> activeVideoTrack = Rx<VideoTrack?>(null);
 
 
 
@@ -1605,6 +1625,10 @@ class VideoController extends BaseController
 
 
   RxList<Video> get moreFromChannel => recommendationsController.moreFromChannel;
+  RxList<Video> get flipVideos => recommendationsController.flipVideos;
+  bool get hasFlipCoinVideos => recommendationsController.hasFlipCoinVideos;
+  bool hasVideosForTag(String tagOrCategory) =>
+      recommendationsController.hasVideosForTag(tagOrCategory);
 
 
 
@@ -1782,6 +1806,8 @@ class VideoController extends BaseController
 
 
   StreamSubscription<DocumentSnapshot>? _videoSubscription;
+  Worker? _memberUnlockWorker;
+  Worker? _subUnlockWorker;
 
 
 
@@ -1870,6 +1896,7 @@ class VideoController extends BaseController
 
 
     super.onInit();
+    initDragToMiniplayer();
 
 
 
@@ -1943,16 +1970,11 @@ class VideoController extends BaseController
 
 
 
-    rxIsOffline.value = (Get.arguments?['isOffline'] as bool?) ?? false;
 
 
 
-    if (Get.arguments?['isAudioOnly'] == true) {
-      isAudioOnly.value = true;
-    } else {
-      isAudioOnly.value = false;
-      TowerPlayerPreferences.globalAudioOnly = false;
-    }
+
+
 
 
 
@@ -2028,10 +2050,40 @@ class VideoController extends BaseController
 
 
 
-    parseAndHydrateInitialVideo();
+    void startInitialHydration() {
+      if (isClosed) return;
+  
+      if (Get.arguments?['isAudioOnly'] == true) {
+        isAudioOnly.value = true;
+      } else {
+        isAudioOnly.value = false;
+        TowerPlayerPreferences.globalAudioOnly = false;
+      }
+      parseAndHydrateInitialVideo();
+    }
 
+    if (WidgetsBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        startInitialHydration();
+      });
+    } else {
+      startInitialHydration();
+    }
 
+    _memberUnlockWorker = ever(channelController.subController.isChannelMember, (isMember) {
+      if (isMember && video.isMembersOnly && !isPlayerInitialized.value) {
+        debugPrint('[VideoController] 🔓 Channel membership unlocked: Starting playback');
+        startPlaybackFlow();
+      }
+    });
 
+    _subUnlockWorker = ever(channelController.subController.isSubscribed, (isSub) {
+      if (isSub && video.isSubscribersOnly && !isPlayerInitialized.value) {
+        debugPrint('[VideoController] 🔓 Channel subscription unlocked: Starting playback');
+        startPlaybackFlow();
+      }
+    });
   }
 
 
@@ -2040,7 +2092,7 @@ class VideoController extends BaseController
 
 
 
-  // Truth Index & Fact Checking
+  // Claim Verification & Fact Checking
 
 
 
@@ -2070,7 +2122,7 @@ class VideoController extends BaseController
 
   void onClose() {
 
-
+    disposeDragToMiniplayer();
 
     handoffToMiniplayerOrDispose();
 
@@ -2105,6 +2157,8 @@ class VideoController extends BaseController
 
 
     _videoSubscription?.cancel();
+    _memberUnlockWorker?.dispose();
+    _subUnlockWorker?.dispose();
 
 
 
@@ -2141,13 +2195,12 @@ class VideoController extends BaseController
 
 
     if (Get.isRegistered<CommentsController>(tag: commentsTag)) {
-
-
-
       Get.delete<CommentsController>(tag: commentsTag, force: true);
+    }
 
-
-
+    final engTag = _engagementTag;
+    if (Get.isRegistered<VideoEngagementController>(tag: engTag)) {
+      Get.delete<VideoEngagementController>(tag: engTag, force: true);
     }
 
 

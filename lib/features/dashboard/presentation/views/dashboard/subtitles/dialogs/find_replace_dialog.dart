@@ -12,7 +12,7 @@ class FindReplaceDialog {
 
     Get.dialog<void>(
       AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
+        backgroundColor: AppColors.bgSurface,
         title: const Row(
           children: [
             Icon(Icons.find_replace_rounded, size: 20, color: Colors.white),

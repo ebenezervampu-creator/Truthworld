@@ -30,10 +30,10 @@ class BillingTopUpDialog extends StatelessWidget {
     final selectedAmount = defaultAmt.obs;
 
     return AlertDialog(
-      backgroundColor: const Color(0xFF161618),
+      backgroundColor: AppColors.appBarSurface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFF27272A)),
+        side: const BorderSide(color: AppColors.bgSurface),
       ),
       title: const Text(
         'Recharge Advertiser Balance',
@@ -84,10 +84,10 @@ class BillingTopUpDialog extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: isSel ? AppColors.brand : const Color(0xFF1C1C1F),
+                        color: isSel ? AppColors.brand : AppColors.bgSurface,
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: isSel ? AppColors.brand : const Color(0xFF323238),
+                          color: isSel ? AppColors.brand : AppColors.bgElevated,
                         ),
                       ),
                       child: Text(
@@ -127,10 +127,10 @@ class BillingTopUpDialog extends StatelessWidget {
                 prefixText: '$currencySymbol ',
                 prefixStyle: const TextStyle(color: Colors.white),
                 filled: true,
-                fillColor: const Color(0xFF121214),
+                fillColor: AppColors.bgInput,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Color(0xFF27272A)),
+                  borderSide: const BorderSide(color: AppColors.bgSurface),
                 ),
               ),
             ),
@@ -142,9 +142,9 @@ class BillingTopUpDialog extends StatelessWidget {
               return Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF121214),
+                  color: AppColors.bgInput,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFF27272A)),
+                  border: Border.all(color: AppColors.bgSurface),
                 ),
                 child: Column(
                   children: [
@@ -163,7 +163,7 @@ class BillingTopUpDialog extends StatelessWidget {
                         Text('$currencySymbol${tax.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 12)),
                       ],
                     ),
-                    const Divider(color: Color(0xFF27272A), height: 12),
+                    const Divider(color: AppColors.bgSurface, height: 12),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [

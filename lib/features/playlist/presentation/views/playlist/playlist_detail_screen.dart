@@ -4,6 +4,7 @@ import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_detail_controller.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/widgets/detail/playlist_detail_barrel.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -199,6 +200,31 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
         }
 
         final videos = snapshot.data!;
+
+        if (videos.isNotEmpty &&
+            (playlist.thumbnailUrl.trim().isEmpty ||
+                playlist.effectiveVideoCount != videos.length)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final active = controller.activePlaylist.value ?? playlist;
+            final firstThumb = videos.first.thumbnailUrl.trim();
+            if (active.thumbnailUrl.trim().isEmpty ||
+                active.effectiveVideoCount != videos.length) {
+              controller.activePlaylist.value = active.copyWith(
+                thumbnailUrl: active.thumbnailUrl.trim().isNotEmpty
+                    ? active.thumbnailUrl
+                    : firstThumb,
+                videoCount: videos.length,
+              );
+            }
+            if (Get.isRegistered<PlaylistController>() &&
+                firstThumb.isNotEmpty &&
+                (playlist.id == 'watchlater' ||
+                    playlist.playlistName.toLowerCase().trim() ==
+                        'watch later')) {
+              Get.find<PlaylistController>().setWatchLaterThumbnail(firstThumb);
+            }
+          });
+        }
 
         return Obx(() {
           final filter = controller.filterValue.value.toLowerCase();

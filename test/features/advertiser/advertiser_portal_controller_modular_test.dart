@@ -29,7 +29,7 @@ void main() {
 
       expect(controller.selectedIndex.value, 0);
       expect(controller.selectedMetric.value, 'spend');
-      expect(controller.tabTitles.length, 11);
+      expect(controller.tabTitles.length, 10);
       expect(controller.tabTitles.first, 'Advertiser Dashboard');
       expect(controller.tabTitles.last, 'Brand Settings');
     });
@@ -142,28 +142,6 @@ void main() {
 
       controller.deleteCreativeAsset('asset_test_99');
       expect(controller.creativeAssetsList.length, initialCount);
-    });
-
-    test('AdvertiserCampaignManagementMixin manages A/B experiments', () {
-      final controller = Get.put(AdvertiserPortalController());
-      final initialCount = controller.abExperimentsList.length;
-
-      final experiment = {
-        'id': 'exp_test_99',
-        'title': 'Headline Split Test',
-        'campaign': 'Summer Promo',
-        'variable': 'Headline',
-        'status': 'Running',
-        'trafficSplit': '50% / 50%',
-        'startDate': 'Today',
-      };
-
-      controller.createAbExperiment(experiment);
-      expect(controller.abExperimentsList.length, initialCount + 1);
-
-      controller.declareExperimentWinner('exp_test_99', 'Variant B');
-      final updated = controller.abExperimentsList.firstWhere((e) => e['id'] == 'exp_test_99');
-      expect(updated['status'], 'Concluded');
     });
 
     test('AdvertiserCampaignManagementMixin manages brand settings and team members', () {

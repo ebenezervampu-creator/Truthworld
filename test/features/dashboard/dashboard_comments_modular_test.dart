@@ -131,7 +131,6 @@ void main() {
         likeCount: 0,
         dislikeCount: 0,
         reportCount: 0,
-        hasCreatorReply: false, // In Firestore it was false initially
         createdAt: Timestamp.now(),
       );
 
@@ -146,7 +145,6 @@ void main() {
         likeCount: 0,
         dislikeCount: 0,
         reportCount: 0,
-        hasCreatorReply: false,
         createdAt: Timestamp.now(),
       );
 
@@ -320,6 +318,75 @@ void main() {
         replyText: 'Replying to missing comment',
       );
       expect(success, isFalse);
+    });
+
+    test('removeVideo evicts video, resets selection if matching, and purges its comments', () {
+      controller.videosWithComments.value = [
+        CreatorVideoWithComments(
+          videoId: 'v_deleted_1',
+          title: "jesus song's",
+          thumbnail: '',
+          duration: '1:10',
+          viewCount: 0,
+          commentCount: 2,
+          createdAt: DateTime.now(),
+        ),
+        CreatorVideoWithComments(
+          videoId: 'v_active_1',
+          title: "Jio IPO 2026",
+          thumbnail: '',
+          duration: '4:33',
+          viewCount: 1,
+          commentCount: 1,
+          createdAt: DateTime.now(),
+        ),
+      ];
+
+      controller.selectedVideoId.value = 'v_deleted_1';
+      controller.allComments.value = [
+        Comment(
+          id: 'c_del_1',
+          videoId: 'v_deleted_1',
+          userId: 'u1',
+          userName: 'User 1',
+          userProfilePicUrl: '',
+          channelId: 'ch1',
+          text: 'Comment on deleted video',
+          likeCount: 0,
+          dislikeCount: 0,
+          reportCount: 0,
+          createdAt: Timestamp.now(),
+        ),
+        Comment(
+          id: 'c_act_1',
+          videoId: 'v_active_1',
+          userId: 'u2',
+          userName: 'User 2',
+          userProfilePicUrl: '',
+          channelId: 'ch1',
+          text: 'Comment on active video',
+          likeCount: 0,
+          dislikeCount: 0,
+          reportCount: 0,
+          createdAt: Timestamp.now(),
+        ),
+      ];
+
+      // Evict deleted video
+      controller.removeVideo('v_deleted_1');
+
+      // Video should be removed from videosWithComments
+      expect(controller.videosWithComments.any((v) => v.videoId == 'v_deleted_1'), isFalse);
+      expect(controller.videosWithComments.length, equals(1));
+      expect(controller.videosWithComments.first.videoId, equals('v_active_1'));
+
+      // Selected video pointer should reset to null (All Videos)
+      expect(controller.selectedVideoId.value, isNull);
+
+      // Comments from deleted video should be purged
+      expect(controller.allComments.any((c) => c.videoId == 'v_deleted_1'), isFalse);
+      expect(controller.allComments.length, equals(1));
+      expect(controller.allComments.first.videoId, equals('v_active_1'));
     });
   });
 }

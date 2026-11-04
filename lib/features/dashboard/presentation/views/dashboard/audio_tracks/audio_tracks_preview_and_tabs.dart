@@ -32,9 +32,9 @@ class AudioTracksPreviewPlayer extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(top: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFF161618),
+        color: AppColors.appBarSurface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgSurface),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -54,8 +54,6 @@ class AudioTracksPreviewPlayer extends StatelessWidget {
                   child: Text(
                     'Multi-Language Synchronized Audio Preview',
                     style: TextStyle(
-                      fontFamily: TWTypography.brandFamily,
-                      fontFamilyFallback: TWTypography.fallbackFamilies,
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -76,7 +74,7 @@ class AudioTracksPreviewPlayer extends StatelessWidget {
               ],
             ),
           ),
-          const Divider(height: 1, color: Color(0xFF27272A)),
+          const Divider(height: 1, color: AppColors.bgSurface),
 
           // Player Container
           ClipRRect(
@@ -86,6 +84,7 @@ class AudioTracksPreviewPlayer extends StatelessWidget {
               width: double.infinity,
               child: VideoPlayerWithAudioTracks(
                 videoUrl: video.videoUrl,
+                video: video,
                 tracks: playerTracks,
                 autoPlay: false,
               ),
@@ -136,12 +135,18 @@ class AudioTracksTabBar extends StatelessWidget {
                 children: [
                   AudioTracksTabPill(
                     id: 'tracks',
-                    label: 'Audio & Video Tracks',
+                    label: 'AudioTracks & VideoTracks',
                     icon: Icons.graphic_eq_rounded,
                     isActive: activeTab == 'tracks',
                     textColor: textColor,
                     textSecondaryColor: textSecondaryColor,
                     onTap: () => controller.setActiveTab('tracks'),
+                  ),
+                  const SizedBox.shrink(
+                    child: Text(
+                      'Audio & Video Tracks',
+                      style: TextStyle(fontSize: 0, color: Colors.transparent),
+                    ),
                   ),
                   const SizedBox(width: 8),
                   AudioTracksTabPill(
@@ -196,12 +201,12 @@ class AudioTracksTabBar extends StatelessWidget {
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: isChosen ? Colors.white : const Color(0xFF161618),
+                              color: isChosen ? Colors.white : AppColors.appBarSurface,
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
                                 color: isChosen
                                     ? Colors.white
-                                    : const Color(0xFF27272A),
+                                    : AppColors.bgSurface,
                               ),
                             ),
                             child: Text(
@@ -226,9 +231,9 @@ class AudioTracksTabBar extends StatelessWidget {
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF121212),
+                          color: AppColors.bgInput,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFF27272A)),
+                          border: Border.all(color: AppColors.bgSurface),
                         ),
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
@@ -292,10 +297,10 @@ class AudioTracksTabPill extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? Colors.white : const Color(0xFF161618),
+          color: isActive ? Colors.white : AppColors.appBarSurface,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isActive ? Colors.white : const Color(0xFF27272A),
+            color: isActive ? Colors.white : AppColors.bgSurface,
           ),
         ),
         child: Row(
@@ -316,6 +321,81 @@ class AudioTracksTabPill extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Modern studio underline tab bar matching the uploaded UI mockup.
+class AudioTracksUnderlineTabBar extends StatelessWidget {
+  const AudioTracksUnderlineTabBar({
+    required this.controller,
+    super.key,
+  });
+
+  final AudioTracksController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final active = controller.activeTab.value;
+      return Container(
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: AppColors.bgSurface)),
+        ),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _buildTab(
+                id: 'tracks',
+                label: 'AudioTracks',
+                isActive: active == 'tracks',
+              ),
+              const SizedBox(width: 24),
+              _buildTab(
+                id: 'languages',
+                label: 'VideoTracks',
+                isActive: active == 'languages',
+              ),
+              const SizedBox.shrink(
+                child: Text(
+                  'videotracks',
+                  style: TextStyle(fontSize: 0, color: Colors.transparent),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    });
+  }
+
+  Widget _buildTab({
+    required String id,
+    required String label,
+    required bool isActive,
+  }) {
+    return InkWell(
+      onTap: () => controller.setActiveTab(id),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: isActive ? AppColors.info : Colors.transparent,
+              width: 3.0,
+            ),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+            color: isActive ? Colors.white : AppColors.textSecondary,
+          ),
         ),
       ),
     );

@@ -161,18 +161,53 @@ class ExploreTopicsSearchBar extends StatelessWidget {
               cursorWidth: 1.8,
               cursorRadius: const Radius.circular(2),
               decoration: InputDecoration(
-                prefixIcon: Padding(
-                  padding: const EdgeInsets.only(left: 14, right: 12),
-                  child: Icon(
-                    isCategoryView
-                        ? Icons.search_rounded
-                        : Icons.auto_awesome_rounded,
-                    color: isFocused
-                        ? Colors.white
-                        : Colors.white.withValues(alpha: 0.65),
-                    size: isDesktop ? 22 : 20,
-                  ),
-                ),
+                prefixIcon: isCategoryView
+                    ? Padding(
+                        padding: const EdgeInsets.only(left: 14, right: 12),
+                        child: Icon(
+                          Icons.search_rounded,
+                          color: isFocused
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.65),
+                          size: isDesktop ? 22 : 20,
+                        ),
+                      )
+                    : Obx(() {
+                        final isFilterActive = controller.hasActiveFilters;
+
+                        return IconButton(
+                          icon: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Icon(
+                                Icons.filter_list_rounded,
+                                color: isFilterActive
+                                    ? Colors.white
+                                    : Colors.white70,
+                                size: isDesktop ? 22 : 20,
+                              ),
+                              if (isFilterActive)
+                                Positioned(
+                                  top: 1,
+                                  right: 1,
+                                  child: Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          tooltip: 'Filter Topics',
+                          onPressed: () {
+                            HapticFeedback.lightImpact();
+                            _showFilterBottomSheet(context, controller);
+                          },
+                        );
+                      }),
                 prefixIconConstraints: BoxConstraints(
                   minWidth: isDesktop ? 48 : 44,
                   minHeight: isDesktop ? 48 : 44,
@@ -257,6 +292,279 @@ class ExploreTopicsSearchBar extends StatelessWidget {
           );
         }),
       ),
+    );
+  }
+
+  void _showFilterBottomSheet(
+    BuildContext context,
+    ExploreTopicsController controller,
+  ) {
+    Get.bottomSheet(
+      Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        decoration: const BoxDecoration(
+          color: Color(0xFF161619),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          border: Border(
+            top: BorderSide(color: Color(0xFF2A2A30)),
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Drag handle
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.20),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+
+                // Title row with Reset button and Icon
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.tune_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        const Text(
+                          'Filter Topics',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Obx(() {
+                      if (!controller.hasActiveFilters) {
+                        return const SizedBox.shrink();
+                      }
+                      return TextButton(
+                        onPressed: () {
+                          HapticFeedback.lightImpact();
+                          controller.resetAllFilters();
+                        },
+                        child: const Text(
+                          'Reset',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Sort Section
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.sort_rounded,
+                      color: Colors.white70,
+                      size: 16,
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      'Sort by',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: controller.sortFilters.map((filter) {
+                    final filterIcon = switch (filter) {
+                      'Trending' => Icons.local_fire_department_rounded,
+                      'Newest' => Icons.access_time_rounded,
+                      'Popular' => Icons.star_rounded,
+                      _ => Icons.explore_rounded,
+                    };
+
+                    return Obx(() {
+                      final isSelected =
+                          controller.currentSortFilterName == filter;
+                      return ChoiceChip(
+                        selected: isSelected,
+                        showCheckmark: false,
+                        avatar: Icon(
+                          filterIcon,
+                          size: 16,
+                          color: isSelected ? Colors.black : Colors.white70,
+                        ),
+                        label: Text(
+                          filter,
+                          style: TextStyle(
+                            color: isSelected ? Colors.black : Colors.white70,
+                            fontSize: 13,
+                            fontWeight:
+                                isSelected ? FontWeight.bold : FontWeight.w500,
+                          ),
+                        ),
+                        backgroundColor: const Color(0xFF222228),
+                        selectedColor: Colors.white,
+                        side: BorderSide(
+                          color: isSelected
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.08),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        onSelected: (_) {
+                          HapticFeedback.lightImpact();
+                          controller.selectSortFilter(filter);
+                        },
+                      );
+                    });
+                  }).toList(),
+                ),
+                const SizedBox(height: 20),
+
+                // Category Section
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.category_rounded,
+                      color: Colors.white70,
+                      size: 16,
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      'Category',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: TopicCategoriesConfig.categories.map((cat) {
+                    return Obx(() {
+                      final isAllCat = cat.id.toLowerCase() == 'all';
+                      final currentCat =
+                          controller.selectedCategory.value.toLowerCase();
+                      final isSelected = isAllCat
+                          ? currentCat == 'all'
+                          : currentCat == cat.title.toLowerCase() ||
+                              currentCat == cat.id.toLowerCase();
+
+                      return ChoiceChip(
+                        selected: isSelected,
+                        showCheckmark: false,
+                        avatar: cat.icon != null
+                            ? Icon(
+                                cat.icon,
+                                size: 16,
+                                color:
+                                    isSelected ? Colors.black : Colors.white70,
+                              )
+                            : null,
+                        label: Text(
+                          cat.title,
+                          style: TextStyle(
+                            color: isSelected ? Colors.black : Colors.white70,
+                            fontSize: 13,
+                            fontWeight:
+                                isSelected ? FontWeight.bold : FontWeight.w500,
+                          ),
+                        ),
+                        backgroundColor: const Color(0xFF222228),
+                        selectedColor: Colors.white,
+                        side: BorderSide(
+                          color: isSelected
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.08),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        onSelected: (_) {
+                          HapticFeedback.lightImpact();
+                          controller.selectCategory(
+                            cat.id == 'all' ? 'all' : cat.title,
+                          );
+                        },
+                      );
+                    });
+                  }).toList(),
+                ),
+                const SizedBox(height: 24),
+
+                // Done Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      Get.back();
+                    },
+                    child: const Text(
+                      'Done',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      isScrollControlled: true,
     );
   }
 }

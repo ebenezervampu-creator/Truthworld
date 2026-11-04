@@ -81,6 +81,7 @@ class VideoEntity {
 
   // Flags
   final bool enableComments;
+  bool get allowComments => enableComments;
   final bool isMonetized;
   final double trustScore;
   final int resubmitCount;

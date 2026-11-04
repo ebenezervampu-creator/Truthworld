@@ -141,8 +141,8 @@ void main() {
       );
 
       expect(find.text('Day 1 Earnings Active'), findsOneWidget);
-      expect(find.text('Unlocked (1k Views & 10h Met)'), findsOneWidget);
-      expect(find.text('0 / 1,000 Views • 12.0 / 10.0 Hours'), findsOneWidget);
+      expect(find.text('Unlocked (1k Views & 30h Met)'), findsOneWidget);
+      expect(find.text('0 / 1,000 Views • 12.0 / 30.0 Hours'), findsOneWidget);
       expect(find.text('Withdrawable: ₹85'), findsOneWidget);
     });
 
@@ -168,7 +168,7 @@ void main() {
       );
 
       expect(
-        find.text('Custom Channel: 100% Creator revenue retained upon reaching 1,000 views and 10 hours watch time.'),
+        find.text('Pro Channel: 100% Creator revenue retained upon reaching 1,000 views and 30 hours watch time.'),
         findsOneWidget,
       );
     });

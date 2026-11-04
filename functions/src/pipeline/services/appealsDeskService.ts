@@ -220,6 +220,140 @@ export class AppealsDeskService {
   }
 
   /**
+   * Submits a factual dispute with counter-sources from a creator or community viewer.
+   * If creator/owner: updates video factCheckDispute and records SHA-256 audit log, triggering re-evaluation.
+   * If community viewer: records crowdsourced counter-evidence in claim_sources for community bridging.
+   */
+  async submitFactualDispute(params: {
+    videoId: string;
+    userId: string;
+    userEmail?: string;
+    reason: string;
+    additionalSources?: string[];
+    claimId?: string;
+    claimIndex?: number;
+  }): Promise<{ disputeId: string; status: string; message: string }> {
+    const { videoId, userId, userEmail, reason, additionalSources = [], claimId, claimIndex } = params;
+
+    if (!videoId || !userId) {
+      throw new Error("Missing required parameters for dispute submission.");
+    }
+
+    if (!reason || reason.trim().length < 10) {
+      throw new Error("Dispute reason must provide at least 10 characters of substantive context.");
+    }
+
+    if (reason.length > 2000) {
+      throw new Error("Dispute reason must not exceed 2000 characters.");
+    }
+
+    const videoRef = db().collection("videos").doc(videoId);
+    const videoSnap = await videoRef.get();
+    if (!videoSnap.exists) {
+      throw new Error(`Video document ${videoId} not found.`);
+    }
+
+    const videoData = videoSnap.data() || {};
+    const isOwner = videoData.ownerId === userId || videoData.channelId === userId || videoData.userId === userId || videoData.uploaderId === userId;
+    const now = Date.now();
+    const disputeId = `disp_${now}_${uuidv4().substring(0, 8)}`;
+
+    const sanitizedUrls = (additionalSources || [])
+      .map((s) => (typeof s === "string" ? s.trim() : ""))
+      .filter((s) => (s.startsWith("https://") || s.startsWith("http://")) && s.length <= 512 && !/[\x00-\x1f\x7f]/.test(s))
+      .slice(0, 5);
+
+    if (isOwner) {
+      const disputeAttempts = Number(videoData.factCheckDispute?.disputeAttempts || 0);
+      if (disputeAttempts >= 2) {
+        throw new Error("Maximum dispute attempts (2) reached for this video.");
+      }
+
+      const previousHash = await this.getLatestAuditHash(videoId);
+      const logId = `audit_${now}_${uuidv4().substring(0, 6)}`;
+      const entryHash = this.computeAuditHash({
+        previousHash,
+        targetId: videoId,
+        action: "creator_dispute_submitted",
+        performerId: userId,
+        timestamp: now,
+        payload: JSON.stringify({ disputeId, reason: reason.trim(), additionalSources: sanitizedUrls }),
+        rationale: reason.trim(),
+      });
+
+      const batch = db().batch();
+
+      batch.set(
+        videoRef,
+        {
+          factCheckDispute: {
+            disputeId,
+            status: "pending_review",
+            reason: reason.trim(),
+            additionalSources: sanitizedUrls,
+            submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+            submittedBy: userId,
+            submittedByEmail: userEmail || "",
+            consensusStatus: "pending_cross_perspective",
+            claimIndex: typeof claimIndex === "number" ? claimIndex : undefined,
+            claimId: claimId || undefined,
+          },
+          credibilityStatus: "disputed",
+        },
+        { merge: true }
+      );
+
+      const auditRef = db().collection("governance_audit_logs").doc(logId);
+      batch.set(auditRef, {
+        logId,
+        previousHash,
+        entryHash,
+        targetId: videoId,
+        action: "creator_dispute_submitted",
+        performerId: userId,
+        rationale: reason.trim(),
+        previousValue: { disputeStatus: videoData.factCheckDispute?.status || "none" },
+        newValue: { disputeId, status: "pending_review", reason: reason.trim() },
+        timestamp: now,
+      });
+
+      await batch.commit();
+      logger.info("[AppealsDesk] Creator dispute registered and queued for re-evaluation", { videoId, disputeId, userId });
+
+      return {
+        disputeId,
+        status: "pending_review",
+        message: "Your dispute and counter-sources have been queued for credibility re-evaluation.",
+      };
+    } else {
+      // Community Viewer dispute submission — recorded in claim_sources
+      const sourceRef = db().collection("claim_sources").doc(disputeId);
+      await sourceRef.set({
+        sourceId: disputeId,
+        videoId,
+        target: claimId ? `Claim: ${claimId}` : "Entire Video",
+        url: sanitizedUrls[0] || "",
+        additionalUrls: sanitizedUrls,
+        title: "Community Factual Dispute",
+        note: reason.trim(),
+        submittedBy: userId,
+        submittedByEmail: userEmail || "",
+        submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+        status: "pending_review",
+        isDispute: true,
+      });
+
+      logger.info("[AppealsDesk] Community dispute source recorded", { videoId, disputeId, userId });
+
+      return {
+        disputeId,
+        status: "community_submitted",
+        message: "Thank you! Your dispute and counter-evidence have been recorded for community deliberation.",
+      };
+    }
+  }
+
+  /**
    * Resolves or advances a claim appeal with independent ombudsman authority,
    * enforcing multi-signatory quorum and conflict-of-interest firewalls.
    */
@@ -255,9 +389,25 @@ export class AppealsDeskService {
       throw new Error("Conflict of Interest: Creators cannot adjudicate appeals on their own content.");
     }
 
-    if (videoData.ownerId === reviewerId || videoData.channelId === reviewerId) {
-      logger.warn("[AppealsDesk] Channel administrator self-adjudication blocked", { appealId, reviewerId });
-      throw new Error("Conflict of Interest: Channel administrators cannot review appeals on their own channel.");
+    const videoOwnerId = videoData.ownerId || videoData.userId || videoData.uploaderId;
+    if (videoOwnerId === reviewerId) {
+      logger.warn("[AppealsDesk] Video owner self-adjudication blocked", { appealId, reviewerId });
+      throw new Error("Conflict of Interest: Creators cannot adjudicate appeals on their own content.");
+    }
+
+    if (videoData.channelId) {
+      try {
+        const channelSnap = await db().collection("channels").doc(videoData.channelId).get();
+        if (channelSnap.exists) {
+          const chData = channelSnap.data() || {};
+          if (chData.ownerId === reviewerId || chData.userId === reviewerId) {
+            logger.warn("[AppealsDesk] Channel administrator self-adjudication blocked", { appealId, reviewerId });
+            throw new Error("Conflict of Interest: Channel administrators cannot review appeals on their own channel.");
+          }
+        }
+      } catch (chErr: any) {
+        logger.warn("[AppealsDesk] Channel owner lookup warning", { error: chErr?.message });
+      }
     }
 
     // 🏛️ Multi-Signatory Ombudsman Quorum

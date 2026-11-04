@@ -39,7 +39,7 @@ import { onSchedule }         from "firebase-functions/v2/scheduler";
 import * as admin             from "firebase-admin";
 import * as logger            from "firebase-functions/logger";
 import * as crypto              from "crypto";
-import { requireAdmin, requireRecentAdmin } from "../utils/auth";
+import { requireRecentAdmin } from "../utils/auth";
 import { applySecurityHeaders } from "../utils/securityHeaders";
 import { notifyUser } from "../notifications/notifications";
 
@@ -60,6 +60,7 @@ interface ImageMetadata {
   category:   ImageCategory;
   userId?:    string;
   contentId?: string;
+  channelId?: string;
   fileName:   string;
   filePath:   string;
   uploadedAt: number;
@@ -182,7 +183,7 @@ const COL_DEAD_LETTERS    = "moderation_dead_letters";
 
 // File size limits per category (bytes)
 const FILE_SIZE_LIMITS: Record<ImageCategory, number> = {
-  thumbnail: 5  * 1024 * 1024,
+  thumbnail: 2  * 1024 * 1024, // 2MB (matches YouTube video thumbnail limit)
   avatar:    3  * 1024 * 1024,
   banner:    5  * 1024 * 1024,
   community: 10 * 1024 * 1024,
@@ -1157,6 +1158,13 @@ export const ingestUploadedImage = onObjectFinalized(INGEST_CONFIG, async (event
   if (metadata && !metadata.userId && (object.metadata?.uploaderId || object.metadata?.userId)) {
     metadata.userId = object.metadata.uploaderId || object.metadata.userId;
   }
+  const channelMetaId = object.metadata?.channelId || object.metadata?.channel_id;
+  if (metadata && channelMetaId) {
+    metadata.channelId = channelMetaId;
+    if (!metadata.contentId) {
+      metadata.contentId = channelMetaId;
+    }
+  }
   if (!metadata) {
     // ❌ CRITICAL: Unrecognized path — log as error and track in Firestore for observability
     logger.error(`[Ingest] ❌ CRITICAL: Unrecognized path pattern — ${filePath}`);
@@ -1224,6 +1232,98 @@ export const ingestUploadedImage = onObjectFinalized(INGEST_CONFIG, async (event
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// HELPER: TRUSTED CHANNEL IMAGE MODERATION EXEMPTION CHECK
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * 🛡️ Resolves whether an uploaded image belongs to a Trusted Channel
+ * that has content and image moderation turned off.
+ */
+async function checkTrustedChannelImage(metadata: ImageMetadata, docId?: string): Promise<boolean> {
+  try {
+    const { isChannelTrustedModerationBypassed } = require("../channels/moderation");
+
+    // 1. Direct channelId from metadata
+    if (metadata.channelId && await isChannelTrustedModerationBypassed(metadata.channelId)) {
+      return true;
+    }
+
+    // 2. Avatar or Banner
+    if (metadata.category === "avatar" || metadata.category === "banner") {
+      if (metadata.contentId && await isChannelTrustedModerationBypassed(metadata.contentId)) {
+        return true;
+      }
+      if (docId) {
+        const field = metadata.category === "avatar" ? "avatarFileId" : "bannerFileId";
+        const chSnap = await db().collection("channels").where(field, "==", docId).limit(1).get();
+        if (!chSnap.empty) {
+          const chData = chSnap.docs[0].data();
+          if (chData?.trustedModerationBypass === true || chData?.bypassModeration === true) return true;
+        }
+      }
+      if (metadata.userId) {
+        const chSnap = await db().collection("channels").where("ownerId", "==", metadata.userId).limit(1).get();
+        if (!chSnap.empty) {
+          const chData = chSnap.docs[0].data();
+          if (chData?.trustedModerationBypass === true || chData?.bypassModeration === true) return true;
+        }
+      }
+    }
+
+    // 3. Video Thumbnail
+    if (metadata.category === "thumbnail") {
+      if (metadata.contentId) {
+        const vDoc = await db().collection("videos").doc(metadata.contentId).get();
+        if (vDoc.exists) {
+          const vData = vDoc.data();
+          if (vData?.channelId && await isChannelTrustedModerationBypassed(vData.channelId)) return true;
+        }
+      }
+      if (metadata.userId) {
+        const chSnap = await db().collection("channels").where("ownerId", "==", metadata.userId).limit(1).get();
+        if (!chSnap.empty) {
+          const chData = chSnap.docs[0].data();
+          if (chData?.trustedModerationBypass === true || chData?.bypassModeration === true) return true;
+        }
+      }
+    }
+
+    // 4. Topic Thumbnail
+    if (metadata.category === "topic") {
+      if (metadata.contentId) {
+        const cleanTopicId = metadata.contentId.replace(/\.[^/.]+$/, "");
+        const tDoc = await db().collection("topics").doc(cleanTopicId).get();
+        if (tDoc.exists) {
+          const tData = tDoc.data();
+          if (tData?.channelId && await isChannelTrustedModerationBypassed(tData.channelId)) return true;
+        }
+      }
+    }
+
+    // 5. Community Image
+    if (metadata.category === "community") {
+      if (metadata.contentId) {
+        const pDoc = await db().collection("Community").doc(metadata.contentId).get();
+        if (pDoc.exists) {
+          const pData = pDoc.data();
+          if (pData?.channelId && await isChannelTrustedModerationBypassed(pData.channelId)) return true;
+        }
+      }
+      if (metadata.userId) {
+        const chSnap = await db().collection("channels").where("ownerId", "==", metadata.userId).limit(1).get();
+        if (!chSnap.empty) {
+          const chData = chSnap.docs[0].data();
+          if (chData?.trustedModerationBypass === true || chData?.bypassModeration === true) return true;
+        }
+      }
+    }
+  } catch (err) {
+    logger.warn("[checkTrustedChannelImage] Error checking trusted channel bypass:", err);
+  }
+  return false;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // FUNCTION 2 — PRE-FILTER WORKER
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1275,26 +1375,24 @@ export const prefilterWorker = onMessagePublished(
         return;
       }
 
-      const { crc32c, md5 } = await getGCSMetadataHash(bucket, metadata.filePath);
-      if (crc32c || md5) {
-        const hashValue = crc32c || md5 || "";
-        const hashDocId = hashToDocId(hashValue);
-        const hashDoc   = await getHashDoc(hashDocId);
-        if (hashDoc) {
-          if (hashDoc.status === "APPROVED") {
-            await doApprove(docId, metadata, startTime, "dedup-clean-exact");
-            return;
-          } else {
-            await doReject(docId, metadata, bucket, { reason: "Duplicate of previously rejected image", score: 4 }, startTime, "dedup-dirty-exact");
-            return;
-          }
-        }
-        metadata._md5      = hashValue;
-        metadata._hashDocId = hashDocId;
-      }
+      // 🛡️ OPTIMISTIC / ASYNC MODERATION:
+      // For fast-lane channels, optimistically approve image immediately so creator workflow
+      // is not blocked, while continuing to route to Vision AI asynchronously in the background.
+      const isTrustedChannelImg = await checkTrustedChannelImage(metadata, docId);
+      if (isTrustedChannelImg) {
+        logger.info(`[Prefilter] Image ${metadata.filePath} (${metadata.category}) belongs to a fast-lane channel. Optimistically approving, sending to Vision AI asynchronously.`);
+        await doApprove(docId, metadata, startTime, "optimistic-publish");
 
-      // ─── MANDATORY AI SCAN (100% Coverage): No trust-based skipping ───
-      // Every avatar, banner, thumbnail, and image must be scanned by Vision AI.
+        // Asynchronously publish to Vision AI moderation queue
+        const { topic: moderationTopic, priority } = getPriorityTopic(metadata.category);
+        try {
+          await publishMessage(moderationTopic, { metadata, messageId: body.messageId, docId } satisfies ModerationMessage);
+          logger.info(`[Prefilter] ✓ Asynchronously published fast-lane image to ${moderationTopic} (priority=${priority})`);
+        } catch (pubErr) {
+          logger.warn(`[Prefilter] Warning: Failed to publish fast-lane image to async moderation queue:`, pubErr);
+        }
+        return;
+      }
 
       // ─── CHECK IF CATEGORY IS IN ADMIN ONLY MODE (Bypass Gemini / Vision AI) ───
       const {
@@ -1328,6 +1426,29 @@ export const prefilterWorker = onMessagePublished(
         await logMetrics(metadata, result, Date.now() - startTime, "prefilter", "admin-bypass");
         return;
       }
+
+      const { crc32c, md5 } = await getGCSMetadataHash(bucket, metadata.filePath);
+      if (crc32c || md5) {
+        const hashValue = crc32c || md5 || "";
+        const hashDocId = hashToDocId(hashValue);
+        const hashDoc   = await getHashDoc(hashDocId);
+        if (hashDoc) {
+          if (hashDoc.status === "APPROVED") {
+            await doApprove(docId, metadata, startTime, "dedup-clean-exact");
+            return;
+          } else {
+            await doReject(docId, metadata, bucket, { reason: "Duplicate of previously rejected image", score: 4 }, startTime, "dedup-dirty-exact");
+            return;
+          }
+        }
+        metadata._md5      = hashValue;
+        metadata._hashDocId = hashDocId;
+      }
+
+      // ─── MANDATORY AI SCAN (100% Coverage): No trust-based skipping ───
+      // Every avatar, banner, thumbnail, and image must be scanned by Vision AI.
+
+      
 
       const { topic: moderationTopic, priority } = getPriorityTopic(metadata.category);
       try {
@@ -1456,8 +1577,9 @@ export const scheduledRetryProcessor = onSchedule(
 export const retryQueueProcessorManual = onRequest(
   { region: REGION, timeoutSeconds: 60, memory: "256MiB", cors: true },
   async (req, res) => {
+    applySecurityHeaders(res);
     try {
-      const authUser = await requireAdmin(req, res);
+      const authUser = await requireRecentAdmin(req, res, 3600);
       if (!authUser) return;
 
       let processedCount = 0; let dlqCount = 0; let errorCount = 0;
@@ -1493,7 +1615,7 @@ export const retryQueueProcessorManual = onRequest(
       }
       res.status(200).json({ processed: processedCount, dlq: dlqCount, errors: errorCount, elapsedMs: Date.now() - startTime });
     } catch (err) {
-      res.status(500).json({ error: "Retry queue processor failed", details: String(err) });
+      res.status(500).json({ error: "Unable to process retry queue. Please try again later." });
     }
   }
 );
@@ -1757,6 +1879,7 @@ export const moderateImageManual = onRequest(
     maxInstances: 2,
   },
   async (req, res) => {
+    applySecurityHeaders(res);
     try {
       const authUser = await requireRecentAdmin(req, res, 3600);
       if (!authUser) return; // Response is already handled by requireRecentAdmin
@@ -1868,7 +1991,7 @@ export const moderateImageManual = onRequest(
       }
     } catch (err) {
       console.error("[Verification] Manual moderation failed:", err);
-      res.status(500).json({ error: "Internal server error.", details: String(err) });
+      res.status(500).json({ error: "Unable to process image moderation action. Please try again later." });
     }
   }
 );
@@ -1886,6 +2009,7 @@ export const setModerationModesManual = onRequest(
     maxInstances: 2,
   },
   async (req, res) => {
+    applySecurityHeaders(res);
     try {
       const authUser = await requireRecentAdmin(req, res, 3600);
       if (!authUser) return;
@@ -1901,6 +2025,44 @@ export const setModerationModesManual = onRequest(
         Object.assign(updateData, modes);
       } else if (modeKey && typeof modeKey === "string") {
         updateData[modeKey] = value === true;
+        if (modeKey === "all" || modeKey === "master") {
+          const boolVal = value === true;
+          updateData["all"] = boolVal;
+          updateData["master"] = boolVal;
+          updateData["videos"] = boolVal;
+          updateData["channels"] = boolVal;
+          updateData["channelDetails"] = boolVal;
+          updateData["ads"] = boolVal;
+          updateData["campaigns"] = boolVal;
+          updateData["thumbnails"] = boolVal;
+          updateData["videos_thumbnails"] = boolVal;
+          updateData["videoThumbnails"] = boolVal;
+          updateData["banner"] = boolVal;
+          updateData["channelBanner"] = boolVal;
+          updateData["channel_banner"] = boolVal;
+          updateData["avatar"] = boolVal;
+          updateData["channelAvatar"] = boolVal;
+          updateData["channel_avatar"] = boolVal;
+          updateData["community"] = boolVal;
+          updateData["community_posts"] = boolVal;
+          updateData["communityPosts"] = boolVal;
+          updateData["topics"] = boolVal;
+          updateData["topic_thumbnails"] = boolVal;
+          updateData["topicThumbnails"] = boolVal;
+          updateData["playlists"] = boolVal;
+          updateData["playlist_thumbnails"] = boolVal;
+          updateData["playlistThumbnails"] = boolVal;
+        } else if (modeKey === "videos") {
+          updateData["videos"] = value === true;
+        } else if (modeKey === "channels" || modeKey === "channelDetails") {
+          updateData["channels"] = value === true;
+          updateData["channelDetails"] = value === true;
+        } else if (modeKey === "ads" || modeKey === "campaigns" || modeKey === "adCampaigns" || modeKey === "advertiser_campaigns") {
+          updateData["ads"] = value === true;
+          updateData["campaigns"] = value === true;
+          updateData["adCampaigns"] = value === true;
+          updateData["advertiser_campaigns"] = value === true;
+        }
         if (modeKey === "thumbnails" || modeKey === "videoThumbnails") {
           updateData["thumbnails"] = value === true;
           updateData["videos_thumbnails"] = value === true;
@@ -1936,7 +2098,7 @@ export const setModerationModesManual = onRequest(
       res.status(200).json({ success: true, updated: updateData });
     } catch (err: any) {
       logger.error("[setModerationModesManual] Error:", err);
-      res.status(500).json({ error: err.message || "Failed to update moderation modes" });
+      res.status(500).json({ error: "Unable to update moderation modes. Please try again later." });
     }
   }
 );

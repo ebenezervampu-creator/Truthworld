@@ -160,6 +160,11 @@ public class FlutterCashfreePgSdkPlugin implements FlutterPlugin, MethodCallHand
         }
       }
 
+      if (detectedStore == null) {
+        // Fallback for development, internal testing, or sideloaded builds
+        detectedStore = "com.android.vending";
+      }
+
       if (detectedStore != null) {
         CFPersistence persistence = CFPersistence.getInstance();
         if (persistence == null) {

@@ -1,6 +1,6 @@
+import 'package:truthworld/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
@@ -36,7 +36,7 @@ class PlaylistHeaderBar extends StatelessWidget {
                 child: Container(
                   height: 44,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF141414),
+                    color: AppColors.bgPage,
                     borderRadius: BorderRadius.circular(22),
                     border: Border.all(
                       color: const Color(0xFF2C2C2C),
@@ -119,7 +119,7 @@ class PlaylistHeaderBar extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   'Playlists',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
@@ -161,7 +161,7 @@ class PlaylistHeaderBar extends StatelessWidget {
       height: 40,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: const Color(0xFF141414),
+        color: AppColors.bgPage,
         border: Border.all(
           color: const Color(0xFF2C2C2C),
           width: 1.2,

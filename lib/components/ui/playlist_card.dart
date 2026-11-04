@@ -1,7 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
@@ -163,7 +162,7 @@ class PlaylistCard extends StatelessWidget {
                                     isPodcast
                                         ? 'Podcast'
                                         : '${playlist.videoCount} videos',
-                                    style: GoogleFonts.roboto(
+                                    style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 11,
                                       fontWeight: FontWeight.w600,
@@ -204,7 +203,7 @@ class PlaylistCard extends StatelessWidget {
                         text: playlist.playlistName,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                           color: AppColors.textPrimary,
@@ -218,7 +217,7 @@ class PlaylistCard extends StatelessWidget {
                             : "${playlist.isPublic ? 'Public' : 'Private'} • Playlist",
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 13,
                           color: AppColors.textSecondary,
                           fontWeight: FontWeight.w400,

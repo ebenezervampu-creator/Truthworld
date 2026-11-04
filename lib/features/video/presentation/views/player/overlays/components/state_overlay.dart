@@ -47,9 +47,9 @@ class StateOverlay extends StatelessWidget {
       }
 
       if (hasError) return _buildError();
-      if (state == PlaybackState.stalled) return _buildStall();
+      if (state == PlaybackState.stalled) return IgnorePointer(child: _buildStall());
       if (buffering || state == PlaybackState.buffering) {
-        return _buildSpinner(PT.primary);
+        return IgnorePointer(child: _buildSpinner(PT.primary));
       }
       return const SizedBox.shrink();
     });

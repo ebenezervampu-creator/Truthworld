@@ -13,6 +13,7 @@ export 'package:truthworld/components/ui/share/cards/share_cards_barrel.dart';
 /// - `'channel'`: [ShareChannelCard]
 /// - `'playlist'`: [SharePlaylistCard]
 /// - `'topic'`: [ShareTopicCard]
+/// - `'claim'`: [ShareClaimCard]
 /// - `'video'` (default): [ShareVideoCard]
 class SharePreviewCard extends StatelessWidget {
   const SharePreviewCard({
@@ -35,6 +36,14 @@ class SharePreviewCard extends StatelessWidget {
     this.clipFile,
     this.clipStatus,
     this.isPreparingClip,
+    this.claimText,
+    this.verdictLabel,
+    this.verdictColor,
+    this.verdictIcon,
+    this.summaryTakeaway,
+    this.confidenceText,
+    this.sourceDomain,
+    this.videoTitle,
     this.onTap,
   });
 
@@ -56,6 +65,14 @@ class SharePreviewCard extends StatelessWidget {
   final Rxn<File>? clipFile;
   final RxString? clipStatus;
   final RxBool? isPreparingClip;
+  final String? claimText;
+  final String? verdictLabel;
+  final Color? verdictColor;
+  final IconData? verdictIcon;
+  final String? summaryTakeaway;
+  final String? confidenceText;
+  final String? sourceDomain;
+  final String? videoTitle;
   final VoidCallback? onTap;
 
   @override
@@ -89,10 +106,12 @@ class SharePreviewCard extends StatelessWidget {
       case 'playlist':
         return SharePlaylistCard(
           title: title,
+          url: url,
           thumbnailUrl: thumbnailUrl,
           subtitle: subtitle,
           videoCount: videoCount,
           channelName: channelName,
+          onTap: onTap,
         );
       case 'topic':
         return ShareTopicCard(
@@ -104,6 +123,22 @@ class SharePreviewCard extends StatelessWidget {
           videoCount: videoCount,
           followerCount: followerCount,
           handle: handle,
+          onTap: onTap,
+        );
+      case 'claim':
+        return ShareClaimCard(
+          title: title,
+          claimText: claimText,
+          videoTitle: videoTitle,
+          channelName: channelName,
+          url: url,
+          thumbnailUrl: thumbnailUrl,
+          verdictLabel: verdictLabel,
+          verdictColor: verdictColor,
+          verdictIcon: verdictIcon,
+          summaryTakeaway: summaryTakeaway,
+          confidenceText: confidenceText,
+          sourceDomain: sourceDomain,
           onTap: onTap,
         );
       case 'video':

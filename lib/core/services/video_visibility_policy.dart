@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/channel/data/services/channel_memory_cache.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Centralized single source of truth for video visibility policy and rules.
@@ -12,6 +14,30 @@ class VideoVisibilityPolicy {
   static bool isPrivate(Video video) {
     final vis = video.visibility.trim().toLowerCase();
     return vis == 'private' || vis == 'private_draft';
+  }
+
+  /// Returns true if video visibility is set to Unlisted.
+  static bool isUnlisted(Video video) {
+    final vis = video.visibility.trim().toLowerCase();
+    return vis == 'unlisted';
+  }
+
+  /// Returns true if video visibility is Public.
+  static bool isPublic(Video video) {
+    final vis = video.visibility.trim().toLowerCase();
+    return vis == 'public' || vis == publicVisibilityString.toLowerCase() || vis.isEmpty;
+  }
+
+  /// Returns true if video visibility is set to Members Only.
+  static bool isMembersOnly(Video video) {
+    final vis = video.visibility.trim().toLowerCase();
+    return vis == 'members_only' || vis == 'members' || vis == 'members only';
+  }
+
+  /// Returns true if video visibility is set to Subscribers Only.
+  static bool isSubscribersOnly(Video video) {
+    final vis = video.visibility.trim().toLowerCase();
+    return vis == 'subscribers_only' || vis == 'subscribers' || vis == 'subscribers only';
   }
 
   /// Returns true if the viewer is authenticated and owns the video or channel.
@@ -59,6 +85,25 @@ class VideoVisibilityPolicy {
     if (isPrivate(video)) {
       return isOwner(video, viewerUid: viewerUid, viewerChannelId: viewerChannelId);
     }
+    return isValidVideo(video);
+  }
+
+  /// Authoritative check: can this viewer play/watch this video?
+  /// - Channel owner can ALWAYS play their own videos.
+  /// - Private videos: ONLY channel owner can watch.
+  /// - Members-only videos: ONLY channel members (or owner) can watch.
+  /// - Subscribers-only videos: ONLY channel subscribers (or owner) can watch.
+  /// - Public and unlisted videos: any valid viewer can watch.
+  static bool canWatchVideo(
+    Video video, {
+    bool isOwner = false,
+    bool isMember = false,
+    bool isSubscriber = false,
+  }) {
+    if (isOwner) return true;
+    if (isPrivate(video)) return false;
+    if (isMembersOnly(video) && !isMember) return false;
+    if (isSubscribersOnly(video) && !isSubscriber) return false;
     return isValidVideo(video);
   }
 
@@ -115,6 +160,9 @@ class VideoVisibilityPolicy {
     // Must be approved by Gemini AI moderation or manual review
     if (!video.isApprovedByGeminiOrManual) return false;
 
+    // Content belonging to a held, suspended, or deleted channel is hidden across entire app
+    if (_isChannelDeletedOrHeld(video)) return false;
+
     // Must contain playable video stream URL
     if (!hasPlayableMedia(video)) return false;
     return true;
@@ -157,6 +205,7 @@ class VideoVisibilityPolicy {
         visibilityStr == 'draft' ||
         visibilityStr == 'private' ||
         visibilityStr == 'private_draft' ||
+        visibilityStr == 'unlisted' ||
         visibilityStr == 'rejected') {
       return false;
     }
@@ -165,6 +214,15 @@ class VideoVisibilityPolicy {
         (statusStr == 'uploading' ||
          statusStr == 'uploaded' ||
          statusStr == 'processing')) {
+      return false;
+    }
+
+    final channelStatus = (data['channelStatus'] as String?)?.toLowerCase().replaceAll('_', '').replaceAll(' ', '') ?? '';
+    if (channelStatus == 'onhold' ||
+        channelStatus == 'hold' ||
+        channelStatus == 'suspended' ||
+        channelStatus == 'deleted' ||
+        channelStatus == 'deletionpending') {
       return false;
     }
 
@@ -242,14 +300,14 @@ class VideoVisibilityPolicy {
     return true;
   }
 
-  /// Standard check for Home Feed, Trending, and Category carousels
+  /// Standard check for Home Feed, Trending, and Category carousels.
+  /// Public, Members-only, and Subscribers-only videos are visible to everyone.
+  /// Private and Unlisted videos are NEVER shown in feeds.
   static bool isVisibleForFeed(Video video) {
     if (!isValidVideo(video)) return false;
     if (isPrivate(video)) return false;
-    final vis = video.visibility.trim().toLowerCase();
-    if (vis.isNotEmpty &&
-        vis != 'public' &&
-        vis != publicVisibilityString.toLowerCase()) {
+    if (isUnlisted(video)) return false;
+    if (!isPublic(video) && !isMembersOnly(video) && !isSubscribersOnly(video)) {
       return false;
     }
     if (!hasValidThumbnail(video)) return false;
@@ -258,14 +316,31 @@ class VideoVisibilityPolicy {
     return true;
   }
 
-  /// Search & Autocomplete visibility check
+  /// Search & Autocomplete visibility check.
+  /// Public, Members-only, and Subscribers-only videos are visible to everyone in search (like YouTube).
+  /// Private and Unlisted videos are NEVER shown in search.
   static bool isVisibleForSearch(Video video) {
     if (!isValidVideo(video)) return false;
     if (isPrivate(video)) return false;
-    final vis = video.visibility.trim().toLowerCase();
-    if (vis.isNotEmpty &&
-        vis != 'public' &&
-        vis != publicVisibilityString.toLowerCase()) {
+    if (isUnlisted(video)) return false;
+    if (!isPublic(video) && !isMembersOnly(video) && !isSubscribersOnly(video)) {
+      return false;
+    }
+    if (!hasValidThumbnail(video)) return false;
+    if (_isScheduledInFuture(video)) return false;
+    if (_isChannelDeleted(video)) return false;
+    return true;
+  }
+
+  /// Channel page tab visibility check (Channel Home tab, Videos tab).
+  /// - Private and Unlisted videos are ONLY visible to the channel owner.
+  /// - Members-only and Subscribers-only videos are visible to everyone.
+  /// - Draft videos are NEVER listed on channel tabs.
+  static bool isVisibleForChannel(Video video, {bool isChannelOwner = false}) {
+    if (!isValidVideo(video)) return false;
+    if (isPrivate(video)) return isChannelOwner;
+    if (isUnlisted(video)) return isChannelOwner;
+    if (!isPublic(video) && !isMembersOnly(video) && !isSubscribersOnly(video)) {
       return false;
     }
     if (!hasValidThumbnail(video)) return false;
@@ -297,15 +372,32 @@ class VideoVisibilityPolicy {
     return false;
   }
 
-  /// Check if parent channel status is marked deleted or deletion_pending
-  static bool _isChannelDeleted(Video video) {
-    // Model level denormalized checks
+  /// Check if parent channel status is marked deleted, suspended, or on hold
+  static bool _isChannelDeletedOrHeld(Video video) {
     if (video.channelStatus != null) {
-      final chStatus = video.channelStatus!.toLowerCase();
-      if (chStatus == 'deleted' || chStatus == 'deletion_pending') return true;
+      final chStatus = video.channelStatus!.toLowerCase().replaceAll('_', '').replaceAll(' ', '');
+      if (chStatus == 'deleted' ||
+          chStatus == 'deletionpending' ||
+          chStatus == 'suspended' ||
+          chStatus == 'onhold' ||
+          chStatus == 'hold') {
+        return true;
+      }
+    }
+    if (video.channelId.isNotEmpty) {
+      final cachedChannel = ChannelMemoryCache.get(video.channelId);
+      if (cachedChannel != null &&
+          (cachedChannel.status == ChannelStatus.deleted ||
+           cachedChannel.status == ChannelStatus.suspended ||
+           cachedChannel.status == ChannelStatus.onHold)) {
+        return true;
+      }
     }
     return false;
   }
+
+  /// Backward-compatible alias for channel status verification
+  static bool _isChannelDeleted(Video video) => _isChannelDeletedOrHeld(video);
 }
 
 

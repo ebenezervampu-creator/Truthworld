@@ -33,7 +33,6 @@ mixin TowerPlayerModesMixin on GetxController {
   RxBool get showCommentsPopup;
   RxBool get showTranscriptPopup;
   RxBool get showFactCheckPopup;
-  RxBool get showLiveChat;
   RxDouble get aspectRatio;
   void onInteraction();
   void startHideTimer([Duration? timeout]);
@@ -138,6 +137,13 @@ mixin TowerPlayerModesMixin on GetxController {
             tag: 'TowerPlayerModesMixin.syncVideoControllerOff',
           );
         }
+        controlsVisible.value = true;
+        startHideTimer();
+        if (!videoPlayerController.value.isPlaying) {
+          try {
+            await videoPlayerController.play();
+          } catch (_) {}
+        }
         trackAnalytics(PlayerEvent('audio_only_off'));
       } else {
         playbackMode.value = PlaybackMode.audio;
@@ -188,6 +194,14 @@ mixin TowerPlayerModesMixin on GetxController {
           if (tpc.shouldSuppressAds && tpc.isShowingAd.value) {
             tpc.finishAd();
           }
+        }
+
+        controlsVisible.value = true;
+        startHideTimer();
+        if (!videoPlayerController.value.isPlaying) {
+          try {
+            await videoPlayerController.play();
+          } catch (_) {}
         }
 
         trackAnalytics(PlayerEvent('audio_only_on'));
@@ -260,7 +274,6 @@ mixin TowerPlayerModesMixin on GetxController {
       showCommentsPopup.value = false;
       showTranscriptPopup.value = false;
       showFactCheckPopup.value = false;
-      showLiveChat.value = false;
       try {
         (this as dynamic).resetZoom();
       } catch (_) {}

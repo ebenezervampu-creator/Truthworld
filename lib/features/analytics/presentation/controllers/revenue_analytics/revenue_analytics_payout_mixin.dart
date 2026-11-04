@@ -19,7 +19,7 @@ mixin RevenueAnalyticsPayoutMixin on RevenueAnalyticsStateBase {
       AppSnackbar.warning(
         withdrawalHoldReason.value.isNotEmpty
             ? withdrawalHoldReason.value
-            : 'TruthWorld has covered 100% of your viral infrastructure surge costs. Please upgrade your custom channel plan to release revenue withdrawals.',
+            : 'TruthWorld has covered 100% of your viral infrastructure surge costs. Please upgrade your Pro Channel plan to release revenue withdrawals.',
         title: 'Withdrawal On Hold',
       );
       return false;
@@ -160,7 +160,7 @@ mixin RevenueAnalyticsPayoutMixin on RevenueAnalyticsStateBase {
       AppSnackbar.warning(
         withdrawalHoldReason.value.isNotEmpty
             ? withdrawalHoldReason.value
-            : 'TruthWorld has covered 100% of your viral infrastructure surge costs. Please upgrade your custom channel plan to release revenue withdrawals.',
+            : 'TruthWorld has covered 100% of your viral infrastructure surge costs. Please upgrade your Pro Channel plan to release revenue withdrawals.',
         title: 'Withdrawal On Hold',
       );
       return false;

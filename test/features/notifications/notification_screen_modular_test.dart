@@ -323,4 +323,163 @@ void main() {
       expect(find.byIcon(Icons.notifications_off_rounded), findsOneWidget);
     });
   });
+
+  group('Consumer vs Studio Notification Isolation Tests', () {
+    late NotificationViewController viewController;
+    late VideoFeedNotificationController feedController;
+    late UserNotificationController userNotificationController;
+
+    setUp(() {
+      feedController = Get.put(VideoFeedNotificationController());
+      userNotificationController = Get.put(UserNotificationController());
+      viewController = Get.put(NotificationViewController());
+    });
+
+    test('10. Consumer mode strictly excludes Fact-Check Completed, Video Processing, and New Subscriber', () {
+      final now = DateTime.now();
+
+      final factCheckNotif = UserNotification(
+        id: 'fc_1',
+        userId: 'usr_creator',
+        type: 'fact_check_ready',
+        severity: NotificationSeverity.success,
+        title: 'Fact-Check Completed',
+        message: 'Fact-checking analysis is complete for "My Video"',
+        targetApp: 'studio',
+        read: false,
+        createdAt: now,
+      );
+
+      final videoProcessingNotif = UserNotification(
+        id: 'vp_1',
+        userId: 'usr_creator',
+        type: 'verification_result',
+        severity: NotificationSeverity.info,
+        title: 'Video Processing Started: "My Video"',
+        message: 'Your video is now undergoing AI processing',
+        targetApp: 'studio',
+        read: false,
+        createdAt: now,
+      );
+
+      final newSubscriberNotif = UserNotification(
+        id: 'sub_1',
+        userId: 'usr_creator',
+        type: 'new_follower',
+        severity: NotificationSeverity.info,
+        title: 'New Subscriber!',
+        message: 'Alice subscribed to your channel.',
+        targetApp: 'studio',
+        read: false,
+        createdAt: now,
+      );
+
+      final consumerComment = UserNotification(
+        id: 'comment_1',
+        userId: 'usr_creator',
+        type: 'comment',
+        severity: NotificationSeverity.info,
+        title: 'New Comment!',
+        message: 'Great video!',
+        targetApp: 'app',
+        read: false,
+        createdAt: now,
+      );
+
+      userNotificationController.notifications.value = [
+        factCheckNotif,
+        videoProcessingNotif,
+        newSubscriberNotif,
+        consumerComment,
+      ];
+
+      // In Consumer mode (channelId is empty)
+      viewController.currentChannelId.value = '';
+      viewController.selectTab(0); // All tab
+
+      final items = viewController.getUnifiedNotificationsForTab();
+      expect(items.length, 1);
+      expect(items.first.alert?.id, 'comment_1');
+      expect(items.any((i) => i.alert?.id == 'fc_1'), isFalse);
+      expect(items.any((i) => i.alert?.id == 'vp_1'), isFalse);
+      expect(items.any((i) => i.alert?.id == 'sub_1'), isFalse);
+    });
+
+    test('11. Studio channel context correctly includes Fact-Check and Video Processing notifications', () {
+      final now = DateTime.now();
+
+      final factCheckNotif = UserNotification(
+        id: 'fc_studio',
+        userId: 'usr_creator',
+        channelId: 'chan_main',
+        type: 'fact_check_ready',
+        severity: NotificationSeverity.success,
+        title: 'Fact-Check Completed',
+        message: 'Fact-checking analysis is complete for "My Video"',
+        targetApp: 'studio',
+        read: false,
+        createdAt: now,
+      );
+
+      final videoProcessingNotif = UserNotification(
+        id: 'vp_studio',
+        userId: 'usr_creator',
+        channelId: 'chan_main',
+        type: 'verification_result',
+        severity: NotificationSeverity.info,
+        title: 'Video Processing Started: "My Video"',
+        message: 'Your video is undergoing AI processing',
+        targetApp: 'studio',
+        read: false,
+        createdAt: now,
+      );
+
+      userNotificationController.notifications.value = [
+        factCheckNotif,
+        videoProcessingNotif,
+      ];
+
+      // Enter studio channel context
+      viewController.currentChannelId.value = 'chan_main';
+      viewController.currentCreatorId.value = 'usr_creator';
+      viewController.selectTab(0); // All tab in studio
+
+      final items = viewController.getUnifiedNotificationsForTab();
+      expect(items.length, 2);
+      expect(items.any((i) => i.alert?.id == 'fc_studio'), isTrue);
+      expect(items.any((i) => i.alert?.id == 'vp_studio'), isTrue);
+    });
+
+    test('12. UserNotificationController unreadCount ignores studio notifications in consumer mode', () {
+      final now = DateTime.now();
+
+      userNotificationController.notifications.value = [
+        UserNotification(
+          id: 'fc_unread',
+          userId: 'usr_creator',
+          type: 'fact_check_ready',
+          severity: NotificationSeverity.success,
+          title: 'Fact-Check Completed',
+          message: 'Analysis complete',
+          targetApp: 'studio',
+          read: false,
+          createdAt: now,
+        ),
+        UserNotification(
+          id: 'comm_unread',
+          userId: 'usr_creator',
+          type: 'comment',
+          severity: NotificationSeverity.info,
+          title: 'New Comment',
+          message: 'Nice video!',
+          targetApp: 'app',
+          read: false,
+          createdAt: now,
+        ),
+      ];
+
+      // In consumer mode, unreadCount should only count the 1 consumer notification
+      expect(userNotificationController.unreadCount, equals(1));
+    });
+  });
 }

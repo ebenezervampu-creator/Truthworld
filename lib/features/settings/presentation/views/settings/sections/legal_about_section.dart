@@ -7,7 +7,9 @@ import 'package:truthworld/features/settings/presentation/views/settings/widgets
 import 'package:truthworld/theme/app_theme.dart';
 
 class LegalAboutSection extends StatelessWidget {
-  const LegalAboutSection({super.key});
+  const LegalAboutSection({super.key, this.isDashboard = false});
+
+  final bool isDashboard;
 
   @override
   Widget build(BuildContext context) {
@@ -74,7 +76,7 @@ class LegalAboutSection extends StatelessWidget {
       ),
       trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
       onTap: () {
-        if (Get.isRegistered<HomeController>()) {
+        if (isDashboard && Get.isRegistered<HomeController>()) {
           Get.find<HomeController>().onSideNavItemSelect(
             HomeController.indexFeedback,
           );
@@ -103,7 +105,7 @@ class LegalAboutSection extends StatelessWidget {
       ),
       trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
       onTap: () {
-        if (Get.isRegistered<HomeController>()) {
+        if (isDashboard && Get.isRegistered<HomeController>()) {
           Get.find<HomeController>().onSideNavItemSelect(index);
           if (kIsWeb) {
             WebPlatformUtils.pushUrlHistory(route);

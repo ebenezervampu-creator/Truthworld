@@ -23,9 +23,9 @@ class AdvertiserSubtitleCueRow extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF121212),
+        color: AppColors.bgInput,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgSurface),
       ),
       child: Row(
         children: [
@@ -145,15 +145,15 @@ class AdvertiserTimeInputField extends StatelessWidget {
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 6,
                 ),
-                fillColor: const Color(0xFF18181B),
+                fillColor: AppColors.bgPage,
                 filled: true,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(6),
-                  borderSide: const BorderSide(color: Color(0xFF27272A)),
+                  borderSide: const BorderSide(color: AppColors.bgSurface),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(6),
-                  borderSide: const BorderSide(color: Color(0xFF27272A)),
+                  borderSide: const BorderSide(color: AppColors.bgSurface),
                 ),
               ),
             ),

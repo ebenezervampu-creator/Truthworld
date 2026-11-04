@@ -19,6 +19,7 @@ import { notifyMentions } from "../notifications/triggers";
 import { ExecutionPlan } from "../pipeline/types";
 import { logger } from "../pipeline/utils/logger";
 import { normalizeLanguageCode, normalizeLanguageCodes } from "../shared/language-normalizer";
+import { getFlatDubbingRatePerLanguage, getFlatSubtitleRatePerLanguage } from "../pipeline/pipelineTriggers";
 
 export const onVideoPublished = onDocumentUpdated(
   {
@@ -26,7 +27,7 @@ export const onVideoPublished = onDocumentUpdated(
     region: "asia-south1",
     retry: true,
     memory: "512MiB",
-    maxInstances: 20,
+    maxInstances: 3,
   },
   async (event) => {
     const beforeData = event.data?.before.data();
@@ -77,14 +78,40 @@ export const onVideoPublished = onDocumentUpdated(
       isAlreadyPublished &&
       JSON.stringify(getTranslationLangs(beforeData)) !== JSON.stringify(getTranslationLangs(afterData));
 
-    // ─── GATE 2.5: Detect if moderation status just became approved ──────────
+    // ─── GATE 2.5: Detect if video is approved and published for subscriber notifications ───
     const wasApproved = beforeData?.moderation?.status === "approved";
-    const isApproved = afterData.moderation?.status === "approved";
+    const isApproved =
+      afterData.moderation?.status === "approved" ||
+      afterData.isModerated === true ||
+      afterData.trustedModerationBypass === true ||
+      (afterData.moderation?.status === undefined && afterData.status !== "rejected");
     const becameApproved = !wasApproved && isApproved;
-    const isPublished = aiFeatures.pipelineStage === "published";
+
+    const isCurrentlyPublished =
+      (afterData.status === "published" ||
+        afterData.published === true ||
+        afterData.isPublished === true ||
+        aiFeatures.pipelineStage === "published") &&
+      afterData.status !== "processing" &&
+      afterData.status !== "uploading" &&
+      afterData.status !== "draft" &&
+      afterData.status !== "scheduled" &&
+      afterData.status !== "rejected";
+
+    const wasPublished =
+      beforeData?.status === "published" ||
+      beforeData?.published === true ||
+      beforeData?.isPublished === true ||
+      beforeAiFeatures.pipelineStage === "published";
+
+    const statusJustBecamePublished = !wasPublished && isCurrentlyPublished;
     const notificationsNotSentYet = !afterData.notificationsSent;
 
-    const shouldSendNotifications = isPublished && isApproved && notificationsNotSentYet && (becamePublished || becameApproved);
+    const shouldSendNotifications =
+      isCurrentlyPublished &&
+      isApproved &&
+      notificationsNotSentYet &&
+      (statusJustBecamePublished || becameApproved || becamePublished);
 
     // ─── GATE 2.6: Detect if status or moderation status became rejected ─────
     const wasRejected = beforeData?.status === "rejected" || beforeData?.moderation?.status === "rejected";
@@ -151,6 +178,10 @@ export const onVideoPublished = onDocumentUpdated(
       const { DistributionLayer } = require("../pipeline/layers/04-distribution");
       const distributionLayer = new DistributionLayer();
 
+      const disputedClaimIndex = typeof afterData.factCheckDispute?.claimIndex === "number"
+        ? afterData.factCheckDispute.claimIndex
+        : undefined;
+
       const executionPlan: ExecutionPlan = {
         jobId: videoId,
         languages: [],
@@ -167,6 +198,7 @@ export const onVideoPublished = onDocumentUpdated(
         priority: "high",
         skipCache: true,
         synthesisTier: "deep",
+        disputedClaimIndex,
       };
 
       const eventId = `dispute_re_eval_${videoId}_${Date.now()}`;
@@ -232,19 +264,29 @@ export const onVideoPublished = onDocumentUpdated(
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // SCENARIO A: First-time publish → Create video_job + trigger full pipeline
+    // SCENARIO A: First-time publish or retry of failed job → Create video_job + trigger full pipeline
     // ═══════════════════════════════════════════════════════════════════════════
-    if (becamePublished && !afterData.jobId) {
-      const existingJobSnap = await db.collection("video_jobs")
-        .where("videoId", "==", videoId)
-        .limit(1)
-        .get();
-      if (!existingJobSnap.empty) {
+    const existingJobSnap = await db.collection("video_jobs")
+      .where("videoId", "==", videoId)
+      .limit(1)
+      .get();
+    const existingJobData = !existingJobSnap.empty ? existingJobSnap.docs[0].data() : null;
+    const isFailedJob = existingJobData?.status === "failed";
+
+    if (becamePublished && (!afterData.jobId || isFailedJob)) {
+      if (existingJobData && existingJobData.status !== "failed") {
         logger.info("[PublishGate] Job already exists for this video — skipping (retry idempotency)", {
           videoId,
           existingJobId: existingJobSnap.docs[0].id,
+          status: existingJobData.status,
         });
         return;
+      }
+      if (isFailedJob) {
+        logger.info("[PublishGate] Existing job previously failed — permitting pipeline re-execution", {
+          videoId,
+          failedJobId: existingJobSnap.docs[0].id,
+        });
       }
 
       const moderationStatus = afterData.moderation?.status;
@@ -285,7 +327,7 @@ export const onVideoPublished = onDocumentUpdated(
 
       // Map ALL aiFeatures → ExecutionPlan
       const rawRequestedLanguages: string[] = getTranslationLangs(afterData);
-      const requestedLanguages: string[] = normalizeLanguageCodes(rawRequestedLanguages);
+      let requestedLanguages: string[] = normalizeLanguageCodes(rawRequestedLanguages);
       const hasTargetLanguages = requestedLanguages.length > 0;
       const enableFactChecking = Boolean(
         aiFeatures.factChecking === true ||
@@ -303,8 +345,8 @@ export const onVideoPublished = onDocumentUpdated(
       // TruthWorld Unified Standard: All fact-checked content receives Complete Ground-Truth Verification
       const factCheckTier: "short" | "standard" | "full_ground" = enableFactChecking ? "full_ground" : "standard";
 
-      const enableGenLangSubs = aiFeatures.genLangSubs ?? (hasTargetLanguages || (aiFeatures.generateSubtitles ?? false));
-      const enableDubbing = Boolean(
+      let enableGenLangSubs = aiFeatures.genLangSubs ?? (hasTargetLanguages || (aiFeatures.generateSubtitles ?? false));
+      let enableDubbing = Boolean(
         aiFeatures.generateDubbing === true ||
         aiFeatures.dubbing === true ||
         afterData.generateDubbing === true ||
@@ -315,30 +357,203 @@ export const onVideoPublished = onDocumentUpdated(
         (afterData.dubbingMode && afterData.dubbingMode !== "none")
       );
       const enableSummary = aiFeatures.summary ?? false;
-      const enableDiarization = (aiFeatures.diarization ?? aiFeatures.enableDiarization) ?? false;
-      const enableAutoChapters = (aiFeatures.autoChapters ?? aiFeatures.chapters) ?? false;
-      const enablePath2 = enableDubbing || enableGenLangSubs || hasTargetLanguages;
+      const enableDiarization = (
+        aiFeatures.diarization ??
+        aiFeatures.enableDiarization ??
+        afterData.enableDiarization ??
+        afterData.diarization ??
+        afterData.speakerDiarization
+      ) ?? false;
+      const enableAutoChapters = (
+        aiFeatures.autoChapters ??
+        aiFeatures.chapters ??
+        afterData.autoChaptersEnabled ??
+        afterData.autoChapters
+      ) ?? false;
 
-      // Resolve the channel's designated source language directly from the channel doc (established at channel creation)
-      let channelLang = "";
+      // Resolve video source language: video document language takes priority over channel fallback
+      let resolvedSourceLang = normalizeLanguageCode(afterData.language || afterData.sourceLanguage || "");
       const channelId = afterData.channelId || "";
-      if (channelId) {
+      if (!resolvedSourceLang && channelId) {
         try {
           const chSnap = await db.collection("channels").doc(channelId).get();
           if (chSnap.exists) {
             const chData = chSnap.data();
             const chLang = chData?.language || chData?.channelLanguage;
             if (chLang) {
-              channelLang = normalizeLanguageCode(chLang);
+              resolvedSourceLang = normalizeLanguageCode(chLang);
             }
           }
         } catch (err) {
           logger.warn("[PublishGate] Failed to fetch channel language for channel", { channelId, err });
         }
       }
-      if (!channelLang) {
-        channelLang = normalizeLanguageCode(afterData.language || "en");
+      if (!resolvedSourceLang) {
+        resolvedSourceLang = "en";
       }
+      const channelLang = resolvedSourceLang;
+
+      // 🛡️ Payment Verification & Anti-Abuse Gate for Published Videos
+      const nonPrimaryTargetLangs = requestedLanguages.filter((l) => l !== channelLang);
+      const videoDurationSec = Number(
+        afterData.durationSeconds ||
+        afterData.duration ||
+        (afterData.durationMs ? Math.round(Number(afterData.durationMs) / 1000) : 0) ||
+        120
+      );
+
+      let requiredDubCost = 0;
+      if (enableDubbing && nonPrimaryTargetLangs.length > 0) {
+        const rate = getFlatDubbingRatePerLanguage(videoDurationSec);
+        requiredDubCost = Number((nonPrimaryTargetLangs.length * rate).toFixed(2));
+      }
+
+      let requiredSubCost = 0;
+      if (enableGenLangSubs && nonPrimaryTargetLangs.length > 0) {
+        const subLangsToBill = enableDubbing ? [] : nonPrimaryTargetLangs;
+        if (subLangsToBill.length > 0) {
+          const rate = getFlatSubtitleRatePerLanguage(videoDurationSec);
+          requiredSubCost = Number((subLangsToBill.length * rate).toFixed(2));
+        }
+      }
+
+      const totalPublishAiCost = Number((requiredDubCost + requiredSubCost).toFixed(2));
+
+      if (totalPublishAiCost > 0) {
+        let paidForPublishAi = false;
+
+        // 1. Check if genuine unredeemed transaction exists in channel_wallet_transactions
+        const preTxSnap = await db.collection("channel_wallet_transactions")
+          .where("channelId", "==", channelId)
+          .where("metadata.videoId", "==", videoId)
+          .where("amount", ">=", totalPublishAiCost)
+          .limit(1)
+          .get();
+
+        if (!preTxSnap.empty) {
+          const txDoc = preTxSnap.docs[0];
+          const txData = txDoc.data();
+          if (!txData?.redeemed && (Date.now() - (txData?.timestamp || 0)) <= 24 * 60 * 60 * 1000) {
+            await txDoc.ref.update({
+              redeemed: true,
+              redeemedAt: admin.firestore.FieldValue.serverTimestamp(),
+              redeemedByJobId: jobId,
+            });
+            paidForPublishAi = true;
+          }
+        }
+
+        // 2. If not pre-paid, attempt atomic deduction from channel wallet
+        if (!paidForPublishAi) {
+          const channelRef = db.collection("channels").doc(channelId);
+          const txRef = db.collection("channel_wallet_transactions").doc();
+          try {
+            await db.runTransaction(async (t) => {
+              const chSnap = await t.get(channelRef);
+              if (!chSnap.exists) throw new Error("CHANNEL_NOT_FOUND");
+              const chData = chSnap.data() || {};
+              const infraConfig = chData.infraConfig || {};
+              const rolloverCredit = Number(infraConfig.rolloverCreditUSD || 0);
+              const fundedBalance = Number(chData.walletBalanceUSD || chData.walletBalance || 0);
+
+              const totalRevINR = Number(chData.adsRevenueTotal || 0) +
+                Number(chData.premiumSubsRevenueTotal || 0) +
+                Number(chData.membershipRevenueTotal || 0) +
+                Number(chData.superchatRevenueTotal || 0);
+              const withdrawnRevINR = Number(chData.withdrawnRevenueTotal || 0);
+              const availableRevUSD = Math.max(0, totalRevINR - withdrawnRevINR) / 84.0;
+              const totalSpendable = Number((rolloverCredit + fundedBalance + availableRevUSD).toFixed(2));
+
+              if (totalSpendable < totalPublishAiCost) {
+                throw new Error(`INSUFFICIENT_FUNDS:${totalSpendable.toFixed(2)}:${totalPublishAiCost.toFixed(2)}`);
+              }
+
+              let remaining = totalPublishAiCost;
+              let rolloverDeducted = 0;
+              if (remaining > 0 && rolloverCredit > 0) {
+                rolloverDeducted = Number(Math.min(rolloverCredit, remaining).toFixed(2));
+                remaining = Number((remaining - rolloverDeducted).toFixed(2));
+              }
+
+              let fundedDeducted = 0;
+              if (remaining > 0 && fundedBalance > 0) {
+                fundedDeducted = Number(Math.min(fundedBalance, remaining).toFixed(2));
+                remaining = Number((remaining - fundedDeducted).toFixed(2));
+              }
+
+              const revenueDeductedUSD = Number(remaining.toFixed(2));
+              const revenueDeductedINR = Number((revenueDeductedUSD * 84.0).toFixed(2));
+              const newRollover = Math.max(0, Number((rolloverCredit - rolloverDeducted).toFixed(2)));
+              const newFundedBalance = Math.max(0, Number((fundedBalance - fundedDeducted).toFixed(2)));
+              const balanceAfter = Math.max(0, Number((totalSpendable - totalPublishAiCost).toFixed(2)));
+
+              const channelUpdates: Record<string, any> = {
+                "infraConfig.rolloverCreditUSD": newRollover,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              };
+              if (fundedDeducted > 0) {
+                channelUpdates.walletBalanceUSD = newFundedBalance;
+                channelUpdates.walletBalance = newFundedBalance;
+              }
+              if (revenueDeductedINR > 0) {
+                channelUpdates.withdrawnRevenueTotal = admin.firestore.FieldValue.increment(revenueDeductedINR);
+              }
+              t.update(channelRef, channelUpdates);
+
+              t.set(txRef, {
+                id: txRef.id,
+                channelId,
+                userId,
+                amount: totalPublishAiCost,
+                trialCreditDeducted: 0,
+                rolloverDeducted,
+                fundedDeducted,
+                revenueDeducted: revenueDeductedUSD,
+                category: enableDubbing ? "aiDubbing" : "aiSubtitles",
+                description: `Publish AI Processing for "${afterData.title || videoId}"`,
+                balanceBefore: totalSpendable,
+                balanceAfter,
+                timestamp: Date.now(),
+                redeemed: true,
+                redeemedAt: admin.firestore.FieldValue.serverTimestamp(),
+                redeemedByJobId: jobId,
+                metadata: {
+                  videoId,
+                  costUSD: totalPublishAiCost,
+                  dubbingCost: requiredDubCost,
+                  subtitleCost: requiredSubCost,
+                  source: "onVideoPublished",
+                },
+              });
+            });
+            paidForPublishAi = true;
+          } catch (payErr: any) {
+            logger.warn("[PublishGate] Channel wallet payment failed or insufficient funds for video AI features:", {
+              videoId,
+              channelId,
+              err: payErr?.message || String(payErr),
+            });
+            paidForPublishAi = false;
+          }
+        }
+
+        // 3. Strict Fallback: If payment could NOT be confirmed or debited, refuse paid services!
+        if (!paidForPublishAi) {
+          logger.warn(`[PublishGate] Unpaid AI features intercepted for video ${videoId}. Stripping paid dubbing and multilingual subtitles.`);
+          enableDubbing = false;
+          enableGenLangSubs = false;
+          requestedLanguages = [];
+          await db.collection("videos").doc(videoId).set({
+            "aiFeatures.generateDubbing": false,
+            "aiFeatures.genLangSubs": false,
+            "aiFeatures.paymentStatus": "insufficient_funds_rejected",
+            dubbingPaid: false,
+            subtitlesPaid: false,
+          }, { merge: true });
+        }
+      }
+
+      const enablePath2 = enableDubbing || enableGenLangSubs || (requestedLanguages.length > 0);
 
       const ttsConfig = aiFeatures.tts || {};
       const voiceType = ttsConfig.voiceType || "standard";
@@ -603,6 +818,130 @@ export const onVideoPublished = onDocumentUpdated(
       if (!scenarioBChannelLang) {
         scenarioBChannelLang = normalizeLanguageCode(afterData.language || jobData.executionPlan?.primaryLanguage || "en");
       }
+
+      // 🛡️ Payment Verification for Newly Added Languages (Scenario B)
+      const existingLanguagesProcessed = jobData.executionPlan?.languages || [];
+      const newlyAddedLangs = (normRelangs || []).filter(
+        (l: string) => normalizeLanguageCode(l) !== scenarioBChannelLang && !existingLanguagesProcessed.includes(l)
+      );
+
+      const wantDubbingB = Boolean(aiFeatures.generateDubbing ?? jobData.executionPlan?.generateDubbing);
+      const wantSubsB = Boolean(aiFeatures.genLangSubs ?? jobData.executionPlan?.genLangSubs);
+
+      const durationB = Number(
+        afterData.durationSeconds ||
+        afterData.duration ||
+        (afterData.durationMs ? Math.round(Number(afterData.durationMs) / 1000) : 0) ||
+        120
+      );
+
+      let dubCostB = 0;
+      if (wantDubbingB && newlyAddedLangs.length > 0) {
+        dubCostB = Number((newlyAddedLangs.length * getFlatDubbingRatePerLanguage(durationB)).toFixed(2));
+      }
+      let subCostB = 0;
+      if (wantSubsB && !wantDubbingB && newlyAddedLangs.length > 0) {
+        subCostB = Number((newlyAddedLangs.length * getFlatSubtitleRatePerLanguage(durationB)).toFixed(2));
+      }
+
+      const totalCostB = Number((dubCostB + subCostB).toFixed(2));
+      let paidB = false;
+
+      if (totalCostB > 0) {
+        const channelRefB = db.collection("channels").doc(afterData.channelId || jobData.channelId || jobData.userId);
+        const txRefB = db.collection("channel_wallet_transactions").doc();
+        try {
+          await db.runTransaction(async (t) => {
+            const chSnap = await t.get(channelRefB);
+            if (!chSnap.exists) throw new Error("CHANNEL_NOT_FOUND");
+            const chData = chSnap.data() || {};
+            const infraConfig = chData.infraConfig || {};
+            const rolloverCredit = Number(infraConfig.rolloverCreditUSD || 0);
+            const fundedBalance = Number(chData.walletBalanceUSD || chData.walletBalance || 0);
+
+            const totalRevINR = Number(chData.adsRevenueTotal || 0) +
+              Number(chData.premiumSubsRevenueTotal || 0) +
+              Number(chData.membershipRevenueTotal || 0) +
+              Number(chData.superchatRevenueTotal || 0);
+            const withdrawnRevINR = Number(chData.withdrawnRevenueTotal || 0);
+            const availableRevUSD = Math.max(0, totalRevINR - withdrawnRevINR) / 84.0;
+            const totalSpendable = Number((rolloverCredit + fundedBalance + availableRevUSD).toFixed(2));
+
+            if (totalSpendable < totalCostB) {
+              throw new Error(`INSUFFICIENT_FUNDS:${totalSpendable.toFixed(2)}:${totalCostB.toFixed(2)}`);
+            }
+
+            let remaining = totalCostB;
+            let rolloverDeducted = 0;
+            if (remaining > 0 && rolloverCredit > 0) {
+              rolloverDeducted = Number(Math.min(rolloverCredit, remaining).toFixed(2));
+              remaining = Number((remaining - rolloverDeducted).toFixed(2));
+            }
+            let fundedDeducted = 0;
+            if (remaining > 0 && fundedBalance > 0) {
+              fundedDeducted = Number(Math.min(fundedBalance, remaining).toFixed(2));
+              remaining = Number((remaining - fundedDeducted).toFixed(2));
+            }
+            const revenueDeductedUSD = Number(remaining.toFixed(2));
+            const revenueDeductedINR = Number((revenueDeductedUSD * 84.0).toFixed(2));
+            const newRollover = Math.max(0, Number((rolloverCredit - rolloverDeducted).toFixed(2)));
+            const newFundedBalance = Math.max(0, Number((fundedBalance - fundedDeducted).toFixed(2)));
+            const balanceAfter = Math.max(0, Number((totalSpendable - totalCostB).toFixed(2)));
+
+            const channelUpdates: Record<string, any> = {
+              "infraConfig.rolloverCreditUSD": newRollover,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            };
+            if (fundedDeducted > 0) {
+              channelUpdates.walletBalanceUSD = newFundedBalance;
+              channelUpdates.walletBalance = newFundedBalance;
+            }
+            if (revenueDeductedINR > 0) {
+              channelUpdates.withdrawnRevenueTotal = admin.firestore.FieldValue.increment(revenueDeductedINR);
+            }
+            t.update(channelRefB, channelUpdates);
+
+            t.set(txRefB, {
+              id: txRefB.id,
+              channelId: channelRefB.id,
+              userId: jobData.userId,
+              amount: totalCostB,
+              trialCreditDeducted: 0,
+              rolloverDeducted,
+              fundedDeducted,
+              revenueDeducted: revenueDeductedUSD,
+              category: wantDubbingB ? "aiDubbing" : "aiSubtitles",
+              description: `Relang AI Processing for "${afterData.title || videoId}" (${newlyAddedLangs.join(", ")})`,
+              balanceBefore: totalSpendable,
+              balanceAfter,
+              timestamp: Date.now(),
+              redeemed: true,
+              redeemedAt: admin.firestore.FieldValue.serverTimestamp(),
+              redeemedByJobId: jobId,
+              metadata: {
+                videoId,
+                costUSD: totalCostB,
+                newlyAddedLangs,
+                source: "onVideoPublished_relang",
+              },
+            });
+          });
+          paidB = true;
+        } catch (payErr: any) {
+          logger.warn("[PublishGate] Channel wallet payment failed in Scenario B:", {
+            videoId,
+            channelId: afterData.channelId,
+            err: payErr?.message || String(payErr),
+          });
+          paidB = false;
+        }
+
+        if (!paidB) {
+          logger.warn(`[PublishGate] Relang unpaid bypass intercepted for video ${videoId}. Aborting unpaid language addition.`);
+          return;
+        }
+      }
+
       const updatedPlan: ExecutionPlan = {
         ...jobData.executionPlan,
         languages: Array.from(new Set([scenarioBChannelLang, ...normRelangs])),
@@ -868,7 +1207,6 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
   const BATCH_SIZE = 400;
   const MAX_FANOUT_BATCHES = 5;
   let batchCount = 0;
-  let lastDoc: FirebaseFirestore.QueryDocumentSnapshot | undefined;
   let totalNotified = 0;
   const notifiedUserIds = new Set<string>();
   if (creatorId) {
@@ -884,24 +1222,19 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
   const isHighlight = video.isHighlight === true;
   const isPersonalizedEligible = isVerified || isFeatured || isHighTruth || isHighTrust || isHighlight;
 
-  while (batchCount < MAX_FANOUT_BATCHES) {
-    let query = db.collection("subscriptions")
-      .where("channelId", "==", channelId)
-      .limit(BATCH_SIZE);
-    if (lastDoc) query = query.startAfter(lastDoc);
-
-    const snap = await query.get();
-    if (snap.empty) break;
-
-    batchCount++;
-
+  // Process a batch of subscriber docs from any collection/subcollection source
+  const processSubscriberBatch = async (docs: FirebaseFirestore.QueryDocumentSnapshot[]) => {
+    if (docs.length === 0) return 0;
     const batch = db.batch();
     const notifications: Promise<any>[] = [];
+    let batchNotified = 0;
 
-    snap.docs.forEach(doc => {
+    docs.forEach(doc => {
       const data = doc.data();
-      const { userId, notificationsEnabled } = data;
-      if (!userId || userId === creatorId) return;
+      const userId = data.userId || doc.id;
+      if (!userId || notifiedUserIds.has(userId) || userId === creatorId) return;
+
+      notifiedUserIds.add(userId);
 
       batch.set(
         db.collection("users").doc(userId).collection("feed_inbox").doc(videoId),
@@ -923,28 +1256,31 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
       );
 
       // Determine effective notification option: 'all' | 'personalized' (default) | 'none'
-      const effectiveOption = (data.notificationOption || data.notificationPreference || (notificationsEnabled === false ? "none" : "personalized")).toLowerCase();
+      const notificationsEnabled = data.notificationsEnabled !== false;
+      const effectiveOption = (data.notificationOption || data.notificationPreference || (!notificationsEnabled ? "none" : "personalized")).toLowerCase();
 
       // Only notify if notifications are not disabled and option is not 'none'.
+      // When set to 'all', ALWAYS notify for all uploaded content.
       // When set to 'personalized', only send for personalized highlights (verified, high truth/trust score >= 75, featured).
-      const shouldNotifySubscriber = notificationsEnabled !== false &&
+      const shouldNotifySubscriber = notificationsEnabled &&
         effectiveOption !== "none" &&
         (effectiveOption === "all" || isPersonalizedEligible);
 
       if (shouldNotifySubscriber) {
-        notifiedUserIds.add(userId);
+        batchNotified++;
         notifications.push(
           notifyUser({
             userId,
             type: "new_video_followed",
             severity: "info",
             title: `New Video from ${channelNameStr}`,
-            message: `${channelNameStr} just uploaded: ${title}`,
-            actionUrl: `/video/${videoId}`,
+            message: `${channelNameStr} just uploaded: ${title || "Untitled Video"}`,
+            actionUrl: `/watch?v=${videoId}`,
+            skipPush: true, // Topic broadcast channel_${sanitizedChannelId} already pushed to all subscriber devices
             metadata: { 
               channelId, 
               videoId, 
-              thumbnailUrl: video.thumbnailUrl, 
+              thumbnailUrl: video.thumbnailUrl || "", 
               avatarUrl: video.channelImage || "",
               notificationOption: effectiveOption,
             }
@@ -955,8 +1291,47 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
 
     await batch.commit();
     await Promise.allSettled(notifications);
-    totalNotified += snap.size;
-    lastDoc = snap.docs[snap.docs.length - 1];
+    return batchNotified;
+  };
+
+  // Source 1: Channel subscribers subcollection (Primary Source of Truth in TruthWorld)
+  let lastSubDoc: FirebaseFirestore.QueryDocumentSnapshot | undefined;
+  while (batchCount < MAX_FANOUT_BATCHES) {
+    let query = db.collection("channels").doc(channelId).collection("subscribers").limit(BATCH_SIZE);
+    if (lastSubDoc) query = query.startAfter(lastSubDoc);
+    const snap = await query.get();
+    if (snap.empty) break;
+    batchCount++;
+    totalNotified += await processSubscriberBatch(snap.docs);
+    lastSubDoc = snap.docs[snap.docs.length - 1];
+    if (snap.size < BATCH_SIZE) break;
+  }
+
+  // Source 2: Global subscriptions collection (Legacy & Cross-System Union)
+  let lastLegacyDoc: FirebaseFirestore.QueryDocumentSnapshot | undefined;
+  while (batchCount < MAX_FANOUT_BATCHES) {
+    let query = db.collection("subscriptions")
+      .where("channelId", "==", channelId)
+      .limit(BATCH_SIZE);
+    if (lastLegacyDoc) query = query.startAfter(lastLegacyDoc);
+    const snap = await query.get();
+    if (snap.empty) break;
+    batchCount++;
+    totalNotified += await processSubscriberBatch(snap.docs);
+    lastLegacyDoc = snap.docs[snap.docs.length - 1];
+    if (snap.size < BATCH_SIZE) break;
+  }
+
+  // Source 3: channelSubscribers subcollection (Backend Functions schema fallback)
+  let lastChSubDoc: FirebaseFirestore.QueryDocumentSnapshot | undefined;
+  while (batchCount < MAX_FANOUT_BATCHES) {
+    let query = db.collection("channels").doc(channelId).collection("channelSubscribers").limit(BATCH_SIZE);
+    if (lastChSubDoc) query = query.startAfter(lastChSubDoc);
+    const snap = await query.get();
+    if (snap.empty) break;
+    batchCount++;
+    totalNotified += await processSubscriberBatch(snap.docs);
+    lastChSubDoc = snap.docs[snap.docs.length - 1];
     if (snap.size < BATCH_SIZE) break;
   }
 
@@ -996,6 +1371,24 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
       const topicTitle = topicData.title || topicData.name || "Followed Topic";
       const topicDocId = topicDoc.id;
       const topicSlug = topicData.slug || topicDocId;
+
+      // Atomically increment topic video count and link channel securely via Admin SDK
+      try {
+        const topicUpdates: Record<string, any> = {
+          videoCount: admin.firestore.FieldValue.increment(1),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+        if (channelId) {
+          const existingChannels: string[] = topicData.channels || [];
+          if (!existingChannels.includes(channelId)) {
+            topicUpdates.channels = admin.firestore.FieldValue.arrayUnion(channelId);
+            topicUpdates.channelCount = admin.firestore.FieldValue.increment(1);
+          }
+        }
+        await topicDoc.ref.update(topicUpdates);
+      } catch (err) {
+        logger.warn("[videoPublishTrigger] Failed to update topic counters (non-fatal)", { topicKey, err: String(err) });
+      }
 
       // Match followers saved under topic doc ID, slug, or raw topic key
       const topicMatchIds = Array.from(new Set([topicDocId, topicSlug, topicKey].filter(Boolean)));

@@ -21,6 +21,7 @@ import { PipelineEvent, EventType } from "../types";
 import {
   checkAndMarkEventId,
   markEventCompleted,
+  markEventFailed,
   IdempotencyStatus,
 } from "../utils/idempotency-engine";
 import { logger } from "../utils/logger";
@@ -96,6 +97,13 @@ export class DistributionLayer {
    */
   async markEventCompleted(eventId: string): Promise<void> {
     return await markEventCompleted(eventId);
+  }
+
+  /**
+   * Mark an event as failed to allow tracked retries or inspection.
+   */
+  async markEventFailed(eventId: string, error?: string): Promise<void> {
+    return await markEventFailed(eventId, error);
   }
 
   // ─── Publishing ─────────────────────────────────────────────────────────────

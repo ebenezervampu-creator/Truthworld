@@ -103,10 +103,10 @@ describe("Payout Engine Backend Security Isolation", () => {
     // 3b. Authentic View Qualification Gate (Anti-Bot Farming)
     const isMonetized = channelData.isMonetized === true || channelData.monetizationEnabled === true;
     const qualifiedViews = Number(channelData.qualifiedViewCount ?? (channelData.isMonetized ? 1000 : (channelData.viewCount ?? 0)));
-    const watchMinutes = Number(channelData.totalWatchTimeMinutes ?? (channelData.isMonetized ? 600 : ((channelData.totalWatchTimeSeconds ?? 0) / 60)));
+    const watchMinutes = Number(channelData.totalWatchTimeMinutes ?? (channelData.isMonetized ? 1800 : ((channelData.totalWatchTimeSeconds ?? 0) / 60)));
 
-    if (!isMonetized && (qualifiedViews < 1000 || watchMinutes < 600)) {
-      return { status: "rejected", reason: "Channel has not met authentic view qualification (1,000 qualified views & 10 hours watch time required)" };
+    if (!isMonetized && (qualifiedViews < 1000 || watchMinutes < 1800)) {
+      return { status: "rejected", reason: "Channel has not met authentic view qualification (1,000 qualified views & 30 hours watch time required)" };
     }
 
     // 3c. Bot Click-Farm Anomaly Ratio Check
@@ -357,12 +357,12 @@ describe("Payout Engine Backend Security Isolation", () => {
     expect(res.status).toBe("approved");
   });
 
-  it("14. Blocks payout when channel has not met authentic monetization threshold (< 1,000 qualified views or < 10h watch time)", () => {
+  it("14. Blocks payout when channel has not met authentic monetization threshold (< 1,000 qualified views or < 30h watch time)", () => {
     const unmonetizedChannel = {
       ...validChannel,
       isMonetized: false,
       qualifiedViewCount: 400, // < 1,000 required
-      totalWatchTimeMinutes: 250, // < 600 required
+      totalWatchTimeMinutes: 250, // < 1800 required
     };
     const res = evaluatePayoutGate({
       amount: 500,
@@ -415,12 +415,12 @@ describe("Payout Engine Backend Security Isolation", () => {
     expect(res.reason).toContain("fraud review");
   });
 
-  it("17. Approves payout when channel is authentically qualified with >= 1,000 qualified views and >= 10h watch time", () => {
+  it("17. Approves payout when channel is authentically qualified with >= 1,000 qualified views and >= 30h watch time", () => {
     const qualifiedChannel = {
       ...validChannel,
       isMonetized: false, // Not pre-monetized flag, but verified through metrics
       qualifiedViewCount: 1250, // >= 1000
-      totalWatchTimeMinutes: 700, // >= 600 (10h)
+      totalWatchTimeMinutes: 1900, // >= 1800 (30h)
       viewCount: 1500, // Safe 83.3% ratio
     };
     const res = evaluatePayoutGate({

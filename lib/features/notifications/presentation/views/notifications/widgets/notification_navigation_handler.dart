@@ -96,14 +96,17 @@ class NotificationNavigationHandler {
         metadata?['video_id'] as String?;
 
     if ((videoId == null || videoId.isEmpty) && actionUrl != null && actionUrl.isNotEmpty) {
-      final videoRegex = RegExp('/(?:video|watch|v|shorts)/([^/?#]+)');
+      final videoRegex = RegExp('(?:^|/)(?:video|watch|v|shorts)/([^/?#]+)');
       final match = videoRegex.firstMatch(actionUrl);
       if (match != null) {
         videoId = match.group(1);
-      } else if (actionUrl.contains('v=')) {
-        final uri = Uri.tryParse(actionUrl);
-        if (uri != null && uri.queryParameters.containsKey('v')) {
-          videoId = uri.queryParameters['v'];
+      } else if (actionUrl.contains('v=') || actionUrl.contains('videoId=')) {
+        final normalized = actionUrl.startsWith('http') || actionUrl.startsWith('/')
+            ? actionUrl
+            : '/$actionUrl';
+        final uri = Uri.tryParse(normalized);
+        if (uri != null) {
+          videoId = uri.queryParameters['v'] ?? uri.queryParameters['videoId'];
         }
       }
     }
@@ -156,17 +159,24 @@ class NotificationNavigationHandler {
         titleLower.contains('fact-checking') ||
         titleLower.contains('fact check') ||
         titleLower.contains('video moderation') ||
+        titleLower.contains('content moderation') ||
+        titleLower.contains('topic moderation') ||
         titleLower.contains('thumbnail verification') ||
         titleLower.contains('video not accepted') ||
+        titleLower.contains('topic not accepted') ||
         titleLower.contains('video under manual review') ||
+        titleLower.contains('topic under manual review') ||
         titleLower.contains('video processing') ||
         titleLower.contains('video approved & published') ||
+        titleLower.contains('topic approved & published') ||
         titleLower.contains('creator studio') ||
         titleLower.contains('channel policy') ||
         titleLower.contains('copyright claim') ||
         titleLower.contains('claim dispute') ||
         bodyLower.contains('studio notifications') ||
         bodyLower.contains('creator studio') ||
+        bodyLower.contains('content moderation') ||
+        bodyLower.contains('topic moderation') ||
         bodyLower.contains('fact-checking for') ||
         bodyLower.contains('held in studio');
 
@@ -195,6 +205,10 @@ class NotificationNavigationHandler {
         type == 'inactivity_warning' ||
         type == 'performance_warning' ||
         type == 'weekly_digest' ||
+        type == 'chapters' ||
+        type.contains('chapter') ||
+        type == 'drafts' ||
+        type == 'trash' ||
         type.contains('studio') ||
         type.contains('monetization') ||
         type.contains('milestone') ||
@@ -227,13 +241,8 @@ class NotificationNavigationHandler {
     final category = (data['category'] as String? ?? '').toLowerCase();
 
     return type.startsWith('admin_') ||
-        type == 'moderation_escalation' ||
-        type == 'report_escalation' ||
-        type == 'content_flagged' ||
-        type == 'video_flagged' ||
-        type == 'image_flagged' ||
-        type == 'channel_flagged' ||
-        type == 'topic_flagged' ||
+        type.contains('flagged') ||
+        type.contains('escalation') ||
         type == 'kyc_submitted' ||
         type == 'channel_verification' ||
         type == 'security_alert' ||
@@ -241,6 +250,16 @@ class NotificationNavigationHandler {
         type == 'audit_log' ||
         type == 'audit_logs' ||
         type == 'appeals' ||
+        type.contains('appeal') ||
+        type.contains('dispute') ||
+        type == 'user_flagged' ||
+        type == 'ad_flagged' ||
+        type == 'ad_reported' ||
+        type == 'ad_reports' ||
+        type == 'admin_invite' ||
+        type == 'team_member_added' ||
+        type == 'user_feedback' ||
+        type == 'feedback_request' ||
         category == 'security' ||
         category == 'policy_enforcement' ||
         effectiveAction.contains('/admin');
@@ -277,6 +296,10 @@ class NotificationNavigationHandler {
         type == 'ad_creative' ||
         type == 'asset_approved' ||
         type == 'brand_settings' ||
+        type.contains('creative') ||
+        type.contains('asset') ||
+        type.contains('brand_setting') ||
+        type.contains('brand_settings') ||
         type.contains('advertiser') ||
         category == 'sponsorship' ||
         category == 'advertisement' ||
@@ -303,6 +326,7 @@ class NotificationNavigationHandler {
     if (rawTarget == 'admin') return AppFlavor.admin;
     if (rawTarget == 'advertiser' || rawTarget == 'ads') return AppFlavor.advertiser;
     if (rawTarget == 'app') return AppFlavor.app;
+    if (rawTarget == 'all') return AppFlavor.active;
 
     if (isAdminNotificationPayload(data, title: title, body: body, actionUrl: actionUrl)) {
       return AppFlavor.admin;
@@ -325,7 +349,7 @@ class NotificationNavigationHandler {
       }
 
       Get.toNamed(
-        '/watch?v=${notification.id}',
+        '/watch',
         arguments: {
           'video': notification,
           'videoId': notification.id,
@@ -412,10 +436,21 @@ class NotificationNavigationHandler {
       metadata: meta,
     );
 
-    final commentId = payload['commentId'] as String? ??
+    var commentId = payload['commentId'] as String? ??
         meta?['commentId'] as String?;
-    final replyId = payload['replyId'] as String? ??
+    var replyId = payload['replyId'] as String? ??
         meta?['replyId'] as String?;
+
+    if (actionUrl != null && (commentId == null || replyId == null)) {
+      final normalized = actionUrl.startsWith('http') || actionUrl.startsWith('/')
+          ? actionUrl
+          : '/$actionUrl';
+      final uri = Uri.tryParse(normalized);
+      if (uri != null) {
+        commentId ??= uri.queryParameters['commentId'] ?? uri.queryParameters['comment'];
+        replyId ??= uri.queryParameters['replyId'] ?? uri.queryParameters['reply'];
+      }
+    }
 
     var channelId = payload['channelId'] as String? ??
         meta?['channelId'] as String? ??
@@ -462,6 +497,23 @@ class NotificationNavigationHandler {
       }
     }
 
+    int? claimIndex;
+    final rawClaimIndex = payload['claimIndex'] ?? meta?['claimIndex'];
+    if (rawClaimIndex is int) {
+      claimIndex = rawClaimIndex;
+    } else if (rawClaimIndex is String) {
+      claimIndex = int.tryParse(rawClaimIndex);
+    }
+    if (claimIndex == null && actionUrl != null) {
+      final normalized = actionUrl.startsWith('http') || actionUrl.startsWith('/')
+          ? actionUrl
+          : '/$actionUrl';
+      final uri = Uri.tryParse(normalized);
+      if (uri != null && uri.queryParameters['claimIndex'] != null) {
+        claimIndex = int.tryParse(uri.queryParameters['claimIndex']!);
+      }
+    }
+
     // ── Resolve Product Flavor Target ──
     final targetFlavor = resolveTargetFlavor(
       payload,
@@ -477,16 +529,26 @@ class NotificationNavigationHandler {
           typeLower == 'content_flagged' ||
           typeLower == 'moderation_escalation') {
         adminTab = 'videos';
+      } else if (typeLower.contains('ad_report')) {
+        adminTab = 'ad_reports';
       } else if (typeLower.contains('report')) {
         adminTab = 'reports';
-      } else if (typeLower.contains('image')) {
+      } else if (typeLower.contains('image') || typeLower.contains('thumbnail')) {
         adminTab = 'images';
       } else if (typeLower.contains('channel') || typeLower == 'kyc_submitted') {
         adminTab = 'channels';
       } else if (typeLower.contains('topic')) {
         adminTab = 'topics';
-      } else if (typeLower == 'appeals') {
+      } else if (typeLower == 'appeals' || typeLower.contains('appeal') || typeLower.contains('dispute')) {
         adminTab = 'appeals';
+      } else if (typeLower.contains('user') && !typeLower.contains('user_feedback')) {
+        adminTab = 'users';
+      } else if (typeLower.contains('team') || typeLower.contains('admin_invite')) {
+        adminTab = 'team';
+      } else if (typeLower.contains('ad') || typeLower.contains('campaign')) {
+        adminTab = 'ads';
+      } else if (typeLower.contains('feedback')) {
+        adminTab = 'feedbacks';
       } else if (typeLower.contains('log')) {
         adminTab = 'logs';
       } else if (typeLower.contains('alert') || typeLower.contains('security')) {
@@ -503,6 +565,9 @@ class NotificationNavigationHandler {
           'channelId': ?channelId,
           'topicId': ?topicId,
           if (payload['reportId'] != null) 'reportId': payload['reportId'],
+          if (payload['appealId'] != null) 'appealId': payload['appealId'],
+          if (payload['userId'] != null) 'userId': payload['userId'],
+          if (payload['adId'] != null) 'adId': payload['adId'],
         },
         parameters: {
           'tab': adminTab,
@@ -514,17 +579,23 @@ class NotificationNavigationHandler {
     // ── APP FLAVOR 2: Advertiser Portal (com.truthworld.advertiser) ──
     if (targetFlavor == AppFlavor.advertiser) {
       var adTabIndex = 0;
-      if (typeLower.contains('campaign')) {
-        adTabIndex = 1; // My Campaigns
-      } else if (typeLower.contains('report') || typeLower.contains('performance')) {
+      if (typeLower == 'campaign_performance' ||
+          typeLower == 'ad_performance' ||
+          typeLower == 'ad_report' ||
+          typeLower.contains('performance') ||
+          typeLower.contains('analytics')) {
         adTabIndex = 2; // Performance Reports
+      } else if (typeLower.contains('campaign')) {
+        adTabIndex = 1; // My Campaigns
       } else if (typeLower.contains('subtitle')) {
         adTabIndex = 3; // AI Video Subtitles
       } else if (typeLower.contains('dub')) {
         adTabIndex = 4; // AI Audio Dubbing
       } else if (typeLower.contains('bill') ||
           typeLower.contains('invoice') ||
-          typeLower.contains('payment')) {
+          typeLower.contains('payment') ||
+          typeLower.contains('balance') ||
+          typeLower.contains('funds')) {
         adTabIndex = 5; // Billing & Invoices
       } else if (typeLower.contains('audience') || typeLower.contains('target')) {
         adTabIndex = 6; // Audience & Targeting
@@ -532,10 +603,10 @@ class NotificationNavigationHandler {
         adTabIndex = 7; // Creator Sponsorships
       } else if (typeLower.contains('creative') || typeLower.contains('asset')) {
         adTabIndex = 8; // Creative Assets
-      } else if (typeLower.contains('testing')) {
-        adTabIndex = 9; // A/B Testing & Optimization
       } else if (typeLower.contains('brand') || typeLower.contains('setting')) {
-        adTabIndex = 10; // Brand Settings
+        adTabIndex = 9; // Brand Settings
+      } else if (typeLower.contains('report')) {
+        adTabIndex = 2; // Fallback reports
       }
 
       return NotificationNavigationTarget(
@@ -565,6 +636,23 @@ class NotificationNavigationHandler {
             route: '/saved-community-posts',
             targetApp: AppFlavor.studio,
             isStudio: true,
+          );
+        }
+        if (actionUrlLower.contains('topic') ||
+            meta?['itemType'] == 'topic' ||
+            (topicId != null && topicId.isNotEmpty && !typeLower.contains('video') && videoId == null)) {
+          return NotificationNavigationTarget(
+            route: '/studio',
+            targetApp: AppFlavor.studio,
+            isStudio: true,
+            arguments: {
+              'tab': 14, // ContentScreen Topics tab
+              'topicId': ?topicId,
+            },
+            parameters: {
+              'tab': 'topics',
+              'topicId': ?topicId,
+            },
           );
         }
         return NotificationNavigationTarget(
@@ -658,10 +746,10 @@ class NotificationNavigationHandler {
       if (typeLower == 'creator_coach_insight' ||
           typeLower == 'creator_motivation') {
         return const NotificationNavigationTarget(
-          route: '/studio',
+          route: '/studio/notifications',
           targetApp: AppFlavor.studio,
           isStudio: true,
-          arguments: {'tab': 16}, // ChannelNotificationsPage
+          arguments: {'tab': 16},
           parameters: {'tab': 'notifications'},
         );
       }
@@ -745,9 +833,28 @@ class NotificationNavigationHandler {
     }
 
     // 2. Video Watch Screen with Autoplay:
-    // (new_video_followed, new_video_topic, comment, comment_like, comment_reply, mention)
+    // (new_video_followed, new_video_topic, comment, comment_like, comment_reply, mention, claim_note)
     if (videoId != null && videoId.isNotEmpty) {
       final isTopicOrigin = typeLower == 'new_video_topic' || topicId != null;
+
+      // Direct deep-link to claim deliberation notes / Truth Credibility if specified
+      if (claimIndex != null || typeLower.contains('claim')) {
+        return NotificationNavigationTarget(
+          route: '/claim-detail?videoId=$videoId&claimIndex=${claimIndex ?? 0}',
+          arguments: {
+            'videoId': videoId,
+            'claimIndex': claimIndex ?? 0,
+            'commentId': ?commentId,
+            'fromNotification': true,
+            'fromPush': true,
+          },
+          parameters: {
+            'videoId': videoId,
+            'claimIndex': (claimIndex ?? 0).toString(),
+            'commentId': ?commentId,
+          },
+        );
+      }
 
       return NotificationNavigationTarget(
         route: '/watch?v=$videoId',
@@ -760,6 +867,7 @@ class NotificationNavigationHandler {
           'replyId': ?replyId,
           'channelId': ?channelId,
           'topicId': ?topicId,
+          'claimIndex': ?claimIndex,
           if (isTopicOrigin) 'fromTopic': true,
           if (payload['thumbnailUrl'] != null) 'thumbnailUrl': payload['thumbnailUrl'],
         },
@@ -768,11 +876,12 @@ class NotificationNavigationHandler {
           'autoplay': 'true',
           'commentId': ?commentId,
           'replyId': ?replyId,
+          if (claimIndex != null) 'claimIndex': claimIndex.toString(),
         },
       );
     }
 
-    // 3. Community Post (new_community_post)
+    // 3. Community Post (new_community_post, comment, comment_like, comment_reply)
     if (typeLower == 'new_community_post' || (postId != null && postId.isNotEmpty)) {
       if (postId != null && postId.isNotEmpty) {
         return NotificationNavigationTarget(
@@ -780,6 +889,15 @@ class NotificationNavigationHandler {
           arguments: {
             'postId': postId,
             'channelId': ?channelId,
+            'commentId': ?commentId,
+            'replyId': ?replyId,
+            'fromNotification': true,
+            'fromPush': true,
+          },
+          parameters: {
+            'postId': postId,
+            'commentId': ?commentId,
+            'replyId': ?replyId,
           },
         );
       }
@@ -794,6 +912,18 @@ class NotificationNavigationHandler {
     if (topicId != null && topicId.isNotEmpty) {
       return NotificationNavigationTarget(
         route: '/topic/$topicId',
+        arguments: {
+          'topicId': topicId,
+          'commentId': ?commentId,
+          'replyId': ?replyId,
+          'fromNotification': true,
+          'fromPush': true,
+        },
+        parameters: {
+          'topicId': topicId,
+          'commentId': ?commentId,
+          'replyId': ?replyId,
+        },
       );
     }
 
@@ -869,7 +999,19 @@ class NotificationNavigationHandler {
 
       // In-app navigation for current flavor
       safeNavigate('nav_${target.route}', () {
-        if (target.route.startsWith('/watch')) {
+        var effectiveRoute = target.route;
+        var effectiveParams = target.parameters != null
+            ? Map<String, String>.from(target.parameters!)
+            : null;
+
+        if (effectiveRoute.contains('?')) {
+          final uri = Uri.parse(effectiveRoute);
+          effectiveRoute = uri.path;
+          effectiveParams ??= {};
+          effectiveParams.addAll(uri.queryParameters);
+        }
+
+        if (effectiveRoute.startsWith('/watch')) {
           if (Get.isRegistered<MiniplayerController>(tag: 'miniplayer') ||
               Get.isRegistered<MiniplayerController>()) {
             MiniplayerController.to.dismiss();
@@ -881,28 +1023,49 @@ class NotificationNavigationHandler {
               player.videoPlayerController.play();
             }
           }
+          if (Get.currentRoute.startsWith('/watch')) {
+            unawaited(
+              Get.offNamed(
+                effectiveRoute,
+                arguments: target.arguments,
+                parameters: effectiveParams,
+              ),
+            );
+            return;
+          }
         } else if (target.targetApp == AppFlavor.studio) {
           final tabIndex = target.arguments?['tab'] as int?;
-          if (tabIndex != null && Get.isRegistered<DashboardController>()) {
-            Get.find<DashboardController>().selectedIndex.value = tabIndex;
+          if (Get.isRegistered<DashboardController>()) {
+            final ctrl = Get.find<DashboardController>();
+            if (tabIndex != null) {
+              ctrl.selectedIndex.value = tabIndex;
+            }
+            final videoId = target.arguments?['videoId'] as String?;
+            if (videoId != null && videoId.isNotEmpty) {
+              ctrl.targetVideoId.value = videoId;
+            }
+            ctrl.applyRouteTargetIfPresent();
           }
         } else if (target.targetApp == AppFlavor.admin) {
           final tab = target.arguments?['tab'] as String?;
-          if (tab != null && Get.isRegistered<AdminController>()) {
-            Get.find<AdminController>().currentTab.value = tab;
+          if (Get.isRegistered<AdminController>()) {
+            final ctrl = Get.find<AdminController>();
+            ctrl.applyRouteTargetIfPresent(tab, target.arguments);
           }
         } else if (target.targetApp == AppFlavor.advertiser) {
           final tabIndex = target.arguments?['tab'] as int?;
-          if (tabIndex != null && Get.isRegistered<AdvertiserPortalController>()) {
-            Get.find<AdvertiserPortalController>().selectedIndex.value = tabIndex;
+          final campId = target.arguments?['campaignId'] as String?;
+          if (Get.isRegistered<AdvertiserPortalController>()) {
+            final ctrl = Get.find<AdvertiserPortalController>();
+            ctrl.applyRouteTargetIfPresent(tabIndex, campId);
           }
         }
 
         unawaited(
           Get.toNamed(
-            target.route,
+            effectiveRoute,
             arguments: target.arguments,
-            parameters: target.parameters,
+            parameters: effectiveParams,
           ),
         );
       });

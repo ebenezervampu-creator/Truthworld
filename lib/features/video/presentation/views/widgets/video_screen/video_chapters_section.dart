@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/widgets/video_chapters_bottom_sheet.dart';
@@ -41,13 +40,16 @@ class VideoChaptersSection extends StatelessWidget {
         child: ExpansionTile(
           iconColor: Colors.white,
           collapsedIconColor: Colors.white,
-          title: InkWell(
-            onTap: () => VideoChaptersBottomSheet.show(
-              context,
-              video: controller.video,
-              videoTag: videoTag,
-            ),
-            child: Column(
+          title: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => VideoChaptersBottomSheet.show(
+                context,
+                video: controller.video,
+                videoTag: videoTag,
+              ),
+              child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -61,7 +63,7 @@ class VideoChaptersSection extends StatelessWidget {
                     const SizedBox(width: 12),
                     Text(
                       'Chapters',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                         color: AppColors.textPrimary,
@@ -80,7 +82,7 @@ class VideoChaptersSection extends StatelessWidget {
                       child: Text(
                         chapters.length.toString(),
                         style: const TextStyle(
-                          color: Color(0xFF3EA6FF),
+                          color: AppColors.textLink,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -95,7 +97,7 @@ class VideoChaptersSection extends StatelessWidget {
                     return Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
-                        'Current: ${current.title}',
+                        'Current: ${current.localizedTitle()}',
                         style: const TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 13,
@@ -106,6 +108,7 @@ class VideoChaptersSection extends StatelessWidget {
               ],
             ),
           ),
+        ),
           shape: const RoundedRectangleBorder(),
           collapsedShape: const RoundedRectangleBorder(),
           childrenPadding: EdgeInsets.zero,
@@ -121,6 +124,7 @@ class VideoChaptersSection extends StatelessWidget {
                   chapter: chapter,
                   video: controller.video,
                   playerCtrl: playerCtrl,
+                  index: index,
                 );
               },
             ),

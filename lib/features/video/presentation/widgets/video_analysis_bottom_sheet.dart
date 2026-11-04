@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/widgets/truth_lottie_animation.dart';
@@ -72,6 +70,37 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
     );
   }
 
+  /// Opens the Ask AI conversation as a dedicated full-page screen.
+  static Future<T?>? openAskAi<T>(
+    BuildContext context, {
+    required Video video,
+    VideoController? controller,
+    String scope = 'video',
+    int? claimIndex,
+    String? claimText,
+    String? verdict,
+    List<dynamic>? allSources,
+    List<dynamic>? allClaims,
+    String? summary,
+    double? trustScore,
+    String? claimExplanation,
+  }) {
+    return AskAiScreen.open<T>(
+      context,
+      video: video,
+      controller: controller,
+      scope: scope,
+      claimIndex: claimIndex,
+      claimText: claimText,
+      verdict: verdict,
+      allSources: allSources,
+      allClaims: allClaims,
+      summary: summary,
+      trustScore: trustScore,
+      claimExplanation: claimExplanation,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -96,22 +125,19 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Column(
-              children: [
-                _buildDragHandle(),
-                _buildHeader(context),
-                const Divider(height: 1, color: AppColors.bgDivider),
-                Expanded(
-                  child: VideoAnalysisView(
-                    video: video,
-                    videoCtrl: videoCtrl,
-                    analysisCtrl: analysisCtrl,
-                  ),
+          child: Column(
+            children: [
+              _buildDragHandle(),
+              _buildHeader(context),
+              const Divider(height: 1, color: AppColors.bgDivider),
+              Expanded(
+                child: VideoAnalysisView(
+                  video: video,
+                  videoCtrl: videoCtrl,
+                  analysisCtrl: analysisCtrl,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

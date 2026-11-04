@@ -144,6 +144,12 @@ void main() {
         equals('Unable to process payment right now. Please try again in a few moments.'),
       );
       expect(
+        UserFeedbackSanitizer.sanitizeMessage(
+          'com.truthworld.app is not enabled or approved. Please whitelist your domain or app package name in Cashfree Merchant Dashboard',
+        ),
+        equals('Unable to process payment right now. Please try again shortly or contact support.'),
+      );
+      expect(
         UserFeedbackSanitizer.sanitizeMessage('profile_inactive'),
         equals('Payment service is temporarily unavailable. Please try again in a few moments or contact support.'),
       );

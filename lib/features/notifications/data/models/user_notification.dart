@@ -184,7 +184,8 @@ class UserNotification {
     this.metadata,
     this.expiresAt,
     this.targetApp = 'app',
-  });
+    String? channelId,
+  }) : _explicitChannelId = channelId;
 
   factory UserNotification.fromDocumentSnapshot(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
@@ -232,24 +233,46 @@ class UserNotification {
 
     final meta = json['metadata'] is Map
         ? Map<String, dynamic>.from(json['metadata'] as Map)
-        : null;
+        : <String, dynamic>{};
+
+    for (final key in [
+      'videoId',
+      'targetVideoId',
+      'video_id',
+      'commentId',
+      'replyId',
+      'channelId',
+      'targetChannelId',
+      'topicId',
+      'topicSlug',
+      'slug',
+      'postId',
+      'communityPostId',
+    ]) {
+      if (json[key] != null && !meta.containsKey(key)) {
+        meta[key] = json[key];
+      }
+    }
     final parsedSeverity = NotificationSeverity.fromString(
       json['severity'] as String? ?? json['priority'] as String?,
     );
     final rawPriority = json['priority'] as String? ??
-        (meta?['priority'] as String?) ??
+        (meta['priority'] as String?) ??
         (parsedSeverity == NotificationSeverity.priority
             ? 'critical'
             : (parsedSeverity == NotificationSeverity.warning ? 'high' : null));
     final rawCategory = json['category'] as String? ??
-        (meta?['category'] as String?) ??
+        (meta['category'] as String?) ??
         'system';
     final rawThumb = json['thumbnailUrl'] as String? ??
-        (meta?['thumbnailUrl'] as String?);
+        (meta['thumbnailUrl'] as String?);
     final rawTargetApp = (json['targetApp'] as String?) ??
-        (meta?['targetApp'] as String?) ??
-        (meta?['app'] as String?) ??
+        (meta['targetApp'] as String?) ??
+        (meta['app'] as String?) ??
         'app';
+    final rawChannelId = (json['channelId'] as String?) ??
+        (meta['channelId'] as String?) ??
+        (meta['targetChannelId'] as String?);
 
     return UserNotification(
       id: docId.isNotEmpty ? docId : (json['id'] as String? ?? ''),
@@ -272,6 +295,7 @@ class UserNotification {
       createdAt: parsedTime,
       expiresAt: expTime,
       targetApp: rawTargetApp,
+      channelId: rawChannelId,
     );
   }
   final String id;
@@ -306,6 +330,10 @@ class UserNotification {
     if (t == 'fact_check_pending' ||
         t == 'fact_check_ready' ||
         t == 'fact_check_completed' ||
+        t == 'video_processing' ||
+        t == 'video_processing_started' ||
+        t == 'video_processing_completed' ||
+        t == 'video_processing_failed' ||
         t == 'verification_result' ||
         t == 'batch_verification_result' ||
         t == 'copyright_claim' ||
@@ -341,10 +369,15 @@ class UserNotification {
         t == 'studio_notifications' ||
         t.contains('studio') ||
         t.contains('fact_check') ||
+        t.contains('factcheck') ||
         t.contains('verification') ||
         t.contains('milestone') ||
         t.contains('monetization') ||
-        t.contains('coach')) {
+        t.contains('coach') ||
+        t.contains('processing') ||
+        t.contains('transcription') ||
+        t.contains('moderation') ||
+        t.contains('pipeline')) {
       return true;
     }
 
@@ -353,7 +386,11 @@ class UserNotification {
         cat == 'monetization' ||
         cat == 'analytics' ||
         cat == 'growth' ||
-        cat == 'education') {
+        cat == 'education' ||
+        cat == 'pipeline' ||
+        cat == 'moderation' ||
+        cat == 'copyright' ||
+        cat == 'studio') {
       return true;
     }
 
@@ -377,12 +414,20 @@ class UserNotification {
     final isStudioTitle = titleLower.contains('truth verification') ||
         titleLower.contains('fact-checking') ||
         titleLower.contains('fact check') ||
+        titleLower.contains('fact-check') ||
+        titleLower.contains('factcheck') ||
         titleLower.contains('video moderation') ||
+        titleLower.contains('content moderation') ||
+        titleLower.contains('topic moderation') ||
         titleLower.contains('thumbnail verification') ||
         titleLower.contains('video not accepted') ||
+        titleLower.contains('topic not accepted') ||
         titleLower.contains('video under manual review') ||
+        titleLower.contains('topic under manual review') ||
         titleLower.contains('video processing') ||
         titleLower.contains('video approved & published') ||
+        titleLower.contains('topic approved & published') ||
+        titleLower.contains('video published') ||
         titleLower.contains('new subscriber') ||
         titleLower.contains('creator studio') ||
         titleLower.contains('channel policy') ||
@@ -391,9 +436,14 @@ class UserNotification {
 
     final isStudioMessage = messageLower.contains('studio notifications') ||
         messageLower.contains('creator studio') ||
+        messageLower.contains('content moderation') ||
+        messageLower.contains('topic moderation') ||
         messageLower.contains('fact-checking for') ||
+        messageLower.contains('fact-checking analysis') ||
         messageLower.contains('held in studio') ||
-        messageLower.contains('subscribed to your channel');
+        messageLower.contains('subscribed to your channel') ||
+        messageLower.contains('undergoing truthworld ai transcription') ||
+        messageLower.contains('transcoding are running');
 
     return isStudioTitle || isStudioMessage;
   }
@@ -406,6 +456,10 @@ class UserNotification {
         metaApp == 'studio' || metaApp == 'admin' || metaApp == 'advertiser') {
       return false;
     }
+    // Notifications targeted to 'all' apps belong to both Consumer App and Studio
+    if (app == 'all' || metaApp == 'all') {
+      return true;
+    }
     if (isStudioNotification) return false;
     final action = (actionUrl ?? '').toLowerCase().trim();
     if (action.contains('studio') ||
@@ -417,9 +471,111 @@ class UserNotification {
     return true;
   }
 
+  /// Returns true if this notification is intended for the Advertiser Portal
+  bool get isAdvertiserNotification {
+    final app = targetApp.toLowerCase().trim();
+    final metaApp = (metadata?['targetApp'] as String? ?? metadata?['app'] as String? ?? '').toLowerCase().trim();
+    if (app == 'advertiser' || app == 'ads' || metaApp == 'advertiser' || metaApp == 'ads') return true;
+    if (app == 'studio' || app == 'admin' || metaApp == 'studio' || metaApp == 'admin') return false;
+
+    final t = type.toLowerCase().trim();
+    if (t.startsWith('campaign_') ||
+        t.startsWith('billing_') ||
+        t.startsWith('payment_') ||
+        t.contains('advertiser') ||
+        t.contains('campaign') ||
+        t.contains('ad_performance') ||
+        t.contains('ad_report') ||
+        t.contains('ad_targeting') ||
+        t.contains('audience_insight') ||
+        t.contains('sponsorship') ||
+        t.contains('ad_creative') ||
+        t.contains('creative_asset') ||
+        t.contains('asset_approved') ||
+        t.contains('brand_setting') ||
+        t.contains('brand_settings')) {
+      return true;
+    }
+
+    final cat = (category.isNotEmpty ? category : (metadata?['category'] as String? ?? '')).toLowerCase().trim();
+    if (cat == 'advertisement' || cat == 'sponsorship' || cat == 'campaign' || cat == 'billing') {
+      return true;
+    }
+
+    final action = (actionUrl ?? '').toLowerCase().trim();
+    if (action.contains('advertiser') || action.contains('/ads') || action.contains('/advertisements')) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /// Returns true if this notification is intended for Admin & Moderation Portal
+  bool get isAdminNotification {
+    final app = targetApp.toLowerCase().trim();
+    final metaApp = (metadata?['targetApp'] as String? ?? metadata?['app'] as String? ?? '').toLowerCase().trim();
+    if (app == 'admin' || metaApp == 'admin') return true;
+    if (app == 'studio' || app == 'advertiser' || metaApp == 'studio' || metaApp == 'advertiser') return false;
+
+    final t = type.toLowerCase().trim();
+    if (t.startsWith('admin_') ||
+        t.contains('flagged') ||
+        t.contains('escalation') ||
+        t == 'kyc_submitted' ||
+        t == 'channel_verification' ||
+        t == 'security_alert' ||
+        t == 'system_alert' ||
+        t == 'audit_log' ||
+        t == 'audit_logs' ||
+        t == 'appeals' ||
+        t.contains('appeal') ||
+        t.contains('dispute') ||
+        t == 'ad_reported' ||
+        t == 'ad_reports' ||
+        t == 'admin_invite' ||
+        t == 'team_member_added' ||
+        t == 'user_feedback' ||
+        t == 'feedback_request') {
+      return true;
+    }
+
+    final cat = (category.isNotEmpty ? category : (metadata?['category'] as String? ?? '')).toLowerCase().trim();
+    if (cat == 'security' || cat == 'policy_enforcement') {
+      return true;
+    }
+
+    final action = (actionUrl ?? '').toLowerCase().trim();
+    if (action.contains('/admin')) {
+      return true;
+    }
+
+    return false;
+  }
+
   String get typeCategory => category;
 
-  String get channelId => (metadata?['channelId'] as String?) ?? '';
+  final String? _explicitChannelId;
+
+  String get channelId =>
+      _explicitChannelId ??
+      (metadata?['channelId'] as String?) ??
+      (metadata?['targetChannelId'] as String?) ??
+      '';
+
+  String? get videoId =>
+      (metadata?['videoId'] as String?) ??
+      (metadata?['targetVideoId'] as String?) ??
+      (metadata?['video_id'] as String?);
+
+  String? get commentId => metadata?['commentId'] as String?;
+  String? get replyId => metadata?['replyId'] as String?;
+  String? get topicId =>
+      (metadata?['topicId'] as String?) ??
+      (metadata?['topicSlug'] as String?) ??
+      (metadata?['slug'] as String?);
+  String? get postId =>
+      (metadata?['postId'] as String?) ??
+      (metadata?['communityPostId'] as String?);
 
   Map<String, dynamic> toJson() {
     return {
@@ -443,6 +599,12 @@ class UserNotification {
       'createdAt': createdAt.millisecondsSinceEpoch,
       'expiresAt': expiresAt?.millisecondsSinceEpoch,
       'targetApp': targetApp,
+      if (channelId.isNotEmpty) 'channelId': channelId,
+      if (videoId != null && videoId!.isNotEmpty) 'videoId': videoId,
+      if (commentId != null && commentId!.isNotEmpty) 'commentId': commentId,
+      if (replyId != null && replyId!.isNotEmpty) 'replyId': replyId,
+      if (topicId != null && topicId!.isNotEmpty) 'topicId': topicId,
+      if (postId != null && postId!.isNotEmpty) 'postId': postId,
     };
   }
 
@@ -467,6 +629,7 @@ class UserNotification {
     DateTime? createdAt,
     DateTime? expiresAt,
     String? targetApp,
+    String? channelId,
   }) {
     return UserNotification(
       id: id ?? this.id,
@@ -489,6 +652,7 @@ class UserNotification {
       createdAt: createdAt ?? this.createdAt,
       expiresAt: expiresAt ?? this.expiresAt,
       targetApp: targetApp ?? this.targetApp,
+      channelId: channelId ?? this.channelId,
     );
   }
 

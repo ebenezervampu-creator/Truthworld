@@ -28,7 +28,7 @@ class DeletePlaylistConfirmationDialog extends StatelessWidget {
     final controller = Get.find<PlaylistsManagementController>();
 
     return AlertDialog(
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: AppColors.bgSurface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
         side: const BorderSide(color: AppColors.bgDivider),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/config/app_flavor.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/notifications/presentation/controllers/notification_view_controller.dart';
 import 'package:truthworld/features/notifications/presentation/views/notifications/widgets/notification_components.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -17,7 +19,14 @@ typedef UnifiedNotification = UnifiedNotificationItem;
 /// Declarative, responsive notification center consolidating video uploads
 /// and social user interactions (mentions, comments, likes, subscriptions).
 class VideoFeedNotificationScreen extends StatelessWidget {
-  const VideoFeedNotificationScreen({super.key});
+  const VideoFeedNotificationScreen({
+    this.channelId,
+    this.creatorId,
+    super.key,
+  });
+
+  final String? channelId;
+  final String? creatorId;
 
   double get maxContentWidth => 720;
 
@@ -30,6 +39,25 @@ class VideoFeedNotificationScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = _resolveController();
+    var resolvedChId = channelId ?? '';
+    var resolvedCrId = creatorId ?? '';
+
+    if (resolvedChId.isEmpty && (AppFlavor.isStudio || Get.currentRoute.contains('studio'))) {
+      if (Get.isRegistered<AuthService>()) {
+        final ch = AuthService.to.userChannel ?? AuthService.to.rxUserChannel.value;
+        if (ch != null && ch.id.isNotEmpty) {
+          resolvedChId = ch.id;
+          resolvedCrId = AuthService.to.uid;
+        }
+      }
+    }
+
+    if (resolvedChId.isNotEmpty) {
+      controller.setChannelContext(
+        channelId: resolvedChId,
+        creatorId: resolvedCrId,
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,
@@ -79,10 +107,20 @@ class VideoFeedNotificationScreen extends StatelessWidget {
     List<UnifiedNotificationItem> items,
   ) {
     if (items.isEmpty) {
-      if (controller.selectedTabIndex.value == 1) {
+      final tabId = controller.activeTabId;
+      if (tabId == 'verifications') {
+        return const NotificationEmptyVerificationsState();
+      }
+      if (tabId == 'studio_alerts') {
+        return const NotificationEmptyStudioAlertsState();
+      }
+      if (tabId == 'topics') {
         return const NotificationEmptyTopicsState();
       }
-      if (controller.selectedTabIndex.value == 3) {
+      if (tabId == 'comments') {
+        return const NotificationEmptyCommentsState();
+      }
+      if (tabId == 'mentions') {
         return const NotificationEmptyMentionsState();
       }
       return const NotificationEmptyGeneralState();

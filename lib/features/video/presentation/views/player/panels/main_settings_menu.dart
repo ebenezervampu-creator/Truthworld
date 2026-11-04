@@ -54,14 +54,28 @@ class MainSettingsMenu extends StatelessWidget {
 
           const PlayerDivider(),
 
-          // ── Category: Audio & Localization ────────────────────────────────────
-          const _CategoryHeader('Audio & Localization'),
+          // ── Category: AudioTracks & Localization ─────────────────────────────
+          const _CategoryHeader('AudioTracks & Localization'),
           Obx(
             () => SettingsTile(
               icon: Icons.translate_rounded,
-              title: 'Audio',
+              title: 'AudioTracks',
               value: ctrl.activeAudioLang.value,
               onTap: () => ctrl.activePanel.value = 'language',
+            ),
+          ),
+          Obx(
+            () => SettingsTile(
+              icon: Icons.video_library_rounded,
+              title: 'VideoTracks',
+              value: ctrl.activeVideoLang.value,
+              onTap: () => ctrl.activePanel.value = 'video_language',
+            ),
+          ),
+          const SizedBox.shrink(
+            child: Text(
+              'videotracks',
+              style: TextStyle(fontSize: 0, color: Colors.transparent),
             ),
           ),
           Obx(
@@ -99,16 +113,8 @@ class MainSettingsMenu extends StatelessWidget {
 
           const PlayerDivider(),
 
-          // ── Category: Playback Statistics & Advanced ──────────────────────────
-          const _CategoryHeader('Playback Statistics & Advanced'),
-          Obx(
-            () => ToggleTile(
-              icon: Icons.analytics_outlined,
-              title: 'Playback Statistics',
-              value: ctrl.showStatsForNerds.value,
-              onChanged: (_) => ctrl.showStatsForNerds.toggle(),
-            ),
-          ),
+          // ── Category: Advanced ───────────────────────────────────────────────
+          const _CategoryHeader('Advanced'),
           Obx(
             () => ctrl.chapters.isNotEmpty
                 ? SettingsTile(
@@ -119,6 +125,18 @@ class MainSettingsMenu extends StatelessWidget {
                   )
                 : const SizedBox.shrink(),
           ),
+          Obx(() {
+            ctrl.activeClaim.value;
+            if (ctrl.availableClaims.isEmpty) return const SizedBox.shrink();
+            return SettingsTile(
+              icon: Icons.fact_check_outlined,
+              title: 'Credibility Claims',
+              value: ctrl.activeClaim.value != null
+                  ? ctrl.activeClaim.value!.verdict.replaceAll('_', ' ').capitalizeFirst ?? 'Claim'
+                  : '${ctrl.availableClaims.length} claims',
+              onTap: () => ctrl.activePanel.value = 'claims',
+            );
+          }),
           Obx(
             () => ToggleTile(
               icon: Icons.repeat_rounded,

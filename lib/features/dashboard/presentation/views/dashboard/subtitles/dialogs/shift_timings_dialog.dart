@@ -9,7 +9,7 @@ class ShiftTimingsDialog {
     final offsetController = TextEditingController(text: '1000');
     Get.dialog<void>(
       AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
+        backgroundColor: AppColors.bgSurface,
         title: const Row(
           children: [
             Icon(Icons.timelapse_rounded, size: 20, color: Colors.white),

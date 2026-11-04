@@ -116,7 +116,7 @@ class DesktopCopyrightDataTable extends StatelessWidget {
 
                 final rowBg = index.isEven
                     ? (isDarkMode ? AppColors.bgSurface : Colors.white)
-                    : (isDarkMode ? const Color(0xFF1E1E1E) : Colors.grey.shade50);
+                    : (isDarkMode ? AppColors.bgSurface : Colors.grey.shade50);
 
                 return InkWell(
                   onTap: () => _showClaimDetails(context, data),
@@ -182,7 +182,7 @@ class DesktopCopyrightDataTable extends StatelessWidget {
     Color secondaryTextColor,
   ) {
     final headerBg =
-        isDarkMode ? const Color(0xFF161618) : Colors.grey.shade100;
+        isDarkMode ? AppColors.appBarSurface : Colors.grey.shade100;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

@@ -41,7 +41,7 @@ class DashboardCommentsHeaderBar extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E1E1E),
+                    color: AppColors.bgSurface,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: AppColors.bgDivider,
@@ -119,7 +119,7 @@ class DashboardCommentsHeaderBar extends StatelessWidget {
               child: Container(
                 height: 38,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E1E1E),
+                  color: AppColors.bgSurface,
                   borderRadius: BorderRadius.circular(19),
                   border: Border.all(
                     color: AppColors.bgDivider,

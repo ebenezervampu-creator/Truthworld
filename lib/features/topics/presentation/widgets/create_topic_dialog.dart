@@ -127,7 +127,7 @@ class CreateTopicDialog extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Left Column (Sections 1 to 4)
+        // Left Column (Sections 1 to 3)
         Expanded(
           flex: 5,
           child: Column(
@@ -137,15 +137,13 @@ class CreateTopicDialog extends StatelessWidget {
               const SizedBox(height: 24),
               buildSection2Handle(context, controller),
               const SizedBox(height: 24),
-              buildSection3Title(context, controller),
-              const SizedBox(height: 24),
-              buildSection4Description(context, controller, isDesktop: true),
+              buildSection3Description(context, controller, isDesktop: true),
             ],
           ),
         ),
         const SizedBox(width: 32),
 
-        // Right Column (Sections 5 to 8)
+        // Right Column (Sections 4 to 7)
         Expanded(
           flex: 6,
           child: Column(
@@ -178,9 +176,7 @@ class CreateTopicDialog extends StatelessWidget {
         const SizedBox(height: 20),
         buildSection2Handle(context, controller),
         const SizedBox(height: 20),
-        buildSection3Title(context, controller),
-        const SizedBox(height: 20),
-        buildSection4Description(context, controller),
+        buildSection3Description(context, controller),
         const SizedBox(height: 20),
         buildSection5Category(context, controller, availableCategories),
         const SizedBox(height: 20),

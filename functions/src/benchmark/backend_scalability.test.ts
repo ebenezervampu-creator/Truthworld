@@ -6,7 +6,7 @@
  * 1. FCM Multicast 500-Token Batch Chunking (10,000 recipients)
  * 2. Channel Mention Extraction Throughput (10,000 comments)
  * 3. Push Notification Dynamic Template Rendering (10,000 renders)
- * 4. Live Chat Sliding-Window Rate Limiter (50,000 message events)
+ * 4. Sliding-Window Event Rate Limiter (50,000 message events)
  * 5. Watch Time Pulse Aggregation & Retention Windowing (10,000 heartbeats)
  * 6. SEO Server Dynamic Route Pattern Matching (20,000 URL evaluations)
  */
@@ -123,10 +123,10 @@ function testTemplateRenderingScalability() {
 }
 
 // ---------------------------------------------------------------------------
-// 4. Live Chat Sliding-Window Rate Limiter (50,000 Events)
+// 4. Sliding-Window Event Rate Limiter (50,000 Events)
 // ---------------------------------------------------------------------------
-function testLiveChatRateLimiterScalability() {
-  console.log("\n--- [Suite 4] Live Chat Sliding-Window Rate Limiter (50,000 Events) ---");
+function testEventRateLimiterScalability() {
+  console.log("\n--- [Suite 4] Sliding-Window Event Rate Limiter (50,000 Events) ---");
 
   class SlidingWindowRateLimiter {
     private readonly windowMs: number;
@@ -389,7 +389,7 @@ function main() {
   testFcmChunkingScalability();
   testMentionExtractionScalability();
   testTemplateRenderingScalability();
-  testLiveChatRateLimiterScalability();
+  testEventRateLimiterScalability();
   testWatchTimeAggregationScalability();
   testSeoRouteMatchingScalability();
   testConcurrentVariantMerge();

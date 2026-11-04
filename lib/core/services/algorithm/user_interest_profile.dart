@@ -138,11 +138,19 @@ class UserInterestProfile {
   final int flipCoinCount;
   final int oppositeWatchesCount;
 
+  // === Language Preferences ===
+  final String primaryLanguage;
+  final List<String> secondaryLanguages;
+  final List<String> knownLanguages;
+
   // === Two-Tower Neural Retrieval User Vector ===
   final List<double>? userEmbedding;
 
   UserInterestProfile({
     this.userId = '',
+    this.primaryLanguage = 'English',
+    this.secondaryLanguages = const [],
+    this.knownLanguages = const ['English'],
     this.categoryAffinities = const {},
     this.topicAffinities = const {},
     this.interestGraph = const {},
@@ -215,6 +223,9 @@ class UserInterestProfile {
   Map<String, dynamic> toMap() {
     return {
       'userId': userId,
+      'primaryLanguage': primaryLanguage,
+      'secondaryLanguages': secondaryLanguages,
+      'knownLanguages': knownLanguages,
       'categoryAffinities': _cleanMap(categoryAffinities),
       'topicAffinities': _cleanMap(topicAffinities),
       'interestGraph': _cleanMap(interestGraph),
@@ -262,8 +273,14 @@ class UserInterestProfile {
   }
 
   factory UserInterestProfile.fromFirestore(Map<String, dynamic> data) {
+    final primary = data['primaryLanguage']?.toString() ?? 'English';
     return UserInterestProfile(
       userId: data['userId']?.toString() ?? '',
+      primaryLanguage: primary,
+      secondaryLanguages: List<String>.from(data['secondaryLanguages'] ?? []),
+      knownLanguages: List<String>.from(
+        data['knownLanguages'] ?? [primary],
+      ),
       categoryAffinities: _cleanDoubleMap(data['categoryAffinities']),
       topicAffinities: _cleanDoubleMap(data['topicAffinities']),
       interestGraph: _cleanDoubleMap(data['interestGraph']),
@@ -333,6 +350,9 @@ class UserInterestProfile {
 
   UserInterestProfile copyWith({
     String? userId,
+    String? primaryLanguage,
+    List<String>? secondaryLanguages,
+    List<String>? knownLanguages,
     Map<String, double>? categoryAffinities,
     Map<String, double>? topicAffinities,
     Map<String, double>? interestGraph,
@@ -368,6 +388,9 @@ class UserInterestProfile {
   }) {
     return UserInterestProfile(
       userId: userId ?? this.userId,
+      primaryLanguage: primaryLanguage ?? this.primaryLanguage,
+      secondaryLanguages: secondaryLanguages ?? this.secondaryLanguages,
+      knownLanguages: knownLanguages ?? this.knownLanguages,
       categoryAffinities: categoryAffinities ?? this.categoryAffinities,
       topicAffinities: topicAffinities ?? this.topicAffinities,
       interestGraph: interestGraph ?? this.interestGraph,

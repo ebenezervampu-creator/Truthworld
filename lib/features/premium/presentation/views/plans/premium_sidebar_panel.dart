@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/premium/presentation/controllers/premium_controller.dart';
 import 'package:truthworld/features/premium/presentation/views/plans/premium_constants.dart';
 import 'package:truthworld/features/premium/presentation/views/plans/premium_membership_status_card.dart';
@@ -120,6 +122,36 @@ void showPremiumMoreOptionsSheet(BuildContext context) {
               onTap: () {
                 Navigator.pop(context);
                 Get.toNamed('/settings');
+              },
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          if (kDebugMode)
+            ListTile(
+              leading: const Icon(Icons.offline_bolt_rounded, color: Colors.white),
+              title: const Text(
+                'Simulate Premium Unlock (Debug)',
+                style: TextStyle(
+                  color: primaryText,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              onTap: () async {
+                Navigator.pop(context);
+                final auth = Get.isRegistered<AuthService>() ? AuthService.to : null;
+                if (auth == null || !auth.isAuthenticated.value) {
+                  AppSnackbar.warning(
+                    'Please sign in to simulate premium upgrade.',
+                    title: 'Sign In Required',
+                  );
+                } else {
+                  final ctrl = Get.isRegistered<PremiumController>()
+                      ? Get.find<PremiumController>()
+                      : Get.put(PremiumController());
+                  await ctrl.upgradeSimulated(ctrl.selectedPlanId.value);
+                }
               },
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),

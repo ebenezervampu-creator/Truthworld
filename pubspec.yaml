@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.1+13
+version: 1.0.1+19
 
 environment:
   sdk: ^3.11.0
@@ -70,9 +70,11 @@ dependencies:
   share_plus: ^13.3.0
   idb_shim: ^2.6.7
   path_provider: ^2.1.5
+  path: ^1.9.0
 
   # Auth & Search
   speech_to_text: ^7.3.0
+  typesense: ^0.6.0
 
   # Charts & Visualization
   syncfusion_flutter_charts: ^34.1.32
@@ -106,6 +108,9 @@ dependencies:
   app_links: ^7.2.1
   lottie: ^3.6.1
   local_auth: ^3.0.2
+  flutter_local_notifications: ^22.3.2
+  timezone: ^0.11.2
+  flutter_secure_storage: ^11.2.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -171,4 +176,16 @@ flutter:
     - family: Noto Sans Bengali
       fonts:
         - asset: assets/fonts/NotoSansBengali-Regular.ttf
+
+    - family: Noto Sans Telugu
+      fonts:
+        - asset: assets/fonts/NotoSansTelugu-Regular.ttf
+        - asset: assets/fonts/NotoSansTelugu-Bold.ttf
+          weight: 700
+
+    - family: Noto Sans Tamil
+      fonts:
+        - asset: assets/fonts/NotoSansTamil-Regular.ttf
+        - asset: assets/fonts/NotoSansTamil-Bold.ttf
+          weight: 700
 

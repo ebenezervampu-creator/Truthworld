@@ -189,11 +189,11 @@ class NavRailPersonalSection extends StatelessWidget {
                 unselectedIcon: Icons.watch_later_outlined,
                 title: 'Watch later',
                 index: HomeController.indexWatchLater,
-                isSelected:
-                    selectedIndex == HomeController.indexPlaylistDetail &&
+                isSelected: selectedIndex == HomeController.indexWatchLater ||
+                    (selectedIndex == HomeController.indexPlaylistDetail &&
                         homeController.selectedPlaylist.value?.playlistName
                                 .toLowerCase() ==
-                            'watch later',
+                            'watch later'),
                 isCompact: isCompact,
                 requiresAuth: true,
                 onTap: homeController.navigateToWatchLater,

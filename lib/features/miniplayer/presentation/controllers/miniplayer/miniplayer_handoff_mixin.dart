@@ -1,9 +1,15 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/components/ui/video_card.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/pip_service.dart';
+import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer/miniplayer_gestures_mixin.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer/miniplayer_playback_mixin.dart';
@@ -52,6 +58,9 @@ mixin MiniplayerHandoffMixin on
         internalVpc != null &&
         isVideoReady.value) {
       mode.value = MiniplayerMode.collapsed;
+      dragProgress.value = 0.0;
+      dragOffset.value = null;
+      dragOffset.value = null;
       try {
         HoverPreviewCoordinator.globalMute.value = true;
         await internalVpc!.play();
@@ -87,6 +96,105 @@ mixin MiniplayerHandoffMixin on
       return;
     }
 
+    // Check if an active pre-warmed or handed-off controller exists
+    final handoffVpc =
+        !kIsWeb ? VideoPlaybackHandoff.retrieveController(video.id) : null;
+    final wasHandoff = handoffVpc != null && !handoffVpc.value.hasError;
+
+    if (wasHandoff) {
+      debugPrint(
+        '[MiniplayerController] 🚀 Zero-latency handoff controller found for: ${video.id}',
+      );
+      // Cleanly dispose previous video if one was running
+      disposeVideoControllers();
+
+      videoInfo.value = MiniplayerVideoInfo.fromVideo(
+        video,
+        clip: clip,
+        isAudioOnly: isAudioOnly,
+      );
+      currentVideo.value = video;
+      try {
+        VideoPlaybackQueueService.to.onVideoLoaded(video);
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'MiniplayerController.showWithVideo.queue',
+        );
+      }
+      mode.value = MiniplayerMode.collapsed;
+      dragProgress.value = 0.0;
+      dragOffset.value = null;
+
+      internalVpc = handoffVpc;
+      currentPlayingUrl = handoffVpc.dataSource;
+      handoffVpc.addListener(vpcListener);
+
+      if (clip != null) {
+        final startMs = (clip.startTime * 1000).toInt();
+        final endMs = (clip.endTime * 1000).toInt();
+        final clipDur = Duration(
+          milliseconds: (endMs - startMs).clamp(0, 86400000),
+        );
+        totalDuration.value = clipDur;
+        final currentMs = handoffVpc.value.position.inMilliseconds;
+        currentPosition.value = Duration(
+          milliseconds: (currentMs - startMs).clamp(0, clipDur.inMilliseconds),
+        );
+      } else {
+        currentPosition.value = handoffVpc.value.position;
+        totalDuration.value = handoffVpc.value.duration;
+      }
+
+      // Mark video ready immediately so MiniplayerVideoFrame displays without flash
+      isVideoReady.value = true;
+      isBuffering.value = handoffVpc.value.isBuffering;
+      isPlaying.value = handoffVpc.value.isPlaying;
+
+      subtitlesEnabled.value = TowerPlayerController.globalSubtitlesEnabled;
+      if (subtitlesEnabled.value) {
+        loadBestSubtitleTrack();
+      } else {
+        subtitleSegments.clear();
+        currentSubtitle.value = '';
+      }
+
+      HoverPreviewCoordinator.globalMute.value = true;
+      if (!handoffVpc.value.isPlaying) {
+        try {
+          unawaited(handoffVpc.play());
+          isPlaying.value = true;
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'MiniplayerController.playHandoffVpc',
+          );
+        }
+      }
+      try {
+        unawaited(handoffVpc.setLooping(false));
+        unawaited(handoffVpc.setVolume(1.0));
+      } catch (_) {}
+
+      startPositionTimer();
+      PipService.to.updateAutoPip(
+        enabled: mode.value != MiniplayerMode.dismissed,
+        aspectRatio: currentAspectRatio,
+        isPlaying: isPlaying.value,
+        hasPrevious: hasPreviousVideo,
+        hasNext: hasNextVideo,
+      );
+      return;
+    }
+
+    if (handoffVpc != null && handoffVpc.value.hasError) {
+      try {
+        handoffVpc.dispose();
+      } catch (_) {}
+    }
+
     // Dispose previous
     disposeVideoControllers();
 
@@ -108,6 +216,7 @@ mixin MiniplayerHandoffMixin on
     }
     mode.value = MiniplayerMode.collapsed;
     dragProgress.value = 0.0;
+    dragOffset.value = null;
     isPlaying.value = false;
     isBuffering.value = true;
     isVideoReady.value = false;
@@ -157,10 +266,19 @@ mixin MiniplayerHandoffMixin on
       currentSubtitle.value = '';
     }
 
+    final chStatus = (video.channelStatus ?? '').toLowerCase().replaceAll('_', '').replaceAll(' ', '');
+    if (chStatus == 'onhold' || chStatus == 'hold') {
+      isBuffering.value = false;
+      error.value =
+          'This video is temporarily unavailable while the channel is on hold.';
+      return;
+    }
+
     if (video.isRejected ||
         video.status == VideoStatus.rejected ||
         video.visibility == 'rejected' ||
-        video.channelStatus == 'rejected') {
+        video.channelStatus == 'rejected' ||
+        chStatus == 'suspended') {
       isBuffering.value = false;
       error.value =
           'This video has been removed for violating community guidelines.';
@@ -168,58 +286,24 @@ mixin MiniplayerHandoffMixin on
     }
 
     try {
-      final handoffVpc =
-          !kIsWeb ? VideoPlaybackHandoff.retrieveController(video.id) : null;
-      final VideoPlayerController vpc;
-      final wasHandoff = handoffVpc != null && !handoffVpc.value.hasError;
-
-      if (wasHandoff) {
-        debugPrint(
-          '[MiniplayerController] Found active handoff controller for: ${video.id}',
-        );
-        vpc = handoffVpc;
-        currentPlayingUrl = handoffVpc.dataSource;
-        try {
-          await vpc.setLooping(false);
-          await vpc.setVolume(1.0);
-        } catch (e, s) {
-          ErrorHandler.log(
-            e,
-            stackTrace: s,
-            tag: 'MiniplayerController.setupHandoffVpc',
-          );
-        }
-      } else {
-        if (handoffVpc != null) {
-          try {
-            handoffVpc.dispose();
-          } catch (e, s) {
-            ErrorHandler.log(
-              e,
-              stackTrace: s,
-              tag: 'MiniplayerController.disposeUnusedHandoffVpc',
-            );
-          }
-        }
-        final targetUrl = await resolvePlayableUrl(video, overrideUrl);
-        currentPlayingUrl = targetUrl;
-        if (targetUrl.isEmpty) {
-          debugPrint('[MiniplayerController] Video URL is empty');
-          error.value = 'Video unavailable';
-          isBuffering.value = false;
-          return;
-        }
-
-        debugPrint('[MiniplayerController] Initializing player for: $targetUrl');
-        vpc = VideoPlayerController.networkUrl(
-          Uri.parse(targetUrl),
-          videoPlayerOptions: VideoPlayerOptions(
-            mixWithOthers: true,
-            allowBackgroundPlayback: true,
-          ),
-        );
-        await vpc.initialize();
+      final targetUrl = await resolvePlayableUrl(video, overrideUrl);
+      currentPlayingUrl = targetUrl;
+      if (targetUrl.isEmpty) {
+        debugPrint('[MiniplayerController] Video URL is empty');
+        error.value = 'Video unavailable';
+        isBuffering.value = false;
+        return;
       }
+
+      debugPrint('[MiniplayerController] Initializing player for: $targetUrl');
+      final vpc = VideoPlayerController.networkUrl(
+        Uri.parse(targetUrl),
+        videoPlayerOptions: VideoPlayerOptions(
+          mixWithOthers: true,
+          allowBackgroundPlayback: true,
+        ),
+      );
+      await vpc.initialize();
 
       if (isControllerClosed) {
         vpc.dispose();
@@ -318,6 +402,71 @@ mixin MiniplayerHandoffMixin on
     );
     recoveryDebounceTimer?.cancel();
     recoveryAttempts = 0;
+
+    // Persist watch progress before disposing controllers
+    final video = currentVideo.value;
+    final pos = currentPosition.value;
+    final dur = totalDuration.value;
+    if (video != null && pos.inSeconds > 0 && dur.inSeconds > 0) {
+      final pct = ((pos.inSeconds / dur.inSeconds) * 100.0).clamp(0.0, 100.0);
+      if (Get.isRegistered<WatchHistoryService>()) {
+        WatchHistoryService.to.saveLocalPosition(video.id, pos.inSeconds, pct);
+        unawaited(
+          WatchHistoryService.to.syncCrossDeviceResume(video.id, pos.inSeconds, pct),
+        );
+      }
+      VideoPlaybackHandoff.registerResumePosition(video.id, pos);
+
+      final userId = Get.isRegistered<AuthService>() ? AuthService.to.uid : '';
+      if (userId.isNotEmpty && Firebase.apps.isNotEmpty) {
+        try {
+          unawaited(
+            FirebaseFirestore.instance
+                .collection(FirestoreCollections.users)
+                .doc(userId)
+                .collection('watch_history')
+                .doc(video.id)
+                .set({
+                  'videoId': video.id,
+                  'channelId': video.channelId,
+                  'channelName': video.channelName,
+                  'channelImage': video.channelImage,
+                  'title': video.title,
+                  'thumbnailUrl': video.thumbnailUrl,
+                  'duration': video.duration,
+                  'durationMs': dur.inMilliseconds,
+                  'views': video.views,
+                  'likeCount': video.likeCount,
+                  'category': video.category,
+                  'tags': video.tags,
+                  'description': video.description,
+                  'videoUrl': video.originalUrl,
+                  'ownerId': video.ownerId,
+                  'watchedAt': FieldValue.serverTimestamp(),
+                  'watchedDuration': pos.inSeconds,
+                  'watchPercentage': pct,
+                  'isCompleted': pct >= 90.0,
+                  'lastPosition': pos.inSeconds,
+                  'videoDuration': dur.inSeconds,
+                }, SetOptions(merge: true))
+                .catchError((e, s) {
+                  ErrorHandler.log(
+                    e,
+                    stackTrace: s,
+                    tag: 'MiniplayerController.dismiss.saveWatchHistory',
+                  );
+                }),
+          );
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'MiniplayerController.dismiss.saveWatchHistorySync',
+          );
+        }
+      }
+    }
+
     disposeVideoControllers();
     mode.value = MiniplayerMode.dismissed;
     videoInfo.value = null;

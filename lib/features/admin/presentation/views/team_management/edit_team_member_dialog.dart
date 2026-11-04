@@ -40,7 +40,7 @@ void showEditTeamMemberDialog(
 
   Get.dialog(
     Dialog(
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: AppColors.bgSurface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: Container(
         width: 480,
@@ -243,7 +243,7 @@ void showConfirmDeleteMemberDialog(
 ) {
   Get.dialog(
     AlertDialog(
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: AppColors.bgSurface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: const Text(
         'Revoke Admin Access',

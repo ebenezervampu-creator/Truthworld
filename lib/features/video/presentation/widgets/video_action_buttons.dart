@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/channel/data/services/channel_memory_cache.dart';
@@ -8,9 +7,11 @@ import 'package:truthworld/features/channel/presentation/controllers/channel_con
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/show_dialog.dart';
+import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/views/comments/premium_comment_input.dart';
 import 'package:truthworld/features/video/presentation/views/widgets/animated_reaction_button.dart';
+import 'package:truthworld/features/video/presentation/widgets/animated_credibility_button.dart';
 import 'package:truthworld/features/video/presentation/widgets/video_analysis_bottom_sheet.dart';
 import 'package:truthworld/features/video/presentation/widgets/video_channel_action_bar.dart';
 import 'package:truthworld/features/video/presentation/widgets/video_channel_membership_modal.dart';
@@ -33,18 +34,38 @@ class VideoActionButtons {
   static bool _isMobilePlatform(BuildContext context) {
     return MediaQuery.of(context).size.width < TWBreakpoints.desktop;
   }
+
+  /// Evaluates whether the video's channel is verified and active for monetization features (Memberships & Super Thanks).
+  static bool _isChannelMonetized({
+    required VideoController controller,
+    required ChannelController? channelController,
+  }) {
+    final video = controller.rxVideo.value;
+    final effectiveChannelId = video.channelId.isNotEmpty
+        ? video.channelId
+        : (video.ownerId.isNotEmpty ? video.ownerId : '');
+
+    final cachedChannel = ChannelMemoryCache.getReactive(effectiveChannelId) ??
+        channelController?.selectedChannel.value ??
+        controller.channelController.selectedChannel.value;
+
+    if (cachedChannel != null) {
+      return cachedChannel.isMonetizationActive;
+    }
+    return video.isMonetized;
+  }
   static Widget build({
     required BuildContext context,
     required VideoController controller,
     required MainController mainController,
     required ChannelController? channelController,
     required VoidCallback onSignInPrompt,
+    bool? isDesktop,
   }) {
-    final isUserSignedIn = AuthService.to.isAuthenticated.value;
     final mediaQuery = MediaQuery.of(context);
-    final isDesktop = mediaQuery.size.width > 1050;
+    final effectiveIsDesktop = isDesktop ?? (mediaQuery.size.width >= 900);
 
-    if (!isDesktop) {
+    if (!effectiveIsDesktop) {
       // Mobile Layout: Two separate rows for maximum readability and proper spacing
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -102,6 +123,7 @@ class VideoActionButtons {
                     ),
                     ElevatedButton(
                       onPressed: () {
+                        controller.videoPlayerController?.pause();
                         Get.toNamed(
                           '/video/${controller.video.coinBattlePairVideoId}',
                         );
@@ -122,7 +144,12 @@ class VideoActionButtons {
             ),
 
           // Row 1: Channel Info & Subscribe Button
-          VideoChannelActionBar.buildMobile(context: context, controller: controller, channelController: channelController, onSignInPrompt: onSignInPrompt),
+          VideoChannelActionBar.buildMobile(
+            context: context,
+            controller: controller,
+            channelController: channelController,
+            onSignInPrompt: onSignInPrompt,
+          ),
           const SizedBox(height: 12),
           // Row 2: Scrollable Action Buttons
           SingleChildScrollView(
@@ -131,15 +158,26 @@ class VideoActionButtons {
             child: Row(
               children: [
                 // Like & Dislike Group
-                _buildModernLikeDislikeGroup(context: context, controller: controller, mainController: mainController, isUserSignedIn: isUserSignedIn, onSignInPrompt: onSignInPrompt),
+                _buildModernLikeDislikeGroup(
+                  context: context,
+                  controller: controller,
+                  mainController: mainController,
+                  onSignInPrompt: onSignInPrompt,
+                ),
                 const SizedBox(width: 8),
 
                 // Comment (icon only)
                 _buildModernCapsuleButton(
                   icon: Icons.comment_rounded,
                   label: '',
+                  tooltip: 'Comments',
                   onTap: () {
-                    VideoCommentsSheet.show(context: context, controller: controller, mainController: mainController, onSignInPrompt: onSignInPrompt);
+                    VideoCommentsSheet.show(
+                      context: context,
+                      controller: controller,
+                      mainController: mainController,
+                      onSignInPrompt: onSignInPrompt,
+                    );
                   },
                 ),
                 const SizedBox(width: 8),
@@ -165,11 +203,9 @@ class VideoActionButtons {
                   return Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _buildModernCapsuleButton(
-                        icon: Icons.verified_rounded,
-                        label: '',
-                        tooltip: 'Truth & Credibility Check',
+                      AnimatedCredibilityButton(
                         onTap: () => _showAnalysisBottomSheet(context, controller),
+                        score: video.trustScore > 0 ? video.trustScore : null,
                       ),
                       const SizedBox(width: 8),
                     ],
@@ -180,6 +216,7 @@ class VideoActionButtons {
                 _buildModernCapsuleButton(
                   icon: Icons.share_rounded,
                   label: 'Share',
+                  tooltip: 'Share Video',
                   onTap: () {
                     mainController.shareVideo(
                       controller.video.id,
@@ -195,18 +232,26 @@ class VideoActionButtons {
                 const SizedBox(width: 8),
 
                 // Clip
-                _buildModernCapsuleButton(
-                  icon: Icons.content_cut_rounded,
-                  label: 'Clip',
-                  onTap: () => VideoClipDialog.show(context: context, controller: controller, onSignInPrompt: onSignInPrompt),
-                ),
-                const SizedBox(width: 8),
+                if (controller.video.allowClipping) ...[
+                  _buildModernCapsuleButton(
+                    icon: Icons.content_cut_rounded,
+                    label: 'Clip',
+                    tooltip: 'Clip Video',
+                    onTap: () => VideoClipDialog.show(
+                      context: context,
+                      controller: controller,
+                      onSignInPrompt: onSignInPrompt,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
 
                 // Save / Playlist / Watch Later
                 Obx(() {
                   controller.rxVideo.value;
                   final playlistCtrl = _getPlaylistController();
                   playlistCtrl.playlists.length;
+                  playlistCtrl.refreshTick.value;
                   final isInWatchLater =
                       playlistCtrl.isInWatchLater(
                         controller.video.id,
@@ -218,8 +263,11 @@ class VideoActionButtons {
                         ? Icons.bookmark_added_rounded
                         : Icons.bookmark_outline_rounded,
                     label: isSavedInAny ? 'Saved' : 'Save',
+                    tooltip: isSavedInAny ? 'Saved to Playlist' : 'Save to Playlist',
                     onTap: () {
-                      if (!isUserSignedIn) return onSignInPrompt();
+                      if (!AuthService.to.isAuthenticated.value) {
+                        return onSignInPrompt();
+                      }
                       showModernizedPlaylistDialog(
                         context: context,
                         videoId: controller.video.id,
@@ -231,82 +279,122 @@ class VideoActionButtons {
 
                 // Save (Download)
                 Obx(() {
-                  if (controller.isDownloading.value) {
-                    final progress = (controller.downloadProgress.value * 100)
-                        .toInt();
-                    return Material(
-                      color: AppColors.bgSurface,
-                      borderRadius: BorderRadius.circular(24),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.brand,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Saving $progress%',
-                              style: GoogleFonts.roboto(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.brand,
-                              ),
-                            ),
-                          ],
-                        ),
+                  final downloadsCtrl = Get.isRegistered<DownloadsController>()
+                      ? Get.find<DownloadsController>()
+                      : Get.put(DownloadsController());
+
+                  final isDownloading = controller.isDownloading.value ||
+                      downloadsCtrl.isVideoDownloading(controller.video.id);
+
+                  if (isDownloading) {
+                    final activeTask =
+                        downloadsCtrl.activeDownloads[controller.video.id];
+                    final mapProgress =
+                        downloadsCtrl.downloadProgressMap[controller.video.id];
+                    final progress = activeTask != null
+                        ? (activeTask.progress.value * 100).toInt()
+                        : (mapProgress != null
+                            ? (mapProgress * 100).toInt()
+                            : (controller.downloadProgress.value * 100).toInt());
+                    return _buildDownloadingCapsule(
+                      context: context,
+                      controller: controller,
+                      downloadsCtrl: downloadsCtrl,
+                      progress: progress,
+                    );
+                  }
+
+                  final isDownloaded =
+                      downloadsCtrl.isVideoDownloaded(controller.video.id);
+
+                  if (isDownloaded) {
+                    return _buildModernCapsuleButton(
+                      icon: Icons.download_done_rounded,
+                      label: 'Downloaded',
+                      tooltip: 'Downloaded Offline',
+                      onTap: () =>
+                          VideoPlayerSettingsSheet.showDownloadedOptionsSheet(
+                        context: context,
+                        controller: controller,
+                        downloadsCtrl: downloadsCtrl,
                       ),
                     );
                   }
+
                   return _buildModernCapsuleButton(
                     icon: Icons.download_rounded,
                     label: 'Download',
+                    tooltip: 'Download Offline',
                     onTap: () =>
-                        VideoPlayerSettingsSheet.showDownloadQualityDialog(context: context, controller: controller, isUserSignedIn: isUserSignedIn, onSignInPrompt: onSignInPrompt),
+                        VideoPlayerSettingsSheet.showDownloadQualityDialog(
+                      context: context,
+                      controller: controller,
+                      isUserSignedIn: AuthService.to.isAuthenticated.value,
+                      onSignInPrompt: onSignInPrompt,
+                    ),
                   );
                 }),
                 const SizedBox(width: 8),
 
-                // Super Thanks
-                _buildModernCapsuleButton(
-                  icon: Icons.favorite_outline,
-                  label: 'Thanks',
-                  onTap: () {
-                    if (!isUserSignedIn) return onSignInPrompt();
-                    PremiumCommentInput.showSuperThanksModal(
-                      context,
-                      videoId: controller.video.id,
-                      channelId: controller.video.channelId,
-                      videoTitle: controller.video.title,
-                    );
-                  },
-                ),
-                const SizedBox(width: 8),
-
-                // Membership / Join
-                _buildModernCapsuleButton(
-                  icon: Icons.workspace_premium_outlined,
-                  label: 'Membership',
-                  onTap: () => VideoChannelMembershipModal.show(
-                    context: context,
+                // Super Thanks & Membership (Only for Monetized channels)
+                Obx(() {
+                  final isMonetized = _isChannelMonetized(
                     controller: controller,
-                    isUserSignedIn: isUserSignedIn,
-                    onSignInPrompt: onSignInPrompt,
-                  ),
-                ),
-                const SizedBox(width: 8),
+                    channelController: channelController,
+                  );
+                  if (!isMonetized) return const SizedBox.shrink();
+
+                  final effectiveChannelId = controller.video.channelId.isNotEmpty
+                      ? controller.video.channelId
+                      : controller.video.ownerId;
+
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Super Thanks
+                      _buildModernCapsuleButton(
+                        icon: Icons.favorite_outline,
+                        label: 'Thanks',
+                        tooltip: 'Send Super Thanks',
+                        onTap: () {
+                          if (!AuthService.to.isAuthenticated.value) {
+                            return onSignInPrompt();
+                          }
+                          PremiumCommentInput.showSuperThanksModal(
+                            context,
+                            videoId: controller.video.id,
+                            channelId: effectiveChannelId,
+                            videoTitle: controller.video.title,
+                            isChannelMonetized: isMonetized,
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 8),
+
+                      // Membership / Join
+                      _buildModernCapsuleButton(
+                        icon: Icons.workspace_premium_outlined,
+                        label: 'Membership',
+                        tooltip: 'Channel Membership',
+                        onTap: () => VideoChannelMembershipModal.show(
+                          context: context,
+                          controller: controller,
+                          isUserSignedIn: AuthService.to.isAuthenticated.value,
+                          onSignInPrompt: onSignInPrompt,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                  );
+                }),
 
                 // More
-                _buildModernMoreButton(context: context, controller: controller, mainController: mainController, onSignInPrompt: onSignInPrompt),
+                _buildModernMoreButton(
+                  context: context,
+                  controller: controller,
+                  mainController: mainController,
+                  onSignInPrompt: onSignInPrompt,
+                ),
               ],
             ),
           ),
@@ -371,6 +459,7 @@ class VideoActionButtons {
                   ),
                   ElevatedButton(
                     onPressed: () {
+                      controller.videoPlayerController?.pause();
                       Get.toNamed(
                         '/video/${controller.video.coinBattlePairVideoId}',
                       );
@@ -394,7 +483,12 @@ class VideoActionButtons {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             // Channel Section - on the left
-            VideoChannelActionBar.buildDesktop(context: context, controller: controller, channelController: channelController, onSignInPrompt: onSignInPrompt),
+            VideoChannelActionBar.buildDesktop(
+              context: context,
+              controller: controller,
+              channelController: channelController,
+              onSignInPrompt: onSignInPrompt,
+            ),
 
             const SizedBox(width: 16),
 
@@ -413,20 +507,13 @@ class VideoActionButtons {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           // Like & Dislike Group
-                          _buildModernLikeDislikeGroup(context: context, controller: controller, mainController: mainController, isUserSignedIn: isUserSignedIn, onSignInPrompt: onSignInPrompt),
+                          _buildModernLikeDislikeGroup(
+                            context: context,
+                            controller: controller,
+                            mainController: mainController,
+                            onSignInPrompt: onSignInPrompt,
+                          ),
                           const SizedBox(width: 8),
-
-                          // Comment (icon only)
-                          if (_isMobilePlatform(context)) ...[
-                            _buildModernCapsuleButton(
-                              icon: Icons.comment_rounded,
-                              label: '',
-                              onTap: () {
-                                VideoCommentsSheet.show(context: context, controller: controller, mainController: mainController, onSignInPrompt: onSignInPrompt);
-                              },
-                            ),
-                            const SizedBox(width: 8),
-                          ],
 
                           // AI Credibility Check
                           Obx(() {
@@ -450,11 +537,9 @@ class VideoActionButtons {
                             return Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                _buildModernCapsuleButton(
-                                  icon: Icons.verified_rounded,
-                                  label: '',
-                                  tooltip: 'Truth & Credibility Check',
+                                AnimatedCredibilityButton(
                                   onTap: () => _showAnalysisBottomSheet(context, controller),
+                                  score: video.trustScore > 0 ? video.trustScore : null,
                                 ),
                                 const SizedBox(width: 8),
                               ],
@@ -465,6 +550,7 @@ class VideoActionButtons {
                           _buildModernCapsuleButton(
                             icon: Icons.share_rounded,
                             label: 'Share',
+                            tooltip: 'Share Video',
                             onTap: () {
                               mainController.shareVideo(
                                 controller.video.id,
@@ -481,18 +567,26 @@ class VideoActionButtons {
                           const SizedBox(width: 8),
 
                           // Clip
-                          _buildModernCapsuleButton(
-                            icon: Icons.content_cut_rounded,
-                            label: 'Clip',
-                            onTap: () => VideoClipDialog.show(context: context, controller: controller, onSignInPrompt: onSignInPrompt),
-                          ),
-                          const SizedBox(width: 8),
+                          if (controller.video.allowClipping) ...[
+                            _buildModernCapsuleButton(
+                              icon: Icons.content_cut_rounded,
+                              label: 'Clip',
+                              tooltip: 'Clip Video',
+                              onTap: () => VideoClipDialog.show(
+                                context: context,
+                                controller: controller,
+                                onSignInPrompt: onSignInPrompt,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
 
                           // Save / Playlist / Watch Later
                           Obx(() {
                             controller.rxVideo.value;
                             final playlistCtrl = _getPlaylistController();
                             playlistCtrl.playlists.length;
+                            playlistCtrl.refreshTick.value;
                             final isInWatchLater =
                                 playlistCtrl.isInWatchLater(
                                   controller.video.id,
@@ -504,8 +598,11 @@ class VideoActionButtons {
                                   ? Icons.bookmark_added_rounded
                                   : Icons.bookmark_outline_rounded,
                               label: isSavedInAny ? 'Saved' : 'Save',
+                              tooltip: isSavedInAny ? 'Saved to Playlist' : 'Save to Playlist',
                               onTap: () {
-                                if (!isUserSignedIn) return onSignInPrompt();
+                                if (!AuthService.to.isAuthenticated.value) {
+                                  return onSignInPrompt();
+                                }
                                 showModernizedPlaylistDialog(
                                   context: context,
                                   videoId: controller.video.id,
@@ -517,87 +614,125 @@ class VideoActionButtons {
 
                           // Save (Download)
                           Obx(() {
-                            if (controller.isDownloading.value) {
-                              final progress =
-                                  (controller.downloadProgress.value * 100)
-                                      .toInt();
-                              return Material(
-                                color: AppColors.bgSurface,
-                                borderRadius: BorderRadius.circular(24),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const SizedBox(
-                                        width: 16,
-                                        height: 16,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: AppColors.brand,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'Saving $progress%',
-                                        style: GoogleFonts.roboto(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.brand,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                            final downloadsCtrl =
+                                Get.isRegistered<DownloadsController>()
+                                    ? Get.find<DownloadsController>()
+                                    : Get.put(DownloadsController());
+
+                            final isDownloading = controller.isDownloading.value ||
+                                downloadsCtrl
+                                    .isVideoDownloading(controller.video.id);
+
+                            if (isDownloading) {
+                              final activeTask = downloadsCtrl
+                                  .activeDownloads[controller.video.id];
+                              final mapProgress = downloadsCtrl
+                                  .downloadProgressMap[controller.video.id];
+                              final progress = activeTask != null
+                                  ? (activeTask.progress.value * 100).toInt()
+                                  : (mapProgress != null
+                                      ? (mapProgress * 100).toInt()
+                                      : (controller.downloadProgress.value * 100)
+                                          .toInt());
+                              return _buildDownloadingCapsule(
+                                context: context,
+                                controller: controller,
+                                downloadsCtrl: downloadsCtrl,
+                                progress: progress,
+                              );
+                            }
+
+                            final isDownloaded = downloadsCtrl
+                                .isVideoDownloaded(controller.video.id);
+
+                            if (isDownloaded) {
+                              return _buildModernCapsuleButton(
+                                icon: Icons.download_done_rounded,
+                                label: 'Downloaded',
+                                tooltip: 'Downloaded Offline',
+                                onTap: () => VideoPlayerSettingsSheet
+                                    .showDownloadedOptionsSheet(
+                                  context: context,
+                                  controller: controller,
+                                  downloadsCtrl: downloadsCtrl,
                                 ),
                               );
                             }
+
                             return _buildModernCapsuleButton(
                               icon: Icons.download_rounded,
                               label: 'Download',
-                              onTap: () => VideoPlayerSettingsSheet.showDownloadQualityDialog(
+                              tooltip: 'Download Offline',
+                              onTap: () => VideoPlayerSettingsSheet
+                                  .showDownloadQualityDialog(
                                 context: context,
                                 controller: controller,
-                                isUserSignedIn: isUserSignedIn,
+                                isUserSignedIn: AuthService.to.isAuthenticated.value,
                                 onSignInPrompt: onSignInPrompt,
                               ),
                             );
                           }),
                           const SizedBox(width: 8),
 
-                          // Super Thanks
-                          _buildModernCapsuleButton(
-                            icon: Icons.favorite_outline,
-                            label: 'Thanks',
-                            onTap: () {
-                              if (!isUserSignedIn) return onSignInPrompt();
-                              PremiumCommentInput.showSuperThanksModal(
-                                context,
-                                videoId: controller.video.id,
-                                channelId: controller.video.channelId,
-                                videoTitle: controller.video.title,
-                              );
-                            },
-                          ),
-                          const SizedBox(width: 8),
-
-                          // Membership / Join
-                          _buildModernCapsuleButton(
-                            icon: Icons.workspace_premium_outlined,
-                            label: 'Membership',
-                            onTap: () => VideoChannelMembershipModal.show(
-                              context: context,
+                          // Super Thanks & Membership (Only for Monetized channels)
+                          Obx(() {
+                            final isMonetized = _isChannelMonetized(
                               controller: controller,
-                              isUserSignedIn: isUserSignedIn,
-                              onSignInPrompt: onSignInPrompt,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
+                              channelController: channelController,
+                            );
+                            if (!isMonetized) return const SizedBox.shrink();
+
+                            final effectiveChannelId = controller.video.channelId.isNotEmpty
+                                ? controller.video.channelId
+                                : controller.video.ownerId;
+
+                            return Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Super Thanks
+                                _buildModernCapsuleButton(
+                                  icon: Icons.favorite_outline,
+                                  label: 'Thanks',
+                                  tooltip: 'Send Super Thanks',
+                                  onTap: () {
+                                    if (!AuthService.to.isAuthenticated.value) {
+                                      return onSignInPrompt();
+                                    }
+                                    PremiumCommentInput.showSuperThanksModal(
+                                      context,
+                                      videoId: controller.video.id,
+                                      channelId: effectiveChannelId,
+                                      videoTitle: controller.video.title,
+                                      isChannelMonetized: isMonetized,
+                                    );
+                                  },
+                                ),
+                                const SizedBox(width: 8),
+
+                                // Membership / Join
+                                _buildModernCapsuleButton(
+                                  icon: Icons.workspace_premium_outlined,
+                                  label: 'Membership',
+                                  tooltip: 'Channel Membership',
+                                  onTap: () => VideoChannelMembershipModal.show(
+                                    context: context,
+                                    controller: controller,
+                                    isUserSignedIn: AuthService.to.isAuthenticated.value,
+                                    onSignInPrompt: onSignInPrompt,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                            );
+                          }),
 
                           // More
-                          _buildModernMoreButton(context: context, controller: controller, mainController: mainController, onSignInPrompt: onSignInPrompt),
+                          _buildModernMoreButton(
+                            context: context,
+                            controller: controller,
+                            mainController: mainController,
+                            onSignInPrompt: onSignInPrompt,
+                          ),
                         ],
                       ),
                     ),
@@ -616,11 +751,8 @@ class VideoActionButtons {
     required BuildContext context,
     required VideoController controller,
     required MainController mainController,
-    required bool isUserSignedIn,
     required VoidCallback onSignInPrompt,
   }) {
-    final isUserSignedIn = AuthService.to.isAuthenticated.value;
-
     return Container(
       decoration: BoxDecoration(
         color: AppColors.bgSurface,
@@ -653,7 +785,7 @@ class VideoActionButtons {
                 bottomLeft: Radius.circular(24),
               ),
               onTap: () {
-                if (!isUserSignedIn) return onSignInPrompt();
+                if (!AuthService.to.isAuthenticated.value) return onSignInPrompt();
                 controller.toggleLike();
               },
             );
@@ -690,7 +822,7 @@ class VideoActionButtons {
                 bottomRight: Radius.circular(24),
               ),
               onTap: () {
-                if (!isUserSignedIn) return onSignInPrompt();
+                if (!AuthService.to.isAuthenticated.value) return onSignInPrompt();
                 controller.toggleDislike();
               },
             );
@@ -726,7 +858,7 @@ class VideoActionButtons {
                 const SizedBox(width: 8),
                 Text(
                   label,
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
@@ -767,35 +899,71 @@ class VideoActionButtons {
       color: AppColors.bgSurface,
       shape: const CircleBorder(),
       child: PopupMenuButton<String>(
-        icon: const Icon(Icons.more_horiz_rounded, size: 20),
+        icon: const Icon(
+          Icons.more_horiz_rounded,
+          size: 20,
+          color: AppColors.textPrimary,
+        ),
         color: AppColors.bgSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         onSelected: (value) {
           switch (value) {
             case 'clip':
-              VideoClipDialog.show(context: context, controller: controller, onSignInPrompt: onSignInPrompt);
+              VideoClipDialog.show(
+                context: context,
+                controller: controller,
+                onSignInPrompt: onSignInPrompt,
+              );
             case 'report':
-              VideoReportBottomSheet.show(context: context, controller: controller, mainController: mainController, onSignInPrompt: onSignInPrompt);
+              VideoReportBottomSheet.show(
+                context: context,
+                controller: controller,
+                mainController: mainController,
+                onSignInPrompt: onSignInPrompt,
+              );
           }
         },
         itemBuilder: (context) => [
-          const PopupMenuItem(
-            value: 'clip',
-            child: Row(
-              children: [
-                Icon(Icons.content_cut_rounded, size: 20),
-                SizedBox(width: 12),
-                Text('Clip'),
-              ],
+          if (controller.video.allowClipping)
+            PopupMenuItem(
+              value: 'clip',
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.content_cut_rounded,
+                    size: 20,
+                    color: AppColors.textPrimary,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Clip',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const PopupMenuItem(
+          PopupMenuItem(
             value: 'report',
             child: Row(
               children: [
-                Icon(Icons.flag_rounded, size: 20),
-                SizedBox(width: 12),
-                Text('Report'),
+                const Icon(
+                  Icons.flag_rounded,
+                  size: 20,
+                  color: AppColors.textPrimary,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Report',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ],
             ),
           ),
@@ -804,5 +972,95 @@ class VideoActionButtons {
     );
   }
 
+  static Widget _buildDownloadingCapsule({
+    required BuildContext context,
+    required VideoController controller,
+    required DownloadsController downloadsCtrl,
+    required int progress,
+  }) {
+    return Tooltip(
+      message: 'Downloading ($progress%) • Tap to cancel',
+      child: Material(
+        color: AppColors.bgSurface,
+        borderRadius: BorderRadius.circular(24),
+        child: InkWell(
+          onTap: () => _showCancelDownloadDialog(
+            context: context,
+            controller: controller,
+            downloadsCtrl: downloadsCtrl,
+          ),
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 8,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.brand,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Saving $progress%',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.brand,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
+  static void _showCancelDownloadDialog({
+    required BuildContext context,
+    required VideoController controller,
+    required DownloadsController downloadsCtrl,
+  }) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.bgSurface,
+        title: Text(
+          'Cancel Download?',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          'Do you want to stop and cancel downloading "${controller.video.title}"?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Keep', style: TextStyle(color: Colors.white70)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              downloadsCtrl.cancelDownload(controller.video.id);
+              controller.isDownloading.value = false;
+            },
+            child: const Text(
+              'Cancel Download',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

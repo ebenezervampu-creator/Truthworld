@@ -212,7 +212,11 @@ mixin CommunityPostPublishMixin on CommunityPostUploadStateBase {
       return;
     }
 
-    if (selectedChannel.value!.status != ChannelStatus.active) {
+    final isTrustedChannel =
+        selectedChannel.value?.trustedModerationBypass == true;
+
+    if (!isTrustedChannel &&
+        selectedChannel.value!.status != ChannelStatus.active) {
       var message = 'Your channel is not active.';
       if (selectedChannel.value!.status == ChannelStatus.underReview) {
         message =
@@ -229,6 +233,8 @@ mixin CommunityPostPublishMixin on CommunityPostUploadStateBase {
             'Your channel is currently verification pending. You can publish posts once your branding is verified.';
       } else if (selectedChannel.value!.status == ChannelStatus.suspended) {
         message = 'Your channel is suspended. Publishing is disabled.';
+      } else if (selectedChannel.value!.status == ChannelStatus.onHold) {
+        message = 'Your channel is currently on hold. Publishing is disabled.';
       }
       AppSnackbar.show(
         'Verification Required',
@@ -239,7 +245,8 @@ mixin CommunityPostPublishMixin on CommunityPostUploadStateBase {
     }
 
     // Only block if any image was explicitly REJECTED (verifying images do not block)
-    if (moderationStatuses.values.any((s) => s == 'REJECTED')) {
+    if (!isTrustedChannel &&
+        moderationStatuses.values.any((s) => s == 'REJECTED')) {
       final reason = moderationReasons.values.firstWhere(
         (r) => r.isNotEmpty,
         orElse: () => 'Violates Community Guidelines',
@@ -285,6 +292,11 @@ mixin CommunityPostPublishMixin on CommunityPostUploadStateBase {
         'channelId': selectedChannel.value!.channelId,
         'channelName': selectedChannel.value!.channelName,
         'channelImage': selectedChannel.value!.avatarUrl,
+        if (isTrustedChannel) ...{
+          'moderationStatus': 'approved',
+          'trustedModerationBypass': true,
+          'isModerated': true,
+        },
         'category': selectedCategory.value,
         'visibility':
             isScheduled.value ? 'Scheduled' : selectedVisibility.value,

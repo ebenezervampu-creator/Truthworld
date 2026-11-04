@@ -23,6 +23,8 @@ import { buildSemanticSsrHtml } from "./render/htmlRenderer";
 import { renderChannelCardImage } from "./render/channelCardImageRenderer";
 import { renderVideoCardImage } from "./render/videoCardImageRenderer";
 import { renderTopicCardImage } from "./render/topicCardImageRenderer";
+import { renderPlaylistCardImage } from "./render/playlistCardImageRenderer";
+import { renderClaimCardImage } from "./render/claimCardImageRenderer";
 import { getCachedSnapshot, saveSnapshot } from "./cache/storageCache";
 import { logSeoEvent } from "./monitor/searchHealth";
 import {
@@ -391,7 +393,7 @@ export const seoServer = onRequest(
             "details": [
               {
                 "appIDs": ["*.com.truthworld.app", "TEAMID.com.truthworld.app"],
-                "paths": ["/watch/*", "/channel/*", "/@*", "/c/*", "/user/*", "/playlist/*", "/topic/*", "/topics/*", "/T/*", "/t/*", "/studio/*", "/advertiser/*", "/ads/*", "/post/*", "/community/*"]
+                "paths": ["/watch/*", "/channel/*", "/@*", "/c/*", "/user/*", "/playlist/*", "/topic/*", "/topics/*", "/T/*", "/t/*", "/studio/*", "/advertiser/*", "/ads/*", "/post/*", "/community/*", "/claim-detail*", "/claim/*"]
               }
             ]
           },
@@ -634,7 +636,7 @@ export const seoServer = onRequest(
         if (!videoId) {
           if (lowerPath.startsWith("/api/og/video")) {
             const parts = path.split("/").filter(p => p.length > 0);
-            videoId = parts[3] || "";
+            videoId = (parts[3] || "").replace(/\.(png|jpe?g|webp)$/i, "");
           } else {
             const parts = decodedPath.split("/").filter(p => p.length > 0);
             const p0 = parts.length > 0 ? parts[0].toLowerCase() : "";
@@ -642,7 +644,7 @@ export const seoServer = onRequest(
               parts.length >= 2 &&
               (p0 === "watch" || p0 === "v" || p0 === "shorts" || p0 === "clip" || p0 === "clips" || p0 === "chapter" || p0 === "chapters")
             ) {
-              videoId = parts[1].replace(/\.(png|jpe?g)$/i, "").replace(/\/(og|card)\.png$/i, "").trim().replace(/\/+$/, "");
+              videoId = parts[1].replace(/\.(png|jpe?g|webp)$/i, "").replace(/\/(og|card)\.png$/i, "").trim().replace(/\/+$/, "");
             }
           }
         }
@@ -657,14 +659,14 @@ export const seoServer = onRequest(
           const isClip = Boolean(clipTitle || (clipStartParam && clipEndParam) || lowerPath.startsWith("/clip") || decodedLowerPath.startsWith("/clip"));
           const isChapter = Boolean(timeParam || lowerPath.startsWith("/chapter") || decodedLowerPath.startsWith("/chapter"));
 
-          let cacheKey = `watch_v3_${videoId}`;
+          let cacheKey = `watch_v5_${videoId}`;
           if (isClip) {
             const sSec = clipStartParam ? parseInt(clipStartParam, 10) : 0;
             const eSec = clipEndParam ? parseInt(clipEndParam, 10) : 0;
             const cleanTitleSlug = clipTitle ? clipTitle.substring(0, 24).toLowerCase().replace(/\W+/g, "_") : "clip";
-            cacheKey = `clip_v3_${videoId}_${sSec}_${eSec}_${cleanTitleSlug}`;
+            cacheKey = `clip_v5_${videoId}_${sSec}_${eSec}_${cleanTitleSlug}`;
           } else if (isChapter && timeParam) {
-            cacheKey = `chapter_v3_${videoId}_${timeParam.replace(/\W+/g, "_")}`;
+            cacheKey = `chapter_v5_${videoId}_${timeParam.replace(/\W+/g, "_")}`;
           }
 
           if (!isVideoCardImageRequest) {
@@ -710,6 +712,16 @@ export const seoServer = onRequest(
             const visibility = (docData.visibility || "").toLowerCase();
 
             if (status === "deleted" || visibility === "private") {
+              if (isVideoCardImageRequest) {
+                const fallbackBuffer = await renderVideoCardImage({
+                  title: "Truthworld Video",
+                  description: "Watch family-safe, verified video with epistemic clarity on Truthworld.",
+                });
+                res.set("Content-Type", "image/png");
+                res.set("Cache-Control", "public, max-age=3600");
+                res.status(200).send(fallbackBuffer);
+                return;
+              }
               const baseHtml = await fetchIndexHtml();
               res.status(404).send(baseHtml);
               return;
@@ -771,6 +783,8 @@ export const seoServer = onRequest(
               pageDescription = `Watch "${rawTitle}" by ${channelName} on Truthworld. • ${viewCountStr}${durationFormatted ? ` • ${durationFormatted}` : ""} • Family-safe verified video platform.`;
             }
 
+            let activeChapterThumbnail: string | undefined = undefined;
+
             if (isClip) {
               const displayClipTitle = clipTitle || `Clip from ${rawTitle}`;
               let segmentStr = "";
@@ -802,6 +816,7 @@ export const seoServer = onRequest(
                   const chEnd = nextCh ? Math.floor((nextCh.startMs || 0) / 1000) : videoDurationSec;
                   if (startSec >= chStart && (startSec < chEnd || !nextCh)) {
                     chapterTitle = ch.title;
+                    activeChapterThumbnail = ensureAbsoluteImageUrl(ch.thumbnailUrl || ch.thumbnail);
                     break;
                   }
                 }
@@ -814,15 +829,37 @@ export const seoServer = onRequest(
             }
 
             const videoImage = await resolveVideoImage(db, docData);
-            const finalVideoThumbnail = videoImage || `${DOMAIN}/icons/og-image.png`;
+            const activeThumbnail = activeChapterThumbnail || videoImage;
+
+            // Build deterministic, highly optimized card image URL for Open Graph and Twitter
+            let cardImageUrl = `${DOMAIN}/api/og/video/${docId}.png`;
+            if (isClip) {
+              const qParams = new URLSearchParams();
+              if (clipStartParam) qParams.set("start", clipStartParam);
+              if (clipEndParam) qParams.set("end", clipEndParam);
+              if (clipTitle) qParams.set("clipTitle", clipTitle);
+              cardImageUrl = `${DOMAIN}/api/og/video/${docId}.png?${qParams.toString()}`;
+            } else if (isChapter && timeParam) {
+              cardImageUrl = `${DOMAIN}/api/og/video/${docId}.png?t=${encodeURIComponent(timeParam)}`;
+            }
+
+            // Industry standard: Social scrapers (WhatsApp, Twitter, FB, Telegram, iMessage)
+            // enforce a strict <= 300KB file size limit. Raw user uploads in Firebase Storage can be 1MB-5MB+
+            // and cause WhatsApp on Android/iOS to drop the thumbnail. Always serve the optimized card!
+            const finalVideoThumbnail = cardImageUrl;
 
             // Dynamic Video Card Image for explicit card image endpoints
             if (isVideoCardImageRequest) {
+              const cardTitle = isClip
+                ? (clipTitle ? `"${clipTitle}" - ${rawTitle}` : `Clip from ${rawTitle}`)
+                : (isChapter && pageTitle ? pageTitle.replace(/ \| Truthworld$/, "") : rawTitle);
+              const cardDesc = (isClip || (isChapter && pageDescription)) ? pageDescription : rawDesc;
+
               try {
                 const cardBuffer = await renderVideoCardImage({
-                  title: rawTitle,
-                  thumbnailUrl: videoImage,
-                  description: rawDesc,
+                  title: cardTitle,
+                  thumbnailUrl: activeThumbnail,
+                  description: cardDesc,
                   channelName,
                   durationMs: docData.durationMs,
                   videoId: docId,
@@ -834,6 +871,16 @@ export const seoServer = onRequest(
                 return;
               } catch (cardErr) {
                 console.error("Failed to generate dynamic video card image, falling back", cardErr);
+                const fallbackBuffer = await renderVideoCardImage({
+                  title: cardTitle || "Truthworld Video",
+                  channelName,
+                  description: cardDesc,
+                  videoId: docId,
+                });
+                res.set("Content-Type", "image/png");
+                res.set("Cache-Control", "public, max-age=3600");
+                res.status(200).send(fallbackBuffer);
+                return;
               }
             }
 
@@ -871,31 +918,32 @@ export const seoServer = onRequest(
               videoTopicItems.push({ title: `#${docData.category}`, url: `${DOMAIN}/browse` });
             }
 
-            // High-fidelity video architecture card matching social preview architecture
-            const videoCardHtml = `
-  <section class="tw-video-hero-card" style="margin: 20px auto 32px; max-width: 720px; background: #161719; border-radius: 20px; overflow: hidden; border: 1px solid #27272a; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
-    <div style="aspect-ratio: 16/9; width: 100%; background: #000; overflow: hidden; position: relative;">
-      ${videoImage ? `<img src="${escapeHtml(videoImage)}" alt="${escapeHtml(rawTitle)}" style="width: 100%; height: 100%; object-fit: contain;" />` : `<div style="width: 100%; height: 100%; background: linear-gradient(135deg, #19042b, #2a0a4a, #0a0014); display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.22); font-size: 24px; font-weight: bold; letter-spacing: 2px;">TRUTHWORLD VIDEO</div>`}
-    </div>
-    <div style="padding: 20px 24px;">
-      <h2 style="margin: 0 0 10px; font-size: 20px; font-weight: 700; color: #ffffff; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${escapeHtml(rawTitle)}</h2>
-      <p style="margin: 0 0 14px; color: #9ca3af; font-size: 14px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${escapeHtml(rawDesc || "Watch verified, family-safe video on Truthworld.")}</p>
-      <a href="${canonicalUrl}" style="display: flex; align-items: center; justify-content: space-between; text-decoration: none; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.08);">
-        <div style="display: flex; align-items: center; gap: 8px; color: #ffffff; font-weight: 600; font-size: 15px;">
-          <span>Truthworld</span>
-        </div>
-        <span style="color: #ffffff; font-size: 18px;">&rsaquo;</span>
-      </a>
-    </div>
-  </section>`;
+            // Instant video hydration payload for 0ms Flutter Web startup
+            const videoHydrationData = {
+              id: docId,
+              title: rawTitle,
+              description: rawDesc,
+              thumbnail: activeThumbnail || videoImage || "",
+              videoUrl: docData.videoUrl || docData.originalUrl || "",
+              hlsUrl: docData.hlsUrl || "",
+              dashUrl: docData.dashUrl || "",
+              creatorId: docData.channelId || docData.userId || docData.ownerId || "unknown",
+              channelId: docData.channelId || "",
+              creatorName: channelName,
+              category: docData.category || "General",
+              tags: Array.isArray(docData.tags) ? docData.tags : (Array.isArray(docData.topics) ? docData.topics : []),
+              viewCount: viewCount,
+              duration: videoDurationSec,
+            };
+            const injectedHydrationScript = `window.__VIDEO_DATA__ = ${JSON.stringify(videoHydrationData)};`;
 
             const finalHtml = buildSemanticSsrHtml({
               title: pageTitle,
               description: pageDescription,
               url: canonicalUrl,
               image: finalVideoThumbnail,
-              imageWidth: 1280,
-              imageHeight: 720,
+              imageWidth: 1024,
+              imageHeight: 848,
               type: "video.other",
               videoUrl: docData.hlsUrl || docData.originalUrl || docData.videoUrl,
               embedUrl: `${DOMAIN}/embed/${docId}`,
@@ -910,13 +958,23 @@ export const seoServer = onRequest(
               transcriptExcerpt: docData.transcript || docData.captionsText,
               relatedItems: relatedVideosList,
               topicItems: videoTopicItems,
-              customBodyHtml: videoCardHtml
+              injectedScript: injectedHydrationScript
             });
 
             const saved = await saveSnapshot(cacheKey, finalHtml);
             sendHtmlResponse(req, res, finalHtml, saved.etag, saved.lastModified);
             return;
           } else {
+            if (isVideoCardImageRequest) {
+              const fallbackBuffer = await renderVideoCardImage({
+                title: "Truthworld Video",
+                description: "Watch family-safe, verified video with epistemic clarity on Truthworld.",
+              });
+              res.set("Content-Type", "image/png");
+              res.set("Cache-Control", "public, max-age=3600");
+              res.status(200).send(fallbackBuffer);
+              return;
+            }
             const notFoundHtml = buildSemanticSsrHtml({
               title: "Video Not Found - Truthworld",
               description: "The requested video could not be found or is no longer available on Truthworld.",
@@ -929,6 +987,16 @@ export const seoServer = onRequest(
             return;
           }
         } else {
+          if (isVideoCardImageRequest) {
+            const fallbackBuffer = await renderVideoCardImage({
+              title: "Truthworld Video",
+              description: "Watch family-safe, verified video with epistemic clarity on Truthworld.",
+            });
+            res.set("Content-Type", "image/png");
+            res.set("Cache-Control", "public, max-age=3600");
+            res.status(200).send(fallbackBuffer);
+            return;
+          }
           const baseHtml = await fetchIndexHtml();
           res.status(404).send(baseHtml);
           return;
@@ -973,7 +1041,7 @@ export const seoServer = onRequest(
           const handleWithAt = cleanHandle ? `@${cleanHandle}` : "";
           const handleWithAtLower = cleanHandleLower ? `@${cleanHandleLower}` : "";
 
-          const cacheKey = `channel_v3_${cleanHandleLower || handleOrId.toLowerCase()}`;
+          const cacheKey = `channel_v5_${cleanHandleLower || handleOrId.toLowerCase()}`;
           if (!isChannelCardImageRequest) {
             const cached = await getCachedSnapshot(cacheKey);
             if (cached) {
@@ -1171,14 +1239,24 @@ export const seoServer = onRequest(
                 return;
               } catch (cardErr) {
                 console.error("Failed to generate dynamic channel card image, falling back", cardErr);
+                const fallbackBuffer = await renderChannelCardImage({
+                  channelName: channelName || "Truthworld Channel",
+                  handle: docData?.handle,
+                  description: rawBio,
+                });
+                res.set("Content-Type", "image/png");
+                res.set("Cache-Control", "public, max-age=3600");
+                res.status(200).send(fallbackBuffer);
+                return;
               }
             }
 
-            // Prefer authentic creator avatar as the primary social share preview image
-            const finalChannelImage = avatarUrl || bannerUrl || `${DOMAIN}/icons/og-image.png`;
-            const isAvatarOnly = Boolean(avatarUrl);
-            const channelImageWidth = isAvatarOnly ? 800 : 1200;
-            const channelImageHeight = isAvatarOnly ? 800 : 630;
+            const cardImageUrl = `${DOMAIN}/api/og/channel/${encodeURIComponent(cleanHandle || docData.id)}.png`;
+            // Industry standard: Social scrapers (WhatsApp, FB, Telegram, iMessage) strictly drop images > 300KB.
+            // Raw creator banners in storage are often 2-5MB. Always serve the optimized social card!
+            const finalChannelImage = cardImageUrl;
+            const channelImageWidth = 1024;
+            const channelImageHeight = 848;
 
             // Format Title cleanly avoiding redundant "Truthworld - Truthworld"
             let pageTitle: string;
@@ -1300,6 +1378,16 @@ export const seoServer = onRequest(
             sendHtmlResponse(req, res, finalHtml, saved.etag, saved.lastModified);
             return;
           } else {
+            if (isChannelCardImageRequest) {
+              const fallbackBuffer = await renderChannelCardImage({
+                channelName: "Truthworld Channel",
+                description: "Watch family-safe, verified videos on Truthworld.",
+              });
+              res.set("Content-Type", "image/png");
+              res.set("Cache-Control", "public, max-age=3600");
+              res.status(200).send(fallbackBuffer);
+              return;
+            }
             const notFoundHtml = buildSemanticSsrHtml({
               title: "Channel Not Found - Truthworld",
               description: "The requested channel could not be found or has been removed from Truthworld.",
@@ -1311,6 +1399,20 @@ export const seoServer = onRequest(
             res.status(404).send(notFoundHtml);
             return;
           }
+        } else {
+          if (isChannelCardImageRequest) {
+            const fallbackBuffer = await renderChannelCardImage({
+              channelName: "Truthworld Channel",
+              description: "Watch family-safe, verified videos on Truthworld.",
+            });
+            res.set("Content-Type", "image/png");
+            res.set("Cache-Control", "public, max-age=3600");
+            res.status(200).send(fallbackBuffer);
+            return;
+          }
+          const baseHtml = await fetchIndexHtml();
+          res.status(404).send(baseHtml);
+          return;
         }
       }
 
@@ -1321,21 +1423,21 @@ export const seoServer = onRequest(
         if (!slug) {
           if (lowerPath.startsWith("/api/og/topic")) {
             const parts = path.split("/").filter(p => p.length > 0);
-            slug = parts[3] || "";
+            slug = (parts[3] || "").replace(/\.(png|jpe?g|webp)$/i, "");
           } else {
             const parts = path.split("/").filter(p => p.length > 0);
             if (parts.length >= 2) {
-              slug = parts[1].replace(/\.(png|jpe?g)$/i, "").replace(/\/(og|card)\.png$/i, "");
+              slug = parts[1].replace(/\.(png|jpe?g|webp)$/i, "").replace(/\/(og|card)\.png$/i, "");
             } else if (parts.length === 1 && (parts[0].toLowerCase() !== "topic" && parts[0].toLowerCase() !== "topics" && parts[0].toLowerCase() !== "t")) {
-              slug = parts[0].replace(/\.(png|jpe?g)$/i, "").replace(/\/(og|card)\.png$/i, "");
+              slug = parts[0].replace(/\.(png|jpe?g|webp)$/i, "").replace(/\/(og|card)\.png$/i, "");
             }
           }
         }
 
         if (slug) {
           slug = decodeURIComponent(slug).trim().replace(/^[\/#]+/, "");
-          const cleanSlug = slug.replace(/^(T\/|t\/)/i, "").trim().replace(/^#/, "");
-          const cacheKey = `topic_v4_${cleanSlug.toLowerCase()}`;
+          const cleanSlug = slug.replace(/^(T\/|t\/)/i, "").trim().replace(/^#/, "").replace(/\.(png|jpe?g|webp)$/i, "");
+          const cacheKey = `topic_v5_${cleanSlug.toLowerCase()}`;
           if (!isTopicCardImageRequest) {
             const cached = await getCachedSnapshot(cacheKey);
             if (cached) {
@@ -1441,7 +1543,9 @@ export const seoServer = onRequest(
               (topVideos.length > 0 ? (topVideos[0].thumbnailUrl || topVideos[0].thumbnail || topVideos[0].coverUrl) : undefined);
 
             const topicImage = ensureAbsoluteImageUrl(rawTopicImg);
-            const finalTopicImage = topicImage || `${DOMAIN}/icons/og-image.png`;
+            const cardImageUrl = `${DOMAIN}/api/og/topic/${encodeURIComponent(cleanSlug)}.png`;
+            // Industry standard: Social scrapers strictly drop images > 300KB. Always serve the optimized card.
+            const finalTopicImage = cardImageUrl;
             const videoCount = docData.videoCount || topVideos.length || 0;
             const followerCount = docData.followerCount || 0;
             const vidStr = `${videoCount} Video${videoCount === 1 ? "" : "s"}`;
@@ -1466,7 +1570,7 @@ export const seoServer = onRequest(
                   followerCount,
                   videoCount,
                   description: rawDesc,
-                  thumbnailUrl: finalTopicImage,
+                  thumbnailUrl: topicImage,
                   url: canonicalUrl,
                 });
 
@@ -1476,6 +1580,16 @@ export const seoServer = onRequest(
                 return;
               } catch (cardErr) {
                 console.error("Failed to generate dynamic topic card image, falling back", cardErr);
+                const fallbackBuffer = await renderTopicCardImage({
+                  title: cleanTitle || "Truthworld Topic",
+                  handle: cleanSlug,
+                  description: rawDesc,
+                  url: canonicalUrl,
+                });
+                res.set("Content-Type", "image/png");
+                res.set("Cache-Control", "public, max-age=3600");
+                res.status(200).send(fallbackBuffer);
+                return;
               }
             }
 
@@ -1519,8 +1633,8 @@ export const seoServer = onRequest(
               description: topicDescription,
               url: canonicalUrl,
               image: finalTopicImage,
-              imageWidth: 1200,
-              imageHeight: 630,
+              imageWidth: 1024,
+              imageHeight: 682,
               type: "website",
               robots: (topVideos.length === 0 && (Number(docData.videoCount) || 0) <= 0) ? "noindex, follow" : "index, follow",
               jsonLd: [topicSchema, breadcrumbs.jsonLd],
@@ -1534,6 +1648,17 @@ export const seoServer = onRequest(
             sendHtmlResponse(req, res, finalHtml, saved.etag, saved.lastModified);
             return;
           } else {
+            if (isTopicCardImageRequest) {
+              const fallbackBuffer = await renderTopicCardImage({
+                title: cleanSlug ? `#${cleanSlug}` : "Truthworld Topics",
+                handle: cleanSlug,
+                description: "Explore top videos and discussions on Truthworld.",
+              });
+              res.set("Content-Type", "image/png");
+              res.set("Cache-Control", "public, max-age=3600");
+              res.status(200).send(fallbackBuffer);
+              return;
+            }
             const notFoundHtml = buildSemanticSsrHtml({
               title: "Topic Not Found - Truthworld",
               description: "The requested topic could not be found or has been removed from Truthworld.",
@@ -1545,26 +1670,48 @@ export const seoServer = onRequest(
             res.status(404).send(notFoundHtml);
             return;
           }
+        } else {
+          if (isTopicCardImageRequest) {
+            const fallbackBuffer = await renderTopicCardImage({
+              title: "Truthworld Topics",
+              description: "Explore top videos and discussions on Truthworld.",
+            });
+            res.set("Content-Type", "image/png");
+            res.set("Cache-Control", "public, max-age=3600");
+            res.status(200).send(fallbackBuffer);
+            return;
+          }
+          const baseHtml = await fetchIndexHtml();
+          res.status(404).send(baseHtml);
+          return;
         }
       }
 
-      // PLAYLIST ROUTE
-      if (lowerPath.startsWith("/playlist")) {
+      // PLAYLIST ROUTE & DYNAMIC PLAYLIST CARD IMAGE
+      if (lowerPath.startsWith("/playlist") || lowerPath.startsWith("/api/og/playlist")) {
+        const isPlaylistCardImageRequest = lowerPath.endsWith("/og.png") || lowerPath.endsWith("/card.png") || lowerPath.startsWith("/api/og/playlist");
         let playlistId = (req.query.list || req.query.playlistId || req.query.id) as string;
         if (!playlistId) {
-          const parts = path.split("/").filter(p => p.length > 0);
-          if (parts.length >= 2 && parts[0].toLowerCase() === "playlist") {
-            playlistId = parts[1];
+          if (lowerPath.startsWith("/api/og/playlist")) {
+            const parts = path.split("/").filter(p => p.length > 0);
+            playlistId = (parts[3] || "").replace(/\.(png|jpe?g|webp)$/i, "");
+          } else {
+            const parts = path.split("/").filter(p => p.length > 0);
+            if (parts.length >= 2 && parts[0].toLowerCase() === "playlist") {
+              playlistId = parts[1].replace(/\.(png|jpe?g|webp)$/i, "").replace(/\/(og|card)\.png$/i, "");
+            }
           }
         }
         if (playlistId) {
           playlistId = decodeURIComponent(playlistId).trim().replace(/\/$/, "");
-          const cacheKey = `playlist_v4_${playlistId}`;
-          const cached = await getCachedSnapshot(cacheKey);
-          if (cached) {
-            logSeoEvent({ eventType: "cache_hit", path: canonicalUrl, durationMs: Date.now() - startTime });
-            sendHtmlResponse(req, res, cached.html, cached.etag, cached.lastModified);
-            return;
+          const cacheKey = `playlist_v5_${playlistId}`;
+          if (!isPlaylistCardImageRequest) {
+            const cached = await getCachedSnapshot(cacheKey);
+            if (cached) {
+              logSeoEvent({ eventType: "cache_hit", path: canonicalUrl, durationMs: Date.now() - startTime });
+              sendHtmlResponse(req, res, cached.html, cached.etag, cached.lastModified);
+              return;
+            }
           }
 
           let docData: any = null;
@@ -1630,7 +1777,9 @@ export const seoServer = onRequest(
 
             const playlistName = (docData.playlistName || docData.name || docData.title || "Playlist").trim();
             const playlistImage = await resolvePlaylistImage(db, docData.id, docData);
-            const finalPlaylistImage = ensureAbsoluteImageUrl(playlistImage) || `${DOMAIN}/icons/og-image.png`;
+            const cardImageUrl = `${DOMAIN}/api/og/playlist/${docData.id}.png`;
+            // Industry standard: Social scrapers strictly drop images > 300KB. Always serve the optimized card.
+            const finalPlaylistImage = cardImageUrl;
             const playlistSchema = generatePlaylistSchema({ id: docData.id, ...docData, videos: videoItems }, canonicalUrl);
             const breadcrumbs = generateBreadcrumbData([
               { name: playlistName, url: canonicalUrl }
@@ -1652,6 +1801,38 @@ export const seoServer = onRequest(
               ? `${playlistName} - ${channelName} | Truthworld`
               : `${playlistName} - Playlist | Truthworld`;
 
+            // Dynamic Playlist Card Image for explicit card image endpoints
+            if (isPlaylistCardImageRequest) {
+              try {
+                const cardBuffer = await renderPlaylistCardImage({
+                  playlistName,
+                  channelName,
+                  videoCount,
+                  thumbnailUrl: ensureAbsoluteImageUrl(playlistImage),
+                  description: rawDesc,
+                  playlistId: docData.id,
+                });
+
+                res.set("Content-Type", "image/png");
+                res.set("Cache-Control", "public, max-age=86400, s-maxage=604800");
+                res.status(200).send(cardBuffer);
+                return;
+              } catch (cardErr) {
+                console.error("Failed to generate dynamic playlist card image, falling back", cardErr);
+                const fallbackBuffer = await renderPlaylistCardImage({
+                  playlistName: playlistName || "Truthworld Playlist",
+                  channelName,
+                  videoCount,
+                  description: rawDesc,
+                  playlistId: docData.id,
+                });
+                res.set("Content-Type", "image/png");
+                res.set("Cache-Control", "public, max-age=3600");
+                res.status(200).send(fallbackBuffer);
+                return;
+              }
+            }
+
             const relatedVideos = videoItems.map(v => ({ title: v.title, url: `${DOMAIN}/watch?v=${v.id}` }));
 
             const finalHtml = buildSemanticSsrHtml({
@@ -1659,8 +1840,8 @@ export const seoServer = onRequest(
               description: pageDescription,
               url: canonicalUrl,
               image: finalPlaylistImage,
-              imageWidth: 1280,
-              imageHeight: 720,
+              imageWidth: 1024,
+              imageHeight: 848,
               type: "website",
               robots: docData.visibility === "private" ? "noindex, nofollow" : "index, follow",
               jsonLd: [playlistSchema, breadcrumbs.jsonLd],
@@ -1673,6 +1854,16 @@ export const seoServer = onRequest(
             sendHtmlResponse(req, res, finalHtml, saved.etag, saved.lastModified);
             return;
           } else {
+            if (isPlaylistCardImageRequest) {
+              const fallbackBuffer = await renderPlaylistCardImage({
+                playlistName: "Truthworld Playlist",
+                description: "Watch verified playlists on Truthworld."
+              });
+              res.set("Content-Type", "image/png");
+              res.set("Cache-Control", "public, max-age=3600");
+              res.status(200).send(fallbackBuffer);
+              return;
+            }
             const notFoundHtml = buildSemanticSsrHtml({
               title: "Playlist Not Found - Truthworld",
               description: "The requested playlist could not be found or is private on Truthworld.",
@@ -1684,6 +1875,146 @@ export const seoServer = onRequest(
             res.status(404).send(notFoundHtml);
             return;
           }
+        } else {
+          if (isPlaylistCardImageRequest) {
+            const fallbackBuffer = await renderPlaylistCardImage({
+              playlistName: "Truthworld Playlist",
+              description: "Watch verified playlists on Truthworld."
+            });
+            res.set("Content-Type", "image/png");
+            res.set("Cache-Control", "public, max-age=3600");
+            res.status(200).send(fallbackBuffer);
+            return;
+          }
+          const baseHtml = await fetchIndexHtml();
+          res.status(404).send(baseHtml);
+          return;
+        }
+      }
+
+      // CLAIM DETAIL ROUTE & DYNAMIC CLAIM CARD IMAGE
+      if (lowerPath.startsWith("/claim-detail") || lowerPath.startsWith("/claim/") || lowerPath.startsWith("/api/og/claim")) {
+        const isClaimCardImageRequest = lowerPath.endsWith("/og.png") || lowerPath.endsWith("/card.png") || lowerPath.startsWith("/api/og/claim");
+        let videoId = (req.query.videoId || req.query.v) as string;
+        let claimIndex = parseInt((req.query.claimIndex || req.query.index || req.query.i || "0") as string, 10);
+        if (isNaN(claimIndex)) claimIndex = 0;
+
+        if (!videoId) {
+          const parts = path.split("/").filter(p => p.length > 0);
+          if (lowerPath.startsWith("/api/og/claim")) {
+            videoId = (parts[3] || "").replace(/\.(png|jpe?g|webp)$/i, "");
+            const idxStr = (parts[4] || "0").replace(/\.(png|jpe?g|webp)$/i, "");
+            claimIndex = parseInt(idxStr, 10) || 0;
+          } else if (parts.length >= 2) {
+            videoId = parts[1].replace(/\.(png|jpe?g|webp)$/i, "");
+            const idxStr = (parts[2] || "0").replace(/\.(png|jpe?g|webp)$/i, "");
+            claimIndex = parseInt(idxStr, 10) || 0;
+          }
+        }
+
+        if (videoId) {
+          videoId = decodeURIComponent(videoId).trim();
+          let docData: any = null;
+          const vDoc = await db.collection("videos").doc(videoId).get();
+          if (vDoc.exists) {
+            docData = vDoc.data();
+          }
+
+          if (docData) {
+            const claims = Array.isArray(docData.claims) ? docData.claims : [];
+            const claim = claims[claimIndex] || claims[0] || {};
+            const claimText = claim.claimText || claim.statement || claim.text || docData.title || "Fact Check Verification";
+            const verdictLabel = claim.verdict || claim.verdictLabel || "Verified";
+            const summaryTakeaway = claim.explanation || claim.summary || docData.description || "";
+            const confidenceText = claim.confidenceScore ? `${Math.round(claim.confidenceScore * 100)}% Confidence` : "";
+            const videoTitle = docData.title || "";
+            const channelName = docData.channelName || "";
+            const videoThumb = await resolveVideoImage(db, docData);
+
+            if (isClaimCardImageRequest) {
+              try {
+                const cardBuffer = await renderClaimCardImage({
+                  claimText,
+                  verdictLabel,
+                  summaryTakeaway,
+                  confidenceText,
+                  videoTitle,
+                  channelName,
+                  thumbnailUrl: videoThumb,
+                  videoId,
+                  claimIndex,
+                });
+
+                res.set("Content-Type", "image/png");
+                res.set("Cache-Control", "public, max-age=86400, s-maxage=604800");
+                res.status(200).send(cardBuffer);
+                return;
+              } catch (cardErr) {
+                console.error("Failed to generate dynamic claim card image, falling back", cardErr);
+                const fallbackBuffer = await renderClaimCardImage({
+                  claimText: claimText || "Truthworld Fact Check",
+                  verdictLabel: "Verified",
+                  videoTitle,
+                  videoId,
+                });
+                res.set("Content-Type", "image/png");
+                res.set("Cache-Control", "public, max-age=3600");
+                res.status(200).send(fallbackBuffer);
+                return;
+              }
+            }
+
+            const cardImageUrl = `${DOMAIN}/api/og/claim/${videoId}/${claimIndex}.png`;
+            // Industry standard: Social scrapers strictly drop images > 300KB. Always serve the optimized card.
+            const finalClaimImage = cardImageUrl;
+            const pageTitle = `Fact Check: "${claimText}" - Truthworld`;
+            const pageDescription = `Fact check analysis for "${claimText}" from ${videoTitle ? `"${videoTitle}"` : "Truthworld"}. Verdict: ${verdictLabel}. Verified on Truthworld.`;
+
+            const finalHtml = buildSemanticSsrHtml({
+              title: pageTitle,
+              description: pageDescription,
+              url: canonicalUrl,
+              image: finalClaimImage,
+              imageWidth: 1024,
+              imageHeight: 848,
+              type: "article",
+              contentHeading: `Fact Check: ${claimText}`,
+              robots: "index, follow",
+            });
+
+            const cacheKey = `claim_v5_${videoId}_${claimIndex}`;
+            const saved = await saveSnapshot(cacheKey, finalHtml);
+            sendHtmlResponse(req, res, finalHtml, saved.etag, saved.lastModified);
+            return;
+          } else {
+            if (isClaimCardImageRequest) {
+              const fallbackBuffer = await renderClaimCardImage({
+                claimText: "Truthworld Fact Check",
+                verdictLabel: "Verified",
+              });
+              res.set("Content-Type", "image/png");
+              res.set("Cache-Control", "public, max-age=3600");
+              res.status(200).send(fallbackBuffer);
+              return;
+            }
+            const baseHtml = await fetchIndexHtml();
+            res.status(404).send(baseHtml);
+            return;
+          }
+        } else {
+          if (isClaimCardImageRequest) {
+            const fallbackBuffer = await renderClaimCardImage({
+              claimText: "Truthworld Fact Check",
+              verdictLabel: "Verified",
+            });
+            res.set("Content-Type", "image/png");
+            res.set("Cache-Control", "public, max-age=3600");
+            res.status(200).send(fallbackBuffer);
+            return;
+          }
+          const baseHtml = await fetchIndexHtml();
+          res.status(404).send(baseHtml);
+          return;
         }
       }
 
@@ -1699,7 +2030,7 @@ export const seoServer = onRequest(
         }
         if (postId) {
           postId = decodeURIComponent(postId).trim().replace(/\/$/, "");
-          const cacheKey = `post_v3_${postId}`;
+          const cacheKey = `post_v5_${postId}`;
           const cached = await getCachedSnapshot(cacheKey);
           if (cached) {
             logSeoEvent({ eventType: "cache_hit", path: canonicalUrl, durationMs: Date.now() - startTime });
@@ -1851,7 +2182,7 @@ export const seoServer = onRequest(
         lowerPath.startsWith("/advertisements/")
       ) {
         const canonicalAdvertisementsUrl = `${DOMAIN}/advertisements`;
-        const cacheKey = `advertisements_canonical_page_v3`;
+        const cacheKey = `advertisements_canonical_page_v5`;
         const cached = await getCachedSnapshot(cacheKey);
         if (cached) {
           logSeoEvent({ eventType: "cache_hit", path: canonicalAdvertisementsUrl, durationMs: Date.now() - startTime });
@@ -2008,7 +2339,7 @@ export const seoServer = onRequest(
       }
 
       // ─── 3. Fallback / Default Homepage HTML ─────────────────────────────────
-      const homeCacheKey = "homepage_v5_ssr";
+      const homeCacheKey = "homepage_v6_ssr";
       const cachedHome = await getCachedSnapshot(homeCacheKey);
       if (cachedHome) {
         logSeoEvent({ eventType: "cache_hit", path: canonicalUrl, durationMs: Date.now() - startTime });

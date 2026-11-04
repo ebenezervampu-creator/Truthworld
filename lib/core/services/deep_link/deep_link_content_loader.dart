@@ -113,17 +113,31 @@ mixin DeepLinkContentLoader on DeepLinkCacheManager {
             .getCacheFirst()
             .timeout(_loadTimeout);
 
-        final videoIds = snap.docs.map((d) => d.id).toList();
+        final videoIds = <String>[];
+        for (final d in snap.docs) {
+          final data = d.data();
+          final vid = (data['videoId'] as String?)?.trim();
+          final id = (vid != null && vid.isNotEmpty) ? vid : d.id.trim();
+          if (id.isNotEmpty && !videoIds.contains(id)) {
+            videoIds.add(id);
+          }
+        }
+
         var thumb = '';
-        if (videoIds.isNotEmpty) {
+        for (final vid in videoIds) {
           try {
             final firstVid = await firestore
                 .collection(FirestoreCollections.videos)
-                .doc(videoIds.first)
+                .doc(vid)
                 .getCacheFirst()
                 .timeout(_loadTimeout);
             if (firstVid.exists) {
-              thumb = firstVid.data()?['thumbnailUrl'] ?? '';
+              final t =
+                  (firstVid.data()?['thumbnailUrl'] as String?)?.trim() ?? '';
+              if (t.isNotEmpty) {
+                thumb = t;
+                break;
+              }
             }
           } catch (_) {}
         }

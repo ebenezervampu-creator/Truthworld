@@ -33,7 +33,7 @@ class ChannelWalletTopupSheet {
 
     Get.bottomSheet<void>(
       Container(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
         decoration: const BoxDecoration(
           color: AppColors.bgSurface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -47,32 +47,39 @@ class ChannelWalletTopupSheet {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppColors.bgSurfaceHover,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.1)),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.bgSurfaceHover,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.1)),
+                          ),
+                          child: const Icon(
+                            Icons.add_card_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.add_card_rounded,
-                          color: Colors.white,
-                          size: 22,
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Text(
+                            'Add Money to Channel Wallet',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      const Text(
-                        'Add Money to Channel Wallet',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   IconButton(
                     icon: const Icon(Icons.close_rounded, color: Colors.white),
                     onPressed: Get.back,
@@ -108,7 +115,7 @@ class ChannelWalletTopupSheet {
                     Expanded(
                       child: Text(
                         channel.channelType == ChannelType.custom
-                            ? r'Custom Channel: At-cost pass-through Dubbing (from $0.10/lang) & Subtitles (from $0.025/lang) + Studio Voice Cloning.'
+                            ? r'Pro Channel: At-cost pass-through Dubbing (from $0.10/lang) & Subtitles (from $0.025/lang) + Studio Voice Cloning.'
                             : r'Standard Channel: At-cost pass-through Dubbing (from $0.10/lang) & Subtitles (from $0.025/lang). 100% Free Fact-Checking.',
                         style: const TextStyle(
                           fontSize: 12,
@@ -271,14 +278,17 @@ class ChannelWalletTopupSheet {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: AppColors.bgDivider),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
+                  child: LayoutBuilder(
+                    builder: (context, ctaConstraints) {
+                      final isNarrow = ctaConstraints.maxWidth < 340;
+
+                      final chargeDetails = Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
                             'Estimated Total to Charge:',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 12,
                               color: AppColors.textSecondary,
@@ -287,15 +297,18 @@ class ChannelWalletTopupSheet {
                           const SizedBox(height: 2),
                           Text(
                             displayCharge,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontSize: 15,
+                              fontSize: 14,
                               fontWeight: FontWeight.bold,
                               color: AppColors.textPrimary,
                             ),
                           ),
                         ],
-                      ),
-                      ElevatedButton.icon(
+                      );
+
+                      final depositButton = ElevatedButton.icon(
                         onPressed: isProcessing.value
                             ? null
                             : () async {
@@ -365,8 +378,27 @@ class ChannelWalletTopupSheet {
                             fontSize: 14,
                           ),
                         ),
-                      ),
-                    ],
+                      );
+
+                      if (isNarrow) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            chargeDetails,
+                            const SizedBox(height: 12),
+                            depositButton,
+                          ],
+                        );
+                      }
+
+                      return Row(
+                        children: [
+                          Expanded(child: chargeDetails),
+                          const SizedBox(width: 8),
+                          depositButton,
+                        ],
+                      );
+                    },
                   ),
                 );
               }),
@@ -379,15 +411,19 @@ class ChannelWalletTopupSheet {
                 return Center(
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const Icon(Icons.lock_outline_rounded, size: 13, color: AppColors.textTertiary),
                       const SizedBox(width: 5),
-                      Text(
-                        'Secured by Cashfree • $methods',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textTertiary,
-                          fontWeight: FontWeight.w500,
+                      Flexible(
+                        child: Text(
+                          'Secured by Cashfree • $methods',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textTertiary,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ],

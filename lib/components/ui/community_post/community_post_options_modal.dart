@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/community/presentation/controllers/community_post_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -146,19 +146,57 @@ void showCommunityPostOptionsMenu(
                 return const SizedBox.shrink();
               }),
             ],
-            if (!isOwner)
-              ListTile(
-                leading: const Icon(
-                  Icons.person_remove_outlined,
-                  color: Colors.white, // Rule compliance: white icon
-                ),
-                title: const Text(
-                  'Unsubscribe',
-                  style: TextStyle(color: Colors.white, fontSize: 15),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  controller.unsubscribeChannel();
+            if (!isOwner && post.channelId.isNotEmpty)
+              Builder(
+                builder: (context) {
+                  final isSubscribedRx =
+                      Get.isRegistered<ChannelSubscriptionController>()
+                          ? ChannelSubscriptionController.to
+                              .isSubscribedTo(post.channelId)
+                          : false.obs;
+
+                  return Obx(() {
+                    final isSub = isSubscribedRx.value;
+                    return ListTile(
+                      leading: Icon(
+                        isSub
+                            ? Icons.person_remove_outlined
+                            : Icons.person_add_alt_1_outlined,
+                        color: Colors.white, // Rule compliance: white icon
+                      ),
+                      title: Text(
+                        isSub ? 'Unsubscribe' : 'Subscribe to channel',
+                        style: const TextStyle(color: Colors.white, fontSize: 15),
+                      ),
+                      subtitle: Text(
+                        isSub
+                            ? 'Unsubscribe from ${post.channelName}'
+                            : 'Get updates from ${post.channelName}',
+                        style: const TextStyle(color: Colors.white60, fontSize: 12),
+                      ),
+                      onTap: () async {
+                        Navigator.pop(context);
+                        if (!AuthService.to.isAuthenticated.value) {
+                          AppSnackbar.warning(
+                            'Please sign in to manage subscriptions.',
+                            actionLabel: 'SIGN IN',
+                            onAction: () =>
+                                AuthService.to.triggerPlatformSignIn(),
+                          );
+                          return;
+                        }
+                        if (isSub) {
+                          await controller.unsubscribeChannel();
+                        } else {
+                          final subCtrl =
+                              Get.isRegistered<ChannelSubscriptionController>()
+                                  ? ChannelSubscriptionController.to
+                                  : Get.put(ChannelSubscriptionController());
+                          await subCtrl.subscribeToChannel(post.channelId);
+                        }
+                      },
+                    );
+                  });
                 },
               ),
             if (isOwner) ...[
@@ -225,8 +263,8 @@ void showCommunityPostReactionsSettingsModal(
   CommunityPostModel post,
   CommunityPostController controller,
 ) {
-  final showLike = post.showLikeCount.obs;
-  final showDislike = post.showDislikeCount.obs;
+  final showLike = controller.showLikeCount.value.obs;
+  final showDislike = controller.showDislikeCount.value.obs;
 
   showModalBottomSheet<void>(
     context: context,
@@ -338,7 +376,7 @@ void showCommunityPostReportModal(
     AppSnackbar.warning(
       'Please sign in to report posts.',
       actionLabel: 'SIGN IN',
-      onAction: () => AuthBottomSheet.show(context),
+      onAction: () => AuthService.to.triggerPlatformSignIn(),
     );
     return;
   }
@@ -531,11 +569,23 @@ void showCommunityPostReportModal(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                onPressed: () {
+                onPressed: () async {
+                  final details = detailsController.text.trim();
+                  if (details.isNotEmpty) {
+                    final detailsVal = ContentValidator.validate(
+                      details,
+                      fieldName: 'Report details',
+                      maxLength: 500,
+                    );
+                    if (!detailsVal.isValid) {
+                      AppSnackbar.warning(detailsVal.message);
+                      return;
+                    }
+                  }
                   Get.back();
                   controller.submitReport(
                     selectedReason.value!,
-                    detailsController.text,
+                    details,
                   );
                 },
                 child: const Text(

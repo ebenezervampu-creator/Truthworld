@@ -3,6 +3,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { Request, Response } from "express";
 
 import { applySecurityHeaders } from "../utils/securityHeaders";
+import { getCache, setCache } from "../shared/memory-cache";
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -19,6 +20,31 @@ if (!admin.apps.length) {
  *   - Automatic CORS and HTTP method validation
  *   - Scale-to-zero (minInstances: 0) for zero idle cost
  */
+
+/**
+ * Sanitizes video items returned by public feed endpoints.
+ * Strips internal moderation decisions, private storage paths, and raw audio references.
+ */
+function sanitizePublicVideoItem(data: Record<string, any>, id: string): Record<string, any> | null {
+  if (
+    data.isDeleted === true ||
+    data.status === "suspended" ||
+    data.status === "blocked" ||
+    data.moderationStatus === "rejected" ||
+    data.copyrightStrike === true
+  ) {
+    return null;
+  }
+  const clean: Record<string, any> = { id, ...data };
+  delete clean.internalModerationDecision;
+  delete clean.internalNotes;
+  delete clean.privateStorageBucketUrl;
+  delete clean.rawAudioUrl;
+  delete clean.storagePath;
+  delete clean.moderatorUid;
+  return clean;
+}
+
 export const publicFeedServer = onRequest(
   {
     region: "asia-south1",
@@ -68,6 +94,20 @@ export const publicFeedServer = onRequest(
       const db = admin.firestore();
 
       if (path.includes("trending")) {
+        const cacheKey = `edge_trending_${category || "all"}_${limit}`;
+        const cachedTrending = getCache<any[]>(cacheKey);
+        if (cachedTrending && cachedTrending.length > 0) {
+          res.status(200).json({
+            feed: cachedTrending,
+            count: cachedTrending.length,
+            category: category || "All",
+            cachedAt: new Date().toISOString(),
+            edgeServed: true,
+            fromL1Cache: true,
+          });
+          return;
+        }
+
         // ═══════════════════════════════════════════════════════════════════
         // TRENDING: Velocity-Based Ranking (not just lifetime view count!)
         //
@@ -98,7 +138,9 @@ export const publicFeedServer = onRequest(
         const now = Date.now();
 
         const scored = trendSnap.docs.map((doc) => {
-          const data = doc.data();
+          const cleanItem = sanitizePublicVideoItem(doc.data(), doc.id);
+          if (!cleanItem) return null;
+          const data = cleanItem;
           const createdAt = data.createdAt?.toMillis
             ? data.createdAt.toMillis()
             : (data.createdAt || now);
@@ -121,8 +163,11 @@ export const publicFeedServer = onRequest(
         });
 
         // Sort by trending velocity and return top results
-        scored.sort((a, b) => b.trendingScore - a.trendingScore);
-        const trendingVideos = scored.slice(0, limit);
+        const validScored = scored.filter((s): s is NonNullable<typeof s> => s !== null);
+        validScored.sort((a, b) => b.trendingScore - a.trendingScore);
+        const trendingVideos = validScored.slice(0, limit);
+
+        setCache(cacheKey, trendingVideos, 60);
 
         res.status(200).json({
           feed: trendingVideos,
@@ -132,6 +177,20 @@ export const publicFeedServer = onRequest(
           edgeServed: true,
         });
       } else {
+        const cacheKey = `edge_default_${category || "all"}_${limit}`;
+        const cachedDefault = getCache<any[]>(cacheKey);
+        if (cachedDefault && cachedDefault.length > 0) {
+          res.status(200).json({
+            feed: cachedDefault,
+            count: cachedDefault.length,
+            category: category || "All",
+            cachedAt: new Date().toISOString(),
+            edgeServed: true,
+            fromL1Cache: true,
+          });
+          return;
+        }
+
         // ═══════════════════════════════════════════════════════════════════
         // DEFAULT FEED: Chronological (latest first)
         // ═══════════════════════════════════════════════════════════════════
@@ -147,10 +206,11 @@ export const publicFeedServer = onRequest(
         query = query.orderBy("createdAt", "desc");
 
         const snapshot = await query.limit(limit).get();
-        const videos = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+        const videos = snapshot.docs
+          .map((doc) => sanitizePublicVideoItem(doc.data(), doc.id))
+          .filter((v): v is NonNullable<typeof v> => v !== null);
+
+        setCache(cacheKey, videos, 60);
 
         res.status(200).json({
           feed: videos,

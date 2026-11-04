@@ -22,10 +22,62 @@ import 'package:truthworld/features/video/data/services/video_media_service.dart
 
 /// Mixin handling subtitle parsing, file imports, storage uploads, and saving
 mixin SubtitlesStorageMixin on SubtitlesControllerBase {
+  /// In-memory cache of parsed subtitle cues by "${videoId}_${langCode}"
+  static final Map<String, List<SubtitleCue>> _cuesCache = {};
+
+  static void clearCuesCache([String? videoId]) {
+    if (videoId != null) {
+      _cuesCache.removeWhere((k, _) => k.startsWith('${videoId}_'));
+    } else {
+      _cuesCache.clear();
+    }
+  }
+
   @override
   Future<void> parseCuesForLanguage(String langCode, String? urlOrData) async {
+    final video = selectedVideo.value;
+    final cacheKey = video != null ? '${video.id}_$langCode' : null;
+
+    // Fast-path: return cached cues immediately to avoid repeated network round-trips
+    if (cacheKey != null && _cuesCache.containsKey(cacheKey) && _cuesCache[cacheKey]!.isNotEmpty) {
+      currentCues.value = _cuesCache[cacheKey]!
+          .map((c) => c.copyWith(id: UniqueKey().toString()))
+          .toList();
+      setViewState(ViewState.success);
+      return;
+    }
+
     if (urlOrData == null || urlOrData.trim().isEmpty) {
+      // Check direct Firestore transcripts collection before displaying empty state
+      if (video != null) {
+        try {
+          final tSnap = await firestore.collection('transcripts').doc(video.id).get();
+          if (tSnap.exists && tSnap.data() != null) {
+            final tData = tSnap.data()!;
+            if (tData['utterances'] != null || tData['segments'] != null || tData['words'] != null) {
+              final segments = await IsolateComputeUtils.parseSubtitlesAsync(jsonEncode(tData));
+              if (segments.isNotEmpty) {
+                final cues = segments.map((seg) {
+                  return SubtitleCue(
+                    id: UniqueKey().toString(),
+                    startTime: SubtitlesControllerBase.formatDurationToTimecode(seg.start),
+                    endTime: SubtitlesControllerBase.formatDurationToTimecode(seg.end),
+                    text: seg.text,
+                  );
+                }).toList();
+                if (cacheKey != null) {
+                  _cuesCache[cacheKey] = cues;
+                }
+                currentCues.value = cues;
+                setViewState(ViewState.success);
+                return;
+              }
+            }
+          }
+        } catch (_) {}
+      }
       currentCues.clear();
+      setViewState(ViewState.success);
       return;
     }
 
@@ -39,24 +91,47 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
       try {
         setViewState(ViewState.loading);
 
-        // 1. Direct authenticated Firebase Storage SDK download (evaluates storage.rules)
-        Uint8List? rawBytes;
-        final ref = StorageUtils.getStorageRef(urlOrData);
-        if (ref != null) {
+        final isHttp = urlOrData.startsWith('http://') || urlOrData.startsWith('https://');
+
+        // 1. Direct fast HTTP/CDN download on web or HTTP URLs (eliminates SDK CORS & token hangs)
+        if (isHttp || kIsWeb) {
           try {
-            rawBytes = await ref.getData();
-          } catch (storageErr) {
-            logger.info(
-              'ref.getData fallback to resolved download URL: $storageErr',
-              tag: SubtitlesControllerBase.subtitlesTag,
+            final fastUrl = StorageUtils.getFastDownloadUrl(urlOrData);
+            final targetUrl = fastUrl.isNotEmpty ? fastUrl : await StorageUtils.resolveUrl(urlOrData);
+            final headers = await StorageUtils.getMediaHeaders();
+            final response = await AppHttpClient.get(
+              Uri.parse(targetUrl),
+              headers: headers.isNotEmpty ? headers : null,
             );
+            if (response.statusCode == 200) {
+              contentToParse = utf8.decode(response.bodyBytes, allowMalformed: true);
+            }
+          } catch (_) {}
+        }
+
+        // 2. Storage SDK download with timeout if HTTP direct download did not resolve
+        if (contentToParse == urlOrData) {
+          final ref = StorageUtils.getStorageRef(urlOrData);
+          if (ref != null) {
+            try {
+              final rawBytes = await StorageUtils.getDataWithTimeout(
+                ref,
+                timeout: const Duration(seconds: 3),
+              );
+              if (rawBytes != null && rawBytes.isNotEmpty) {
+                contentToParse = utf8.decode(rawBytes, allowMalformed: true);
+              }
+            } catch (storageErr) {
+              logger.info(
+                'ref.getData fallback to resolved download URL: $storageErr',
+                tag: SubtitlesControllerBase.subtitlesTag,
+              );
+            }
           }
         }
 
-        if (rawBytes != null && rawBytes.isNotEmpty) {
-          contentToParse = utf8.decode(rawBytes, allowMalformed: true);
-        } else {
-          // 2. Fallback: Resolve HTTP/CDN tokenized download URL
+        // 3. Fallback: Resolve HTTP/CDN tokenized download URL if still unparsed
+        if (contentToParse == urlOrData) {
           final downloadUrl = await StorageUtils.resolveUrl(urlOrData);
           final targetUrl = downloadUrl.isNotEmpty ? downloadUrl : urlOrData;
           final headers = await StorageUtils.getMediaHeaders();
@@ -66,7 +141,7 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
             headers: headers.isNotEmpty ? headers : null,
           );
           if (response.statusCode == 200) {
-            contentToParse = response.body;
+            contentToParse = utf8.decode(response.bodyBytes, allowMalformed: true);
           } else {
             logger.error(
               'Failed to download subtitle file from $targetUrl, status: ${response.statusCode}',
@@ -92,7 +167,7 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
 
     final segments = await IsolateComputeUtils.parseSubtitlesAsync(contentToParse);
     if (segments.isNotEmpty) {
-      currentCues.value = segments.map((seg) {
+      final cues = segments.map((seg) {
         return SubtitleCue(
           id: UniqueKey().toString(),
           startTime: SubtitlesControllerBase.formatDurationToTimecode(seg.start),
@@ -100,6 +175,10 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
           text: seg.text,
         );
       }).toList();
+      if (cacheKey != null) {
+        _cuesCache[cacheKey] = cues;
+      }
+      currentCues.value = cues;
       setViewState(ViewState.success);
       return;
     }
@@ -193,6 +272,8 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
         dubbedVideos: video.dubbedVideos,
         audioTracks: video.audioTracks,
       );
+
+      _cuesCache.removeWhere((k, _) => k.startsWith('${video.id}_'));
 
       selectedVideo.refresh();
 
@@ -290,6 +371,8 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
         audioTracks: video.audioTracks,
       );
 
+      _cuesCache.removeWhere((k, _) => k.startsWith('${video.id}_'));
+
       selectedVideo.refresh();
 
       if (!availableLanguages.contains(trackKey)) {
@@ -346,6 +429,8 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
         dubbedVideos: video.dubbedVideos,
         audioTracks: video.audioTracks,
       );
+
+      _cuesCache.remove('${video.id}_$langCode');
 
       if (selectedLanguage.value == langCode) {
         if (availableLanguages.isNotEmpty) {

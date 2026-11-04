@@ -8,17 +8,19 @@ Video _createTestVideo({
   String id = 'video_1',
   String title = 'Test Multi-Language Video',
   String description = 'Test description',
+  String videoUrl = 'https://example.com/video.mp4',
   List<String> tags = const ['test', 'audio'],
   Map<String, String> audioTracks = const {
     'en': 'https://example.com/en.mp3',
     'es': 'https://example.com/es.mp3',
   },
+  Map<String, String>? dubbedVideos,
 }) {
   return Video(
     id: id,
     title: title,
     description: description,
-    videoUrl: 'https://example.com/video.mp4',
+    videoUrl: videoUrl,
     thumbnailUrl: 'https://example.com/thumb.jpg',
     ownerId: 'user_1',
     channelId: 'test_channel_123',
@@ -26,6 +28,7 @@ Video _createTestVideo({
     category: 'Tech',
     tags: tags,
     audioTracks: audioTracks,
+    dubbedVideos: dubbedVideos,
   );
 }
 
@@ -232,6 +235,224 @@ void main() {
       expect(controller.selectedLanguage.value, isEmpty);
       expect(controller.currentTracks, isEmpty);
       expect(controller.commentaryTracks, isEmpty);
+    });
+
+    test('selectVideo stops active audio playback', () async {
+      final playback = controller.playbackController;
+      playback.activeTrackId.value = 'track_123';
+      playback.isPlaying.value = true;
+
+      await controller.selectVideo(null);
+
+      expect(playback.isPlaying.value, isFalse);
+      expect(playback.activeTrackId.value, isEmpty);
+    });
+
+    test('deleteAudioTrack deletes track from state, cache, and workspace', () async {
+      final video = _createTestVideo(
+        id: 'v_delete_test',
+        audioTracks: {
+          'en': 'https://example.com/en.mp3',
+          'zh': 'https://example.com/zh.mp3',
+          'hi': 'https://example.com/hi.mp3',
+        },
+      );
+      controller.selectedVideo.value = video;
+      controller.availableLanguages.value = ['en', 'zh', 'hi'];
+      controller.selectedLanguage.value = 'zh';
+      controller.currentTracks.value = [
+        AudioTrackItem(
+          id: 'v_delete_test_en',
+          languageCode: 'en',
+          languageName: 'English (Original)',
+          audioUrl: 'https://example.com/en.mp3',
+          isBaseTrack: true,
+        ),
+        AudioTrackItem(
+          id: 'v_delete_test_zh',
+          languageCode: 'zh',
+          languageName: 'Chinese (中文 / Mandarin)',
+          audioUrl: 'https://example.com/zh.mp3',
+        ),
+        AudioTrackItem(
+          id: 'v_delete_test_hi',
+          languageCode: 'hi',
+          languageName: 'Hindi (हिन्दी)',
+          audioUrl: 'https://example.com/hi.mp3',
+        ),
+      ];
+
+      controller.playbackController.activeTrackId.value = 'v_delete_test_zh';
+      controller.playbackController.isPlaying.value = true;
+
+      await controller.deleteAudioTrack('zh');
+
+      // Verify removed from available languages and current tracks
+      expect(controller.availableLanguages.contains('zh'), isFalse);
+      expect(controller.currentTracks.any((t) => t.languageCode == 'zh'), isFalse);
+      expect(controller.currentTracks.length, equals(2));
+
+      // Verify removed from video model
+      expect(controller.selectedVideo.value?.audioTracks.containsKey('zh'), isFalse);
+
+      // Verify playback was stopped
+      expect(controller.playbackController.isPlaying.value, isFalse);
+      expect(controller.playbackController.activeTrackId.value, isEmpty);
+
+      // Verify selected language switched away from deleted track
+      expect(controller.selectedLanguage.value, isNot(equals('zh')));
+    });
+
+    test('deleteAudioTrack prevents deletion of original base language', () async {
+      final video = _createTestVideo(
+        id: 'v_base_test',
+        audioTracks: {
+          'en': 'https://example.com/en.mp3',
+        },
+      );
+      controller.selectedVideo.value = video;
+      controller.availableLanguages.value = ['en'];
+      controller.currentTracks.value = [
+        AudioTrackItem(
+          id: 'v_base_test_en',
+          languageCode: 'en',
+          languageName: 'English (Original)',
+          audioUrl: 'https://example.com/en.mp3',
+          isBaseTrack: true,
+        ),
+      ];
+
+      await controller.deleteAudioTrack('en');
+
+      expect(controller.availableLanguages.contains('en'), isTrue);
+      expect(controller.currentTracks.length, equals(1));
+    });
+
+    test('removeLanguageLayer deletes track when audio track exists', () async {
+      final video = _createTestVideo(
+        id: 'v_remove_layer_test',
+        audioTracks: {
+          'en': 'https://example.com/en.mp3',
+          'zh': 'https://example.com/zh.mp3',
+        },
+      );
+      controller.selectedVideo.value = video;
+      controller.availableLanguages.value = ['en', 'zh'];
+      controller.currentTracks.value = [
+        AudioTrackItem(
+          id: 'v_remove_layer_test_en',
+          languageCode: 'en',
+          languageName: 'English (Original)',
+          audioUrl: 'https://example.com/en.mp3',
+          isBaseTrack: true,
+        ),
+        AudioTrackItem(
+          id: 'v_remove_layer_test_zh',
+          languageCode: 'zh',
+          languageName: 'Chinese (中文 / Mandarin)',
+          audioUrl: 'https://example.com/zh.mp3',
+        ),
+      ];
+
+      await controller.removeLanguageLayer('zh');
+
+      expect(controller.availableLanguages.contains('zh'), isFalse);
+      expect(controller.currentTracks.any((t) => t.languageCode == 'zh'), isFalse);
+      expect(controller.selectedVideo.value?.audioTracks.containsKey('zh'), isFalse);
+    });
+
+    test('syncCurrentVideoTracks populates base and dubbed video tracks', () {
+      final video = _createTestVideo(
+        id: 'v_sync_video_test',
+        videoUrl: 'https://example.com/base.mp4',
+        dubbedVideos: {
+          'zh': 'https://example.com/zh.mp4',
+          'te': 'https://example.com/te.mp4',
+        },
+      );
+      controller.selectedVideo.value = video;
+      controller.syncCurrentVideoTracks();
+
+      expect(controller.currentVideoTracks.length, equals(3));
+      final base = controller.currentVideoTracks.firstWhere((t) => t.isBaseTrack);
+      expect(base.languageCode, equals('en'));
+      expect(base.videoUrl, equals('https://example.com/base.mp4'));
+
+      final zh = controller.currentVideoTracks.firstWhere((t) => t.languageCode == 'zh');
+      expect(zh.videoUrl, equals('https://example.com/zh.mp4'));
+      expect(zh.isBaseTrack, isFalse);
+    });
+
+    test('deleteDubbedVideoTrack deletes video track and prevents deleting base track', () async {
+      final video = _createTestVideo(
+        id: 'v_delete_video_test',
+        videoUrl: 'https://example.com/base.mp4',
+        dubbedVideos: {
+          'zh': 'https://example.com/zh.mp4',
+          'te': 'https://example.com/te.mp4',
+        },
+      );
+      controller.selectedVideo.value = video;
+      controller.syncCurrentVideoTracks();
+      expect(controller.currentVideoTracks.length, equals(3));
+
+      // Attempt to delete base track -> should be prevented
+      await controller.deleteDubbedVideoTrack('en');
+      expect(controller.currentVideoTracks.length, equals(3));
+
+      // Delete dubbed track 'zh'
+      await controller.deleteDubbedVideoTrack('zh');
+      expect(controller.currentVideoTracks.any((t) => t.languageCode == 'zh'), isFalse);
+      expect(controller.currentVideoTracks.length, equals(2));
+      expect(controller.selectedVideo.value?.dubbedVideos.containsKey('zh'), isFalse);
+    });
+  });
+
+  group('AudioTracksPlaybackController Tests', () {
+    late AudioTracksPlaybackController playbackCtrl;
+
+    setUp(() {
+      playbackCtrl = Get.put(AudioTracksPlaybackController());
+    });
+
+    tearDown(() {
+      playbackCtrl.dispose();
+      Get.delete<AudioTracksPlaybackController>();
+    });
+
+    test('initializes with default state', () {
+      expect(playbackCtrl.isPlaying.value, isFalse);
+      expect(playbackCtrl.isMuted.value, isFalse);
+      expect(playbackCtrl.volume.value, equals(1.0));
+      expect(playbackCtrl.activeTrackId.value, isEmpty);
+      expect(playbackCtrl.position.value, equals(Duration.zero));
+      expect(playbackCtrl.duration.value, equals(Duration.zero));
+    });
+
+    test('toggleMute toggles mute state reactively', () async {
+      expect(playbackCtrl.isMuted.value, isFalse);
+      await playbackCtrl.toggleMute();
+      expect(playbackCtrl.isMuted.value, isTrue);
+      await playbackCtrl.toggleMute();
+      expect(playbackCtrl.isMuted.value, isFalse);
+    });
+
+    test('stop clears active track, resets position, and marks isPlaying false', () async {
+      playbackCtrl.activeTrackId.value = 'track_test';
+      playbackCtrl.isPlaying.value = true;
+      playbackCtrl.position.value = const Duration(seconds: 42);
+
+      await playbackCtrl.stop();
+
+      expect(playbackCtrl.isPlaying.value, isFalse);
+      expect(playbackCtrl.activeTrackId.value, isEmpty);
+      expect(playbackCtrl.position.value, equals(Duration.zero));
+    });
+
+    test('togglePlay with empty url aborts cleanly without activating track', () async {
+      await playbackCtrl.togglePlay('t1', '   ');
+      expect(playbackCtrl.activeTrackId.value, isEmpty);
+      expect(playbackCtrl.isPlaying.value, isFalse);
     });
   });
 }

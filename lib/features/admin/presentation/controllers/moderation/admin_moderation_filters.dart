@@ -53,10 +53,15 @@ class AdminModerationFilters {
       if (tab == 'pending' && !AdminModerationPredicates.isChannelPending(c)) {
         return false;
       }
-      if (tab == 'approved' && !AdminModerationPredicates.isChannelApproved(c)) {
+      if ((tab == 'approved' || tab == 'active') &&
+          !AdminModerationPredicates.isChannelApproved(c)) {
         return false;
       }
       if (tab == 'rejected' && !AdminModerationPredicates.isChannelRejected(c)) {
+        return false;
+      }
+      if ((tab == 'hold' || tab == 'onhold') &&
+          !AdminModerationPredicates.isChannelOnHold(c)) {
         return false;
       }
       if (q.isNotEmpty) {

@@ -22,7 +22,7 @@ class ClaimsSummaryCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       decoration: BoxDecoration(
-        color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+        color: isDarkMode ? AppColors.bgSurface : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isDarkMode ? AppColors.bgDivider : Colors.grey.shade300,

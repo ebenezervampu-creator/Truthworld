@@ -150,12 +150,6 @@ export const rollupVideoCounterShards = onSchedule(
             if (totalWatchTimeSeconds > maxAllowedWatchTime) {
               totalWatchTimeSeconds = maxAllowedWatchTime;
             }
-          } else if (totalWatchTimeSeconds === 0 && totalViews > 0 && videoDuration > 0) {
-            // Reconcile authentic watch time baseline for views with unrecorded watch time
-            totalWatchTimeSeconds = Math.min(
-              totalViews * videoDuration,
-              Math.round(totalViews * videoDuration * 0.75)
-            );
           }
 
           const updateData: Record<string, any> = {
@@ -232,7 +226,19 @@ export const rollupVideoCounterShards = onSchedule(
           }
         } catch (_) {}
 
-        if (totalViews > 0 || totalWatchTimeSeconds > 0 || totalSubscriberDelta !== 0 || activeVideoCount > 0) {
+        // Query authentic subscribers from subcollection to reconcile parent document
+        let authenticSubscribers = 0;
+        try {
+          const subSnap = await db
+            .collection("channels")
+            .doc(channelId)
+            .collection("subscribers")
+            .count()
+            .get();
+          authenticSubscribers = subSnap.data().count;
+        } catch (_) {}
+
+        if (totalViews > 0 || totalWatchTimeSeconds > 0 || totalSubscriberDelta !== 0 || activeVideoCount > 0 || authenticSubscribers > 0) {
           const channelRef = db.collection("channels").doc(channelId);
           const updateData: Record<string, any> = {
             lastShardRollupAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -246,7 +252,11 @@ export const rollupVideoCounterShards = onSchedule(
             updateData.totalWatchTimeSeconds = totalWatchTimeSeconds;
             updateData["metrics.totalWatchTimeMinutes"] = Math.floor(totalWatchTimeSeconds / 60);
           }
-          if (totalSubscriberDelta !== 0) {
+          if (authenticSubscribers > 0) {
+            updateData.subscriberCount = authenticSubscribers;
+            updateData.subscribers = authenticSubscribers;
+            updateData["stats.subscribersCount"] = authenticSubscribers;
+          } else if (totalSubscriberDelta !== 0) {
             updateData.shardSubscriberSyncDelta = totalSubscriberDelta;
           }
           batch.set(channelRef, updateData, { merge: true });
@@ -325,6 +335,17 @@ export const reconcileChannelMetrics = onCall(
       }
     }
 
+    let authenticSubscribers = 0;
+    try {
+      const subSnap = await db
+        .collection("channels")
+        .doc(channelId)
+        .collection("subscribers")
+        .count()
+        .get();
+      authenticSubscribers = subSnap.data().count;
+    } catch (_) {}
+
     const updateData: Record<string, any> = {
       viewCount: sumVideoViews,
       "metrics.totalViews": sumVideoViews,
@@ -334,6 +355,12 @@ export const reconcileChannelMetrics = onCall(
       lastReconciledAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
+    if (authenticSubscribers > 0) {
+      updateData.subscriberCount = authenticSubscribers;
+      updateData.subscribers = authenticSubscribers;
+      updateData["stats.subscribersCount"] = authenticSubscribers;
+    }
+
     await channelRef.set(updateData, { merge: true });
 
     return {
@@ -342,6 +369,7 @@ export const reconcileChannelMetrics = onCall(
       viewCount: sumVideoViews,
       watchTimeSeconds: sumVideoWatch,
       videoCount: activeVideoCount,
+      subscriberCount: authenticSubscribers,
     };
   }
 );

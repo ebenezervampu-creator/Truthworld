@@ -6,6 +6,7 @@ import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/features/topics/presentation/controllers/topic_interaction_controller.dart';
 import 'package:truthworld/features/topics/presentation/widgets/comments/topic_comment_models_and_helpers.dart';
 import 'package:truthworld/features/topics/presentation/widgets/comments/topic_comment_reply_controller.dart';
@@ -131,6 +132,25 @@ class TopicCommentItemWidget extends StatelessWidget {
         ? Get.find<TopicCommentReplyController>(tag: comment.id)
         : Get.put(TopicCommentReplyController(), tag: comment.id);
 
+    final argCommentId = Get.arguments is Map ? (Get.arguments['commentId'] as String?) : null;
+    final paramCommentId = Get.parameters['commentId'];
+    final targetCommentId = (argCommentId != null && argCommentId.isNotEmpty)
+        ? argCommentId
+        : ((paramCommentId != null && paramCommentId.isNotEmpty) ? paramCommentId : null);
+    final isTargetComment = targetCommentId != null && targetCommentId == comment.id;
+
+    if (isTargetComment) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          Scrollable.ensureVisible(
+            context,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeInOut,
+          );
+        }
+      });
+    }
+
     return Obx(() {
       final interaction = controller.userCommentInteractions[comment.id] ??
           {
@@ -141,6 +161,19 @@ class TopicCommentItemWidget extends StatelessWidget {
       final isDisliked = interaction['isDisliked'] ?? false;
 
       return Container(
+        decoration: isTargetComment
+            ? BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.35),
+                  width: 1.2,
+                ),
+              )
+            : null,
+        margin: isTargetComment
+            ? const EdgeInsets.symmetric(horizontal: 8, vertical: 4)
+            : EdgeInsets.zero,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -149,9 +182,13 @@ class TopicCommentItemWidget extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 GestureDetector(
-                  onTap: () => onNavigateToChannel(comment.channelId),
+                  onTap: comment.isChannelAuthor
+                      ? () => onNavigateToChannel(comment.channelId)
+                      : null,
                   child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
+                    cursor: comment.isChannelAuthor
+                        ? SystemMouseCursors.click
+                        : SystemMouseCursors.basic,
                     child: UserAvatar(
                       photoUrl: userProfilePicUrl,
                       displayName: formattedUserName,
@@ -169,10 +206,13 @@ class TopicCommentItemWidget extends StatelessWidget {
                         children: [
                           Flexible(
                             child: GestureDetector(
-                              onTap: () =>
-                                  onNavigateToChannel(comment.channelId),
+                              onTap: comment.isChannelAuthor
+                                  ? () => onNavigateToChannel(comment.channelId)
+                                  : null,
                               child: MouseRegion(
-                                cursor: SystemMouseCursors.click,
+                                cursor: comment.isChannelAuthor
+                                    ? SystemMouseCursors.click
+                                    : SystemMouseCursors.basic,
                                 child: Text(
                                   formattedUserName,
                                   maxLines: 1,
@@ -197,8 +237,8 @@ class TopicCommentItemWidget extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        text,
+                      ClickableUrlText(
+                        text: text,
                         style: const TextStyle(
                           fontSize: 14,
                           height: 1.3,
@@ -381,7 +421,10 @@ class TopicCommentItemWidget extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     IconButton(
-                      onPressed: replyController.cancelReplying,
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        replyController.cancelReplying();
+                      },
                       icon: const Icon(
                         Icons.close,
                         size: 20,
@@ -389,16 +432,30 @@ class TopicCommentItemWidget extends StatelessWidget {
                       ),
                     ),
                     IconButton(
-                      onPressed: () => replyController.submitReply(
-                        topicId: topicId,
-                        commentId: comment.id,
-                        controller: controller,
-                      ),
-                      icon: const Icon(
-                        Icons.send,
-                        size: 20,
-                        color: Colors.white,
-                      ),
+                      onPressed: replyController.isSubmitting.value
+                          ? null
+                          : () {
+                              HapticFeedback.lightImpact();
+                              replyController.submitReply(
+                                topicId: topicId,
+                                commentId: comment.id,
+                                controller: controller,
+                              );
+                            },
+                      icon: replyController.isSubmitting.value
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.send,
+                              size: 20,
+                              color: Colors.white,
+                            ),
                     ),
                   ],
                 ),

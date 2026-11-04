@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
 import '../../test_helpers/mock_firebase.dart';
 
 class MockChannelSubscriptionController extends ChannelSubscriptionController {
@@ -196,6 +197,24 @@ void main() {
 
       expect(tabsWithMemberships, tabsWithoutMemberships);
     });
+
+    test('Topic with community posts and 0 videos is recognized as valid topic', () {
+      final topic = Topic(
+        id: 'topic_1',
+        slug: 'climate-change',
+        handle: 'T/climate-change',
+        handleLowercase: 't/climate-change',
+        name: 'Climate Change',
+        title: 'Climate Change',
+        description: 'Global discussions',
+        category: 'Science',
+        postCount: 3,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      expect(topic.isValidTopic, isTrue);
+    });
   });
 
   group('Channel TabBar Widget Rendering Tests', () {
@@ -301,6 +320,113 @@ void main() {
       expect(find.text('Topics'), findsOneWidget);
       expect(find.text('Playlists'), findsNothing);
       expect(find.text('Posts'), findsNothing);
+    });
+
+    testWidgets('TabBar dynamically adds Posts tab when hasPosts changes from false to true via Obx', (tester) async {
+      final channel = Channel(
+        id: 'test_ch_1',
+        name: 'Truth Channel',
+        nameLowercase: 'truth channel',
+        handle: '@truthchannel',
+        handleLowercase: '@truthchannel',
+        description: 'Test channel description',
+        avatarUrl: '',
+        bannerUrl: '',
+        ownerId: 'owner_1',
+        subscriberCount: 100,
+        videoCount: 10,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      );
+      testController.selectedChannel.value = channel;
+      testController.hasVideos.value = true;
+      testController.hasTopics.value = false;
+      testController.hasPlaylists.value = false;
+      testController.hasPosts.value = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Obx(() {
+              final activeTabs = testController.activeTabs;
+              return DefaultTabController(
+                key: ValueKey('tab-controller-${channel.channelId}-${activeTabs.join(",")}'),
+                length: activeTabs.length,
+                child: TabBar(
+                  isScrollable: true,
+                  tabs: activeTabs.map((t) => Tab(text: t)).toList(),
+                ),
+              );
+            }),
+          ),
+        ),
+      );
+
+      // Initially only Home and Videos are visible
+      expect(find.text('Home'), findsOneWidget);
+      expect(find.text('Videos'), findsOneWidget);
+      expect(find.text('Posts'), findsNothing);
+      expect(find.text('Topics'), findsNothing);
+
+      // Community post becomes available
+      testController.hasPosts.value = true;
+      await tester.pumpAndSettle();
+
+      // Posts tab dynamically appears
+      expect(find.text('Posts'), findsOneWidget);
+    });
+
+    testWidgets('TabBar dynamically adds Topics tab when hasTopics changes from false to true via Obx', (tester) async {
+      final channel = Channel(
+        id: 'test_ch_1',
+        name: 'Truth Channel',
+        nameLowercase: 'truth channel',
+        handle: '@truthchannel',
+        handleLowercase: '@truthchannel',
+        description: 'Test channel description',
+        avatarUrl: '',
+        bannerUrl: '',
+        ownerId: 'owner_1',
+        subscriberCount: 100,
+        videoCount: 10,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      );
+      testController.selectedChannel.value = channel;
+      testController.hasVideos.value = true;
+      testController.hasTopics.value = false;
+      testController.hasPlaylists.value = false;
+      testController.hasPosts.value = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Obx(() {
+              final activeTabs = testController.activeTabs;
+              return DefaultTabController(
+                key: ValueKey('tab-controller-${channel.channelId}-${activeTabs.join(",")}'),
+                length: activeTabs.length,
+                child: TabBar(
+                  isScrollable: true,
+                  tabs: activeTabs.map((t) => Tab(text: t)).toList(),
+                ),
+              );
+            }),
+          ),
+        ),
+      );
+
+      // Initially only Home and Videos
+      expect(find.text('Home'), findsOneWidget);
+      expect(find.text('Videos'), findsOneWidget);
+      expect(find.text('Topics'), findsNothing);
+
+      // Topic becomes available
+      testController.hasTopics.value = true;
+      await tester.pumpAndSettle();
+
+      // Topics tab dynamically appears
+      expect(find.text('Topics'), findsOneWidget);
     });
   });
 }

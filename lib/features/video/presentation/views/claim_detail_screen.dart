@@ -3,13 +3,13 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/network/app_http_client.dart';
 import 'package:truthworld/core/services/source_avatar_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/utils/isolate_compute_utils.dart';
 import 'package:truthworld/core/utils/source_url_sanitizer.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/core/ux/app_toast.dart';
 import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
@@ -18,10 +18,13 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_media.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
+import 'package:truthworld/features/video/presentation/widgets/analysis/ai_chat/ai_credibility_chat_sheet.dart';
 import 'package:truthworld/features/video/presentation/widgets/analysis/claim_sources_bottom_sheet.dart';
+import 'package:truthworld/features/video/presentation/widgets/analysis/comments/claim_community_notes_section.dart';
 import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_helpers.dart';
 import 'package:truthworld/features/video/presentation/widgets/claim_share_card.dart';
 import 'package:truthworld/features/video/presentation/widgets/claim_source_submission_dialog.dart';
+import 'package:truthworld/features/video/presentation/widgets/fact_check/fact_check_epistemic_banner.dart';
 import 'package:truthworld/routes/app_routes.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -83,8 +86,9 @@ class ClaimDetailScreen extends StatelessWidget {
             'allClaims': allClaims,
             'videoId': video.id,
           },
-          transition: Transition.rightToLeft,
-          duration: const Duration(milliseconds: 250),
+          transition: Transition.rightToLeftWithFade,
+          curve: Curves.easeOutCubic,
+          duration: const Duration(milliseconds: 320),
         ) ??
         Future.value();
   }
@@ -472,6 +476,14 @@ class ClaimDetailScreen extends StatelessWidget {
                           responseText: responseText,
                           sourcesCount: typedSources.length,
                         ),
+                        const SizedBox(height: 20),
+                        ClaimCommunityNotesSection(
+                          videoId: video.id,
+                          claimIndex: claimIndex,
+                          claimText: cleanClaimText,
+                        ),
+                        const SizedBox(height: 20),
+                        const FactCheckEpistemicBanner(),
                       ],
                     ),
                   ),
@@ -546,7 +558,7 @@ class ClaimDetailScreen extends StatelessWidget {
             ),
             child: Text(
               'Claim #${claimIndex + 1}',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
@@ -556,7 +568,7 @@ class ClaimDetailScreen extends StatelessWidget {
           const SizedBox(width: 12),
           Text(
             '•',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 14,
               color: AppColors.textTertiary,
             ),
@@ -567,7 +579,7 @@ class ClaimDetailScreen extends StatelessWidget {
               video.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 13.5,
                 color: AppColors.textSecondary,
                 fontWeight: FontWeight.w500,
@@ -612,7 +624,7 @@ class ClaimDetailScreen extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   '${claimIndex + 1} of ${allClaims.length}',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: AppColors.textSecondary,
@@ -657,7 +669,7 @@ class ClaimDetailScreen extends StatelessWidget {
           icon: const Icon(Icons.share_outlined, size: 16, color: Colors.white),
           label: Text(
             'Share',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
               color: Colors.white,
@@ -713,7 +725,7 @@ class ClaimDetailScreen extends StatelessWidget {
                 child: Center(
                   child: Text(
                     '${index + 1}',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 14.5,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -733,17 +745,17 @@ class ClaimDetailScreen extends StatelessWidget {
                 if (isMostly) {
                   pillColor = const Color(0xFF2DD4BF);
                 } else if (isPartially) {
-                  pillColor = const Color(0xFFFBBF24);
+                  pillColor = AppColors.warning;
                 } else if (verdict.isVerified) {
-                  pillColor = const Color(0xFF34D399);
+                  pillColor = AppColors.success;
                 } else if (verdict.isFalse) {
-                  pillColor = const Color(0xFFF87171);
+                  pillColor = AppColors.error;
                 } else if (verdict.isCaution) {
                   pillColor = const Color(0xFFFB923C);
                 } else if (verdict.isContextual) {
-                  pillColor = const Color(0xFF38BDF8);
+                  pillColor = AppColors.textLink;
                 } else {
-                  pillColor = const Color(0xFFFBBF24);
+                  pillColor = AppColors.warning;
                 }
 
                 return Container(
@@ -766,8 +778,8 @@ class ClaimDetailScreen extends StatelessWidget {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        verdict.label.toUpperCase(),
-                        style: GoogleFonts.roboto(
+                        verdict.localizedLabel().toUpperCase(),
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 0.8,
@@ -813,7 +825,7 @@ class ClaimDetailScreen extends StatelessWidget {
                         const SizedBox(width: 5),
                         Text(
                           timestampText,
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: Colors.white,
@@ -864,7 +876,7 @@ class ClaimDetailScreen extends StatelessWidget {
           // Prominent Claim Statement
           Text(
             claimText,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w700,
               color: Colors.white,
@@ -885,6 +897,52 @@ class ClaimDetailScreen extends StatelessWidget {
           Row(
             children: [
               OutlinedButton.icon(
+                onPressed: () {
+                  final explanation = (initialClaim['explanation'] ??
+                          initialClaim['truthBreakdown'] ??
+                          initialClaim['reasoning'] ??
+                          '')
+                      .toString();
+                  final claimSources = initialClaim['sources'] as List?;
+                  AiCredibilityChatSheet.show(
+                    context,
+                    video: video,
+                    scope: 'claim',
+                    claimIndex: index,
+                    claimText: claimText,
+                    verdict: verdict.label,
+                    allSources: claimSources,
+                    allClaims: [initialClaim],
+                    summary: explanation.isNotEmpty ? explanation : null,
+                    claimExplanation: explanation.isNotEmpty ? explanation : null,
+                  );
+                },
+                icon: const Icon(
+                  Icons.auto_awesome_rounded,
+                  size: 18,
+                  color: Colors.white,
+                ),
+                label: Text(
+                  'Ask AI',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+                  side: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.35),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  backgroundColor: Colors.white.withValues(alpha: 0.06),
+                ),
+              ),
+              const SizedBox(width: 14),
+              OutlinedButton.icon(
                 onPressed: () => _searchWeb(claimText),
                 icon: const Icon(
                   Icons.search_rounded,
@@ -893,7 +951,7 @@ class ClaimDetailScreen extends StatelessWidget {
                 ),
                 label: Text(
                   'Search web',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
@@ -924,7 +982,7 @@ class ClaimDetailScreen extends StatelessWidget {
                 ),
                 label: Text(
                   'Provide source',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 13.5,
                     fontWeight: FontWeight.bold,
                     color: Colors.black, // Strictly black on white
@@ -973,7 +1031,7 @@ class ClaimDetailScreen extends StatelessWidget {
               const SizedBox(width: 10),
               Text(
                 'Truth Intelligence Breakdown',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                   color: Colors.white,
@@ -988,7 +1046,7 @@ class ClaimDetailScreen extends StatelessWidget {
                 ),
                 child: Text(
                   'Simple Breakdown',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w500,
                     color: AppColors.textTertiary,
@@ -1035,7 +1093,7 @@ class ClaimDetailScreen extends StatelessWidget {
               const SizedBox(width: 10),
               Text(
                 'Sources',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
@@ -1050,7 +1108,7 @@ class ClaimDetailScreen extends StatelessWidget {
                 ),
                 child: Text(
                   '${sources.length}',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                     color: Colors.white.withValues(alpha: 0.85),
@@ -1081,7 +1139,7 @@ class ClaimDetailScreen extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             'Authoritative references & empirical citations cataloged for this claim.',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 12,
               color: AppColors.textTertiary,
               height: 1.3,
@@ -1113,7 +1171,7 @@ class ClaimDetailScreen extends StatelessWidget {
               children: [
                 Text(
                   'Showing all ${sources.length} sources',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 11.5,
                     color: AppColors.textTertiary,
                   ),
@@ -1132,7 +1190,7 @@ class ClaimDetailScreen extends StatelessWidget {
                   ),
                   label: Text(
                     'Add source',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: Colors.white70,
@@ -1155,7 +1213,7 @@ class ClaimDetailScreen extends StatelessWidget {
                     const SizedBox(height: 10),
                     Text(
                       'No external citation links cataloged.',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 13,
                         color: AppColors.textTertiary,
                       ),
@@ -1170,7 +1228,7 @@ class ClaimDetailScreen extends StatelessWidget {
                       icon: const Icon(Icons.add, size: 16, color: Colors.white),
                       label: Text(
                         'Provide the first source',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: Colors.white,
@@ -1235,7 +1293,7 @@ class ClaimDetailScreen extends StatelessWidget {
                           effectivePublisher,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
                             color: AppColors.textSecondary,
@@ -1248,7 +1306,7 @@ class ClaimDetailScreen extends StatelessWidget {
                           '($domainName)',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 11,
                             color: AppColors.textTertiary,
                           ),
@@ -1267,7 +1325,7 @@ class ClaimDetailScreen extends StatelessWidget {
                     s.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
@@ -1278,7 +1336,7 @@ class ClaimDetailScreen extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       s.publishedAt!,
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 11,
                         color: AppColors.textTertiary,
                       ),
@@ -1367,7 +1425,7 @@ class ClaimDetailScreen extends StatelessWidget {
           children: [
             Text(
               'Claim #${claimIndex + 1}',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
@@ -1377,7 +1435,7 @@ class ClaimDetailScreen extends StatelessWidget {
               video.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 11.5,
                 color: AppColors.textTertiary,
               ),
@@ -1450,18 +1508,30 @@ class ClaimDetailScreen extends StatelessWidget {
                         video: video,
                         initialClaim: effectiveClaim,
                       ),
+                      const SizedBox(height: 14),
+
+                      // 💬 4. COMMUNITY DELIBERATION & NOTES CARD
+                      ClaimCommunityNotesSection(
+                        videoId: video.id,
+                        claimIndex: claimIndex,
+                        claimText: cleanClaimText,
+                      ),
+                      const SizedBox(height: 16),
+                      const FactCheckEpistemicBanner(),
                       const SizedBox(height: 20),
                     ],
                   ),
                 ),
 
-                // 📌 4. FIXED BOTTOM ACTION BAR ("Search web" & "Provide source")
+                // 📌 4. FIXED BOTTOM ACTION BAR ("Ask AI", "Search web" & "Provide source")
                 _buildBottomActionBar(
                   context,
                   claimText: cleanClaimText,
                   video: video,
                   initialClaim: effectiveClaim,
                   bottomPadding: bottomPadding,
+                  claimIndex: claimIndex,
+                  verdict: verdict,
                 ),
               ],
             ),
@@ -1505,7 +1575,7 @@ class ClaimDetailScreen extends StatelessWidget {
                 child: Center(
                   child: Text(
                     '${index + 1}',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 13.5,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -1516,7 +1586,11 @@ class ClaimDetailScreen extends StatelessWidget {
               const SizedBox(width: 8),
 
               // Verdict Pill
-              () {
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: () {
                 final isMostly = verdict.type == ClaimVerdictType.mostlyTrue ||
                     verdict.label.toLowerCase().contains('mostly');
                 final isPartially = verdict.label.toLowerCase().contains('partial') ||
@@ -1525,17 +1599,17 @@ class ClaimDetailScreen extends StatelessWidget {
                 if (isMostly) {
                   pillColor = const Color(0xFF2DD4BF);
                 } else if (isPartially) {
-                  pillColor = const Color(0xFFFBBF24);
+                  pillColor = AppColors.warning;
                 } else if (verdict.isVerified) {
-                  pillColor = const Color(0xFF34D399);
+                  pillColor = AppColors.success;
                 } else if (verdict.isFalse) {
-                  pillColor = const Color(0xFFF87171);
+                  pillColor = AppColors.error;
                 } else if (verdict.isCaution) {
                   pillColor = const Color(0xFFFB923C);
                 } else if (verdict.isContextual) {
-                  pillColor = const Color(0xFF38BDF8);
+                  pillColor = AppColors.textLink;
                 } else {
-                  pillColor = const Color(0xFFFBBF24);
+                  pillColor = AppColors.warning;
                 }
 
                 return Container(
@@ -1558,8 +1632,8 @@ class ClaimDetailScreen extends StatelessWidget {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        verdict.label.toUpperCase(),
-                        style: GoogleFonts.roboto(
+                        verdict.localizedLabel().toUpperCase(),
+                        style: TextStyle(
                           fontSize: 11.5,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 0.6,
@@ -1570,10 +1644,15 @@ class ClaimDetailScreen extends StatelessWidget {
                   ),
                 );
               }(),
+                ),
+              ),
               const SizedBox(width: 8),
 
               // Timestamp Pill (Tappable to seek video)
-              InkWell(
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: InkWell(
                 onTap: () {
                   if (startSec != null) {
                     final target =
@@ -1603,7 +1682,7 @@ class ClaimDetailScreen extends StatelessWidget {
                       const SizedBox(width: 4),
                       Text(
                         timestampText,
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w600,
                           color: Colors.white,
@@ -1612,6 +1691,7 @@ class ClaimDetailScreen extends StatelessWidget {
                     ],
                   ),
                 ),
+              ),
               ),
               const Spacer(),
 
@@ -1634,7 +1714,7 @@ class ClaimDetailScreen extends StatelessWidget {
           // Prominent Claim Statement
           Text(
             claimText,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w700,
               color: Colors.white,
@@ -1669,12 +1749,16 @@ class ClaimDetailScreen extends StatelessWidget {
                 color: Colors.white,
               ),
               const SizedBox(width: 8),
-              Text(
-                'Truth Intelligence Breakdown',
-                style: GoogleFonts.roboto(
-                  fontSize: 14.5,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
+              Expanded(
+                child: Text(
+                  'Truth Intelligence Breakdown',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ],
@@ -1726,7 +1810,7 @@ class ClaimDetailScreen extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   'Sources',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
@@ -1741,7 +1825,7 @@ class ClaimDetailScreen extends StatelessWidget {
                   ),
                   child: Text(
                     '${sources.length}',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: Colors.white.withValues(alpha: 0.8),
@@ -1803,7 +1887,7 @@ class ClaimDetailScreen extends StatelessWidget {
                                     domainName,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: GoogleFonts.roboto(
+                                    style: TextStyle(
                                       fontSize: 11.5,
                                       fontWeight: FontWeight.w500,
                                       color: AppColors.textSecondary,
@@ -1825,7 +1909,7 @@ class ClaimDetailScreen extends StatelessWidget {
                               s.title,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.white,
@@ -1846,7 +1930,7 @@ class ClaimDetailScreen extends StatelessWidget {
               child: Center(
                 child: Text(
                   'No external citation links cataloged.',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 12.5,
                     color: AppColors.textTertiary,
                   ),
@@ -1884,7 +1968,7 @@ class ClaimDetailScreen extends StatelessWidget {
                   const SizedBox(width: 10),
                   Text(
                     'View all ${sources.length} sources',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
@@ -1912,11 +1996,13 @@ class ClaimDetailScreen extends StatelessWidget {
     required Video video,
     required double bottomPadding,
     Map<dynamic, dynamic>? initialClaim,
+    int? claimIndex,
+    ClaimVerdictInfo? verdict,
   }) {
     return Container(
       padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding > 0 ? bottomPadding : 16),
       decoration: BoxDecoration(
-        color: const Color(0xFF10121A),
+        color: AppColors.bgPage,
         border: Border(
           top: BorderSide(
             color: Colors.white.withValues(alpha: 0.08),
@@ -1926,43 +2012,108 @@ class ClaimDetailScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
+          // Ask AI Button
+          Expanded(
+            flex: 3,
+            child: OutlinedButton(
+              onPressed: () {
+                final explanation = (initialClaim?['explanation'] ??
+                        initialClaim?['truthBreakdown'] ??
+                        initialClaim?['reasoning'] ??
+                        '')
+                    .toString();
+                final claimSources = initialClaim?['sources'] as List?;
+                AiCredibilityChatSheet.show(
+                  context,
+                  video: video,
+                  scope: 'claim',
+                  claimIndex: claimIndex,
+                  claimText: claimText,
+                  verdict: verdict?.label,
+                  allSources: claimSources,
+                  allClaims: initialClaim != null ? [initialClaim] : null,
+                  summary: explanation.isNotEmpty ? explanation : null,
+                  claimExplanation: explanation.isNotEmpty ? explanation : null,
+                );
+              },
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 13),
+                side: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.3),
+                ),
+                shape: const StadiumBorder(),
+                backgroundColor: Colors.white.withValues(alpha: 0.08),
+              ),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      'Ask AI',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+
           // Search Web Button
           Expanded(
+            flex: 4,
             child: OutlinedButton(
               onPressed: () => _searchWeb(claimText),
               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 13),
                 side: BorderSide(
                   color: Colors.white.withValues(alpha: 0.25),
                 ),
                 shape: const StadiumBorder(),
                 backgroundColor: Colors.transparent,
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.search_rounded,
-                    size: 18,
-                    color: Colors.white,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Search web',
-                    style: GoogleFonts.roboto(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.search_rounded,
+                      size: 16,
                       color: Colors.white,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 5),
+                    Text(
+                      'Search web',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
 
           // Provide Source Button (Pure White background with Black text & icon - WCAG AA Compliant)
           Expanded(
+            flex: 4,
             child: ElevatedButton(
               onPressed: () => ClaimSourceSubmissionDialog.show(
                 context: context,
@@ -1970,30 +2121,34 @@ class ClaimDetailScreen extends StatelessWidget {
                 initialClaim: initialClaim ?? {'claim': claimText, 'text': claimText},
               ),
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 13),
                 backgroundColor: Colors.white,
                 foregroundColor: Colors.black, // High contrast compliance
                 elevation: 0,
                 shape: const StadiumBorder(),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.add_link_rounded,
-                    size: 18,
-                    color: Colors.black, // Strictly black on white
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Provide source',
-                    style: GoogleFonts.roboto(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.add_link_rounded,
+                      size: 17,
                       color: Colors.black, // Strictly black on white
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 5),
+                    Text(
+                      'Provide source',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black, // Strictly black on white
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -2011,20 +2166,21 @@ class ClaimDetailScreen extends StatelessWidget {
     if (cleanText.isEmpty) {
       return Text(
         'Checking the facts for this claim...',
-        style: GoogleFonts.roboto(fontSize: fontSize, color: AppColors.textTertiary),
+        style: TextStyle(fontSize: fontSize, color: AppColors.textTertiary),
       );
     }
 
-    final spans = <TextSpan>[];
+    final spans = <InlineSpan>[];
     final regex = RegExp(r'\*\*(.*?)\*\*');
     var lastIndex = 0;
 
     for (final match in regex.allMatches(cleanText)) {
       if (match.start > lastIndex) {
-        spans.add(
-          TextSpan(
-            text: cleanText.substring(lastIndex, match.start),
-            style: GoogleFonts.roboto(
+        final segment = cleanText.substring(lastIndex, match.start);
+        spans.addAll(
+          ClickableUrlText.parseSpans(
+            segment,
+            style: TextStyle(
               fontSize: fontSize,
               height: lineHeight,
               color: Colors.white.withValues(alpha: 0.88),
@@ -2032,10 +2188,11 @@ class ClaimDetailScreen extends StatelessWidget {
           ),
         );
       }
-      spans.add(
-        TextSpan(
-          text: match.group(1),
-          style: GoogleFonts.roboto(
+      final boldContent = match.group(1) ?? '';
+      spans.addAll(
+        ClickableUrlText.parseSpans(
+          boldContent,
+          style: TextStyle(
             fontSize: fontSize,
             height: lineHeight,
             fontWeight: FontWeight.bold,
@@ -2047,10 +2204,10 @@ class ClaimDetailScreen extends StatelessWidget {
     }
 
     if (lastIndex < cleanText.length) {
-      spans.add(
-        TextSpan(
-          text: cleanText.substring(lastIndex),
-          style: GoogleFonts.roboto(
+      spans.addAll(
+        ClickableUrlText.parseSpans(
+          cleanText.substring(lastIndex),
+          style: TextStyle(
             fontSize: fontSize,
             height: lineHeight,
             color: Colors.white.withValues(alpha: 0.88),
@@ -2059,23 +2216,19 @@ class ClaimDetailScreen extends StatelessWidget {
       );
     }
 
-    return RichText(
-      text: TextSpan(children: spans),
+    return Text.rich(
+      TextSpan(children: spans),
     );
   }
 
   double? _extractStartSeconds(Map<dynamic, dynamic> claim) {
-    if (claim['startMs'] is num) return (claim['startMs'] as num).toDouble() / 1000.0;
-    if (claim['startTimeMs'] is num) return (claim['startTimeMs'] as num).toDouble() / 1000.0;
-    if (claim['start'] is num) {
-      final s = (claim['start'] as num).toDouble();
-      return s > 100000 ? s / 1000.0 : s;
-    }
-    if (claim['timestampStart'] is num) {
-      final s = (claim['timestampStart'] as num).toDouble();
-      return s > 100000 ? s / 1000.0 : s;
-    }
-    return null;
+    final raw = claim['startMs'] ??
+        claim['startTimeMs'] ??
+        claim['start'] ??
+        claim['timestampStart'];
+    if (raw == null) return null;
+    final ms = VideoAnalysisHelpers.normalizeTimestampToMs(raw);
+    return ms > 0 ? ms / 1000.0 : 0.0;
   }
 
   Future<void> _launchSourceUrl(String? urlStr) async {
@@ -2137,7 +2290,7 @@ class ClaimDetailScreen extends StatelessWidget {
           child: Text(
             message,
             textAlign: TextAlign.center,
-            style: GoogleFonts.roboto(color: AppColors.textSecondary, fontSize: 14),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
           ),
         ),
       ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
@@ -145,32 +146,47 @@ class TranscriptOverlay extends StatelessWidget {
 
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (ctrl.showTranscriptPopup.value &&
+                      ctrl.isOverlayTranscriptAutoScroll.value &&
                       ctrl.overlayTranscriptScrollController.hasClients) {
                     final pos = ctrl.videoPlayerController.value.position;
                     final transcriptCtrl = ctrl.videoController?.transcriptController;
                     final targetIndex = transcriptCtrl?.findSegmentIndexForPosition(pos) ?? -1;
-                    if (targetIndex >= 0) {
+                    if (targetIndex >= 0 && targetIndex != ctrl.lastOverlayScrollIndex) {
+                      ctrl.lastOverlayScrollIndex = targetIndex;
                       final targetOffset = (targetIndex * 48.0 - 80.0).clamp(
                         0.0,
                         ctrl.overlayTranscriptScrollController.position.maxScrollExtent,
                       );
-                      ctrl.overlayTranscriptScrollController.jumpTo(targetOffset);
+                      ctrl.overlayTranscriptScrollController.animateTo(
+                        targetOffset,
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeOutCubic,
+                      );
                     }
                   }
                 });
 
-                return ListView.builder(
-                  controller: ctrl.overlayTranscriptScrollController,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: segments.length,
-                  itemBuilder: (context, index) {
-                    final seg = segments[index];
-                    return _TranscriptOverlayTile(
-                      seg: seg,
-                      ctrl: ctrl,
-                      segmentIndex: index,
-                    );
+                return NotificationListener<ScrollNotification>(
+                  onNotification: (notification) {
+                    if (notification is UserScrollNotification &&
+                        notification.direction != ScrollDirection.idle) {
+                      ctrl.onOverlayTranscriptUserScrolled();
+                    }
+                    return false;
                   },
+                  child: ListView.builder(
+                    controller: ctrl.overlayTranscriptScrollController,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: segments.length,
+                    itemBuilder: (context, index) {
+                      final seg = segments[index];
+                      return _TranscriptOverlayTile(
+                        seg: seg,
+                        ctrl: ctrl,
+                        segmentIndex: index,
+                      );
+                    },
+                  ),
                 );
               }),
             ),
@@ -203,7 +219,14 @@ class _TranscriptOverlayTile extends StatelessWidget {
       final isActive = isPlayerActive || isIndexActive;
 
       return InkWell(
-        onTap: () => ctrl.seekTo(seg.start),
+        onTap: () {
+          ctrl.seekTo(seg.start);
+          ctrl.resumeOverlayTranscriptAutoScroll();
+          if (segmentIndex != null && transcriptCtrl != null) {
+            transcriptCtrl.activeSegmentIndex.value = segmentIndex!;
+            transcriptCtrl.resumeAutoScroll();
+          }
+        },
         child: Container(
           padding: const EdgeInsets.symmetric(
             horizontal: 16,

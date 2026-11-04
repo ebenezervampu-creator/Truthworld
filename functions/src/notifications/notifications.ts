@@ -53,6 +53,10 @@ export function resolveTargetApp(params: {
     "fact_check_pending",
     "fact_check_ready",
     "fact_check_completed",
+    "video_processing",
+    "video_processing_started",
+    "video_processing_completed",
+    "video_processing_failed",
     "verification_result",
     "batch_verification_result",
     "copyright_claim",
@@ -86,6 +90,10 @@ export function resolveTargetApp(params: {
     "weekly_digest",
     "channel_notifications",
     "studio_notifications",
+    "channel_health",
+    "channel_policy",
+    "video_policy",
+    "channel_welcome",
   ];
 
   const title = (params.title || (params.metadata?.title as string) || "").trim().toLowerCase();
@@ -94,13 +102,20 @@ export function resolveTargetApp(params: {
   const isStudioContent =
     title.includes("truth verification") ||
     title.includes("fact-checking") ||
+    title.includes("fact-check") ||
+    title.includes("factcheck") ||
     title.includes("fact check") ||
     title.includes("video moderation") ||
+    title.includes("content moderation") ||
+    title.includes("topic moderation") ||
     title.includes("thumbnail verification") ||
     title.includes("video not accepted") ||
+    title.includes("topic not accepted") ||
     title.includes("video under manual review") ||
+    title.includes("topic under manual review") ||
     title.includes("video processing") ||
     title.includes("video approved & published") ||
+    title.includes("topic approved & published") ||
     title.includes("new subscriber") ||
     title.includes("creator studio") ||
     title.includes("channel policy") ||
@@ -108,6 +123,8 @@ export function resolveTargetApp(params: {
     title.includes("claim dispute") ||
     message.includes("studio notifications") ||
     message.includes("creator studio") ||
+    message.includes("content moderation") ||
+    message.includes("topic moderation") ||
     message.includes("fact-checking for") ||
     message.includes("held in studio") ||
     message.includes("subscribed to your channel");
@@ -157,6 +174,7 @@ export async function notifyUser(params: {
   actionUrl?: string;
   metadata?: Record<string, any>;
   targetApp?: AppFlavorTarget;
+  skipPush?: boolean;
 }) {
   if (!params.userId || typeof params.userId !== "string" || !params.userId.trim()) {
     logger.warn("[notifyUser] Skipped notification with missing or invalid userId", { title: params.title });
@@ -164,6 +182,44 @@ export async function notifyUser(params: {
   }
 
   try {
+    // Deduplication check: prevent duplicate notifications from dual triggers/fallbacks
+    const likerId = params.metadata?.likerId || params.metadata?.replierId;
+    const commentId = params.metadata?.commentId;
+    const replyId = params.metadata?.replyId;
+    if (params.userId && (commentId || replyId)) {
+      try {
+        const recentSnap = await db.collection(COL_NOTIFICATIONS)
+          .where("userId", "==", params.userId)
+          .orderBy("createdAt", "desc")
+          .limit(3)
+          .get();
+
+        const isDuplicate = recentSnap.docs.some((doc) => {
+          const d = doc.data();
+          if (Date.now() - (d.createdAt || 0) > 15000) return false;
+          if (d.type !== params.type) return false;
+          const m = d.metadata || {};
+          const sameComment = commentId ? m.commentId === commentId : true;
+          const sameReply = replyId ? m.replyId === replyId : true;
+          const sameActor = likerId ? (m.likerId === likerId || m.replierId === likerId) : true;
+          return sameComment && sameReply && sameActor;
+        });
+
+        if (isDuplicate) {
+          logger.info("[notifyUser] Deduplicated identical notification within 15s window", {
+            userId: params.userId,
+            type: params.type,
+            commentId,
+            replyId,
+          });
+          return null;
+        }
+      } catch (dedupErr) {
+        // Non-blocking fallback if index is warming or query fails
+        logger.debug("[notifyUser] Deduplication lookup non-blocking error:", dedupErr);
+      }
+    }
+
     const notificationId = db.collection(COL_NOTIFICATIONS).doc().id;
     const channelId = params.metadata?.channelId || "";
     const priority = params.metadata?.priority || (params.severity === "priority" ? "critical" : (params.severity === "warning" ? "high" : "low"));
@@ -202,12 +258,13 @@ export async function notifyUser(params: {
     await batch.commit();
     
     // Fire-and-forget: Push notification delivery is non-blocking.
-    // The Firestore write above is the critical path; FCM delivery can
-    // happen asynchronously without delaying the caller. This is critical
-    // during fan-out where hundreds of notifyUser() calls run in parallel.
-    sendPushNotificationForUser({ ...params, targetApp }, notificationId).catch(pushErr => {
-      logger.warn("[notifyUser] FCM push failed (non-critical):", { userId: params.userId, err: String(pushErr) });
-    });
+    // If skipPush is true (e.g. topic broadcast was already dispatched for this event),
+    // skip direct FCM push to avoid duplicate push delivery.
+    if (!params.skipPush) {
+      sendPushNotificationForUser({ ...params, targetApp }, notificationId).catch(pushErr => {
+        logger.warn("[notifyUser] FCM push failed (non-critical):", { userId: params.userId, err: String(pushErr) });
+      });
+    }
     
     return notificationId;
   } catch (err) {
@@ -237,19 +294,33 @@ export async function sendPushNotificationForUser(
   if (!userDoc.exists) return;
 
   const userData = userDoc.data();
-  const fcmTokensMap = userData?.fcmTokens as Record<string, any> | undefined;
+  const fcmTokensMap = (userData?.fcmTokens as Record<string, any> | undefined) ||
+    (typeof userData?.fcmToken === "string" && userData.fcmToken.trim().length > 0 ? { default: userData.fcmToken.trim() } : undefined);
   if (!fcmTokensMap) return;
 
   const targetApp = resolveTargetApp(params);
 
   // Extract and deduplicate tokens safely (plain string or object format)
-  // Maps unique token string -> primary deviceId to prevent duplicate push deliveries
-  const tokenToDeviceMap = new Map<string, string>();
+  // Industry standard: A user device should only receive AT MOST ONE push per targeted platform/app.
+  // Group candidate tokens by `${platform}_${appFlavor}` and keep only the latest active registration,
+  // pruning older superseded registrations from Firestore to eliminate triple/double notification delivery.
+  interface CandidateTokenEntry {
+    deviceId: string;
+    token: string;
+    app: string;
+    platform: string;
+    updatedAt: number;
+  }
+
+  const candidateEntries: CandidateTokenEntry[] = [];
   const duplicateDeviceIdsToRemove: string[] = [];
+  const seenTokenStrings = new Set<string>();
 
   for (const [deviceId, val] of Object.entries(fcmTokensMap)) {
     let tokenStr = "";
     let tokenApp = "";
+    let platform = "android";
+    let updatedAt = 0;
 
     if (typeof val === "string") {
       tokenStr = val.trim();
@@ -261,6 +332,18 @@ export async function sendPushNotificationForUser(
         tokenApp = val.app.trim().toLowerCase();
       } else if (typeof val.appFlavor === "string") {
         tokenApp = val.appFlavor.trim().toLowerCase();
+      }
+      if (typeof val.platform === "string") {
+        platform = val.platform.trim().toLowerCase();
+      }
+      if (val.updatedAt) {
+        if (typeof val.updatedAt === "number") {
+          updatedAt = val.updatedAt;
+        } else if (typeof val.updatedAt.toMillis === "function") {
+          updatedAt = val.updatedAt.toMillis();
+        } else if (val.updatedAt instanceof Date) {
+          updatedAt = val.updatedAt.getTime();
+        }
       }
     }
 
@@ -296,11 +379,45 @@ export async function sendPushNotificationForUser(
       }
     }
 
-    if (tokenToDeviceMap.has(tokenStr)) {
-      // Redundant entry holding the identical token - mark for background cleanup
+    // Exact token string duplicate prevention
+    if (seenTokenStrings.has(tokenStr)) {
       duplicateDeviceIdsToRemove.push(deviceId);
-    } else {
-      tokenToDeviceMap.set(tokenStr, deviceId);
+      continue;
+    }
+    seenTokenStrings.add(tokenStr);
+
+    candidateEntries.push({
+      deviceId,
+      token: tokenStr,
+      app: tokenApp || "app",
+      platform: platform || "android",
+      updatedAt,
+    });
+  }
+
+  // Group candidate tokens by platform + appFlavor (e.g. android_app, android_studio)
+  // Keep only the newest active token per platform/appFlavor to eliminate duplicate pushes on the same device.
+  const groupMap = new Map<string, CandidateTokenEntry[]>();
+  for (const entry of candidateEntries) {
+    const groupKey = `${entry.platform}_${entry.app}`;
+    const group = groupMap.get(groupKey) || [];
+    group.push(entry);
+    groupMap.set(groupKey, group);
+  }
+
+  const tokensToSend: string[] = [];
+  const tokenToDeviceMap = new Map<string, string>();
+
+  for (const [, entries] of groupMap.entries()) {
+    // Sort newest first
+    entries.sort((a, b) => b.updatedAt - a.updatedAt);
+    const active = entries[0];
+    tokensToSend.push(active.token);
+    tokenToDeviceMap.set(active.token, active.deviceId);
+
+    // Prune older superseded device tokens on the same platform + app flavor
+    for (let i = 1; i < entries.length; i++) {
+      duplicateDeviceIdsToRemove.push(entries[i].deviceId);
     }
   }
 
@@ -315,10 +432,26 @@ export async function sendPushNotificationForUser(
     });
   }
 
-  const tokens = Array.from(tokenToDeviceMap.keys());
+  const tokens = tokensToSend;
   if (tokens.length === 0) {
     logger.info(`[FCM] No registered devices matching targetApp '${targetApp}' for user ${params.userId}. Push skipped.`);
     return;
+  }
+
+  // Deterministic OS notification collapse tag
+  let entityCollapseKey = String(notificationId);
+  if (params.type === "new_follower" || params.type === "new_subscriber") {
+    const chId = params.metadata?.channelId || "";
+    const subId = params.metadata?.subscriberId || "";
+    if (chId && subId) {
+      entityCollapseKey = `sub_${chId}_${subId}`;
+    }
+  } else if (params.metadata?.videoId) {
+    entityCollapseKey = `video_${params.metadata.videoId}`;
+  } else if (params.metadata?.postId) {
+    entityCollapseKey = `post_${params.metadata.postId}`;
+  } else if (params.metadata?.commentId) {
+    entityCollapseKey = `comment_${params.metadata.commentId}`;
   }
 
   const dataPayload: Record<string, string> = {
@@ -369,14 +502,14 @@ export async function sendPushNotificationForUser(
     data: dataPayload,
     android: {
       priority: "high" as const,
-      collapseKey: String(notificationId),
+      collapseKey: entityCollapseKey,
       notification: {
         sound: "default",
         channelId: "truthworld_notifications",
         clickAction: "FLUTTER_NOTIFICATION_CLICK",
         priority: "max" as const, // MAX system priority for heads-up alert
         visibility: "public" as const,
-        tag: String(notificationId), // OS-level collapse/deduplication tag
+        tag: entityCollapseKey, // OS-level collapse/deduplication tag
         icon: "ic_notification",
         color: "#14EAB2",
         ...(mediaImageUrl ? { imageUrl: mediaImageUrl } : {}),
@@ -386,7 +519,7 @@ export async function sendPushNotificationForUser(
       headers: {
         "apns-priority": "10",
         "apns-push-type": "alert",
-        "apns-collapse-id": String(notificationId),
+        "apns-collapse-id": entityCollapseKey,
       },
       payload: {
         aps: {
@@ -407,7 +540,19 @@ export async function sendPushNotificationForUser(
         ...(mediaImageUrl ? { image: mediaImageUrl } : {}),
       },
       fcmOptions: {
-        link: params.actionUrl || "https://www.truthworld.in",
+        link: (() => {
+          const raw = params.actionUrl;
+          if (!raw || typeof raw !== "string") return "https://www.truthworld.in";
+          const trimmed = raw.trim();
+          if (trimmed.startsWith("/")) return `https://www.truthworld.in${trimmed}`;
+          try {
+            const p = new URL(trimmed);
+            if ((p.protocol === "https:" || p.protocol === "http:") && (p.hostname === "truthworld.in" || p.hostname.endsWith(".truthworld.in"))) {
+              return trimmed;
+            }
+          } catch {}
+          return "https://www.truthworld.in";
+        })(),
       },
     },
   };
@@ -452,7 +597,7 @@ export const getNotifications = onCall(
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
 
-    const limit = Math.min(Number(request.data?.limit) || 20, 50);
+    const limit = Math.max(1, Math.min(Math.floor(Number(request.data?.limit) || 20), 50));
 
     try {
       const snap = await db.collection(COL_NOTIFICATIONS)

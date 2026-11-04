@@ -30,6 +30,14 @@ class ShareBottomSheet extends StatelessWidget {
     this.videoUrl,
     this.videoId,
     this.videoTitle,
+    this.claimText,
+    this.verdictLabel,
+    this.verdictColor,
+    this.verdictIcon,
+    this.summaryTakeaway,
+    this.confidenceText,
+    this.sourceDomain,
+    this.onShareImage,
   });
 
   final String title;
@@ -51,6 +59,14 @@ class ShareBottomSheet extends StatelessWidget {
   final String? videoUrl;
   final String? videoId;
   final String? videoTitle;
+  final String? claimText;
+  final String? verdictLabel;
+  final Color? verdictColor;
+  final IconData? verdictIcon;
+  final String? summaryTakeaway;
+  final String? confidenceText;
+  final String? sourceDomain;
+  final VoidCallback? onShareImage;
 
   static void show({
     required String title,
@@ -72,6 +88,14 @@ class ShareBottomSheet extends StatelessWidget {
     String? videoUrl,
     String? videoId,
     String? videoTitle,
+    String? claimText,
+    String? verdictLabel,
+    Color? verdictColor,
+    IconData? verdictIcon,
+    String? summaryTakeaway,
+    String? confidenceText,
+    String? sourceDomain,
+    VoidCallback? onShareImage,
   }) {
     Get.bottomSheet(
       ShareBottomSheet(
@@ -94,6 +118,14 @@ class ShareBottomSheet extends StatelessWidget {
         videoUrl: videoUrl,
         videoId: videoId,
         videoTitle: videoTitle,
+        claimText: claimText,
+        verdictLabel: verdictLabel,
+        verdictColor: verdictColor,
+        verdictIcon: verdictIcon,
+        summaryTakeaway: summaryTakeaway,
+        confidenceText: confidenceText,
+        sourceDomain: sourceDomain,
+        onShareImage: onShareImage,
       ),
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
@@ -125,6 +157,14 @@ class ShareBottomSheet extends StatelessWidget {
         videoUrl: videoUrl,
         videoId: videoId,
         videoTitle: videoTitle,
+        claimText: claimText,
+        verdictLabel: verdictLabel,
+        verdictColor: verdictColor,
+        verdictIcon: verdictIcon,
+        summaryTakeaway: summaryTakeaway,
+        confidenceText: confidenceText,
+        sourceDomain: sourceDomain,
+        onShareImage: onShareImage,
       ),
       builder: (controller) {
         final contentType = controller.detectType();
@@ -207,6 +247,14 @@ class ShareBottomSheet extends StatelessWidget {
                   clipStartTime: clipStartTime,
                   clipEndTime: clipEndTime,
                   videoTitle: videoTitle,
+                  claimText: claimText,
+                  verdictLabel: verdictLabel,
+                  verdictColor: verdictColor,
+                  verdictIcon: verdictIcon,
+                  summaryTakeaway: summaryTakeaway,
+                  confidenceText: confidenceText,
+                  sourceDomain: sourceDomain,
+                  onShareImage: onShareImage,
                 );
               }),
             ),

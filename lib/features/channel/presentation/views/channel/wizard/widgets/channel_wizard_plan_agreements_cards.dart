@@ -90,7 +90,7 @@ class ChannelWizardPlanCard extends StatelessWidget {
   Widget buildContent(BuildContext context) {
     final planNames = {
       'standard': 'Standard',
-      'custom': 'Custom plan',
+      'custom': 'Pro plan',
     };
 
     return Column(
@@ -165,7 +165,7 @@ class ChannelWizardPlanCard extends StatelessWidget {
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Compare Standard & Custom Benefits',
+                    'Compare Standard & Pro Benefits',
                     style: TextStyle(
                       color: Color(0xFF818CF8),
                       fontSize: 12,
@@ -273,7 +273,7 @@ class ChannelWizardPlanCard extends StatelessWidget {
                     size: 18,
                   ),
                   label: const Text(
-                    'Compare Standard & Custom Benefits',
+                    'Compare Standard & Pro Benefits',
                     style: TextStyle(
                       color: Color(0xFF818CF8),
                       fontWeight: FontWeight.bold,

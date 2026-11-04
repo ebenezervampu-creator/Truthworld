@@ -3,6 +3,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/distributed_counter_service.dart';
 import 'package:truthworld/core/utils/content_validator.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -58,9 +59,19 @@ mixin TopicRepliesCrudMixin on TopicInteractionStateBase {
           .collection('replies')
           .doc();
 
-      final rawName = currentUserName;
+      final authService = AuthService.to;
+      final hasChannel =
+          authService.hasChannel.value && authService.userChannel != null;
+      final userChannel = hasChannel ? authService.userChannel : null;
+
+      final rawName = authService.userDisplayName.value ??
+          authService.user?.displayName ??
+          'User';
       final cleanUserName =
           rawName.startsWith('@') ? rawName.substring(1) : rawName;
+      final cleanUserProfilePicUrl = authService.userPhotoUrl.value ??
+          authService.user?.photoURL ??
+          '';
 
       final replyObj = Reply(
         id: replyRef.id,
@@ -68,8 +79,12 @@ mixin TopicRepliesCrudMixin on TopicInteractionStateBase {
         videoId: topicId,
         userId: currentUserId,
         userName: cleanUserName,
-        userProfilePicUrl: currentUserProfilePicUrl,
-        channelId: currentUserId,
+        userProfilePicUrl: cleanUserProfilePicUrl,
+        channelId: hasChannel ? userChannel!.id : '',
+        channelHandle: userChannel?.handle,
+        channelName: userChannel?.name,
+        channelProfilePicUrl: userChannel?.avatarUrl,
+        isChannel: hasChannel,
         text: ContentValidator.cleanProfanity(text.trim()),
         likeCount: 0,
         dislikeCount: 0,
@@ -86,10 +101,12 @@ mixin TopicRepliesCrudMixin on TopicInteractionStateBase {
           'commentId': commentId,
           'text': ContentValidator.cleanProfanity(text.trim()),
           'userName': cleanUserName,
-          'userProfilePicUrl': currentUserProfilePicUrl,
-          'channelId': currentUserId,
-          'channelName': null,
-          'channelProfilePicUrl': null,
+          'userProfilePicUrl': cleanUserProfilePicUrl,
+          'channelId': hasChannel ? userChannel!.id : '',
+          'channelHandle': userChannel?.handle,
+          'channelName': userChannel?.name,
+          'channelProfilePicUrl': userChannel?.avatarUrl,
+          'isChannel': hasChannel,
         }).timeout(const Duration(seconds: 8));
       } catch (fnError) {
         // Fallback to direct Firestore write + Distributed Counter

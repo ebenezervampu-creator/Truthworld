@@ -47,12 +47,39 @@ mixin AdminAuthTeamMixin on BaseController {
     'ebenezervampu4@gmail.com',
   ];
 
+  // Two-step Admin Portal Login State
+  final RxInt loginStep = 1.obs; // 1 = Username verification, 2 = Password input
+  final Rxn<Map<String, dynamic>> verifiedAdminUser =
+      Rxn<Map<String, dynamic>>();
+  final TextEditingController usernameController = TextEditingController();
+  final RxString loginUsername = ''.obs;
+  final RxBool isVerifyingUsername = false.obs;
+
   // Email & Password login controllers
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final RxString loginEmail = ''.obs;
   final RxString loginPassword = ''.obs;
   final RxBool needsPasswordSetup = false.obs;
+
+  void resetLoginStep() {
+    loginStep.value = 1;
+    verifiedAdminUser.value = null;
+    passwordController.clear();
+    loginPassword.value = '';
+  }
+
+  Future<bool> verifyAdminUsername({String? usernameInput}) =>
+      AdminAuthProtocolService.verifyAdminUsername(
+        usernameInput: usernameInput,
+        usernameController: usernameController,
+        loginUsername: loginUsername,
+        loginStep: loginStep,
+        verifiedAdminUser: verifiedAdminUser,
+        isVerifyingUsername: isVerifyingUsername,
+        emailController: emailController,
+        loginEmail: loginEmail,
+      );
 
   /// Returns true if the currently signed-in admin is the platform owner ("only me")
   bool get isPrimaryOwner {
@@ -143,10 +170,11 @@ mixin AdminAuthTeamMixin on BaseController {
         rxIsLoading: rxIsLoading,
       );
 
-  /// Adds a new team member with email, password, and assigned roles
+  /// Adds a new team member with email, username, password, and assigned roles
   Future<bool> addTeamMember({
     required String email,
     required String password,
+    String? username,
     String role = 'Content Moderator',
     List<String>? roles,
     String? name,
@@ -154,6 +182,7 @@ mixin AdminAuthTeamMixin on BaseController {
       AdminTeamService.addTeamMember(
         email: email,
         password: password,
+        username: username,
         currentAdminEmail: currentAdminEmail.value,
         role: role,
         roles: roles,
@@ -183,11 +212,13 @@ mixin AdminAuthTeamMixin on BaseController {
   void copyMemberCredentials({
     required String email,
     required String password,
+    String? username,
     String? role,
   }) =>
       AdminTeamService.copyMemberCredentials(
         email: email,
         password: password,
+        username: username,
         role: role,
       );
 

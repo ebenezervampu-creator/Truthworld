@@ -20,6 +20,7 @@ class SearchPlaylistResultItem extends StatelessWidget {
     final cleanThumb = result.thumbnail.trim().replaceAll(' ', '%20');
 
     return InkWell(
+      borderRadius: BorderRadius.circular(12),
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),

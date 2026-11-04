@@ -231,6 +231,7 @@ void main() {
         'INSTALLER_PACKAGE_NOT_APPROVED',
         'package_not_approved',
         'installer verification failed',
+        'com.truthworld.app is not enabled or approved. Please whitelist your domain or app package name in Cashfree Merchant Dashboard',
       ];
 
       for (final rawMsg in debugErrors) {
@@ -239,6 +240,11 @@ void main() {
             lowerMsg.contains('installer') ||
             lowerMsg.contains('package_not_approved') ||
             lowerMsg.contains('not approved') ||
+            lowerMsg.contains('not enabled') ||
+            lowerMsg.contains('whitelist') ||
+            lowerMsg.contains('whitelisting') ||
+            lowerMsg.contains('domain') ||
+            lowerMsg.contains('package') ||
             lowerMsg.contains('verification failed') ||
             lowerMsg.contains('activity not found');
 

@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/navigation/app_navigator.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/details/channel_details_theme.dart';
@@ -130,34 +131,35 @@ class ChannelBannerWidget extends StatelessWidget {
                       ),
                     ),
                   ),
-                if (isDashboard || Navigator.of(context).canPop())
-                  Positioned(
-                    top: 12,
-                    left: 12,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.bgPage.withValues(alpha: 0.6),
-                        shape: BoxShape.circle,
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.bgPage.withValues(alpha: 0.6),
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back,
+                        color: AppColors.textPrimary,
                       ),
-                      child: IconButton(
-                        icon: const Icon(
-                          Icons.arrow_back,
-                          color: AppColors.textPrimary,
-                        ),
-                        tooltip: 'Back',
-                        onPressed: () {
-                          if (isDashboard &&
-                              Get.isRegistered<HomeController>()) {
-                            Get.find<HomeController>().goBackFromSpecialPage(
-                              HomeController.indexDiscover,
-                            );
-                          } else {
-                            Get.back();
-                          }
-                        },
-                      ),
+                      tooltip: 'Back',
+                      onPressed: () {
+                        if (isDashboard &&
+                            Get.isRegistered<HomeController>()) {
+                          Get.find<HomeController>().goBackFromSpecialPage(
+                            HomeController.indexDiscover,
+                          );
+                        } else if (Navigator.of(context).canPop()) {
+                          Get.back();
+                        } else {
+                          AppNavigator.toHome();
+                        }
+                      },
                     ),
                   ),
+                ),
                 Builder(
                   builder: (context) {
                     final currentUser = FirebaseAuth.instance.currentUser;
@@ -197,56 +199,77 @@ class ChannelBannerWidget extends StatelessWidget {
                           color: overlayColor,
                           padding: const EdgeInsets.all(16),
                           child: Center(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 10,
-                              ),
-                              decoration: BoxDecoration(
-                                color: badgeColor,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: (!isPending)
+                                    ? () => _showBannerModerationDetailDialog(
+                                          context,
+                                          status: status,
+                                          reason: controller.detailsBannerReason.value,
+                                        )
+                                    : null,
                                 borderRadius: BorderRadius.circular(20),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: badgeColor.withValues(alpha: 0.3),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 10,
                                   ),
-                                ],
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (isPending)
-                                    const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                              AppColors.textPrimary,
-                                            ),
+                                  decoration: BoxDecoration(
+                                    color: badgeColor,
+                                    borderRadius: BorderRadius.circular(20),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: badgeColor.withValues(alpha: 0.3),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
                                       ),
-                                    )
-                                  else
-                                    Icon(
-                                      icon,
-                                      color: AppColors.textPrimary,
-                                      size: 18,
-                                    ),
-                                  const SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      text,
-                                      style: const TextStyle(
-                                        color: AppColors.textPrimary,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
+                                    ],
                                   ),
-                                ],
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (isPending)
+                                        const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                  AppColors.textPrimary,
+                                                ),
+                                          ),
+                                        )
+                                      else
+                                        Icon(
+                                          icon,
+                                          color: AppColors.textPrimary,
+                                          size: 18,
+                                        ),
+                                      const SizedBox(width: 8),
+                                      Flexible(
+                                        child: Text(
+                                          text,
+                                          style: const TextStyle(
+                                            color: AppColors.textPrimary,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+                                      if (!isPending) ...[
+                                        const SizedBox(width: 6),
+                                        const Icon(
+                                          Icons.chevron_right_rounded,
+                                          color: AppColors.textPrimary,
+                                          size: 16,
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -261,6 +284,123 @@ class ChannelBannerWidget extends StatelessWidget {
         ),
       ),
     );
+  }
 
+  void _showBannerModerationDetailDialog(
+    BuildContext context, {
+    required String status,
+    required String reason,
+  }) {
+    final title =
+        status == 'REJECTED' ? 'Banner Rejected' : 'Banner Review Needed';
+    final cleanReason = reason.isNotEmpty
+        ? reason
+        : 'The uploaded banner image did not meet community guidelines.';
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => Dialog(
+        backgroundColor: ytSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: (status == 'REJECTED'
+                              ? const Color(0xFFEF4444)
+                              : const Color(0xFFF59E0B))
+                          .withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      status == 'REJECTED'
+                          ? Icons.error_outline_rounded
+                          : Icons.warning_amber_rounded,
+                      color: status == 'REJECTED'
+                          ? const Color(0xFFEF4444)
+                          : const Color(0xFFF59E0B),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: ytTextPrimary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                cleanReason,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: ytTextSecondary,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogCtx).pop(),
+                    child: const Text(
+                      'Dismiss',
+                      style: TextStyle(
+                        color: ytTextSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(dialogCtx).pop();
+                      controller.requestManualReview(
+                        channelId: channel.channelId,
+                        isBanner: true,
+                        reason: cleanReason,
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ytTextPrimary,
+                      foregroundColor: ytBackground,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                    ),
+                    child: const Text(
+                      'Request Review',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

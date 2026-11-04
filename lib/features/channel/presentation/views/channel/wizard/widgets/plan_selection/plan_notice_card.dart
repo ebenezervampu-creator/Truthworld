@@ -38,7 +38,7 @@ class PlanNoticeCard extends StatelessWidget {
           const SizedBox(width: 10),
           const Expanded(
             child: Text(
-              'Note: You can upgrade or switch between Standard and Custom plans anytime from Settings. All plan upgrades and tier changes take effect on your next monthly billing date (next month).',
+              'Note: You can upgrade or switch between Standard and Pro plans anytime from Settings. All plan upgrades and tier changes take effect on your next monthly billing date (next month).',
               style: TextStyle(
                 fontFamily: TWTypography.uiFamily,
                 fontSize: 11,

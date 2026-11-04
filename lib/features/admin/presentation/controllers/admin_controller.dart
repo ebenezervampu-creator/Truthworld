@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin/admin_components.dart';
+import 'package:truthworld/features/admin/presentation/controllers/moderation/admin_entity_moderation_service.dart';
 import 'package:truthworld/features/admin/presentation/controllers/mixins/admin_analytics_mixin.dart';
 import 'package:truthworld/features/admin/presentation/controllers/mixins/admin_audit_log_mixin.dart';
 import 'package:truthworld/features/admin/presentation/controllers/mixins/admin_auth_team_mixin.dart';
@@ -49,6 +52,18 @@ class AdminController extends BaseController
   // Real-time audit logs collection
   final RxList<Map<String, dynamic>> auditLogs = <Map<String, dynamic>>[].obs;
 
+  // Channel Economics & Spendings State (Super Admin Only)
+  final Rxn<Map<String, dynamic>> channelEconomics = Rxn<Map<String, dynamic>>();
+  final RxBool isLoadingChannelEconomics = false.obs;
+
+  bool get isSuperAdmin => AdminRolesConfig.isSuperAdmin(
+        isAdmin: isAdmin.value,
+        isPrimaryOwner: isPrimaryOwner,
+        currentAdminEmail: currentAdminEmail.value,
+        currentAdminRole: currentAdminRole.value,
+        currentAdminRoles: currentAdminRoles,
+      );
+
   @override
   void clearSelectedItems() {
     selectedVideo.value = null;
@@ -57,6 +72,7 @@ class AdminController extends BaseController
     selectedReport.value = null;
     selectedTopic.value = null;
     selectedAd.value = null;
+    channelEconomics.value = null;
   }
 
   @override
@@ -90,6 +106,17 @@ class AdminController extends BaseController
     _restoreAdminSession();
     _listenToAdminMembers();
     _ensureDefaultAdminSeeded();
+
+    ever(selectedChannel, (ch) {
+      if (ch != null) {
+        final id = (ch['id'] ?? ch['channelId'] ?? '').toString();
+        if (id.isNotEmpty) {
+          fetchChannelEconomics(id);
+        }
+      } else {
+        channelEconomics.value = null;
+      }
+    });
 
     final user = FirebaseAuth.instance.currentUser;
     final email = user?.email?.toLowerCase();
@@ -192,16 +219,184 @@ class AdminController extends BaseController
   }
 
   /// Applies incoming route parameters/arguments to select the target moderation queue or tab.
-  void applyRouteTargetIfPresent() {
-    final tabArg = Get.arguments is Map ? Get.arguments['tab'] as String? : null;
+  void applyRouteTargetIfPresent([dynamic tabOverride, Map<String, dynamic>? extraArgs]) {
+    final tabArg = extraArgs?['tab'] ?? (Get.arguments is Map ? Get.arguments['tab'] : null);
     final tabParam = Get.parameters['tab'];
-    final tab = tabArg ?? tabParam;
-    if (tab != null && tab.isNotEmpty) {
-      final cleanTab = tab.toLowerCase().trim();
-      if (isTabAllowed(cleanTab)) {
+    final tab = tabOverride ?? tabArg ?? tabParam;
+    if (tab != null && tab.toString().isNotEmpty) {
+      final cleanTab = tab.toString().toLowerCase().trim();
+      if (!isAdmin.value || isTabAllowed(cleanTab)) {
         currentTab.value = cleanTab;
       }
     }
+
+    final vId = (extraArgs?['videoId'] as String?) ??
+        (Get.arguments is Map ? Get.arguments['videoId'] as String? : null) ??
+        Get.parameters['videoId'];
+    if (vId != null && vId.isNotEmpty) {
+      final v = videos.firstWhereOrNull((item) => (item['id'] ?? item['videoId']) == vId);
+      if (v != null) {
+        selectedVideo.value = v;
+      }
+    }
+
+    final chId = (extraArgs?['channelId'] as String?) ??
+        (Get.arguments is Map ? Get.arguments['channelId'] as String? : null) ??
+        Get.parameters['channelId'];
+    if (chId != null && chId.isNotEmpty) {
+      final c = channels.firstWhereOrNull((item) => (item['id'] ?? item['channelId']) == chId);
+      if (c != null) {
+        selectedChannel.value = c;
+      }
+    }
+
+    final tId = (extraArgs?['topicId'] as String?) ??
+        (Get.arguments is Map ? Get.arguments['topicId'] as String? : null) ??
+        Get.parameters['topicId'];
+    if (tId != null && tId.isNotEmpty) {
+      final t = topics.firstWhereOrNull((item) => (item['id'] ?? item['topicId'] ?? item['slug']) == tId);
+      if (t != null) {
+        selectedTopic.value = t;
+      }
+    }
+
+    final rId = (extraArgs?['reportId'] as String?) ??
+        (Get.arguments is Map ? Get.arguments['reportId'] as String? : null) ??
+        Get.parameters['reportId'];
+    if (rId != null && rId.isNotEmpty) {
+      final r = reports.firstWhereOrNull((item) => (item['id'] ?? item['reportId']) == rId);
+      if (r != null) {
+        selectedReport.value = r;
+      }
+    }
+  }
+
+  /// Authoritatively fetches and caches channel spendings & revenue analytics (Super Admin only).
+  Future<void> fetchChannelEconomics(String channelId) async {
+    if (!isSuperAdmin || channelId.isEmpty) {
+      channelEconomics.value = null;
+      return;
+    }
+
+    final channelMap = selectedChannel.value;
+    if (channelMap != null) {
+      // Build immediate local optimistic snapshot for 0ms lag
+      final adsINR = (channelMap['adsRevenueTotal'] as num?)?.toDouble() ?? 0.0;
+      final premiumINR = (channelMap['premiumSubsRevenueTotal'] as num?)?.toDouble() ?? 0.0;
+      final membershipsINR = ((channelMap['membershipRevenueTotal'] ?? channelMap['membershipsRevenueTotal']) as num?)?.toDouble() ?? 0.0;
+      final superchatsINR = (channelMap['superchatRevenueTotal'] as num?)?.toDouble() ?? 0.0;
+      final grossINR = adsINR + premiumINR + membershipsINR + superchatsINR;
+      final grossUSD = grossINR / 84.0;
+      final isCustom = (channelMap['channelType'] ?? '').toString().toLowerCase() == 'custom' ||
+          (channelMap['channelType'] ?? '').toString().toLowerCase() == 'pro';
+      final infraConfig = channelMap['infraConfig'] is Map ? (channelMap['infraConfig'] as Map) : null;
+      final flatFee = (infraConfig?['flatPlatformFee'] as num?)?.toDouble() ?? 15.0;
+      final platformCutUSD = isCustom ? flatFee : (grossUSD * 0.30);
+      final platformCutINR = isCustom ? (platformCutUSD * 84.0) : (grossINR * 0.30);
+      final currentMonthInfra = (infraConfig?['currentMonthInfraCost'] as num?)?.toDouble() ?? 0.0;
+
+      channelEconomics.value = {
+        'channelId': channelId,
+        'channelName': channelMap['name'] ?? channelMap['channelName'] ?? 'Truthworld Channel',
+        'channelType': channelMap['channelType'] ?? 'standard',
+        'revenue': {
+          'grossINR': grossINR,
+          'grossUSD': grossUSD,
+          'creatorShareINR': isCustom ? grossINR : (grossINR * 0.70),
+          'creatorShareUSD': isCustom ? grossUSD : (grossUSD * 0.70),
+          'platformShareINR': platformCutINR,
+          'platformShareUSD': platformCutUSD,
+          'breakdown': {
+            'adsINR': adsINR,
+            'premiumINR': premiumINR,
+            'membershipsINR': membershipsINR,
+            'superchatsINR': superchatsINR,
+          },
+          'payouts': {
+            'walletBalanceUSD': (channelMap['walletBalanceUSD'] as num?)?.toDouble() ?? 0.0,
+            'clearedWithdrawableINR': (channelMap['clearedWithdrawableRevenueTotal'] as num?)?.toDouble() ?? (grossINR - ((channelMap['withdrawnRevenueTotal'] as num?)?.toDouble() ?? 0.0)).clamp(0.0, double.infinity),
+            'pendingINR': (channelMap['pendingRevenueTotal'] as num?)?.toDouble() ?? 0.0,
+            'withdrawnINR': (channelMap['withdrawnRevenueTotal'] as num?)?.toDouble() ?? 0.0,
+          },
+        },
+        'spendings': {
+          'totalInfraUSD': currentMonthInfra,
+          'totalInfraINR': currentMonthInfra * 84.0,
+          'currentMonthInfraCostUSD': currentMonthInfra,
+          'breakdown': {
+            'geminiAI': 0.0,
+            'cdnEgress': 0.0,
+            'transcription': 0.0,
+            'translationDubbing': 0.0,
+            'mediaTranscoding': 0.0,
+            'compute': 0.0,
+            'firestoreOps': 0.0,
+          },
+          'creatorWalletSpendUSD': 0.0,
+        },
+        'economics': {
+          'netPlatformContributionUSD': platformCutUSD - currentMonthInfra,
+          'netPlatformContributionINR': platformCutINR - (currentMonthInfra * 84.0),
+          'marginPercent': platformCutUSD > 0 ? (((platformCutUSD - currentMonthInfra) / platformCutUSD) * 100) : 0.0,
+          'isProfitable': (platformCutUSD - currentMonthInfra) >= 0,
+        },
+        'transactions': <Map<String, dynamic>>[],
+      };
+    }
+
+    isLoadingChannelEconomics.value = true;
+    try {
+      final callable = FirebaseFunctions.instanceFor(region: 'asia-south1').httpsCallable('getChannelSpendingsAndRevenue');
+      final result = await callable.call<dynamic>({'channelId': channelId});
+      if (result.data is Map) {
+        channelEconomics.value = Map<String, dynamic>.from(result.data as Map);
+      }
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'AdminController.fetchChannelEconomics');
+    } finally {
+      isLoadingChannelEconomics.value = false;
+    }
+  }
+
+  /// Updates AI Feature discounts (Dubbing & Subtitles) for a specific channel.
+  /// Strictly restricted to Super Admin only.
+  Future<bool> updateChannelAiDiscounts({
+    required String channelId,
+    required String dubbingDiscountType,
+    required double dubbingDiscountPercent,
+    required String subtitlesDiscountType,
+    required double subtitlesDiscountPercent,
+  }) async {
+    if (!isSuperAdmin) {
+      AppSnackbar.warning('Access Denied: Only Super Admins can configure channel discounts.');
+      return false;
+    }
+    return AdminEntityModerationService.updateChannelAiDiscounts(
+      channelId: channelId,
+      dubbingDiscountType: dubbingDiscountType,
+      dubbingDiscountPercent: dubbingDiscountPercent,
+      subtitlesDiscountType: subtitlesDiscountType,
+      subtitlesDiscountPercent: subtitlesDiscountPercent,
+      channels: channels,
+      selectedChannel: selectedChannel,
+      isActionSubmitting: isActionSubmitting,
+      logAdminAction: ({
+        required String action,
+        required String targetType,
+        required String targetId,
+        required String reason,
+        Map<String, dynamic>? metadata,
+      }) =>
+          logAdminAction(
+        action: action,
+        targetId: targetId,
+        reason: reason,
+        extra: {
+          'targetType': targetType,
+          if (metadata != null) ...metadata,
+        },
+      ),
+    );
   }
 
   /// Checks whether a given tab ID is allowed for the currently logged in administrator

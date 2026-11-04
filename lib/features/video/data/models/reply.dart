@@ -18,7 +18,9 @@ class Reply {
     required this.reportCount,
     required this.createdAt,
     this.channelName,
+    this.channelHandle,
     this.channelProfilePicUrl,
+    this.isChannel,
     this.isLikedByCurrentUser = false,
     this.isDislikedByCurrentUser = false,
     this.isMember = false,
@@ -45,6 +47,20 @@ class Reply {
         }
       }
       return '';
+    }();
+
+    final channelHandle = () {
+      final candidates = [
+        data['channelHandle'],
+        data['handle'],
+      ];
+      for (final item in candidates) {
+        if (item is String && item.trim().isNotEmpty) {
+          final t = item.trim();
+          return t.startsWith('@') ? t : '@$t';
+        }
+      }
+      return null;
     }();
 
     final channelProfilePicUrl = () {
@@ -77,7 +93,9 @@ class Reply {
       userProfilePicUrl: userProfilePicUrl,
       channelId: data['channelId'] ?? data['userId'] ?? '',
       channelName: data['channelName'],
+      channelHandle: channelHandle,
       channelProfilePicUrl: channelProfilePicUrl,
+      isChannel: data['isChannel'] as bool?,
       text: ContentValidator.cleanProfanity(data['text'] ?? ''),
       likeCount: data['likeCount'] ?? 0,
       dislikeCount: data['dislikeCount'] ?? 0,
@@ -104,7 +122,9 @@ class Reply {
   final String userProfilePicUrl;
   final String channelId; // Channel that replied (if applicable)
   final String? channelName; // Channel name (if replied as channel)
+  final String? channelHandle; // Channel handle (e.g. @truthworld)
   final String? channelProfilePicUrl; // Channel avatar
+  final bool? isChannel;
   final String text;
   final int likeCount;
   final int dislikeCount;
@@ -126,31 +146,61 @@ class Reply {
     return ChannelLoyaltyBadge.milestoneFromJoinedAt(memberSince?.toDate());
   }
 
+  /// Whether this reply was authored by a channel rather than a personal user profile.
+  bool get isChannelAuthor {
+    if (isChannel == true) return true;
+    if (channelHandle != null && channelHandle!.trim().isNotEmpty) return true;
+    if (channelProfilePicUrl != null && channelProfilePicUrl!.trim().isNotEmpty) return true;
+    if (channelName != null && channelName!.trim().isNotEmpty && channelName != userName) return true;
+    if (channelId.isNotEmpty && ChannelMemoryCache.get(channelId) != null) return true;
+    return false;
+  }
+
   String get displayName {
-    // Truthworld: User handles are removed. Comments by users display username only.
-    // Handles are only available for channels.
-    if (userName.isNotEmpty) {
-      return userName.startsWith('@') ? userName.substring(1) : userName;
+    // For every channel use only channel handle.
+    // For every user use their profile name.
+    if (isChannelAuthor) {
+      final handle = () {
+        if (channelHandle != null && channelHandle!.trim().isNotEmpty) {
+          return channelHandle!.trim();
+        }
+        if (channelId.isNotEmpty) {
+          final cached = ChannelMemoryCache.get(channelId);
+          if (cached != null && cached.handle.trim().isNotEmpty) {
+            return cached.handle.trim();
+          }
+        }
+        if (channelName != null && channelName!.trim().isNotEmpty) {
+          return channelName!.trim();
+        }
+        return 'channel';
+      }();
+      return handle.startsWith('@') ? handle : '@$handle';
     }
-    if (channelName != null && channelName!.isNotEmpty) {
-      if (channelId.isNotEmpty && channelId != userId) {
-        return channelName!.startsWith('@') ? channelName! : '@$channelName';
-      }
-      return channelName!.startsWith('@') ? channelName!.substring(1) : channelName!;
+
+    if (userName.trim().isNotEmpty) {
+      final name = userName.trim();
+      return name.startsWith('@') ? name.substring(1) : name;
     }
     return 'User';
   }
 
   String get avatarUrl {
-    if (channelProfilePicUrl != null && channelProfilePicUrl!.isNotEmpty) {
-      return channelProfilePicUrl!;
-    }
-    if (channelId.isNotEmpty) {
-      final cachedChannel = ChannelMemoryCache.get(channelId);
-      if (cachedChannel != null && cachedChannel.avatarUrl.isNotEmpty) {
-        return cachedChannel.avatarUrl;
+    // For every channel use only channel avatar.
+    // For every user use their profile avatar.
+    if (isChannelAuthor) {
+      if (channelProfilePicUrl != null && channelProfilePicUrl!.trim().isNotEmpty) {
+        return channelProfilePicUrl!.trim();
       }
+      if (channelId.isNotEmpty) {
+        final cachedChannel = ChannelMemoryCache.get(channelId);
+        if (cachedChannel != null && cachedChannel.avatarUrl.trim().isNotEmpty) {
+          return cachedChannel.avatarUrl.trim();
+        }
+      }
+      return userProfilePicUrl;
     }
+
     return userProfilePicUrl;
   }
 
@@ -166,7 +216,9 @@ class Reply {
       'userAvatarUrl': userProfilePicUrl,
       'channelId': channelId,
       'channelName': channelName,
+      'channelHandle': channelHandle ?? (isChannelAuthor ? displayName : null),
       'channelProfilePicUrl': channelProfilePicUrl,
+      'isChannel': isChannelAuthor,
       'avatarUrl': avatarUrl,
       'text': text,
       'likeCount': likeCount,
@@ -189,7 +241,9 @@ class Reply {
     String? userProfilePicUrl,
     String? channelId,
     String? channelName,
+    String? channelHandle,
     String? channelProfilePicUrl,
+    bool? isChannel,
     String? text,
     int? likeCount,
     int? dislikeCount,
@@ -210,7 +264,9 @@ class Reply {
       userProfilePicUrl: userProfilePicUrl ?? this.userProfilePicUrl,
       channelId: channelId ?? this.channelId,
       channelName: channelName ?? this.channelName,
+      channelHandle: channelHandle ?? this.channelHandle,
       channelProfilePicUrl: channelProfilePicUrl ?? this.channelProfilePicUrl,
+      isChannel: isChannel ?? this.isChannel,
       text: text ?? this.text,
       likeCount: likeCount ?? this.likeCount,
       dislikeCount: dislikeCount ?? this.dislikeCount,

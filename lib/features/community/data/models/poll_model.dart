@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 /// Poll types supported for community posts.
 enum PollType { yesNo, multiChoice }
 
@@ -10,12 +12,28 @@ class PollOption {
     this.voterIds = const [],
   });
 
-  factory PollOption.fromMap(Map<String, dynamic> map) => PollOption(
-    id: map['id'] ?? '',
-    text: map['text'] ?? '',
-    voteCount: map['voteCount'] ?? 0,
-    voterIds: List<String>.from(map['voterIds'] ?? []),
-  );
+  factory PollOption.fromMap(Map<String, dynamic> map, [int fallbackIndex = 0]) {
+    final rawId = (map['id'] ?? map['optionId'] ?? '').toString().trim();
+    final rawVoters = map['voterIds'] ?? map['voters'];
+    final votersList = <String>[];
+    if (rawVoters is List) {
+      votersList.addAll(rawVoters.map((e) => e?.toString() ?? '').where((s) => s.isNotEmpty));
+    }
+
+    final parsedCount = () {
+      final val = map['voteCount'] ?? map['votes'] ?? map['count'];
+      if (val is num) return val.toInt();
+      if (val is String) return int.tryParse(val) ?? 0;
+      return votersList.length;
+    }();
+
+    return PollOption(
+      id: rawId.isNotEmpty ? rawId : 'opt_$fallbackIndex',
+      text: (map['text'] ?? map['option'] ?? '').toString().trim(),
+      voteCount: parsedCount,
+      voterIds: votersList,
+    );
+  }
   final String id;
   final String text;
   final int voteCount;
@@ -25,6 +43,7 @@ class PollOption {
     'id': id,
     'text': text,
     'voteCount': voteCount,
+    'votes': voteCount,
     'voterIds': voterIds,
   };
 
@@ -66,22 +85,39 @@ class PollModel {
         expiresAt: expiresAt,
       );
 
-  factory PollModel.fromMap(Map<String, dynamic> map) => PollModel(
-    question: map['question'] ?? '',
-    type: PollType.values.firstWhere(
-      (t) => t.name == map['type'],
-      orElse: () => PollType.yesNo,
-    ),
-    options:
-        (map['options'] as List<dynamic>?)
-            ?.map((o) => PollOption.fromMap(Map<String, dynamic>.from(o)))
-            .toList() ??
-        [],
-    expiresAt: map['expiresAt'] != null
-        ? DateTime.tryParse(map['expiresAt'])
-        : null,
-    isClosed: map['isClosed'] ?? false,
-  );
+  factory PollModel.fromMap(Map<String, dynamic> map) {
+    DateTime? parseDate(dynamic val) {
+      if (val == null) return null;
+      if (val is Timestamp) return val.toDate();
+      if (val is DateTime) return val;
+      if (val is int) return DateTime.fromMillisecondsSinceEpoch(val);
+      if (val is String) return DateTime.tryParse(val);
+      return null;
+    }
+
+    final rawOptions = map['options'] as List<dynamic>? ?? [];
+    final optionsList = <PollOption>[];
+    for (var i = 0; i < rawOptions.length; i++) {
+      final item = rawOptions[i];
+      if (item is Map) {
+        optionsList.add(PollOption.fromMap(Map<String, dynamic>.from(item), i));
+      } else if (item is String) {
+        optionsList.add(PollOption(id: 'opt_$i', text: item));
+      }
+    }
+
+    return PollModel(
+      question: (map['question'] ?? '').toString().trim(),
+      type: PollType.values.firstWhere(
+        (t) => t.name == map['type'],
+        orElse: () => PollType.yesNo,
+      ),
+      options: optionsList,
+      expiresAt: parseDate(map['expiresAt']),
+      isClosed: map['isClosed'] == true,
+    );
+  }
+
   final String question;
   final PollType type;
   final List<PollOption> options;
@@ -91,11 +127,29 @@ class PollModel {
   /// Total votes across all options.
   int get totalVotes => options.fold(0, (sum, o) => sum + o.voteCount);
 
+  /// Whether the poll is expired or closed.
+  bool get isExpired => isClosed || (expiresAt != null && DateTime.now().isAfter(expiresAt!));
+
+  /// Checks if a user has cast a vote.
+  bool hasVoted(String? uid) {
+    if (uid == null || uid.isEmpty) return false;
+    return options.any((o) => o.voterIds.contains(uid));
+  }
+
+  /// Returns the ID of the option voted for by [uid], if any.
+  String? selectedOptionId(String? uid) {
+    if (uid == null || uid.isEmpty) return null;
+    for (final opt in options) {
+      if (opt.voterIds.contains(uid)) return opt.id;
+    }
+    return null;
+  }
+
   Map<String, dynamic> toMap() => {
     'question': question,
     'type': type.name,
     'options': options.map((o) => o.toMap()).toList(),
-    if (expiresAt != null) 'expiresAt': expiresAt!.toIso8601String(),
+    if (expiresAt != null) 'expiresAt': Timestamp.fromDate(expiresAt!),
     'isClosed': isClosed,
   };
 

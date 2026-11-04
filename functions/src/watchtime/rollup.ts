@@ -57,7 +57,8 @@ export const rollupDailyStats = onSchedule(
         const channelId = videoData.channelId ?? null;
 
         const subViews = stats.subscriberViews ?? stats.totalSubscribers ?? 0;
-        const totalV = stats.totalViews ?? 0;
+        const totalV = Number(videoData.viewCount || videoData.views || stats.totalViews || 0);
+        const totalWatchSec = Number(videoData.totalWatchTimeSeconds ?? stats.totalWatchSeconds ?? 0);
         const nonSubViews = stats.nonSubscriberViews ?? Math.max(0, totalV - subViews);
         const returningViewers = stats.returningViewers ?? Math.max(0, totalV - (stats.uniqueUsers ?? totalV));
         const urbanViewers = stats.urbanViewers ?? 0;
@@ -71,8 +72,8 @@ export const rollupDailyStats = onSchedule(
           dateKey: dateKeyUnderscored,
           views: totalV,
           totalViews: totalV,
-          totalWatchSeconds: stats.totalWatchSeconds ?? 0,
-          totalWatchTimeSeconds: stats.totalWatchSeconds ?? 0,
+          totalWatchSeconds: totalWatchSec,
+          totalWatchTimeSeconds: totalWatchSec,
           uniqueUsers: stats.uniqueUsers ?? 0,
           avgWatchSeconds: stats.avgWatchSeconds ?? 0,
           completionRate: stats.completionRate ?? 0,
@@ -126,7 +127,7 @@ export const rollupDailyStats = onSchedule(
             countryTraffic: {},
           };
           existing.views += totalV;
-          existing.watchSeconds += stats.totalWatchSeconds ?? 0;
+          existing.watchSeconds += totalWatchSec;
           existing.subscriberViews += subViews;
           existing.nonSubscriberViews += nonSubViews;
           existing.returningViewers += returningViewers;
@@ -153,15 +154,26 @@ export const rollupDailyStats = onSchedule(
           ops = 0;
         }
 
+        let channelWatch = acc.watchSeconds;
+        let channelViews = acc.views;
+        try {
+          const chSnap = await db.collection("channels").doc(channelId).get();
+          if (chSnap.exists) {
+            const chData = chSnap.data() ?? {};
+            channelWatch = Math.max(channelWatch, Number(chData.totalWatchTimeSeconds || 0));
+            channelViews = Math.max(channelViews, Number(chData.viewCount || chData.metrics?.totalViews || 0));
+          }
+        } catch (_) {}
+
         batch.set(
           db.collection("channels").doc(channelId).collection("dailyStats").doc(dateKeyUnderscored),
           {
             date: dateKey,
             dateKey: dateKeyUnderscored,
-            views: acc.views,
-            totalViews: acc.views,
-            totalWatchSeconds: acc.watchSeconds,
-            totalWatchTimeSeconds: acc.watchSeconds,
+            views: channelViews,
+            totalViews: channelViews,
+            totalWatchSeconds: channelWatch,
+            totalWatchTimeSeconds: channelWatch,
             subscriberViews: acc.subscriberViews,
             nonSubscriberViews: acc.nonSubscriberViews,
             returningViewers: acc.returningViewers,
@@ -182,10 +194,10 @@ export const rollupDailyStats = onSchedule(
             channelId,
             date: dateKey,
             dateKey: dateKeyUnderscored,
-            views: acc.views,
-            totalViews: acc.views,
-            totalWatchSeconds: acc.watchSeconds,
-            totalWatchTimeSeconds: acc.watchSeconds,
+            views: channelViews,
+            totalViews: channelViews,
+            totalWatchSeconds: channelWatch,
+            totalWatchTimeSeconds: channelWatch,
             subscriberViews: acc.subscriberViews,
             nonSubscriberViews: acc.nonSubscriberViews,
             returningViewers: acc.returningViewers,

@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
@@ -11,6 +13,7 @@ import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
 import 'package:truthworld/features/video/data/models/video_media.dart';
+import 'package:truthworld/features/video/data/services/storyboard_service.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 
 /// Professional Chapters Management Controller
@@ -232,6 +235,11 @@ class ChaptersController extends BaseController with ContentValidationMixin {
   }
 
   Future<void> selectVideo(Video? video) async {
+    if (video != null &&
+        selectedVideo.value?.id == video.id &&
+        !hasUnsavedChanges.value) {
+      return;
+    }
     selectedVideo.value = video;
     hasUnsavedChanges.value = false;
     if (video == null) {
@@ -294,7 +302,18 @@ class ChaptersController extends BaseController with ContentValidationMixin {
           animatedPreviewUrl: video.animatedPreviewUrl,
         );
       } else if (enabled && currentChapters.isEmpty) {
-        currentChapters.value = List<VideoChapter>.from(updatedVideo.chapters);
+        final enriched = updatedVideo.chapters.map((c) {
+          if (c.thumbnailUrl == null || c.thumbnailUrl!.isEmpty) {
+            final autoThumb = resolveChapterThumbnail(updatedVideo, c.startTime);
+            return VideoChapter(
+              title: c.title,
+              startTime: c.startTime,
+              thumbnailUrl: autoThumb,
+            );
+          }
+          return c;
+        }).toList();
+        currentChapters.value = enriched;
       }
 
       selectedVideo.refresh();
@@ -314,7 +333,109 @@ class ChaptersController extends BaseController with ContentValidationMixin {
     }
   }
 
-  bool addChapter(String title, Duration startTime) {
+  /// Captures an authentic broadcast-grade HD frame (640x360 qHD / 1280x720 HD)
+  /// directly from the video file via Cloud Functions, with resilient local fallback.
+  Future<String?> captureHighQualityChapterFrame({
+    required String videoId,
+    required Duration startTime,
+  }) async {
+    try {
+      final callable = FirebaseFunctions.instanceFor(region: 'asia-south1')
+          .httpsCallable('captureChapterThumbnail');
+      final result = await callable.call<Map<String, dynamic>>({
+        'videoId': videoId,
+        'timestampMs': startTime.inMilliseconds,
+        'width': 640,
+        'height': 360,
+      });
+
+      final data = result.data;
+      final thumbUrl = data['thumbnailUrl'] as String?;
+      if (thumbUrl != null && thumbUrl.isNotEmpty) {
+        return thumbUrl;
+      }
+    } catch (e, stack) {
+      logger.warning(
+        'Cloud frame capture fallback to local track',
+        error: e,
+        stackTrace: stack,
+        tag: _tag,
+      );
+    }
+
+    final video = selectedVideo.value;
+    if (video != null) {
+      return resolveChapterThumbnail(video, startTime);
+    }
+    return null;
+  }
+
+  /// Resolves an automatic frame thumbnail for a chapter at [startTime] from
+  /// the video's high-density thumbnail variants or storyboard track.
+  String? resolveChapterThumbnail(Video video, Duration startTime) {
+    final distinctVariants = video.thumbnailVariants.where((v) => v.isNotEmpty && v != video.thumbnailUrl).toList();
+    if (distinctVariants.isNotEmpty && video.durationValue > Duration.zero) {
+      final ratio = (startTime.inMilliseconds / video.durationValue.inMilliseconds).clamp(0.0, 1.0);
+      final index = (ratio * (distinctVariants.length - 1)).round().clamp(0, distinctVariants.length - 1);
+      return distinctVariants[index];
+    }
+    final track = StoryboardService.generateHighDensityTrack(
+      totalDuration: video.durationValue,
+      multiSheetUrls: video.storyboardVariants,
+      singleSheetUrl: video.storyboardUrl,
+      thumbnailVariants: distinctVariants,
+    );
+    if (track.isNotEmpty) {
+      final cue = track.getCueAt(startTime);
+      if (cue != null && cue.imageUrl.isNotEmpty && cue.imageUrl != video.thumbnailUrl) {
+        return cue.imageUrl;
+      }
+    }
+    return null;
+  }
+
+  /// Uploads a custom chapter thumbnail image to Firebase Storage and returns its download URL.
+  Future<String?> uploadChapterThumbnail({
+    required String videoId,
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    try {
+      final currentUid = _auth.currentUser?.uid;
+      final extension = fileName.split('.').last.toLowerCase();
+      final mimeType = (extension == 'png') ? 'image/png' : 'image/jpeg';
+      final path = 'thumbnails/$videoId/chapters/${DateTime.now().millisecondsSinceEpoch}_chapter.$extension';
+
+      final ref = FirebaseStorage.instance.ref().child(path);
+      final metadata = SettableMetadata(
+        contentType: mimeType,
+        customMetadata: {
+          'uploaderId': currentUid ?? '',
+          'videoId': videoId,
+        },
+      );
+
+      final uploadTask = ref.putData(bytes, metadata);
+      final snapshot = await uploadTask;
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+      return downloadUrl;
+    } catch (e, stack) {
+      logger.error(
+        'Failed to upload chapter thumbnail',
+        error: e,
+        stackTrace: stack,
+        tag: _tag,
+      );
+      showError('Unable to upload chapter thumbnail. Please check your connection.');
+      return null;
+    }
+  }
+
+  bool addChapter(
+    String title,
+    Duration startTime, {
+    String? thumbnailUrl,
+  }) {
     if (startTime < Duration.zero) {
       showError('Chapter timestamp cannot be negative.');
       return false;
@@ -330,7 +451,15 @@ class ChaptersController extends BaseController with ContentValidationMixin {
       }
     }
 
-    final newChapter = VideoChapter(title: title, startTime: startTime);
+    final resolvedThumb = (thumbnailUrl != null && thumbnailUrl.isNotEmpty)
+        ? thumbnailUrl
+        : (video != null ? resolveChapterThumbnail(video, startTime) : null);
+
+    final newChapter = VideoChapter(
+      title: title,
+      startTime: startTime,
+      thumbnailUrl: resolvedThumb,
+    );
 
     // Check if start time is already in use
     final duplicateIndex = currentChapters.indexWhere(
@@ -350,7 +479,13 @@ class ChaptersController extends BaseController with ContentValidationMixin {
     return true;
   }
 
-  bool updateChapter(int index, {String? title, Duration? startTime}) {
+  bool updateChapter(
+    int index, {
+    String? title,
+    Duration? startTime,
+    String? thumbnailUrl,
+    bool clearThumbnail = false,
+  }) {
     if (index < 0 || index >= currentChapters.length) return false;
 
     if (startTime != null) {
@@ -371,10 +506,19 @@ class ChaptersController extends BaseController with ContentValidationMixin {
     }
 
     final oldChapter = currentChapters[index];
+    final String? resolvedThumb;
+    if (clearThumbnail) {
+      resolvedThumb = null;
+    } else if (thumbnailUrl != null) {
+      resolvedThumb = thumbnailUrl;
+    } else {
+      resolvedThumb = oldChapter.thumbnailUrl;
+    }
+
     final updated = VideoChapter(
       title: title ?? oldChapter.title,
       startTime: startTime ?? oldChapter.startTime,
-      thumbnailUrl: oldChapter.thumbnailUrl,
+      thumbnailUrl: resolvedThumb,
     );
 
     currentChapters[index] = updated;
@@ -460,6 +604,7 @@ class ChaptersController extends BaseController with ContentValidationMixin {
 
       // Force reactive notification
       selectedVideo.refresh();
+      _applyFilters();
 
       hasUnsavedChanges.value = false;
       showSuccess('Video chapters saved successfully!');
@@ -514,7 +659,12 @@ class ChaptersController extends BaseController with ContentValidationMixin {
         if (title.isEmpty) {
           title = 'Chapter ${parsedChapters.length + 1}';
         }
-        parsedChapters.add(VideoChapter(title: title, startTime: duration));
+        final autoThumb = video != null ? resolveChapterThumbnail(video, duration) : null;
+        parsedChapters.add(VideoChapter(
+          title: title,
+          startTime: duration,
+          thumbnailUrl: autoThumb,
+        ));
       }
     }
 
@@ -576,8 +726,17 @@ class ChaptersController extends BaseController with ContentValidationMixin {
       );
 
       if (parsedChapters.isNotEmpty) {
+        final enriched = parsedChapters.map((pc) {
+          final autoThumb = resolveChapterThumbnail(video, pc.startTime);
+          return VideoChapter(
+            title: pc.title,
+            startTime: pc.startTime,
+            thumbnailUrl: autoThumb,
+          );
+        }).toList();
+
         final existingMap = {for (final c in currentChapters) c.startTime: c};
-        for (final pc in parsedChapters) {
+        for (final pc in enriched) {
           existingMap[pc.startTime] = pc;
         }
 

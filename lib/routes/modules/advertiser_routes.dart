@@ -4,6 +4,7 @@ import 'package:truthworld/features/advertiser/presentation/bindings/advertiser_
 import 'package:truthworld/features/advertiser/presentation/views/advertiser_portal_screen.dart'
     deferred as advertiser_portal;
 import 'package:truthworld/routes/app_routes.dart';
+import 'package:truthworld/routes/app_transitions.dart';
 
 /// Advertiser portal and campaign management routes.
 class AdvertiserRoutes {
@@ -13,6 +14,9 @@ class AdvertiserRoutes {
     GetPage(
       name: AppRoutes.advertiser,
       binding: AdvertiserBinding(),
+      transition: AppTransitions.peer,
+      transitionDuration: AppTransitions.peerDuration,
+      curve: AppTransitions.peerCurve,
       page: () => DeferredWidget(
         loader: advertiser_portal.loadLibrary,
         builder: () => advertiser_portal.AdvertiserPortalScreen(),
@@ -21,6 +25,9 @@ class AdvertiserRoutes {
     GetPage(
       name: AppRoutes.advertisements,
       binding: AdvertiserBinding(),
+      transition: AppTransitions.peer,
+      transitionDuration: AppTransitions.peerDuration,
+      curve: AppTransitions.peerCurve,
       page: () => DeferredWidget(
         loader: advertiser_portal.loadLibrary,
         builder: () => advertiser_portal.AdvertiserPortalScreen(),
@@ -29,6 +36,9 @@ class AdvertiserRoutes {
     GetPage(
       name: AppRoutes.ads,
       binding: AdvertiserBinding(),
+      transition: AppTransitions.peer,
+      transitionDuration: AppTransitions.peerDuration,
+      curve: AppTransitions.peerCurve,
       page: () => DeferredWidget(
         loader: advertiser_portal.loadLibrary,
         builder: () => advertiser_portal.AdvertiserPortalScreen(),

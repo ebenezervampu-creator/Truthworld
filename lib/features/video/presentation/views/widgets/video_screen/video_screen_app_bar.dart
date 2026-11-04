@@ -21,7 +21,18 @@ class ResponsiveVideoAppBar extends StatelessWidget
         return const SizedBox.shrink();
       }
       final bar = appBarBuilder();
-      return bar ?? const SizedBox.shrink();
+      if (bar == null) return const SizedBox.shrink();
+      return GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onVerticalDragStart: controller.onDragDownStart,
+        onVerticalDragUpdate: (d) => controller.onDragDownDelta(d.delta.dy),
+        onVerticalDragEnd: (d) => controller.onDragDownEnd(
+          d.primaryVelocity,
+          MediaQuery.sizeOf(context).height,
+        ),
+        onVerticalDragCancel: controller.onDragDownCancel,
+        child: bar,
+      );
     });
   }
 

@@ -50,7 +50,7 @@ void main() {
 
     tearDown(Get.reset);
 
-    Channel createTestChannel({bool hasMemberships = false}) {
+    Channel createTestChannel({bool hasMemberships = false, bool isMonetized = true}) {
       return Channel(
         id: 'test_ch_1',
         name: 'Truth Channel',
@@ -66,6 +66,7 @@ void main() {
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
         hasMemberships: hasMemberships,
+        isMonetized: isMonetized,
       );
     }
 
@@ -118,6 +119,29 @@ void main() {
 
       // Join button should be present
       expect(find.text('Join'), findsOneWidget);
+    });
+
+    testWidgets('Join button is HIDDEN when channel has memberships but is NOT monetized', (tester) async {
+      final channel = createTestChannel(hasMemberships: true, isMonetized: false);
+      testController.selectedChannel.value = channel;
+      testController.hasChannelMemberships.value = true;
+      testController.isChannelMember.value = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ChannelHeaderWidget(
+              channel: channel,
+              controller: testController,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Subscribe'), findsOneWidget);
+      expect(find.text('Join'), findsNothing);
+      expect(find.text('Joined'), findsNothing);
     });
 
     testWidgets('Joined button IS SHOWN when user is an active member even if hasMemberships is currently false', (tester) async {

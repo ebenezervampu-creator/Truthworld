@@ -1,3 +1,4 @@
+import { isCallableAdmin } from "../utils/auth";
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
@@ -78,7 +79,7 @@ export const spendChannelWallet = onCall(
 
         const channelData = channelSnap.data() || {};
         const isOwner = channelData.ownerId === uid || channelData.userId === uid;
-        const isAdmin = request.auth?.token?.admin === true;
+        const isAdmin = isCallableAdmin(request.auth);
 
         if (!isOwner && !isAdmin) {
           throw new HttpsError(
@@ -153,48 +154,91 @@ export const spendChannelWallet = onCall(
           channelUpdates.withdrawnRevenueTotal = admin.firestore.FieldValue.increment(revenueDeductedINR);
         }
 
-        // ── 4. ATOMIC QUOTA & PLAN UPGRADES (SERVER ENFORCED) ──
+        // ── 4. ATOMIC QUOTA & PLAN UPGRADES (SERVER ENFORCED & COST VERIFIED) ──
         if (category === "storageTopup") {
-          const addBytes = Number(metadata?.bytes) || (Number(metadata?.gigabytes) || 0) * 1024 * 1024 * 1024;
-          if (addBytes > 0) {
-            channelUpdates["infraConfig.storageQuotaBytes"] = admin.firestore.FieldValue.increment(addBytes);
+          const STORAGE_PACK_COSTS: Record<string, { gb: number; costUSD: number }> = {
+            storage_25gb: { gb: 25, costUSD: 2.50 },
+            storage_50gb: { gb: 50, costUSD: 5.00 },
+            storage_100gb: { gb: 100, costUSD: 10.00 },
+            storage_500gb: { gb: 500, costUSD: 50.00 },
+          };
+          const packId = String(metadata?.packId || "");
+          let allowedGB = 0;
+          if (packId && STORAGE_PACK_COSTS[packId]) {
+            const pack = STORAGE_PACK_COSTS[packId];
+            if (spendAmount < pack.costUSD) {
+              throw new HttpsError(
+                "invalid-argument",
+                `Storage pack ${packId} requires $${pack.costUSD.toFixed(2)}, but spendAmount was $${spendAmount.toFixed(2)}.`
+              );
+            }
+            allowedGB = pack.gb;
+          } else {
+            // Standard rate: $0.10 per GB
+            allowedGB = Math.floor(spendAmount / 0.10);
           }
+
+          if (allowedGB <= 0) {
+            throw new HttpsError("invalid-argument", "Spend amount insufficient to purchase storage quota ($0.10/GB minimum).");
+          }
+          const addBytes = allowedGB * 1024 * 1024 * 1024;
+          channelUpdates["infraConfig.storageQuotaBytes"] = admin.firestore.FieldValue.increment(addBytes);
         } else if (category === "bandwidthTopup") {
-          const addBytes = Number(metadata?.bytes) || (Number(metadata?.gigabytes) || 0) * 1024 * 1024 * 1024;
-          if (addBytes > 0) {
-            channelUpdates["infraConfig.bandwidthQuotaBytesThisMonth"] = admin.firestore.FieldValue.increment(addBytes);
+          const BANDWIDTH_PACK_COSTS: Record<string, { gb: number; costUSD: number }> = {
+            bandwidth_100gb: { gb: 100, costUSD: 5.00 },
+            bandwidth_250gb: { gb: 250, costUSD: 12.50 },
+            bandwidth_500gb: { gb: 500, costUSD: 25.00 },
+            bandwidth_1tb: { gb: 1000, costUSD: 50.00 },
+          };
+          const packId = String(metadata?.packId || "");
+          let allowedGB = 0;
+          if (packId && BANDWIDTH_PACK_COSTS[packId]) {
+            const pack = BANDWIDTH_PACK_COSTS[packId];
+            if (spendAmount < pack.costUSD) {
+              throw new HttpsError(
+                "invalid-argument",
+                `Bandwidth pack ${packId} requires $${pack.costUSD.toFixed(2)}, but spendAmount was $${spendAmount.toFixed(2)}.`
+              );
+            }
+            allowedGB = pack.gb;
+          } else {
+            // Standard rate: $0.05 per GB
+            allowedGB = Math.floor(spendAmount / 0.05);
           }
+
+          if (allowedGB <= 0) {
+            throw new HttpsError("invalid-argument", "Spend amount insufficient to purchase bandwidth quota ($0.05/GB minimum).");
+          }
+          const addBytes = allowedGB * 1024 * 1024 * 1024;
+          channelUpdates["infraConfig.bandwidthQuotaBytesThisMonth"] = admin.firestore.FieldValue.increment(addBytes);
         } else if (category === "customChannelPlan") {
+          const PLAN_TIER_CONFIG: Record<string, { fee: number; storageGB: number; bandwidthGB: number }> = {
+            starter_15: { fee: 15.0, storageGB: 50, bandwidthGB: 250 },
+            growth_30: { fee: 30.0, storageGB: 100, bandwidthGB: 500 },
+            pro_45: { fee: 45.0, storageGB: 150, bandwidthGB: 750 },
+            scale_100: { fee: 100.0, storageGB: 400, bandwidthGB: 1600 },
+            premier_200: { fee: 200.0, storageGB: 800, bandwidthGB: 3200 },
+          };
           const planTier = String(metadata?.planTier || "starter_15");
-          const autoPay = metadata?.autoPay !== false;
-          let storageGB = 50;
-          let bandwidthGB = 250;
-          let fee = spendAmount;
+          const planConfig = PLAN_TIER_CONFIG[planTier] || PLAN_TIER_CONFIG["starter_15"];
 
-          if (planTier === "growth_30") {
-            storageGB = 100;
-            bandwidthGB = 500;
-            fee = 30.0;
-          } else if (planTier === "pro_45") {
-            storageGB = 150;
-            bandwidthGB = 750;
-            fee = 45.0;
-          } else if (planTier === "scale_100") {
-            storageGB = 400;
-            bandwidthGB = 1600;
-            fee = 100.0;
-          } else if (planTier === "premier_200") {
-            storageGB = 800;
-            bandwidthGB = 3200;
-            fee = 200.0;
+          // Enforce that spendAmount strictly covers the plan tier platform fee
+          if (spendAmount < planConfig.fee) {
+            throw new HttpsError(
+              "invalid-argument",
+              `Pro channel plan ${planTier} requires a platform fee of $${planConfig.fee.toFixed(2)}, but spendAmount was $${spendAmount.toFixed(2)}.`
+            );
           }
 
+          const autoPay = metadata?.autoPay !== false;
           channelUpdates.channelType = "custom";
           channelUpdates["infraConfig.planTier"] = planTier;
-          channelUpdates["infraConfig.flatPlatformFee"] = fee;
+          channelUpdates["infraConfig.flatPlatformFee"] = planConfig.fee;
           channelUpdates["infraConfig.autoPay"] = autoPay;
-          channelUpdates["infraConfig.storageQuotaBytes"] = storageGB * 1024 * 1024 * 1024;
-          channelUpdates["infraConfig.bandwidthQuotaBytesThisMonth"] = bandwidthGB * 1024 * 1024 * 1024;
+          channelUpdates["infraConfig.planStatus"] = "active";
+          channelUpdates["infraConfig.lastBilledAt"] = admin.firestore.FieldValue.serverTimestamp();
+          channelUpdates["infraConfig.storageQuotaBytes"] = planConfig.storageGB * 1024 * 1024 * 1024;
+          channelUpdates["infraConfig.bandwidthQuotaBytesThisMonth"] = planConfig.bandwidthGB * 1024 * 1024 * 1024;
           channelUpdates["infraConfig.isWithdrawalHeld"] = false;
           channelUpdates["infraConfig.withdrawalHoldReason"] = "";
         }
@@ -239,7 +283,7 @@ export const spendChannelWallet = onCall(
         throw err;
       }
       logger.error(`[SpendWallet] Error executing atomic transaction for channel ${channelId}:`, err);
-      throw new HttpsError("internal", err?.message || "Failed to process wallet transaction.");
+      throw new HttpsError("internal", "Unable to process wallet transaction. Please try again later.");
     }
   }
 );

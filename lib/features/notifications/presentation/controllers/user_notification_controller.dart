@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 
@@ -18,9 +19,20 @@ class UserNotificationController extends BaseController {
   RxString selectedTypeFilter = 'all'.obs;
   RxString searchQuery = ''.obs;
   RxBool isSearching = false.obs;
+  final RxString currentChannelId = ''.obs;
 
   StreamSubscription<List<UserNotification>>? _subscription;
   String _currentUserId = '';
+
+  void setChannelId(String chId) {
+    if (currentChannelId.value != chId) {
+      currentChannelId.value = chId;
+      final uid = userId;
+      if (uid.isNotEmpty && uid != 'guest_user') {
+        _listenToCloudNotifications();
+      }
+    }
+  }
 
   String get userId {
     if (_currentUserId.isNotEmpty) return _currentUserId;
@@ -98,12 +110,13 @@ class UserNotificationController extends BaseController {
     // Track subscription for automatic cleanup in BaseController.onClose()
     _subscription = trackSubscription(
       _service
-          .getNotificationsStream(uid, limit: 100)
+          .getNotificationsStream(
+            uid,
+            channelId: currentChannelId.value.isNotEmpty ? currentChannelId.value : null,
+          )
           .listen(
             (list) {
-              notifications.value = list
-                  .where((n) => n.isConsumerNotification && !n.isStudioNotification)
-                  .toList();
+              notifications.value = list;
               rxIsLoading.value = false;
             },
             onError: (e, stackTrace) {
@@ -124,9 +137,7 @@ class UserNotificationController extends BaseController {
   Future<void> _fetchFromCloudFunction() async {
     try {
       final list = await _service.fetchNotificationsViaCallable(limit: 100);
-      notifications.value = list
-          .where((n) => n.isConsumerNotification && !n.isStudioNotification)
-          .toList();
+      notifications.value = list;
     } catch (e, s) {
       ErrorHandler.log(
         e,
@@ -159,21 +170,40 @@ class UserNotificationController extends BaseController {
     // Optimistic update first
     final index = notifications.indexWhere((n) => n.id == notificationId);
     if (index != -1) {
-      notifications[index].read = true;
+      notifications[index] = notifications[index].copyWith(
+        read: true,
+        status: NotificationLifecycle.read,
+      );
       notifications.refresh();
     }
-    await _service.markAsRead(notificationId);
+    await _service.markAsRead(notificationId, userId: userId);
+  }
+
+  Future<void> deleteNotification(String notificationId) async {
+    notifications.removeWhere((n) => n.id == notificationId);
+    notifications.refresh();
+    await _service.deleteNotification(notificationId, userId: userId);
   }
 
   Future<void> markAllAsRead() async {
-    final unreadIds = notifications
+    final List<UserNotification> list;
+    if (AppFlavor.isStudio) {
+      list = studioNotifications;
+    } else if (AppFlavor.isAdvertiser) {
+      list = advertiserNotifications;
+    } else if (AppFlavor.isAdmin) {
+      list = adminNotifications;
+    } else {
+      list = consumerNotifications;
+    }
+    final unreadIds = list
         .where((n) => !n.read)
         .map((n) => n.id)
         .toList();
     if (unreadIds.isEmpty) return;
 
     // Optimistic update
-    for (final n in notifications) {
+    for (final n in list) {
       n.read = true;
     }
     notifications.refresh();
@@ -188,10 +218,20 @@ class UserNotificationController extends BaseController {
     _listenToCloudNotifications();
   }
 
+  List<UserNotification> get consumerNotifications =>
+      notifications.where((n) => n.isConsumerNotification).toList();
+
+  List<UserNotification> get studioNotifications =>
+      notifications.where((n) => n.isStudioNotification).toList();
+
+  List<UserNotification> get advertiserNotifications =>
+      notifications.where((n) => n.isAdvertiserNotification).toList();
+
+  List<UserNotification> get adminNotifications =>
+      notifications.where((n) => n.isAdminNotification).toList();
+
   List<UserNotification> get filteredNotifications {
-    var filtered = notifications
-        .where((n) => n.isConsumerNotification && !n.isStudioNotification)
-        .toList();
+    var filtered = notifications.toList();
 
     // Search filter
     if (searchQuery.isNotEmpty) {
@@ -223,7 +263,16 @@ class UserNotificationController extends BaseController {
     return filtered;
   }
 
-  int get unreadCount => notifications
-      .where((n) => !n.read && n.isConsumerNotification && !n.isStudioNotification)
-      .length;
+  int get unreadCount {
+    if (AppFlavor.isStudio) {
+      return notifications.where((n) => !n.read && n.isStudioNotification).length;
+    }
+    if (AppFlavor.isAdvertiser) {
+      return notifications.where((n) => !n.read && n.isAdvertiserNotification).length;
+    }
+    if (AppFlavor.isAdmin) {
+      return notifications.where((n) => !n.read && n.isAdminNotification).length;
+    }
+    return notifications.where((n) => !n.read && n.isConsumerNotification).length;
+  }
 }

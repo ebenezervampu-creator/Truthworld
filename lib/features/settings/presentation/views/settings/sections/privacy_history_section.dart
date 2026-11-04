@@ -6,6 +6,7 @@ import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/features/settings/presentation/views/settings/watch_history_settings_view.dart';
 import 'package:truthworld/features/settings/presentation/views/settings/widgets/settings_section_card.dart';
+import 'package:truthworld/features/watchhistory/presentation/controllers/watch_history_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class PrivacyHistorySection extends StatelessWidget {
@@ -35,7 +36,14 @@ class PrivacyHistorySection extends StatelessWidget {
         style: TextStyle(fontSize: 13, color: context.colors.textSecondary),
       ),
       trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
-      onTap: () => Get.to(() => const WatchHistorySettingsView()),
+      onTap: () => Get.to(
+        () => const WatchHistorySettingsView(),
+        binding: BindingsBuilder(() {
+          if (!Get.isRegistered<WatchHistoryController>()) {
+            Get.lazyPut<WatchHistoryController>(WatchHistoryController.new, fenix: true);
+          }
+        }),
+      ),
     );
   }
 
@@ -112,6 +120,15 @@ class PrivacyHistorySection extends StatelessWidget {
             ),
           ],
         ),
+        actions: [
+          TextButton(
+            onPressed: Get.back,
+            child: const Text(
+              'Close',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -175,13 +192,21 @@ class PrivacyHistorySection extends StatelessWidget {
                       decoration: const InputDecoration(
                         hintText: 'Mute keyword...',
                       ),
+                      onSubmitted: (val) {
+                        final trimmed = val.trim();
+                        if (trimmed.isNotEmpty) {
+                          ctrl.addMutedKeyword(trimmed);
+                          keywordCtrl.clear();
+                        }
+                      },
                     ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.add, color: AppColors.textPrimary),
                     onPressed: () {
-                      if (keywordCtrl.text.isNotEmpty) {
-                        ctrl.addMutedKeyword(keywordCtrl.text);
+                      final trimmed = keywordCtrl.text.trim();
+                      if (trimmed.isNotEmpty) {
+                        ctrl.addMutedKeyword(trimmed);
                         keywordCtrl.clear();
                       }
                     },
@@ -196,6 +221,7 @@ class PrivacyHistorySection extends StatelessWidget {
                       .map(
                         (kw) => Chip(
                           backgroundColor: context.colors.surfaceContainerHigh,
+                          deleteIconColor: Colors.white70,
                           label: Text(
                             kw,
                             style: const TextStyle(
@@ -238,6 +264,13 @@ class PrivacyHistorySection extends StatelessWidget {
                       decoration: const InputDecoration(
                         hintText: 'Block user handle...',
                       ),
+                      onSubmitted: (val) {
+                        final trimmed = val.trim();
+                        if (trimmed.isNotEmpty) {
+                          ctrl.blockUser(trimmed);
+                          blockUserCtrl.clear();
+                        }
+                      },
                     ),
                   ),
                   IconButton(
@@ -246,8 +279,9 @@ class PrivacyHistorySection extends StatelessWidget {
                       color: AppColors.textPrimary,
                     ),
                     onPressed: () {
-                      if (blockUserCtrl.text.isNotEmpty) {
-                        ctrl.blockUser(blockUserCtrl.text);
+                      final trimmed = blockUserCtrl.text.trim();
+                      if (trimmed.isNotEmpty) {
+                        ctrl.blockUser(trimmed);
                         blockUserCtrl.clear();
                       }
                     },
@@ -262,6 +296,7 @@ class PrivacyHistorySection extends StatelessWidget {
                       .map(
                         (user) => Chip(
                           backgroundColor: context.colors.surfaceContainerHigh,
+                          deleteIconColor: Colors.white70,
                           label: Text(
                             user,
                             style: const TextStyle(

@@ -45,6 +45,9 @@ class StudioLauncher {
       await launchUrl(webUri, mode: LaunchMode.externalApplication);
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'StudioLauncher.downloadStudioApp');
+      AppSnackbar.error(
+        'Unable to open the download page. Please try again later.',
+      );
     }
   }
 
@@ -88,6 +91,9 @@ class StudioLauncher {
       );
     } catch (e, s) {
       ErrorHandler.log(e, stackTrace: s, tag: 'StudioLauncher.openStudio');
+      AppSnackbar.error(
+        'Unable to open Truthworld Studio. Please check your connection and try again.',
+      );
     }
   }
 }

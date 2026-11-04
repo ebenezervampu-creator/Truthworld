@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/app_categories.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/algorithm/diversity_config.dart';
 import 'package:truthworld/core/services/algorithm/feed_algorithm_service.dart';
@@ -9,6 +10,7 @@ import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/core/services/algorithm/scored_video.dart';
 import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
+import 'package:truthworld/core/services/user_preferences_service.dart';
 import 'package:truthworld/core/services/video_sanitizer.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
@@ -102,6 +104,15 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
         if (candidates.isNotEmpty) {
           // YouTube-style backfill:
           // First prefer personalized videos (candidates).
+          final seenCandidateIds = <String>{};
+          final uniqueCandidates = <Video>[];
+          for (final v in candidates) {
+            if (v.id.isNotEmpty && seenCandidateIds.add(v.id)) {
+              uniqueCandidates.add(v);
+            }
+          }
+          candidates = uniqueCandidates;
+
           // If candidates count is lower than HomeFeedControllerBase.pageSize (low video count or content crisis),
           // query remaining available public videos from TruthWorld catalog in Firestore and append them.
           if (candidates.length < HomeFeedControllerBase.pageSize) {
@@ -113,9 +124,8 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
               limit: remainingNeeded + existingIds.length,
             );
             for (final v in backfillVideos) {
-              if (!existingIds.contains(v.id)) {
+              if (v.id.isNotEmpty && existingIds.add(v.id)) {
                 candidates.add(v);
-                existingIds.add(v.id);
                 if (candidates.length >= HomeFeedControllerBase.pageSize) break;
               }
             }
@@ -130,9 +140,23 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
               RecommendationSurface.homeFeedAll,
               diversityConfig: DiversityConfig.homeFeed,
             );
-            videos.assignAll(ranked.map((s) => s.video).toList());
+            final rankedVideos = <Video>[];
+            final seenRanked = <String>{};
+            for (final s in ranked) {
+              if (s.video.id.isNotEmpty && seenRanked.add(s.video.id)) {
+                rankedVideos.add(s.video);
+              }
+            }
+            videos.assignAll(rankedVideos.isNotEmpty ? rankedVideos : candidates);
           } else {
-            videos.assignAll(candidates);
+            final dedupedCandidates = <Video>[];
+            final seenFinal = <String>{};
+            for (final v in candidates) {
+              if (v.id.isNotEmpty && seenFinal.add(v.id)) {
+                dedupedCandidates.add(v);
+              }
+            }
+            videos.assignAll(dedupedCandidates);
           }
 
           saveVideosToCache('All');
@@ -271,10 +295,23 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
                   RecommendationSurface.homeFeedAll,
                   diversityConfig: DiversityConfig.homeFeed,
                 );
-          final rankedVideos = ranked.map((s) => s.video).toList();
+          final rankedVideos = <Video>[];
+          final seenRanked = <String>{};
+          for (final s in ranked) {
+            if (s.video.id.isNotEmpty && seenRanked.add(s.video.id)) {
+              rankedVideos.add(s.video);
+            }
+          }
           videos.assignAll(rankedVideos.isNotEmpty ? rankedVideos : rawVideos);
         } else {
-          videos.assignAll(rawVideos);
+          final uniqueRaw = <Video>[];
+          final seenRaw = <String>{};
+          for (final v in rawVideos) {
+            if (v.id.isNotEmpty && seenRaw.add(v.id)) {
+              uniqueRaw.add(v);
+            }
+          }
+          videos.assignAll(uniqueRaw);
         }
 
         saveVideosToCache('All');
@@ -283,10 +320,12 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
         }
       } else {
         // Fallback: If strict sanitizeForFeed filtered out every doc, ensure playable public videos are displayed
+        final seenPlayable = <String>{};
         final playableVideos = docsList
             .map(Video.fromDocumentSnapshot)
             .where((v) =>
                 v.id.isNotEmpty &&
+                seenPlayable.add(v.id) &&
                 !v.isDraft &&
                 v.status != VideoStatus.deleted &&
                 v.status != VideoStatus.rejected &&
@@ -385,6 +424,30 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
       }
     }
 
+    // 3b. Try normalized canonical category name if different
+    final normalizedCat = AppCategories.normalizeCategory(cat);
+    if (candidateDocs.isEmpty &&
+        normalizedCat != cat &&
+        normalizedCat.toLowerCase() != cat.toLowerCase()) {
+      try {
+        final snap = await firestore
+            .collection('videos')
+            .where('category', isEqualTo: normalizedCat)
+            .limit(HomeFeedControllerBase.pageSize)
+            .getCacheFirst();
+        if (snap.docs.isNotEmpty) {
+          candidateDocs.addAll(snap.docs);
+          lastDocument = snap.docs.last;
+        }
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'HomeFeedController._fetchCategoryTabVideos.normalized',
+        );
+      }
+    }
+
     // 4. Try tags matching category
     if (candidateDocs.isEmpty) {
       try {
@@ -443,11 +506,17 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
     }
 
     final uniqueVideos = <String, Video>{};
+    final userPrefs = Get.isRegistered<UserPreferencesService>()
+        ? UserPreferencesService.to
+        : null;
+
     for (final doc in candidateDocs) {
       try {
         final v = Video.fromDocumentSnapshot(doc);
         if (matchesCategory(v, cat) && VideoVisibilityPolicy.isVisibleForFeed(v)) {
-          uniqueVideos[v.id] = v;
+          if (userPrefs == null || !userPrefs.isVideoBlocked(v)) {
+            uniqueVideos[v.id] = v;
+          }
         }
       } catch (e, stackTrace) {
         ErrorHandler.log(
@@ -458,65 +527,7 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
       }
     }
 
-    final catVideos = uniqueVideos.values.toList();
-    var finalVideos = catVideos;
-
-    // Fallback: If no videos matched this particular category/topics/tags,
-    // never return 0 videos: fall back to any other available public videos
-    if (finalVideos.isEmpty && candidateDocs.isNotEmpty) {
-      final fallbackList = <Video>[];
-      for (final doc in candidateDocs) {
-        try {
-          final v = Video.fromDocumentSnapshot(doc);
-          if (VideoVisibilityPolicy.isVisibleForFeed(v)) {
-            fallbackList.add(v);
-          }
-        } catch (_) {}
-      }
-      if (fallbackList.isNotEmpty) {
-        finalVideos = fallbackList;
-      }
-    }
-
-    // YouTube-style backfill for category tabs:
-    // First prefer category-specific videos (finalVideos).
-    // If count is lower than HomeFeedControllerBase.pageSize, backfill remaining slots from TruthWorld catalog
-    // so category tabs never face a low video count or content crisis.
-    if (finalVideos.length < HomeFeedControllerBase.pageSize) {
-      final existingIds = finalVideos.map((v) => v.id).toSet();
-      for (final doc in candidateDocs) {
-        if (finalVideos.length >= HomeFeedControllerBase.pageSize) break;
-        if (!existingIds.contains(doc.id)) {
-          try {
-            final v = Video.fromDocumentSnapshot(doc);
-            if (VideoVisibilityPolicy.isVisibleForFeed(v)) {
-              finalVideos.add(v);
-              existingIds.add(v.id);
-            }
-          } catch (_) {}
-        }
-      }
-      final feedAlgorithmService = Get.isRegistered<FeedAlgorithmService>()
-          ? Get.find<FeedAlgorithmService>()
-          : null;
-      if (finalVideos.length < HomeFeedControllerBase.pageSize &&
-          feedAlgorithmService != null) {
-        try {
-          final remainingNeeded =
-              HomeFeedControllerBase.pageSize - finalVideos.length;
-          final moreVideos = await feedAlgorithmService.getAnyFallbackVideos(
-            limit: remainingNeeded + existingIds.length,
-          );
-          for (final v in moreVideos) {
-            if (!existingIds.contains(v.id)) {
-              finalVideos.add(v);
-              existingIds.add(v.id);
-              if (finalVideos.length >= HomeFeedControllerBase.pageSize) break;
-            }
-          }
-        } catch (_) {}
-      }
-    }
+    final finalVideos = uniqueVideos.values.toList();
 
     if (finalVideos.isNotEmpty) {
       finalVideos.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -527,20 +538,31 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
           finalVideos,
           RecommendationSurface.homeFeedCategory,
         );
-        final rankedList = ranked.map((s) => s.video).toList();
+        final rankedList = <Video>[];
+        final seenRanked = <String>{};
+        for (final s in ranked) {
+          if (s.video.id.isNotEmpty && seenRanked.add(s.video.id)) {
+            rankedList.add(s.video);
+          }
+        }
         videos.assignAll(rankedList.isNotEmpty ? rankedList : finalVideos);
       } else {
-        videos.assignAll(finalVideos);
+        final uniqueCategory = <Video>[];
+        final seenCategory = <String>{};
+        for (final v in finalVideos) {
+          if (v.id.isNotEmpty && seenCategory.add(v.id)) {
+            uniqueCategory.add(v);
+          }
+        }
+        videos.assignAll(uniqueCategory);
       }
 
       saveVideosToCache(cat);
       rxHasMore.value = finalVideos.length >= HomeFeedControllerBase.pageSize;
     } else {
-      if (videos.isEmpty) {
-        videos.clear();
-        rxHasMore.value = false;
-        feedCacheManager.invalidateCategory(cat, userId: currentUserId);
-      }
+      videos.clear();
+      rxHasMore.value = false;
+      feedCacheManager.invalidateCategory(cat, userId: currentUserId);
     }
 
     try {
@@ -557,8 +579,14 @@ mixin HomeFeedCategoryTabsMixin on HomeFeedControllerBase {
               .map(Topic.fromDocumentSnapshot)
               .where((t) => t.isValidTopic && t.videoCount > 0)
               .toList();
-          if (catTopics.isNotEmpty) {
-            discoveryCtrl.featuredTopics.assignAll(catTopics);
+          final userPrefs = Get.isRegistered<UserPreferencesService>()
+              ? UserPreferencesService.to
+              : null;
+          final unhiddenCatTopics = userPrefs != null
+              ? userPrefs.filterTopics(catTopics)
+              : catTopics;
+          if (unhiddenCatTopics.isNotEmpty) {
+            discoveryCtrl.featuredTopics.assignAll(unhiddenCatTopics);
           } else {
             discoveryCtrl.featuredTopics.clear();
           }

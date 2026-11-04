@@ -36,7 +36,7 @@ void main() {
       );
 
       // Verify prefix AI sparkle icon
-      expect(find.byIcon(Icons.auto_awesome_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.filter_list_rounded), findsOneWidget);
 
       // Verify mobile-optimized concise hint
       expect(find.text('Ask AI or explore topics...'), findsOneWidget);
@@ -71,7 +71,7 @@ void main() {
       );
 
       // Verify prefix icon
-      expect(find.byIcon(Icons.auto_awesome_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.filter_list_rounded), findsOneWidget);
     });
 
     testWidgets('Renders category detail search bar with category title and search icon',

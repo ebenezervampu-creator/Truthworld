@@ -30,7 +30,7 @@
  *   - Timeout protection with graceful degradation
  */
 
-import type { VertexAI } from "@google-cloud/vertexai";
+import type { VertexAI } from "../utils/ai-client";
 import { z } from "zod";
 import { PIPELINE_CONFIG } from "../config";
 import { getVertexAI } from "../utils/ai-client";
@@ -139,6 +139,7 @@ Before anything else, identify the PRIMARY language being spoken in the audio tr
 
 - Set "detectedLanguage" in your JSON output to the ISO 639-1 code of the primary spoken language (e.g. "en" for English, "hi" for Hindi, "te" for Telugu, "es" for Spanish, "fr" for French, "zh" for Chinese, etc.)
 - If multiple languages are spoken, identify the DOMINANT one (by time spoken).
+- CODE-MIXING & BILINGUAL CONTENT (CRITICAL): If the creator speaks a regional Indian language (e.g. Telugu 'te', Hindi 'hi', Tamil 'ta', Kannada 'kn', etc.) but incorporates English words, loanwords, technical terms, numbers, or introductory sentences (e.g. '10 Facts about India', 'This is our first video', 'Fact no. 3', 'Chandrayaan', 'September 2009'): Identify the PRIMARY language as the regional language (e.g. 'te' for Telugu, 'hi' for Hindi). DO NOT classify as 'en' merely because English phrases, loanwords, or introductory sentences are present.
 - If the video is SILENT or contains only music/sound effects with no speech, set detectedLanguage to "en".
 - TruthWorld welcomes all languages and supports auto-subtitles and AI dubbing in 100+ languages. Proceed directly to STEP 1–4.
 

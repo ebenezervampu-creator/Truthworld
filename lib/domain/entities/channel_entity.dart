@@ -25,6 +25,10 @@ class ChannelEntity {
     this.showSubscriberCount = true,
     this.allowComments = true,
     this.country = 'IN',
+    this.trustedModerationBypass = false,
+    this.trustedModerationBypassSetBy,
+    this.trustedModerationBypassSetAt,
+    this.trustedModerationBypassReason,
   });
   final String id;
   final String name;
@@ -52,6 +56,10 @@ class ChannelEntity {
   final bool showSubscriberCount;
   final bool allowComments;
   final String country;
+  final bool trustedModerationBypass;
+  final String? trustedModerationBypassSetBy;
+  final DateTime? trustedModerationBypassSetAt;
+  final String? trustedModerationBypassReason;
 
   @override
   bool operator ==(Object other) =>

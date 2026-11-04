@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
@@ -36,7 +35,6 @@ class AdvertiserPortalController extends BaseController
     'Audience & Targeting',
     'Creator Sponsorships',
     'Creative Assets',
-    'A/B Testing & Optimization',
     'Brand Settings',
   ];
 
@@ -61,8 +59,8 @@ class AdvertiserPortalController extends BaseController
   }
 
   /// Applies incoming route parameters/arguments to select the target advertiser tab.
-  void applyRouteTargetIfPresent() {
-    final tabArg = Get.arguments is Map ? Get.arguments['tab'] : null;
+  void applyRouteTargetIfPresent([dynamic targetTab, String? campaignId]) {
+    final tabArg = targetTab ?? (Get.arguments is Map ? Get.arguments['tab'] : null);
     final tabParam = Get.parameters['tab'];
     final tab = tabArg ?? tabParam;
     if (tab is int && tab >= 0 && tab < tabTitles.length) {
@@ -107,14 +105,10 @@ class AdvertiserPortalController extends BaseController
         case 'assets':
         case '8':
           selectedIndex.value = 8;
-        case 'ab_testing':
-        case 'testing':
-        case '9':
-          selectedIndex.value = 9;
         case 'brand':
         case 'settings':
-        case '10':
-          selectedIndex.value = 10;
+        case '9':
+          selectedIndex.value = 9;
       }
     }
   }
@@ -183,12 +177,7 @@ class AdvertiserPortalController extends BaseController
   Future<void> handleGoogleSignIn() async {
     try {
       isSigningIn.value = true;
-      final ctx = Get.context;
-      if (ctx != null) {
-        await AuthBottomSheet.show(ctx);
-      } else {
-        await AuthService.to.signInWithGoogle();
-      }
+      await AuthService.to.signInWithGoogle();
       if (AuthService.to.isAuthenticated.value) {
         AppSnackbar.success(
           'Successfully signed into Advertiser Studio!',

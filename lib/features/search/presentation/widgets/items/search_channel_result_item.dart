@@ -34,6 +34,7 @@ class SearchChannelResultItem extends StatelessWidget {
     final cleanThumbnail = rawThumbnail.trim().replaceAll(' ', '%20');
 
     return InkWell(
+      borderRadius: BorderRadius.circular(12),
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
@@ -89,15 +90,28 @@ class SearchChannelResultItem extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    result.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Builder(
+                    builder: (context) {
+                      final isChannelTrusted = result.showVerifiedBadge ||
+                          (DeepLinkService.instance.getChannelFromCache(result.id)?.showVerifiedBadge ?? false) ||
+                          (DeepLinkService.instance.getChannelFromCache(result.channelName)?.showVerifiedBadge ?? false);
+                      return Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              result.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 4),
                   Obx(() {

@@ -43,6 +43,30 @@ extension VideoStatusExtension on Video {
     return vis == 'private' || vis == 'private_draft';
   }
 
+  /// Returns true if video visibility is set to Unlisted.
+  bool get isUnlisted {
+    final vis = visibility.trim().toLowerCase();
+    return vis == 'unlisted';
+  }
+
+  /// Returns true if video visibility is Public.
+  bool get isPublic {
+    final vis = visibility.trim().toLowerCase();
+    return vis == 'public' || vis.isEmpty;
+  }
+
+  /// Returns true if video visibility is Members Only.
+  bool get isMembersOnly {
+    final vis = visibility.trim().toLowerCase();
+    return vis == 'members_only' || vis == 'members' || vis == 'members only';
+  }
+
+  /// Returns true if video visibility is Subscribers Only.
+  bool get isSubscribersOnly {
+    final vis = visibility.trim().toLowerCase();
+    return vis == 'subscribers_only' || vis == 'subscribers' || vis == 'subscribers only';
+  }
+
   /// Returns true if video is considered a draft or in preliminary stage.
   bool get isDraft {
     if (status == VideoStatus.draft || status == VideoStatus.uploading) {

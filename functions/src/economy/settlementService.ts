@@ -1,3 +1,4 @@
+import { isCallableAdmin } from "../utils/auth";
 import * as admin from "firebase-admin";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
@@ -55,7 +56,11 @@ export async function reconcileChannelSettlement(
     }
   };
 
-  // ── 1. Reconcile Superchats (T+7 clearing hold) ──
+  // ── 1. Reconcile Superchats (T+7 clearing hold & Hybrid Model Revenue Split) ──
+  const isCustomChannel = channelData.channelType === "custom" || channelData.type === "custom" || channelData.channelType === "pro" || channelData.type === "pro";
+  const superchatRate = isCustomChannel ? 1.00 : 0.90;
+  const membershipRate = isCustomChannel ? 1.00 : 0.90;
+
   let clearedSuperchatsINR = 0;
   let pendingSuperchatsINR = 0;
 
@@ -64,6 +69,7 @@ export async function reconcileChannelSettlement(
     for (const doc of superchatsSnap.docs) {
       const data = doc.data();
       const amount = Number(data.amount || 0);
+      const creatorAmount = amount * superchatRate;
       const createdAt = data.createdAt?.toMillis?.() ?? (data.clearAt?.toMillis?.() ? data.clearAt.toMillis() - SETTLEMENT_CLEARING_MS : now);
       const isMature = (now - createdAt) >= SETTLEMENT_CLEARING_MS;
       const currentStatus = data.settlementStatus || (isMature ? "cleared" : "clearing");
@@ -74,11 +80,11 @@ export async function reconcileChannelSettlement(
           clearedAt: nowTimestamp,
         });
         batchOps++;
-        clearedSuperchatsINR += amount;
+        clearedSuperchatsINR += creatorAmount;
       } else if (currentStatus === "cleared" || isMature) {
-        clearedSuperchatsINR += amount;
+        clearedSuperchatsINR += creatorAmount;
       } else {
-        pendingSuperchatsINR += amount;
+        pendingSuperchatsINR += creatorAmount;
       }
       await commitBatchIfNeeded();
     }
@@ -86,7 +92,7 @@ export async function reconcileChannelSettlement(
     logger.warn(`[Settlement] Error reading superchats for channel ${channelId}:`, err);
   }
 
-  // ── 2. Reconcile Channel Memberships (T+7 clearing hold) ──
+  // ── 2. Reconcile Channel Memberships (T+7 clearing hold & Hybrid Model Revenue Split) ──
   let clearedMembershipsINR = 0;
   let pendingMembershipsINR = 0;
 
@@ -95,6 +101,7 @@ export async function reconcileChannelSettlement(
     for (const doc of membersSnap.docs) {
       const data = doc.data();
       const price = Number(data.price || 0);
+      const creatorPrice = price * membershipRate;
       const joinedAt = data.joinedAt?.toMillis?.() ?? (data.clearAt?.toMillis?.() ? data.clearAt.toMillis() - SETTLEMENT_CLEARING_MS : now);
       const isMature = (now - joinedAt) >= SETTLEMENT_CLEARING_MS;
       const currentStatus = data.settlementStatus || (isMature ? "cleared" : "clearing");
@@ -105,11 +112,11 @@ export async function reconcileChannelSettlement(
           clearedAt: nowTimestamp,
         });
         batchOps++;
-        clearedMembershipsINR += price;
+        clearedMembershipsINR += creatorPrice;
       } else if (currentStatus === "cleared" || isMature) {
-        clearedMembershipsINR += price;
+        clearedMembershipsINR += creatorPrice;
       } else {
-        pendingMembershipsINR += price;
+        pendingMembershipsINR += creatorPrice;
       }
       await commitBatchIfNeeded();
     }
@@ -161,8 +168,8 @@ export async function reconcileChannelSettlement(
   // ── 4. Compute Totals ──
   const lifetimeAds = Number(channelData.adsRevenueTotal || 0);
   const lifetimePrem = Number(channelData.premiumSubsRevenueTotal || 0);
-  const lifetimeSuper = Number(channelData.superchatRevenueTotal || 0);
-  const lifetimeMem = Number(channelData.membershipRevenueTotal || 0);
+  const lifetimeSuper = Number(channelData.superchatRevenueTotal || 0) * superchatRate;
+  const lifetimeMem = Number(channelData.membershipRevenueTotal || 0) * membershipRate;
   const walletUSD = Number(channelData.walletBalanceUSD || 0);
   const walletINR = walletUSD * 84.0;
   const withdrawnTotal = Number(channelData.withdrawnRevenueTotal || 0);
@@ -266,7 +273,7 @@ export const reconcileChannelSettlementCallable = onCall(
 
     const chData = channelSnap.data() || {};
     const isOwner = chData.ownerId === userId || chData.userId === userId;
-    const isAdmin = request.auth?.token?.admin === true;
+    const isAdmin = isCallableAdmin(request.auth);
 
     if (!isOwner && !isAdmin) {
       throw new HttpsError("permission-denied", "Unauthorized access to channel settlement.");
@@ -277,7 +284,7 @@ export const reconcileChannelSettlementCallable = onCall(
       return { success: true, breakdown };
     } catch (err: any) {
       logger.error(`[reconcileChannelSettlementCallable] Error for ${channelId}:`, err);
-      throw new HttpsError("internal", err?.message || "Failed to reconcile settlement.");
+      throw new HttpsError("internal", "Unable to reconcile channel settlement. Please try again later.");
     }
   }
 );

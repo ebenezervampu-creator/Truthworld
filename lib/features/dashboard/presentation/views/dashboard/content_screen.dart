@@ -31,8 +31,8 @@ class ContentScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 5,
-      initialIndex: initialIndex,
+      length: 7,
+      initialIndex: initialIndex.clamp(0, 6),
       child: ColoredBox(
         color: AppColors.bgPage,
         child: Column(
@@ -72,6 +72,8 @@ class ContentScreen extends StatelessWidget {
                 tabs: [
                   Tab(text: 'Videos', height: 46),
                   Tab(text: 'Community', height: 46),
+                  Tab(text: 'Playlists', height: 46),
+                  Tab(text: 'Topics', height: 46),
                   Tab(text: 'Drafts', height: 46),
                   Tab(text: 'Scheduled', height: 46),
                   Tab(text: 'Trash', height: 46),
@@ -88,6 +90,16 @@ class ContentScreen extends StatelessWidget {
                   ),
                   PostsTab(
                     controller: controller,
+                    searchQuery: searchQuery,
+                  ),
+                  PlaylistsTab(
+                    channelId: channelId,
+                    isDarkMode: isDarkMode,
+                    searchQuery: searchQuery,
+                  ),
+                  TopicsTab(
+                    channelId: channelId,
+                    isDarkMode: isDarkMode,
                     searchQuery: searchQuery,
                   ),
                   DraftsTab(

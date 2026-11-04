@@ -29,6 +29,7 @@ class ClipVideoListCard extends StatelessWidget {
     final thumbHeight = isCompact ? 68.0 : 90.0;
 
     return InkWell(
+      borderRadius: BorderRadius.circular(12),
       onTap: () => controller.playClip(clip),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

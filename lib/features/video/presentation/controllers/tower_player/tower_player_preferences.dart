@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Manages persistent media preferences and global subtitle typography options.
 class TowerPlayerPreferences {
@@ -83,49 +83,22 @@ class TowerPlayerPreferences {
     required double height,
     required List<Shadow> shadows,
   }) {
-    switch (fontFamily) {
-      case 'Merriweather':
-        return GoogleFonts.merriweather(
-          color: color,
-          fontSize: fontSize,
-          fontWeight: fontWeight,
-          height: height,
-          shadows: shadows,
-        );
-      case 'Roboto Mono':
-        return GoogleFonts.robotoMono(
-          color: color,
-          fontSize: fontSize,
-          fontWeight: fontWeight,
-          height: height,
-          shadows: shadows,
-        );
-      case 'Oswald':
-        return GoogleFonts.oswald(
-          color: color,
-          fontSize: fontSize,
-          fontWeight: fontWeight,
-          height: height,
-          shadows: shadows,
-        );
-      case 'Outfit':
-        return GoogleFonts.outfit(
-          color: color,
-          fontSize: fontSize,
-          fontWeight: fontWeight,
-          height: height,
-          shadows: shadows,
-        );
-      case 'Roboto':
-      default:
-        return GoogleFonts.roboto(
-          color: color,
-          fontSize: fontSize,
-          fontWeight: fontWeight,
-          height: height,
-          shadows: shadows,
-        );
-    }
+    final resolvedFamily = switch (fontFamily) {
+      'Merriweather' => 'serif',
+      'Roboto Mono' => 'monospace',
+      'Oswald' || 'Outfit' => TWTypography.brandFamily,
+      'Roboto' || _ => TWTypography.uiFamily,
+    };
+
+    return TextStyle(
+      fontFamily: resolvedFamily,
+      fontFamilyFallback: TWTypography.fallbackFamilies,
+      color: color,
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      height: height,
+      shadows: shadows,
+    );
   }
 }
 
@@ -147,48 +120,48 @@ enum AudioPlayerTheme {
       case AudioPlayerTheme.ambientGlow:
         return 'Ambient Studio Glow';
       case AudioPlayerTheme.retroVinyl:
-        return 'Retro Vinyl Turntable';
+        return 'Classic Vinyl Turntable';
       case AudioPlayerTheme.cyberSpectrum:
-        return 'Cyber Neon Spectrum';
+        return 'Studio Acoustic Spectrum';
       case AudioPlayerTheme.lyricalStage:
-        return 'Lyrical Karaoke Stage';
+        return 'Lyrical Stage';
       case AudioPlayerTheme.zenAura:
-        return 'Minimalist Zen Aura';
+        return 'Minimalist Zen Flow';
       case AudioPlayerTheme.vintageCassette:
-        return 'Vintage Cassette Tape';
+        return 'Vintage Reel-to-Reel Tape';
       case AudioPlayerTheme.analogVuMeter:
-        return 'Analog VU Needle Meters';
+        return 'Precision VU Meters';
       case AudioPlayerTheme.cosmicNebula:
-        return 'Cosmic Nebula Orbit';
+        return 'Celestial Orbit';
       case AudioPlayerTheme.holographicCd:
-        return 'Holographic CD Case';
+        return 'Prism Compact Disc';
       case AudioPlayerTheme.fluidHorizon:
-        return 'Fluid Horizon Wave';
+        return 'Fluid Horizon Waves';
     }
   }
 
   String get description {
     switch (this) {
       case AudioPlayerTheme.ambientGlow:
-        return 'Dynamic album blur backdrop with breathing halo';
+        return 'Dynamic album ambient diffusion with breathing halo';
       case AudioPlayerTheme.retroVinyl:
-        return 'Spinning 33⅓ RPM grooved disc with album sleeve';
+        return 'Audiophile grooved disc with rotating album artwork';
       case AudioPlayerTheme.cyberSpectrum:
-        return '32-band real-time spectrum equalizer';
+        return 'Precision acoustic equalizer with reflective studio bars';
       case AudioPlayerTheme.lyricalStage:
-        return 'Kinetic synchronized lyrics focus';
+        return 'Kinetic typographic presentation with frosted glass backdrop';
       case AudioPlayerTheme.zenAura:
-        return 'Harmonic radiating ripples with deep obsidian canvas';
+        return 'Tranquil harmonic acoustic ripples on velvet obsidian';
       case AudioPlayerTheme.vintageCassette:
-        return 'Dual spinning spools with tape ribbon and mixtape label';
+        return 'Analog studio master tape machine with rotating precision reels';
       case AudioPlayerTheme.analogVuMeter:
-        return 'Dual backlit analog needle meters with ballistic bouncing';
+        return 'Dual high-end dark glass analog meters with ballistic response';
       case AudioPlayerTheme.cosmicNebula:
-        return 'Planetary celestial orb with orbiting dust particles';
+        return 'Deep space void with planetary orb and orbiting stardust';
       case AudioPlayerTheme.holographicCd:
-        return 'Iridescent prism CD with frosted acrylic jewel case';
+        return 'Precision metallic mirror disc with frosted jewel case';
       case AudioPlayerTheme.fluidHorizon:
-        return 'Silky gradient ribbon wave flowing along the lower horizon';
+        return 'Silky multi-layered harmonic ribbon waves across obsidian horizon';
     }
   }
 

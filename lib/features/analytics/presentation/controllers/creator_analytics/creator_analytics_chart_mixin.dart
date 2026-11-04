@@ -25,12 +25,14 @@ mixin CreatorAnalyticsChartMixin on BaseController {
   void updateVideoChartData(VideoAnalyticsSnapshot analytics) {
     // Watchtime category chart
     final chartData = <PieChartDataModel>[];
+    // Professional, modern retention palette:
+    // Coral (<20s bounce), Warm Amber (<25%), Deep Iris (<50%), Sky Blue (<75%), Emerald Mint (100% complete)
     const colors = [
-      0xFFEF4444, // Red: < 20 seconds (bounced)
-      0xFFF97316, // Orange: < 25%
-      0xFF8B5CF6, // Purple: < 50%
-      0xFF3B82F6, // Blue: < 75%
-      0xFF22C55E, // Green: 100%
+      0xFFF43F5E, // Rose Coral: < 20 seconds (bounced)
+      0xFFF59E0B, // Warm Amber: < 25%
+      0xFF8B5CF6, // Deep Iris: < 50%
+      0xFF0EA5E9, // Sky Blue: < 75%
+      0xFF10B981, // Emerald Mint: 100%
     ];
 
     var colorIdx = 0;
@@ -141,12 +143,14 @@ mixin CreatorAnalyticsChartMixin on BaseController {
       return;
     }
 
+    // Professional, modern retention palette:
+    // Coral (<20s bounce), Warm Amber (<25%), Deep Iris (<50%), Sky Blue (<75%), Emerald Mint (100% complete)
     const colors = [
-      0xFFEF4444, // Red: < 20 seconds (bounced)
-      0xFFF97316, // Orange: < 25%
-      0xFF8B5CF6, // Purple: < 50%
-      0xFF3B82F6, // Blue: < 75%
-      0xFF22C55E, // Green: 100%
+      0xFFF43F5E, // Rose Coral: < 20 seconds (bounced)
+      0xFFF59E0B, // Warm Amber: < 25%
+      0xFF8B5CF6, // Deep Iris: < 50%
+      0xFF0EA5E9, // Sky Blue: < 75%
+      0xFF10B981, // Emerald Mint: 100%
     ];
 
     final chartData = <PieChartDataModel>[];

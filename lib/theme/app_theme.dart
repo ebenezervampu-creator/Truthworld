@@ -35,6 +35,10 @@ ThemeData buildAppTheme({DeviceState? device}) {
     scaffoldBackgroundColor: AppColors.bgPage,
     cardColor: AppColors.bgSurface,
     dividerColor: AppColors.bgDivider,
+    splashColor: Colors.white.withValues(alpha: 0.08),
+    highlightColor: Colors.transparent,
+    hoverColor: AppColors.hoverOverlay,
+    focusColor: Colors.transparent,
 
     extensions: [
       const TWColors(

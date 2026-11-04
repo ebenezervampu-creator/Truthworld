@@ -21,18 +21,23 @@ void main() {
   Video createTestVideo({
     String id = 'video_1',
     String title = 'Test Multi-Language Video',
+    String videoUrl = 'https://example.com/video.mp4',
+    String language = 'en',
+    Map<String, String>? dubbedVideos,
   }) {
     return Video(
       id: id,
       title: title,
       description: 'Test description',
-      videoUrl: 'https://example.com/video.mp4',
+      videoUrl: videoUrl,
+      language: language,
       thumbnailUrl: 'https://example.com/thumb.jpg',
       ownerId: 'user_1',
       channelId: 'test_channel_123',
       channelName: 'Test Channel',
       category: 'Tech',
       tags: const ['test'],
+      dubbedVideos: dubbedVideos,
       audioTracks: const {
         'en': 'https://example.com/en.mp3',
         'es': 'https://example.com/es.mp3',
@@ -175,6 +180,30 @@ void main() {
       await tester.tap(find.textContaining('Languages & Layers'));
       await tester.pump();
       expect(controller.activeTab.value, equals('languages'));
+    });
+
+    testWidgets('AudioTracksUnderlineTabBar renders AudioTracks and VideoTracks and switches tabs', (tester) async {
+      final controller = Get.put(AudioTracksController());
+      controller.setActiveTab('tracks');
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: Scaffold(
+            body: AudioTracksUnderlineTabBar(controller: controller),
+          ),
+        ),
+      );
+
+      expect(find.text('AudioTracks'), findsOneWidget);
+      expect(find.text('VideoTracks'), findsOneWidget);
+
+      await tester.tap(find.text('VideoTracks'));
+      await tester.pump();
+      expect(controller.activeTab.value, equals('languages'));
+
+      await tester.tap(find.text('AudioTracks'));
+      await tester.pump();
+      expect(controller.activeTab.value, equals('tracks'));
     });
 
     testWidgets('AudioTracksListSection and AudioTrackCard render audio tracks', (tester) async {
@@ -323,6 +352,98 @@ void main() {
 
       expect(find.byType(AudioTracksPage), findsOneWidget);
       expect(find.byType(AudioTracksVideoSidebar), findsOneWidget);
+    });
+
+    testWidgets('VideoTracksListSection renders available video tracks and action button', (tester) async {
+      tester.view.physicalSize = const Size(1280, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final controller = Get.put(AudioTracksController());
+      final testVideo = createTestVideo(
+        id: 'test_vid_video_tab',
+        title: 'Video Tab Test Video',
+        videoUrl: 'https://storage.googleapis.com/test_video.mp4',
+        language: 'en',
+      );
+      controller.selectedVideo.value = testVideo;
+      controller.currentVideoTracks.value = [
+        VideoTrackItem(
+          id: 'test_vid_video_tab_en_video',
+          languageCode: 'en',
+          languageName: 'English (Original)',
+          videoUrl: 'https://storage.googleapis.com/test_video.mp4',
+          isBaseTrack: true,
+          status: 'Published',
+          role: 'Original video',
+        ),
+        VideoTrackItem(
+          id: 'test_vid_video_tab_zh_video',
+          languageCode: 'zh',
+          languageName: 'Chinese (中文 / Mandarin)',
+          videoUrl: 'https://storage.googleapis.com/test_video_zh.mp4',
+          isBaseTrack: false,
+          status: 'Published',
+          role: 'Dubbed video',
+        ),
+      ];
+
+      var addVideoCalled = false;
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: Scaffold(
+            body: VideoTracksListSection(
+              video: testVideo,
+              controller: controller,
+              textColor: Colors.white,
+              textSecondaryColor: Colors.grey,
+              surfaceColor: const Color(0xFF141414),
+              borderColor: const Color(0xFF262626),
+              isDarkMode: true,
+              onAddVideoTrack: () => addVideoCalled = true,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Available Video tracks'), findsOneWidget);
+      expect(find.text('Video'), findsOneWidget);
+      expect(find.byType(AvailableVideoTrackCard), findsNWidgets(2));
+      expect(find.text('English (Original)'), findsOneWidget);
+      expect(find.text('Chinese (中文 / Mandarin)'), findsOneWidget);
+
+      await tester.tap(find.text('Video'));
+      await tester.pump();
+      expect(addVideoCalled, isTrue);
+    });
+
+    testWidgets('AudioTrackDubbingOptionsPage renders title, tiers, and tabs without errors', (tester) async {
+      final controller = Get.put(AudioTracksController());
+      final testVideo = createTestVideo(
+        id: 'test_vid_page',
+        title: 'Dubbing Options Page Test Video',
+      );
+      controller.selectedVideo.value = testVideo;
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: AudioTrackDubbingOptionsPage(
+            controller: controller,
+            initialLangCode: 'te',
+            isDarkMode: true,
+            initialMediaType: 'audio',
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Audio Track & Dubbing Options'), findsOneWidget);
+      expect(find.text('AI Voice Dubbing'), findsOneWidget);
+      expect(find.text('Direct Audio Track'), findsOneWidget);
+      expect(find.text('Audio (3 Tiers)'), findsOneWidget);
+      expect(find.text('Video (2 Tiers)'), findsOneWidget);
     });
   });
 }

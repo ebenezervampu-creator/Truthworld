@@ -7,20 +7,20 @@ import {
   AggregatedOutput,
   ExecutionPlan,
   JobData,
+  CredibilityResult,
 } from "../types";
 import { DistributionLayer } from "./04-distribution";
 import { EdgeLayer } from "./01-edge";
 import { logger } from "../utils/logger";
 import { reputationService } from "../services/reputationService";
 import { SpeakerReputationService } from "../services/speakerReputationService";
-import { CredibilityResult } from "../types";
 import { getAnalysisRepository, AnalysisRepository } from "../services/analysisRepository";
 import { normalizeLanguageCode } from "../../shared/language-normalizer";
 import { notifyUser } from "../../notifications/notifications";
 
 const db = () => admin.firestore();
 
-function getDownloadUrl(gsOrPath: string, defaultBucket?: string): string {
+export function getDownloadUrl(gsOrPath: string, defaultBucket?: string): string {
   if (!gsOrPath) return "";
   if (gsOrPath.startsWith("http://") || gsOrPath.startsWith("https://")) {
     return gsOrPath;
@@ -32,12 +32,12 @@ function getDownloadUrl(gsOrPath: string, defaultBucket?: string): string {
     bucketName = parts[0];
     filePath = parts.slice(1).join("/");
   }
+  filePath = filePath.replace(/^\/+/, "");
   return `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(filePath)}?alt=media`;
 }
 
 export class AggregationLayer {
   private readonly distribution: DistributionLayer;
-
   private readonly speakerReputation: SpeakerReputationService;
   private readonly analysisRepository: AnalysisRepository;
   
@@ -59,9 +59,10 @@ export class AggregationLayer {
     executionPlan: ExecutionPlan,
     eventId?: string
   ): Promise<AggregatedOutput | null> {
-    if (eventId) {
-      const status = await this.distribution.checkAndMarkEventId(eventId, jobId);
-      if (status === "COMPLETED" || status === "PROCESSING") return this.getFinalOutput(jobId);
+    const dedupEventId = eventId || `stage_${stageName}_${jobId}`;
+    const status = await this.distribution.checkAndMarkEventId(dedupEventId, jobId);
+    if (status === "COMPLETED" || status === "PROCESSING") {
+      return this.getFinalOutput(jobId);
     }
 
     logger.info("[Aggregation] Stage completed, evaluating truth table", { jobId, stageName });
@@ -80,13 +81,12 @@ export class AggregationLayer {
     // 🕊 Truth Table Check: Are all required stages done?
     const ready = await this.checkAllStagesReady(jobId, executionPlan);
     
-    // 🚀 NEW: Early Propagation (v8.5)
-    // Even if the job isn't terminal, propagate partial results (scores, audio)
-    // so the UI can show progress and results in real-time.
+    // 🚀 Early Propagation: Propagate partial results (scores, audio)
+    // even if the job isn't terminal so the UI can show progress and results in real-time.
     await this.propagateStageResults(jobId, stageName, userId, executionPlan);
 
     if (!ready) {
-      logger.info("[Aggregation] Job not yet terminal — waiting for other stages", { jobId });
+      logger.info("[Aggregation] Job not yet terminal — waiting for other stages", { jobId, stageName });
       return null;
     }
 
@@ -112,7 +112,7 @@ export class AggregationLayer {
    * 🧩 Truth Table Logic: 
    * Determines if the job is ready for completion based on the ExecutionPlan.
    */
-  private async checkAllStagesReady(jobId: string, plan: ExecutionPlan): Promise<boolean> {
+  public async checkAllStagesReady(jobId: string, plan: ExecutionPlan): Promise<boolean> {
     const job = await db().collection("video_jobs").doc(jobId).get();
     if (!job.exists) return false;
     const data = job.data() as JobData;
@@ -123,29 +123,32 @@ export class AggregationLayer {
     // 1. Transcription is ALWAYS required
     const transcriptionDone = isDone(stages.transcription);
 
-    // 1.5. Copyright check is required (backward compatible if stages.copyright doesn't exist)
-    const copyrightDone = !stages.copyright || isDone(stages.copyright);
+    // 1.5. Copyright check is required (if configured in stages)
+    const copyrightDone = stages.copyright ? isDone(stages.copyright) : true;
 
     // 2. TruthEngine (Path 1) is required if enabled
-    const truthEngineRequired = plan.enablePath1 || plan.enableTruthEngine;
+    const truthEngineRequired = !!(plan.enablePath1 || plan.enableTruthEngine);
     const truthEngineDone = !truthEngineRequired || isDone(stages.credibility);
 
     // 3. ReachEngine (Path 2) is required if enabled
-    const reachEngineRequired = plan.enablePath2 || plan.enableReachEngine;
+    const reachEngineRequired = !!(plan.enablePath2 || plan.enableReachEngine);
     let reachEngineDone = true;
     
     if (reachEngineRequired) {
       // Must have the base 'dubbing' stage marked as completed or skipped
       reachEngineDone = isDone(stages.dubbing);
       
-      // Also verify all individual language stages if they exist
+      // Also verify all individual language stages if they exist or were requested
       const sourceLang = normalizeLanguageCode(plan.primaryLanguage || "en");
       const targetLangs = (plan.languages || []).filter(l => normalizeLanguageCode(l) !== sourceLang);
       for (const lang of targetLangs) {
         const normLang = normalizeLanguageCode(lang);
         const transStage = stages[`translating_${normLang}`] || stages[`translating_${lang}`];
-        // Translation stage is always required for non-source languages
-        if (transStage && !isDone(transStage)) {
+        
+        if (!transStage) {
+          reachEngineDone = false;
+          break;
+        } else if (!isDone(transStage)) {
           // If translation stage has been stuck in 'running' for > 3 minutes, treat it as auto-advanced
           if (transStage.status === "running" && transStage.startedAt && Date.now() - transStage.startedAt > 3 * 60 * 1000) {
             logger.warn("[Aggregation] Translation stage stuck in running > 3m — auto-advancing", { jobId, lang, normLang });
@@ -157,7 +160,10 @@ export class AggregationLayer {
         // Dubbing stage is only required if dubbing is explicitly enabled
         if (plan.generateDubbing) {
           const dubStage = stages[`dubbing_${normLang}`] || stages[`dubbing_${lang}`];
-          if (dubStage && !isDone(dubStage)) {
+          if (!dubStage) {
+            reachEngineDone = false;
+            break;
+          } else if (!isDone(dubStage)) {
             if (dubStage.status === "running" && dubStage.startedAt && Date.now() - dubStage.startedAt > 3 * 60 * 1000) {
               logger.warn("[Aggregation] Dubbing stage stuck in running > 3m — auto-advancing", { jobId, lang, normLang });
             } else {
@@ -181,8 +187,7 @@ export class AggregationLayer {
   }
 
   /**
-   * 🚀 Final Completion Transaction
-   * Atomically flips the job to 'completed' and propagates status to linked videos.
+   * 🚀 Final Completion Transaction with Exponential Backoff Retry
    */
   private async runAggregationTransaction(
     jobId: string,
@@ -190,466 +195,577 @@ export class AggregationLayer {
     plan: ExecutionPlan,
     triggerStage: string
   ): Promise<AggregatedOutput | null> {
-    try {
-      const resultOutput = await db().runTransaction(async (transaction) => {
-        const jobRef = db().collection("video_jobs").doc(jobId);
-        const jobSnap = await transaction.get(jobRef);
-        const jobData = jobSnap.data() as JobData;
+    // 🛡 1. Check if already completed before doing any work
+    const earlyCheck = await db().collection("video_jobs").doc(jobId).get();
+    if (earlyCheck.exists && (earlyCheck.data() as JobData)?.status === "completed") {
+      logger.info("[Aggregation] Job already marked completed — returning final output", { jobId });
+      return this.getFinalOutput(jobId);
+    }
 
-        // 🛡 Idempotent Guard: Prevent duplicate terminal writes
-        if (jobData?.status === "completed") {
-          logger.info("[Aggregation] Job already completed — exiting transaction", { jobId });
-          return null;
+    // 🚀 2. Pre-fetch heavy GCS credibility result OUTSIDE the transaction
+    let preloadedCred: CredibilityResult | null = null;
+    const initialOutputs = (earlyCheck.data() as JobData)?.outputs || {};
+    if (initialOutputs.factCheckUrl && typeof initialOutputs.factCheckUrl === "string") {
+      try {
+        const bucket = admin.storage().bucket();
+        const path = initialOutputs.factCheckUrl.replace(`gs://${bucket.name}/`, "");
+        const [content] = await bucket.file(path).download();
+        preloadedCred = JSON.parse(content.toString()) as CredibilityResult;
+        logger.info("[Aggregation] Pre-fetched credibility report from Storage prior to transaction", { jobId });
+      } catch (err) {
+        logger.warn("[Aggregation] Non-fatal pre-fetch warning for credibility report", { jobId, err: String(err) });
+      }
+    }
+
+    // 🛡 3. Execute atomic transaction with retry for Firestore contention
+    let resultOutput: AggregatedOutput | null = null;
+    let lastError: any = null;
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        resultOutput = await this.executeAtomicAggregation(jobId, userId, plan, triggerStage, preloadedCred);
+        break;
+      } catch (err: any) {
+        lastError = err;
+        const errMsg = String(err?.message || err);
+        const isContention = err?.code === 10 || /contention|aborted|unavailable|resource_exhausted/i.test(errMsg);
+        if (isContention && attempt < 3) {
+          const backoff = 100 * Math.pow(2, attempt) + Math.floor(Math.random() * 50);
+          logger.warn(`[Aggregation] Transaction contention on attempt ${attempt}/3 — retrying in ${backoff}ms`, { jobId });
+          await new Promise((r) => setTimeout(r, backoff));
+        } else {
+          logger.error("[Aggregation] Transaction failed on attempt", { jobId, attempt, err: errMsg });
+          break;
         }
+      }
+    }
 
-        const transSnap = await transaction.get(db().collection("transcripts").doc(jobId));
+    if (!resultOutput && lastError) {
+      logger.error("[Aggregation] Permanent transaction failure", { jobId, err: String(lastError) });
+      // Fallback check: Did another concurrent worker successfully complete it?
+      const checkDoc = await db().collection("video_jobs").doc(jobId).get();
+      if (checkDoc.exists && (checkDoc.data() as JobData)?.status === "completed") {
+        return this.getFinalOutput(jobId);
+      }
+      return null;
+    }
 
-        // Fetch job outputs document (scale check split)
-        const jobOutputsRef = db().collection("job_outputs").doc(jobId);
-        const jobOutputsSnap = await transaction.get(jobOutputsRef);
-        const jobOutputsData = jobOutputsSnap.exists ? jobOutputsSnap.data() : {};
-        
-        // 3.5. Fetch localization artifacts (Dubbing) per language (resolving both raw and normalized codes)
-        const sourceLang = jobData.sourceLanguage || "en";
-        const uniqueLangs = Array.from(new Set([
-          ...(plan.languages || []),
-          ...((plan.languages || []).map(normalizeLanguageCode)),
-          sourceLang,
-          normalizeLanguageCode(sourceLang)
-        ])).filter(Boolean);
+    // 🚀 4. Post-Transaction Execution (Decoupled from Firestore transaction locks)
+    if (resultOutput) {
+      await this.runPostTransactionSideEffects(jobId, userId, plan, resultOutput, preloadedCred);
+    }
 
-        const [dubbingSnaps, subtitleSnaps] = await Promise.all([
-          Promise.all(uniqueLangs.map(lang => transaction.get(db().collection("dubbing_results").doc(`${jobId}_${lang}`)))),
-          Promise.all(uniqueLangs.map(lang => transaction.get(db().collection("subtitle_results").doc(`${jobId}_${lang}`))))
-        ]);
+    return resultOutput;
+  }
 
-        // 🚀 READ ALL LINKED VIDEOS UPFRONT (Firestore transaction rule: all reads before all writes)
-        const linkedVideoIds = jobData?.linkedVideoIds || [];
-        if (jobData?.videoId && !linkedVideoIds.includes(jobData.videoId)) {
-          linkedVideoIds.push(jobData.videoId);
+  /**
+   * 🔒 Atomic Firestore Transaction Execution
+   * Contains strictly transactional reads and writes (no nested transactions, no GCS downloads).
+   */
+  private async executeAtomicAggregation(
+    jobId: string,
+    userId: string,
+    plan: ExecutionPlan,
+    triggerStage: string,
+    preloadedCred: CredibilityResult | null
+  ): Promise<AggregatedOutput | null> {
+    return db().runTransaction(async (transaction) => {
+      const jobRef = db().collection("video_jobs").doc(jobId);
+      const jobSnap = await transaction.get(jobRef);
+      const jobData = jobSnap.data() as JobData;
+
+      // 🛡 Idempotent Guard: Prevent duplicate terminal writes
+      if (jobData?.status === "completed") {
+        logger.info("[Aggregation] Job already completed within transaction — exiting", { jobId });
+        return null;
+      }
+
+      const transSnap = await transaction.get(db().collection("transcripts").doc(jobId));
+
+      // Fetch job outputs document
+      const jobOutputsRef = db().collection("job_outputs").doc(jobId);
+      const jobOutputsSnap = await transaction.get(jobOutputsRef);
+      const jobOutputsData = jobOutputsSnap.exists ? jobOutputsSnap.data() : {};
+
+      // Localization artifacts (Dubbing & Subtitles) per language
+      const sourceLang = jobData?.sourceLanguage || "en";
+      const uniqueLangs = Array.from(new Set([
+        ...(plan.languages || []),
+        ...((plan.languages || []).map(normalizeLanguageCode)),
+        sourceLang,
+        normalizeLanguageCode(sourceLang)
+      ])).filter(Boolean);
+
+      const [dubbingSnaps, subtitleSnaps] = await Promise.all([
+        Promise.all(uniqueLangs.map(lang => transaction.get(db().collection("dubbing_results").doc(`${jobId}_${lang}`)))),
+        Promise.all(uniqueLangs.map(lang => transaction.get(db().collection("subtitle_results").doc(`${jobId}_${lang}`))))
+      ]);
+
+      // Read linked videos upfront (Firestore transaction rule: all reads before all writes)
+      const linkedVideoIds = jobData?.linkedVideoIds || [];
+      if (jobData?.videoId && !linkedVideoIds.includes(jobData.videoId)) {
+        linkedVideoIds.push(jobData.videoId);
+      }
+      const linkedVideoSnaps = await Promise.all(
+        linkedVideoIds.map(vid => transaction.get(db().collection("videos").doc(vid)))
+      );
+      const linkedVideoDataMap = new Map<string, FirebaseFirestore.DocumentData | undefined>();
+      linkedVideoSnaps.forEach((vSnap, idx) => {
+        if (vSnap.exists) {
+          linkedVideoDataMap.set(linkedVideoIds[idx], vSnap.data());
         }
-        const linkedVideoSnaps = await Promise.all(
-          linkedVideoIds.map(vid => transaction.get(db().collection("videos").doc(vid)))
-        );
-        const linkedVideoDataMap = new Map<string, FirebaseFirestore.DocumentData | undefined>();
-        linkedVideoSnaps.forEach((vSnap, idx) => {
-          if (vSnap.exists) {
-            linkedVideoDataMap.set(linkedVideoIds[idx], vSnap.data());
-          }
-        });
+      });
 
-        // Note: Partial results might be missing if stages were skipped
-        const trans = transSnap.exists ? transSnap.data() as any : null;
-        const jobOutputs = {
-          ...(jobData.outputs || {}),
-          ...(jobOutputsData || {})
-        };
+      const trans = transSnap.exists ? transSnap.data() as any : null;
+      const jobOutputs = {
+        ...(jobData?.outputs || {}),
+        ...(jobOutputsData || {})
+      };
 
-        // 🚀 Resolve full credibility result from GCS (Industry Standard for large payloads)
-        let cred: CredibilityResult | null = null;
-        if (jobOutputs.factCheckUrl) {
-          try {
-            const bucket = admin.storage().bucket();
-            const path = jobOutputs.factCheckUrl.replace(`gs://${bucket.name}/`, "");
-            const [content] = await bucket.file(path).download();
-            cred = JSON.parse(content.toString()) as CredibilityResult;
-            logger.info("[Aggregation] Resolved full credibility report from Storage", { jobId });
-          } catch (err) {
-            logger.error("[Aggregation] Failed to resolve credibility from Storage", { jobId, err: String(err) });
-          }
+      const cred: CredibilityResult | null = preloadedCred;
+
+      // Subtitles normalization
+      const subtitlesMap: Record<string, any> = {};
+      const flatSubtitles: Record<string, string> = {};
+
+      if (jobData?.outputs?.subtitles) {
+        for (const [lang, data] of Object.entries(jobData.outputs.subtitles) as [string, any][]) {
+          const url = data.vttPath || data.srtPath || data.url || data.subtitleUrl;
+          if (!url) continue;
+
+          const directUrl = getDownloadUrl(url);
+          subtitlesMap[lang] = {
+            ...data,
+            url: directUrl,
+            format: data.vttPath ? "vtt" : (data.srtPath ? "srt" : (data.format || data.subtitleFormat || "srt")),
+            language: lang,
+            updatedAt: data.createdAt || data.updatedAt || Date.now(),
+          };
+          flatSubtitles[lang] = directUrl;
         }
+      }
 
-        // 🚀 Normalize Subtitles for Scalability & UI Consistency
-        const subtitlesMap: Record<string, any> = {};
-        const flatSubtitles: Record<string, string> = {};
-
-        // 1. Initialise from jobData (source language or previous runs)
-        if (jobData.outputs?.subtitles) {
-          for (const [lang, data] of Object.entries(jobData.outputs.subtitles) as [string, any][]) {
-            const url = data.vttPath || data.srtPath || data.url || data.subtitleUrl;
-            if (!url) continue;
-
+      subtitleSnaps.forEach(snap => {
+        if (snap.exists) {
+          const data = snap.data();
+          const lang = data?.language;
+          const url = data?.subtitleUrl;
+          if (lang && url) {
             const directUrl = getDownloadUrl(url);
             subtitlesMap[lang] = {
               ...data,
               url: directUrl,
-              format: data.vttPath ? "vtt" : (data.srtPath ? "srt" : (data.format || data.subtitleFormat || "srt")),
+              srtPath: data?.srtPath ? getDownloadUrl(data.srtPath) : directUrl,
+              vttPath: data?.vttPath ? getDownloadUrl(data.vttPath) : directUrl.replace(/\.srt$/, ".vtt"),
+              jsonPath: data?.jsonPath ? getDownloadUrl(data.jsonPath) : directUrl.replace(/\.srt$/, ".json"),
+              format: data?.subtitleFormat || "srt",
               language: lang,
-              updatedAt: data.createdAt || data.updatedAt || Date.now(),
+              updatedAt: data?.createdAt || Date.now(),
             };
             flatSubtitles[lang] = directUrl;
           }
         }
-        
-        // 2. Merge from subtitle_results snaps (ReachEngine results)
-        subtitleSnaps.forEach(snap => {
-          if (snap.exists) {
-            const data = snap.data();
-            const lang = data?.language;
-            const url = data?.subtitleUrl;
-            if (lang && url) {
-              const directUrl = getDownloadUrl(url);
-              subtitlesMap[lang] = {
-                ...data,
-                url: directUrl,
-                srtPath: data?.srtPath ? getDownloadUrl(data.srtPath) : directUrl,
-                vttPath: data?.vttPath ? getDownloadUrl(data.vttPath) : directUrl.replace(/\.srt$/, ".vtt"),
-                jsonPath: data?.jsonPath ? getDownloadUrl(data.jsonPath) : directUrl.replace(/\.srt$/, ".json"),
-                format: data?.subtitleFormat || "srt",
-                language: lang,
-                updatedAt: data?.createdAt || Date.now(),
-              };
-              flatSubtitles[lang] = directUrl;
-            }
-          }
-        });
-
-        const dubbedMap: Record<string, any> = {};
-        if (jobData.outputs?.dubbed) {
-          for (const [lang, data] of Object.entries(jobData.outputs.dubbed) as [string, any][]) {
-            if (data.audioUrl) {
-              const directAudioUrl = getDownloadUrl(data.audioUrl);
-              const directVideoUrl = data.videoUrl ? getDownloadUrl(data.videoUrl) : (data.path ? getDownloadUrl(data.path) : "");
-              dubbedMap[lang] = {
-                ...data,
-                audioUrl: directAudioUrl,
-                path: directVideoUrl || data.path || data.videoUrl,
-              };
-            }
-          }
-        }
-        const audioTracksMap: Record<string, string> = {}; // Flat map for video doc convenience
-
-        dubbingSnaps.forEach(snap => {
-          if (snap.exists) {
-            const data = snap.data();
-            if (data?.videoUrl) {
-              const directVideoUrl = getDownloadUrl(data.videoUrl);
-              const directAudioUrl = getDownloadUrl(data.audioUrl);
-              dubbedMap[data.language] = {
-                path:      directVideoUrl,
-                audioUrl:  directAudioUrl,
-                createdAt: data.createdAt || Date.now(),
-              };
-            }
-            if (data?.audioUrl) {
-              audioTracksMap[data.language] = getDownloadUrl(data.audioUrl);
-            }
-          }
-        });
-
-        await EdgeLayer.updateStageSync(jobId, "rendering", { 
-          status: "completed", progress: 100, completedAt: Date.now() 
-        });
-        await EdgeLayer.updateStageSync(jobId, "finalizing", { 
-          status: "running", progress: 50, startedAt: Date.now() 
-        });
-
-        const directFactCheckUrl = jobOutputs.factCheckUrl ? getDownloadUrl(jobOutputs.factCheckUrl) : "";
-        const bucket = admin.storage().bucket();
-        const transcriptUrl = `gs://${bucket.name}/transcripts/${jobId}/full.json`;
-        const directTranscriptUrl = getDownloadUrl(transcriptUrl);
-
-        const output: AggregatedOutput = {
-          jobId,
-          userId,
-          videoUrl: jobData?.videoUrl || "",
-          trustScore: jobOutputs.trustScore || cred?.trustScore || 0,
-          trustLabel: jobOutputs.trustLabel || cred?.trustLabel || "Low Reliability",
-          confidence: cred?.confidence || 0,
-          confidenceTier: cred?.confidenceTier || "low",
-          speakerConfidence: trans?.speakerConfidence || 0, // v5.3
-          rating: jobOutputs.trustScore || cred?.trustScore || 0, // Legacy sync
-          summary: jobOutputs.summary || cred?.summary || "",
-          conclusion: (cred?.conclusion || undefined) as any,
-          keyThemes: cred?.keyThemes || [],
-          chapters: trans?.chapters || [], // ✅ Propagate auto-chapters from transcript
-          viewerNote: cred?.viewerNote || "",
-          domain: cred?.domain || "General",
-          vertical: cred?.vertical || "general",
-          verticalScores: (cred?.verticalScores || undefined) as any,
-          reviewTriggered: cred?.reviewTriggered || false,
-          reviewReason: cred?.reviewReason || "",
-          verifiedAt: cred?.verifiedAt || Date.now(),
-          factCheckUrl: directFactCheckUrl,
-          diagnostics: cred?.diagnostics || [],
-          confidenceNotes: cred?.confidenceNotes || [],
-          checkedClaimsRatio: cred?.factCheckStats?.checkedClaimsRatio || 0, // v5.0
-          isLaunchNews: jobOutputs.isLaunchNews || cred?.isLaunchNews || false, // v5.0
-          launchGrounded: jobOutputs.launchGrounded || cred?.launchGrounded || false, // v5.0
-          speakerMetrics: cred?.speakers || [], // v5.0
-          claims: cred?.claims || [],
-          subtitles: subtitlesMap, 
-          media: {
-            subtitles: flatSubtitles,
-            audioTracks: audioTracksMap,
-            factCheckUrl: directFactCheckUrl,
-            transcriptionUrl: directTranscriptUrl,
-          },
-          dubbedVideoUrl: dubbedMap[plan.languages?.[0] || ""]?.path || "", 
-          dubbedVideos: dubbedMap,
-          audioTracks: audioTracksMap,
-          status: "completed",
-          processingTime: Date.now() - (jobData?.createdAt || Date.now()),
-          completedAt: Date.now(),
-          artifacts: {
-            subtitles: subtitlesMap,
-            dubbing: dubbedMap,
-            audio: audioTracksMap,
-          },
-        };
-
-        // Skip Firestore final_outputs write, persisting to GCS after transaction success
-        logger.info("[Aggregation] Bypassed Firestore final_outputs write, persisting to Storage post-transaction", { jobId });
-
-        // 2. Update job record with terminal metrics & results
-        const now = Date.now();
-        const stageDurations: Record<string, number> = {};
-        if (jobData?.stages) {
-          for (const [name, status] of Object.entries(jobData.stages)) {
-            if (!status) continue;
-            const start = status.startedAt;
-            const end = status.completedAt || (status.status === "completed" ? now : null);
-            if (start && end) {
-              stageDurations[name] = Math.round((end - start) / 1000);
-            }
-          }
-        }
-
-        transaction.update(jobRef, {
-          status: "completed",
-          progress: 100,
-          completedAt: now,
-          actualCompletedAt: now,
-          stageDurations,
-          completionSource: triggerStage, // Terminal Metric
-          updatedAt: now,
-          version: admin.firestore.FieldValue.increment(1),
-          // Record processed languages to prevent reactive double-trigger
-          processedLocalizationVersions: admin.firestore.FieldValue.arrayUnion(
-            (plan.languages ?? []).sort().join(",")
-          ),
-          outputs: {
-            trustScore: null, // v12.0: Scoring removed
-            trustLabel: null,
-            rating: 0, // LEGACY
-            contentIntent: cred?.contentIntent ? {
-              primaryIntent: cred.contentIntent.primaryIntent,
-              confidence: cred.contentIntent.confidence,
-              subjectiveRatio: cred.contentIntent.subjectiveRatio,
-              promotionalSignals: cred.contentIntent.promotionalSignals,
-            } : null,
-            summary: cred?.summary || "",
-            conclusion: cred?.conclusion || null,
-            viewerNote: cred?.viewerNote || "",
-            checkedClaimsRatio: cred?.factCheckStats?.checkedClaimsRatio || 0,
-            factCheckUrl: jobOutputs.factCheckUrl || null,
-            credibilityVerified: !!cred, // v12.0: Flag for recommendations
-          }
-        });
-
-        // Write the heavy fields to the separate job_outputs document:
-        transaction.set(jobOutputsRef, {
-          subtitles: subtitlesMap,
-          dubbed: dubbedMap,
-          audioTracks: audioTracksMap,
-          updatedAt: now,
-        }, { merge: true });
-
-        await EdgeLayer.updateStageSync(jobId, "finalizing", { 
-          status: "completed", progress: 100, completedAt: Date.now() 
-        });
-        
-        if (cred?.speakers && cred.speakerIdentities) {
-          const identities = cred.speakerIdentities;
-          for (const metrics of cred.speakers) {
-            const idInfo = (identities as any)[metrics.speakerId];
-            if (idInfo?.id) {
-              await this.speakerReputation.updateReputation(jobId, idInfo.id, metrics, cred.factCheckStats);
-            }
-          }
-        }
-
-        // Update the creator's reputation based on the final credibility report
-        if (cred && jobData?.channelId) {
-          try {
-              // v7.2: Calculate Metadata Reliability Score
-              const metadataScore = this.calculateMetadataReliability(jobData.executionPlan, cred as CredibilityResult);
-              await reputationService.updateReputation(userId, jobData.channelId, {
-                ...cred,
-                metadataReliability: metadataScore
-              } as any);
-          } catch (repErr) {
-             logger.error("[Aggregation] Failed to update creator reputation", { jobId, userId, err: String(repErr) });
-          }
-        }
-
-        // 3. 🚀 CRITICAL: Propagate status to ALL linked videos (Deduplication Fix)
-        logger.info("[Aggregation] Propagating 'ready' to linked videos", { 
-          jobId, count: linkedVideoIds.length 
-        });
-
-        for (const vid of linkedVideoIds) {
-          const vRef = db().collection("videos").doc(vid);
-          const vData = linkedVideoDataMap.get(vid);
-
-          // Preserve proper lifecycle status
-          let finalStatus = "published";
-          if (vData?.visibility === "Scheduled" || vData?.status === "scheduled" || vData?.targetStatus === "scheduled") {
-            finalStatus = "scheduled";
-          } else if (vData?.status === "draft" || vData?.targetStatus === "draft") {
-            finalStatus = "draft";
-          } else if (vData?.status === "rejected" || vData?.moderation?.status === "rejected") {
-            finalStatus = "rejected";
-          } else if (vData?.status === "published" || vData?.targetStatus === "published" || vData?.isPublished === true || vData?.aiFeatures?.pipelineStage === "published") {
-            finalStatus = "published";
-          } else {
-            finalStatus = vData?.status && vData.status !== "processing" && vData.status !== "uploading" ? vData.status : "published";
-          }
-
-          // Ensure technical moderation messages or transcript snippets are never propagated as the public video summary
-          const isInvalidSummary = (s?: string) => !s || /moderation timed out|video approved pending|async review|moderation could not complete|verification in progress|held safely in review queue|video held for admin|admin manual review|gemini ai bypassed|infrastructure timeout|synthesis unavailable|analysis unavailable|quota saturated|quota_backpressure|timeout_passthrough|retry_exhausted_passthrough|summary unavailable|peak load|strategic analysis unavailable/i.test(s);
-          
-          const isTranscriptSnippet = (s?: string) => {
-            if (!s || !trans?.text) return false;
-            const clean = s.replace(/\.{3}$/, "").trim();
-            return clean.length > 20 && trans.text.trim().startsWith(clean);
-          };
-
-          let resolvedSummary = "";
-          if (vData && !isInvalidSummary(vData.moderation?.summary) && !isTranscriptSnippet(vData.moderation?.summary)) {
-            resolvedSummary = vData.moderation.summary || "";
-          } else if (vData && !isInvalidSummary(vData.moderationSummary) && !isTranscriptSnippet(vData.moderationSummary)) {
-            resolvedSummary = vData.moderationSummary || "";
-          } else if ((jobData as any)?.stages?.moderation?.summary && !isInvalidSummary((jobData as any).stages.moderation.summary) && !isTranscriptSnippet((jobData as any).stages.moderation.summary)) {
-            resolvedSummary = (jobData as any).stages.moderation.summary || "";
-          } else if (!isInvalidSummary((jobData as any)?.gatewayDecision?.summary) && !isTranscriptSnippet((jobData as any)?.gatewayDecision?.summary)) {
-            resolvedSummary = String((jobData as any)?.gatewayDecision?.summary || "");
-          } else if (!isInvalidSummary(jobOutputs.summary) && !isTranscriptSnippet(jobOutputs.summary)) {
-            resolvedSummary = jobOutputs.summary || "";
-          } else if (cred && !isInvalidSummary(cred.summary) && !isTranscriptSnippet(cred.summary)) {
-            resolvedSummary = cred.summary || "";
-          } else if (vData && !isInvalidSummary(vData.summary) && !isTranscriptSnippet(vData.summary)) {
-            resolvedSummary = vData.summary || "";
-          }
-
-          const resolvedChapters = (vData?.autoChapters && vData.autoChapters.length > 0)
-            ? vData.autoChapters
-            : ((vData?.chapters && vData.chapters.length > 0)
-                ? vData.chapters
-                : (((jobData as any)?.gatewayDecision?.autoChapters && (jobData as any).gatewayDecision.autoChapters.length > 0)
-                    ? (jobData as any).gatewayDecision.autoChapters
-                    : (trans?.chapters || [])));
-
-          transaction.update(vRef, {
-            status: finalStatus,
-            summary: resolvedSummary,
-            moderationSummary: resolvedSummary,
-            autoChapters: resolvedChapters,
-            chapters: resolvedChapters,
-            trustIndex: null, // v12.0: Scoring removed
-            contentIntent: jobOutputs.contentIntent?.primaryIntent || null,
-            factCheckUrl: directFactCheckUrl,
-            transcriptionUrl: directTranscriptUrl,
-            subtitles: flatSubtitles,
-            audioTracks: audioTracksMap,
-            dubbedVideos: dubbedMap,
-            media: {
-              subtitles: flatSubtitles,
-              audioTracks: audioTracksMap,
-              dubbedVideos: dubbedMap,
-              factCheckUrl: directFactCheckUrl,
-              transcriptionUrl: directTranscriptUrl,
-            },
-            trustLabel: null,
-            isVerified: !!cred, // v12.0: Flag for recommendations
-            isFactChecked: !!(cred && ((cred.claims && cred.claims.length > 0) || directFactCheckUrl)),
-            ...(vData?.factCheckReviewMode ? { factCheckReviewMode: vData.factCheckReviewMode } : {}),
-            ...(vData?.isFactCheckApproved !== undefined ? { isFactCheckApproved: vData.isFactCheckApproved } : {}),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
-
-          // Write localization data to videos/{videoId}/media/localization
-          const locRef = vRef.collection("media").doc("localization");
-          transaction.set(locRef, {
-            subtitles: flatSubtitles,
-            dubbedVideos: dubbedMap,
-            audioTracks: audioTracksMap,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          }, { merge: true });
-
-          // Write credibility data to videos/{videoId}/media/credibility
-          const credRef = vRef.collection("media").doc("credibility");
-          transaction.set(credRef, {
-            trustScore: null, // v12.0: Scoring removed
-            trustLabel: null,
-            scoringFactors: null,
-            deductions: [],
-            contextualFlags: cred?.contextualFlags || [],
-            honestyBreakdown: null,
-            harmCapApplied: false,
-            harmCapReason: null,
-            categoryWeightProfile: null,
-            confidenceNotes: cred?.confidenceNotes || [],
-            diagnostics: cred?.diagnostics || [],
-            intentToMisleadScore: 0,
-            hardeningMetadata: null,
-            factCheckStats: cred?.factCheckStats ? {
-              totalClaims: cred.factCheckStats.totalClaims,
-              correct: cred.factCheckStats.correct,
-              incorrect: cred.factCheckStats.incorrect,
-              unverifiable: cred.factCheckStats.unverifiable,
-              extractionPartial: cred.factCheckStats.extractionPartial || false
-            } : null,
-            factCheckUrl: directFactCheckUrl,
-            transcriptionUrl: directTranscriptUrl,
-            credibilityVerified: !!cred, // v12.0: Flag for recommendations
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          }, { merge: true });
-
-          // Write streaming data to videos/{videoId}/media/streaming
-          const streamRef = vRef.collection("media").doc("streaming");
-          transaction.set(streamRef, {
-            chapters: trans?.chapters || [],
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          }, { merge: true });
-
-          // v8.1: Regulatory Audit Logging (DSA/India compliance)
-          // v12.0: Audit logging preserved but without scores
-          if (cred) {
-            const auditRef = db().collection("audit_trust_decisions").doc();
-            transaction.set(auditRef, {
-              videoId: vid,
-              jobId: jobId,
-              userId: userId,
-              hardening: null, // v12.0: Scoring removed
-              finalScore: null,
-              category: cred.videoCategory,
-              effectiveCategory: cred.effectiveCategory,
-              credibilityVerified: true,
-              claimsAnalyzed: cred.factCheckStats?.totalClaims || 0,
-              timestamp: admin.firestore.FieldValue.serverTimestamp(),
-              version: "v12.0-no-scoring"
-            });
-          }
-        }
-
-        return output;
       });
 
-      if (resultOutput) {
-        try {
-          const { path: latestPath } = await this.analysisRepository.saveAnalysis(jobId, "final_outputs", resultOutput);
-          logger.info("[Aggregation] Successfully stored final aggregated output in Storage", { jobId, latestPath });
-        } catch (storageErr) {
-          logger.error("[Aggregation] Failed to store final aggregated output in Storage", { jobId, err: String(storageErr) });
+      // Dubbing normalization
+      const dubbedMap: Record<string, any> = {};
+      if (jobData?.outputs?.dubbed) {
+        for (const [lang, data] of Object.entries(jobData.outputs.dubbed) as [string, any][]) {
+          if (data.audioUrl) {
+            const directAudioUrl = getDownloadUrl(data.audioUrl);
+            const directVideoUrl = data.videoUrl ? getDownloadUrl(data.videoUrl) : (data.path ? getDownloadUrl(data.path) : "");
+            dubbedMap[lang] = {
+              ...data,
+              audioUrl: directAudioUrl,
+              path: directVideoUrl || data.path || data.videoUrl,
+            };
+          }
+        }
+      }
+      const audioTracksMap: Record<string, string> = {};
+
+      dubbingSnaps.forEach(snap => {
+        if (snap.exists) {
+          const data = snap.data();
+          if (data?.videoUrl) {
+            const directVideoUrl = getDownloadUrl(data.videoUrl);
+            const directAudioUrl = getDownloadUrl(data.audioUrl);
+            dubbedMap[data.language] = {
+              path: directVideoUrl,
+              audioUrl: directAudioUrl,
+              createdAt: data.createdAt || Date.now(),
+            };
+          }
+          if (data?.audioUrl) {
+            audioTracksMap[data.language] = getDownloadUrl(data.audioUrl);
+          }
+        }
+      });
+
+      const directFactCheckUrl = jobOutputs.factCheckUrl ? getDownloadUrl(jobOutputs.factCheckUrl) : "";
+      const bucket = admin.storage().bucket();
+      const transcriptUrl = `gs://${bucket.name}/transcripts/${jobId}/full.json`;
+      const directTranscriptUrl = getDownloadUrl(transcriptUrl);
+
+      const now = Date.now();
+      const stageDurations: Record<string, number> = {};
+      if (jobData?.stages) {
+        for (const [name, status] of Object.entries(jobData.stages)) {
+          if (!status) continue;
+          const start = status.startedAt;
+          const end = status.completedAt || (status.status === "completed" ? now : null);
+          if (start && end) {
+            stageDurations[name] = Math.round((end - start) / 1000);
+          }
         }
       }
 
-      return resultOutput;
-    } catch (err) {
-      logger.error("[Aggregation] Transaction failed", { jobId, err: String(err) });
-      return null;
+      const output: AggregatedOutput = {
+        jobId,
+        userId,
+        videoUrl: jobData?.videoUrl || "",
+        trustScore: jobOutputs.trustScore || cred?.trustScore || 0,
+        trustLabel: jobOutputs.trustLabel || cred?.trustLabel || "Low Reliability",
+        confidence: cred?.confidence || 0,
+        confidenceTier: cred?.confidenceTier || "low",
+        speakerConfidence: trans?.speakerConfidence || 0,
+        rating: jobOutputs.trustScore || cred?.trustScore || 0,
+        summary: jobOutputs.summary || cred?.summary || "",
+        conclusion: (cred?.conclusion || undefined) as any,
+        keyThemes: cred?.keyThemes || [],
+        chapters: (jobOutputs.chapters || trans?.chapters || []),
+        viewerNote: cred?.viewerNote || "",
+        domain: cred?.domain || "General",
+        vertical: cred?.vertical || "general",
+        verticalScores: (cred?.verticalScores || undefined) as any,
+        reviewTriggered: cred?.reviewTriggered || false,
+        reviewReason: cred?.reviewReason || "",
+        verifiedAt: cred?.verifiedAt || Date.now(),
+        factCheckUrl: directFactCheckUrl,
+        diagnostics: cred?.diagnostics || [],
+        confidenceNotes: cred?.confidenceNotes || [],
+        checkedClaimsRatio: cred?.factCheckStats?.checkedClaimsRatio || 0,
+        isLaunchNews: jobOutputs.isLaunchNews || cred?.isLaunchNews || false,
+        launchGrounded: jobOutputs.launchGrounded || cred?.launchGrounded || false,
+        speakerMetrics: cred?.speakers || [],
+        claims: cred?.claims || [],
+        subtitles: subtitlesMap, 
+        media: {
+          subtitles: flatSubtitles,
+          audioTracks: audioTracksMap,
+          factCheckUrl: directFactCheckUrl,
+          transcriptionUrl: directTranscriptUrl,
+        },
+        dubbedVideoUrl: dubbedMap[plan.languages?.[0] || ""]?.path || "", 
+        dubbedVideos: dubbedMap,
+        audioTracks: audioTracksMap,
+        status: "completed",
+        processingTime: Date.now() - (jobData?.createdAt || Date.now()),
+        completedAt: now,
+        artifacts: {
+          subtitles: subtitlesMap,
+          dubbing: dubbedMap,
+          audio: audioTracksMap,
+        },
+      };
+
+      // ─── 1. Update Video Job Document ─────────────────────────────────────
+      transaction.update(jobRef, {
+        status: "completed",
+        progress: 100,
+        completedAt: now,
+        actualCompletedAt: now,
+        stageDurations,
+        completionSource: triggerStage,
+        updatedAt: now,
+        version: admin.firestore.FieldValue.increment(1),
+        processedLocalizationVersions: admin.firestore.FieldValue.arrayUnion(
+          (plan.languages ?? []).sort().join(",")
+        ),
+        outputs: {
+          trustScore: null,
+          trustLabel: null,
+          rating: 0,
+          contentIntent: cred?.contentIntent ? {
+            primaryIntent: cred.contentIntent.primaryIntent,
+            confidence: cred.contentIntent.confidence,
+            subjectiveRatio: cred.contentIntent.subjectiveRatio,
+            promotionalSignals: cred.contentIntent.promotionalSignals,
+          } : null,
+          summary: cred?.summary || "",
+          conclusion: cred?.conclusion || null,
+          viewerNote: cred?.viewerNote || "",
+          checkedClaimsRatio: cred?.factCheckStats?.checkedClaimsRatio || 0,
+          factCheckUrl: jobOutputs.factCheckUrl || null,
+          credibilityVerified: !!cred,
+        }
+      });
+
+      // ─── 2. Write Job Outputs Document ────────────────────────────────────
+      transaction.set(jobOutputsRef, {
+        subtitles: subtitlesMap,
+        dubbed: dubbedMap,
+        audioTracks: audioTracksMap,
+        updatedAt: now,
+      }, { merge: true });
+
+      // ─── 3. Propagate to Linked Video Documents ────────────────────────────
+      for (const vid of linkedVideoIds) {
+        const vRef = db().collection("videos").doc(vid);
+        const vData = linkedVideoDataMap.get(vid);
+
+        // 🛡 Hardened Lifecycle Status Resolution
+        // Strict Priority: Rejection > Moderation/Copyright Holds > Scheduled > Draft > Published
+        let finalStatus = "published";
+        if (vData?.status === "rejected" || vData?.moderation?.status === "rejected") {
+          finalStatus = "rejected";
+        } else if (
+          vData?.status === "pending_review" ||
+          vData?.status === "held" ||
+          vData?.moderation?.status === "manual_review" ||
+          vData?.moderation?.status === "held" ||
+          vData?.moderation?.status === "pending_review" ||
+          vData?.copyrightHold === true
+        ) {
+          finalStatus = vData.status && vData.status !== "processing" && vData.status !== "uploading"
+            ? vData.status
+            : "pending_review";
+        } else if (vData?.visibility === "Scheduled" || vData?.status === "scheduled" || vData?.targetStatus === "scheduled") {
+          finalStatus = "scheduled";
+        } else if (vData?.status === "draft" || vData?.targetStatus === "draft") {
+          finalStatus = "draft";
+        } else if (vData?.status === "published" || vData?.targetStatus === "published" || vData?.isPublished === true || vData?.aiFeatures?.pipelineStage === "published") {
+          finalStatus = "published";
+        } else {
+          finalStatus = vData?.status && vData.status !== "processing" && vData.status !== "uploading" ? vData.status : "published";
+        }
+
+        // Clean Summary Resolution
+        const isInvalidSummary = (s?: string) => !s || /moderation timed out|video approved pending|async review|moderation could not complete|verification in progress|held safely in review queue|video held for admin|admin manual review|gemini ai bypassed|infrastructure timeout|synthesis unavailable|analysis unavailable|quota saturated|quota_backpressure|timeout_passthrough|retry_exhausted_passthrough|summary unavailable|peak load|strategic analysis unavailable/i.test(s);
+        
+        const isTranscriptSnippet = (s?: string) => {
+          if (!s || !trans?.text) return false;
+          const clean = s.replace(/\.{3}$/, "").trim();
+          return clean.length > 20 && trans.text.trim().startsWith(clean);
+        };
+
+        let resolvedSummary = "";
+        if (vData && !isInvalidSummary(vData.moderation?.summary) && !isTranscriptSnippet(vData.moderation?.summary)) {
+          resolvedSummary = vData.moderation.summary || "";
+        } else if (vData && !isInvalidSummary(vData.moderationSummary) && !isTranscriptSnippet(vData.moderationSummary)) {
+          resolvedSummary = vData.moderationSummary || "";
+        } else if ((jobData as any)?.stages?.moderation?.summary && !isInvalidSummary((jobData as any).stages.moderation.summary) && !isTranscriptSnippet((jobData as any).stages.moderation.summary)) {
+          resolvedSummary = (jobData as any).stages.moderation.summary || "";
+        } else if (!isInvalidSummary((jobData as any)?.gatewayDecision?.summary) && !isTranscriptSnippet((jobData as any)?.gatewayDecision?.summary)) {
+          resolvedSummary = String((jobData as any)?.gatewayDecision?.summary || "");
+        } else if (!isInvalidSummary(jobOutputs.summary) && !isTranscriptSnippet(jobOutputs.summary)) {
+          resolvedSummary = jobOutputs.summary || "";
+        } else if (cred && !isInvalidSummary(cred.summary) && !isTranscriptSnippet(cred.summary)) {
+          resolvedSummary = cred.summary || "";
+        } else if (vData && !isInvalidSummary(vData.summary) && !isTranscriptSnippet(vData.summary)) {
+          resolvedSummary = vData.summary || "";
+        }
+
+        // 🛡 Chapter Resolution: Creator Custom Chapters ALWAYS Take Precedence Over AI autoChapters
+        const rawResolvedChapters = (vData?.customChapters && Array.isArray(vData.customChapters) && vData.customChapters.length > 0)
+          ? vData.customChapters
+          : ((vData?.chapters && Array.isArray(vData.chapters) && vData.chapters.length > 0 && vData.hasCustomChapters === true)
+              ? vData.chapters
+              : ((vData?.autoChapters && Array.isArray(vData.autoChapters) && vData.autoChapters.length > 0)
+                  ? vData.autoChapters
+                  : ((vData?.chapters && Array.isArray(vData.chapters) && vData.chapters.length > 0)
+                      ? vData.chapters
+                      : (((jobData as any)?.gatewayDecision?.autoChapters && (jobData as any).gatewayDecision.autoChapters.length > 0)
+                          ? (jobData as any).gatewayDecision.autoChapters
+                          : (trans?.chapters || [])))));
+
+        // Preserve authentic chapter thumbnails: never wipe dedicated thumbnails with main video cover or undefined
+        const candidateChaptersWithThumbs = [
+          ...(Array.isArray(vData?.chapters) ? vData.chapters : []),
+          ...(Array.isArray(vData?.autoChapters) ? vData.autoChapters : []),
+          ...(Array.isArray(trans?.chapters) ? trans.chapters : []),
+        ];
+        const mainCoverThumb = vData?.thumbnailUrl || "";
+        const resolvedChapters = (rawResolvedChapters || []).map((ch: any, idx: number) => {
+          let thumb = ch.thumbnailUrl;
+          if (!thumb || thumb === mainCoverThumb) {
+            const chStart = Number(ch.startTimeMs ?? ch.startMs ?? 0);
+            const found = candidateChaptersWithThumbs.find((e: any, eIdx: number) =>
+              (eIdx === idx || Math.abs(Number(e.startTimeMs ?? e.startMs ?? 0) - chStart) < 1500) &&
+              e.thumbnailUrl && typeof e.thumbnailUrl === "string" && e.thumbnailUrl !== mainCoverThumb && e.thumbnailUrl.startsWith("http")
+            );
+            if (found && found.thumbnailUrl) {
+              thumb = found.thumbnailUrl;
+            }
+          }
+          return {
+            ...ch,
+            thumbnailUrl: thumb || undefined,
+          };
+        });
+
+        // 🛡 Deep-Merge Media: Strictly protect adaptiveResolutions, variants, hlsUrl, storyboardUrl
+        const existingMedia = (vData?.media && typeof vData.media === "object") ? vData.media : {};
+        const mergedMedia = {
+          ...existingMedia,
+          subtitles: flatSubtitles,
+          audioTracks: audioTracksMap,
+          dubbedVideos: dubbedMap,
+          factCheckUrl: directFactCheckUrl,
+          transcriptionUrl: directTranscriptUrl,
+        };
+
+        transaction.update(vRef, {
+          status: finalStatus,
+          summary: resolvedSummary,
+          moderationSummary: resolvedSummary,
+          autoChapters: resolvedChapters,
+          chapters: resolvedChapters,
+          trustIndex: null,
+          contentIntent: jobOutputs.contentIntent?.primaryIntent || null,
+          factCheckUrl: directFactCheckUrl,
+          transcriptionUrl: directTranscriptUrl,
+          subtitles: flatSubtitles,
+          audioTracks: audioTracksMap,
+          dubbedVideos: dubbedMap,
+          media: mergedMedia,
+          trustLabel: null,
+          isVerified: !!cred,
+          isFactChecked: !!(cred && ((cred.claims && cred.claims.length > 0) || directFactCheckUrl)),
+          ...(vData?.factCheckReviewMode ? { factCheckReviewMode: vData.factCheckReviewMode } : {}),
+          ...(vData?.isFactCheckApproved !== undefined ? { isFactCheckApproved: vData.isFactCheckApproved } : {}),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // Write localization subcollection
+        const locRef = vRef.collection("media").doc("localization");
+        transaction.set(locRef, {
+          subtitles: flatSubtitles,
+          dubbedVideos: dubbedMap,
+          audioTracks: audioTracksMap,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        // Write credibility subcollection
+        const credRef = vRef.collection("media").doc("credibility");
+        transaction.set(credRef, {
+          trustScore: null,
+          trustLabel: null,
+          scoringFactors: null,
+          deductions: [],
+          contextualFlags: cred?.contextualFlags || [],
+          harmCapApplied: false,
+          harmCapReason: null,
+          categoryWeightProfile: null,
+          confidenceNotes: cred?.confidenceNotes || [],
+          diagnostics: cred?.diagnostics || [],
+          intentToMisleadScore: 0,
+          hardeningMetadata: null,
+          factCheckStats: cred?.factCheckStats ? {
+            totalClaims: cred.factCheckStats.totalClaims,
+            correct: cred.factCheckStats.correct,
+            incorrect: cred.factCheckStats.incorrect,
+            unverifiable: cred.factCheckStats.unverifiable,
+            extractionPartial: cred.factCheckStats.extractionPartial || false
+          } : null,
+          factCheckUrl: directFactCheckUrl,
+          transcriptionUrl: directTranscriptUrl,
+          credibilityVerified: !!cred,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        // Write streaming subcollection
+        const streamRef = vRef.collection("media").doc("streaming");
+        transaction.set(streamRef, {
+          chapters: resolvedChapters || trans?.chapters || [],
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        // Regulatory Audit Logging
+        if (cred) {
+          const auditRef = db().collection("audit_trust_decisions").doc();
+          transaction.set(auditRef, {
+            videoId: vid,
+            jobId: jobId,
+            userId: userId,
+            hardening: null,
+            finalScore: null,
+            category: cred.videoCategory,
+            effectiveCategory: cred.effectiveCategory,
+            credibilityVerified: true,
+            claimsAnalyzed: cred.factCheckStats?.totalClaims || 0,
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            version: "v12.0-no-scoring"
+          });
+        }
+      }
+
+      return output;
+    });
+  }
+
+  /**
+   * 🚀 Post-Transaction Side Effects Execution
+   * Executes outside the Firestore transaction to prevent lock contention & timeouts.
+   */
+  private async runPostTransactionSideEffects(
+    jobId: string,
+    userId: string,
+    plan: ExecutionPlan,
+    resultOutput: AggregatedOutput,
+    cred: CredibilityResult | null
+  ): Promise<void> {
+    const now = Date.now();
+
+    // 1. Mark rendering & finalizing completed in edge stage sync
+    await EdgeLayer.updateStageSync(jobId, "rendering", { 
+      status: "completed", progress: 100, completedAt: now 
+    }).catch(err => logger.warn("[Aggregation] Non-fatal rendering stage sync warning", { jobId, err: String(err) }));
+
+    await EdgeLayer.updateStageSync(jobId, "finalizing", { 
+      status: "completed", progress: 100, completedAt: now 
+    }).catch(err => logger.warn("[Aggregation] Non-fatal finalizing stage sync warning", { jobId, err: String(err) }));
+
+    // 2. Speaker reputation updates
+    if (cred?.speakers && cred.speakerIdentities) {
+      const identities = cred.speakerIdentities;
+      for (const metrics of cred.speakers) {
+        const idInfo = (identities as any)[metrics.speakerId];
+        if (idInfo?.id) {
+          await this.speakerReputation.updateReputation(jobId, idInfo.id, metrics, cred.factCheckStats)
+            .catch(err => logger.warn("[Aggregation] Non-fatal speaker reputation error", { jobId, err: String(err) }));
+        }
+      }
+    }
+
+    // 3. Creator reputation updates
+    const jobSnap = await db().collection("video_jobs").doc(jobId).get().catch(() => null);
+    const jobData = jobSnap?.exists ? jobSnap.data() as JobData : null;
+    if (cred && jobData?.channelId) {
+      try {
+        const metadataScore = this.calculateMetadataReliability(jobData.executionPlan || plan, cred);
+        await reputationService.updateReputation(userId, jobData.channelId, {
+          ...cred,
+          metadataReliability: metadataScore
+        } as any);
+      } catch (repErr) {
+        logger.warn("[Aggregation] Non-fatal creator reputation error", { jobId, userId, err: String(repErr) });
+      }
+    }
+
+    // 4. Persist final aggregated output in Storage with transient retry
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const { path: latestPath } = await this.analysisRepository.saveAnalysis(jobId, "final_outputs", resultOutput);
+        logger.info("[Aggregation] Successfully stored final aggregated output in Storage", { jobId, latestPath });
+        break;
+      } catch (storageErr) {
+        if (attempt === 3) {
+          logger.error("[Aggregation] Failed to store final aggregated output in Storage after 3 attempts", { jobId, err: String(storageErr) });
+        } else {
+          await new Promise(r => setTimeout(r, 200 * attempt));
+        }
+      }
     }
   }
 
@@ -662,11 +778,11 @@ export class AggregationLayer {
    * Updates the videos collection with partial results (scores, audio)
    * as soon as individual stages complete.
    */
-  private async propagateStageResults(
+  public async propagateStageResults(
     jobId: string,
     stageName: string,
     userId: string,
-    plan: ExecutionPlan
+    _plan: ExecutionPlan
   ): Promise<void> {
     try {
       const jobSnap = await db().collection("video_jobs").doc(jobId).get();
@@ -694,20 +810,17 @@ export class AggregationLayer {
           cred = JSON.parse(content.toString()) as CredibilityResult;
           
           const directFactCheckUrl = getDownloadUrl(jobOutputs.factCheckUrl);
-          updateData.trustIndex = null; // v12.0: Scoring removed
+          updateData.trustIndex = null;
           updateData.trustLabel = null;
           updateData.factCheckUrl = directFactCheckUrl;
           updateData.summary = cred.summary || "";
           updateData.viewerNote = cred.viewerNote || "";
-          updateData.credibilityVerified = true; // v12.0: Flag for recommendations
-          
+          updateData.credibilityVerified = true;
           updateData["media.factCheckUrl"] = directFactCheckUrl;
           
-          // v12.0: Scoring fields removed — nullified
           updateData.scoringFactors = null;
           updateData.deductions = [];
           updateData.contextualFlags = cred.contextualFlags || [];
-          updateData.honestyBreakdown = null;
           updateData.harmCapApplied = false;
           updateData.harmCapReason = null;
           updateData.videoCategory = cred.videoCategory || null;
@@ -728,9 +841,10 @@ export class AggregationLayer {
           
           logger.info("[Aggregation] Early propagation: Credibility scores", { jobId, videoCount: linkedVideoIds.length });
 
-          // Dispatch Fact-Checking notification to Studio notifications
+          // Dispatch Fact-Checking notification atomically guarded
           const notifFlag = (jobData as any)?.factCheckNotified;
           if (!notifFlag) {
+            await db().collection("video_jobs").doc(jobId).set({ factCheckNotified: true }, { merge: true }).catch(() => {});
             for (const vid of linkedVideoIds) {
               try {
                 const vSnap = await db().collection("videos").doc(vid).get();
@@ -756,8 +870,10 @@ export class AggregationLayer {
                       severity: isReviewFirst ? "info" as any : "success" as any,
                       title: notifTitle,
                       message: notifMsg,
-                      actionUrl: `/video/${vid}`,
+                      actionUrl: `/studio`,
+                      targetApp: "studio",
                       metadata: {
+                        targetApp: "studio",
                         videoId: vid,
                         channelId,
                         videoTitle,
@@ -773,7 +889,6 @@ export class AggregationLayer {
                 logger.warn("[Aggregation] Failed to dispatch fact-check notification", { vid, err: String(notifErr) });
               }
             }
-            await db().collection("video_jobs").doc(jobId).set({ factCheckNotified: true }, { merge: true }).catch(() => {});
           }
         } catch (err) {
           logger.error("[Aggregation] Early propagation failed: Credibility", { jobId, err: String(err) });
@@ -782,7 +897,6 @@ export class AggregationLayer {
 
       // 2. Handle Dubbing/Localization Propagation
       if (stageName.startsWith("dubbing") || stageName.startsWith("translating")) {
-        // We'll update the dubbedVideos and subtitles if they are ready in jobOutputs
         if (jobOutputs.subtitles) {
           const flatSubtitles: Record<string, string> = {};
           const subtitlesMap: Record<string, any> = {};
@@ -838,12 +952,14 @@ export class AggregationLayer {
         logger.info("[Aggregation] Early propagation: Localization artifacts", { jobId, stageName });
       }
 
-      // Perform the update on all linked videos
-      const batch = db().batch();
-      for (const vid of linkedVideoIds) {
-        batch.update(db().collection("videos").doc(vid), updateData);
+      // Only perform batch update if meaningful fields were added
+      if (Object.keys(updateData).length > 1) {
+        const batch = db().batch();
+        for (const vid of linkedVideoIds) {
+          batch.update(db().collection("videos").doc(vid), updateData);
+        }
+        await batch.commit();
       }
-      await batch.commit();
 
     } catch (err) {
       logger.error("[Aggregation] Early propagation failed", { jobId, err: String(err) });
@@ -854,7 +970,7 @@ export class AggregationLayer {
    * ⚖️ v7.2: Metadata Reliability Engine (v7.3: Field-Specific)
    * Compares creator input vs AI truth to score metadata accuracy.
    */
-  private calculateMetadataReliability(plan: ExecutionPlan, result: CredibilityResult): any {
+  public calculateMetadataReliability(plan: ExecutionPlan, result: CredibilityResult): any {
     let speakerMatch = 1;
     let languageMatch = 1;
     let formatMatch = 1;

@@ -13,10 +13,20 @@ service cloud.firestore {
     }
 
     // Helper function to check if user has administrative privileges.
-    // Relies strictly on Firebase Auth custom claims or verified admin_members UID record.
+    // Relies strictly on Firebase Auth custom claims, verified bootstrap owner emails, or verified admin_members records.
     function isAdmin() {
       return isAuthenticated() && (
-        request.auth.token.admin == true || 
+        request.auth.token.admin == true ||
+        request.auth.token.role == 'admin' ||
+        request.auth.token.isSuperAdmin == true ||
+        (request.auth.token.email_verified == true && (
+          request.auth.token.email == 'hello@truthworld.in' ||
+          request.auth.token.email == 'ebenezervampu4@gmail.com'
+        )) ||
+        (request.auth.token.email != null &&
+         request.auth.token.email_verified == true &&
+         exists(/databases/$(database)/documents/admin_members/$(request.auth.token.email)) &&
+         get(/databases/$(database)/documents/admin_members/$(request.auth.token.email)).data.status != 'suspended') ||
         (exists(/databases/$(database)/documents/admin_members/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/admin_members/$(request.auth.uid)).data.status != 'suspended')
       );
@@ -43,6 +53,32 @@ service cloud.firestore {
          isVideoDataOwner(get(/databases/$(database)/documents/videos/$(videoId)).data))
       );
     }
+
+    // Helper function to safely check community post document ownership from its data map
+    function isCommunityPostDataOwner(data) {
+      return ('ownerId' in data && data.ownerId == request.auth.uid) ||
+             ('userId' in data && data.userId == request.auth.uid) ||
+             ('channelId' in data && data.channelId != null &&
+              exists(/databases/$(database)/documents/channels/$(data.channelId)) &&
+              (('ownerId' in get(/databases/$(database)/documents/channels/$(data.channelId)).data &&
+                get(/databases/$(database)/documents/channels/$(data.channelId)).data.ownerId == request.auth.uid) ||
+               ('userId' in get(/databases/$(database)/documents/channels/$(data.channelId)).data &&
+                get(/databases/$(database)/documents/channels/$(data.channelId)).data.userId == request.auth.uid)));
+    }
+
+    // Helper function to check if user owns a community post
+    function isCommunityPostOwner(postId) {
+      return isAuthenticated() && (
+        isAdmin() ||
+        (exists(/databases/$(database)/documents/Community/$(postId)) &&
+         isCommunityPostDataOwner(get(/databases/$(database)/documents/Community/$(postId)).data)) ||
+        (exists(/databases/$(database)/documents/community/$(postId)) &&
+         isCommunityPostDataOwner(get(/databases/$(database)/documents/community/$(postId)).data)) ||
+        (exists(/databases/$(database)/documents/community_posts/$(postId)) &&
+         isCommunityPostDataOwner(get(/databases/$(database)/documents/community_posts/$(postId)).data))
+      );
+    }
+
     
     // Channel Handles Collection (Unique handle registry)
     match /channel_handles/{handle} {
@@ -96,7 +132,7 @@ service cloud.firestore {
       // Allow anyone to read channels (needed for discovery and collection listing)
       allow read: if true;
       
-      // Allow authenticated users to create their own channel without self-verifying or granting self-monetization
+      // Allow authenticated users to create their own channel without self-verifying, self-monetizing, or setting discount privileges
       allow create: if isAuthenticated() && 
                        (!('ownerId' in request.resource.data) || request.resource.data.ownerId == request.auth.uid) &&
                        (!('userId' in request.resource.data) || request.resource.data.userId == request.auth.uid) &&
@@ -105,6 +141,10 @@ service cloud.firestore {
                         isAdmin()) &&
                        (!('isVerified' in request.resource.data) || request.resource.data.isVerified == false) &&
                        (!('geminiApproved' in request.resource.data) || request.resource.data.geminiApproved == false) &&
+                       (!('trustedModerationBypass' in request.resource.data) || request.resource.data.trustedModerationBypass == false) &&
+                       (!('bypassModeration' in request.resource.data) || request.resource.data.bypassModeration == false) &&
+                       (!('trustedChannel' in request.resource.data) || request.resource.data.trustedChannel == false) &&
+                       (!('trustedBypass' in request.resource.data) || request.resource.data.trustedBypass == false) &&
                        (!('monetizationTier' in request.resource.data) || request.resource.data.monetizationTier == 'none' || request.resource.data.monetizationTier == 'free') &&
                        (!('superchatRevenueTotal' in request.resource.data) || request.resource.data.superchatRevenueTotal == 0) &&
                        (!('adsRevenueTotal' in request.resource.data) || request.resource.data.adsRevenueTotal == 0) &&
@@ -126,9 +166,16 @@ service cloud.firestore {
                        (!('payoutsBlocked' in request.resource.data) || request.resource.data.payoutsBlocked == false) &&
                        (!('fraudReviewFlag' in request.resource.data) || request.resource.data.fraudReviewFlag == false) &&
                        (!('allowAnytimePayout' in request.resource.data) || request.resource.data.allowAnytimePayout == false) &&
-                       (!('subscriberCount' in request.resource.data) || request.resource.data.subscriberCount == 0);
+                       (!('subscriberCount' in request.resource.data) || request.resource.data.subscriberCount == 0) &&
+                       (isAdmin() || (
+                         !('dubbingDiscountType' in request.resource.data) &&
+                         !('dubbingDiscountPercent' in request.resource.data) &&
+                         !('subtitlesDiscountType' in request.resource.data) &&
+                         !('subtitlesDiscountPercent' in request.resource.data) &&
+                         !('aiDiscounts' in request.resource.data)
+                       ));
       
-      // Allow owners or admins to update their channels, protecting verification, moderation, and financial fields
+      // Allow owners or admins to update their channels, protecting verification, moderation, financial, and discount fields
       allow update: if isAuthenticated() && (
                        isAdmin() ||
                        ((resource.data.ownerId == request.auth.uid || resource.data.userId == request.auth.uid) &&
@@ -142,9 +189,12 @@ service cloud.firestore {
                           'allowAnytimePayout', 'qualifiedViewCount', 'totalWatchTimeMinutes',
                           'subscriberCount', 'ownerId', 'userId', 'createdAt', 'penaltyStatus',
                           'trustScore', 'reputationScore', 'moderationReason', 'metrics',
-                          'strikes', 'strikeCount', 'isBanned', 'suspendedAt', 'bannedAt'
+                          'strikes', 'strikeCount', 'isBanned', 'suspendedAt', 'bannedAt',
+                          'trustedModerationBypass', 'bypassModeration', 'trustedChannel', 'trustedBypass',
+                          'dubbingDiscountType', 'dubbingDiscountPercent',
+                          'subtitlesDiscountType', 'subtitlesDiscountPercent', 'aiDiscounts'
                         ])) ||
-                       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subscriberCount', 'lastActiveAt', 'videoCount', 'updatedAt']) &&
+                       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subscriberCount', 'lastActiveAt', 'updatedAt']) &&
                         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['subscriberCount']) ||
                          ((!('subscriberCount' in resource.data) || resource.data.subscriberCount == null) && request.resource.data.subscriberCount == 1) ||
                          request.resource.data.subscriberCount == resource.data.subscriberCount + 1 ||
@@ -209,10 +259,21 @@ service cloud.firestore {
       // Distributed Counter Shards (20 shards for channel views, watch time & subscribers)
       match /shards/{shardId} {
         allow read: if true;
-        allow create: if request.resource.data.keys().hasOnly(['views', 'watchTimeSeconds', 'updatedAt']) ||
-                         (isAuthenticated() && request.resource.data.keys().hasOnly(['views', 'watchTimeSeconds', 'subscriberDelta', 'updatedAt']));
-        allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'watchTimeSeconds', 'updatedAt']) ||
-                         (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'watchTimeSeconds', 'subscriberDelta', 'updatedAt']));
+        allow create: if isAuthenticated() &&
+                         request.resource.data.keys().hasOnly(['views', 'watchTimeSeconds', 'subscriberDelta', 'updatedAt']) &&
+                         (!('views' in request.resource.data) || (request.resource.data.views is int && request.resource.data.views >= 0 && request.resource.data.views <= 1)) &&
+                         (!('watchTimeSeconds' in request.resource.data) || (request.resource.data.watchTimeSeconds is int && request.resource.data.watchTimeSeconds >= 0 && request.resource.data.watchTimeSeconds <= 60)) &&
+                         (!('subscriberDelta' in request.resource.data) || (request.resource.data.subscriberDelta is int && request.resource.data.subscriberDelta >= -1 && request.resource.data.subscriberDelta <= 1));
+        allow update: if isAuthenticated() &&
+                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'watchTimeSeconds', 'subscriberDelta', 'updatedAt']) &&
+                         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['views']) ||
+                          (request.resource.data.views is int &&
+                           (!('views' in resource.data) ? (request.resource.data.views >= 0 && request.resource.data.views <= 1) : (request.resource.data.views >= resource.data.views && request.resource.data.views <= resource.data.views + 1)))) &&
+                         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['watchTimeSeconds']) ||
+                          (request.resource.data.watchTimeSeconds is int &&
+                           (!('watchTimeSeconds' in resource.data) ? (request.resource.data.watchTimeSeconds >= 0 && request.resource.data.watchTimeSeconds <= 60) : (request.resource.data.watchTimeSeconds >= resource.data.watchTimeSeconds && request.resource.data.watchTimeSeconds <= resource.data.watchTimeSeconds + 60)))) &&
+                         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['subscriberDelta']) ||
+                          (request.resource.data.subscriberDelta is int && request.resource.data.subscriberDelta >= -1 && request.resource.data.subscriberDelta <= 1));
       }
 
       // Videos subcollection (alternate path)
@@ -236,14 +297,36 @@ service cloud.firestore {
                           ('userId' in get(/databases/$(database)/documents/channels/$(channelId)).data &&
                            get(/databases/$(database)/documents/channels/$(channelId)).data.userId == request.auth.uid)))
                       ));
-        allow write: if isAuthenticated() && 
-                         (('ownerId' in resource.data && resource.data.ownerId == request.auth.uid) ||
-                          ('userId' in resource.data && resource.data.userId == request.auth.uid) ||
-                          ('uploaderId' in resource.data && resource.data.uploaderId == request.auth.uid) ||
-                          ('ownerId' in request.resource.data && request.resource.data.ownerId == request.auth.uid) ||
-                          ('userId' in request.resource.data && request.resource.data.userId == request.auth.uid) ||
-                          ('uploaderId' in request.resource.data && request.resource.data.uploaderId == request.auth.uid) ||
-                          isAdmin());
+        allow create: if isAuthenticated() && (
+          isAdmin() ||
+          ('ownerId' in request.resource.data && request.resource.data.ownerId == request.auth.uid) ||
+          ('userId' in request.resource.data && request.resource.data.userId == request.auth.uid) ||
+          ('uploaderId' in request.resource.data && request.resource.data.uploaderId == request.auth.uid) ||
+          (exists(/databases/$(database)/documents/channels/$(channelId)) &&
+           (('ownerId' in get(/databases/$(database)/documents/channels/$(channelId)).data &&
+             get(/databases/$(database)/documents/channels/$(channelId)).data.ownerId == request.auth.uid) ||
+            ('userId' in get(/databases/$(database)/documents/channels/$(channelId)).data &&
+             get(/databases/$(database)/documents/channels/$(channelId)).data.userId == request.auth.uid)))
+        );
+        allow update: if isAuthenticated() && (
+          isAdmin() ||
+          ((isVideoDataOwner(resource.data) ||
+            (exists(/databases/$(database)/documents/channels/$(channelId)) &&
+             (('ownerId' in get(/databases/$(database)/documents/channels/$(channelId)).data &&
+               get(/databases/$(database)/documents/channels/$(channelId)).data.ownerId == request.auth.uid) ||
+              ('userId' in get(/databases/$(database)/documents/channels/$(channelId)).data &&
+               get(/databases/$(database)/documents/channels/$(channelId)).data.userId == request.auth.uid)))) &&
+           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['ownerId', 'userId', 'uploaderId']))
+        );
+        allow delete: if isAuthenticated() && (
+          isAdmin() ||
+          isVideoDataOwner(resource.data) ||
+          (exists(/databases/$(database)/documents/channels/$(channelId)) &&
+           (('ownerId' in get(/databases/$(database)/documents/channels/$(channelId)).data &&
+             get(/databases/$(database)/documents/channels/$(channelId)).data.ownerId == request.auth.uid) ||
+            ('userId' in get(/databases/$(database)/documents/channels/$(channelId)).data &&
+             get(/databases/$(database)/documents/channels/$(channelId)).data.userId == request.auth.uid)))
+        );
       }
 
       // Membership Tiers subcollection
@@ -358,7 +441,7 @@ service cloud.firestore {
                       isVideoDataOwner(resource.data)
                     ));
       
-      // Allow authenticated users to create videos — all identity fields must match the creator
+      // Allow authenticated users to create videos — all identity fields must match creator and metrics initialized to 0/empty
       allow create: if isAuthenticated() && 
                        (!('uploaderId' in request.resource.data) || request.resource.data.uploaderId == request.auth.uid) &&
                        (!('userId' in request.resource.data) || request.resource.data.userId == request.auth.uid) &&
@@ -376,27 +459,45 @@ service cloud.firestore {
                        (!('factCheck' in request.resource.data) || request.resource.data.factCheck == null) &&
                        (!('views' in request.resource.data) || request.resource.data.views == 0) &&
                        (!('viewCount' in request.resource.data) || request.resource.data.viewCount == 0) &&
-                       (!('playCount' in request.resource.data) || request.resource.data.playCount == 0);
+                       (!('playCount' in request.resource.data) || request.resource.data.playCount == 0) &&
+                       (!('likeCount' in request.resource.data) || request.resource.data.likeCount == 0) &&
+                       (!('dislikeCount' in request.resource.data) || request.resource.data.dislikeCount == 0) &&
+                       (!('shareCount' in request.resource.data) || request.resource.data.shareCount == 0) &&
+                       (!('commentCount' in request.resource.data) || request.resource.data.commentCount == 0) &&
+                       (!('commentsCount' in request.resource.data) || request.resource.data.commentsCount == 0) &&
+                       (!('languageRequestsCount' in request.resource.data) || request.resource.data.languageRequestsCount == 0) &&
+                       (!('totalWatchTimeSeconds' in request.resource.data) || request.resource.data.totalWatchTimeSeconds == 0) &&
+                       (!('engagement' in request.resource.data) || request.resource.data.engagement == 0 || request.resource.data.engagement == {}) &&
+                       (!('likes' in request.resource.data) || request.resource.data.likes == 0 || request.resource.data.likes == [] || request.resource.data.likes == {}) &&
+                       (!('dislikes' in request.resource.data) || request.resource.data.dislikes == 0 || request.resource.data.dislikes == [] || request.resource.data.dislikes == {});
       
-      // Allow owners or admins to update their videos, or authenticated users to update engagement / interaction counts
+      // Allow owners or admins to update their videos, or authenticated users to update engagement / interaction counts with bounded deltas
       allow update: if isAuthenticated() && (
         isAdmin() ||
         ((isVideoDataOwner(resource.data) || isVideoOwner(videoId)) &&
          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+           'ownerId', 'userId', 'channelId', 'uploaderId',
            'credibilityScore', 'factCheck', 'truthScore', 'pipelineStatus', 'moderation', 'moderationReason', 'gatewayDecision',
-           'views', 'viewCount', 'playCount', 'credibilityVerified', 'isVerified'
+           'views', 'viewCount', 'playCount', 'credibilityVerified', 'isVerified',
+           'credibility', 'credibilityStatus', 'factCheckDispute', 'claimLedger', 'factCheckStats', 'uiReport', 'isFactChecked', 'scoringFactors'
          ])) ||
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'likeCount', 'dislikeCount', 'likes', 'dislikes', 'views', 'viewCount', 'shareCount', 'playCount', 'engagement', 'languageRequestsCount', 'commentCount', 'commentsCount', 'totalWatchTimeSeconds'
+          'likeCount', 'dislikeCount', 'likes', 'dislikes', 'views', 'viewCount', 'shareCount', 'playCount', 'engagement', 'languageRequestsCount', 'commentCount', 'commentsCount', 'totalWatchTimeSeconds', 'updatedAt'
         ]) &&
         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['likeCount']) ||
-         request.resource.data.likeCount == resource.data.likeCount + 1 ||
-         request.resource.data.likeCount == resource.data.likeCount - 1 ||
-         request.resource.data.likeCount == resource.data.likeCount) &&
+         (!('likeCount' in resource.data) && (request.resource.data.likeCount == 0 || request.resource.data.likeCount == 1)) ||
+         ('likeCount' in resource.data && (
+           request.resource.data.likeCount == resource.data.likeCount + 1 ||
+           request.resource.data.likeCount == resource.data.likeCount - 1 ||
+           request.resource.data.likeCount == resource.data.likeCount
+         ))) &&
         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['dislikeCount']) ||
-         request.resource.data.dislikeCount == resource.data.dislikeCount + 1 ||
-         request.resource.data.dislikeCount == resource.data.dislikeCount - 1 ||
-         request.resource.data.dislikeCount == resource.data.dislikeCount) &&
+         (!('dislikeCount' in resource.data) && (request.resource.data.dislikeCount == 0 || request.resource.data.dislikeCount == 1)) ||
+         ('dislikeCount' in resource.data && (
+           request.resource.data.dislikeCount == resource.data.dislikeCount + 1 ||
+           request.resource.data.dislikeCount == resource.data.dislikeCount - 1 ||
+           request.resource.data.dislikeCount == resource.data.dislikeCount
+         ))) &&
         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['viewCount']) ||
          (!('viewCount' in resource.data) && request.resource.data.viewCount == 1) ||
          ('viewCount' in resource.data && (
@@ -409,9 +510,53 @@ service cloud.firestore {
            request.resource.data.views == resource.data.views + 1 ||
            request.resource.data.views == resource.data.views
          ))) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['shareCount']) ||
+         (!('shareCount' in resource.data) && (request.resource.data.shareCount == 0 || request.resource.data.shareCount == 1)) ||
+         ('shareCount' in resource.data && (
+           request.resource.data.shareCount == resource.data.shareCount + 1 ||
+           request.resource.data.shareCount == resource.data.shareCount
+         ))) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['playCount']) ||
+         (!('playCount' in resource.data) && (request.resource.data.playCount == 0 || request.resource.data.playCount == 1)) ||
+         ('playCount' in resource.data && (
+           request.resource.data.playCount == resource.data.playCount + 1 ||
+           request.resource.data.playCount == resource.data.playCount
+         ))) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['commentCount']) ||
+         (!('commentCount' in resource.data) && (request.resource.data.commentCount == 0 || request.resource.data.commentCount == 1)) ||
+         ('commentCount' in resource.data && (
+           request.resource.data.commentCount == resource.data.commentCount + 1 ||
+           request.resource.data.commentCount == resource.data.commentCount - 1 ||
+           request.resource.data.commentCount == resource.data.commentCount
+         ))) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['commentsCount']) ||
+         (!('commentsCount' in resource.data) && (request.resource.data.commentsCount == 0 || request.resource.data.commentsCount == 1)) ||
+         ('commentsCount' in resource.data && (
+           request.resource.data.commentsCount == resource.data.commentsCount + 1 ||
+           request.resource.data.commentsCount == resource.data.commentsCount - 1 ||
+           request.resource.data.commentsCount == resource.data.commentsCount
+         ))) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['languageRequestsCount']) ||
+         (!('languageRequestsCount' in resource.data) && (request.resource.data.languageRequestsCount == 0 || request.resource.data.languageRequestsCount == 1)) ||
+         ('languageRequestsCount' in resource.data && (
+           request.resource.data.languageRequestsCount == resource.data.languageRequestsCount + 1 ||
+           request.resource.data.languageRequestsCount == resource.data.languageRequestsCount - 1 ||
+           request.resource.data.languageRequestsCount == resource.data.languageRequestsCount
+         ))) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['engagement']) ||
+         (!('engagement' in resource.data) && (request.resource.data.engagement == 0 || request.resource.data.engagement == 1 || request.resource.data.engagement is map)) ||
+         ('engagement' in resource.data && (
+           request.resource.data.engagement == resource.data.engagement + 1 ||
+           request.resource.data.engagement == resource.data.engagement - 1 ||
+           request.resource.data.engagement == resource.data.engagement ||
+           request.resource.data.engagement is map
+         ))) &&
         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['totalWatchTimeSeconds']) ||
-         (!('totalWatchTimeSeconds' in resource.data) && request.resource.data.totalWatchTimeSeconds >= 0) ||
-         ('totalWatchTimeSeconds' in resource.data && request.resource.data.totalWatchTimeSeconds >= resource.data.totalWatchTimeSeconds)))
+         (!('totalWatchTimeSeconds' in resource.data) && (request.resource.data.totalWatchTimeSeconds >= 0 && request.resource.data.totalWatchTimeSeconds <= 60)) ||
+         ('totalWatchTimeSeconds' in resource.data && (
+           request.resource.data.totalWatchTimeSeconds >= resource.data.totalWatchTimeSeconds &&
+           request.resource.data.totalWatchTimeSeconds <= resource.data.totalWatchTimeSeconds + 60
+         ))))
       );
       
       // Allow owners to delete their videos
@@ -447,8 +592,22 @@ service cloud.firestore {
       // Language requests subcollection (viewers request dubbed audio/subtitles)
       match /language_requests/{requestId} {
         allow read: if true;
-        allow create, update: if isAuthenticated();
-        allow delete: if isVideoOwner(videoId);
+        allow create: if isAuthenticated() && (
+          ('userId' in request.resource.data && request.resource.data.userId == request.auth.uid) ||
+          ('requesters' in request.resource.data && request.resource.data.requesters.hasAll([request.auth.uid])) ||
+          isAdmin()
+        );
+        allow update: if isAuthenticated() && (
+          isAdmin() ||
+          isVideoOwner(videoId) ||
+          ('userId' in resource.data && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid) ||
+          ('requesters' in request.resource.data && request.resource.data.requesters.hasAll([request.auth.uid]))
+        );
+        allow delete: if isAuthenticated() && (
+          isAdmin() ||
+          isVideoOwner(videoId) ||
+          ('userId' in resource.data && resource.data.userId == request.auth.uid)
+        );
       }
 
       // View tracking subcollection (one doc per user per video)
@@ -460,8 +619,22 @@ service cloud.firestore {
       // Distributed Counter Shards (20 shards for viral video views & watch time)
       match /shards/{shardId} {
         allow read: if true;
-        allow create: if request.resource.data.keys().hasOnly(['count', 'qualifiedCount', 'watchTimeSeconds', 'updatedAt']);
-        allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['count', 'qualifiedCount', 'watchTimeSeconds', 'updatedAt']);
+        allow create: if isAuthenticated() &&
+                         request.resource.data.keys().hasOnly(['count', 'qualifiedCount', 'watchTimeSeconds', 'updatedAt']) &&
+                         (!('count' in request.resource.data) || (request.resource.data.count is int && request.resource.data.count >= 0 && request.resource.data.count <= 1)) &&
+                         (!('qualifiedCount' in request.resource.data) || (request.resource.data.qualifiedCount is int && request.resource.data.qualifiedCount >= 0 && request.resource.data.qualifiedCount <= 1)) &&
+                         (!('watchTimeSeconds' in request.resource.data) || (request.resource.data.watchTimeSeconds is int && request.resource.data.watchTimeSeconds >= 0 && request.resource.data.watchTimeSeconds <= 60));
+        allow update: if isAuthenticated() &&
+                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['count', 'qualifiedCount', 'watchTimeSeconds', 'updatedAt']) &&
+                         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['count']) ||
+                          (request.resource.data.count is int &&
+                           (!('count' in resource.data) ? (request.resource.data.count >= 0 && request.resource.data.count <= 1) : (request.resource.data.count >= resource.data.count && request.resource.data.count <= resource.data.count + 1)))) &&
+                         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['qualifiedCount']) ||
+                          (request.resource.data.qualifiedCount is int &&
+                           (!('qualifiedCount' in resource.data) ? (request.resource.data.qualifiedCount >= 0 && request.resource.data.qualifiedCount <= 1) : (request.resource.data.qualifiedCount >= resource.data.qualifiedCount && request.resource.data.qualifiedCount <= resource.data.qualifiedCount + 1)))) &&
+                         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['watchTimeSeconds']) ||
+                          (request.resource.data.watchTimeSeconds is int &&
+                           (!('watchTimeSeconds' in resource.data) ? (request.resource.data.watchTimeSeconds >= 0 && request.resource.data.watchTimeSeconds <= 60) : (request.resource.data.watchTimeSeconds >= resource.data.watchTimeSeconds && request.resource.data.watchTimeSeconds <= resource.data.watchTimeSeconds + 60))));
       }
 
       // Distributed Counter Shards (20 shards for viral video comments)
@@ -488,10 +661,12 @@ service cloud.firestore {
         allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid &&
                          (!('text' in request.resource.data) || (request.resource.data.text is string && request.resource.data.text.size() <= 2000));
         allow update: if isAuthenticated() && (
-          resource.data.userId == request.auth.uid ||
           isVideoOwner(videoId) ||
+          isAdmin() ||
+          (resource.data.userId == request.auth.uid &&
+           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isHeartedByCreator', 'creatorHeartName'])) ||
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'likeCount', 'dislikeCount', 'likes', 'dislikes', 'isHeartedByCreator', 'creatorHeartName', 'replyCount'
+            'likeCount', 'dislikeCount', 'likes', 'dislikes', 'replyCount'
           ])
         );
         allow delete: if isAuthenticated() && (
@@ -505,10 +680,12 @@ service cloud.firestore {
           allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid &&
                            (!('text' in request.resource.data) || (request.resource.data.text is string && request.resource.data.text.size() <= 2000));
           allow update: if isAuthenticated() && (
-            resource.data.userId == request.auth.uid ||
             isVideoOwner(videoId) ||
+            isAdmin() ||
+            (resource.data.userId == request.auth.uid &&
+             !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isHeartedByCreator', 'creatorHeartName'])) ||
             request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-              'likeCount', 'dislikeCount', 'likes', 'dislikes', 'isHeartedByCreator', 'creatorHeartName'
+              'likeCount', 'dislikeCount', 'likes', 'dislikes'
             ])
           );
           allow delete: if isAuthenticated() && (
@@ -537,6 +714,27 @@ service cloud.firestore {
           allow write: if isAuthenticated() && request.auth.uid == userId;
         }
       }
+
+      // Claim Comments subcollection (Community Deliberation Notes)
+      match /claim_comments/{commentId} {
+        allow read: if true;
+        allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid &&
+                         (!('text' in request.resource.data) || (request.resource.data.text is string && request.resource.data.text.size() <= 2000));
+        allow update: if isAuthenticated() && (
+          resource.data.userId == request.auth.uid ||
+          isVideoOwner(videoId) ||
+          isAdmin() ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'helpfulCount', 'unhelpfulCount', 'helpfulUserIds', 'unhelpfulUserIds',
+            'likes', 'dislikes', 'likeCount', 'dislikeCount'
+          ])
+        );
+        allow delete: if isAuthenticated() && (
+          resource.data.userId == request.auth.uid ||
+          isVideoOwner(videoId) ||
+          isAdmin()
+        );
+      }
     }
     
     // Topics Collection
@@ -557,28 +755,79 @@ service cloud.firestore {
           (resource.data.channelId != null &&
            exists(/databases/$(database)/documents/channels/$(resource.data.channelId)) &&
            get(/databases/$(database)/documents/channels/$(resource.data.channelId)).data.ownerId == request.auth.uid)) &&
-         !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-           'geminiApproved', 'status', 'moderationReason', 'moderatedAt', 'creatorId', 'videoCount'
-         ])) ||
+         (
+           // Soft-delete by topic creator or channel owner
+           (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'visibilityType', 'deletionRequestedAt']) &&
+            request.resource.data.status == 'deletion_pending') ||
+           // General topic edits by topic creator or channel owner
+           (
+             // Prevent changing creatorId
+             !request.resource.data.diff(resource.data).affectedKeys().hasAny(['creatorId']) &&
+             // Prevent modifying moderatedAt
+             !request.resource.data.diff(resource.data).affectedKeys().hasAny(['moderatedAt']) &&
+             // videoCount must be a number >= 0 if updated
+             (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['videoCount']) ||
+              (request.resource.data.videoCount is number && request.resource.data.videoCount >= 0)) &&
+             // status: unchanged, or set to 'pending' or 'underReview' (non-admins cannot set 'active')
+             (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['status']) ||
+              request.resource.data.status == 'pending' ||
+              request.resource.data.status == 'underReview') &&
+             // moderationReason: unchanged, deleted, or cleared (null or empty string)
+             (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['moderationReason']) ||
+              !('moderationReason' in request.resource.data) ||
+              request.resource.data.moderationReason == null ||
+              request.resource.data.moderationReason == '') &&
+             // geminiApproved: unchanged, deleted, or false (non-admins cannot set to true)
+             (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['geminiApproved']) ||
+              !('geminiApproved' in request.resource.data) ||
+              request.resource.data.geminiApproved == false)
+           )
+         )) ||
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'likes', 'dislikes', 'followers', 'followerCount'
+          'likes', 'likeCount', 'dislikes', 'followers', 'followerCount', 'commentCount'
         ]) &&
         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['likes']) ||
-         request.resource.data.likes == resource.data.likes + 1 ||
-         request.resource.data.likes == resource.data.likes - 1 ||
-         request.resource.data.likes == resource.data.likes) &&
+         (!('likes' in resource.data) && (request.resource.data.likes == 1 || request.resource.data.likes == 0)) ||
+         ('likes' in resource.data && (
+           request.resource.data.likes == resource.data.likes + 1 ||
+           request.resource.data.likes == resource.data.likes - 1 ||
+           request.resource.data.likes == resource.data.likes
+         ))) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['likeCount']) ||
+         (!('likeCount' in resource.data) && (request.resource.data.likeCount == 1 || request.resource.data.likeCount == 0)) ||
+         ('likeCount' in resource.data && (
+           request.resource.data.likeCount == resource.data.likeCount + 1 ||
+           request.resource.data.likeCount == resource.data.likeCount - 1 ||
+           request.resource.data.likeCount == resource.data.likeCount
+         ))) &&
         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['dislikes']) ||
-         request.resource.data.dislikes == resource.data.dislikes + 1 ||
-         request.resource.data.dislikes == resource.data.dislikes - 1 ||
-         request.resource.data.dislikes == resource.data.dislikes) &&
+         (!('dislikes' in resource.data) && (request.resource.data.dislikes == 1 || request.resource.data.dislikes == 0)) ||
+         ('dislikes' in resource.data && (
+           request.resource.data.dislikes == resource.data.dislikes + 1 ||
+           request.resource.data.dislikes == resource.data.dislikes - 1 ||
+           request.resource.data.dislikes == resource.data.dislikes
+         ))) &&
         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['followers']) ||
-         request.resource.data.followers == resource.data.followers + 1 ||
-         request.resource.data.followers == resource.data.followers - 1 ||
-         request.resource.data.followers == resource.data.followers) &&
+         (!('followers' in resource.data) && (request.resource.data.followers == 1 || request.resource.data.followers == 0)) ||
+         ('followers' in resource.data && (
+           request.resource.data.followers == resource.data.followers + 1 ||
+           request.resource.data.followers == resource.data.followers - 1 ||
+           request.resource.data.followers == resource.data.followers
+         ))) &&
         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['followerCount']) ||
-         request.resource.data.followerCount == resource.data.followerCount + 1 ||
-         request.resource.data.followerCount == resource.data.followerCount - 1 ||
-         request.resource.data.followerCount == resource.data.followerCount))
+         (!('followerCount' in resource.data) && (request.resource.data.followerCount == 1 || request.resource.data.followerCount == 0)) ||
+         ('followerCount' in resource.data && (
+           request.resource.data.followerCount == resource.data.followerCount + 1 ||
+           request.resource.data.followerCount == resource.data.followerCount - 1 ||
+           request.resource.data.followerCount == resource.data.followerCount
+         ))) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['commentCount']) ||
+         (!('commentCount' in resource.data) && (request.resource.data.commentCount == 1 || request.resource.data.commentCount == 0)) ||
+         ('commentCount' in resource.data && (
+           request.resource.data.commentCount == resource.data.commentCount + 1 ||
+           request.resource.data.commentCount == resource.data.commentCount - 1 ||
+           request.resource.data.commentCount == resource.data.commentCount
+         ))))
       );
       allow delete: if isAuthenticated() && (
         isAdmin() ||
@@ -663,15 +912,17 @@ service cloud.firestore {
     // Legacy Topic Likes Collection
     match /topic_likes/{likeId} {
       allow read: if true;
-      allow create, update: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
     }
     
     // Legacy Topic Followers Collection
     match /topic_followers/{followId} {
       allow read: if true;
-      allow create, update: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
     }
     
     // Topic Reports Collection
@@ -686,6 +937,12 @@ service cloud.firestore {
       allow write: if false; // Only backend service account can write
     }
 
+    // Video Transcripts Collection (Root level - pipeline generated, readable by authenticated users)
+    match /transcripts/{transcriptId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only backend service account can write
+    }
+
     // Pipeline Errors Collection (backend monitoring)
     match /pipeline_errors/{errorId} {
       allow read: if false; // Admin console only
@@ -695,10 +952,9 @@ service cloud.firestore {
     // Subscriptions Collection (Legacy/Frontend)
     match /subscriptions/{subscriptionId} {
       allow read: if isAuthenticated();
-      allow create, update: if isAuthenticated() && 
-                       request.resource.data.userId == request.auth.uid;
-      allow delete: if isAuthenticated() && 
-                       resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
 
       // Subcollection for user-specific subscription lists (/subscriptions/{userId}/list/{docId})
       match /list/{docId} {
@@ -732,8 +988,8 @@ service cloud.firestore {
     
     // Users Collection
     match /users/{userId} {
-      // Allow anyone to read public user profiles
-      allow read: if true;
+      // Restrict read to authenticated user or admin to protect PII
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
       
       // Allow users to create their own profile without administrative privileges, or admins to create/initialize user profiles
       allow create: if isAuthenticated() && (
@@ -999,14 +1255,16 @@ service cloud.firestore {
     // Ad Likes Collection
     match /ad_likes/{likeId} {
       allow read: if true;
-      allow create, update: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
       allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // Ad Saves Collection
     match /ad_saves/{saveId} {
       allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create, update: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
       allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
@@ -1046,6 +1304,12 @@ service cloud.firestore {
         allow write: if isAdmin();
       }
 
+      // Billing Transactions subcollection (Cloud Functions / Admin SDK only writes)
+      match /billing_transactions/{txId} {
+        allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+        allow write: if isAdmin();
+      }
+
       // Audience Targeting Presets subcollection
       match /audience_presets/{presetId} {
         allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
@@ -1068,11 +1332,6 @@ service cloud.firestore {
         allow write, delete: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
       }
 
-      // A/B Testing Experiments subcollection
-      match /ab_experiments/{experimentId} {
-        allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-        allow write, delete: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      }
     }
     
     // Comments Collection
@@ -1148,44 +1407,99 @@ service cloud.firestore {
       
       // Allow authenticated users to create community posts
       allow create: if isAuthenticated() && 
-                       request.resource.data.ownerId == request.auth.uid;
+                       (request.resource.data.ownerId == request.auth.uid ||
+                        ('userId' in request.resource.data && request.resource.data.userId == request.auth.uid) ||
+                        isAdmin());
       
       // Allow owners to update/delete, or other users to update interaction fields
-       allow update: if isAuthenticated() && (
-                        resource.data.ownerId == request.auth.uid ||
-                        isAdmin() ||
-                        (request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                          'likes', 'likedBy', 'dislikes', 'dislikedBy'
-                        ]) &&
-                        (request.resource.data.likes == resource.data.likes + 1 ||
-                         request.resource.data.likes == resource.data.likes - 1 ||
-                         request.resource.data.likes == resource.data.likes) &&
-                        (request.resource.data.dislikes == resource.data.dislikes + 1 ||
-                         request.resource.data.dislikes == resource.data.dislikes - 1 ||
-                         request.resource.data.dislikes == resource.data.dislikes))
-                      );
+      allow update: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid ||
+        ('userId' in resource.data && resource.data.userId == request.auth.uid) ||
+        isCommunityPostOwner(postId) ||
+        isAdmin() ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'likes', 'likedBy', 'likedby', 'dislikes', 'dislikedBy', 'dislikedby', 'commentCount', 'poll', 'shares'
+        ]) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['likes']) ||
+         (!('likes' in resource.data) && (request.resource.data.likes == 0 || request.resource.data.likes == 1)) ||
+         ('likes' in resource.data && (
+           request.resource.data.likes == resource.data.likes + 1 ||
+           request.resource.data.likes == resource.data.likes - 1 ||
+           request.resource.data.likes == resource.data.likes
+         ))) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['dislikes']) ||
+         (!('dislikes' in resource.data) && (request.resource.data.dislikes == 0 || request.resource.data.dislikes == 1)) ||
+         ('dislikes' in resource.data && (
+           request.resource.data.dislikes == resource.data.dislikes + 1 ||
+           request.resource.data.dislikes == resource.data.dislikes - 1 ||
+           request.resource.data.dislikes == resource.data.dislikes
+         ))) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['commentCount']) ||
+         (!('commentCount' in resource.data) && (request.resource.data.commentCount == 0 || request.resource.data.commentCount == 1)) ||
+         ('commentCount' in resource.data && (
+           request.resource.data.commentCount == resource.data.commentCount + 1 ||
+           request.resource.data.commentCount == resource.data.commentCount - 1 ||
+           request.resource.data.commentCount == resource.data.commentCount
+         ))))
+      );
                      
       allow delete: if isAuthenticated() && 
-                       (resource.data.ownerId == request.auth.uid || isAdmin());
+                       (resource.data.ownerId == request.auth.uid ||
+                        ('userId' in resource.data && resource.data.userId == request.auth.uid) ||
+                        isCommunityPostOwner(postId) ||
+                        isAdmin());
+
+      // Likes/Dislikes subcollections on post
+      match /likes/{userId} {
+        allow read: if true;
+        allow write: if isAuthenticated() && request.auth.uid == userId;
+      }
+
+      match /dislikes/{userId} {
+        allow read: if true;
+        allow write: if isAuthenticated() && request.auth.uid == userId;
+      }
 
       match /comments/{commentId} {
         allow read: if true;
         allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-        allow update, delete: if isAuthenticated() && 
-                                 (resource.data.userId == request.auth.uid || 
-                                  resource.data.channelId == request.auth.uid ||
-                                  resource.data.ownerId == request.auth.uid ||
-                                  isAdmin());
+        allow update: if isAuthenticated() && (
+          resource.data.userId == request.auth.uid || 
+          resource.data.channelId == request.auth.uid ||
+          resource.data.ownerId == request.auth.uid ||
+          isCommunityPostOwner(postId) ||
+          isAdmin() ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'likeCount', 'dislikeCount', 'likes', 'dislikes', 'likedBy', 'likedby', 'dislikedBy', 'dislikedby', 'replyCount'
+          ])
+        );
+        allow delete: if isAuthenticated() && 
+                         (resource.data.userId == request.auth.uid || 
+                          resource.data.channelId == request.auth.uid ||
+                          resource.data.ownerId == request.auth.uid ||
+                          isCommunityPostOwner(postId) ||
+                          isAdmin());
 
         // Replies subcollection
         match /replies/{replyId} {
           allow read: if true;
           allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-          allow update, delete: if isAuthenticated() && 
-                                   (resource.data.userId == request.auth.uid || 
-                                    resource.data.channelId == request.auth.uid ||
-                                    resource.data.ownerId == request.auth.uid ||
-                                    isAdmin());
+          allow update: if isAuthenticated() && (
+            resource.data.userId == request.auth.uid || 
+            resource.data.channelId == request.auth.uid ||
+            resource.data.ownerId == request.auth.uid ||
+            isCommunityPostOwner(postId) ||
+            isAdmin() ||
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'likeCount', 'dislikeCount', 'likes', 'dislikes', 'likedBy', 'likedby', 'dislikedBy', 'dislikedby'
+            ])
+          );
+          allow delete: if isAuthenticated() && 
+                           (resource.data.userId == request.auth.uid || 
+                            resource.data.channelId == request.auth.uid ||
+                            resource.data.ownerId == request.auth.uid ||
+                            isCommunityPostOwner(postId) ||
+                            isAdmin());
 
           match /likes/{userId} {
             allow read: if true;
@@ -1212,26 +1526,96 @@ service cloud.firestore {
 
     match /community/{postId} {
       allow read: if true;
-      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && 
+                       (request.resource.data.ownerId == request.auth.uid ||
+                        ('userId' in request.resource.data && request.resource.data.userId == request.auth.uid) ||
+                        isAdmin());
+      allow update: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid ||
+        ('userId' in resource.data && resource.data.userId == request.auth.uid) ||
+        isCommunityPostOwner(postId) ||
+        isAdmin() ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'likes', 'likedBy', 'likedby', 'dislikes', 'dislikedBy', 'dislikedby', 'commentCount', 'poll', 'shares'
+        ]) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['likes']) ||
+         (!('likes' in resource.data) && (request.resource.data.likes == 0 || request.resource.data.likes == 1)) ||
+         ('likes' in resource.data && (
+           request.resource.data.likes == resource.data.likes + 1 ||
+           request.resource.data.likes == resource.data.likes - 1 ||
+           request.resource.data.likes == resource.data.likes
+         ))) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['dislikes']) ||
+         (!('dislikes' in resource.data) && (request.resource.data.dislikes == 0 || request.resource.data.dislikes == 1)) ||
+         ('dislikes' in resource.data && (
+           request.resource.data.dislikes == resource.data.dislikes + 1 ||
+           request.resource.data.dislikes == resource.data.dislikes - 1 ||
+           request.resource.data.dislikes == resource.data.dislikes
+         ))) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['commentCount']) ||
+         (!('commentCount' in resource.data) && (request.resource.data.commentCount == 0 || request.resource.data.commentCount == 1)) ||
+         ('commentCount' in resource.data && (
+           request.resource.data.commentCount == resource.data.commentCount + 1 ||
+           request.resource.data.commentCount == resource.data.commentCount - 1 ||
+           request.resource.data.commentCount == resource.data.commentCount
+         ))))
+      );
+      allow delete: if isAuthenticated() && 
+                       (resource.data.ownerId == request.auth.uid ||
+                        ('userId' in resource.data && resource.data.userId == request.auth.uid) ||
+                        isCommunityPostOwner(postId) ||
+                        isAdmin());
       
+      // Likes/Dislikes subcollections on post
+      match /likes/{userId} {
+        allow read: if true;
+        allow write: if isAuthenticated() && request.auth.uid == userId;
+      }
+
+      match /dislikes/{userId} {
+        allow read: if true;
+        allow write: if isAuthenticated() && request.auth.uid == userId;
+      }
+
       match /comments/{commentId} {
         allow read: if true;
         allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-        allow update, delete: if isAuthenticated() && 
-                                 (resource.data.userId == request.auth.uid || 
-                                  resource.data.channelId == request.auth.uid ||
-                                  resource.data.ownerId == request.auth.uid ||
-                                  isAdmin());
+        allow update: if isAuthenticated() && (
+          resource.data.userId == request.auth.uid || 
+          resource.data.channelId == request.auth.uid ||
+          resource.data.ownerId == request.auth.uid ||
+          isCommunityPostOwner(postId) ||
+          isAdmin() ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'likeCount', 'dislikeCount', 'likes', 'dislikes', 'likedBy', 'likedby', 'dislikedBy', 'dislikedby', 'replyCount'
+          ])
+        );
+        allow delete: if isAuthenticated() && 
+                         (resource.data.userId == request.auth.uid || 
+                          resource.data.channelId == request.auth.uid ||
+                          resource.data.ownerId == request.auth.uid ||
+                          isCommunityPostOwner(postId) ||
+                          isAdmin());
 
         match /replies/{replyId} {
           allow read: if true;
           allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-          allow update, delete: if isAuthenticated() && 
-                                   (resource.data.userId == request.auth.uid || 
-                                    resource.data.channelId == request.auth.uid ||
-                                    resource.data.ownerId == request.auth.uid ||
-                                    isAdmin());
+          allow update: if isAuthenticated() && (
+            resource.data.userId == request.auth.uid || 
+            resource.data.channelId == request.auth.uid ||
+            resource.data.ownerId == request.auth.uid ||
+            isCommunityPostOwner(postId) ||
+            isAdmin() ||
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'likeCount', 'dislikeCount', 'likes', 'dislikes', 'likedBy', 'likedby', 'dislikedBy', 'dislikedby'
+            ])
+          );
+          allow delete: if isAuthenticated() && 
+                           (resource.data.userId == request.auth.uid || 
+                            resource.data.channelId == request.auth.uid ||
+                            resource.data.ownerId == request.auth.uid ||
+                            isCommunityPostOwner(postId) ||
+                            isAdmin());
 
           match /likes/{userId} {
             allow read: if true;
@@ -1258,26 +1642,96 @@ service cloud.firestore {
 
     match /community_posts/{postId} {
       allow read: if true;
-      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && 
+                       (request.resource.data.ownerId == request.auth.uid ||
+                        ('userId' in request.resource.data && request.resource.data.userId == request.auth.uid) ||
+                        isAdmin());
+      allow update: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid ||
+        ('userId' in resource.data && resource.data.userId == request.auth.uid) ||
+        isCommunityPostOwner(postId) ||
+        isAdmin() ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'likes', 'likedBy', 'likedby', 'dislikes', 'dislikedBy', 'dislikedby', 'commentCount', 'poll', 'shares'
+        ]) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['likes']) ||
+         (!('likes' in resource.data) && (request.resource.data.likes == 0 || request.resource.data.likes == 1)) ||
+         ('likes' in resource.data && (
+           request.resource.data.likes == resource.data.likes + 1 ||
+           request.resource.data.likes == resource.data.likes - 1 ||
+           request.resource.data.likes == resource.data.likes
+         ))) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['dislikes']) ||
+         (!('dislikes' in resource.data) && (request.resource.data.dislikes == 0 || request.resource.data.dislikes == 1)) ||
+         ('dislikes' in resource.data && (
+           request.resource.data.dislikes == resource.data.dislikes + 1 ||
+           request.resource.data.dislikes == resource.data.dislikes - 1 ||
+           request.resource.data.dislikes == resource.data.dislikes
+         ))) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['commentCount']) ||
+         (!('commentCount' in resource.data) && (request.resource.data.commentCount == 0 || request.resource.data.commentCount == 1)) ||
+         ('commentCount' in resource.data && (
+           request.resource.data.commentCount == resource.data.commentCount + 1 ||
+           request.resource.data.commentCount == resource.data.commentCount - 1 ||
+           request.resource.data.commentCount == resource.data.commentCount
+         ))))
+      );
+      allow delete: if isAuthenticated() && 
+                       (resource.data.ownerId == request.auth.uid ||
+                        ('userId' in resource.data && resource.data.userId == request.auth.uid) ||
+                        isCommunityPostOwner(postId) ||
+                        isAdmin());
       
+      // Likes/Dislikes subcollections on post
+      match /likes/{userId} {
+        allow read: if true;
+        allow write: if isAuthenticated() && request.auth.uid == userId;
+      }
+
+      match /dislikes/{userId} {
+        allow read: if true;
+        allow write: if isAuthenticated() && request.auth.uid == userId;
+      }
+
       match /comments/{commentId} {
         allow read: if true;
         allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-        allow update, delete: if isAuthenticated() && 
-                                 (resource.data.userId == request.auth.uid || 
-                                  resource.data.channelId == request.auth.uid ||
-                                  resource.data.ownerId == request.auth.uid ||
-                                  isAdmin());
+        allow update: if isAuthenticated() && (
+          resource.data.userId == request.auth.uid || 
+          resource.data.channelId == request.auth.uid ||
+          resource.data.ownerId == request.auth.uid ||
+          isCommunityPostOwner(postId) ||
+          isAdmin() ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'likeCount', 'dislikeCount', 'likes', 'dislikes', 'likedBy', 'likedby', 'dislikedBy', 'dislikedby', 'replyCount'
+          ])
+        );
+        allow delete: if isAuthenticated() && 
+                         (resource.data.userId == request.auth.uid || 
+                          resource.data.channelId == request.auth.uid ||
+                          resource.data.ownerId == request.auth.uid ||
+                          isCommunityPostOwner(postId) ||
+                          isAdmin());
 
         match /replies/{replyId} {
           allow read: if true;
           allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-          allow update, delete: if isAuthenticated() && 
-                                   (resource.data.userId == request.auth.uid || 
-                                    resource.data.channelId == request.auth.uid ||
-                                    resource.data.ownerId == request.auth.uid ||
-                                    isAdmin());
+          allow update: if isAuthenticated() && (
+            resource.data.userId == request.auth.uid || 
+            resource.data.channelId == request.auth.uid ||
+            resource.data.ownerId == request.auth.uid ||
+            isCommunityPostOwner(postId) ||
+            isAdmin() ||
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'likeCount', 'dislikeCount', 'likes', 'dislikes', 'likedBy', 'likedby', 'dislikedBy', 'dislikedby'
+            ])
+          );
+          allow delete: if isAuthenticated() && 
+                           (resource.data.userId == request.auth.uid || 
+                            resource.data.channelId == request.auth.uid ||
+                            resource.data.ownerId == request.auth.uid ||
+                            isCommunityPostOwner(postId) ||
+                            isAdmin());
 
           match /likes/{userId} {
             allow read: if true;
@@ -1461,8 +1915,7 @@ service cloud.firestore {
 
     // Copyright Claims Collection
     match /copyright_claims/{claimId} {
-      allow list: if isAuthenticated();
-      allow get: if isAuthenticated() && (
+      allow read: if isAuthenticated() && (
         ('uploaderId' in resource.data && resource.data.uploaderId == request.auth.uid) ||
         ('ownerId' in resource.data && resource.data.ownerId == request.auth.uid) ||
         ('userId' in resource.data && resource.data.userId == request.auth.uid) ||
@@ -1513,8 +1966,7 @@ service cloud.firestore {
 
     // Copyright Appeals Collection
     match /copyright_appeals/{appealId} {
-      allow list: if isAuthenticated();
-      allow get: if isAuthenticated() && (
+      allow read: if isAuthenticated() && (
         ('appellantId' in resource.data && resource.data.appellantId == request.auth.uid) ||
         ('claimantId' in resource.data && resource.data.claimantId == request.auth.uid) ||
         ('userId' in resource.data && resource.data.userId == request.auth.uid) ||
@@ -1527,6 +1979,33 @@ service cloud.firestore {
         isAdmin()
       );
       allow update, delete: if false; // Only backend can update or delete appeals
+    }
+
+    // Channel Strikes
+    match /channel_strikes/{strikeId} {
+      allow read: if isAuthenticated() && (
+        ('userId' in resource.data && resource.data.userId == request.auth.uid) ||
+        ('channelId' in resource.data && (
+          resource.data.channelId == request.auth.uid ||
+          (exists(/databases/$(database)/documents/channels/$(resource.data.channelId)) &&
+           (('ownerId' in get(/databases/$(database)/documents/channels/$(resource.data.channelId)).data &&
+             get(/databases/$(database)/documents/channels/$(resource.data.channelId)).data.ownerId == request.auth.uid) ||
+            ('userId' in get(/databases/$(database)/documents/channels/$(resource.data.channelId)).data &&
+             get(/databases/$(database)/documents/channels/$(resource.data.channelId)).data.userId == request.auth.uid)))
+        )) ||
+        isAdmin()
+      );
+      allow write: if false; // Only backend can issue or modify strikes
+    }
+
+    // Copyright Owner Notifications
+    match /copyright_owner_notifications/{notifId} {
+      allow read: if isAuthenticated() && (
+        ('originalOwnerId' in resource.data && resource.data.originalOwnerId == request.auth.uid) ||
+        ('copiedUserId' in resource.data && resource.data.copiedUserId == request.auth.uid) ||
+        isAdmin()
+      );
+      allow write: if false; // Only backend writes notifications
     }
 
     // Content Verifications Collection
@@ -1566,7 +2045,7 @@ service cloud.firestore {
 
     // Admin Settings & Moderation Modes
     match /admin_settings/{doc=**} {
-      allow read: if true;
+      allow read: if isAdmin();
       allow write: if isAdmin();
     }
     match /system_settings/{doc=**} {
@@ -1703,13 +2182,76 @@ service cloud.firestore {
     // Shorts Collection (Parity with Videos)
     match /shorts/{shortId} {
       allow read: if true;
-      allow create: if isAuthenticated() && (
-        request.resource.data.uploaderId == request.auth.uid ||
-        request.resource.data.userId == request.auth.uid ||
-        request.resource.data.ownerId == request.auth.uid ||
-        isAdmin()
+      allow create: if isAuthenticated() && 
+                       (!('uploaderId' in request.resource.data) || request.resource.data.uploaderId == request.auth.uid) &&
+                       (!('userId' in request.resource.data) || request.resource.data.userId == request.auth.uid) &&
+                       (!('ownerId' in request.resource.data) || request.resource.data.ownerId == request.auth.uid) &&
+                       (request.resource.data.uploaderId == request.auth.uid ||
+                        request.resource.data.userId == request.auth.uid ||
+                        request.resource.data.ownerId == request.auth.uid ||
+                        isAdmin()) &&
+                       !('credibilityScore' in request.resource.data) &&
+                       !('truthScore' in request.resource.data) &&
+                       !('gatewayDecision' in request.resource.data) &&
+                       (!('pipelineStatus' in request.resource.data) || request.resource.data.pipelineStatus == 'pending' || request.resource.data.pipelineStatus == 'uploading') &&
+                       (!('credibilityVerified' in request.resource.data) || request.resource.data.credibilityVerified == false) &&
+                       (!('isVerified' in request.resource.data) || request.resource.data.isVerified == false) &&
+                       (!('factCheck' in request.resource.data) || request.resource.data.factCheck == null) &&
+                       (!('views' in request.resource.data) || request.resource.data.views == 0) &&
+                       (!('viewCount' in request.resource.data) || request.resource.data.viewCount == 0) &&
+                       (!('playCount' in request.resource.data) || request.resource.data.playCount == 0);
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        ((isVideoOwner(shortId) || isVideoDataOwner(resource.data)) &&
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+           'ownerId', 'userId', 'channelId', 'uploaderId',
+           'credibilityScore', 'factCheck', 'truthScore', 'pipelineStatus', 'moderation', 'moderationReason', 'gatewayDecision',
+           'views', 'viewCount', 'playCount', 'credibilityVerified', 'isVerified',
+           'credibility', 'credibilityStatus', 'factCheckDispute', 'claimLedger', 'factCheckStats', 'uiReport', 'isFactChecked', 'scoringFactors'
+         ])) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'likeCount', 'dislikeCount', 'likes', 'dislikes', 'views', 'viewCount', 'shareCount', 'playCount', 'engagement', 'languageRequestsCount', 'commentCount', 'commentsCount', 'totalWatchTimeSeconds', 'updatedAt'
+        ]) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['likeCount']) ||
+         (!('likeCount' in resource.data) && (request.resource.data.likeCount == 0 || request.resource.data.likeCount == 1)) ||
+         ('likeCount' in resource.data && (
+           request.resource.data.likeCount == resource.data.likeCount + 1 ||
+           request.resource.data.likeCount == resource.data.likeCount - 1 ||
+           request.resource.data.likeCount == resource.data.likeCount
+         ))) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['dislikeCount']) ||
+         (!('dislikeCount' in resource.data) && (request.resource.data.dislikeCount == 0 || request.resource.data.dislikeCount == 1)) ||
+         ('dislikeCount' in resource.data && (
+           request.resource.data.dislikeCount == resource.data.dislikeCount + 1 ||
+           request.resource.data.dislikeCount == resource.data.dislikeCount - 1 ||
+           request.resource.data.dislikeCount == resource.data.dislikeCount
+         ))) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['viewCount']) ||
+         (!('viewCount' in resource.data) && request.resource.data.viewCount == 1) ||
+         ('viewCount' in resource.data && (
+           request.resource.data.viewCount == resource.data.viewCount + 1 ||
+           request.resource.data.viewCount == resource.data.viewCount
+         ))) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['views']) ||
+         (!('views' in resource.data) && request.resource.data.views == 1) ||
+         ('views' in resource.data && (
+           request.resource.data.views == resource.data.views + 1 ||
+           request.resource.data.views == resource.data.views
+         ))) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['shareCount']) ||
+         (!('shareCount' in resource.data) && (request.resource.data.shareCount == 0 || request.resource.data.shareCount == 1)) ||
+         ('shareCount' in resource.data && (
+           request.resource.data.shareCount == resource.data.shareCount + 1 ||
+           request.resource.data.shareCount == resource.data.shareCount
+         ))) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['playCount']) ||
+         (!('playCount' in resource.data) && (request.resource.data.playCount == 0 || request.resource.data.playCount == 1)) ||
+         ('playCount' in resource.data && (
+           request.resource.data.playCount == resource.data.playCount + 1 ||
+           request.resource.data.playCount == resource.data.playCount
+         ))))
       );
-      allow update, delete: if isVideoOwner(shortId) || isAdmin();
+      allow delete: if isAuthenticated() && (isAdmin() || isVideoOwner(shortId) || isVideoDataOwner(resource.data));
     }
 
     // Admin Collections (Strictly protected, accessible only by authenticated administrators)
@@ -1752,9 +2294,8 @@ service cloud.firestore {
       );
       allow update: if isAuthenticated() && (
         isAdmin() || 
-        ((resource.data.userId == request.auth.uid || 
-          request.resource.data.userId == request.auth.uid || 
-          isVideoOwner(jobId)))
+        ((resource.data.userId == request.auth.uid || isVideoOwner(jobId)) &&
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId']))
       );
       allow delete: if isAdmin();
     }
@@ -1767,6 +2308,15 @@ service cloud.firestore {
     }
     match /admin_actions_log/{doc=**} {
       allow read, write: if isAdmin();
+    }
+
+    // Broadcast Notifications Collection
+    // Platform-wide push notification broadcast history.
+    // - Read: Admins and Super Admins only (to inspect campaign history and delivery analytics)
+    // - Write: Denied for all client SDKs; created exclusively by Cloud Functions via Firebase Admin SDK
+    match /broadcast_notifications/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     // Search and Trending Collections
@@ -1795,6 +2345,7 @@ service cloud.firestore {
                        request.resource.data.amount is number &&
                        request.resource.data.amount >= 100 &&
                        request.resource.data.status == 'pending' &&
+                       (!('bypassScheduleCheck' in request.resource.data) || request.resource.data.bypassScheduleCheck == false) &&
                        request.resource.data.channelId is string &&
                        exists(/databases/$(database)/documents/channels/$(request.resource.data.channelId)) &&
                        get(/databases/$(database)/documents/channels/$(request.resource.data.channelId)).data.ownerId == request.auth.uid;
@@ -1834,7 +2385,8 @@ service cloud.firestore {
     // Legal DMCA & Rule 75 Copyright Complaints (Requires Authentication)
     match /copyright_complaints/{complaintId} {
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      allow read, update, delete: if isAdmin();
+      allow read: if isAuthenticated() && (('userId' in resource.data && resource.data.userId == request.auth.uid) || isAdmin());
+      allow update, delete: if isAdmin();
     }
 
     // Premium Subscription Plans & User Subscriptions
@@ -1933,6 +2485,18 @@ service cloud.firestore {
          ]))
       );
       allow delete: if isAdmin();
+    }
+
+    // Formal IFCN Fact-Check Appeals - Cryptographically audited via Cloud Functions
+    match /claim_appeals/{appealId} {
+      allow read: if isAuthenticated() && (resource.data.appellantId == request.auth.uid || isAdmin());
+      allow write: if false; // Written and resolved exclusively via Cloud Functions
+    }
+
+    // Cryptographic SHA-256 Governance Audit Logs - Tamper-evident append-only ledger
+    match /governance_audit_logs/{logId} {
+      allow read: if isAuthenticated() && (resource.data.performerId == request.auth.uid || isAdmin());
+      allow write: if false; // Written exclusively via Cloud Functions
     }
 
     // Default: Deny all other access

@@ -1,7 +1,6 @@
+import 'package:truthworld/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
-
 /// Selection cards allowing users and creators to switch between Private and Public playlists.
 class PlaylistTypeSelectionCards extends StatelessWidget {
   const PlaylistTypeSelectionCards({
@@ -24,7 +23,7 @@ class PlaylistTypeSelectionCards extends StatelessWidget {
           children: [
             Text(
               'Choose Playlist Type',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
@@ -33,7 +32,7 @@ class PlaylistTypeSelectionCards extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               'Select a type to view and manage your playlists',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 13.5,
                 fontWeight: FontWeight.normal,
                 color: const Color(0xFF8E8E93),
@@ -107,7 +106,7 @@ class PlaylistSelectionCard extends StatelessWidget {
   final VoidCallback onTap;
 
   static const Color _goldAccent = Color(0xFFEAB308);
-  static const Color _goldBadge = Color(0xFFFBBF24);
+  static const Color _goldBadge = AppColors.warning;
   static const Color _goldIconBg = Color(0xFF251E0E);
   static const Color _goldBorder = Color(0xFF785618);
 
@@ -120,10 +119,10 @@ class PlaylistSelectionCard extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: const Color(0xFF141414),
+          color: AppColors.bgPage,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? _goldAccent : const Color(0xFF262626),
+            color: isSelected ? _goldAccent : AppColors.bgSurface,
             width: isSelected ? 1.8 : 1,
           ),
         ),
@@ -155,7 +154,7 @@ class PlaylistSelectionCard extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 15.5,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -164,7 +163,7 @@ class PlaylistSelectionCard extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     subtitle,
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.normal,
                       color: const Color(0xFF8E8E93),

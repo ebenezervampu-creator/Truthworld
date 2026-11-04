@@ -1,17 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class IconBtn extends StatelessWidget {
-  const IconBtn({required this.icon, super.key, this.onTap, this.size = 26});
+  const IconBtn({
+    required this.icon,
+    super.key,
+    this.onTap,
+    this.size = 26,
+    this.tooltip,
+  });
   final IconData icon;
   final VoidCallback? onTap;
   final double size;
+  final String? tooltip;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    final btn = Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
@@ -24,10 +30,18 @@ class IconBtn extends StatelessWidget {
         ),
       ),
     );
+    final tip = tooltip;
+    if (tip != null && tip.isNotEmpty) {
+      return Tooltip(
+        message: tip,
+        child: btn,
+      );
+    }
+    return btn;
   }
 }
 
-class CenterBtn extends StatelessWidget {
+class CenterBtn extends StatefulWidget {
   const CenterBtn({
     this.icon,
     this.child,
@@ -47,22 +61,35 @@ class CenterBtn extends StatelessWidget {
   final String? tooltip;
 
   @override
+  State<CenterBtn> createState() => _CenterBtnState();
+}
+
+class _CenterBtnState extends State<CenterBtn> {
+  final ValueNotifier<bool> _isHovered = ValueNotifier<bool>(false);
+
+  @override
+  void dispose() {
+    _isHovered.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final diameter = buttonDiameter ?? (isPrimary ? 72.0 : 52.0);
-    final isHovered = false.obs;
+    final diameter = widget.buttonDiameter ?? (widget.isPrimary ? 72.0 : 52.0);
 
     final Widget btn = MouseRegion(
-      onEnter: (_) => isHovered.value = true,
-      onExit: (_) => isHovered.value = false,
+      onEnter: (_) => _isHovered.value = true,
+      onExit: (_) => _isHovered.value = false,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: onTap,
+          onTap: widget.onTap,
           customBorder: const CircleBorder(),
           splashColor: Colors.white.withValues(alpha: 0.18),
           highlightColor: Colors.white.withValues(alpha: 0.10),
-          child: Obx(
-            () => AnimatedContainer(
+          child: ValueListenableBuilder<bool>(
+            valueListenable: _isHovered,
+            builder: (context, isHovered, _) => AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               width: diameter,
               height: diameter,
@@ -70,38 +97,38 @@ class CenterBtn extends StatelessWidget {
               decoration: BoxDecoration(
                 // Permanent high-contrast frosted glass backing disc
                 // Guarantees maximum contrast even against pure white video scenes
-                color: isHovered.value
-                    ? (isPrimary
+                color: isHovered
+                    ? (widget.isPrimary
                         ? const Color(0xD90A0A0E)
                         : const Color(0xBF0A0A0E))
-                    : (isPrimary
+                    : (widget.isPrimary
                         ? const Color(0x990A0A0E)
                         : const Color(0x800A0A0E)),
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: isHovered.value
-                      ? Colors.white.withValues(alpha: isPrimary ? 0.45 : 0.32)
-                      : Colors.white.withValues(alpha: isPrimary ? 0.22 : 0.16),
-                  width: isPrimary ? 1.5 : 1.2,
+                  color: isHovered
+                      ? Colors.white.withValues(alpha: widget.isPrimary ? 0.45 : 0.32)
+                      : Colors.white.withValues(alpha: widget.isPrimary ? 0.22 : 0.16),
+                  width: widget.isPrimary ? 1.5 : 1.2,
                 ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(
-                      alpha: isHovered.value ? 0.65 : 0.45,
+                      alpha: isHovered ? 0.65 : 0.45,
                     ),
-                    blurRadius: isHovered.value
-                        ? (isPrimary ? 22 : 16)
-                        : (isPrimary ? 16 : 10),
-                    spreadRadius: isHovered.value ? 2 : 1,
-                    offset: Offset(0, isHovered.value ? 3 : 2),
+                    blurRadius: isHovered
+                        ? (widget.isPrimary ? 22 : 16)
+                        : (widget.isPrimary ? 16 : 10),
+                    spreadRadius: isHovered ? 2 : 1,
+                    offset: Offset(0, isHovered ? 3 : 2),
                   ),
                 ],
               ),
               child: Center(
-                child: child ??
+                child: widget.child ??
                     Icon(
-                      icon,
-                      size: size,
+                      widget.icon,
+                      size: widget.size,
                       color: AppColors.textPrimary,
                       shadows: const [
                         Shadow(
@@ -118,7 +145,7 @@ class CenterBtn extends StatelessWidget {
       ),
     );
 
-    final tip = tooltip;
+    final tip = widget.tooltip;
     if (tip != null && tip.isNotEmpty) {
       return Tooltip(
         message: tip,

@@ -115,6 +115,7 @@ class SearchBar extends StatelessWidget {
                   color: Colors.white,
                   size: 20,
                 ),
+                tooltip: 'Search',
                 onPressed: onSearchSubmitted,
               ),
         suffixIcon: Row(
@@ -128,6 +129,7 @@ class SearchBar extends StatelessWidget {
                   color: Colors.white,
                   size: 18,
                 ),
+                tooltip: 'Clear search',
                 onPressed: () {
                   controller.clear();
                   barController.hasText.value = false;
@@ -141,6 +143,7 @@ class SearchBar extends StatelessWidget {
                 color: Colors.white,
                 size: 20,
               ),
+              tooltip: 'Voice search',
               onPressed: () {
                 Get.dialog(
                   VoiceSearchDialog(

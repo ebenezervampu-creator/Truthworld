@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:truthworld/core/utils/watch_time_formatter.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/creator_analytics_controller.dart';
+import 'package:truthworld/features/analytics/presentation/pages/creator_analytics/creator_retention_and_traffic_cards.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -497,65 +498,7 @@ class _WatchtimeRetentionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _GlassCard(
-      child: Column(
-        children: [
-          SizedBox(
-            height: 220,
-            child: Obx(() {
-              final data = controller.watchtimeChartData;
-              if (data.isEmpty) {
-                return const Center(
-                  child: Text(
-                    'No data',
-                    style: TextStyle(color: AppColors.textTertiary),
-                  ),
-                );
-              }
-
-              return SfCircularChart(
-                margin: EdgeInsets.zero,
-                series: <CircularSeries>[
-                  DoughnutSeries<dynamic, String>(
-                    dataSource: data,
-                    xValueMapper: (dynamic d, _) => d.title as String,
-                    yValueMapper: (dynamic d, _) => d.value as num,
-                    pointColorMapper: (dynamic d, _) => Color(d.color as int),
-                    dataLabelMapper: (dynamic d, _) =>
-                        '${((d.percentage as num?)?.toDouble() ?? 0.0).toStringAsFixed(0)}%',
-                    dataLabelSettings: const DataLabelSettings(
-                      isVisible: true,
-                      textStyle: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    innerRadius: '45%',
-                    radius: '85%',
-                  ),
-                ],
-              );
-            }),
-          ),
-          const SizedBox(height: 16),
-          Obx(() {
-            return Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              children: controller.watchtimeChartData.map((d) {
-                return _LegendItem(
-                  color: Color(d.color),
-                  label: d.title,
-                  value:
-                      '${d.value.toInt()} (${d.percentage.toStringAsFixed(1)}%)',
-                );
-              }).toList(),
-            );
-          }),
-        ],
-      ),
-    );
+    return CreatorWatchtimeRetentionCard(controller: controller);
   }
 }
 

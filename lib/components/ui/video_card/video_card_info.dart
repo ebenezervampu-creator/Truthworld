@@ -5,6 +5,8 @@ import 'package:truthworld/components/ui/video_card/video_card_avatar.dart';
 import 'package:truthworld/components/ui/video_card/video_card_controller.dart';
 import 'package:truthworld/components/ui/video_card/video_card_formatters.dart';
 import 'package:truthworld/components/ui/video_options_sheet.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
+import 'package:truthworld/core/widgets/channel_verified_badge.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -73,16 +75,58 @@ class VideoCardGridInfo extends StatelessWidget {
                     height: isDesktop ? 20 : 18,
                     child: Align(
                       alignment: Alignment.centerLeft,
-                      child: Text(
-                        '$channelName  •  ${VideoCardFormatters.formatViews(video.views)} ${video.views == 1 ? 'view' : 'views'}  •  ${VideoCardFormatters.formatTimestamp(video.uploadedAt)}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: const Color(0xFFAAAAAA),
-                          fontSize: isDesktop ? 13 : 12.5,
-                          fontWeight: FontWeight.normal,
-                          height: 1.2,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              channelName,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: const Color(0xFFAAAAAA),
+                                fontSize: isDesktop ? 13 : 12.5,
+                                fontWeight: FontWeight.normal,
+                                height: 1.2,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          () {
+                            final bool isTrusted = controller.isChannelTrusted.value ||
+                                video.showVerifiedBadge ||
+                                (DeepLinkService.instance.getChannelFromCache(video.channelId)?.showVerifiedBadge ?? false) ||
+                                (DeepLinkService.instance.getChannelFromCache(channelName)?.showVerifiedBadge ?? false);
+                            if (isTrusted) {
+                              return Padding(
+                                padding: const EdgeInsets.only(left: 4),
+                                child: ChannelVerifiedBadge(size: isDesktop ? 13 : 12),
+                              );
+                            }
+                            return const SizedBox.shrink();
+                          }(),
+                          Text(
+                            '  •  ',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: const Color(0xFFAAAAAA),
+                              fontSize: isDesktop ? 13 : 12.5,
+                              fontWeight: FontWeight.normal,
+                              height: 1.2,
+                            ),
+                          ),
+                          Flexible(
+                            child: Text(
+                              '${VideoCardFormatters.formatViews(video.views)} ${video.views == 1 ? 'view' : 'views'}  •  ${VideoCardFormatters.formatTimestamp(video.uploadedAt)}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: const Color(0xFFAAAAAA),
+                                fontSize: isDesktop ? 13 : 12.5,
+                                fontWeight: FontWeight.normal,
+                                height: 1.2,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -162,15 +206,35 @@ class VideoCardListInfo extends StatelessWidget {
                       ),
                       SizedBox(width: isCompact ? 4 : 6),
                       Expanded(
-                        child: Text(
-                          channelName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w500,
-                            fontSize: isCompact ? 10 : null,
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                channelName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: isCompact ? 10 : null,
+                                ),
+                              ),
+                            ),
+                            () {
+                              final bool isTrusted = controller.isChannelTrusted.value ||
+                                  video.showVerifiedBadge ||
+                                  (DeepLinkService.instance.getChannelFromCache(video.channelId)?.showVerifiedBadge ?? false) ||
+                                  (DeepLinkService.instance.getChannelFromCache(channelName)?.showVerifiedBadge ?? false);
+                              if (isTrusted) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(left: 4),
+                                  child: ChannelVerifiedBadge(size: isCompact ? 10 : 12),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            }(),
+                          ],
                         ),
                       ),
                     ],

@@ -1,8 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/navigation/app_navigator.dart';
 import 'package:truthworld/core/services/auth_service.dart';
@@ -16,7 +14,7 @@ import 'package:truthworld/features/notifications/presentation/controllers/video
 import 'package:truthworld/theme/app_colors.dart';
 
 const Color darkSurface = AppColors.bgInput;
-const Color darkSurfaceVariant = Color(0xFF1E1E1E);
+const Color darkSurfaceVariant = AppColors.bgSurface;
 const Color darkOnSurface = Color(0xFFE8E8E8);
 const Color darkOnSurfaceVariant = Color(0xFFB8B8B8);
 const Color primaryAccent = Color(0xFF1976D2);
@@ -129,7 +127,7 @@ Widget _buildDesktopHeader(BuildContext context) {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     softWrap: false,
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                       color: darkOnSurface,
@@ -166,7 +164,7 @@ Widget _buildDesktopHeader(BuildContext context) {
                         Expanded(
                           child: Text(
                             'Search videos...',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               fontSize: 14,
                               color: darkOnSurfaceVariant,
                               letterSpacing: 0.25,
@@ -211,7 +209,7 @@ Widget _buildMobileHeader(BuildContext context) {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   softWrap: false,
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: darkOnSurface,
@@ -320,7 +318,7 @@ Widget _buildNotificationLogo(BuildContext context, {bool isMobile = false}) {
                     color: const Color(0xFFCC0000), // Signature red
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: const Color(0xFF0F0F0F),
+                      color: AppColors.bgPage,
                       width: 1.5,
                     ),
                   ),
@@ -346,14 +344,23 @@ Widget _buildNotificationLogo(BuildContext context, {bool isMobile = false}) {
 }
 
 Future<void> _handleSignIn(BuildContext context) async {
+  HomeController? homeCtrl;
+  if (Get.isRegistered<HomeController>()) {
+    homeCtrl = Get.find<HomeController>();
+    homeCtrl.isLoadingAuth.value = true;
+  }
   try {
-    await AuthBottomSheet.show(context);
+    await AuthService.to.triggerPlatformSignIn();
   } catch (e, stackTrace) {
     ErrorHandler.log(
       e,
       stackTrace: stackTrace,
       tag: 'GlobalAppBar.handleSignIn',
     );
+  } finally {
+    if (homeCtrl != null) {
+      homeCtrl.isLoadingAuth.value = false;
+    }
   }
 }
 
@@ -411,10 +418,21 @@ Widget _buildUserMenu(BuildContext context) {
       color: darkSurface,
       surfaceTintColor: Colors.transparent,
       shadowColor: Colors.black.withValues(alpha: 0.3),
-      onSelected: (value) {
+      onSelected: (value) async {
         switch (value) {
           case 'studio':
-            StudioLauncher.openStudio();
+            await StudioLauncher.openStudio();
+            break;
+          case 'settings':
+            if (Get.isRegistered<HomeController>()) {
+              Get.find<HomeController>().onSideNavItemSelect(HomeController.indexSettings);
+            } else {
+              AppNavigator.toSettings();
+            }
+            break;
+          case 'sign_out':
+            await AuthService.to.signOut();
+            break;
         }
       },
       itemBuilder: (context) => [
@@ -425,6 +443,19 @@ Widget _buildUserMenu(BuildContext context) {
           Icons.analytics_outlined,
           'Studio',
           'studio',
+        ),
+        _buildPopupMenuItem(
+          context,
+          Icons.settings_outlined,
+          'Settings',
+          'settings',
+        ),
+        const PopupMenuDivider(height: 1),
+        _buildPopupMenuItem(
+          context,
+          Icons.logout_rounded,
+          'Sign Out',
+          'sign_out',
         ),
       ],
       child: Obx(() => _buildUserAvatar(context)),
@@ -448,7 +479,7 @@ PopupMenuItem<String> _buildUserInfoMenuItem(BuildContext context) {
               Obx(
                 () => Text(
                   AuthService.to.activeDisplayName,
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                     color: darkOnSurface,
@@ -462,7 +493,7 @@ PopupMenuItem<String> _buildUserInfoMenuItem(BuildContext context) {
                           AuthService.to.userChannel != null
                       ? AuthService.to.activeHandle
                       : (AuthService.to.user?.email ?? ''),
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 12,
                     color: darkOnSurfaceVariant,
                   ),
@@ -497,7 +528,7 @@ PopupMenuItem<String> _buildPopupMenuItem(
         const SizedBox(width: 12),
         Text(
           title,
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 14,
             color: darkOnSurface,
           ),

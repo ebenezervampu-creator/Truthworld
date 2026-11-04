@@ -57,7 +57,6 @@ class VideoMediaCacheManager {
     if (scoringFactors != null ||
         deductions != null ||
         contextualFlags != null ||
-        honestyBreakdown != null ||
         (factCheckUrl != null && factCheckUrl.isNotEmpty) ||
         (transcriptionUrl != null && transcriptionUrl.isNotEmpty)) {
       VideoMediaService.credibilityCache[id] = VideoMediaCredibility(

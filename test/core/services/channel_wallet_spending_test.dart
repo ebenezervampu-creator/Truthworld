@@ -28,14 +28,14 @@ void main() {
       );
       expect(costSubtitles, equals(0.15));
 
-      // 3. Dubbing only in 4 languages ($0.25/lang, min $0.75)
+      // 3. Dubbing only in 4 languages ($0.10/lang, min $0.10)
       final costDubbing = ChannelWalletService.calculateAIFeatureCost(
         selectedFeatures: {'dubbing'},
         targetLanguages: ['te', 'hi', 'en', 'es'],
       );
-      expect(costDubbing, equals(1.00));
+      expect(costDubbing, equals(0.40));
 
-      // 4. Chapters ($0.50) & Summary ($0.00 Free - automatically generated)
+      // 4. Chapters ($0.00 Free) & Summary ($0.00 Free - automatically generated)
       final costSummaryOnly = ChannelWalletService.calculateAIFeatureCost(
         selectedFeatures: {'summary'},
         targetLanguages: ['en'],
@@ -46,83 +46,83 @@ void main() {
         selectedFeatures: {'summary', 'chapters'},
         targetLanguages: ['en'],
       );
-      expect(costSummary, equals(0.50));
+      expect(costSummary, equals(0.00));
 
       // 5. Complete bundle: Subtitles, Dubbing, Factcheck, Chapters (3 languages)
-      // Subtitles = $0.15, Dubbing = $0.75, Factcheck = $0.00 (Free), Chapters = $0.50 => $1.40
+      // Subtitles = $0.15, Dubbing = $0.30 (3 * $0.10), Factcheck = $0.00 (Free), Chapters = $0.00 (Free) => $0.45
       final costBundle = ChannelWalletService.calculateAIFeatureCost(
         selectedFeatures: {'subtitles', 'dubbing', 'factcheck', 'chapters', 'summary'},
         targetLanguages: ['te', 'hi', 'en'],
       );
-      expect(costBundle, equals(1.40));
+      expect(costBundle, equals(0.45));
     });
 
     test('Calculates Tiered Dubbing Pricing for Standard vs Custom Channels', () {
       // Rates and helper methods verification (at-cost pass-through pricing with 0% platform profit)
-      expect(ChannelWalletService.getDubbingRatePerLanguage(ChannelType.standard), equals(0.25));
-      expect(ChannelWalletService.getDubbingMinCost(ChannelType.standard), equals(0.75));
-      expect(ChannelWalletService.getDubbingCapCost(ChannelType.standard), equals(5.00));
+      expect(ChannelWalletService.getDubbingRatePerLanguage(ChannelType.standard), equals(0.10));
+      expect(ChannelWalletService.getDubbingMinCost(ChannelType.standard), equals(0.10));
+      expect(ChannelWalletService.getDubbingCapCost(ChannelType.standard), equals(10.00));
 
-      expect(ChannelWalletService.getDubbingRatePerLanguage(ChannelType.custom), equals(0.25));
-      expect(ChannelWalletService.getDubbingMinCost(ChannelType.custom), equals(0.75));
-      expect(ChannelWalletService.getDubbingCapCost(ChannelType.custom), equals(5.00));
+      expect(ChannelWalletService.getDubbingRatePerLanguage(ChannelType.custom), equals(0.10));
+      expect(ChannelWalletService.getDubbingMinCost(ChannelType.custom), equals(0.10));
+      expect(ChannelWalletService.getDubbingCapCost(ChannelType.custom), equals(10.00));
 
       // 1 Language Dubbing
-      // Standard: 1 * $0.25 = $0.25 -> clamped to min $0.75
+      // Standard: 1 * $0.10 = $0.10
       expect(
         ChannelWalletService.calculateDubbingCost(languageCount: 1),
-        equals(0.75),
+        equals(0.10),
       );
-      // Custom: 1 * $0.25 = $0.25 -> clamped to min $0.75
+      // Custom: 1 * $0.10 = $0.10
       expect(
         ChannelWalletService.calculateDubbingCost(languageCount: 1, channelType: ChannelType.custom),
-        equals(0.75),
+        equals(0.10),
       );
 
       // 4 Languages Dubbing
-      // Standard: 4 * $0.25 = $1.00
+      // Standard: 4 * $0.10 = $0.40
       expect(
         ChannelWalletService.calculateDubbingCost(languageCount: 4),
-        equals(1.00),
+        equals(0.40),
       );
-      // Custom: 4 * $0.25 = $1.00
+      // Custom: 4 * $0.10 = $0.40
       expect(
         ChannelWalletService.calculateDubbingCost(languageCount: 4, channelType: ChannelType.custom),
-        equals(1.00),
+        equals(0.40),
       );
 
       // 30 Languages Dubbing (High-volume internationalization)
-      // Standard: 30 * $0.25 = $7.50 -> clamped to cap $5.00
+      // Standard: 30 * $0.10 = $3.00
       expect(
         ChannelWalletService.calculateDubbingCost(languageCount: 30),
-        equals(5.00),
+        equals(3.00),
       );
-      // Custom: 30 * $0.25 = $7.50 -> clamped to cap $5.00
+      // Custom: 30 * $0.10 = $3.00
       expect(
         ChannelWalletService.calculateDubbingCost(languageCount: 30, channelType: ChannelType.custom),
-        equals(5.00),
+        equals(3.00),
       );
 
       // Full AI Bundle Comparison: 3 languages (Subtitles + Dubbing + Factcheck + Summary)
       // Subtitles (3 * $0.05 = $0.15) + Factcheck ($0.00 Free) + Summary ($0.00 Free)
-      // Dubbing: 3 * $0.25 = $0.75 => Total $0.90
+      // Dubbing: 3 * $0.10 = $0.30 => Total $0.45
       final standardBundle = ChannelWalletService.calculateAIFeatureCost(
         selectedFeatures: {'subtitles', 'dubbing', 'factcheck', 'summary'},
         targetLanguages: ['te', 'hi', 'en'],
       );
-      expect(standardBundle, equals(0.90));
+      expect(standardBundle, equals(0.45));
 
       // Custom Bundle with At-Cost Pass-Through Pricing (0% platform markup):
       // Subtitles (3 * $0.05 = $0.15) + Summary ($0.00 Free)
-      // Custom Dubbing (3 * $0.25) = $0.75
+      // Custom Dubbing (3 * $0.10) = $0.30
       // Custom Fact-Checking = $0.00 (100% Free for all channels)
-      // Total = $0.90
+      // Total = $0.45
       final customBundle = ChannelWalletService.calculateAIFeatureCost(
         selectedFeatures: {'subtitles', 'dubbing', 'factcheck', 'summary'},
         targetLanguages: ['te', 'hi', 'en'],
         channelType: ChannelType.custom,
       );
-      expect(customBundle, equals(0.90));
+      expect(customBundle, equals(0.45));
     });
 
     test('SpendableBalance combines rollover credit and revenue correctly', () {
@@ -256,14 +256,14 @@ void main() {
         ChannelWalletService.getFlatDubbingPricePerLanguage(
           durationSeconds: 180,
         ),
-        equals(0.25),
+        equals(0.30),
       );
       expect(
         ChannelWalletService.getFlatDubbingPricePerLanguage(
           durationSeconds: 300,
           channelType: ChannelType.custom,
         ),
-        equals(0.25),
+        equals(0.50),
       );
 
       // 3. Standard Video (301s - 600s / 5-10 min)
@@ -271,14 +271,14 @@ void main() {
         ChannelWalletService.getFlatDubbingPricePerLanguage(
           durationSeconds: 450,
         ),
-        equals(0.50),
+        equals(0.75),
       );
       expect(
         ChannelWalletService.getFlatDubbingPricePerLanguage(
           durationSeconds: 600,
           channelType: ChannelType.custom,
         ),
-        equals(0.50),
+        equals(1.00),
       );
 
       // 4. Extended Video (601s - 1800s / 10-30 min)
@@ -286,14 +286,14 @@ void main() {
         ChannelWalletService.getFlatDubbingPricePerLanguage(
           durationSeconds: 1200,
         ),
-        equals(1.25),
+        equals(2.00),
       );
       expect(
         ChannelWalletService.getFlatDubbingPricePerLanguage(
           durationSeconds: 1800,
           channelType: ChannelType.custom,
         ),
-        equals(1.25),
+        equals(3.00),
       );
 
       // 5. Long-Form Video (1801s - 3600s / 30-60 min)
@@ -301,30 +301,30 @@ void main() {
         ChannelWalletService.getFlatDubbingPricePerLanguage(
           durationSeconds: 2400,
         ),
-        equals(2.50),
+        equals(4.00),
       );
       expect(
         ChannelWalletService.getFlatDubbingPricePerLanguage(
           durationSeconds: 3600,
           channelType: ChannelType.custom,
         ),
-        equals(2.50),
+        equals(6.00),
       );
 
-      // 6. Beyond 60 minutes (> 3600s): increments per 30m block
-      // 5400s = 90 min (1 extra block: $2.50 + $1.25 = $3.75 for both standard and custom at-cost)
+      // 6. Beyond 60 minutes (> 3600s): proportional per-minute ($0.10/min)
+      // 5400s = 90 min: 90 * $0.10 = $9.00 for both standard and custom
       expect(
         ChannelWalletService.getFlatDubbingPricePerLanguage(
           durationSeconds: 5400,
         ),
-        equals(3.75),
+        equals(9.00),
       );
       expect(
         ChannelWalletService.getFlatDubbingPricePerLanguage(
           durationSeconds: 5400,
           channelType: ChannelType.custom,
         ),
-        equals(3.75),
+        equals(9.00),
       );
     });
 
@@ -335,25 +335,215 @@ void main() {
       expect(shortsTier.id, equals('tier_shorts'));
       expect(shortsTier.standardFlatRatePerLanguage, equals(0.10));
       expect(shortsTier.customFlatRatePerLanguage, equals(0.10));
+      expect(shortsTier.voiceCloneRatePerLanguage, equals(0.20));
+      expect(shortsTier.flatRateForVoiceType(voiceType: 'standard'), equals(0.10));
+      expect(shortsTier.flatRateForVoiceType(voiceType: 'cloned'), equals(0.20));
+      expect(shortsTier.flatRateForVoiceType(voiceType: 'cloned', type: ChannelType.custom), equals(0.20));
 
       final miniTier = ChannelWalletService.getDubbingDurationTier(120);
       expect(miniTier.id, equals('tier_mini'));
-      expect(miniTier.standardFlatRatePerLanguage, equals(0.25));
+      expect(miniTier.standardFlatRatePerLanguage, equals(0.50));
+      expect(miniTier.voiceCloneRatePerLanguage, equals(1.00));
+      expect(miniTier.flatRateForVoiceType(voiceType: 'cloned'), equals(1.00));
+      expect(miniTier.flatRateForVoiceType(voiceType: 'cloned', type: ChannelType.custom), equals(1.00));
 
       final stdTier = ChannelWalletService.getDubbingDurationTier(480);
       expect(stdTier.id, equals('tier_standard'));
-      expect(stdTier.standardFlatRatePerLanguage, equals(0.50));
+      expect(stdTier.standardFlatRatePerLanguage, equals(1.00));
+      expect(stdTier.voiceCloneRatePerLanguage, equals(2.00));
+      expect(stdTier.flatRateForVoiceType(voiceType: 'cloned'), equals(2.00));
+      expect(stdTier.flatRateForVoiceType(voiceType: 'cloned', type: ChannelType.custom), equals(2.00));
 
       final extTier = ChannelWalletService.getDubbingDurationTier(1500);
       expect(extTier.id, equals('tier_extended'));
-      expect(extTier.standardFlatRatePerLanguage, equals(1.25));
+      expect(extTier.standardFlatRatePerLanguage, equals(3.00));
+      expect(extTier.voiceCloneRatePerLanguage, equals(6.00));
+      expect(extTier.flatRateForVoiceType(voiceType: 'cloned'), equals(6.00));
+      expect(extTier.flatRateForVoiceType(voiceType: 'cloned', type: ChannelType.custom), equals(6.00));
 
       final longTier = ChannelWalletService.getDubbingDurationTier(3200);
       expect(longTier.id, equals('tier_longform'));
-      expect(longTier.standardFlatRatePerLanguage, equals(2.50));
+      expect(longTier.standardFlatRatePerLanguage, equals(6.00));
+      expect(longTier.voiceCloneRatePerLanguage, equals(12.00));
+      expect(longTier.flatRateForVoiceType(voiceType: 'cloned'), equals(12.00));
+      expect(longTier.flatRateForVoiceType(voiceType: 'cloned', type: ChannelType.custom), equals(12.00));
 
       final beyondTier = ChannelWalletService.getDubbingDurationTier(7200);
       expect(beyondTier.id, equals('tier_longform'));
+    });
+
+    test('Real pricing calculation for Standard Dubbing vs Studio Voice Cloning', () {
+      // 1. Shorts (<= 60s)
+      expect(
+        ChannelWalletService.getFlatDubbingPricePerLanguage(
+          durationSeconds: 30,
+          voiceType: 'standard',
+        ),
+        equals(0.10),
+      );
+      expect(
+        ChannelWalletService.getFlatDubbingPricePerLanguage(
+          durationSeconds: 30,
+          voiceType: 'cloned',
+        ),
+        equals(0.20),
+      );
+      // Pro channel has identical voice cloning rate (unified)
+      expect(
+        ChannelWalletService.getFlatDubbingPricePerLanguage(
+          durationSeconds: 30,
+          channelType: ChannelType.custom,
+          voiceType: 'cloned',
+        ),
+        equals(0.20),
+      );
+
+      // 2. Mini Video (61s - 300s, e.g. 03:19 / 199s)
+      // 199s / 60 = 3.3167 mins => 3.3167 * $0.10 = $0.33
+      expect(
+        ChannelWalletService.getFlatDubbingPricePerLanguage(
+          durationSeconds: 199,
+          voiceType: 'standard',
+        ),
+        equals(0.33),
+      );
+      expect(
+        ChannelWalletService.getFlatDubbingPricePerLanguage(
+          durationSeconds: 199,
+          voiceType: 'cloned',
+        ),
+        equals(0.66),
+      );
+      expect(
+        ChannelWalletService.getFlatDubbingPricePerLanguage(
+          durationSeconds: 199,
+          channelType: ChannelType.custom,
+          voiceType: 'cloned',
+        ),
+        equals(0.66),
+      );
+
+      // 3. Standard Video (301s - 600s, e.g. 8 min / 480s)
+      // 480s / 60 = 8 mins => 8 * $0.10 = $0.80, 8 * $0.20 = $1.60
+      expect(
+        ChannelWalletService.getFlatDubbingPricePerLanguage(
+          durationSeconds: 480,
+          voiceType: 'standard',
+        ),
+        equals(0.80),
+      );
+      expect(
+        ChannelWalletService.getFlatDubbingPricePerLanguage(
+          durationSeconds: 480,
+          voiceType: 'cloned',
+        ),
+        equals(1.60),
+      );
+      expect(
+        ChannelWalletService.getFlatDubbingPricePerLanguage(
+          durationSeconds: 480,
+          channelType: ChannelType.custom,
+          voiceType: 'cloned',
+        ),
+        equals(1.60),
+      );
+
+      // 4. Extended Video (601s - 1800s, e.g. 20 min / 1200s)
+      // 1200s / 60 = 20 mins => 20 * $0.10 = $2.00, 20 * $0.20 = $4.00
+      expect(
+        ChannelWalletService.getFlatDubbingPricePerLanguage(
+          durationSeconds: 1200,
+          voiceType: 'standard',
+        ),
+        equals(2.00),
+      );
+      expect(
+        ChannelWalletService.getFlatDubbingPricePerLanguage(
+          durationSeconds: 1200,
+          voiceType: 'cloned',
+        ),
+        equals(4.00),
+      );
+      expect(
+        ChannelWalletService.getFlatDubbingPricePerLanguage(
+          durationSeconds: 1200,
+          channelType: ChannelType.custom,
+          voiceType: 'cloned',
+        ),
+        equals(4.00),
+      );
+
+      // 5. Long-Form Video (1801s - 3600s, e.g. 45 min / 2700s)
+      // 2700s / 60 = 45 mins => 45 * $0.10 = $4.50, 45 * $0.20 = $9.00
+      expect(
+        ChannelWalletService.getFlatDubbingPricePerLanguage(
+          durationSeconds: 2700,
+          voiceType: 'standard',
+        ),
+        equals(4.50),
+      );
+      expect(
+        ChannelWalletService.getFlatDubbingPricePerLanguage(
+          durationSeconds: 2700,
+          voiceType: 'cloned',
+        ),
+        equals(9.00),
+      );
+      expect(
+        ChannelWalletService.getFlatDubbingPricePerLanguage(
+          durationSeconds: 2700,
+          channelType: ChannelType.custom,
+          voiceType: 'cloned',
+        ),
+        equals(9.00),
+      );
+
+      // 6. Beyond 60 mins (e.g. 90 min / 5400s)
+      expect(
+        ChannelWalletService.getFlatDubbingPricePerLanguage(
+          durationSeconds: 5400,
+          voiceType: 'standard',
+        ),
+        equals(9.00),
+      );
+      expect(
+        ChannelWalletService.getFlatDubbingPricePerLanguage(
+          durationSeconds: 5400,
+          voiceType: 'cloned',
+        ),
+        equals(18.00),
+      );
+
+      // Cost calculation with language count
+      // 2 languages, 3:19 video (199s):
+      // Standard: 2 * 0.33 = $0.66
+      expect(
+        ChannelWalletService.calculateDubbingCost(
+          languageCount: 2,
+          durationSeconds: 199,
+          voiceType: 'standard',
+        ),
+        equals(0.66),
+      );
+      // Voice clone: 2 * 0.66 = $1.32
+      expect(
+        ChannelWalletService.calculateDubbingCost(
+          languageCount: 2,
+          durationSeconds: 199,
+          voiceType: 'cloned',
+        ),
+        equals(1.32),
+      );
+      // Pro channel voice clone: 2 * 0.66 = $1.32 (same as standard)
+      expect(
+        ChannelWalletService.calculateDubbingCost(
+          languageCount: 2,
+          durationSeconds: 199,
+          channelType: ChannelType.custom,
+          voiceType: 'cloned',
+        ),
+        equals(1.32),
+      );
     });
 
     test('Total dubbing cost combines language count and duration tier correctly', () {
@@ -366,7 +556,7 @@ void main() {
         equals(0.0),
       );
 
-      // 2. 2 Languages for 45s Short Video
+      // 2. 2 Languages for 45s Short Video (floored at 60s -> $0.10/lang)
       // Standard: 2 * $0.10 = $0.20
       expect(
         ChannelWalletService.calculateDubbingCost(
@@ -385,45 +575,45 @@ void main() {
         equals(0.20),
       );
 
-      // 3. 3 Languages for 8-minute Standard Video (480s)
-      // Standard: 3 * $0.50 = $1.50
+      // 3. 3 Languages for 8-minute Standard Video (480s -> 8 mins * $0.10 = $0.80/lang)
+      // Standard: 3 * $0.80 = $2.40
       expect(
         ChannelWalletService.calculateDubbingCost(
           languageCount: 3,
           durationSeconds: 480,
         ),
-        equals(1.50),
+        equals(2.40),
       );
-      // Custom: 3 * $0.50 = $1.50
+      // Custom: 3 * $0.80 = $2.40
       expect(
         ChannelWalletService.calculateDubbingCost(
           languageCount: 3,
           durationSeconds: 480,
           channelType: ChannelType.custom,
         ),
-        equals(1.50),
+        equals(2.40),
       );
 
-      // 4. 4 Languages for 25-minute Extended Video (1500s)
-      // Standard: 4 * $1.25 = $5.00
+      // 4. 4 Languages for 25-minute Extended Video (1500s -> 25 mins * $0.10 = $2.50/lang)
+      // Standard: 4 * $2.50 = $10.00
       expect(
         ChannelWalletService.calculateDubbingCost(
           languageCount: 4,
           durationSeconds: 1500,
         ),
-        equals(5.00),
+        equals(10.00),
       );
-      // Custom: 4 * $1.25 = $5.00
+      // Custom: 4 * $2.50 = $10.00
       expect(
         ChannelWalletService.calculateDubbingCost(
           languageCount: 4,
           durationSeconds: 1500,
           channelType: ChannelType.custom,
         ),
-        equals(5.00),
+        equals(10.00),
       );
 
-      // 5. Total AI Bundle with Duration
+      // 5. Total AI Bundle with Duration (50s Short floored to 60s)
       // Features: subtitles (2 langs @ $0.025 => $0.05), dubbing (2 langs @ $0.10 => $0.20), factcheck ($0.00 Free), summary ($0.00 Free)
       // Total = $0.05 + $0.20 + $0.00 + $0.00 = $0.25
       final totalShortBundle = ChannelWalletService.calculateAIFeatureCost(
@@ -432,6 +622,106 @@ void main() {
         durationSeconds: 50,
       );
       expect(totalShortBundle, equals(0.25));
+    });
+
+    test('Proportional per-minute billing for 10-minute vs 7-minute videos across Standard Dubbing, Studio Voice Cloning, and AI Visual Lip-Sync', () {
+      // EXACT USER SPECIFICATION:
+      // Pricing for 10-minute video:
+      // - Standard Dubbing (Google Chirp 3: HD): $1.00 ($0.10/min)
+      // - Studio Voice Cloning (ElevenLabs V4/V3): $2.00 ($0.20/min)
+      // - AI Visual Lip-Sync (LatentSync GPU): $3.00 ($0.30/min)
+      //
+      // If video is 7 minutes (420s), charges scale down proportionally (like ElevenLabs):
+      // - Standard Dubbing: 7 min * $0.10 = $0.70
+      // - Studio Voice Cloning: 7 min * $0.20 = $1.40
+      // - AI Visual Lip-Sync: 7 min * $0.30 = $2.10
+      // Channels should NOT pay the same amount for 10 minutes and 7 minutes!
+
+      const tenMinutesSeconds = 600; // 10 minutes
+      const sevenMinutesSeconds = 420; // 7 minutes
+
+      // --- 10-MINUTE VIDEO VERIFICATION ---
+      // Standard Dubbing: $1.00
+      final standardDubbing10m = ChannelWalletService.getFlatDubbingPricePerLanguage(
+        durationSeconds: tenMinutesSeconds,
+        voiceType: 'standard',
+      );
+      expect(standardDubbing10m, equals(1.00));
+
+      // Studio Voice Cloning: $2.00
+      final voiceClone10m = ChannelWalletService.getFlatDubbingPricePerLanguage(
+        durationSeconds: tenMinutesSeconds,
+        voiceType: 'cloned',
+      );
+      expect(voiceClone10m, equals(2.00));
+
+      // AI Visual Lip-Sync: $3.00
+      final lipSync10m = ChannelWalletService.getFlatLipSyncPricePerLanguage(
+        durationSeconds: tenMinutesSeconds,
+      );
+      expect(lipSync10m, equals(3.00));
+
+      // --- 7-MINUTE VIDEO VERIFICATION (Proportional Cut) ---
+      // Standard Dubbing: $0.70 ($0.30 cut from $1.00)
+      final standardDubbing7m = ChannelWalletService.getFlatDubbingPricePerLanguage(
+        durationSeconds: sevenMinutesSeconds,
+        voiceType: 'standard',
+      );
+      expect(standardDubbing7m, equals(0.70));
+
+      // Studio Voice Cloning: $1.40 ($0.60 cut from $2.00)
+      final voiceClone7m = ChannelWalletService.getFlatDubbingPricePerLanguage(
+        durationSeconds: sevenMinutesSeconds,
+        voiceType: 'cloned',
+      );
+      expect(voiceClone7m, equals(1.40));
+
+      // AI Visual Lip-Sync: $2.10 ($0.90 cut from $3.00)
+      final lipSync7m = ChannelWalletService.getFlatLipSyncPricePerLanguage(
+        durationSeconds: sevenMinutesSeconds,
+      );
+      expect(lipSync7m, equals(2.10));
+
+      // --- VERIFY 7-MIN AND 10-MIN DO NOT PAY THE SAME ---
+      expect(standardDubbing7m, isNot(equals(standardDubbing10m)));
+      expect(voiceClone7m, isNot(equals(voiceClone10m)));
+      expect(lipSync7m, isNot(equals(lipSync10m)));
+      expect(lipSync7m, lessThan(lipSync10m));
+
+      // --- VERIFY STANDARD AND PRO (CUSTOM) CHANNELS GET THE SAME UNIFIED PASS-THROUGH RATE ---
+      final customStandardDubbing7m = ChannelWalletService.getFlatDubbingPricePerLanguage(
+        durationSeconds: sevenMinutesSeconds,
+        channelType: ChannelType.custom,
+        voiceType: 'standard',
+      );
+      final customVoiceClone7m = ChannelWalletService.getFlatDubbingPricePerLanguage(
+        durationSeconds: sevenMinutesSeconds,
+        channelType: ChannelType.custom,
+        voiceType: 'cloned',
+      );
+      final customLipSync7m = ChannelWalletService.getFlatLipSyncPricePerLanguage(
+        durationSeconds: sevenMinutesSeconds,
+        channelType: ChannelType.custom,
+      );
+
+      expect(customStandardDubbing7m, equals(standardDubbing7m));
+      expect(customVoiceClone7m, equals(voiceClone7m));
+      expect(customLipSync7m, equals(lipSync7m));
+
+      // Total Lip-Sync cost across 3 languages for 7-minute video: 3 * $2.10 = $6.30
+      final totalLipSync7m3Langs = ChannelWalletService.calculateLipSyncCost(
+        languageCount: 3,
+        durationSeconds: sevenMinutesSeconds,
+      );
+      expect(totalLipSync7m3Langs, equals(6.30));
+
+      // Total Lip-Sync cost across 3 languages for 10-minute video: 3 * $3.00 = $9.00
+      final totalLipSync10m3Langs = ChannelWalletService.calculateLipSyncCost(
+        languageCount: 3,
+        durationSeconds: tenMinutesSeconds,
+      );
+      expect(totalLipSync10m3Langs, equals(9.00));
+      expect(totalLipSync7m3Langs, lessThan(totalLipSync10m3Langs));
     });
 
     test('Calculates Tiered Subtitle Pricing based on video duration and channel type', () {

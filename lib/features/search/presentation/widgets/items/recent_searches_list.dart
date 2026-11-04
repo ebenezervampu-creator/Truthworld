@@ -24,7 +24,7 @@ class RecentSearchesList extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.only(bottom: 8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -38,6 +38,12 @@ class RecentSearchesList extends StatelessWidget {
               ),
               TextButton(
                 onPressed: onClearAll,
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.textSecondary,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
                 child: const Text(
                   'Clear All',
                   style: TextStyle(
@@ -54,18 +60,20 @@ class RecentSearchesList extends StatelessWidget {
           runSpacing: 8,
           children: recentSearches
               .map(
-                (search) => InkWell(
-                  onTap: () => onSearchSelected(search),
-                  child: Chip(
-                    label: Text(
-                      search,
-                      style: const TextStyle(color: AppColors.textPrimary),
-                    ),
-                    backgroundColor: AppColors.bgDivider,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+                (search) => ActionChip(
+                  label: Text(
+                    search,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
                     ),
                   ),
+                  backgroundColor: AppColors.bgDivider,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: const BorderSide(color: Colors.transparent),
+                  ),
+                  onPressed: () => onSearchSelected(search),
                 ),
               )
               .toList(),

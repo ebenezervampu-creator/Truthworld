@@ -29,6 +29,7 @@ class PlaylistVideoListItem extends StatelessWidget {
     final thumbnailWidth = isDesktop ? 160.0 : (isTablet ? 200.0 : 140.0);
 
     return InkWell(
+      borderRadius: BorderRadius.circular(12),
       onTap: () {
         MiniplayerNavigationHelper.navigateToVideoScreen(
           video: video,

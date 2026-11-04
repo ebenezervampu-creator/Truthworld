@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:truthworld/core/utils/source_url_sanitizer.dart';
+import 'package:truthworld/features/video/data/models/claim_verdict_localization.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -12,6 +13,8 @@ enum ClaimVerdictType {
   disputed,
   inconclusive,
   contextual,
+  novelHypothesis,
+  developingStory,
 }
 
 /// Resolved claim verdict presentation data.
@@ -40,9 +43,26 @@ class ClaimVerdictInfo {
 
   String get effectiveMicroTakeaway => microTakeaway ?? summaryTakeaway;
 
+  String localizedLabel([String? langCode]) =>
+      ClaimVerdictLocalization.localizeLabel(type, label, langCode);
+
+  String localizedCategory([String? langCode]) =>
+      ClaimVerdictLocalization.localizeCategory(category, langCode);
+
+  String localizedTakeaway([String? langCode]) =>
+      ClaimVerdictLocalization.localizeTakeaway(type, summaryTakeaway, langCode);
+
+  String localizedMicroTakeaway([String? langCode]) =>
+      ClaimVerdictLocalization.localizeMicroTakeaway(
+        type,
+        effectiveMicroTakeaway,
+        langCode,
+      );
+
   bool get isVerified =>
       type == ClaimVerdictType.verifiedTrue ||
-      type == ClaimVerdictType.mostlyTrue;
+      type == ClaimVerdictType.mostlyTrue ||
+      type == ClaimVerdictType.novelHypothesis;
 
   bool get isFalse =>
       type == ClaimVerdictType.falseClaim ||
@@ -50,7 +70,8 @@ class ClaimVerdictInfo {
 
   bool get isCaution =>
       type == ClaimVerdictType.disputed ||
-      type == ClaimVerdictType.inconclusive;
+      type == ClaimVerdictType.inconclusive ||
+      type == ClaimVerdictType.developingStory;
 
   bool get isContextual => type == ClaimVerdictType.contextual;
 
@@ -95,6 +116,17 @@ class ClaimVerdictHelper {
 
     final isVerifiedFlag = claim['isVerified'] == true;
     final confidence = _extractConfidence(claim);
+
+    final nature = (claim['nature'] ?? claim['claimNature'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    if (nature == 'rhetorical_exaggeration' || nature == 'hyperbole') {
+      return resolveVerdictString(
+        'rhetorical_exaggeration',
+        confidence: confidence,
+      );
+    }
 
     return _resolveStatus(
       rawStatus,
@@ -222,6 +254,42 @@ class ClaimVerdictHelper {
       );
     }
 
+    // Novel Scientific Hypothesis
+    if (rawStatus == 'novel_hypothesis' ||
+        rawStatus.contains('novel_hypothesis') ||
+        rawStatus.contains('novel hypothesis')) {
+      return ClaimVerdictInfo(
+        type: ClaimVerdictType.novelHypothesis,
+        label: 'NOVEL HYPOTHESIS',
+        color: const Color(0xFF06B6D4), // Cyan
+        icon: Icons.science_rounded,
+        category: 'Verified',
+        summaryTakeaway:
+            'Exploratory scientific candidate. This presents an alternative empirical hypothesis or challenger model currently undergoing investigation.',
+        microTakeaway: 'Active exploratory hypothesis',
+        confidenceText: confStr,
+        confidenceVal: confidence,
+      );
+    }
+
+    // Live Developing Story
+    if (rawStatus == 'developing_story' ||
+        rawStatus.contains('developing_story') ||
+        rawStatus.contains('developing story')) {
+      return ClaimVerdictInfo(
+        type: ClaimVerdictType.developingStory,
+        label: 'DEVELOPING STORY',
+        color: const Color(0xFF3B82F6), // Blue
+        icon: Icons.bolt_rounded,
+        category: 'Caution',
+        summaryTakeaway:
+            'Live developing event. Initial occurrences are confirmed, while casualty, damage, or operational statistics are actively evolving.',
+        microTakeaway: 'Fast-evolving live event',
+        confidenceText: confStr,
+        confidenceVal: confidence,
+      );
+    }
+
     // 5. Disputed / Contested
     if (rawStatus == 'disputed' ||
         rawStatus == 'contested' ||
@@ -241,22 +309,35 @@ class ClaimVerdictHelper {
       );
     }
 
-    // 6. Contextual: Satire / Hyperbole / Humor
+    // 6. Contextual: Satire / Hyperbole / Rhetorical Exaggeration / Humor
     if (rawStatus == 'satire' ||
         rawStatus == 'satire_claim' ||
         rawStatus == 'humor' ||
         rawStatus == 'parody' ||
         rawStatus == 'hyperbole' ||
+        rawStatus == 'rhetorical_exaggeration' ||
+        rawStatus == 'exaggeration' ||
+        rawStatus.contains('rhetorical_exaggeration') ||
+        rawStatus.contains('exaggerat') ||
+        rawStatus.contains('hyperbole') ||
         rawStatus.contains('satire')) {
+      final isExaggeration = rawStatus.contains('exaggerat') ||
+          rawStatus.contains('hyperbole') ||
+          rawStatus == 'rhetorical_exaggeration';
       return ClaimVerdictInfo(
         type: ClaimVerdictType.contextual,
-        label: 'SATIRE / HYPERBOLE',
+        label: isExaggeration ? 'RHETORICAL EXAGGERATION' : 'SATIRE / HUMOR',
         color: const Color(0xFF38BDF8), // Sky blue
-        icon: Icons.sentiment_very_satisfied_rounded,
+        icon: isExaggeration
+            ? Icons.auto_awesome_rounded
+            : Icons.sentiment_very_satisfied_rounded,
         category: 'Contextual',
-        summaryTakeaway:
-            'Just for fun! This was a joke or exaggeration, not meant to be taken as a real fact.',
-        microTakeaway: 'Humor or exaggeration, not literal',
+        summaryTakeaway: isExaggeration
+            ? 'Figurative expression. This was used as conversational hyperbole or rhetorical exaggeration, not as an empirical claim.'
+            : 'Just for fun! This was a joke or parody, not meant to be taken as a real fact.',
+        microTakeaway: isExaggeration
+            ? 'Rhetorical hyperbole, not literal'
+            : 'Humor or parody, not literal',
         confidenceText: confStr,
         confidenceVal: confidence,
       );
@@ -428,6 +509,50 @@ class ClaimVerdictHelper {
           '',
         )
         .trim();
+
+    // Strip conversational first-person / AI memory disclaimers
+    text = text
+        .replaceAll(
+          RegExp(r'I looked through all my stories and general knowledge[^.]*\.?', caseSensitive: false),
+          '',
+        )
+        .replaceAll(
+          RegExp(r'I looked through all my stories[^.]*\.?', caseSensitive: false),
+          '',
+        )
+        .replaceAll(
+          RegExp(r"It's not something lots of people know about from my memory\.?", caseSensitive: false),
+          '',
+        )
+        .replaceAll(
+          RegExp(r'\bfrom my memory\.?', caseSensitive: false),
+          '',
+        )
+        .replaceAll(
+          RegExp(r'\bin my memory\.?', caseSensitive: false),
+          '',
+        )
+        .replaceAll(
+          RegExp(r"I couldn't find any common or famous story[^.]*\.?", caseSensitive: false),
+          '',
+        )
+        .replaceAll(
+          RegExp(r"I don't have this in my memory\.?", caseSensitive: false),
+          '',
+        )
+        .replaceAll(
+          RegExp(r'\bas an AI,?\s*', caseSensitive: false),
+          '',
+        )
+        .trim();
+
+    // Clean leading punctuation or conjunctions left over
+    text = text.replaceFirst(RegExp(r'^[,;.\s]+'), '').trim();
+
+    // If string was reduced to empty or near empty, or still has conversational memory jargon:
+    if (text.length < 15 || RegExp(r'\b(?:from my memory|all my stories|in my memory)\b', caseSensitive: false).hasMatch(text)) {
+      text = 'Independent records and accredited news reports provide the authoritative context for this statement.';
+    }
 
     // Humanize robotic subjective/opinion classifications into simple, friendly language a 10-year-old can understand,
     // explicitly explaining WHY our system configured it as an opinion.

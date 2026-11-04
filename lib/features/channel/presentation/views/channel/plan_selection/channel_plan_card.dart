@@ -121,7 +121,7 @@ class ChannelPlanCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            isStandard ? 'Standard Plan' : 'Custom Plan',
+                            isStandard ? 'Standard Plan' : 'Pro Plan',
                             style: TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
@@ -223,7 +223,7 @@ class ChannelPlanCard extends StatelessWidget {
                   ),
                   ChannelPlanFeatureRow(
                     text:
-                        '100% Free AI Fact-Checking with Truth Score badges & algorithmic discovery boost',
+                        '100% Free AI Fact-Checking with credibility badges & algorithmic discovery boost',
                     isDark: isDark,
                   ),
                   const SizedBox(height: 16),
@@ -264,14 +264,14 @@ class ChannelPlanCard extends StatelessWidget {
                   ),
                   ChannelPlanFeatureRow(
                     text:
-                        '100% Free AI Fact-Checking with Truth Score badges & algorithmic discovery boost',
+                        '100% Free AI Fact-Checking with credibility badges & algorithmic discovery boost',
                     isDark: isDark,
                   ),
                   const SizedBox(height: 16),
                   ChannelPlanHowItWorksBox(
-                    title: 'How Custom Channel Works:',
+                    title: 'How Pro Channel Works:',
                     description:
-                        'Custom channels provide maximum earning power with 100% ad & content revenue retention. '
+                        'Pro channels provide maximum earning power with 100% ad & content revenue retention. '
                         r'Choose an infrastructure plan ($15, $30, $45, $100, $200/mo) tailored to your storage & bandwidth needs, '
                         'and stream in up to 4K Ultra HD with 0% commission on direct fan contributions.',
                     color: primaryColor,

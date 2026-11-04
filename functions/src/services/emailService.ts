@@ -6,6 +6,15 @@ export interface WelcomeEmailParams {
   displayName?: string | null;
 }
 
+export interface AdminCredentialsEmailParams {
+  to: string;
+  username: string;
+  password: string;
+  role: string;
+  displayName?: string | null;
+  portalUrl?: string | null;
+}
+
 export interface ChannelWelcomeEmailParams {
   to: string;
   channelName: string;
@@ -18,6 +27,39 @@ export interface EmailSendResult {
   messageId?: string;
   error?: string;
   skipped?: boolean;
+}
+
+/**
+ * Escapes characters for safe inclusion in email HTML markup, preventing stored XSS / HTML injection in mail clients.
+ */
+export function escapeEmailHtml(unsafe: any): string {
+  if (unsafe === null || unsafe === undefined) return "";
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+/**
+ * Sanitizes header values by stripping carriage returns and line feeds to prevent CRLF SMTP header injection.
+ */
+export function sanitizeHeaderValue(value: string | null | undefined): string {
+  if (!value) return "";
+  return String(value).replace(/[\r\n\t]/g, " ").trim();
+}
+
+/**
+ * Validates that an email address string is strictly formatted and free of control characters.
+ */
+export function isValidEmailAddress(email: string | null | undefined): boolean {
+  if (!email || typeof email !== "string") return false;
+  const trimmed = email.trim();
+  if (trimmed.length === 0 || trimmed.length > 254) return false;
+  if (/[\r\n]/.test(trimmed)) return false;
+  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+  return emailRegex.test(trimmed);
 }
 
 export class EmailService {
@@ -72,7 +114,8 @@ export class EmailService {
    * Generates a high-contrast, responsive HTML welcome email template.
    */
   public static generateWelcomeEmailHtml(displayName: string): string {
-    const sanitizedName = displayName.trim() || "TruthWorld Creator";
+    const rawName = displayName?.trim() || "TruthWorld Creator";
+    const sanitizedName = escapeEmailHtml(rawName);
     const currentYear = new Date().getFullYear();
 
     return `<!DOCTYPE html>
@@ -174,7 +217,7 @@ export class EmailService {
    * Generates a plain text fallback version of the welcome email.
    */
   public static generateWelcomeEmailText(displayName: string): string {
-    const sanitizedName = displayName.trim() || "TruthWorld Creator";
+    const sanitizedName = sanitizeHeaderValue(displayName?.trim()) || "TruthWorld Creator";
     return `Welcome to TruthWorld, ${sanitizedName}!
 
 We are thrilled to welcome you to our community. TruthWorld was built on the foundation of epistemic honesty, AI-powered fact-checking, and empowering creators to share authentic knowledge without deceptive gimmicks.
@@ -199,7 +242,7 @@ https://truthworld.in`;
   public static async sendWelcomeEmail(params: WelcomeEmailParams): Promise<EmailSendResult> {
     const { to, displayName } = params;
 
-    if (!to || !to.includes("@")) {
+    if (!isValidEmailAddress(to)) {
       logger.warn(`[EmailService] Invalid recipient email address: "${to}". Skipping.`);
       return { success: false, skipped: true, error: "Invalid email address" };
     }
@@ -212,16 +255,16 @@ https://truthworld.in`;
       return { success: false, skipped: true, error: "SMTP credentials not configured" };
     }
 
-    const fromUser = process.env.SMTP_USER || process.env.SMTP_EMAIL || "hello@truthworld.in";
-    const fromName = process.env.SMTP_FROM_NAME || "TruthWorld";
+    const fromUser = sanitizeHeaderValue(process.env.SMTP_USER || process.env.SMTP_EMAIL || "hello@truthworld.in");
+    const fromName = sanitizeHeaderValue(process.env.SMTP_FROM_NAME || "TruthWorld");
     const fromAddress = `"${fromName}" <${fromUser}>`;
-    const resolvedName = displayName || "there";
+    const resolvedName = sanitizeHeaderValue(displayName?.trim()) || "there";
 
     try {
       const info = await transporter.sendMail({
         from: fromAddress,
         replyTo: `"${fromName}" <hello@truthworld.in>`,
-        to,
+        to: sanitizeHeaderValue(to),
         subject: `Welcome to TruthWorld, ${resolvedName}!`,
         text: EmailService.generateWelcomeEmailText(resolvedName),
         html: EmailService.generateWelcomeEmailHtml(resolvedName),
@@ -243,9 +286,10 @@ https://truthworld.in`;
     ownerDisplayName?: string | null,
     handle?: string | null
   ): string {
-    const sanitizedChannelName = channelName.trim() || "TruthWorld Creator";
-    const greetingName = ownerDisplayName?.trim() ? ` ${ownerDisplayName.trim()}` : "";
-    const cleanHandle = handle ? (handle.startsWith("@") ? handle : `@${handle}`) : "";
+    const rawChannelName = channelName?.trim() || "TruthWorld Creator";
+    const sanitizedChannelName = escapeEmailHtml(rawChannelName);
+    const greetingName = ownerDisplayName?.trim() ? ` ${escapeEmailHtml(ownerDisplayName.trim())}` : "";
+    const cleanHandle = handle ? (handle.startsWith("@") ? escapeEmailHtml(handle) : `@${escapeEmailHtml(handle)}`) : "";
     const currentYear = new Date().getFullYear();
 
     const handleDisplay = cleanHandle
@@ -372,9 +416,9 @@ https://truthworld.in`;
     ownerDisplayName?: string | null,
     handle?: string | null
   ): string {
-    const sanitizedChannelName = channelName.trim() || "TruthWorld Creator";
-    const greetingName = ownerDisplayName?.trim() ? `, ${ownerDisplayName.trim()}` : "";
-    const cleanHandle = handle ? (handle.startsWith("@") ? handle : `@${handle}`) : "";
+    const sanitizedChannelName = sanitizeHeaderValue(channelName?.trim()) || "TruthWorld Creator";
+    const greetingName = ownerDisplayName?.trim() ? `, ${sanitizeHeaderValue(ownerDisplayName.trim())}` : "";
+    const cleanHandle = handle ? (handle.startsWith("@") ? sanitizeHeaderValue(handle) : `@${sanitizeHeaderValue(handle)}`) : "";
 
     return `Welcome to TruthWorld, ${sanitizedChannelName}!
 
@@ -405,7 +449,7 @@ https://truthworld.in`;
   public static async sendChannelWelcomeEmail(params: ChannelWelcomeEmailParams): Promise<EmailSendResult> {
     const { to, channelName, ownerDisplayName, handle } = params;
 
-    if (!to || !to.includes("@")) {
+    if (!isValidEmailAddress(to)) {
       logger.warn(`[EmailService] Invalid recipient email address: "${to}". Skipping channel welcome email.`);
       return { success: false, skipped: true, error: "Invalid email address" };
     }
@@ -418,16 +462,16 @@ https://truthworld.in`;
       return { success: false, skipped: true, error: "SMTP credentials not configured" };
     }
 
-    const fromUser = process.env.SMTP_USER || process.env.SMTP_EMAIL || "hello@truthworld.in";
-    const fromName = process.env.SMTP_FROM_NAME || "TruthWorld";
+    const fromUser = sanitizeHeaderValue(process.env.SMTP_USER || process.env.SMTP_EMAIL || "hello@truthworld.in");
+    const fromName = sanitizeHeaderValue(process.env.SMTP_FROM_NAME || "TruthWorld");
     const fromAddress = `"${fromName}" <${fromUser}>`;
-    const resolvedChannelName = (channelName || "TruthWorld Creator").trim();
+    const resolvedChannelName = sanitizeHeaderValue((channelName || "TruthWorld Creator").trim());
 
     try {
       const info = await transporter.sendMail({
         from: fromAddress,
         replyTo: `"${fromName}" <hello@truthworld.in>`,
-        to,
+        to: sanitizeHeaderValue(to),
         subject: `Welcome to TruthWorld, ${resolvedChannelName}! Your channel is ready`,
         text: EmailService.generateChannelWelcomeEmailText(resolvedChannelName, ownerDisplayName, handle),
         html: EmailService.generateChannelWelcomeEmailHtml(resolvedChannelName, ownerDisplayName, handle),
@@ -442,4 +486,220 @@ https://truthworld.in`;
       return { success: false, error: err?.message || String(err) };
     }
   }
+
+  /**
+   * Generates a high-contrast, responsive HTML email template for Admin Portal credentials.
+   */
+  public static generateAdminCredentialsEmailHtml(params: AdminCredentialsEmailParams): string {
+    const { to, username, password, role, displayName, portalUrl } = params;
+    const resolvedName = escapeEmailHtml((displayName || username || "Administrator").trim());
+    const escapedUsername = escapeEmailHtml(username);
+    const escapedPassword = escapeEmailHtml(password);
+    const escapedRole = escapeEmailHtml(role);
+    const escapedTo = escapeEmailHtml(to);
+    const resolvedUrl = escapeEmailHtml(portalUrl || "https://truthworld.in/admin");
+    const currentYear = new Date().getFullYear();
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your TruthWorld Admin Portal Credentials</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #0b0f19; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #0b0f19; width: 100%; min-height: 100vh;">
+    <tr>
+      <td align="center" style="padding: 40px 16px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width: 600px; background-color: #141c2e; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);">
+          <!-- Header Bar -->
+          <tr>
+            <td style="padding: 32px 36px 20px 36px; border-bottom: 1px solid #1e293b; background-color: #111827;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td>
+                    <span style="font-size: 22px; font-weight: 800; letter-spacing: 1.5px; color: #ffffff; text-transform: uppercase;">TRUTH<span style="color: #60a5fa;">WORLD</span></span>
+                    <div style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.2px; margin-top: 4px;">Admin &amp; Moderator Operations</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- Body Content -->
+          <tr>
+            <td style="padding: 36px 36px 28px 36px;">
+              <h1 style="margin: 0 0 16px 0; font-size: 22px; font-weight: 700; color: #ffffff; line-height: 1.3;">
+                Welcome to the TruthWorld Admin Team, ${resolvedName}!
+              </h1>
+              <p style="margin: 0 0 20px 0; font-size: 15px; line-height: 1.6; color: #cbd5e1;">
+                You have been granted administrative access on the TruthWorld platform. Below are your assigned credentials and portal details.
+              </p>
+
+              <!-- Credentials Card -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #0f172a; border: 1px solid #1e293b; border-radius: 8px; margin-bottom: 24px;">
+                <tr>
+                  <td style="padding: 20px 24px;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                      <tr>
+                        <td style="padding-bottom: 12px;">
+                          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #60a5fa; letter-spacing: 1.2px;">Admin Username</div>
+                          <div style="font-size: 16px; font-weight: 700; color: #ffffff; margin-top: 2px;">${escapedUsername}</div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding-bottom: 12px;">
+                          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #60a5fa; letter-spacing: 1.2px;">Login Email</div>
+                          <div style="font-size: 15px; font-weight: 500; color: #ffffff; margin-top: 2px;">${escapedTo}</div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding-bottom: 12px;">
+                          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #60a5fa; letter-spacing: 1.2px;">Assigned Role</div>
+                          <div style="font-size: 15px; font-weight: 600; color: #ffffff; margin-top: 2px;">${escapedRole}</div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>
+                          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #60a5fa; letter-spacing: 1.2px;">Password</div>
+                          <div style="margin-top: 6px;">
+                            <code style="display: inline-block; background-color: #000000; padding: 6px 14px; border-radius: 6px; font-size: 16px; font-weight: 700; color: #60a5fa; letter-spacing: 1.5px; border: 1px solid #334155;">${escapedPassword}</code>
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Two Step Sign In Instructions -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #0b1324; border-left: 4px solid #3b82f6; border-radius: 6px; margin-bottom: 24px;">
+                <tr>
+                  <td style="padding: 14px 18px;">
+                    <div style="font-size: 13px; font-weight: 700; color: #ffffff; margin-bottom: 4px;">&#128274; Two-Step Admin Portal Sign-In:</div>
+                    <div style="font-size: 13px; color: #94a3b8; line-height: 1.5;">
+                      1. Open the portal and enter your <strong>Username</strong> (<code>${escapedUsername}</code>).<br>
+                      2. Once verified, enter your password to unlock the console.
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- CTA Button -->
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 0 auto 24px auto;">
+                <tr>
+                  <td align="center" style="border-radius: 8px; background-color: #ffffff;">
+                    <a href="${resolvedUrl}" target="_blank" style="display: inline-block; padding: 14px 32px; font-size: 15px; font-weight: 700; color: #000000; text-decoration: none; border-radius: 8px; letter-spacing: 0.5px;">
+                      Sign In to Admin Portal
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 0; font-size: 13px; line-height: 1.6; color: #94a3b8;">
+                Security Notice: Keep these credentials strictly confidential. You can update your password at any time in the Admin Portal under your profile settings.
+              </p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 24px 36px; border-top: 1px solid #1e293b; background-color: #0d1322;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td style="font-size: 12px; color: #64748b; line-height: 1.5;">
+                    TruthWorld Security Operations &bull; <a href="mailto:hello@truthworld.in" style="color: #60a5fa; text-decoration: none;">hello@truthworld.in</a><br>
+                    &copy; ${currentYear} TruthWorld. All rights reserved.
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+  }
+
+  /**
+   * Generates plain text email fallback for Admin Portal credentials.
+   */
+  public static generateAdminCredentialsEmailText(params: AdminCredentialsEmailParams): string {
+    const { to, username, password, role, displayName, portalUrl } = params;
+    const resolvedName = sanitizeHeaderValue(displayName || username || "Administrator");
+    const cleanUsername = sanitizeHeaderValue(username);
+    const cleanRole = sanitizeHeaderValue(role);
+    const cleanTo = sanitizeHeaderValue(to);
+    const cleanPassword = password ? password.replace(/[\r\n]/g, "") : "";
+    const resolvedUrl = sanitizeHeaderValue(portalUrl || "https://truthworld.in/admin");
+
+    return `TRUTHWORLD ADMIN PORTAL CREDENTIALS
+------------------------------------
+Hello ${resolvedName},
+
+You have been granted access to the TruthWorld Admin & Moderation Portal.
+
+Your Login Credentials:
+- Portal URL: ${resolvedUrl}
+- Admin Username: ${cleanUsername}
+- Login Email: ${cleanTo}
+- Assigned Role: ${cleanRole}
+- Password: ${cleanPassword}
+
+Two-Step Sign In:
+1. Visit ${resolvedUrl}
+2. Enter your username: ${cleanUsername}
+3. Once verified, enter your password to unlock the console.
+
+Security Notice:
+Keep these credentials strictly confidential. You can update your password at any time in the Admin Portal.
+
+The TruthWorld Security Operations Team
+hello@truthworld.in`;
+  }
+
+  /**
+   * Sends the Admin Portal credentials email directly using Google/Gmail SMTP.
+   */
+  public static async sendAdminCredentialsEmail(params: AdminCredentialsEmailParams): Promise<EmailSendResult> {
+    const { to, username, role } = params;
+
+    if (!isValidEmailAddress(to)) {
+      logger.warn(`[EmailService] Invalid recipient email address: "${to}". Skipping credentials email.`);
+      return { success: false, skipped: true, error: 'Invalid email address' };
+    }
+
+    const transporter = EmailService.getTransporter();
+    if (!transporter) {
+      logger.warn(
+        `[EmailService] SMTP credentials not configured (SMTP_USER/SMTP_PASS). Credentials email logged for "${to}".`
+      );
+      return { success: false, skipped: true, error: 'SMTP credentials not configured' };
+    }
+
+    const fromUser = sanitizeHeaderValue(process.env.SMTP_USER || process.env.SMTP_EMAIL || "hello@truthworld.in");
+    const fromName = sanitizeHeaderValue(process.env.SMTP_FROM_NAME || "TruthWorld Security");
+    const fromAddress = `"${fromName}" <${fromUser}>`;
+    const cleanRole = sanitizeHeaderValue(role);
+
+    try {
+      const info = await transporter.sendMail({
+        from: fromAddress,
+        replyTo: `"${fromName}" <hello@truthworld.in>`,
+        to: sanitizeHeaderValue(to),
+        subject: `Your TruthWorld Admin Portal Credentials [${cleanRole}]`,
+        text: EmailService.generateAdminCredentialsEmailText(params),
+        html: EmailService.generateAdminCredentialsEmailHtml(params),
+      });
+
+      logger.info(
+        `[EmailService] Admin credentials email successfully sent to ${to} for user "${username}" (Message ID: ${info.messageId})`
+      );
+      return { success: true, messageId: info.messageId };
+    } catch (err: any) {
+      logger.error(`[EmailService] Failed to send admin credentials email to ${to}:`, err);
+      return { success: false, error: err?.message || String(err) };
+    }
+  }
+
 }

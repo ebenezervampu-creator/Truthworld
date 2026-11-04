@@ -119,6 +119,17 @@ mixin UploadAiFeaturesMixin on UploadControllerBase {
         aiFactCheckReviewMode.value != 'first_to_creator';
     map['enableFactCheck'] = aiFactCheckEnabled.value;
     map['truthVerification'] = aiFactCheckEnabled.value;
+    map['enableDiarization'] = aiDiarizationEnabled.value;
+    map['speakerDiarization'] = aiDiarizationEnabled.value;
+    map['enableLipSync'] = aiLipSyncEnabled.value;
+    map['lipSync'] = aiLipSyncEnabled.value;
+    map['dubbingTier'] = aiDubbingTier.value;
+    map['cinemaGrade'] = aiCinemaGradeEnabled.value;
+    map['stemIsolation'] = aiStemIsolationEnabled.value;
+    map['isometryMode'] = (aiDubbingTier.value == 'video_ultra' || aiDubbingTier.value == 'audio_ultra') ? 'strict_syllable' : 'natural';
+    map['uncannyMitigation'] = aiDubbingTier.value == 'audio_ultra' ? 'cadence_lock' : 'none';
+    map['autoChaptersEnabled'] = aiChaptersEnabled.value;
+    map['chapters'] = aiChaptersEnabled.value;
     return map;
   }
 

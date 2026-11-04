@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/base/base_repository.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/network/result.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/domain/entities/playlist_entity.dart';
@@ -75,6 +76,13 @@ class PlaylistRepositoryImpl extends BaseRepository
 
   @override
   Future<Result<void>> deletePlaylist(String id) async {
+    if (id == 'watchlater' || id.toLowerCase().trim() == 'watch later') {
+      return Result.failure(
+        const ValidationException(
+          message: 'The Watch Later playlist cannot be moved to Trash.',
+        ),
+      );
+    }
     return safeUpdate(
       _firestore.collection(FirestoreCollections.playlists).doc(id),
       {

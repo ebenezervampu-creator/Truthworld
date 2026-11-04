@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/widgets/channel_verified_badge.dart';
 import 'package:truthworld/features/channel/data/models/channel_loyalty_badge.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/presentation/views/widgets/comments/comment_action_handler.dart';
@@ -23,14 +24,22 @@ class CommentAuthorHeader extends StatelessWidget {
     final formattedUserName = comment.displayName;
     final isChannelCreator = comment.channelId.isNotEmpty &&
         comment.channelId == videoChannelId;
+    final canNavigate = comment.isChannelAuthor || isChannelCreator;
 
     return Row(
       children: [
         Flexible(
           child: GestureDetector(
-            onTap: () => CommentActionHandler.navigateToChannel(comment.channelId),
+            onTap: canNavigate
+                ? () => CommentActionHandler.navigateToChannel(
+                      comment.channelId,
+                      channelHandle: comment.displayName,
+                    )
+                : null,
             child: MouseRegion(
-              cursor: SystemMouseCursors.click,
+              cursor: canNavigate
+                  ? SystemMouseCursors.click
+                  : SystemMouseCursors.basic,
               child: isChannelCreator
                   ? Container(
                       padding: const EdgeInsets.symmetric(
@@ -57,11 +66,7 @@ class CommentAuthorHeader extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 4),
-                          const Icon(
-                            Icons.check,
-                            size: 12,
-                            color: Colors.white70,
-                          ),
+                          const ChannelVerifiedBadge(size: 13),
                         ],
                       ),
                     )

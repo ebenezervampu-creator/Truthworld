@@ -68,6 +68,9 @@ class ChannelRepositoryImpl extends BaseRepository
       final userSubRef = _firestore
           .collection(FirestoreCollections.userSubscriptions(userId))
           .doc(channelId);
+      final legacySubRef = _firestore
+          .collection(FirestoreCollections.subscriptions)
+          .doc('${channelId}_$userId');
       final channelRef = _firestore
           .collection(FirestoreCollections.channels)
           .doc(channelId);
@@ -76,16 +79,22 @@ class ChannelRepositoryImpl extends BaseRepository
       if (subDoc.exists) {
         tx.delete(subRef);
         tx.delete(userSubRef);
+        tx.delete(legacySubRef);
         tx.update(channelRef, {'subscriberCount': FieldValue.increment(-1)});
       } else {
-        tx.set(subRef, {
+        final now = FieldValue.serverTimestamp();
+        final payload = {
           'userId': userId,
-          'timestamp': FieldValue.serverTimestamp(),
-        });
-        tx.set(userSubRef, {
           'channelId': channelId,
-          'timestamp': FieldValue.serverTimestamp(),
-        });
+          'timestamp': now,
+          'subscribedAt': now,
+          'notificationsEnabled': true,
+          'notificationOption': 'personalized',
+          'notificationPreference': 'personalized',
+        };
+        tx.set(subRef, payload);
+        tx.set(userSubRef, payload);
+        tx.set(legacySubRef, payload);
         tx.update(channelRef, {'subscriberCount': FieldValue.increment(1)});
       }
     });

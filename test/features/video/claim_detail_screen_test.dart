@@ -174,7 +174,7 @@ void main() {
 
       // Truth Intelligence Breakdown Card
       expect(find.text('Truth Intelligence Breakdown'), findsOneWidget);
-      expect(find.byIcon(Icons.auto_awesome_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.auto_awesome_rounded), findsWidgets);
 
       // Sources Card
       expect(find.text('Sources'), findsOneWidget);
@@ -186,6 +186,7 @@ void main() {
       expect(find.text('Eggs: A nutritious food'), findsOneWidget);
 
       // Fixed bottom action bar
+      expect(find.text('Ask AI'), findsOneWidget);
       expect(find.text('Search web'), findsOneWidget);
       expect(find.text('Provide source'), findsOneWidget);
     });
@@ -271,7 +272,7 @@ void main() {
 
       // Truth Intelligence Breakdown Card
       expect(find.text('Truth Intelligence Breakdown'), findsOneWidget);
-      expect(find.byIcon(Icons.auto_awesome_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.auto_awesome_rounded), findsWidgets);
 
       // Desktop Sources Sidebar Panel (Sources rendered directly in sidebar, not via modal)
       expect(find.text('Sources'), findsOneWidget);
@@ -283,6 +284,7 @@ void main() {
       expect(find.text('Nutrient Requirements and Recommended Dietary Allowances for Indians'), findsOneWidget);
 
       // Action buttons on desktop
+      expect(find.text('Ask AI'), findsOneWidget);
       expect(find.text('Search web'), findsOneWidget);
       expect(find.text('Provide source'), findsOneWidget);
 
@@ -293,6 +295,46 @@ void main() {
 
       // Bottom sheet is NOT open on desktop
       expect(find.byType(ClaimSourcesBottomSheet), findsNothing);
+    });
+
+    testWidgets('renders bottom action bar on narrow screen (360px) without RenderFlex overflow', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 640));
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: ClaimDetailScreen(
+            claim: testClaim,
+            video: testVideo,
+            allSources: testClaim['sources'] as List<dynamic>,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.text('Ask AI'), findsOneWidget);
+      expect(find.text('Search web'), findsOneWidget);
+      expect(find.text('Provide source'), findsOneWidget);
+    });
+
+    testWidgets('renders bottom action bar on ultra-compact screen (320px) without RenderFlex overflow', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(320, 568));
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: ClaimDetailScreen(
+            claim: testClaim,
+            video: testVideo,
+            allSources: testClaim['sources'] as List<dynamic>,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.text('Ask AI'), findsOneWidget);
+      expect(find.text('Search web'), findsOneWidget);
+      expect(find.text('Provide source'), findsOneWidget);
     });
   });
 }

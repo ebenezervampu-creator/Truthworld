@@ -27,9 +27,9 @@ class CampaignWizardAudienceSectionCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF18181B),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgSurface),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -88,16 +88,16 @@ class CampaignWizardAudienceSectionCard extends StatelessWidget {
                 showCheckmark: isAllSelected,
                 checkmarkColor: isAllSelected ? Colors.black : Colors.white,
                 selectedColor: AppColors.brand,
-                backgroundColor: const Color(0xFF27272A),
+                backgroundColor: AppColors.bgSurface,
                 side: BorderSide(
-                  color: isAllSelected ? AppColors.brand : const Color(0xFF3F3F46),
+                  color: isAllSelected ? AppColors.brand : AppColors.bgElevated,
                 ),
                 onSelected: onToggleAll,
               ),
             ],
           ),
           if (!isAllSelected) ...[
-            const Divider(color: Color(0xFF27272A), height: 24),
+            const Divider(color: AppColors.bgSurface, height: 24),
             content,
           ],
         ],
@@ -122,9 +122,9 @@ class CampaignWizardAudienceBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF27272A),
+        color: AppColors.bgSurface,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: const Color(0xFF3F3F46)),
+        border: Border.all(color: AppColors.bgElevated),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

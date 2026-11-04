@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <base href="$FLUTTER_BASE_HREF">
 
+  <!-- ── Content Security Policy (Client-side enforcement for offline & cached app shells) ── -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://apis.google.com https://www.gstatic.com https://accounts.google.com https://www.google.com https://recaptcha.net https://www.recaptcha.net https://cdnjs.cloudflare.com https://sdk.cashfree.com https://*.cashfree.com; worker-src 'self' blob: https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com https://cdnjs.cloudflare.com; font-src 'self' data: https://fonts.gstatic.com https://fonts.googleapis.com; img-src 'self' data: blob: https:; media-src 'self' blob: data: https://firebasestorage.googleapis.com https://*.googleapis.com https:; connect-src 'self' blob: https://*.firebaseio.com wss://*.firebaseio.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.googleapis.com wss://*.googleapis.com https://*.cloudfunctions.net https://*.run.app https://www.gstatic.com https://fonts.gstatic.com https://*.firebaseapp.com https://*.truthworld.in https://truthworld.in https://www.google.com https://*.google.com https://recaptcha.net https://www.recaptcha.net https://*.cashfree.com https://api.cashfree.com https://sandbox.cashfree.com https://payments.cashfree.com https://open.er-api.com https://api.frankfurter.app https://ipwho.is https://api.country.is https://ipapi.co https://freeipapi.com https://api.bigdatacloud.net https://photon.komoot.io https://geocoding-api.open-meteo.com https://nominatim.openstreetmap.org; frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://*.truthworld.in https://truthworld.in https://www.google.com https://recaptcha.net https://www.recaptcha.net https://*.cashfree.com https://payments.cashfree.com; object-src 'none'; base-uri 'self';" />
+
   <!-- ── Google Sign-In (OAuth Client ID) ─────────────── -->
   <meta name="google-signin-client_id" content="768266102263-f1bou7fgaqn2rkqh0cn5p6voksb163qt.apps.googleusercontent.com" />
 
@@ -158,6 +161,36 @@
                          window.location.hostname === '0.0.0.0' ||
                          window.location.hostname === '[::1]' ||
                          window.location.hostname.endsWith('.local');
+  </script>
+
+  <!-- ── HLS.js Polyfill for Chromium / Firefox Browsers ────────────── -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.17/hls.min.js"></script>
+  <script>
+    (function() {
+      if (window.Hls && window.Hls.isSupported()) {
+        var origSrcDescriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
+        if (origSrcDescriptor && origSrcDescriptor.set) {
+          var origSet = origSrcDescriptor.set;
+          Object.defineProperty(HTMLMediaElement.prototype, 'src', {
+            set: function(val) {
+              if (typeof val === 'string' && (val.indexOf('.m3u8') !== -1 || val.indexOf('hls') !== -1)) {
+                if (!this.canPlayType('application/vnd.apple.mpegurl')) {
+                  var hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+                  hls.loadSource(val);
+                  hls.attachMedia(this);
+                  this._hls = hls;
+                  return;
+                }
+              }
+              return origSet.call(this, val);
+            },
+            get: origSrcDescriptor.get,
+            configurable: true,
+            enumerable: true
+          });
+        }
+      }
+    })();
   </script>
 
   <!-- ── Resilient Flutter Web Asset Fetch Interceptor ──────────────── -->
@@ -369,8 +402,48 @@
     }
   </style>
 
-  <!-- ── Google reCAPTCHA (Firebase Auth Phone Verification) ──────────── -->
-  <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+  <!-- ── Google reCAPTCHA Enterprise & v3 Interop Shim (Firebase App Check Web Compatibility) ── -->
+  <script>
+    (function() {
+      // In local development, prime the debug token for Firebase App Check Web SDK
+      var host = window.location.hostname;
+      var isLocalDev = host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host === '[::1]' || host.endsWith('.local');
+      if (isLocalDev && typeof window.FIREBASE_APPCHECK_DEBUG_TOKEN === 'undefined') {
+        window.FIREBASE_APPCHECK_DEBUG_TOKEN = 'aeb2d92a-1f8d-4014-819d-b24f3ffefec3';
+      }
+
+      // Interoperability bridge: Ensure grecaptcha.ready exists so WebDebugProvider / ReCaptchaV3Provider 
+      // does not throw "NoSuchMethodError: 'r.ready'" when enterprise.js is used.
+      var g = window.grecaptcha = window.grecaptcha || {};
+      function ensureReady(target) {
+        if (target && typeof target.ready !== 'function') {
+          target.ready = function(cb) {
+            if (window.grecaptcha && window.grecaptcha.enterprise && typeof window.grecaptcha.enterprise.ready === 'function') {
+              window.grecaptcha.enterprise.ready(cb);
+            } else if (typeof cb === 'function') {
+              setTimeout(cb, 0);
+            }
+          };
+        }
+      }
+      ensureReady(g);
+      var _grecaptcha = g;
+      try {
+        Object.defineProperty(window, 'grecaptcha', {
+          configurable: true,
+          enumerable: true,
+          get: function() { return _grecaptcha; },
+          set: function(val) {
+            _grecaptcha = val;
+            ensureReady(_grecaptcha);
+          }
+        });
+      } catch (e) {}
+    })();
+  </script>
+
+  <!-- ── Google reCAPTCHA Enterprise (Firebase App Check & Auth Verification) ── -->
+  <script src="https://www.google.com/recaptcha/enterprise.js" async defer></script>
 </head>
 <body>
   <!-- Mobile Smart App Banner -->
@@ -691,12 +764,15 @@
       var isIOS     = /iPhone|iPad|iPod/i.test(ua);
       if (!isAndroid && !isIOS) return; // desktop: load Flutter normally
 
+      var storeUrl = isAndroid
+        ? 'https://play.google.com/store/apps/details?id=com.truthworld.app'
+        : 'https://apps.apple.com/app/truthworld/id6738912958';
+
       // ── Path analysis ─────────────────────────────────────────────────
       var pathname = window.location.pathname;   // e.g. "/@ebenezervampu"
       var search   = window.location.search;     // e.g. "?v=abc123"
-      var hash     = window.location.hash;
-      var fullPath = pathname + search + hash;
-      var cleanPath = fullPath.replace(/^\/+/, '');
+      // TW-SEC-01: Exclude window.location.hash and strip '#', ';', and whitespace to prevent Intent injection
+      var cleanPath = (pathname + search).replace(/[#;\s]/g, '').replace(/^\/+/, '');
 
       // Paths that should bypass Flutter web and open the native app directly
       var deepLinkPrefixes = [
@@ -751,7 +827,8 @@
       })();
 
       // ── Build deep-link intent URL ─────────────────────────────────────
-      var fallbackUrl = encodeURIComponent(window.location.href);
+      // TW-SEC-01: Pin fallbackUrl to Google Play Store / App Store link
+      var fallbackUrl = encodeURIComponent(storeUrl);
       var intentUrl = isAndroid
         ? 'intent://www.truthworld.in/' + cleanPath +
           '#Intent;scheme=https;package=com.truthworld.app;' +
@@ -778,13 +855,7 @@
           openBtn.setAttribute('href', intentUrl);
           openBtn.addEventListener('click', function (e) {
             e.preventDefault();
-            var fp = (window.location.pathname + window.location.search + window.location.hash).replace(/^\/+/, '');
-            var url = isAndroid
-              ? 'intent://www.truthworld.in/' + fp +
-                '#Intent;scheme=https;package=com.truthworld.app;' +
-                'S.browser_fallback_url=' + encodeURIComponent(window.location.href) + ';end'
-              : 'truthworld://' + fp;
-            window.location.href = url;
+            window.location.href = intentUrl;
           });
         }
       })();

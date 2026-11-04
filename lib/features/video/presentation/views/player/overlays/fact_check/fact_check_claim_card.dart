@@ -8,6 +8,8 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/fact_check/fact_check_models_helper.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/fact_check/fact_check_overlay_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/claim_comments_controller.dart';
+import 'package:truthworld/features/video/presentation/widgets/analysis/comments/add_claim_comment_sheet.dart';
 import 'package:truthworld/features/video/presentation/widgets/claim_source_submission_dialog.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -45,7 +47,7 @@ import 'package:url_launcher/url_launcher.dart';
 
     final verdict = ClaimVerdictHelper.resolveVerdict(claim);
     final verdictColor = verdict.color;
-    final verdictLabel = verdict.label;
+    final verdictLabel = verdict.localizedLabel();
 
     final resolved = resolveRealClaimDetails(claim, index, allSources);
     final cleanClaimText = resolved.cleanText;
@@ -294,7 +296,7 @@ import 'package:url_launcher/url_launcher.dart';
                     ...effectiveSources.map((s) => TapableClaimSource(source: s)),
                   ],
 
-                  // Action Buttons: Search Web + Provide Source
+                  // Action Buttons: Search Web + Community Note + Provide Source
                   const SizedBox(height: 10),
                   Row(
                     children: [
@@ -323,7 +325,7 @@ import 'package:url_launcher/url_launcher.dart';
                             color: Colors.white,
                           ),
                           label: const Text(
-                            'Search Web',
+                            'Search',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
@@ -339,7 +341,51 @@ import 'package:url_launcher/url_launcher.dart';
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            final vid = video?.id;
+                            if (vid != null) {
+                              final tag = 'claim_${vid}_$index';
+                              final c = Get.isRegistered<ClaimCommentsController>(tag: tag)
+                                  ? Get.find<ClaimCommentsController>(tag: tag)
+                                  : Get.put(ClaimCommentsController(), tag: tag);
+                              c.initForClaim(videoId: vid, claimIndex: index);
+                              AddClaimCommentSheet.show(
+                                context: context,
+                                videoId: vid,
+                                claimIndex: index,
+                                claimText: cleanClaimText,
+                                controller: c,
+                              );
+                            }
+                          },
+                          icon: const Icon(
+                            Icons.rate_review_outlined,
+                            size: 13,
+                            color: Color(0xFF38BDF8),
+                          ),
+                          label: const Text(
+                            'Add Note',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF38BDF8),
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            side: BorderSide(
+                              color: const Color(0xFF38BDF8).withValues(alpha: 0.4),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: () {
@@ -359,7 +405,7 @@ import 'package:url_launcher/url_launcher.dart';
                             color: Colors.black,
                           ),
                           label: const Text(
-                            'Provide Source',
+                            'Source',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,

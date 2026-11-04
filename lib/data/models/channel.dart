@@ -3,6 +3,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/cashfree/cashfree_country_support.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
 import 'package:truthworld/domain/entities/channel_entity.dart';
+import 'package:truthworld/features/channel/data/models/channel_trust_score.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 
@@ -13,9 +14,10 @@ enum ChannelStatus {
   deleted,
   verificationPending,
   verificationRejected,
+  onHold,
 }
 
-enum MonetizationTier { none, eligible, basic, premium, pro }
+enum MonetizationTier { none, eligible, standard, pro }
 
 enum ChannelType { standard, custom }
 
@@ -192,6 +194,7 @@ class Channel {
     this.status = ChannelStatus.active,
     this.geminiApproved,
     this.isVerified = false,
+    this.channelTrustScore,
     this.category = 'other',
     this.categories = const [],
     this.language = 'en',
@@ -202,6 +205,9 @@ class Channel {
     this.allowComments = true,
     this.monetizationTier = MonetizationTier.none,
     this.monetizationSettings,
+    this.isMonetized = false,
+    this.monetizationStatus,
+    this.monetizationApplication,
     this.brandingSettings,
     this.socialLinks,
     this.customLinks = const [],
@@ -226,6 +232,20 @@ class Channel {
     this.hasMemberships = false,
     this.deletionScheduledAt,
     this.deletionGracePeriodExpiresAt,
+    this.customDailyVideoDurationSeconds,
+    this.customMaxVideoDurationSeconds,
+    this.quotaIncreasedBy,
+    this.quotaIncreasedAt,
+    this.quotaIncreaseReason,
+    this.trustedModerationBypass = false,
+    this.trustedModerationBypassSetBy,
+    this.trustedModerationBypassSetAt,
+    this.trustedModerationBypassReason,
+    this.dubbingDiscountType,
+    this.dubbingDiscountPercent,
+    this.subtitlesDiscountType,
+    this.subtitlesDiscountPercent,
+    this.aiDiscounts,
   }) : metrics = metrics ?? ChannelMetricsV2();
 
   factory Channel.fromMap(Map<String, dynamic> data, String docId) {
@@ -239,11 +259,33 @@ class Channel {
     }
 
     final parsedGeminiApproved = data['geminiApproved'] as bool?;
-    var statusVal = ChannelStatus.values.firstWhere(
-      (e) => e.name.toLowerCase() == (data['status']?.toString() ?? 'active').toLowerCase(),
-      orElse: () => ChannelStatus.active,
-    );
-    if (parsedGeminiApproved == true) {
+    final rawStatus = (data['status']?.toString() ?? 'active').toLowerCase().replaceAll('_', '').replaceAll(' ', '');
+    var statusVal = ChannelStatus.active;
+    if (rawStatus == 'onhold' || rawStatus == 'hold') {
+      statusVal = ChannelStatus.onHold;
+    } else if (rawStatus == 'suspended') {
+      statusVal = ChannelStatus.suspended;
+    } else if (rawStatus == 'deleted') {
+      statusVal = ChannelStatus.deleted;
+    } else if (rawStatus == 'verificationrejected' || rawStatus == 'rejected') {
+      statusVal = ChannelStatus.verificationRejected;
+    } else if (rawStatus == 'underreview') {
+      statusVal = ChannelStatus.underReview;
+    } else if (rawStatus == 'verificationpending') {
+      statusVal = ChannelStatus.verificationPending;
+    } else if (rawStatus == 'active') {
+      statusVal = ChannelStatus.active;
+    } else {
+      statusVal = ChannelStatus.values.firstWhere(
+        (e) => e.name.toLowerCase() == rawStatus,
+        orElse: () => ChannelStatus.active,
+      );
+    }
+    if (parsedGeminiApproved == true &&
+        statusVal != ChannelStatus.onHold &&
+        statusVal != ChannelStatus.suspended &&
+        statusVal != ChannelStatus.deleted &&
+        statusVal != ChannelStatus.verificationRejected) {
       statusVal = ChannelStatus.active;
     }
 
@@ -325,6 +367,11 @@ class Channel {
       status: statusVal,
       geminiApproved: parsedGeminiApproved,
       isVerified: data['isVerified'] ?? false,
+      channelTrustScore: data['channelTrustScore'] is Map
+          ? ChannelTrustScore.fromMap(
+              Map<String, dynamic>.from(data['channelTrustScore'] as Map),
+            )
+          : null,
       category: data['category'] ?? 'other',
       categories: data['categories'] != null
           ? List<String>.from(data['categories'])
@@ -344,8 +391,27 @@ class Channel {
       allowComments: (data['allowComments'] as bool?) ?? true,
       monetizationTier: MonetizationTier.values.firstWhere(
         (e) => e.name == (data['monetizationTier'] ?? 'none'),
-        orElse: () => MonetizationTier.none,
+        orElse: () {
+          final raw = data['monetizationTier']?.toString().toLowerCase();
+          if (raw == 'basic' || raw == 'premium' || raw == 'standard') {
+            return MonetizationTier.standard;
+          }
+          if (raw == 'pro') {
+            return MonetizationTier.pro;
+          }
+          if (raw == 'eligible') {
+            return MonetizationTier.eligible;
+          }
+          return MonetizationTier.none;
+        },
       ),
+      isMonetized: (data['isMonetized'] as bool?) ??
+          (data['monetizationSettings'] is Map &&
+              data['monetizationSettings']['isMonetized'] == true),
+      monetizationStatus: data['monetizationStatus'] as String?,
+      monetizationApplication: data['monetizationApplication'] is Map
+          ? Map<String, dynamic>.from(data['monetizationApplication'] as Map)
+          : null,
       monetizationSettings: data['monetizationSettings'] is Map
           ? Map<String, dynamic>.from(data['monetizationSettings'] as Map)
           : null,
@@ -379,7 +445,9 @@ class Channel {
           : const [],
       moderationReason: data['moderationReason'] as String?,
       channelType: ChannelType.values.firstWhere(
-        (e) => e.name == (data['channelType'] ?? 'standard'),
+        (e) =>
+            e.name == (data['channelType'] ?? 'standard') ||
+            (data['channelType'] == 'pro' && e == ChannelType.custom),
         orElse: () => ChannelType.standard,
       ),
       infraConfig: data['infraConfig'] is Map
@@ -432,6 +500,94 @@ class Channel {
           : null,
       deletionGracePeriodExpiresAt: data['deletionGracePeriodExpiresAt'] != null
           ? TimestampUtils.parse(data['deletionGracePeriodExpiresAt'])
+          : null,
+      customDailyVideoDurationSeconds: () {
+        if (data['customDailyVideoDurationSeconds'] is num) {
+          final s = (data['customDailyVideoDurationSeconds'] as num).toInt();
+          if (s > 0) return s;
+        }
+        if (data['customDailyUploadLimitMinutes'] is num) {
+          final m = (data['customDailyUploadLimitMinutes'] as num).toInt();
+          if (m > 0) return m * 60;
+        }
+        if (data['dailyUploadLimitMinutes'] is num) {
+          final m = (data['dailyUploadLimitMinutes'] as num).toInt();
+          if (m > 0) return m * 60;
+        }
+        if (data['dailyQuotaMinutes'] is num) {
+          final m = (data['dailyQuotaMinutes'] as num).toInt();
+          if (m > 0) return m * 60;
+        }
+        if (data['uploadLimitMinutes'] is num) {
+          final m = (data['uploadLimitMinutes'] as num).toInt();
+          if (m > 0) return m * 60;
+        }
+        if (data['dailyUploadLimit'] is num) {
+          final v = (data['dailyUploadLimit'] as num).toInt();
+          if (v > 1440) return v;
+          if (v > 0) return v * 60;
+        }
+        if (data['maxDailyVideoDurationSeconds'] is num) {
+          final s = (data['maxDailyVideoDurationSeconds'] as num).toInt();
+          if (s > 600) return s;
+        }
+        return null;
+      }(),
+      customMaxVideoDurationSeconds: () {
+        if (data['customMaxVideoDurationSeconds'] is num) {
+          final s = (data['customMaxVideoDurationSeconds'] as num).toInt();
+          if (s > 0) return s;
+        }
+        if (data['customMaxVideoDurationMinutes'] is num) {
+          final m = (data['customMaxVideoDurationMinutes'] as num).toInt();
+          if (m > 0) return m * 60;
+        }
+        if (data['maxVideoDurationSeconds'] is num) {
+          final s = (data['maxVideoDurationSeconds'] as num).toInt();
+          if (s > 600) return s;
+        }
+        return null;
+      }(),
+      quotaIncreasedBy: data['quotaIncreasedBy'] as String?,
+      quotaIncreasedAt: data['quotaIncreasedAt'] != null
+          ? TimestampUtils.parse(data['quotaIncreasedAt'])
+          : null,
+      quotaIncreaseReason: data['quotaIncreaseReason'] as String?,
+      trustedModerationBypass: (data['trustedModerationBypass'] as bool?) ??
+          (data['bypassModeration'] as bool?) ??
+          (data['trustedChannel'] as bool?) ??
+          false,
+      trustedModerationBypassSetBy: data['trustedModerationBypassSetBy'] as String?,
+      trustedModerationBypassSetAt: data['trustedModerationBypassSetAt'] != null
+          ? TimestampUtils.parse(data['trustedModerationBypassSetAt'])
+          : null,
+      trustedModerationBypassReason: data['trustedModerationBypassReason'] as String?,
+      dubbingDiscountType: (data['dubbingDiscountType'] as String?) ??
+          (data['aiDiscounts'] is Map
+              ? (data['aiDiscounts']['dubbing'] is Map
+                  ? data['aiDiscounts']['dubbing']['type'] as String?
+                  : null)
+              : null),
+      dubbingDiscountPercent: (data['dubbingDiscountPercent'] as num?)?.toDouble() ??
+          (data['aiDiscounts'] is Map
+              ? (data['aiDiscounts']['dubbing'] is Map
+                  ? (data['aiDiscounts']['dubbing']['percent'] as num?)?.toDouble()
+                  : null)
+              : null),
+      subtitlesDiscountType: (data['subtitlesDiscountType'] as String?) ??
+          (data['aiDiscounts'] is Map
+              ? (data['aiDiscounts']['subtitles'] is Map
+                  ? data['aiDiscounts']['subtitles']['type'] as String?
+                  : null)
+              : null),
+      subtitlesDiscountPercent: (data['subtitlesDiscountPercent'] as num?)?.toDouble() ??
+          (data['aiDiscounts'] is Map
+              ? (data['aiDiscounts']['subtitles'] is Map
+                  ? (data['aiDiscounts']['subtitles']['percent'] as num?)?.toDouble()
+                  : null)
+              : null),
+      aiDiscounts: data['aiDiscounts'] is Map
+          ? Map<String, dynamic>.from(data['aiDiscounts'] as Map)
           : null,
     );
   }
@@ -504,6 +660,7 @@ class Channel {
     ChannelStatus? status,
     bool? geminiApproved,
     bool? isVerified,
+    ChannelTrustScore? channelTrustScore,
     String? category,
     List<String>? categories,
     String? language,
@@ -514,6 +671,9 @@ class Channel {
     bool? allowComments,
     MonetizationTier? monetizationTier,
     dynamic monetizationSettings,
+    bool? isMonetized,
+    String? monetizationStatus,
+    Map<String, dynamic>? monetizationApplication,
     dynamic brandingSettings,
     Map<String, dynamic>? socialLinks,
     List<Map<String, String>>? customLinks,
@@ -541,6 +701,22 @@ class Channel {
     bool? hasMemberships,
     Timestamp? deletionScheduledAt,
     Timestamp? deletionGracePeriodExpiresAt,
+    int? customDailyVideoDurationSeconds,
+    int? customMaxVideoDurationSeconds,
+    String? quotaIncreasedBy,
+    Timestamp? quotaIncreasedAt,
+    String? quotaIncreaseReason,
+    bool clearCustomQuota = false,
+    bool? trustedModerationBypass,
+    String? trustedModerationBypassSetBy,
+    Timestamp? trustedModerationBypassSetAt,
+    String? trustedModerationBypassReason,
+    String? dubbingDiscountType,
+    double? dubbingDiscountPercent,
+    String? subtitlesDiscountType,
+    double? subtitlesDiscountPercent,
+    Map<String, dynamic>? aiDiscounts,
+    bool clearDiscounts = false,
   }) {
     return Channel(
       id: id ?? this.id,
@@ -565,6 +741,7 @@ class Channel {
       status: status ?? this.status,
       geminiApproved: geminiApproved ?? this.geminiApproved,
       isVerified: isVerified ?? this.isVerified,
+      channelTrustScore: channelTrustScore ?? this.channelTrustScore,
       category: category ?? this.category,
       categories: categories ?? this.categories,
       language: language ?? this.language,
@@ -575,6 +752,9 @@ class Channel {
       allowComments: allowComments ?? this.allowComments,
       monetizationTier: monetizationTier ?? this.monetizationTier,
       monetizationSettings: monetizationSettings ?? this.monetizationSettings,
+      isMonetized: isMonetized ?? this.isMonetized,
+      monetizationStatus: monetizationStatus ?? this.monetizationStatus,
+      monetizationApplication: monetizationApplication ?? this.monetizationApplication,
       brandingSettings: brandingSettings ?? this.brandingSettings,
       socialLinks: socialLinks ?? this.socialLinks,
       customLinks: customLinks ?? this.customLinks,
@@ -608,6 +788,42 @@ class Channel {
       deletionScheduledAt: deletionScheduledAt ?? this.deletionScheduledAt,
       deletionGracePeriodExpiresAt:
           deletionGracePeriodExpiresAt ?? this.deletionGracePeriodExpiresAt,
+      customDailyVideoDurationSeconds: clearCustomQuota
+          ? null
+          : (customDailyVideoDurationSeconds ?? this.customDailyVideoDurationSeconds),
+      customMaxVideoDurationSeconds: clearCustomQuota
+          ? null
+          : (customMaxVideoDurationSeconds ?? this.customMaxVideoDurationSeconds),
+      quotaIncreasedBy: clearCustomQuota
+          ? null
+          : (quotaIncreasedBy ?? this.quotaIncreasedBy),
+      quotaIncreasedAt: clearCustomQuota
+          ? null
+          : (quotaIncreasedAt ?? this.quotaIncreasedAt),
+      quotaIncreaseReason: clearCustomQuota
+          ? null
+          : (quotaIncreaseReason ?? this.quotaIncreaseReason),
+      trustedModerationBypass:
+          trustedModerationBypass ?? this.trustedModerationBypass,
+      trustedModerationBypassSetBy:
+          trustedModerationBypassSetBy ?? this.trustedModerationBypassSetBy,
+      trustedModerationBypassSetAt:
+          trustedModerationBypassSetAt ?? this.trustedModerationBypassSetAt,
+      trustedModerationBypassReason:
+          trustedModerationBypassReason ?? this.trustedModerationBypassReason,
+      dubbingDiscountType: clearDiscounts
+          ? null
+          : (dubbingDiscountType ?? this.dubbingDiscountType),
+      dubbingDiscountPercent: clearDiscounts
+          ? null
+          : (dubbingDiscountPercent ?? this.dubbingDiscountPercent),
+      subtitlesDiscountType: clearDiscounts
+          ? null
+          : (subtitlesDiscountType ?? this.subtitlesDiscountType),
+      subtitlesDiscountPercent: clearDiscounts
+          ? null
+          : (subtitlesDiscountPercent ?? this.subtitlesDiscountPercent),
+      aiDiscounts: clearDiscounts ? null : (aiDiscounts ?? this.aiDiscounts),
     );
   }
   final String id;
@@ -643,6 +859,7 @@ class Channel {
   final ChannelStatus status;
   final bool? geminiApproved;
   final bool isVerified;
+  final ChannelTrustScore? channelTrustScore;
   final String category;
   final List<String> categories;
   final String language;
@@ -660,6 +877,26 @@ class Channel {
   // Monetization & Infrastructure
   final MonetizationTier monetizationTier;
   final Map<String, dynamic>? monetizationSettings;
+  final bool isMonetized;
+  final String? monetizationStatus;
+  final Map<String, dynamic>? monetizationApplication;
+
+  /// Whether the channel has fully active monetization approved by admin
+  bool get isMonetizationActive =>
+      isMonetized ||
+      monetizationTier != MonetizationTier.none ||
+      monetizationSettings?['isMonetized'] == true ||
+      channelType == ChannelType.custom;
+
+  /// Whether the channel's monetization application is currently under review by admin
+  bool get isMonetizationUnderReview =>
+      monetizationStatus == 'underReview' ||
+      monetizationStatus == 'pending' ||
+      status == ChannelStatus.underReview ||
+      status == ChannelStatus.verificationPending ||
+      (monetizationApplication != null &&
+          monetizationApplication!['status'] == 'pending');
+
   final ChannelType channelType;
   final CustomChannelInfraConfig? infraConfig;
   final double walletBalanceUSD;
@@ -707,6 +944,48 @@ class Channel {
   socialLinks; // { "twitter": "url", "insta": "url" }
   final List<Map<String, dynamic>> customLinks;
 
+  // Manual Admin Quota Expansion fields (Standard channel limit increase)
+  final int? customDailyVideoDurationSeconds;
+  final int? customMaxVideoDurationSeconds;
+  final String? quotaIncreasedBy;
+  final Timestamp? quotaIncreasedAt;
+  final String? quotaIncreaseReason;
+  final bool trustedModerationBypass;
+  final String? trustedModerationBypassSetBy;
+  final Timestamp? trustedModerationBypassSetAt;
+  final String? trustedModerationBypassReason;
+
+  // Super Admin AI Discounts & Waivers for Dubbing & Subtitles
+  final String? dubbingDiscountType; // 'none', '50%', 'free', 'custom'
+  final double? dubbingDiscountPercent; // 0.0 to 100.0
+  final String? subtitlesDiscountType; // 'none', '50%', 'free', 'custom'
+  final double? subtitlesDiscountPercent; // 0.0 to 100.0
+  final Map<String, dynamic>? aiDiscounts;
+
+  /// Whether dubbing is 100% free for this channel (Super Admin grant)
+  bool get isDubbingFree =>
+      dubbingDiscountType == 'free' ||
+      (dubbingDiscountPercent != null && dubbingDiscountPercent! >= 100.0);
+
+  /// Whether subtitles are 100% free for this channel (Super Admin grant)
+  bool get isSubtitlesFree =>
+      subtitlesDiscountType == 'free' ||
+      (subtitlesDiscountPercent != null && subtitlesDiscountPercent! >= 100.0);
+
+  /// Effective dubbing discount percentage clamped between 0% and 100%
+  double get effectiveDubbingDiscountPercent =>
+      isDubbingFree ? 100.0 : ((dubbingDiscountPercent ?? 0.0).clamp(0.0, 100.0));
+
+  /// Effective subtitles discount percentage clamped between 0% and 100%
+  double get effectiveSubtitlesDiscountPercent =>
+      isSubtitlesFree ? 100.0 : ((subtitlesDiscountPercent ?? 0.0).clamp(0.0, 100.0));
+
+  /// Whether this channel has any active discount on dubbing
+  bool get hasDubbingDiscount => effectiveDubbingDiscountPercent > 0.0;
+
+  /// Whether this channel has any active discount on subtitles
+  bool get hasSubtitlesDiscount => effectiveSubtitlesDiscountPercent > 0.0;
+
   // Optimization:
   // - Banned Users & Mods moved to subcollections or separate docs for millions of users.
   // - Top Video pinned items stored as IDs.
@@ -720,8 +999,17 @@ class Channel {
   String get bannerImageUrl => bannerUrl;
   bool get isArchived => status == ChannelStatus.deleted;
   bool get isDeleted => status == ChannelStatus.deleted;
+  bool get isOnHold => status == ChannelStatus.onHold;
   bool get isPendingDeletion =>
       status == ChannelStatus.deleted && !isPermanentDeletionExpired;
+
+  /// True if the channel has been granted Trusted Channel status by an Administrator
+  /// (Zero Moderation Active / trustedModerationBypass enabled).
+  bool get isTrusted => trustedModerationBypass;
+
+  /// Blue Checkmark badges are completely discontinued platform-wide for channels
+  /// to uphold TruthWorld's standard of absolute epistemic honesty and transparency.
+  bool get showVerifiedBadge => false;
 
   bool get isPermanentDeletionExpired {
     if (status != ChannelStatus.deleted) return false;
@@ -753,15 +1041,29 @@ class Channel {
   String get paymentMethodsSummary => CashfreeCountrySupport.getPaymentMethodsSummary(country);
   String get paymentMethodsDescription => CashfreeCountrySupport.getPaymentMethodsDescription(country);
 
-  // Standard Channel Constraints (10 min daily upload limit, up to 10 min duration per day)
+  // Standard Channel Constraints (10 min daily upload limit default, expandable by Admin)
   int get maxAllowedVideos => 100000;
-  int get minVideoDurationSeconds => 120; // 2 minutes (120s) minimum video duration on Truthworld
-  int get maxDailyVideoDurationSeconds =>
-      channelType == ChannelType.standard ? 600 : 86400; // 10 minutes (600s) per day
-  int get maxVideoDurationSeconds =>
-      channelType == ChannelType.standard ? 600 : 86400; // 10 minutes (600s) max per video
-  int get maxTotalVideoDurationSeconds =>
-      channelType == ChannelType.standard ? 600 : 8640000; // 10 minutes daily total (600s)
+  int get minVideoDurationSeconds => 1; // Allows short media (even 7s) on Truthworld
+  int get maxDailyVideoDurationSeconds {
+    if (customDailyVideoDurationSeconds != null && customDailyVideoDurationSeconds! > 0) {
+      return customDailyVideoDurationSeconds!;
+    }
+    return channelType == ChannelType.standard ? 600 : 86400; // 10 minutes (600s) default per day
+  }
+  int get maxVideoDurationSeconds {
+    if (customMaxVideoDurationSeconds != null && customMaxVideoDurationSeconds! > 0) {
+      return customMaxVideoDurationSeconds!;
+    }
+    if (customDailyVideoDurationSeconds != null && customDailyVideoDurationSeconds! > 0) {
+      return customDailyVideoDurationSeconds!;
+    }
+    return channelType == ChannelType.standard ? 600 : 86400; // 10 minutes (600s) max per video
+  }
+  int get maxTotalVideoDurationSeconds => maxDailyVideoDurationSeconds;
+  bool get hasCustomQuota =>
+      (customDailyVideoDurationSeconds != null &&
+          customDailyVideoDurationSeconds! > 600) ||
+      maxDailyVideoDurationSeconds > 600;
 
   String get channelRoute {
     if (handle.isNotEmpty) {
@@ -800,6 +1102,7 @@ class Channel {
       'status': status.name,
       'geminiApproved': geminiApproved,
       'isVerified': isVerified,
+      if (channelTrustScore != null) 'channelTrustScore': channelTrustScore!.toMap(),
       'category': category,
       'categories': categories,
       'language': language,
@@ -813,6 +1116,9 @@ class Channel {
       'hasMemberships': hasMemberships,
       'monetizationTier': monetizationTier.name,
       'monetizationSettings': monetizationSettings,
+      'isMonetized': isMonetized,
+      'monetizationStatus': monetizationStatus,
+      'monetizationApplication': monetizationApplication,
       'channelType': channelType.name,
       'infraConfig': infraConfig?.toMap(),
       'walletBalanceUSD': walletBalanceUSD,
@@ -836,7 +1142,72 @@ class Channel {
       'moderationReason': moderationReason,
       'deletionScheduledAt': deletionScheduledAt,
       'deletionGracePeriodExpiresAt': deletionGracePeriodExpiresAt,
+      'customDailyVideoDurationSeconds': customDailyVideoDurationSeconds,
+      'customDailyUploadLimitMinutes': customDailyVideoDurationSeconds != null
+          ? (customDailyVideoDurationSeconds! / 60).round()
+          : null,
+      'customMaxVideoDurationSeconds': customMaxVideoDurationSeconds,
+      'maxDailyVideoDurationSeconds': maxDailyVideoDurationSeconds,
+      'maxVideoDurationSeconds': maxVideoDurationSeconds,
+      'hasCustomQuota': hasCustomQuota,
+      'quotaIncreasedBy': quotaIncreasedBy,
+      'trustedModerationBypass': trustedModerationBypass,
+      'bypassModeration': trustedModerationBypass,
+      'trustedChannel': trustedModerationBypass,
+      if (trustedModerationBypassSetBy != null)
+        'trustedModerationBypassSetBy': trustedModerationBypassSetBy,
+      if (trustedModerationBypassSetAt != null)
+        'trustedModerationBypassSetAt': trustedModerationBypassSetAt,
+      if (trustedModerationBypassReason != null)
+        'trustedModerationBypassReason': trustedModerationBypassReason,
+      'quotaIncreasedAt': quotaIncreasedAt,
+      'quotaIncreaseReason': quotaIncreaseReason,
+      if (dubbingDiscountType != null) 'dubbingDiscountType': dubbingDiscountType,
+      if (dubbingDiscountPercent != null) 'dubbingDiscountPercent': dubbingDiscountPercent,
+      if (subtitlesDiscountType != null) 'subtitlesDiscountType': subtitlesDiscountType,
+      if (subtitlesDiscountPercent != null) 'subtitlesDiscountPercent': subtitlesDiscountPercent,
+      if (aiDiscounts != null) 'aiDiscounts': aiDiscounts,
     };
+  }
+
+  static dynamic _sanitizeValueForCache(dynamic value) {
+    if (value is Timestamp) {
+      return value.millisecondsSinceEpoch;
+    } else if (value is DateTime) {
+      return value.millisecondsSinceEpoch;
+    } else if (value is Map) {
+      return value.map((k, v) => MapEntry(k.toString(), _sanitizeValueForCache(v)));
+    } else if (value is List) {
+      return value.map(_sanitizeValueForCache).toList();
+    }
+    return value;
+  }
+
+  /// Returns a JSON-serializable map safe for local cache storage (GetStorage/SharedPreferences).
+  /// Replaces non-serializable Firestore Timestamps with millisecondsSinceEpoch.
+  Map<String, dynamic> toCacheMap() {
+    final map = toMap();
+    map['createdAt'] = createdAt.millisecondsSinceEpoch;
+    map['updatedAt'] = updatedAt.millisecondsSinceEpoch;
+    if (deletionScheduledAt != null) {
+      map['deletionScheduledAt'] = deletionScheduledAt!.millisecondsSinceEpoch;
+    }
+    if (deletionGracePeriodExpiresAt != null) {
+      map['deletionGracePeriodExpiresAt'] =
+          deletionGracePeriodExpiresAt!.millisecondsSinceEpoch;
+    }
+    if (pendingTypeEffectiveDate != null) {
+      map['pendingTypeEffectiveDate'] =
+          pendingTypeEffectiveDate!.millisecondsSinceEpoch;
+    }
+    if (nextBillingCycleDate != null) {
+      map['nextBillingCycleDate'] =
+          nextBillingCycleDate!.millisecondsSinceEpoch;
+    }
+    if (quotaIncreasedAt != null) {
+      map['quotaIncreasedAt'] = quotaIncreasedAt!.millisecondsSinceEpoch;
+    }
+    return _sanitizeValueForCache(map) as Map<String, dynamic>;
   }
 
   /// Converts this data model to a pure domain [ChannelEntity].
@@ -862,6 +1233,10 @@ class Channel {
       showSubscriberCount: showSubscriberCount,
       allowComments: allowComments,
       country: country,
+      trustedModerationBypass: trustedModerationBypass,
+      trustedModerationBypassSetBy: trustedModerationBypassSetBy,
+      trustedModerationBypassSetAt: trustedModerationBypassSetAt?.toDate(),
+      trustedModerationBypassReason: trustedModerationBypassReason,
       createdAt: createdAt.toDate(),
       updatedAt: updatedAt.toDate(),
     );
@@ -871,10 +1246,15 @@ class Channel {
   static Channel fromEntity(ChannelEntity entity) {
     ChannelStatus parsedStatus;
     try {
-      parsedStatus = ChannelStatus.values.firstWhere(
-        (s) => s.name.toLowerCase() == entity.status.toLowerCase(),
-        orElse: () => ChannelStatus.active,
-      );
+      final s = entity.status.toLowerCase().replaceAll('_', '').replaceAll(' ', '');
+      if (s == 'onhold' || s == 'hold') {
+        parsedStatus = ChannelStatus.onHold;
+      } else {
+        parsedStatus = ChannelStatus.values.firstWhere(
+          (item) => item.name.toLowerCase() == s,
+          orElse: () => ChannelStatus.active,
+        );
+      }
     } catch (_) {
       parsedStatus = ChannelStatus.active;
     }
@@ -904,6 +1284,12 @@ class Channel {
       showSubscriberCount: entity.showSubscriberCount,
       allowComments: entity.allowComments,
       country: entity.country,
+      trustedModerationBypass: entity.trustedModerationBypass,
+      trustedModerationBypassSetBy: entity.trustedModerationBypassSetBy,
+      trustedModerationBypassSetAt: entity.trustedModerationBypassSetAt != null
+          ? Timestamp.fromDate(entity.trustedModerationBypassSetAt!)
+          : null,
+      trustedModerationBypassReason: entity.trustedModerationBypassReason,
     );
   }
 }

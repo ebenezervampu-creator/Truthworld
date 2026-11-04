@@ -9,6 +9,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/core/utils/mentions_helper.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_mixins/upload_ai_features_mixin.dart';
@@ -61,11 +62,11 @@ mixin UploadSubmissionMixin on
   }) async {
     debugPrint('Starting final video metadata update (isDraft: $isDraft)...');
 
-    final channelLang = channelLanguageCode;
+    final videoLang = effectiveVideoLanguage;
 
-    final effectiveSelectedLangs = selectedLanguages.contains(channelLang)
+    final effectiveSelectedLangs = selectedLanguages.contains(videoLang)
         ? selectedLanguages
-        : [channelLang, ...selectedLanguages];
+        : [videoLang, ...selectedLanguages];
 
     // Store metadata for multi-stage flow
     videoMetadata = {
@@ -75,7 +76,8 @@ mixin UploadSubmissionMixin on
       'channelId': channelId,
       'channelImage': channelImage,
       'tags': tags,
-      'language': channelLang,
+      'language': videoLang,
+      'sourceLanguage': videoLang,
       'languages': effectiveSelectedLangs,
     };
 
@@ -177,7 +179,15 @@ mixin UploadSubmissionMixin on
       }
 
       // Validate daily quota for selected channel before publishing
-      final currentChan = selectedChannel.value;
+      var currentChan = selectedChannel.value;
+      if (currentChan == null && channelId.trim().isNotEmpty) {
+        try {
+          final chanDoc = await firestore.collection('channels').doc(channelId.trim()).get();
+          if (chanDoc.exists && chanDoc.data() != null) {
+            currentChan = Channel.fromMap(chanDoc.data()!, chanDoc.id);
+          }
+        } catch (_) {}
+      }
       if (currentChan != null && !isDraft) {
         final durationSeconds = durationMs ~/ 1000;
         final used = await getTodayUploadedDurationSeconds(currentChan.id);
@@ -202,10 +212,12 @@ mixin UploadSubmissionMixin on
           aiDubbingLanguages.isNotEmpty &&
           currentChan != null &&
           !isDraft) {
-        dubbingCost = ChannelWalletService.calculateDubbingCost(
+        dubbingCost = ChannelWalletService.calculateProductionTierCost(
+          tierId: aiDubbingTier.value,
           languageCount: aiDubbingLanguages.length,
           durationSeconds: effectiveDurationSec,
-          channelType: currentChan.channelType,
+          channel: currentChan,
+          discountPercent: currentChan.effectiveDubbingDiscountPercent,
         );
       }
 
@@ -227,11 +239,17 @@ mixin UploadSubmissionMixin on
           languageCount: subLangsToBill.length,
           durationSeconds: effectiveDurationSec,
           channelType: currentChan.channelType,
+          channel: currentChan,
         );
       }
 
       final totalAiComputeCost = dubbingCost + subtitleCost;
-      if (totalAiComputeCost > 0 && currentChan != null && !isDraft) {
+      if (totalAiComputeCost > 0 && !isDraft) {
+        if (currentChan == null) {
+          const msg = 'Channel wallet could not be verified for paid AI subtitles/dubbing services. Please select a valid channel to proceed.';
+          AppSnackbar.warning(msg);
+          throw Exception(msg);
+        }
         final walletService = ChannelWalletService();
         final balance = await walletService.getSpendableBalanceForChannelId(currentChan.id);
 
@@ -246,6 +264,8 @@ mixin UploadSubmissionMixin on
             final rate = ChannelWalletService.getFlatDubbingPricePerLanguage(
               durationSeconds: effectiveDurationSec,
               channelType: currentChan.channelType,
+              voiceType: aiTTSVoiceType.value,
+              isVoiceClone: aiTTSVoiceType.value == 'cloned',
             );
             detailMsg =
                 'Dubbing is not free. Your channel balance of $balanceStr is insufficient for the flat dubbing cost of $totalStr (\$${rate.toStringAsFixed(2)}/lang × ${aiDubbingLanguages.length} languages for ${effectiveDurationSec}s video).';
@@ -278,7 +298,10 @@ mixin UploadSubmissionMixin on
               'flatRatePerLanguage': ChannelWalletService.getFlatDubbingPricePerLanguage(
                 durationSeconds: effectiveDurationSec,
                 channelType: currentChan.channelType,
+                voiceType: aiTTSVoiceType.value,
+                isVoiceClone: aiTTSVoiceType.value == 'cloned',
               ),
+              'voiceType': aiTTSVoiceType.value,
               'costUSD': dubbingCost,
             },
           );
@@ -360,11 +383,14 @@ mixin UploadSubmissionMixin on
             ? 'Uncategorized'
             : selectedCategory.value,
         'tags': validTags,
-        'language': channelLanguageCode,
-        'languages': validLanguages.contains(channelLanguageCode)
+        'language': effectiveVideoLanguage,
+        'sourceLanguage': effectiveVideoLanguage,
+        'languages': validLanguages.contains(effectiveVideoLanguage)
             ? validLanguages
-            : [channelLanguageCode, ...validLanguages],
-        'visibility': isDraft ? 'private' : selectedVisibility.value,
+            : [effectiveVideoLanguage, ...validLanguages],
+        'visibility': isDraft
+            ? 'private'
+            : (isScheduled.value ? 'private' : selectedVisibility.value),
         'targetVisibility': isDraft ? 'private' : selectedVisibility.value,
         'isKidFriendly': isKidFriendly.value,
         'isShort': isShort.value,
@@ -397,8 +423,22 @@ mixin UploadSubmissionMixin on
         'targetStatus': isDraft
             ? 'draft'
             : (isScheduled.value ? 'scheduled' : 'published'),
+        'autoChaptersEnabled': aiChaptersEnabled.value,
+        'autoChapters': aiChaptersEnabled.value,
+        'enableDiarization': aiDiarizationEnabled.value,
+        'diarization': aiDiarizationEnabled.value,
+        'speakerDiarization': aiDiarizationEnabled.value,
+        'enableLipSync': aiLipSyncEnabled.value,
+        'lipSync': aiLipSyncEnabled.value,
+        'dubbingTier': aiDubbingTier.value,
+        'cinemaGrade': aiCinemaGradeEnabled.value,
+        'stemIsolation': aiStemIsolationEnabled.value,
+        'isometryMode': (aiDubbingTier.value == 'video_ultra' || aiDubbingTier.value == 'audio_ultra') ? 'strict_syllable' : 'natural',
+        'uncannyMitigation': aiDubbingTier.value == 'audio_ultra' ? 'cadence_lock' : 'none',
         'aiFeatures': buildFeaturesMap(
-          pipelineStage: isDraft ? 'draft' : 'published',
+          pipelineStage: isDraft
+              ? 'draft'
+              : (isScheduled.value ? 'scheduled' : 'published'),
         ),
         'factCheckTier': aiFactCheckEnabled.value
             ? (aiFactCheckTier.value.isEmpty || aiFactCheckTier.value == 'none'
@@ -408,25 +448,33 @@ mixin UploadSubmissionMixin on
         'enableFactCheck': aiFactCheckEnabled.value,
         'factChecking': aiFactCheckEnabled.value,
         'truthVerification': aiFactCheckEnabled.value,
-        'isFactChecked': aiFactCheckEnabled.value,
+        'isFactChecked': false,
         'factCheckReviewMode': aiFactCheckReviewMode.value,
         'isFactCheckApproved':
             aiFactCheckReviewMode.value != 'first_to_creator',
       };
 
-      if (dubbingCost > 0) {
+      if (aiGenerateDubbing.value && aiDubbingLanguages.isNotEmpty) {
         updateData['dubbingPaid'] = true;
         updateData['dubbingCostUSD'] = dubbingCost;
         updateData['dubbingDurationSeconds'] = effectiveDurationSec;
+        if (currentChan != null && currentChan.effectiveDubbingDiscountPercent > 0) {
+          updateData['dubbingDiscountPercent'] = currentChan.effectiveDubbingDiscountPercent;
+          updateData['dubbingDiscountType'] = currentChan.dubbingDiscountType ?? (currentChan.isDubbingFree ? 'free' : 'custom');
+        }
         if (dubbingTx != null) {
           updateData['dubbingWalletTxId'] = dubbingTx.id;
         }
       }
 
-      if (subtitleCost > 0) {
+      if (aiGenerateSubtitles.value && subLangsToBill.isNotEmpty) {
         updateData['subtitlesPaid'] = true;
         updateData['subtitlesCostUSD'] = subtitleCost;
         updateData['subtitlesDurationSeconds'] = effectiveDurationSec;
+        if (currentChan != null && currentChan.effectiveSubtitlesDiscountPercent > 0) {
+          updateData['subtitlesDiscountPercent'] = currentChan.effectiveSubtitlesDiscountPercent;
+          updateData['subtitlesDiscountType'] = currentChan.subtitlesDiscountType ?? (currentChan.isSubtitlesFree ? 'free' : 'custom');
+        }
         if (subtitleTx != null) {
           updateData['subtitlesWalletTxId'] = subtitleTx.id;
         }
@@ -497,9 +545,11 @@ mixin UploadSubmissionMixin on
 
       // Handle inline topic creation if needed
       if (newTopicData.isNotEmpty) {
-        debugPrint('🆕 Creating new inline topic: ${newTopicData['title']}');
+        final newName = (newTopicData['name'] as String?) ??
+            (newTopicData['title'] as String?) ??
+            '';
+        debugPrint('🆕 Creating new inline topic: $newName');
 
-        final newTitle = (newTopicData['title'] as String?) ?? '';
         final newDescription = (newTopicData['description'] as String?) ?? '';
         final newCategory = (newTopicData['category'] as String?) ?? 'Science & Technology';
         final newVisibility =
@@ -521,7 +571,7 @@ mixin UploadSubmissionMixin on
           finalThumbnailUrl = thumbnailUrl.value;
         }
 
-        final newSlug = newTitle
+        final newSlug = newName
             .toLowerCase()
             .replaceAll(RegExp(r'[^a-z0-9\s-]'), '')
             .replaceAll(RegExp(r'\s+'), '-');
@@ -570,12 +620,21 @@ mixin UploadSubmissionMixin on
             'ℹ️ Inline topic already exists with slug: $canonicalSlug. Reusing existing topic to prevent duplicate document creation.',
           );
           selectedTopicId.value = canonicalSlug;
+          if (selectedTopicIds.contains('new_topic_draft')) {
+            final idx = selectedTopicIds.indexOf('new_topic_draft');
+            selectedTopicIds[idx] = canonicalSlug;
+          } else if (!selectedTopicIds.contains(canonicalSlug)) {
+            selectedTopicIds.add(canonicalSlug);
+          }
           newTopicData.clear();
         } else {
           final newTopicRef = firestore.collection('topics').doc();
+          final isTrustedChannel =
+              selectedChannel.value?.trustedModerationBypass == true;
           final newTopic = Topic(
             id: newTopicRef.id,
-            title: newTitle,
+            name: newName,
+            title: newName,
             slug: newSlug,
             handle: finalHandle,
             handleLowercase: finalHandleLowercase,
@@ -589,11 +648,12 @@ mixin UploadSubmissionMixin on
                 ? newAccessCode
                 : null,
             videoCount: 1, // First video linked
+            channelCount: channelId.trim().isNotEmpty ? 1 : 0,
             featuredVideoIds: [videoId],
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
-            status: 'underReview',
-            geminiApproved: false,
+            status: isTrustedChannel ? 'active' : 'underReview',
+            geminiApproved: isTrustedChannel,
           );
 
           await newTopicRef.set(newTopic.toMap());
@@ -602,49 +662,105 @@ mixin UploadSubmissionMixin on
           );
 
           selectedTopicId.value = newSlug;
+          if (selectedTopicIds.contains('new_topic_draft')) {
+            final idx = selectedTopicIds.indexOf('new_topic_draft');
+            selectedTopicIds[idx] = newSlug;
+          } else if (!selectedTopicIds.contains(newSlug)) {
+            selectedTopicIds.add(newSlug);
+          }
           newTopicData.clear();
         }
       }
 
-      // Link video to topic if selected
-      if (selectedTopicId.value.isNotEmpty && selectedTopicId.value != 'new_topic_draft') {
-        debugPrint('🔗 Linking video to topic: ${selectedTopicId.value}');
-        // Resolve canonical slug and increment video count on topic
-        DocumentSnapshot? topicDoc;
-        final bySlugQuery = await firestore
-            .collection('topics')
-            .where('slug', isEqualTo: selectedTopicId.value)
-            .limit(1)
-            .get();
-        if (bySlugQuery.docs.isNotEmpty) {
-          topicDoc = bySlugQuery.docs.first;
-        } else {
-          final byIdDoc = await firestore.collection('topics').doc(selectedTopicId.value).get();
-          if (byIdDoc.exists) {
-            topicDoc = byIdDoc;
+      // Link video to topics (up to 3 total: max 1 own topic + public topics)
+      final topicKeysToLink = <String>{};
+      for (final id in selectedTopicIds) {
+        if (id.isNotEmpty && id != 'new_topic_draft') {
+          topicKeysToLink.add(id);
+        }
+      }
+      if (selectedTopicId.value.isNotEmpty &&
+          selectedTopicId.value != 'new_topic_draft') {
+        topicKeysToLink.add(selectedTopicId.value);
+      }
+
+      if (topicKeysToLink.isNotEmpty) {
+        final finalTopicSlugs = <String>[];
+        for (final topicKey in topicKeysToLink) {
+          debugPrint('🔗 Linking video to topic: $topicKey');
+          DocumentSnapshot? topicDoc;
+          final bySlugQuery = await firestore
+              .collection('topics')
+              .where('slug', isEqualTo: topicKey)
+              .limit(1)
+              .get();
+          if (bySlugQuery.docs.isNotEmpty) {
+            topicDoc = bySlugQuery.docs.first;
+          } else {
+            final byIdDoc = await firestore
+                .collection('topics')
+                .doc(topicKey)
+                .get();
+            if (byIdDoc.exists) {
+              topicDoc = byIdDoc;
+            }
+          }
+
+          var finalTopicSlug = topicKey;
+          if (topicDoc != null && topicDoc.exists && topicDoc.data() != null) {
+            final tData = topicDoc.data()! as Map<String, dynamic>;
+            finalTopicSlug = (tData['slug'] as String?) ?? topicKey;
+            final topicCreatedAt =
+                (tData['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+            if (DateTime.now().difference(topicCreatedAt).inSeconds > 5) {
+              final topicUpdates = <String, dynamic>{
+                'videoCount': FieldValue.increment(1),
+                'updatedAt': FieldValue.serverTimestamp(),
+              };
+              if (channelId.trim().isNotEmpty) {
+                final existingChannels =
+                    List<String>.from(tData['channels'] ?? []);
+                if (!existingChannels.contains(channelId.trim())) {
+                  topicUpdates['channels'] =
+                      FieldValue.arrayUnion([channelId.trim()]);
+                  topicUpdates['channelCount'] = FieldValue.increment(1);
+                }
+              }
+              try {
+                await topicDoc.reference.update(topicUpdates);
+                debugPrint(
+                  '✅ Incremented videoCount/channelCount for existing topic: $finalTopicSlug',
+                );
+              } catch (e) {
+                // Topic counter updates for foreign topics are handled by backend Cloud Function or governed by security rules
+                debugPrint(
+                  'ℹ️ Topic counter update skipped on client (handled by backend): $e',
+                );
+              }
+            }
+          }
+          if (!finalTopicSlugs.contains(finalTopicSlug)) {
+            finalTopicSlugs.add(finalTopicSlug);
           }
         }
 
-        var finalTopicSlug = selectedTopicId.value;
-        if (topicDoc != null && topicDoc.exists && topicDoc.data() != null) {
-          final tData = topicDoc.data()! as Map<String, dynamic>;
-          finalTopicSlug = (tData['slug'] as String?) ?? selectedTopicId.value;
-          final topicCreatedAt = (tData['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
-          if (DateTime.now().difference(topicCreatedAt).inSeconds > 5) {
-            await topicDoc.reference.update({
-              'videoCount': FieldValue.increment(1),
-              'updatedAt': FieldValue.serverTimestamp(),
-            });
-            debugPrint('✅ Incremented videoCount for existing topic: $finalTopicSlug');
-          }
+        if (finalTopicSlugs.isNotEmpty) {
+          final limitedSlugs = finalTopicSlugs.take(3).toList();
+          updateData['topicId'] = limitedSlugs.first;
+          updateData['topics'] = limitedSlugs;
         }
-
-        updateData['topicId'] = finalTopicSlug;
-        updateData['topics'] = [finalTopicSlug];
       }
 
       if (isScheduled.value) {
-        updateData['scheduledTime'] = Timestamp.fromDate(scheduledDate.value);
+        final schedTs = Timestamp.fromDate(scheduledDate.value);
+        updateData['scheduledTime'] = schedTs;
+        updateData['scheduledPublishAt'] = schedTs;
+      } else if (docSnapshot.exists) {
+        if (docSnapshot.data()?['scheduledTime'] != null ||
+            docSnapshot.data()?['scheduledPublishAt'] != null) {
+          updateData['scheduledTime'] = FieldValue.delete();
+          updateData['scheduledPublishAt'] = FieldValue.delete();
+        }
       }
 
       debugPrint('📝 Updating document with metadata...');
@@ -654,7 +770,7 @@ mixin UploadSubmissionMixin on
       await docRef.update(updateData);
 
       // Increment channel videoCount if publishing
-      if (!isDraft && channelId.trim().isNotEmpty) {
+      if (!isDraft && !isScheduled.value && channelId.trim().isNotEmpty) {
         try {
           await firestore
               .collection(FirestoreCollections.channels)

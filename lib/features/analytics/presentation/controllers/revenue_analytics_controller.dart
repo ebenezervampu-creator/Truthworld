@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/revenue_analytics/revenue_analytics_barrel.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships_screen.dart';
@@ -54,7 +55,6 @@ class RevenueAnalyticsController extends RevenueAnalyticsStateBase
     membershipsRevenueUSD.value = 0.0;
     superchatRevenue.value = 0.0;
     adsRevenue.value = 0.0;
-    watchTimeRevenue.value = 0.0;
     premiumSubsRevenue.value = 0.0;
     premiumSubsRevenueUSD.value = 0.0;
   }
@@ -97,7 +97,6 @@ class RevenueAnalyticsController extends RevenueAnalyticsStateBase
     membershipsRevenue.value = 0.0;
     superchatRevenue.value = 0.0;
     adsRevenue.value = 0.0;
-    watchTimeRevenue.value = 0.0;
     premiumSubsRevenue.value = 0.0;
     totalRevenue.value = 0.0;
     totalRevenueUSD.value = 0.0;
@@ -109,7 +108,7 @@ class RevenueAnalyticsController extends RevenueAnalyticsStateBase
         membershipsRevenue.value = dash.rxMembershipsRevenue.value;
         superchatRevenue.value = dash.rxSuperchatRevenue.value;
         adsRevenue.value = dash.rxAdsRevenue.value;
-        watchTimeRevenue.value = dash.rxWatchTimeRevenue.value;
+        premiumSubsRevenue.value = dash.rxPremiumSubsRevenue.value;
         totalRevenue.value = dash.rxTotalRevenue.value;
         activeMembersCount.value = dash.rxActiveMembersCount.value;
         activeTiersCount.value = dash.rxActiveTiersCount.value;
@@ -142,7 +141,6 @@ class RevenueAnalyticsController extends RevenueAnalyticsStateBase
     final total = membershipsRevenue.value +
         superchatRevenue.value +
         adsRevenue.value +
-        watchTimeRevenue.value +
         premiumSubsRevenue.value;
     totalRevenue.value = total;
     totalRevenueUSD.value = total / RevenueAnalyticsStateBase.usdToInrRate;
@@ -166,7 +164,7 @@ class RevenueAnalyticsController extends RevenueAnalyticsStateBase
         dash.rxMembershipsRevenue.value = membershipsRevenue.value;
         dash.rxSuperchatRevenue.value = superchatRevenue.value;
         dash.rxAdsRevenue.value = adsRevenue.value;
-        dash.rxWatchTimeRevenue.value = watchTimeRevenue.value;
+        dash.rxPremiumSubsRevenue.value = premiumSubsRevenue.value;
         dash.updateRevenueStats();
       }
     }
@@ -177,6 +175,13 @@ class RevenueAnalyticsController extends RevenueAnalyticsStateBase
     final chId = channelId.value;
     if (Get.isRegistered<DashboardController>()) {
       final dash = Get.find<DashboardController>();
+      if (!dash.isChannelMonetizationActive) {
+        AppSnackbar.info(
+          'Channel Memberships are only available for monetized channels.',
+        );
+        dash.setSelectedIndex(5); // Earnings/Monetization tab
+        return;
+      }
       dash.setSelectedIndex(18); // Memberships Tab
       if (Get.key.currentState?.canPop() ?? false) {
         Get.back<void>();

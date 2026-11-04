@@ -57,10 +57,7 @@ class AdvancedDiagnosticsSection extends StatelessWidget {
               onTap: () {
                 ctrl.resetWellbeing();
                 Get.back();
-                AppSnackbar.info(
-                  'Digital wellbeing settings restored.',
-                  title: 'Wellbeing Reset',
-                );
+                AppSnackbar.info('Digital wellbeing settings restored.');
               },
             ),
             ListTile(
@@ -71,10 +68,7 @@ class AdvancedDiagnosticsSection extends StatelessWidget {
               onTap: () {
                 ctrl.resetPlayback();
                 Get.back();
-                AppSnackbar.info(
-                  'Playback preferences restored.',
-                  title: 'Playback Reset',
-                );
+                AppSnackbar.info('Playback preferences restored.');
               },
             ),
             ListTile(
@@ -85,10 +79,7 @@ class AdvancedDiagnosticsSection extends StatelessWidget {
               onTap: () {
                 ctrl.resetDownloads();
                 Get.back();
-                AppSnackbar.info(
-                  'Download settings restored.',
-                  title: 'Downloads Reset',
-                );
+                AppSnackbar.info('Download settings restored.');
               },
             ),
             ListTile(
@@ -99,10 +90,7 @@ class AdvancedDiagnosticsSection extends StatelessWidget {
               onTap: () {
                 ctrl.resetAccessibility();
                 Get.back();
-                AppSnackbar.info(
-                  'Accessibility settings restored.',
-                  title: 'Accessibility Reset',
-                );
+                AppSnackbar.info('Accessibility settings restored.');
               },
             ),
             const Divider(color: AppColors.bgDivider),
@@ -115,16 +103,62 @@ class AdvancedDiagnosticsSection extends StatelessWidget {
                 ),
               ),
               onTap: () {
-                ctrl.resetAllSettings();
                 Get.back();
-                AppSnackbar.warning(
-                  'All settings restored to default values.',
-                  title: 'Factory Reset Complete',
-                );
+                _showFactoryResetConfirmation(context, ctrl);
               },
             ),
           ],
         ),
+        actions: [
+          TextButton(
+            onPressed: Get.back,
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showFactoryResetConfirmation(
+    BuildContext context,
+    UserSettingsController ctrl,
+  ) {
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: context.colors.surface,
+        title: const Text(
+          'Factory Reset All Settings?',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: const Text(
+          'Are you sure you want to restore all settings to default values? This will reset all playback, downloads, wellbeing, and accessibility preferences.',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: Get.back,
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Get.back();
+              ctrl.resetAllSettings();
+              AppSnackbar.warning(
+                'All settings restored to default values.',
+              );
+            },
+            child: const Text(
+              'Reset All',
+              style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
       ),
     );
   }

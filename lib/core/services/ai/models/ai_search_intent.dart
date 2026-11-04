@@ -94,6 +94,12 @@ class AiSearchIntent {
     'broadenPrompt': broadenPrompt,
   };
 
+  /// Convenience getter for category tokens or multi-category filtering
+  List<String> get detectedCategories =>
+      detectedCategory != null && detectedCategory!.trim().isNotEmpty
+          ? [detectedCategory!.trim()]
+          : const [];
+
   /// Returns all search tokens to check against titles, descriptions, and categories
   List<String> get allTokens {
     final tokens = <String>{

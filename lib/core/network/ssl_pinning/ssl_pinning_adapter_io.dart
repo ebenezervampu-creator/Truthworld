@@ -120,7 +120,22 @@ class SslPinningAdapterIo implements SslPinningAdapter {
         return false;
       }
 
-      // Handshake succeeded with valid certificate
+      // Strict Pinning Enforcement: Do NOT trust the certificate solely because
+      // the OS/system CA trusted it. If host is pinned, verify against trusted fingerprints!
+      if (isHostPinned(host)) {
+        final sha256Fingerprint = sha256.convert(cert.der).toString().toLowerCase();
+        if (!trustedCertFingerprints.contains(sha256Fingerprint)) {
+          if (kDebugMode) {
+            debugPrint(
+              '[SslPinning] Host $host certificate fingerprint ($sha256Fingerprint) '
+              'does not match trustedCertFingerprints! Handshake rejected.',
+            );
+          }
+          return false;
+        }
+      }
+
+      // Handshake succeeded with valid and pinned certificate
       return true;
     } catch (e, s) {
       ErrorHandler.log(

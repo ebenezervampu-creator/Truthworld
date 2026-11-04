@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/theme/app_colors.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -17,7 +16,7 @@ class VideoAnalysisMethodologySection extends StatelessWidget {
           children: [
             Text(
               'How We Score',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -38,7 +37,7 @@ class VideoAnalysisMethodologySection extends StatelessWidget {
         childrenPadding: const EdgeInsets.all(16.0),
         children: [
           _buildExplanationText(
-            'The Trust Score is a weighted average of all 9 factors, adjusted for harm potential and intent to mislead.',
+            'Credibility is determined through multi-source factual verification and evidence citation.',
           ),
           const SizedBox(height: 12),
           _buildExplanationText(
@@ -54,7 +53,7 @@ class VideoAnalysisMethodologySection extends StatelessWidget {
           _buildFactorCard('Expertise', 'Does the creator demonstrate domain expertise on this topic?'),
           _buildFactorCard('Freshness', 'Is the information current and not outdated?'),
           _buildFactorCard('Safety', 'Is the content free from potentially harmful misinformation?'),
-          _buildFactorCard('Honesty', 'Are opinions clearly labeled as opinions, not presented as facts?'),
+          _buildFactorCard('Citations', 'Are primary and secondary sources verifiable and accessible?'),
         ],
       ),
     );
@@ -63,7 +62,7 @@ class VideoAnalysisMethodologySection extends StatelessWidget {
   Widget _buildExplanationText(String text) {
     return Text(
       text,
-      style: GoogleFonts.roboto(
+      style: TextStyle(
         color: AppColors.textSecondary,
         fontSize: 14,
         height: 1.4,
@@ -88,7 +87,7 @@ class VideoAnalysisMethodologySection extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -102,7 +101,7 @@ class VideoAnalysisMethodologySection extends StatelessWidget {
                 ),
                 child: Text(
                   '11.1%', // Note: This should be updated when backend provides actual weights
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
@@ -114,7 +113,7 @@ class VideoAnalysisMethodologySection extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             description,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 14,
               height: 1.3,

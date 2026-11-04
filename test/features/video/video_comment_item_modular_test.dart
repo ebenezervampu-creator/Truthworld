@@ -305,7 +305,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(sampleReply.text), findsOneWidget);
-      expect(find.text('CodeReviewer'), findsOneWidget);
+      expect(find.text('@ReviewerChannel'), findsOneWidget);
       expect(find.byIcon(Icons.check), findsOneWidget); // creator badge
       expect(find.byIcon(Icons.more_vert), findsOneWidget);
     });

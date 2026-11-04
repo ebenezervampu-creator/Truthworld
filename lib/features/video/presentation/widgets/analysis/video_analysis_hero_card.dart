@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:truthworld/core/widgets/truth_credibility_badge.dart';
 import 'package:truthworld/core/widgets/truth_lottie_animation.dart';
-import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_confidence_bar.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
   class VideoAnalysisHeroCard extends StatelessWidget {
@@ -32,30 +31,24 @@ import 'package:truthworld/theme/app_theme.dart';
     super.key,
   });
 
+  bool get isNotScored => totalClaims == 0 || !scoreAvailable || trustScore == null;
+
   @override
   Widget build(BuildContext context) {
-    final trustScore = this.trustScore;
-    final hasScore = totalClaims > 0 && scoreAvailable && trustScore != null && trustScore > 0;
-    final isNotScored = !hasScore || trustLabel.toLowerCase().contains('not scored') || totalClaims == 0;
-
-    String badgeText;
+    final String badgeText;
     if (totalClaims == 0) {
       badgeText = 'UNASSESSED';
-    } else if (!isNotScored) {
-      badgeText = analysisState.toUpperCase();
     } else if (falseCount > 0 && falseCount >= verifiedCount) {
       badgeText = 'DISPUTED CONTENT';
     } else if (cautionCount > 0 && cautionCount > verifiedCount) {
       badgeText = 'CAUTION ADVISED';
     } else {
-      badgeText = 'FACT-CHECK COMPLETE';
+      badgeText = 'CLAIM LEDGER VERIFIED';
     }
 
     final headlineTitle = totalClaims == 0
         ? 'No Claims Assessed'
-        : (isNotScored
-            ? '$totalClaims Claims Evaluated'
-            : trustLabel);
+        : '$totalClaims Claims Evaluated';
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -161,64 +154,51 @@ import 'package:truthworld/theme/app_theme.dart';
                 ),
               ),
 
-              // Trust Score gauge badge (if score is available)
-              if (hasScore) ...[
-                TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0.85, end: 1.0),
-                  duration: const Duration(milliseconds: 350),
-                  curve: Curves.easeOutBack,
-                  builder: (context, scale, child) => Transform.scale(
-                    scale: scale,
-                    child: child,
+              // Claim Ledger count badge (Zero Video Trust Score Policy)
+              if (totalClaims > 0) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
                   ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.25),
                     ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.25),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        '$totalClaims',
+                        style: context.twTypography.title.copyWith(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontFamily: TWTypography.uiFamily,
+                        ),
                       ),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          trustScore <= 5.0
-                              ? '${trustScore.toStringAsFixed(1)} / 5.0'
-                              : '${trustScore.toInt()}%',
-                          style: context.twTypography.title.copyWith(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            fontFamily: TWTypography.uiFamily,
-                          ),
+                      Text(
+                        'CLAIMS',
+                        style: context.twTypography.caption.copyWith(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textTertiary,
+                          letterSpacing: 0.5,
+                          fontFamily: TWTypography.uiFamily,
                         ),
-                        Text(
-                          'TRUST INDEX',
-                          style: context.twTypography.caption.copyWith(
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textTertiary,
-                            letterSpacing: 0.5,
-                            fontFamily: TWTypography.uiFamily,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ],
           ),
 
-          // Confidence Progress Bar or Empirical Claim Breakdown Bar
+          // Empirical Claim Breakdown Bar
           const SizedBox(height: 14),
-          if (!isNotScored && confidenceVal > 0)
-            VideoAnalysisConfidenceBar(value: confidenceVal)
-          else if (totalClaims > 0)
+          if (totalClaims > 0)
             _buildEmpiricalClaimBar(context, totalClaims, verifiedCount, cautionCount, falseCount),
         ],
       ),

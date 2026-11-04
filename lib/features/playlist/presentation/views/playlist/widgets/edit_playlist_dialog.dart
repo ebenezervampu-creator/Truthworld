@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
@@ -24,7 +23,7 @@ void showEditPlaylistDialogModal({
         ),
         title: Text(
           'Edit Playlist',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
@@ -34,14 +33,14 @@ void showEditPlaylistDialogModal({
           maxLength: 100,
           buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
           inputFormatters: TruthworldTextInputFormatters.withLimit(100),
-          style: GoogleFonts.roboto(color: Colors.white),
+          style: TextStyle(color: Colors.white),
           decoration: InputDecoration(
             labelText: 'Playlist Name',
-            labelStyle: GoogleFonts.roboto(
+            labelStyle: TextStyle(
               color: Colors.white.withValues(alpha: 0.7),
             ),
             hintText: 'Enter new name',
-            hintStyle: GoogleFonts.roboto(
+            hintStyle: TextStyle(
               color: Colors.white.withValues(alpha: 0.4),
             ),
             filled: true,
@@ -62,7 +61,7 @@ void showEditPlaylistDialogModal({
             onPressed: () => Navigator.pop(context),
             child: Text(
               'Cancel',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.7),
               ),
             ),
@@ -95,7 +94,7 @@ void showEditPlaylistDialogModal({
             ),
             child: Text(
               'Save',
-              style: GoogleFonts.roboto(fontWeight: FontWeight.bold),
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
         ],

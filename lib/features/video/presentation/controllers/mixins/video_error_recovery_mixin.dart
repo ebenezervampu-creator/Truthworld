@@ -30,20 +30,32 @@ mixin VideoErrorRecoveryMixin on GetxController {
         final error = videoPlayerController?.value.errorDescription ?? '';
         final lower = error.toLowerCase();
 
-        // Ignore transient web race conditions / audio interruptions / codec resets
+        // Ignore transient web race conditions / audio interruptions / codec resets / autoplay restrictions
         if (lower.contains('removed from the document') ||
             lower.contains('play() request was interrupted') ||
             lower.contains('the play() request was interrupted') ||
             lower.contains('aborterror') ||
             lower.contains('notallowederror') ||
+            lower.contains('not allowed') ||
+            lower.contains('notallowed') ||
+            lower.contains("user didn't interact") ||
+            lower.contains('user did not interact') ||
+            lower.contains('interact with the document') ||
+            lower.contains('autoplay') ||
             lower.contains('media_err_aborted') ||
             lower.contains('client returned a buffer') ||
             lower.contains('bad_index') ||
             lower.contains('pause()') ||
             lower.contains('user gesture')) {
           debugPrint(
-            '[VideoController] ℹ️ Ignoring transient play() interruption: $error',
+            '[VideoController] ℹ️ Ignoring transient play() interruption or web autoplay restriction: $error',
           );
+          if (kIsWeb && videoPlayerController != null) {
+            try {
+              videoPlayerController!.setVolume(0.0);
+              videoPlayerController!.play();
+            } catch (_) {}
+          }
           return;
         }
 

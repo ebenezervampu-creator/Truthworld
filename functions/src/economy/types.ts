@@ -24,7 +24,7 @@ export interface RevenueStatement {
   grossSubsRevenue: number;
   grossPremiumSubsRevenue?: number;
   platformFee: number;
-  infrastructureCosts: number; // For Custom channels
+  infrastructureCosts: number; // For Pro channels
   creatorShare: number;
   withdrawableShare?: number;
   paidOutShare?: number;
@@ -99,10 +99,12 @@ export interface PremiumDistributionRun {
 /**
  * ⚖️ REVENUE SHARE MATRIX
  * Defines the percentage the CREATOR keeps based on their channel type:
- * - Standard Channels: 70% from ads & premium subscriptions (30% Platform), 100% from superchats & memberships (0% Platform).
- * - Custom Channels: 100% from all sources (0% Platform share); Custom channels take subscription/infrastructure plans ($15, $30, $45/mo etc.).
+ * - Free / Standard Channels (10% Cut): 70% from ads & premium subscriptions (30% Platform),
+ *   90% from superchats & memberships (10% Platform fee covering hosting, gateway fees, and admin costs).
+ * - Pro Channels (0% Platform Cut): 100% from all sources (0% Platform share with only raw
+ *   gateway fees passed through); Pro channels subscribe to SaaS infrastructure plans ($15, $25, $50/mo etc.).
  */
 export const TYPE_REVENUE_SHARE = {
-  standard: { ads: 0.70, premiumSubs: 0.70, superchats: 1.00, members: 1.00 },
+  standard: { ads: 0.70, premiumSubs: 0.70, superchats: 0.90, members: 0.90 },
   custom: { ads: 1.00, premiumSubs: 1.00, superchats: 1.00, members: 1.00 },
 };

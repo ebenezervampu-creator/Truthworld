@@ -161,7 +161,7 @@ class ChannelTypeBenefitsBox extends StatelessWidget {
               Text(
                 isStandard
                     ? 'Standard Channel Benefits'
-                    : 'Custom Channel Benefits',
+                    : 'Pro Channel Benefits',
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
@@ -192,7 +192,7 @@ class ChannelTypeBenefitsBox extends StatelessWidget {
             ),
             const ChannelTypeBulletPoint(
               text:
-                  r'Cash-Out Rule: Per-video cash withdrawal unlocks at 1,000 views & 10 hours watch time (Min ₹100 for India / $10 for other countries)',
+                  r'Cash-Out Rule: Per-video cash withdrawal unlocks at 1,000 views & 30 hours watch time (Min ₹100 for India / $10 for other countries)',
             ),
             const SizedBox(height: 12),
             const Divider(height: 1, color: AppColors.bgDivider),
@@ -237,7 +237,7 @@ class ChannelTypeBenefitsBox extends StatelessWidget {
             ),
             const ChannelTypeBulletPoint(
               text:
-                  r'Cash-Out Rule: Per-video cash withdrawal unlocks at 1,000 views & 10 hours watch time (Min ₹100 for India / $10 for other countries • 100% creator retention)',
+                  r'Cash-Out Rule: Per-video cash withdrawal unlocks at 1,000 views & 30 hours watch time (Min ₹100 for India / $10 for other countries • 100% creator retention)',
             ),
             const SizedBox(height: 12),
             const Divider(height: 1, color: AppColors.bgDivider),
@@ -254,7 +254,7 @@ class ChannelTypeBenefitsBox extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              r'Custom channels give you maximum economic leverage. Truthworld takes 0% revenue share from ads, premium subscriptions, superchats, and memberships (100% creator retention). Custom channels simply select an infrastructure plan tier ($15, $30, $45, $100, $200/mo etc.).',
+              r'Pro channels give you maximum economic leverage. Truthworld takes 0% revenue share from ads, premium subscriptions, superchats, and memberships (100% creator retention). Pro channels simply select an infrastructure plan tier ($15, $30, $45, $100, $200/mo etc.).',
               style: TextStyle(
                 fontSize: 12,
                 color: isDark

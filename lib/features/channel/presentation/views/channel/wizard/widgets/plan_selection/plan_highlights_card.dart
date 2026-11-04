@@ -92,14 +92,14 @@ class PlanHighlightsCard extends StatelessWidget {
       final customChecklist = [
         {
           'title':
-              'Custom Tier Pricing: ${controller.customPricingTier.value}/month',
+              'Pro Tier Pricing: ${controller.customPricingTier.value}/month',
           'subtitle':
               'Dedicated cloud storage, global CDN streaming, and 100% revenue retention.',
         },
         {
           'title': '100% Revenue Share from Ads & Premium Subscriptions',
           'subtitle':
-              'Earn 100% revenue and power your growth with Custom Channel',
+              'Earn 100% revenue and power your growth with Pro Channel',
         },
         {
           'title': '100% Direct Revenue from Memberships & Superchats!',
@@ -137,8 +137,9 @@ class PlanHighlightsCard extends StatelessWidget {
               'Earn 70% revenue share on all ad views and premium subscription revenues',
         },
         {
-          'title': '100% Revenue from Memberships & Superchats',
-          'subtitle': 'Keep 100% of direct fan support from your community',
+          'title': '90% Revenue from Memberships & Superchats',
+          'subtitle':
+              'Keep 90% of direct fan support; 10% platform fee covers hosting, gateway & admin fees',
         },
         {
           'title': '10 min/day Upload Limit (Up to 4K Ultra HD)',
@@ -162,7 +163,7 @@ class PlanHighlightsCard extends StatelessWidget {
         {
           'title': 'Upgrade or Switch Plan Once Every 1 Month',
           'subtitle':
-              'You can upgrade from Standard to Custom or switch plans once per month from Settings',
+              'You can upgrade from Standard to Pro or switch plans once per month from Settings',
         },
       ];
 
@@ -170,45 +171,45 @@ class PlanHighlightsCard extends StatelessWidget {
         {
           'title': '70% to 100% Revenue Share from Ads & Subscriptions',
           'subtitle':
-              'Standard offers 70% revenue share; Custom offers 100% revenue share.',
+              'Standard offers 70% revenue share; Pro offers 100% revenue share.',
         },
         {
-          'title': '100% Direct Fan Support (Memberships & Superchats)',
+          'title': 'Up to 100% Direct Fan Support (Memberships & Superchats)',
           'subtitle':
-              '0% platform commissions on direct fan support across both Standard & Custom channels.',
+              'Keep 90% on Standard (10% platform fee) and 100% on Pro channels (0% platform cut).',
         },
         {
           'title':
-              '10 Min/Day (Standard) vs Unlimited Upload Duration (Custom)',
+              '10 Min/Day (Standard) vs Unlimited Upload Duration (Pro)',
           'subtitle':
-              'Standard uploads up to 10 min/day in 4K UHD; Custom supports unlimited duration & dedicated infrastructure.',
+              'Standard uploads up to 10 min/day in 4K UHD; Pro supports unlimited duration & dedicated infrastructure.',
         },
         {
           'title':
               r'AI Multilingual Dubbing: At-cost pass-through from $0.10/lang',
           'subtitle':
-              'Both Standard and Custom channels receive 100% provider pass-through pricing with zero platform markup.',
+              'Both Standard and Pro channels receive 100% provider pass-through pricing with zero platform markup.',
         },
         {
           'title': 'Storage & Global CDN Infrastructure Tiers',
           'subtitle':
-              'Standard: Free hosting. Custom: 50 GB to 800 GB Cloud Storage & 250 GB to 3.2 TB CDN.',
+              'Standard: Free hosting. Pro: 50 GB to 800 GB Cloud Storage & 250 GB to 3.2 TB CDN.',
         },
         {
-          'title': '100% Creator Revenue Share on Custom (0% Platform Fee)',
+          'title': '100% Creator Revenue Share on Pro (0% Platform Fee)',
           'subtitle':
-              'Custom channels retain 100% of all ad revenue, memberships, and superchats.',
+              'Pro channels retain 100% of all ad revenue, memberships, and superchats.',
         },
         {
           'title':
               '10+ Essential Creator Tools vs 30+ Premium Tools & VIP Support',
           'subtitle':
-              'Standard includes essential analytics; Custom adds VIP priority live support & fast transcoding.',
+              'Standard includes essential analytics; Pro adds VIP priority live support & fast transcoding.',
         },
         {
           'title': 'Monthly Plan Upgrade & Switch Policy',
           'subtitle':
-              'You can upgrade or switch between Standard and Custom plans anytime from Settings once per month.',
+              'You can upgrade or switch between Standard and Pro plans anytime from Settings once per month.',
         },
       ];
 
@@ -219,7 +220,7 @@ class PlanHighlightsCard extends StatelessWidget {
               : allFeaturesChecklist;
 
       final highlightsTitle = isCustom
-          ? 'Custom Channel Plan Highlights'
+          ? 'Pro Channel Plan Highlights'
           : isStandard
               ? 'Standard Channel Plan Highlights'
               : 'All Channel Features & Comparison';
@@ -327,7 +328,7 @@ class PlanHighlightsCard extends StatelessWidget {
                     const SizedBox(width: 10),
                     const Expanded(
                       child: Text(
-                        r'Note: Standard channels are 100% free to operate with zero hosting fees. Truthworld takes 30% revenue share from ads and premium subscriptions (70% for creator), and 0% revenue share from superchats and memberships (100% for creator). Custom channels keep 100% revenue across all streams (0% platform cut) with plans starting at $15, $30, $45, $100, $200/mo.',
+                        r'Note: Standard channels are 100% free to operate with zero hosting fees. Truthworld takes 30% revenue share from ads and premium subscriptions (70% for creator), and 10% platform fee from superchats and memberships (90% for creator). Custom channels keep 100% revenue across all streams (0% platform cut) with plans starting at $15, $25, $50, $100, $200/mo.',
                         style: TextStyle(
                           fontSize: 12,
                           color: Color(0xFFD4D4D8),

@@ -120,6 +120,45 @@ class VideoChapterParser {
       maxDuration: maxDuration,
     );
     if (descChapters.isNotEmpty) {
+      // 🛡️ Industry Standard: If AI auto-chapters or explicit chapters exist with discrete
+      // extracted thumbnails, inherit those thumbnails for description chapters with matching timestamps (±3s).
+      final candidateChapters = <VideoChapter>[];
+      if (explicitChapters != null && explicitChapters.isNotEmpty) {
+        candidateChapters.addAll(
+          explicitChapters
+              .whereType<Map>()
+              .map((e) => VideoChapter.fromMap(Map<String, dynamic>.from(e))),
+        );
+      }
+      if (rawAutoChapters is List && rawAutoChapters.isNotEmpty) {
+        candidateChapters.addAll(
+          rawAutoChapters
+              .whereType<Map>()
+              .map((e) => VideoChapter.fromMap(Map<String, dynamic>.from(e))),
+        );
+      }
+
+      if (candidateChapters.any((c) => c.thumbnailUrl != null && c.thumbnailUrl!.isNotEmpty)) {
+        return descChapters.map((descCh) {
+          if (descCh.thumbnailUrl != null && descCh.thumbnailUrl!.isNotEmpty) {
+            return descCh;
+          }
+          for (final cand in candidateChapters) {
+            if (cand.thumbnailUrl != null && cand.thumbnailUrl!.isNotEmpty) {
+              final diff = (cand.startTime - descCh.startTime).inMilliseconds.abs();
+              if (diff <= 3000) {
+                return VideoChapter(
+                  title: descCh.title,
+                  startTime: descCh.startTime,
+                  thumbnailUrl: cand.thumbnailUrl,
+                );
+              }
+            }
+          }
+          return descCh;
+        }).toList();
+      }
+
       return descChapters;
     }
 

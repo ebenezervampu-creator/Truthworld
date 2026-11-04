@@ -9,6 +9,8 @@ param(
     [string]$CashfreeAppId,
     [string]$CashfreeSecretKey,
     [string]$AssemblyAiKey = "",
+    [string]$ElevenLabsApiKey = "",
+    [string]$SarvamApiKey = "",
     [string]$IndexNowKey = "truthworld-indexnow-key-2026"
 )
 
@@ -75,6 +77,14 @@ Set-GcpSecret -SecretName "CASHFREE_SECRET_KEY" -SecretValue $CashfreeSecretKey
 
 if ($AssemblyAiKey) {
     Set-GcpSecret -SecretName "ASSEMBLYAI_KEY" -SecretValue $AssemblyAiKey
+}
+
+if ($ElevenLabsApiKey) {
+    Set-GcpSecret -SecretName "ELEVENLABS_API_KEY" -SecretValue $ElevenLabsApiKey
+}
+
+if ($SarvamApiKey) {
+    Set-GcpSecret -SecretName "SARVAM_API_KEY" -SecretValue $SarvamApiKey
 }
 
 if ($IndexNowKey) {

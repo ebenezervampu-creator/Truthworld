@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/components/ui/auth/country_dial_codes.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
@@ -259,7 +258,7 @@ class PhoneVerificationSheet extends StatelessWidget {
           children: [
             Text(
               'Verify Phone Number',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
@@ -274,7 +273,7 @@ class PhoneVerificationSheet extends StatelessWidget {
         const SizedBox(height: 6),
         Text(
           'Enter your mobile number to receive a 6-digit verification code.',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 14,
             color: AppColors.textSecondary,
             height: 1.4,
@@ -310,7 +309,7 @@ class PhoneVerificationSheet extends StatelessWidget {
                       const SizedBox(width: 6),
                       Text(
                         country.dialCode,
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
                           fontSize: 15,
@@ -338,14 +337,14 @@ class PhoneVerificationSheet extends StatelessWidget {
                   FilteringTextInputFormatter.digitsOnly,
                   LengthLimitingTextInputFormatter(15),
                 ],
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   color: Colors.white,
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
                 ),
                 decoration: InputDecoration(
                   hintText: 'Phone number',
-                  hintStyle: GoogleFonts.roboto(
+                  hintStyle: TextStyle(
                     color: AppColors.textDisabled,
                     fontSize: 15,
                   ),
@@ -399,7 +398,7 @@ class PhoneVerificationSheet extends StatelessWidget {
                   )
                 : Text(
                     'Send Verification Code',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       color: Colors.black,
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
@@ -429,7 +428,7 @@ class PhoneVerificationSheet extends StatelessWidget {
             Expanded(
               child: Text(
                 'Enter Verification Code',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
@@ -445,7 +444,7 @@ class PhoneVerificationSheet extends StatelessWidget {
         const SizedBox(height: 6),
         Obx(() => Text(
               'Code sent to ${controller.targetPhoneNumber.value}',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 14,
                 color: AppColors.textSecondary,
               ),
@@ -462,7 +461,7 @@ class PhoneVerificationSheet extends StatelessWidget {
             LengthLimitingTextInputFormatter(6),
           ],
           textAlign: TextAlign.center,
-          style: GoogleFonts.robotoMono(
+          style: TextStyle(
             color: Colors.white,
             fontSize: 26,
             fontWeight: FontWeight.bold,
@@ -471,7 +470,7 @@ class PhoneVerificationSheet extends StatelessWidget {
           decoration: InputDecoration(
             counterText: '',
             hintText: '••••••',
-            hintStyle: GoogleFonts.robotoMono(
+            hintStyle: TextStyle(
               color: AppColors.textDisabled,
               fontSize: 24,
               letterSpacing: 8,
@@ -506,7 +505,7 @@ class PhoneVerificationSheet extends StatelessWidget {
                     : controller.resendVerificationCode,
                 child: Text(
                   'Resend SMS Code',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: AppColors.textLink,
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
@@ -518,7 +517,7 @@ class PhoneVerificationSheet extends StatelessWidget {
             return Center(
               child: Text(
                 'Resend code in ${controller.resendCountdown.value}s',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   color: AppColors.textTertiary,
                   fontSize: 13,
                 ),
@@ -553,7 +552,7 @@ class PhoneVerificationSheet extends StatelessWidget {
                   )
                 : Text(
                     'Verify & Link Phone',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       color: Colors.black,
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
@@ -598,7 +597,7 @@ class PhoneVerificationSheet extends StatelessWidget {
                   children: [
                     Text(
                       'Select Country',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
@@ -620,10 +619,10 @@ class PhoneVerificationSheet extends StatelessWidget {
                   buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                   inputFormatters: TruthworldTextInputFormatters.withLimit(defaultMaxSearchLength),
                   onChanged: controller.updateCountrySearch,
-                  style: GoogleFonts.roboto(color: Colors.white, fontSize: 15),
+                  style: TextStyle(color: Colors.white, fontSize: 15),
                   decoration: InputDecoration(
                     hintText: 'Search country or dial code...',
-                    hintStyle: GoogleFonts.roboto(
+                    hintStyle: TextStyle(
                       color: AppColors.textDisabled,
                       fontSize: 14,
                     ),
@@ -665,14 +664,14 @@ class PhoneVerificationSheet extends StatelessWidget {
                           ),
                           title: Text(
                             item.name,
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               color: Colors.white,
                               fontSize: 15,
                             ),
                           ),
                           trailing: Text(
                             item.dialCode,
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               color: AppColors.textSecondary,
                               fontWeight: FontWeight.w600,
                               fontSize: 14,

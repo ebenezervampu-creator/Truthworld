@@ -6,6 +6,7 @@ import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/discover/presentation/controllers/discover_channels_controller.dart';
 import 'package:truthworld/features/discover/presentation/views/channels/widgets/discover_category_card.dart';
 import 'package:truthworld/features/discover/presentation/views/channels/widgets/discover_channels_constants.dart';
+import 'package:truthworld/features/discover/presentation/views/channels/widgets/discover_filter_pills_bar.dart';
 
 /// Responsive 2-column grid of discover categories matching Image 1.
 class DiscoverCategoryGrid extends StatelessWidget {
@@ -72,14 +73,16 @@ class DiscoverSelectedCategoryHeader extends StatelessWidget {
         ? formatChannelCount(channelCount!)
         : '';
     final description = getCategoryDescription(selectedCategory);
+    final isMobile = MediaQuery.of(context).size.width < kMobileBreakpoint;
+    final headerHeight = isMobile ? 165.0 : 210.0;
 
     return SliverToBoxAdapter(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Hero Image Header
+          // Responsive Compact Hero Image Header (Saving vertical real estate on mobile)
           Container(
-            height: 250,
+            height: headerHeight,
             decoration: BoxDecoration(
               color: cardColor,
               borderRadius: BorderRadius.circular(20),
@@ -115,7 +118,7 @@ class DiscoverSelectedCategoryHeader extends StatelessWidget {
 
                 // Content: Back button on top-left, Category info at bottom
                 Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: EdgeInsets.all(isMobile ? 12 : 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -130,7 +133,7 @@ class DiscoverSelectedCategoryHeader extends StatelessWidget {
                           },
                           borderRadius: BorderRadius.circular(12),
                           child: Container(
-                            padding: const EdgeInsets.all(8),
+                            padding: const EdgeInsets.all(7),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
@@ -140,7 +143,7 @@ class DiscoverSelectedCategoryHeader extends StatelessWidget {
                             child: const Icon(
                               Icons.arrow_back_rounded,
                               color: Colors.white,
-                              size: 20,
+                              size: 18,
                             ),
                           ),
                         ),
@@ -150,37 +153,37 @@ class DiscoverSelectedCategoryHeader extends StatelessWidget {
                       // Title
                       Text(
                         selectedCategory,
-                        style: const TextStyle(
-                          fontSize: 32,
+                        style: TextStyle(
+                          fontSize: isMobile ? 24 : 30,
                           fontWeight: FontWeight.bold,
                           color: primaryText,
-                          letterSpacing: -0.5,
+                          letterSpacing: -0.4,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       if (countText.isNotEmpty) ...[
-                        const SizedBox(height: 3),
+                        const SizedBox(height: 2),
                         Text(
                           countText,
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: isMobile ? 12.5 : 13.5,
                             color: Colors.white.withValues(alpha: 0.70),
                             fontWeight: FontWeight.w400,
                           ),
                         ),
                       ],
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
 
                       // Description
                       Text(
                         description,
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: isMobile ? 11.5 : 12.5,
                           color: Colors.white.withValues(alpha: 0.80),
-                          height: 1.35,
+                          height: 1.3,
                         ),
-                        maxLines: 2,
+                        maxLines: isMobile ? 1 : 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
@@ -189,9 +192,9 @@ class DiscoverSelectedCategoryHeader extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
 
-          // Search and Sort Bar (Image 2)
+          // Search and Sort Bar with Filter Pills (Image 2)
           DiscoverCategorySearchSortBar(
             selectedCategory: selectedCategory,
           ),
@@ -218,112 +221,122 @@ class DiscoverCategorySearchSortBar extends StatelessWidget {
 
     if (controller == null) return const SizedBox.shrink();
 
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Search Input Field
-        Expanded(
-          child: Container(
-            height: 46,
-            decoration: BoxDecoration(
-              color: const Color(0xFF161619),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: kDiscoverCardBorder,
-              ),
-            ),
-            child: TextField(
-              controller: controller.searchController,
-              maxLength: ContentValidator.defaultMaxSearchLength,
-              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
-              inputFormatters: TruthworldTextInputFormatters.withLimit(
-                ContentValidator.defaultMaxSearchLength,
-              ),
-              onChanged: controller.onSearchChanged,
-              style: const TextStyle(
-                color: primaryText,
-                fontSize: 14,
-              ),
-              decoration: InputDecoration(
-                hintText: 'Search $selectedCategory channels...',
-                hintStyle: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.40),
-                  fontSize: 14,
-                ),
-                prefixIcon: const Icon(
-                  Icons.search_rounded,
-                  color: Colors.white54,
-                  size: 20,
-                ),
-                suffixIcon: Obx(() => controller.searchQuery.value.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(
-                          Icons.clear_rounded,
-                          color: Colors.white70,
-                          size: 18,
-                        ),
-                        onPressed: () {
-                          HapticFeedback.lightImpact();
-                          controller.clearSearch();
-                        },
-                      )
-                    : const SizedBox.shrink()),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-
-        // Sort By Button
-        Material(
-          color: const Color(0xFF161619),
-          borderRadius: BorderRadius.circular(12),
-          child: InkWell(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              _showSortBottomSheet(context, controller);
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              height: 46,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: kDiscoverCardBorder,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.tune_rounded,
-                    color: Colors.white,
-                    size: 18,
+        Row(
+          children: [
+            // Search Input Field
+            Expanded(
+              child: Container(
+                height: 46,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF161619),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: kDiscoverCardBorder,
                   ),
-                  const SizedBox(width: 6),
-                  const Text(
-                    'Sort by',
-                    style: TextStyle(
-                      color: primaryText,
+                ),
+                child: TextField(
+                  controller: controller.searchController,
+                  maxLength: ContentValidator.defaultMaxSearchLength,
+                  buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                  inputFormatters: TruthworldTextInputFormatters.withLimit(
+                    ContentValidator.defaultMaxSearchLength,
+                  ),
+                  onChanged: controller.onSearchChanged,
+                  style: const TextStyle(
+                    color: primaryText,
+                    fontSize: 14,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Search $selectedCategory channels...',
+                    hintStyle: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.40),
                       fontSize: 14,
-                      fontWeight: FontWeight.w500,
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.search_rounded,
+                      color: Colors.white54,
+                      size: 20,
+                    ),
+                    suffixIcon: Obx(() => controller.searchQuery.value.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(
+                              Icons.clear_rounded,
+                              color: Colors.white70,
+                              size: 18,
+                            ),
+                            onPressed: () {
+                              HapticFeedback.lightImpact();
+                              controller.clearSearch();
+                            },
+                          )
+                        : const SizedBox.shrink()),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
                     ),
                   ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    color: Colors.white.withValues(alpha: 0.7),
-                    size: 18,
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
+            const SizedBox(width: 10),
+
+            // Sort By Button
+            Material(
+              color: const Color(0xFF161619),
+              borderRadius: BorderRadius.circular(12),
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  _showSortBottomSheet(context, controller);
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  height: 46,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: kDiscoverCardBorder,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.tune_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'Sort by',
+                        style: TextStyle(
+                          color: primaryText,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: Colors.white.withValues(alpha: 0.7),
+                        size: 18,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        DiscoverFilterPillsBar(
+          controller: controller,
+          showTopics: false,
         ),
       ],
     );

@@ -13,7 +13,7 @@
  * updating Firestore immediately so users never see a "blank" fact-check slate.
  */
 
-import type { VertexAI } from "@google-cloud/vertexai";
+import type { VertexAI } from "../utils/ai-client";
 import * as admin from "firebase-admin";
 import { z } from "zod";
 import { getVertexAI } from "../utils/ai-client";

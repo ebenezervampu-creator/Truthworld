@@ -18,7 +18,7 @@ class AdminAnalyticsTopOffenders extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
@@ -113,7 +113,7 @@ class AdminAnalyticsOffenderTile extends StatelessWidget {
         leading: CircleAvatar(
           backgroundColor: isBanned
               ? AppColors.error.withValues(alpha: 0.2)
-              : const Color(0xFF242424),
+              : AppColors.bgSurface,
           child: Icon(
             isBanned ? Icons.block_rounded : Icons.person_outline,
             color: Colors.white,

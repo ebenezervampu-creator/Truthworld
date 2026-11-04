@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -5,6 +6,9 @@ import 'package:just_audio/just_audio.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/utils/storage_utils.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks/studio_video_resolution_resolver.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:video_player/video_player.dart';
 
@@ -62,9 +66,11 @@ class MultiAudioPlayerController extends BaseController {
   // ── Internal ─────────────────────────────────────────────────────────────────
   VideoPlayerController? _videoCtrl;
   final AudioPlayer _dubPlayer = AudioPlayer();
+  Timer? _flashControlsTimer;
 
   bool _dubMode = false; // true when a dubbed audio overlay is active
   bool _seeking = false;
+  bool _isSyncSeeking = false;
 
   // Expose the raw VideoPlayerController so the view can build a VideoPlayer()
   VideoPlayerController? get videoController => _videoCtrl;
@@ -73,8 +79,14 @@ class MultiAudioPlayerController extends BaseController {
   // ── Lifecycle ─────────────────────────────────────────────────────────────────
   @override
   void onClose() {
+    _flashControlsTimer?.cancel();
+    _flashControlsTimer = null;
+    if (_videoCtrl != null) {
+      _videoCtrl!.removeListener(_onVideoTick);
+      _videoCtrl!.dispose();
+      _videoCtrl = null;
+    }
     chewieController?.dispose();
-    _videoCtrl?.dispose();
     _dubPlayer.dispose();
     super.onClose();
   }
@@ -86,18 +98,64 @@ class MultiAudioPlayerController extends BaseController {
     String videoUrl, {
     required List<AudioTrackOption> tracks,
     String? preferredTrackCode,
+    Video? video,
   }) async {
     isInitializing.value = true;
     hasError.value = false;
 
     try {
       // Tear down any previous session
-      await _videoCtrl?.dispose();
+      if (_videoCtrl != null) {
+        _videoCtrl!.removeListener(_onVideoTick);
+        await _videoCtrl!.dispose();
+        _videoCtrl = null;
+      }
       await _dubPlayer.stop();
 
-      _videoCtrl = VideoPlayerController.networkUrl(Uri.parse(videoUrl));
-      await _videoCtrl!.initialize();
+      // Gather candidate non-raw resolution streams
+      final candidateUrls = <String>[];
+      if (video != null) {
+        final resolutions = await StudioVideoResolutionResolver.resolveResolutions(video);
+        final defaultRes = StudioVideoResolutionResolver.pickDefaultResolution(resolutions);
+        if (defaultRes != null) {
+          candidateUrls.add(defaultRes.url);
+        }
+        for (final r in resolutions) {
+          if (!candidateUrls.contains(r.url)) {
+            candidateUrls.add(r.url);
+          }
+        }
+      }
 
+      if (videoUrl.trim().isNotEmpty && !candidateUrls.contains(videoUrl.trim())) {
+        candidateUrls.add(videoUrl.trim());
+      }
+
+      VideoPlayerController? initializedCtrl;
+      for (final rawUrl in candidateUrls) {
+        try {
+          final resolvedUrl = await StorageUtils.resolveUrl(rawUrl);
+          final target = resolvedUrl.isNotEmpty ? resolvedUrl : StorageUtils.getFastDownloadUrl(rawUrl);
+          if (target.isEmpty) continue;
+
+          final ctrl = VideoPlayerController.networkUrl(
+            Uri.parse(target),
+            httpHeaders: StorageUtils.getSyncMediaHeaders(),
+            videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+          );
+          await ctrl.initialize();
+          initializedCtrl = ctrl;
+          break;
+        } catch (err) {
+          logger.warning('Failed candidate stream: $rawUrl ($err)', tag: _tag);
+        }
+      }
+
+      if (initializedCtrl == null) {
+        throw Exception('Unable to load video stream.');
+      }
+
+      _videoCtrl = initializedCtrl;
       _videoCtrl!.addListener(_onVideoTick);
 
       chewieController?.dispose();
@@ -105,7 +163,7 @@ class MultiAudioPlayerController extends BaseController {
         videoPlayerController: _videoCtrl!,
         showControls: false,
         allowedScreenSleep: false,
-        aspectRatio: _videoCtrl!.value.aspectRatio,
+        aspectRatio: _videoCtrl!.value.aspectRatio > 0 ? _videoCtrl!.value.aspectRatio : 16 / 9,
         placeholder: const ColoredBox(
           color: AppColors.bgPage,
           child: Center(
@@ -227,8 +285,9 @@ class MultiAudioPlayerController extends BaseController {
   void setFullscreen(bool value) => isFullscreen.value = value;
 
   void flashControls() {
+    _flashControlsTimer?.cancel();
     showControls.value = true;
-    Future.delayed(const Duration(seconds: 3), () {
+    _flashControlsTimer = Timer(const Duration(seconds: 3), () {
       if (isPlaying.value) showControls.value = false;
     });
   }
@@ -278,8 +337,11 @@ class MultiAudioPlayerController extends BaseController {
       } else {
         final dubPos = _dubPlayer.position;
         final drift = (v.position - dubPos).abs();
-        if (drift > const Duration(milliseconds: 300)) {
-          _dubPlayer.seek(v.position);
+        if (drift > const Duration(milliseconds: 300) && !_isSyncSeeking) {
+          _isSyncSeeking = true;
+          _dubPlayer.seek(v.position).catchError((_) {}).whenComplete(() {
+            _isSyncSeeking = false;
+          });
         }
       }
     }

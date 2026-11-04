@@ -383,6 +383,59 @@ describe('Unit: World-Class Credibility Architecture', () => {
       expect(res.publicNote).toContain('Frontier / Breaking Event');
       expect(res.publicNote).toContain('epistemic humility');
     });
+
+    it('preserves verified_true on breaking news events when supported by 2+ Tier A/B accredited sources', async () => {
+      const mockGenerateContent = jest.fn().mockResolvedValue({
+        response: {
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    text: JSON.stringify({
+                      secondaryVerdict: 'CONFIRMED_TRUE',
+                      concursWithPrimary: true,
+                      adjudicationRationale: 'Multiple accredited regional news outlets confirm police and hospital records.',
+                    }),
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      });
+
+      (verificationService as any).genAI = {
+        getGenerativeModel: jest.fn().mockReturnValue({
+          generateContent: mockGenerateContent,
+        }),
+      };
+
+      const breakingClaim = 'Breaking news: 15-year-old girl attacked with chainsaw in classroom';
+      const sources: any[] = [
+        {
+          title: 'The Statesman - Andhra school chainsaw attack',
+          url: 'https://thestatesman.com/article1',
+          tier: 'B',
+        },
+        {
+          title: 'The Hans India - Chainsaw attack on girl in AP classroom',
+          url: 'https://thehansindia.com/article2',
+          tier: 'B',
+        },
+      ];
+
+      const res = await verificationService.crossExamineClaim(
+        breakingClaim,
+        'verified_true',
+        'Corroborated by police statements and regional news coverage',
+        sources,
+        'news'
+      );
+
+      expect(res.adjudicatedStatus).toBe('verified_true');
+      expect(res.consensusMetadata.agreed).toBe(true);
+    });
   });
 
   describe('Area 3: Human Ombudsman Governance (Quorum & Cryptographic Audit Chain)', () => {
@@ -414,6 +467,27 @@ describe('Unit: World-Class Credibility Architecture', () => {
 
       expect(block2).toMatch(/^[a-f0-9]{64}$/);
       expect(block2).not.toBe(genesis);
+    });
+  });
+
+  describe('Area 4: Institutional Reasoning Sanitizer & Cross-Lingual Grounding', () => {
+    const verificationService = new ClaimVerificationService('test-api-key');
+
+    it('cleans conversational first-person AI memories into institutional statements', () => {
+      const rawReasoning = "I looked through all my stories and general knowledge, but I couldn't find any common or famous story about a girl named Gopika being hurt with a chainsaw in a classroom. It's not something lots of people know about from my memory.";
+      const cleaned = verificationService.sanitizeInstitutionalReasoning(rawReasoning, '15-year-old Gopika was attacked', 'inconclusive');
+      
+      expect(cleaned).not.toContain('from my memory');
+      expect(cleaned).not.toContain('all my stories');
+      expect(cleaned).not.toContain("I couldn't find");
+      expect(cleaned).toContain('No independent documentation');
+    });
+
+    it('provides clear institutional confirmation for verified claims', () => {
+      const rawReasoning = "from my memory I found some bits.";
+      const cleaned = verificationService.sanitizeInstitutionalReasoning(rawReasoning, '15-year-old Gopika was attacked', 'verified_true');
+      
+      expect(cleaned).toContain('Confirmed by official police reports');
     });
   });
 });

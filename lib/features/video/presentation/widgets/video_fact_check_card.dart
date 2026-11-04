@@ -2,11 +2,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/source_avatar_service.dart';
 import 'package:truthworld/core/widgets/truth_lottie_animation.dart';
 import 'package:truthworld/features/video/data/models/fact_check_data_parser.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/widgets/video_analysis_bottom_sheet.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -38,9 +38,11 @@ class VideoFactCheckCard extends StatelessWidget {
               (userChannelId != null &&
                   userChannelId.isNotEmpty &&
                   controller.video.channelId == userChannelId));
-      if (!controller.video.hasAiCredibility ||
-          (!controller.video.canPublicViewFactCheck && !isOwner)) {
+      if (!controller.video.hasAiCredibility) {
         return const SizedBox.shrink();
+      }
+      if (!controller.video.canPublicViewFactCheck && !isOwner) {
+        return _buildPendingReviewPublicCard(context, controller.video);
       }
 
       final data = controller.factCheckData;
@@ -127,6 +129,40 @@ class VideoFactCheckCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (parsed.isProvisional) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.info.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: AppColors.info.withValues(alpha: 0.3),
+                    width: 0.5,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.bolt_rounded,
+                      size: 14,
+                      color: Color(0xFF60A5FA),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Instant Fast Triage result. Deep multi-source grounding finalizing in background.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: const Color(0xFF93C5FD),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             // ── Header: Badge + Trust Score ──
             _buildHeader(
               context,
@@ -162,7 +198,7 @@ class VideoFactCheckCard extends StatelessWidget {
                 parsed.viewerNote,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 13,
                   height: 1.4,
@@ -230,12 +266,9 @@ class VideoFactCheckCard extends StatelessWidget {
                     : 'TRUTH CREDIBILITY CHECK')));
     const headerColor = Colors.white70;
 
-    final isNotScored = trustScore == null || trustScore <= 0 || trustLabel.toLowerCase().contains('not scored');
-    final headlineTitle = isNotScored
-        ? (isShortOverview
-            ? 'Epistemic Overview'
-            : (totalClaims > 0 ? '$totalClaims Claims Evaluated' : 'Credibility Analysis'))
-        : (isFullGround ? '$trustLabel (Ground Truth)' : trustLabel);
+    final headlineTitle = isShortOverview
+        ? 'Epistemic Overview'
+        : (totalClaims > 0 ? '$totalClaims Claims Evaluated' : 'Credibility Analysis');
 
     return Row(
       children: [
@@ -274,7 +307,7 @@ class VideoFactCheckCard extends StatelessWidget {
             children: [
               Text(
                 headerLabel,
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
                   color: headerColor,
@@ -289,7 +322,7 @@ class VideoFactCheckCard extends StatelessWidget {
                       headlineTitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary,
@@ -300,7 +333,7 @@ class VideoFactCheckCard extends StatelessWidget {
                     const SizedBox(width: 6),
                     Text(
                       '• ${confidenceTier.capitalizeFirst} Confidence',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 11,
                         color: AppColors.textTertiary,
                       ),
@@ -311,34 +344,23 @@ class VideoFactCheckCard extends StatelessWidget {
             ],
           ),
         ),
-        // Trust score badge
-        if (trustScore != null && trustScore > 0)
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0.85, end: 1.0),
-            duration: const Duration(milliseconds: 350),
-            curve: Curves.easeOutBack,
-            builder: (context, scale, child) => Transform.scale(
-              scale: scale,
-              child: child,
-            ),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.25),
-                ),
+        // Claim count badge (No scalar video trust score)
+        if (totalClaims > 0)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.25),
               ),
-              child: Text(
-                trustScore <= 5.0
-                    ? '${trustScore.toStringAsFixed(1)}/5'
-                    : '${trustScore.toInt()}%',
-                style: GoogleFonts.roboto(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
+            ),
+            child: Text(
+              '$totalClaims Claims',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
               ),
             ),
           ),
@@ -501,7 +523,7 @@ class VideoFactCheckCard extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             label,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
               color: color,
@@ -575,7 +597,7 @@ class VideoFactCheckCard extends StatelessWidget {
                     const SizedBox(width: 5),
                     Text(
                       name.length > 20 ? '${name.substring(0, 18)}…' : name,
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 11,
                         color: AppColors.textSecondary,
                         fontWeight: FontWeight.w500,
@@ -595,7 +617,7 @@ class VideoFactCheckCard extends StatelessWidget {
               ),
               child: Text(
                 '+$overflow more',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 11,
                   color: AppColors.textTertiary,
                   fontWeight: FontWeight.w500,
@@ -673,7 +695,7 @@ class VideoFactCheckCard extends StatelessWidget {
               ctaText,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
                 color: AppColors.textPrimary,
@@ -718,13 +740,130 @@ class VideoFactCheckCard extends StatelessWidget {
           const SizedBox(width: 10),
           Text(
             'Loading credibility analysis…',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 13,
               color: AppColors.textTertiary,
               fontStyle: FontStyle.italic,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPendingReviewPublicCard(BuildContext context, Video vid) {
+    final remaining = vid.factCheckGracePeriodRemaining;
+    final remainingHours = remaining.inHours;
+    final remainingMins = remaining.inMinutes % 60;
+    final timeStr = remainingHours > 0
+        ? '${remainingHours}h ${remainingMins}m'
+        : '${remainingMins}m';
+    final isLowTrust = vid.trustScore > 0 &&
+        ((vid.trustScore <= 5.0 && vid.trustScore < 2.5) ||
+            (vid.trustScore > 5.0 && vid.trustScore < 50.0));
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: AppColors.bgSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.warning.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _openFullAnalysis(context),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.timer_outlined,
+                        size: 16,
+                        color: AppColors.warning,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'FACT-CHECK IN CREATOR REVIEW',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.8,
+                          color: AppColors.warning,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: AppColors.warning.withValues(alpha: 0.3),
+                          width: 0.5,
+                        ),
+                      ),
+                      child: Text(
+                        'Auto-publishes in $timeStr',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.warning,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Automated credibility analysis is complete. Per platform transparency rules, full findings will auto-publish to all viewers in $timeStr if not approved earlier by the creator.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+                if (isLowTrust) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.warning_amber_rounded,
+                        size: 14,
+                        color: AppColors.warning,
+                      ),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          'Contested claims detected • Accelerated 24h transparency window active',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.warning,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

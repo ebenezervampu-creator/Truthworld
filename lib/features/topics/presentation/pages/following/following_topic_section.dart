@@ -60,7 +60,7 @@ class FollowingTopicSection extends StatelessWidget {
                     children: [
                       Flexible(
                         child: Text(
-                          topic.title,
+                          topic.name,
                           style: TextStyle(
                             fontSize: isMobile ? 18 : 22,
                             fontWeight: FontWeight.bold,
@@ -207,7 +207,7 @@ class FollowingTopicSection extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              topic.title,
+                              topic.name,
                               style: const TextStyle(
                                 color: AppColors.textPrimary,
                                 fontWeight: FontWeight.bold,

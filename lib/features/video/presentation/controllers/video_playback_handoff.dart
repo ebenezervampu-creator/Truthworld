@@ -133,6 +133,10 @@ class VideoPlaybackHandoff {
   static Future<void>? getInitializationFuture(String videoId) =>
       _inFlightInit[videoId];
 
+  /// Access and atomically consume in-flight initialization Future for pre-warmed controllers.
+  static Future<void>? consumeInitializationFuture(String videoId) =>
+      _inFlightInit.remove(videoId);
+
   /// Register an active controller for a given video ID with optional playback position.
   static void registerActiveController(
     String videoId,
@@ -196,6 +200,11 @@ class VideoPlaybackHandoff {
     if (_activeVideoId == videoId &&
         _activeController != null &&
         !_activeController!.value.hasError) {
+      if (_activeController!.value.isInitialized &&
+          _activeController!.value.duration > Duration.zero &&
+          _activeController!.value.duration.inSeconds <= 5) {
+        return null;
+      }
       return _activeController;
     }
     return null;
@@ -249,6 +258,25 @@ class VideoPlaybackHandoff {
             e,
             stackTrace: stackTrace,
             tag: 'VideoPlaybackHandoff.retrieveController.dispose',
+          );
+        }
+        return null;
+      }
+
+      // If pre-warmed controller initialized with a truncated duration (<= 5s) indicative of a fragmented stream, discard it
+      if (controller.value.isInitialized &&
+          controller.value.duration > Duration.zero &&
+          controller.value.duration.inSeconds <= 5) {
+        debugPrint(
+          '[VideoPlaybackHandoff] ⚠️ Handed-over controller initialized with truncated duration (${controller.value.duration.inSeconds}s). Discarding for clean initialization.',
+        );
+        try {
+          controller.dispose();
+        } catch (e, stackTrace) {
+          ErrorHandler.log(
+            e,
+            stackTrace: stackTrace,
+            tag: 'VideoPlaybackHandoff.retrieveController.disposeTruncated',
           );
         }
         return null;

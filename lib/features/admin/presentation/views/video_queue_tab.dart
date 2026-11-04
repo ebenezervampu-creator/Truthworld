@@ -36,7 +36,7 @@ class VideoQueueTab extends StatelessWidget {
 
       final filterBar = Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -196,7 +196,7 @@ class VideoQueueTab extends StatelessWidget {
                     final isTimeout = mod?['violationCategories']?.contains('timeout_passthrough') == true;
 
                     return Material(
-                      color: isSelected ? const Color(0xFF212121) : Colors.transparent,
+                      color: isSelected ? AppColors.bgSurface : Colors.transparent,
                       child: InkWell(
                         onTap: () {
                           controller.selectedVideo.value = video;
@@ -213,7 +213,7 @@ class VideoQueueTab extends StatelessWidget {
                                 padding: const EdgeInsets.only(right: 8.0, top: 8.0),
                                 child: Checkbox(
                                   value: controller.selectedItemIds.contains(video['id']),
-                                  activeColor: const Color(0xFF2BA640),
+                                  activeColor: AppColors.success,
                                   checkColor: Colors.white,
                                   side: const BorderSide(color: Colors.white54),
                                   onChanged: (_) => controller.toggleItemSelection((video['id'] ?? '').toString()),
@@ -223,7 +223,7 @@ class VideoQueueTab extends StatelessWidget {
                                 width: 80,
                                 height: 50,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF212121),
+                                  color: AppColors.bgSurface,
                                   borderRadius: BorderRadius.circular(6),
                                   image: video['thumbnailUrl'] != null &&
                                           video['thumbnailUrl'].toString().isNotEmpty
@@ -478,7 +478,7 @@ class VideoQueueTab extends StatelessWidget {
                   height: 200,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF181818),
+                    color: AppColors.bgPage,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Text(

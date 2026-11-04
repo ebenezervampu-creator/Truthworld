@@ -182,7 +182,7 @@ void main() {
       expect(submitted, isTrue);
     });
 
-    testWidgets('ChannelWizardLanguageCard renders language card and handles invite-only dialog', (tester) async {
+    testWidgets('ChannelWizardLanguageCard renders language card and selects any language directly', (tester) async {
       final controller = Get.put(ChannelController());
 
       await tester.pumpWidget(
@@ -207,29 +207,19 @@ void main() {
       await tester.tap(dropdownIcon);
       await tester.pumpAndSettle();
 
-      // Mandarin Chinese should be visible in the list
+      // Mandarin Chinese should be visible in the list without "Invite Only" lock
       final mandarinChinese = find.text('Mandarin Chinese');
       expect(mandarinChinese, findsOneWidget);
+      expect(find.text('Invite Only'), findsNothing);
 
-      // Tap Mandarin Chinese to open the invite-only dialog
+      // Tap Mandarin Chinese to select it directly (no invite-only dialog)
       await tester.tap(mandarinChinese);
       await tester.pumpAndSettle();
 
-      expect(find.text('Mandarin Chinese is Invite-Only'), findsOneWidget);
-      expect(find.text('Request Invite'), findsOneWidget);
-
-      // Ensure text is formatted correctly without double tilde or duplicate 'speakers'
-      expect(find.textContaining('with ~1.1 Billion speakers. You can request'), findsOneWidget);
-      expect(find.textContaining('speakers speakers'), findsNothing);
-      expect(find.textContaining('~~1.1'), findsNothing);
-
-      // Tap Request Invite when unauthenticated
-      await tester.tap(find.text('Request Invite'));
-      await tester.pump();
-      await tester.pump(const Duration(seconds: 4));
-
-      // Should remain on dialog safely without throwing unhandled exceptions
-      expect(find.text('Mandarin Chinese is Invite-Only'), findsOneWidget);
+      // Verify controller language updated to 'zh' and language card reflects selection
+      expect(controller.language.value, 'zh');
+      expect(find.text('Mandarin Chinese (中文)'), findsOneWidget);
+      expect(find.text('Mandarin Chinese is Invite-Only'), findsNothing);
     });
   });
 }

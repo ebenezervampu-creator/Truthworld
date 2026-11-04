@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/pages/add_subtitle_track_page.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/pages/generate_ai_subtitles_page.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/dialogs/subtitles_download_sheet.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -122,6 +121,8 @@ class SubtitlesWorkspaceTopBar extends StatelessWidget {
                       ),
                       Text(
                         'Subtitles & Transcripts',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: AppTextStyles.caption.copyWith(
                           fontSize: 11,
                           color: textSecondaryColor,
@@ -145,46 +146,40 @@ class SubtitlesWorkspaceTopBar extends StatelessWidget {
                   icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
                   tooltip: 'More Actions',
                   color: surfaceColor,
+                  constraints: const BoxConstraints(minWidth: 180, maxWidth: 280),
                   onSelected: (val) {
                     switch (val) {
-                      case 'ai':
-                        Get.to(() => GenerateAiSubtitlesPage(
-                              controller: controller,
-                              isDarkMode: isDarkMode,
-                            ));
-                      case 'add_track':
-                        Get.to(() => AddSubtitleTrackPage(
-                              controller: controller,
-                              isDarkMode: isDarkMode,
-                            ));
+                      case 'download':
+                        showSubtitlesDownloadSheet(
+                          context: context,
+                          controller: controller,
+                          isDarkMode: isDarkMode,
+                        );
                       case 'import':
                         controller.importSubtitleFile();
+                      case 'preview':
+                        controller.toggleVideoPreview();
                       case 'requests':
                         controller.toggleRequestsPanel();
                     }
                   },
                   itemBuilder: (context) => [
                     const PopupMenuItem(
-                      value: 'ai',
+                      value: 'download',
                       child: Row(
                         children: [
-                          Icon(Icons.auto_awesome_rounded,
+                          Icon(Icons.download_rounded,
                               size: 16, color: Colors.white),
                           SizedBox(width: 10),
-                          Text('Generate with AI',
-                              style: TextStyle(fontSize: 13)),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'add_track',
-                      child: Row(
-                        children: [
-                          Icon(Icons.add_circle_outline_rounded,
-                              size: 16, color: Colors.white),
-                          SizedBox(width: 10),
-                          Text('Add Subtitle Track',
-                              style: TextStyle(fontSize: 13)),
+                          Expanded(
+                            child: Text(
+                              'Download Subtitles',
+                              style: TextStyle(
+                                  fontSize: 13, color: Colors.white),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -195,8 +190,41 @@ class SubtitlesWorkspaceTopBar extends StatelessWidget {
                           Icon(Icons.upload_file_rounded,
                               size: 16, color: Colors.white),
                           SizedBox(width: 10),
-                          Text('Import Subtitle File',
-                              style: TextStyle(fontSize: 13)),
+                          Expanded(
+                            child: Text(
+                              'Import Subtitle File',
+                              style: TextStyle(
+                                  fontSize: 13, color: Colors.white),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'preview',
+                      child: Row(
+                        children: [
+                          Icon(
+                            controller.showVideoPreview.value
+                                ? Icons.videocam_off_rounded
+                                : Icons.videocam_rounded,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              controller.showVideoPreview.value
+                                  ? 'Hide Video Preview'
+                                  : 'Show Video Preview',
+                              style: const TextStyle(
+                                  fontSize: 13, color: Colors.white),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -207,92 +235,21 @@ class SubtitlesWorkspaceTopBar extends StatelessWidget {
                           const Icon(Icons.mark_chat_unread_rounded,
                               size: 16, color: Colors.white),
                           const SizedBox(width: 10),
-                          Text(
-                            controller.showRequestsPanel.value
-                                ? 'Hide Viewer Requests'
-                                : 'Viewer Requests',
-                            style: const TextStyle(fontSize: 13),
+                          Expanded(
+                            child: Text(
+                              controller.showRequestsPanel.value
+                                  ? 'Hide Viewer Requests'
+                                  : 'Viewer Requests',
+                              style: const TextStyle(
+                                  fontSize: 13, color: Colors.white),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-
-            // Row 2: Prominent Creator Action Pills (AI + Add Track + Download)
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => Get.to(() => GenerateAiSubtitlesPage(
-                          controller: controller,
-                          isDarkMode: isDarkMode,
-                        )),
-                    icon: const Icon(
-                      Icons.auto_awesome_rounded,
-                      size: 14,
-                      color: Colors.white,
-                    ),
-                    label: const Text(
-                      'Generate with AI',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2E2E2E),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: BorderSide(
-                          color: AppColors.brand.withValues(alpha: 0.3),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => Get.to(() => AddSubtitleTrackPage(
-                          controller: controller,
-                          isDarkMode: isDarkMode,
-                        )),
-                    icon: const Icon(
-                      Icons.add_rounded,
-                      size: 15,
-                      color: Colors.white,
-                    ),
-                    label: const Text(
-                      'Add Track',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      side: BorderSide(color: borderColor),
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                SubtitlesDownloadDropdownMenu(
-                  controller: controller,
-                  textColor: textColor,
-                  borderColor: borderColor,
                 ),
               ],
             ),
@@ -302,203 +259,189 @@ class SubtitlesWorkspaceTopBar extends StatelessWidget {
     }
 
     // Tablet & Desktop Top Bar
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        border: Border(bottom: BorderSide(color: borderColor)),
-      ),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: CachedNetworkImage(
-              imageUrl: video.thumbnailUrl,
-              width: 52,
-              height: 32,
-              fit: BoxFit.cover,
-              errorWidget: (_, _, _) => Container(
-                width: 52,
-                height: 32,
-                color: Colors.black26,
-                child: const Icon(
-                  Icons.video_library_rounded,
-                  size: 18,
-                  color: Colors.white,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth;
+        final isVeryWide = availableWidth >= 1180;
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: surfaceColor,
+            border: Border(bottom: BorderSide(color: borderColor)),
+          ),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: CachedNetworkImage(
+                  imageUrl: video.thumbnailUrl,
+                  width: 52,
+                  height: 32,
+                  fit: BoxFit.cover,
+                  errorWidget: (_, _, _) => Container(
+                    width: 52,
+                    height: 32,
+                    color: Colors.black26,
+                    child: const Icon(
+                      Icons.video_library_rounded,
+                      size: 18,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Flexible(
-                      child: Text(
-                        video.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextStyles.titleMedium.copyWith(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: textColor,
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            video.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.titleMedium.copyWith(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: textColor,
+                            ),
+                          ),
                         ),
+                        Obx(() {
+                          if (!controller.hasUnsavedChanges.value) {
+                            return const SizedBox.shrink();
+                          }
+                          return Container(
+                            margin: const EdgeInsets.only(left: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.warning.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: AppColors.warning.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Text(
+                              'Unsaved',
+                              style: AppTextStyles.badge.copyWith(
+                                fontSize: 10,
+                                color: AppColors.warning,
+                              ),
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                    Text(
+                      'Multi-Language Subtitles & Timed Transcripts',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.caption.copyWith(
+                        fontSize: 11,
+                        color: textSecondaryColor,
                       ),
                     ),
-                    Obx(() {
-                      if (!controller.hasUnsavedChanges.value) {
-                        return const SizedBox.shrink();
-                      }
-                      return Container(
-                        margin: const EdgeInsets.only(left: 8),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.warning.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(
-                            color: AppColors.warning.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: Text(
-                          'Unsaved',
-                          style: AppTextStyles.badge.copyWith(
-                            fontSize: 10,
-                            color: AppColors.warning,
-                          ),
-                        ),
-                      );
-                    }),
                   ],
                 ),
-                Text(
-                  'Multi-Language Subtitles & Timed Transcripts',
-                  style: AppTextStyles.caption.copyWith(
-                    fontSize: 11,
-                    color: textSecondaryColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-
-          // Actions Row (Tablet / Desktop)
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Generate with Truthworld AI Button (Opens Separate Page)
-              ElevatedButton.icon(
-                onPressed: () => Get.to(() => GenerateAiSubtitlesPage(
-                      controller: controller,
-                      isDarkMode: isDarkMode,
-                    )),
-                icon: const Icon(
-                  Icons.auto_awesome_rounded,
-                  size: 15,
-                  color: Colors.white,
-                ),
-                label: Text(
-                  'Generate with AI',
-                  style: AppTextStyles.buttonText.copyWith(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.bgSurfaceHover,
-                  foregroundColor: AppColors.textPrimary,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 12),
 
-              // Add Track Button (Opens Separate Page)
-              OutlinedButton.icon(
-                onPressed: () => Get.to(() => AddSubtitleTrackPage(
-                      controller: controller,
-                      isDarkMode: isDarkMode,
-                    )),
-                icon: const Icon(
-                  Icons.add_circle_outline_rounded,
-                  size: 15,
-                  color: Colors.white,
-                ),
-                label: Text(
-                  'Add Track',
-                  style: AppTextStyles.buttonText.copyWith(
-                    fontSize: 12,
-                    color: textColor,
+              // Actions Row (Tablet / Desktop - Responsive with safety scroll containment)
+              Flexible(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const ClampingScrollPhysics(),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Video Preview Toggle Button
+                      SubtitlesPreviewButton(
+                        controller: controller,
+                        compact: !isVeryWide,
+                      ),
+                      const SizedBox(width: 8),
+
+                      // Viewer Requests Toggle Button
+                      SubtitlesRequestsButton(
+                        controller: controller,
+                        compact: !isVeryWide,
+                      ),
+                      const SizedBox(width: 8),
+
+                      // More Actions Menu (with Download Subtitles)
+                      PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_vert_rounded,
+                            color: Colors.white, size: 20),
+                        tooltip: 'More Actions',
+                        color: surfaceColor,
+                        onSelected: (val) {
+                          switch (val) {
+                            case 'download':
+                              showSubtitlesDownloadSheet(
+                                context: context,
+                                controller: controller,
+                                isDarkMode: isDarkMode,
+                              );
+                            case 'import':
+                              controller.importSubtitleFile();
+                            case 'preview':
+                              controller.toggleVideoPreview();
+                            case 'requests':
+                              controller.toggleRequestsPanel();
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'download',
+                            child: Row(
+                              children: [
+                                Icon(Icons.download_rounded,
+                                    size: 16, color: Colors.white),
+                                SizedBox(width: 10),
+                                Text('Download Subtitles',
+                                    style: TextStyle(
+                                        fontSize: 13, color: Colors.white)),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'import',
+                            child: Row(
+                              children: [
+                                Icon(Icons.upload_file_rounded,
+                                    size: 16, color: Colors.white),
+                                SizedBox(width: 10),
+                                Text('Import Subtitle File',
+                                    style: TextStyle(
+                                        fontSize: 13, color: Colors.white)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 8),
+
+                      // Save Changes Button
+                      SubtitlesSaveButton(
+                        controller: controller,
+                        isDarkMode: isDarkMode,
+                        compact: !isVeryWide,
+                      ),
+                    ],
                   ),
                 ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: textColor,
-                  side: BorderSide(color: borderColor),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-
-              // Import Subtitle File Button
-              OutlinedButton.icon(
-                onPressed: controller.importSubtitleFile,
-                icon: const Icon(
-                  Icons.upload_file_rounded,
-                  size: 15,
-                  color: Colors.white,
-                ),
-                label: Text(
-                  'Import',
-                  style: AppTextStyles.buttonText.copyWith(
-                    fontSize: 12,
-                    color: textColor,
-                  ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: textColor,
-                  side: BorderSide(color: borderColor),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-
-              // Download Dropdown Menu
-              SubtitlesDownloadDropdownMenu(
-                controller: controller,
-                textColor: textColor,
-                borderColor: borderColor,
-              ),
-              const SizedBox(width: 8),
-
-              // Viewer Requests Toggle Button
-              SubtitlesRequestsButton(controller: controller),
-              const SizedBox(width: 8),
-
-              // Save Changes Button
-              SubtitlesSaveButton(
-                controller: controller,
-                isDarkMode: isDarkMode,
               ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -519,6 +462,7 @@ class SubtitlesDownloadDropdownMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     return PopupMenuButton<String>(
       tooltip: 'Download Subtitles in Various Formats',
+      constraints: const BoxConstraints(minWidth: 200, maxWidth: 300),
       onSelected: (val) {
         switch (val) {
           case 'srt':
@@ -542,7 +486,14 @@ class SubtitlesDownloadDropdownMenu extends StatelessWidget {
             children: [
               Icon(Icons.subtitles_rounded, size: 16, color: Colors.white),
               SizedBox(width: 10),
-              Text('SubRip Subtitle (.srt)', style: TextStyle(fontSize: 13)),
+              Expanded(
+                child: Text(
+                  'SubRip Subtitle (.srt)',
+                  style: TextStyle(fontSize: 13),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
         ),
@@ -552,7 +503,14 @@ class SubtitlesDownloadDropdownMenu extends StatelessWidget {
             children: [
               Icon(Icons.video_settings_rounded, size: 16, color: Colors.white),
               SizedBox(width: 10),
-              Text('WebVTT Subtitle (.vtt)', style: TextStyle(fontSize: 13)),
+              Expanded(
+                child: Text(
+                  'WebVTT Subtitle (.vtt)',
+                  style: TextStyle(fontSize: 13),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
         ),
@@ -562,7 +520,14 @@ class SubtitlesDownloadDropdownMenu extends StatelessWidget {
             children: [
               Icon(Icons.description_outlined, size: 16, color: Colors.white),
               SizedBox(width: 10),
-              Text('Plain Text Transcript (.txt)', style: TextStyle(fontSize: 13)),
+              Expanded(
+                child: Text(
+                  'Plain Text Transcript (.txt)',
+                  style: TextStyle(fontSize: 13),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
         ),
@@ -572,7 +537,14 @@ class SubtitlesDownloadDropdownMenu extends StatelessWidget {
             children: [
               Icon(Icons.data_object_rounded, size: 16, color: Colors.white),
               SizedBox(width: 10),
-              Text('Timed Segments JSON (.json)', style: TextStyle(fontSize: 13)),
+              Expanded(
+                child: Text(
+                  'Timed Segments JSON (.json)',
+                  style: TextStyle(fontSize: 13),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
         ),
@@ -583,7 +555,14 @@ class SubtitlesDownloadDropdownMenu extends StatelessWidget {
             children: [
               Icon(Icons.copy_all_rounded, size: 16, color: Colors.white),
               SizedBox(width: 10),
-              Text('Copy Transcript to Clipboard', style: TextStyle(fontSize: 13)),
+              Expanded(
+                child: Text(
+                  'Copy Transcript to Clipboard',
+                  style: TextStyle(fontSize: 13),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
         ),
@@ -593,7 +572,14 @@ class SubtitlesDownloadDropdownMenu extends StatelessWidget {
             children: [
               Icon(Icons.archive_outlined, size: 16, color: Colors.white),
               SizedBox(width: 10),
-              Text('Download All Tracks (ZIP)', style: TextStyle(fontSize: 13)),
+              Expanded(
+                child: Text(
+                  'Download All Tracks (ZIP)',
+                  style: TextStyle(fontSize: 13),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
         ),
@@ -628,10 +614,12 @@ class SubtitlesDownloadDropdownMenu extends StatelessWidget {
 class SubtitlesRequestsButton extends StatelessWidget {
   const SubtitlesRequestsButton({
     required this.controller,
+    this.compact = false,
     super.key,
   });
 
   final SubtitlesController controller;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -658,7 +646,9 @@ class SubtitlesRequestsButton extends StatelessWidget {
             color: Colors.white,
           ),
           label: Text(
-            showRequests ? 'Close Requests' : 'Viewer Requests',
+            compact
+                ? (showRequests ? 'Close' : 'Requests')
+                : (showRequests ? 'Close Requests' : 'Viewer Requests'),
             style: AppTextStyles.buttonText.copyWith(
               fontSize: 12,
               color: Colors.white,
@@ -667,7 +657,10 @@ class SubtitlesRequestsButton extends StatelessWidget {
           style: OutlinedButton.styleFrom(
             foregroundColor: Colors.white,
             side: const BorderSide(color: AppColors.bgDivider),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 8 : 10,
+              vertical: 6,
+            ),
           ),
         ),
       );
@@ -725,6 +718,54 @@ class SubtitlesSaveButton extends StatelessWidget {
           padding: EdgeInsets.symmetric(
             horizontal: compact ? 10 : 12,
             vertical: 6,
+          ),
+        ),
+      );
+    });
+  }
+}
+
+class SubtitlesPreviewButton extends StatelessWidget {
+  const SubtitlesPreviewButton({
+    required this.controller,
+    this.compact = false,
+    super.key,
+  });
+
+  final SubtitlesController controller;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final showPreview = controller.showVideoPreview.value;
+      return OutlinedButton.icon(
+        onPressed: controller.toggleVideoPreview,
+        icon: Icon(
+          showPreview ? Icons.videocam_rounded : Icons.videocam_outlined,
+          size: 15,
+          color: Colors.white,
+        ),
+        label: Text(
+          compact
+              ? (showPreview ? 'Hide' : 'Preview')
+              : (showPreview ? 'Hide Video' : 'Video Preview'),
+          style: AppTextStyles.buttonText.copyWith(
+            fontSize: 12,
+            color: Colors.white,
+          ),
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.white,
+          side: BorderSide(
+            color: showPreview ? AppColors.brand : AppColors.bgDivider,
+          ),
+          backgroundColor: showPreview
+              ? AppColors.brand.withValues(alpha: 0.1)
+              : Colors.transparent,
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 8 : 10,
+            vertical: 8,
           ),
         ),
       );

@@ -351,7 +351,7 @@ class PlanComparisonMatrixWidget extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Custom',
+                        'Pro',
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,

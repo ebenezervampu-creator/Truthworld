@@ -10,6 +10,7 @@ import 'package:truthworld/core/network/result.dart';
 import 'package:truthworld/core/state/reactive_property.dart';
 import 'package:truthworld/core/state/view_state_contract.dart';
 import 'package:truthworld/core/utils/safe_get.dart';
+import 'package:truthworld/core/ux/app_toast.dart';
 import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 
 enum ViewState {
@@ -88,6 +89,12 @@ class BaseController extends GetxController implements IStateController {
 
   /// Alias for [addWorker]
   void registerWorker(Worker worker) => addWorker(worker);
+
+  /// Track a [Worker] for automatic disposal in [onClose]
+  Worker trackWorker(Worker worker) {
+    addWorker(worker);
+    return worker;
+  }
 
   /// Safely resolves dependency [T] or returns null without throwing.
   T? safeFind<T>({String? tag}) => SafeGet.findOrNull<T>(tag: tag);
@@ -266,25 +273,13 @@ class BaseController extends GetxController implements IStateController {
 
     if (Get.context == null) return;
     try {
-      final theme = Get.theme;
-      final bg = isError
-          ? theme.colorScheme.errorContainer
-          : isWarning
-          ? theme.colorScheme.tertiaryContainer
-          : theme.colorScheme.primaryContainer;
-      final fg = isError
-          ? theme.colorScheme.onErrorContainer
-          : isWarning
-          ? theme.colorScheme.onTertiaryContainer
-          : theme.colorScheme.onPrimaryContainer;
-
-      Get.snackbar(
-        title,
-        message,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: bg,
-        colorText: fg,
-      );
+      if (isError) {
+        AppToast.error(message, title: title);
+      } else if (isWarning) {
+        AppToast.warning(message, title: title);
+      } else {
+        AppToast.info(message, title: title);
+      }
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,
@@ -333,6 +328,10 @@ class BaseController extends GetxController implements IStateController {
 
   void showWarning(String message) {
     _presentSnackbar('Warning', message, isWarning: true);
+  }
+
+  void showInfo(String message) {
+    _presentSnackbar('Information', message);
   }
 
   /// Execute an async function returning a `Result<S>` with automatic UI state transitions

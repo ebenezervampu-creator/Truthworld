@@ -6,6 +6,7 @@ import 'package:truthworld/features/admin/presentation/views/alerts_config_tab.d
 import 'package:truthworld/features/admin/presentation/views/analytics_tab.dart';
 import 'package:truthworld/features/admin/presentation/views/appeals_tab.dart';
 import 'package:truthworld/features/admin/presentation/views/audit_logs_tab.dart';
+import 'package:truthworld/features/admin/presentation/views/broadcast_push_tab.dart';
 import 'package:truthworld/features/admin/presentation/views/channel_queue_tab.dart';
 import 'package:truthworld/features/admin/presentation/views/feedbacks_tab.dart';
 import 'package:truthworld/features/admin/presentation/views/help_support_tab.dart';
@@ -59,6 +60,8 @@ class AdminTabRouter {
         return TeamManagementTab(controller: controller);
       case 'help':
         return HelpSupportTab(controller: controller);
+      case 'broadcast':
+        return BroadcastPushTab(controller: controller);
       default:
         return OverviewTab(controller: controller);
     }

@@ -102,9 +102,9 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
         width: 480,
         constraints: const BoxConstraints(maxHeight: 680),
         decoration: BoxDecoration(
-          color: const Color(0xFF161618),
+          color: AppColors.appBarSurface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF27272A)),
+          border: Border.all(color: AppColors.bgSurface),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -117,7 +117,7 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF27272A),
+                      color: AppColors.bgSurface,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Icon(
@@ -163,7 +163,7 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
                 ],
               ),
             ),
-            const Divider(color: Color(0xFF27272A), height: 1),
+            const Divider(color: AppColors.bgSurface, height: 1),
             // Body
             Flexible(
               child: SingleChildScrollView(
@@ -196,9 +196,9 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1E1E22),
+                          color: AppColors.bgSurface,
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFF2E2E34)),
+                          border: Border.all(color: AppColors.bgSurfaceHover),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -272,13 +272,13 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
                               ),
                               decoration: BoxDecoration(
                                 color: isSelected
-                                    ? const Color(0xFF27272A)
-                                    : const Color(0xFF18181B),
+                                    ? AppColors.bgSurface
+                                    : AppColors.bgPage,
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
                                   color: isSelected
                                       ? Colors.white
-                                      : const Color(0xFF2E2E34),
+                                      : AppColors.bgSurfaceHover,
                                   width: isSelected ? 1.5 : 1,
                                 ),
                               ),
@@ -334,13 +334,13 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
                           ),
                           decoration: BoxDecoration(
                             color: isCustom.value
-                                ? const Color(0xFF27272A)
-                                : const Color(0xFF18181B),
+                                ? AppColors.bgSurface
+                                : AppColors.bgPage,
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                               color: isCustom.value
                                   ? Colors.white
-                                  : const Color(0xFF2E2E34),
+                                  : AppColors.bgSurfaceHover,
                               width: isCustom.value ? 1.5 : 1,
                             ),
                           ),
@@ -396,11 +396,11 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
                                       ),
                                       border: const OutlineInputBorder(
                                         borderSide:
-                                            BorderSide(color: Color(0xFF3F3F46)),
+                                            BorderSide(color: AppColors.bgElevated),
                                       ),
                                       enabledBorder: const OutlineInputBorder(
                                         borderSide:
-                                            BorderSide(color: Color(0xFF3F3F46)),
+                                            BorderSide(color: AppColors.bgElevated),
                                       ),
                                       focusedBorder: const OutlineInputBorder(
                                         borderSide:
@@ -419,9 +419,9 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF18181B),
+                          color: AppColors.bgPage,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFF27272A)),
+                          border: Border.all(color: AppColors.bgSurface),
                         ),
                         child: Column(
                           children: [
@@ -486,7 +486,7 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
                                   '$currencySymbol${newRemaining.toStringAsFixed(2)}',
                                   style: const TextStyle(
                                     fontFamily: TWTypography.brandFamily,
-                                    color: Color(0xFF10B981),
+                                    color: AppColors.success,
                                     fontSize: 13,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -501,16 +501,16 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1F1F23),
+                          color: AppColors.bgSurface,
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFF2E2E33)),
+                          border: Border.all(color: AppColors.bgSurfaceHover),
                         ),
                         child: Row(
                           children: [
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF2A2A30),
+                                color: AppColors.bgSurface,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: const Icon(
@@ -649,7 +649,7 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
           value,
           style: TextStyle(
             fontFamily: TWTypography.brandFamily,
-            color: highlight ? const Color(0xFF10B981) : Colors.white,
+            color: highlight ? AppColors.success : Colors.white,
             fontSize: 13,
             fontWeight: FontWeight.bold,
           ),
@@ -677,7 +677,7 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
             height: 56,
             decoration: const BoxDecoration(
               shape: BoxShape.circle,
-              color: Color(0xFF065F46),
+              color: AppColors.success,
             ),
             child: const Center(
               child: Icon(
@@ -711,9 +711,9 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFF18181B),
+              color: AppColors.bgPage,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFF27272A)),
+              border: Border.all(color: AppColors.bgSurface),
             ),
             child: Column(
               children: [
@@ -755,7 +755,7 @@ class AdvertiserAddMoneyDialog extends StatelessWidget {
                       '₹${newRemaining.toStringAsFixed(2)}',
                       style: const TextStyle(
                         fontFamily: TWTypography.brandFamily,
-                        color: Color(0xFF10B981),
+                        color: AppColors.success,
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),

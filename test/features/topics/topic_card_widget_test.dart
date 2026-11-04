@@ -37,7 +37,7 @@ void main() {
   );
 
   group('TopicCardWidget Tests', () {
-    testWidgets('TopicCardWidget renders topic title, video count, and follower count', (tester) async {
+    testWidgets('TopicCardWidget renders topic name, video count, and follower count', (tester) async {
       await tester.pumpWidget(
         GetMaterialApp(
           home: Scaffold(

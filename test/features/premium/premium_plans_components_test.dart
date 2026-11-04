@@ -220,7 +220,9 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.text('Truthworld Premium'), findsWidgets);
-      expect(find.text(r'Ad-Free Audio ($0.50), Video ($2) & Fact-Checked ($3)'), findsOneWidget);
+      expect(find.text(r'Ad-Free Audio ($0.50), Video ($2) & Fact-Checked ($3)'), findsNothing);
+      expect(find.text('Try 7 Days Free'), findsNothing);
+      expect(find.text('Choose the plan that fits for you'), findsOneWidget);
     });
 
     testWidgets('renders Choose the plan that fits for you before All-Inclusive Benefits', (tester) async {

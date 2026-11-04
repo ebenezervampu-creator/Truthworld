@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_dialogs.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_full_inspector_modal.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_full_inspector_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_models.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -31,21 +32,14 @@ class TruthVerificationVideoCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: isDarkMode ? AppColors.bgSurface : Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.appBarSurface,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: video.hasConcerns
-              ? AppColors.error.withValues(alpha: 0.5)
-              : (isDarkMode ? AppColors.bgDivider : const Color(0xFFE5E7EB)),
-          width: video.hasConcerns ? 1.5 : 1.0,
+              ? AppColors.error.withValues(alpha: 0.6)
+              : AppColors.bgSurface,
+          width: 1.0,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDarkMode ? 0.2 : 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -55,60 +49,66 @@ class TruthVerificationVideoCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  width: 90,
-                  height: 56,
-                  color: isDarkMode
-                      ? const Color(0xFF242424)
-                      : const Color(0xFFE5E7EB),
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: video.thumbnailUrl.isNotEmpty
-                            ? Image.network(
-                                video.thumbnailUrl,
-                                fit: BoxFit.cover,
-                                errorBuilder: (ctx, err, stack) => Icon(
+              InkWell(
+                onTap: () {
+                  TruthVerificationFullInspectorPage.open(
+                    context,
+                    videoItem: video,
+                    channelId: channelId,
+                    isDarkMode: isDarkMode,
+                    onToggleApproval: onToggleApproval,
+                  );
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    width: 90,
+                    height: 56,
+                    color: AppColors.bgInput,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: video.thumbnailUrl.isNotEmpty
+                              ? Image.network(
+                                  video.thumbnailUrl,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (ctx, err, stack) => const Icon(
+                                    Icons.video_library_rounded,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                )
+                              : const Icon(
                                   Icons.video_library_rounded,
-                                  color: isDarkMode
-                                      ? AppColors.textSecondary
-                                      : Colors.black54,
+                                  color: AppColors.textSecondary,
                                 ),
-                              )
-                            : Icon(
-                                Icons.video_library_rounded,
-                                color: isDarkMode
-                                    ? AppColors.textSecondary
-                                    : Colors.black54,
-                              ),
-                      ),
-                      Positioned(
-                        bottom: 4,
-                        right: 4,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                            vertical: 1,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black87,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            TruthVerificationParser.formatTimestamp(
-                              video.durationSeconds,
+                        ),
+                        Positioned(
+                          bottom: 4,
+                          right: 4,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 1,
                             ),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.bold,
+                            decoration: BoxDecoration(
+                              color: Colors.black87,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              TruthVerificationParser.formatTimestamp(
+                                video.durationSeconds,
+                              ),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -117,17 +117,29 @@ class TruthVerificationVideoCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      video.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: TWTypography.brandFamily,
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: isDarkMode
-                            ? AppColors.textPrimary
-                            : Colors.black87,
+                    InkWell(
+                      onTap: () {
+                        TruthVerificationFullInspectorPage.open(
+                          context,
+                          videoItem: video,
+                          channelId: channelId,
+                          isDarkMode: isDarkMode,
+                          onToggleApproval: onToggleApproval,
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(4),
+                      child: Text(
+                        video.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: TWTypography.brandFamily,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: isDarkMode
+                              ? AppColors.textPrimary
+                              : Colors.black87,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -167,27 +179,6 @@ class TruthVerificationVideoCard extends StatelessWidget {
                               ],
                             ),
                           ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isDarkMode
-                                ? AppColors.bgPage
-                                : const Color(0xFFF3F4F6),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            video.domain,
-                            style: TextStyle(
-                              fontSize: 10.5,
-                              color: isDarkMode
-                                  ? AppColors.textSecondary
-                                  : Colors.black54,
-                            ),
-                          ),
-                        ),
                       ],
                     ),
                   ],
@@ -203,55 +194,72 @@ class TruthVerificationVideoCard extends StatelessWidget {
             const SizedBox(height: 10),
           ],
 
-          // 3. Score Impact Simulator (if potential boost exists)
+          // 3. Evidence Resolution Banner (if unresolved concerns or missing sources exist)
           if (video.hasConcerns || video.needsSourceClaims.isNotEmpty) ...[
-            _buildScoreImpactSimulator(),
+            _buildEvidenceResolutionBanner(),
             const SizedBox(height: 10),
           ],
 
           // 4. Credibility & Evidence Metrics Bar (RESPONSIVE, ZERO OVERFLOW)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: isDarkMode ? AppColors.bgPage : const Color(0xFFF9FAFB),
-              borderRadius: BorderRadius.circular(10),
+              color: AppColors.bgInput,
+              borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: isDarkMode
-                    ? AppColors.bgDivider
-                    : const Color(0xFFE5E7EB),
+                color: AppColors.bgSurface,
               ),
             ),
             child: LayoutBuilder(
               builder: (ctx, constraints) {
-                final isNarrow = constraints.maxWidth < 450;
+                final isNarrow = constraints.maxWidth < 600;
                 final leftContent = Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      Icons.shield_outlined,
+                      video.hasConcerns
+                          ? Icons.warning_amber_rounded
+                          : (video.needsSourceClaims.isNotEmpty
+                              ? Icons.help_outline_rounded
+                              : (video.verifiedClaims.isNotEmpty
+                                  ? Icons.verified_outlined
+                                  : Icons.fact_check_outlined)),
                       size: 16,
-                      color: video.truthScore >= 0.8
-                          ? AppColors.success
-                          : (video.truthScore >= 0.5
+                      color: video.hasConcerns
+                          ? AppColors.error
+                          : (video.needsSourceClaims.isNotEmpty
                               ? AppColors.warning
-                              : AppColors.error),
+                              : (video.verifiedClaims.isNotEmpty
+                                  ? AppColors.success
+                                  : (isDarkMode
+                                      ? AppColors.textSecondary
+                                      : Colors.black54))),
                     ),
                     const SizedBox(width: 6),
-                    Text(
-                      video.claims.isEmpty
-                          ? 'Media Authenticity Verified'
-                          : 'Truth Score: ${video.truthScore > 0 ? "${(video.truthScore * 100).toInt()}%" : "N/A"}',
-                      style: TextStyle(
-                        fontFamily: TWTypography.uiFamily,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.bold,
-                        color: video.claims.isEmpty
-                            ? AppColors.info
-                            : (video.truthScore >= 0.8
-                                ? AppColors.success
-                                : (video.truthScore >= 0.5
-                                    ? AppColors.warning
-                                    : AppColors.error)),
+                    Flexible(
+                      child: Text(
+                        video.claims.isEmpty
+                            ? 'No Empirical Claims'
+                            : (video.hasConcerns
+                                ? '${video.highConcernClaims.length} Concern${video.highConcernClaims.length == 1 ? "" : "s"}'
+                                : (video.needsSourceClaims.isNotEmpty
+                                    ? '${video.needsSourceClaims.length} Need Source'
+                                    : '${video.verifiedClaims.length} Verified')),
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.bold,
+                          color: video.hasConcerns
+                              ? AppColors.error
+                              : (video.needsSourceClaims.isNotEmpty
+                                  ? AppColors.warning
+                                  : (video.verifiedClaims.isNotEmpty
+                                      ? AppColors.success
+                                      : (isDarkMode
+                                          ? AppColors.textSecondary
+                                          : Colors.black87))),
+                        ),
                       ),
                     ),
                   ],
@@ -259,7 +267,7 @@ class TruthVerificationVideoCard extends StatelessWidget {
 
                 final rightContent = Text(
                   video.claims.isEmpty
-                      ? 'No empirical assertions • Rhetorical inquiry'
+                      ? 'No empirical assertions evaluated'
                       : '${video.claims.length} Claims: ${video.verifiedClaims.length} verified, ${video.needsSourceClaims.length} need source, ${video.highConcernClaims.length} concern',
                   style: TextStyle(
                     fontFamily: TWTypography.uiFamily,
@@ -294,49 +302,13 @@ class TruthVerificationVideoCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
 
-          // 5. Card Action Buttons (Clean, Professional Wrap)
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            alignment: WrapAlignment.end,
-            crossAxisAlignment: WrapCrossAlignment.center,
+          // 5. Card Action Buttons (Inspect Full Report + More Vertical Button)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              OutlinedButton.icon(
-                onPressed: () =>
-                    TruthVerificationDialogs.showExportAuditDossierModal(
-                  context,
-                  video,
-                  channelId,
-                  isDarkMode: isDarkMode,
-                ),
-                icon: Icon(
-                  Icons.description_outlined,
-                  size: 14,
-                  color: isDarkMode ? Colors.white : Colors.black87,
-                ),
-                label: const Text('Export Dossier'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor:
-                      isDarkMode ? AppColors.textPrimary : Colors.black87,
-                  side: BorderSide(
-                    color: isDarkMode
-                        ? AppColors.bgDivider
-                        : const Color(0xFFD1D5DB),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  textStyle: const TextStyle(fontSize: 12),
-                ),
-              ),
-
               ElevatedButton.icon(
                 onPressed: () {
-                  TruthVerificationFullInspectorModal.open(
+                  TruthVerificationFullInspectorPage.open(
                     context,
                     videoItem: video,
                     channelId: channelId,
@@ -351,14 +323,12 @@ class TruthVerificationVideoCard extends StatelessWidget {
                 ),
                 label: const Text('Inspect Full Report'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isDarkMode
-                      ? AppColors.bgSurfaceHover
-                      : const Color(0xFF374151),
+                  backgroundColor: AppColors.bgSurface,
                   foregroundColor: Colors.white,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
+                    horizontal: 14,
+                    vertical: 9,
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -370,140 +340,212 @@ class TruthVerificationVideoCard extends StatelessWidget {
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
+              _buildMoreMenu(context),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
-              if (video.isPendingApproval)
-                ElevatedButton.icon(
-                  onPressed: () => onApprove(video.id),
-                  icon: const Icon(
-                    Icons.check_circle_outline_rounded,
-                    size: 15,
-                    color: Colors.white,
-                  ),
-                  label: const Text('Approve for Viewers'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.success,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    textStyle: const TextStyle(
-                      fontFamily: TWTypography.uiFamily,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                )
-              else
-                OutlinedButton.icon(
-                  onPressed: () => onToggleApproval(
-                    video.id,
-                    video.isFactCheckApproved,
-                  ),
-                  icon: Icon(
-                    video.isFactCheckApproved
-                        ? Icons.visibility_off_rounded
-                        : Icons.check_circle_outline_rounded,
-                    size: 14,
-                    color: isDarkMode
-                        ? AppColors.textSecondary
-                        : Colors.black54,
-                  ),
-                  label: Text(
-                    video.isFactCheckApproved
-                        ? 'Make Private'
-                        : 'Publish to Viewers',
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor:
-                        isDarkMode ? AppColors.textPrimary : Colors.black87,
-                    side: BorderSide(
-                      color: isDarkMode
-                          ? AppColors.bgDivider
-                          : const Color(0xFFD1D5DB),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    textStyle: const TextStyle(fontSize: 12),
-                  ),
-                ),
-
-              OutlinedButton.icon(
-                onPressed: () => TruthVerificationDialogs.showDisputeDialog(
-                  context,
-                  video,
-                  isDarkMode: isDarkMode,
-                  onConfirmDispute: (reason, url) async {
-                    AppSnackbar.success(
-                      'Dispute submitted to truth consensus review.',
-                    );
-                  },
-                ),
-                icon: const Icon(
-                  Icons.gavel_rounded,
-                  size: 14,
-                  color: AppColors.warning,
-                ),
-                label: const Text('Dispute'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.warning,
-                  side: const BorderSide(color: AppColors.warning),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  textStyle: const TextStyle(fontSize: 12),
-                ),
+  Widget _buildMoreMenu(BuildContext context) {
+    return PopupMenuButton<String>(
+      tooltip: 'More options',
+      constraints: const BoxConstraints(minWidth: 240, maxWidth: 320),
+      color: isDarkMode ? AppColors.bgSurface : Colors.white,
+      surfaceTintColor: Colors.transparent,
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: isDarkMode ? AppColors.bgDivider : AppColors.textPrimary,
+        ),
+      ),
+      icon: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: isDarkMode
+              ? AppColors.bgSurfaceHover
+              : AppColors.textPrimary,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isDarkMode ? AppColors.bgDivider : const Color(0xFFD1D5DB),
+          ),
+        ),
+        child: Icon(
+          Icons.more_vert_rounded,
+          size: 18,
+          color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+        ),
+      ),
+      onSelected: (val) async {
+        switch (val) {
+          case 'approve_public':
+            if (video.isFactCheckApproved) {
+              AppSnackbar.info(
+                'Fact-check verification is already visible to viewers.',
+              );
+            } else {
+              onApprove(video.id);
+            }
+          case 'make_private':
+            if (!video.isFactCheckApproved) {
+              AppSnackbar.info(
+                'Fact-check verification is already held private.',
+              );
+            } else {
+              onToggleApproval(video.id, true);
+            }
+          case 'talk_to_ai':
+            TruthVerificationDialogs.showTalkToAiDialog(
+              context,
+              video,
+              isDarkMode: isDarkMode,
+              onSubmit: (commentary, sources) async {
+                AppSnackbar.success(
+                  'Additional sources queued for AI evaluation.',
+                );
+              },
+            );
+          case 'dispute':
+            TruthVerificationDialogs.showDisputeDialog(
+              context,
+              video,
+              isDarkMode: isDarkMode,
+              onConfirmDispute: (reason, url) async {
+                AppSnackbar.success(
+                  'Dispute submitted to truth consensus review.',
+                );
+              },
+            );
+        }
+      },
+      itemBuilder: (ctx) => [
+        // Visibility Option: Approved (Visible to Viewers)
+        PopupMenuItem<String>(
+          value: 'approve_public',
+          child: Row(
+            children: [
+              Icon(
+                video.isFactCheckApproved
+                    ? Icons.check_circle_rounded
+                    : Icons.check_circle_outline_rounded,
+                size: 18,
+                color: AppColors.success,
               ),
-
-              ElevatedButton.icon(
-                onPressed: () => TruthVerificationDialogs.showTalkToAiDialog(
-                  context,
-                  video,
-                  isDarkMode: isDarkMode,
-                  onSubmit: (commentary, sources) async {
-                    AppSnackbar.success(
-                      'Additional sources queued for AI evaluation.',
-                    );
-                  },
-                ),
-                icon: const Icon(
-                  Icons.psychology_rounded,
-                  size: 15,
-                  color: Colors.black,
-                ),
-                label: const Text('Talk to AI (Add Sources)'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.brand,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  video.isFactCheckApproved
+                      ? 'Approved (Visible to Viewers)'
+                      : 'Approve (Visible to Viewers)',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontSize: 12.5,
+                    fontWeight: video.isFactCheckApproved
+                        ? FontWeight.bold
+                        : FontWeight.w500,
+                    color: isDarkMode ? AppColors.textPrimary : Colors.black87,
                   ),
                 ),
               ),
             ],
           ),
-        ],
-      ),
+        ),
+
+        // Visibility Option: Make Private
+        PopupMenuItem<String>(
+          value: 'make_private',
+          child: Row(
+            children: [
+              Icon(
+                !video.isFactCheckApproved
+                    ? Icons.visibility_off_rounded
+                    : Icons.visibility_off_outlined,
+                size: 18,
+                color: !video.isFactCheckApproved
+                    ? AppColors.warning
+                    : (isDarkMode ? AppColors.textSecondary : Colors.black54),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  !video.isFactCheckApproved
+                      ? 'Make Private (Held Private)'
+                      : 'Make Private',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontSize: 12.5,
+                    fontWeight: !video.isFactCheckApproved
+                        ? FontWeight.bold
+                        : FontWeight.w500,
+                    color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const PopupMenuDivider(),
+
+        // Talk to AI (Add Sources)
+        PopupMenuItem<String>(
+          value: 'talk_to_ai',
+          child: Row(
+            children: [
+              Icon(
+                Icons.psychology_rounded,
+                size: 18,
+                color: isDarkMode ? Colors.white : Colors.black87,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Talk to AI (Add Sources)',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Dispute
+        const PopupMenuItem<String>(
+          value: 'dispute',
+          child: Row(
+            children: [
+              Icon(
+                Icons.gavel_rounded,
+                size: 18,
+                color: AppColors.warning,
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Dispute',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.warning,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -596,7 +638,7 @@ class TruthVerificationVideoCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: isDarkMode ? AppColors.bgPage : const Color(0xFFF9FAFB),
+        color: isDarkMode ? AppColors.bgPage : AppColors.textPrimary,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -636,8 +678,8 @@ class TruthVerificationVideoCard extends StatelessWidget {
                     height: 5,
                     decoration: BoxDecoration(
                       color: isDarkMode
-                          ? const Color(0xFF333333)
-                          : const Color(0xFFE5E7EB),
+                          ? AppColors.bgDivider
+                          : AppColors.textPrimary,
                       borderRadius: BorderRadius.circular(3),
                     ),
                   ),
@@ -737,7 +779,9 @@ class TruthVerificationVideoCard extends StatelessWidget {
     );
   }
 
-  Widget _buildScoreImpactSimulator() {
+  Widget _buildEvidenceResolutionBanner() {
+    final pendingCount =
+        video.needsSourceClaims.length + video.highConcernClaims.length;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -750,18 +794,18 @@ class TruthVerificationVideoCard extends StatelessWidget {
       child: Row(
         children: [
           const Icon(
-            Icons.trending_up_rounded,
+            Icons.source_outlined,
             size: 16,
-            color: AppColors.success,
+            color: AppColors.info,
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Credibility Booster: Providing sources can boost Truth Score to ${(video.projectedTruthScore * 100).toInt()}% (+${video.boostPercentage}%)',
+              'Evidence Resolution: Providing sources resolves $pendingCount pending assertion${pendingCount == 1 ? '' : 's'} to complete verification.',
               style: const TextStyle(
                 fontSize: 11.5,
                 fontWeight: FontWeight.bold,
-                color: AppColors.success,
+                color: AppColors.info,
               ),
             ),
           ),

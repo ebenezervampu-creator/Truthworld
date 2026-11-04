@@ -2,7 +2,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/theme/app_colors.dart';
@@ -39,7 +38,7 @@ class AdOptionsMenuButton extends StatelessWidget {
         size: iconSize,
         color: Colors.white,
       ),
-      color: const Color(0xFF1E1E1E),
+      color: AppColors.bgSurface,
       onSelected: (value) {
         if (value == 'report') {
           AdService.to.showReportAdDialog(context, ad);
@@ -193,7 +192,7 @@ Widget buildAdvertiserLogoAvatar(AdItem ad, {double radius = 16}) {
           placeholder: (context, url) => Center(
             child: Text(
               ad.advertiser.isNotEmpty ? ad.advertiser[0].toUpperCase() : 'S',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
                 fontSize: radius * 0.8,
@@ -204,7 +203,7 @@ Widget buildAdvertiserLogoAvatar(AdItem ad, {double radius = 16}) {
             return Center(
               child: Text(
                 ad.advertiser.isNotEmpty ? ad.advertiser[0].toUpperCase() : 'S',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                   fontSize: radius * 0.8,
@@ -222,7 +221,7 @@ Widget buildAdvertiserLogoAvatar(AdItem ad, {double radius = 16}) {
     backgroundColor: const Color(0xFF333333),
     child: Text(
       ad.advertiser.isNotEmpty ? ad.advertiser[0].toUpperCase() : 'S',
-      style: GoogleFonts.roboto(
+      style: TextStyle(
         color: Colors.white,
         fontWeight: FontWeight.bold,
         fontSize: radius * 0.8,

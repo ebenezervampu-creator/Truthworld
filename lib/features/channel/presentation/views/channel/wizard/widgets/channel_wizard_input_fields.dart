@@ -51,6 +51,7 @@ class ChannelWizardInputField extends StatelessWidget {
   final String? Function(String?)? validator;
   final Widget? suffix;
   final ValueChanged<String>? onChanged;
+  final Color? borderColor;
 
   const ChannelWizardInputField({
     required this.controller,
@@ -62,6 +63,7 @@ class ChannelWizardInputField extends StatelessWidget {
     this.validator,
     this.suffix,
     this.onChanged,
+    this.borderColor,
     super.key,
   });
 
@@ -77,7 +79,7 @@ class ChannelWizardInputField extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF121212),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: borderColor ?? const Color(0xFF27272A)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: Column(

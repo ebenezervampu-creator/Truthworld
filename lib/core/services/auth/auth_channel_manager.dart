@@ -25,14 +25,34 @@ class AuthChannelManager {
   String? _subscribedUid;
   final Set<String> _fallbackResolvedUids = <String>{};
 
-  /// Loads locally cached channel existence flag synchronously.
+  /// Loads locally cached channel existence flag and channel data synchronously.
   void initCachedChannelStatus(String? currentUid) {
-    if (currentUid == null) return;
+    if (currentUid == null || currentUid.isEmpty) return;
     try {
       final box = GetStorage();
       final savedHasChannel = box.read('hasChannel_$currentUid') as bool?;
       if (savedHasChannel != null) {
         _hasChannel.value = savedHasChannel;
+      }
+      final savedChannelData = box.read('channel_data_$currentUid');
+      final savedChannelId = box.read('channel_id_$currentUid') as String?;
+      if (savedChannelData is Map &&
+          savedChannelId != null &&
+          savedChannelId.isNotEmpty) {
+        try {
+          final channelMap = Map<String, dynamic>.from(savedChannelData);
+          final ch = Channel.fromMap(channelMap, savedChannelId);
+          if (ch.status != ChannelStatus.deleted) {
+            _userChannel.value = ch;
+            _hasChannel.value = true;
+          }
+        } catch (parseErr, parseStack) {
+          ErrorHandler.log(
+            parseErr,
+            stackTrace: parseStack,
+            tag: 'AuthChannelManager.initCachedChannelStatus.parse',
+          );
+        }
       }
     } catch (e, s) {
       ErrorHandler.log(
@@ -53,10 +73,22 @@ class AuthChannelManager {
     } else if (channel != null && channel.status == ChannelStatus.deleted) {
       _deletedChannel.value = channel;
     }
-    if (uid != null) {
-      GetStorage().write('hasChannel_$uid', _hasChannel.value);
-      if (_hasChannel.value) {
+    if (uid != null && uid.isNotEmpty) {
+      final box = GetStorage();
+      box.write('hasChannel_$uid', _hasChannel.value);
+      if (_hasChannel.value && channel != null) {
         _fallbackResolvedUids.remove(uid);
+        box.write('channel_id_$uid', channel.id);
+        box.write('channel_avatar_$uid', channel.avatarUrl);
+        box.write('channel_name_$uid', channel.name);
+        box.write('channel_handle_$uid', channel.handle);
+        box.write('channel_data_$uid', channel.toCacheMap());
+      } else {
+        box.remove('channel_id_$uid');
+        box.remove('channel_avatar_$uid');
+        box.remove('channel_name_$uid');
+        box.remove('channel_handle_$uid');
+        box.remove('channel_data_$uid');
       }
     }
   }
@@ -72,15 +104,25 @@ class AuthChannelManager {
     _hasChannel.value = false;
     _deletedChannel.value = null;
     _fallbackResolvedUids.clear();
-    if (uid != null) {
-      GetStorage().write('hasChannel_$uid', false);
+    if (uid != null && uid.isNotEmpty) {
+      final box = GetStorage();
+      box.write('hasChannel_$uid', false);
+      box.remove('channel_id_$uid');
+      box.remove('channel_avatar_$uid');
+      box.remove('channel_name_$uid');
+      box.remove('channel_handle_$uid');
+      box.remove('channel_data_$uid');
     }
   }
 
   /// Asynchronously guarantees that the user's channel is resolved from Firestore.
   /// Checks ownerId, userId, userDoc channelId, and email fallback.
-  Future<Channel?> ensureChannelLoaded(User? user, FirebaseAuth auth) async {
-    if (_hasChannel.value && _userChannel.value != null) {
+  Future<Channel?> ensureChannelLoaded(
+    User? user,
+    FirebaseAuth auth, {
+    bool forceRefresh = false,
+  }) async {
+    if (!forceRefresh && _hasChannel.value && _userChannel.value != null) {
       return _userChannel.value;
     }
     var u = user;
@@ -93,6 +135,14 @@ class AuthChannelManager {
     }
     if (u == null || u.isAnonymous) return null;
 
+    // Check synchronous local cache first before firing remote Firestore query
+    if (_userChannel.value == null) {
+      initCachedChannelStatus(u.uid);
+      if (_hasChannel.value && _userChannel.value != null) {
+        return _userChannel.value;
+      }
+    }
+
     try {
       // 1. Direct check by ownerId
       var snap = await FirebaseFirestore.instance
@@ -100,7 +150,7 @@ class AuthChannelManager {
           .where('ownerId', isEqualTo: u.uid)
           .limit(1)
           .get()
-          .timeout(const Duration(seconds: 2));
+          .timeout(const Duration(seconds: 8));
 
       if (snap.docs.isEmpty) {
         // 2. Direct check by userId
@@ -109,7 +159,7 @@ class AuthChannelManager {
             .where('userId', isEqualTo: u.uid)
             .limit(1)
             .get()
-            .timeout(const Duration(seconds: 2));
+            .timeout(const Duration(seconds: 8));
       }
 
       if (snap.docs.isNotEmpty) {
@@ -136,14 +186,14 @@ class AuthChannelManager {
           .collection(FirestoreCollections.users)
           .doc(u.uid)
           .get()
-          .timeout(const Duration(seconds: 2));
+          .timeout(const Duration(seconds: 8));
       final chId = userDoc.data()?['channelId'] as String?;
       if (chId != null && chId.isNotEmpty) {
         final chDoc = await FirebaseFirestore.instance
             .collection(FirestoreCollections.channels)
             .doc(chId)
             .get()
-            .timeout(const Duration(seconds: 2));
+            .timeout(const Duration(seconds: 8));
         if (chDoc.exists && chDoc.data() != null) {
           final ch = Channel.fromDocumentSnapshot(chDoc);
           if (ch.status != ChannelStatus.deleted) {
@@ -162,7 +212,7 @@ class AuthChannelManager {
             .where('email', isEqualTo: u.email)
             .limit(1)
             .get()
-            .timeout(const Duration(seconds: 2));
+            .timeout(const Duration(seconds: 8));
         final emailChannels = emailSnap.docs
             .map(Channel.fromDocumentSnapshot)
             .where((c) => c.status != ChannelStatus.deleted)
@@ -216,10 +266,8 @@ class AuthChannelManager {
                 .toList();
 
             if (activeChannels.isNotEmpty) {
-              _hasChannel.value = true;
-              _userChannel.value = activeChannels.first;
-              _deletedChannel.value = null;
-              GetStorage().write('hasChannel_${user.uid}', true);
+              final ch = activeChannels.first;
+              setUserChannel(ch, user.uid);
               return;
             }
 
@@ -235,9 +283,10 @@ class AuthChannelManager {
             // High-scale optimization: The overwhelming majority of users are viewers with no channel.
             // Avoid firing 3 un-cached fallback queries on every subsequent stream snapshot or reconnect event.
             if (_fallbackResolvedUids.contains(user.uid)) {
-              _hasChannel.value = false;
-              _userChannel.value = null;
-              GetStorage().write('hasChannel_${user.uid}', false);
+              if (_userChannel.value == null) {
+                _hasChannel.value = false;
+                GetStorage().write('hasChannel_${user.uid}', false);
+              }
               return;
             }
             _fallbackResolvedUids.add(user.uid);
@@ -249,16 +298,14 @@ class AuthChannelManager {
                   .where('userId', isEqualTo: user.uid)
                   .limit(1)
                   .get()
-                  .timeout(const Duration(seconds: 3));
+                  .timeout(const Duration(seconds: 8));
               final userChannels = userSnap.docs
                   .map(Channel.fromDocumentSnapshot)
                   .where((c) => c.status != ChannelStatus.deleted)
                   .toList();
               if (userChannels.isNotEmpty) {
                 final ch = userChannels.first;
-                _hasChannel.value = true;
-                _userChannel.value = ch;
-                GetStorage().write('hasChannel_${user.uid}', true);
+                setUserChannel(ch, user.uid);
                 // Promote to ownerId so subsequent queries resolve via primary listener
                 FirebaseFirestore.instance
                     .collection(FirestoreCollections.channels)
@@ -280,20 +327,18 @@ class AuthChannelManager {
                   .collection(FirestoreCollections.users)
                   .doc(user.uid)
                   .get()
-                  .timeout(const Duration(seconds: 3));
+                  .timeout(const Duration(seconds: 8));
               final chId = userDoc.data()?['channelId'] as String?;
               if (chId != null && chId.isNotEmpty) {
                 final chDoc = await FirebaseFirestore.instance
                     .collection(FirestoreCollections.channels)
                     .doc(chId)
                     .get()
-                    .timeout(const Duration(seconds: 3));
+                    .timeout(const Duration(seconds: 8));
                 if (chDoc.exists && chDoc.data() != null) {
                   final ch = Channel.fromDocumentSnapshot(chDoc);
                   if (ch.status != ChannelStatus.deleted) {
-                    _hasChannel.value = true;
-                    _userChannel.value = ch;
-                    GetStorage().write('hasChannel_${user.uid}', true);
+                    setUserChannel(ch, user.uid);
                     FirebaseFirestore.instance
                         .collection(FirestoreCollections.channels)
                         .doc(ch.id)
@@ -318,16 +363,14 @@ class AuthChannelManager {
                     .where('email', isEqualTo: user.email)
                     .limit(1)
                     .get()
-                    .timeout(const Duration(seconds: 3));
+                    .timeout(const Duration(seconds: 8));
                 final emailChannels = emailSnap.docs
                     .map(Channel.fromDocumentSnapshot)
                     .where((c) => c.status != ChannelStatus.deleted)
                     .toList();
                 if (emailChannels.isNotEmpty) {
                   final ch = emailChannels.first;
-                  _hasChannel.value = true;
-                  _userChannel.value = ch;
-                  GetStorage().write('hasChannel_${user.uid}', true);
+                  setUserChannel(ch, user.uid);
                   // Update channel ownerId and userId to current active uid
                   try {
                     await FirebaseFirestore.instance
@@ -356,9 +399,10 @@ class AuthChannelManager {
               }
             }
 
-            _hasChannel.value = false;
-            _userChannel.value = null;
-            GetStorage().write('hasChannel_${user.uid}', false);
+            if (_userChannel.value == null) {
+              _hasChannel.value = false;
+              GetStorage().write('hasChannel_${user.uid}', false);
+            }
           },
           onError: (error, stackTrace) {
             ErrorHandler.log(

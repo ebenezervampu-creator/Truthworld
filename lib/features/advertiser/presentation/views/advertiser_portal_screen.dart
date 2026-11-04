@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
-import 'package:truthworld/features/advertiser/presentation/views/tabs/ab_testing_tab_view.dart';
 import 'package:truthworld/features/advertiser/presentation/views/tabs/advertiser_audio_dubs_tab.dart';
 import 'package:truthworld/features/advertiser/presentation/views/tabs/advertiser_campaigns_tab_view.dart';
 import 'package:truthworld/features/advertiser/presentation/views/tabs/advertiser_dashboard_tab_view.dart';
@@ -21,7 +20,6 @@ import 'package:truthworld/theme/app_theme.dart';
 
 // Re-exports for 100% backward compatibility
 export 'package:truthworld/features/advertiser/data/models/advertiser_chart_data.dart';
-export 'package:truthworld/features/advertiser/presentation/views/tabs/ab_testing_tab_view.dart';
 export 'package:truthworld/features/advertiser/presentation/views/tabs/advertiser_audio_dubs_tab.dart';
 export 'package:truthworld/features/advertiser/presentation/views/tabs/advertiser_campaigns_tab_view.dart';
 export 'package:truthworld/features/advertiser/presentation/views/tabs/advertiser_dashboard_tab_view.dart';
@@ -60,15 +58,15 @@ class AdvertiserPortalScreen extends StatelessWidget {
       final isDesktop = MediaQuery.of(context).size.width >= 900;
 
       return Scaffold(
-        backgroundColor: const Color(0xFF0F0F0F),
+        backgroundColor: AppColors.bgPage,
         appBar: isDesktop
             ? null
             : AppBar(
-                backgroundColor: const Color(0xFF0F0F0F),
+                backgroundColor: AppColors.bgPage,
                 elevation: 0,
                 bottom: const PreferredSize(
                   preferredSize: Size.fromHeight(1),
-                  child: Divider(color: Color(0xFF27272A), height: 1),
+                  child: Divider(color: AppColors.bgSurface, height: 1),
                 ),
                 leading: Builder(
                   builder: (context) => IconButton(
@@ -141,8 +139,6 @@ class AdvertiserPortalScreen extends StatelessWidget {
         case 8:
           return CreativeAssetsTabView(controller: controller);
         case 9:
-          return AbTestingTabView(controller: controller);
-        case 10:
           return BrandSettingsTabView(controller: controller);
         default:
           return AdvertiserDashboardTabView(controller: controller);
@@ -170,11 +166,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
       return Container(
         decoration: const BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.fromBorderSide(BorderSide(color: Color(0xFF27272A))),
+          border: Border.fromBorderSide(BorderSide(color: AppColors.bgSurface)),
         ),
         child: CircleAvatar(
           radius: radius,
-          backgroundColor: const Color(0xFF18181B),
+          backgroundColor: AppColors.bgPage,
           child: ClipOval(
             child: hasImage
                 ? CachedNetworkImage(

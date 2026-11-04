@@ -156,17 +156,15 @@ class AuthGoogleSignInProvider {
       }
 
       try {
-        // Prime App Check token in memory prior to initiating popup flow.
-        // This guarantees that Firebase Auth JS SDK has an active token ready to append
-        // to the popup handler URL (#fac=<token>), preventing 401s on createAuthUri.
+        // App Check is already primed on startup; trigger background refresh without blocking
+        // the user gesture to prevent browser popup blockers from intercepting the window.open.
         if (kIsWeb && Firebase.apps.isNotEmpty) {
-          try {
-            await FirebaseAppCheck.instance
-                .getToken()
-                .timeout(const Duration(seconds: 3));
-          } catch (e) {
-            debugPrint('AuthGoogleSignInProvider: App Check token prime notice: $e');
-          }
+          unawaited(
+            FirebaseAppCheck.instance.getToken().catchError((e) {
+              debugPrint('AuthGoogleSignInProvider: App Check token prime notice: $e');
+              return null;
+            }),
+          );
         }
 
         debugPrint(
@@ -174,8 +172,9 @@ class AuthGoogleSignInProvider {
         );
         return await auth.signInWithPopup(provider);
       } on FirebaseAuthException catch (e) {
-        if (e.code == 'popup-closed-by-user' ||
-            e.code == 'cancelled-popup-request') {
+        final code = e.code.toLowerCase();
+        if (code == 'popup-closed-by-user' ||
+            code == 'cancelled-popup-request') {
           debugPrint('AuthGoogleSignInProvider: User closed Google Sign-In popup.');
           throw const GoogleSignInException(
             message: 'Sign-in was cancelled.',
@@ -184,9 +183,11 @@ class AuthGoogleSignInProvider {
           );
         }
 
-        // Fall back to redirect only if popup was blocked or window opener was restricted
-        if (e.code == 'popup-blocked' ||
-            e.code == 'operation-not-supported-in-this-environment') {
+        // Fall back to redirect if popup was blocked, window opener was restricted, or popup is unsupported
+        if (code.contains('popup-blocked') ||
+            code.contains('not-supported') ||
+            code.contains('disallowed-useragent') ||
+            code.contains('restricted')) {
           debugPrint(
             'AuthGoogleSignInProvider: Popup unavailable (${e.code}). Falling back to signInWithRedirect.',
           );
@@ -235,6 +236,15 @@ class AuthGoogleSignInProvider {
     final credential = GoogleAuthProvider.credential(
       idToken: idToken,
     );
+
+    // Prime App Check token in memory prior to exchanging credential with Identity Platform
+    if (Firebase.apps.isNotEmpty) {
+      try {
+        await FirebaseAppCheck.instance
+            .getToken()
+            .timeout(const Duration(seconds: 4));
+      } catch (_) {}
+    }
 
     final userCredential = await auth.signInWithCredential(credential);
 

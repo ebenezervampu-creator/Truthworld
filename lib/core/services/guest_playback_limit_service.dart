@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:http/http.dart' as http;
-import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
@@ -437,7 +436,7 @@ class GuestSignInPromptSheet extends StatelessWidget {
                 ),
                 onPressed: () {
                   Navigator.of(context).pop();
-                  AuthBottomSheet.show(Get.context);
+                  AuthService.to.triggerPlatformSignIn();
                 },
                 child: const Text(
                   'Sign In to Continue',

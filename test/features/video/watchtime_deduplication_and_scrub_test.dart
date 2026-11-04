@@ -65,6 +65,7 @@ class TestMainController extends MainController {
     String trafficSource = 'direct',
     String? viewerHash,
     String? dedupKey,
+    String? sessionId,
   }) async {
     trackedEvents.add({
       'videoId': videoId,
@@ -77,6 +78,7 @@ class TestMainController extends MainController {
       'trafficSource': trafficSource,
       'viewerHash': viewerHash,
       'dedupKey': dedupKey,
+      'sessionId': sessionId,
     });
     return true;
   }

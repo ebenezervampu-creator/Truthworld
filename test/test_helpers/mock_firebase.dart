@@ -54,7 +54,11 @@ class MockFirebaseAppWithStorage implements TestFirebaseCoreHostApi {
         messagingSenderId: '123',
         storageBucket: 'truthworld.appspot.com',
       ),
-      pluginConstants: const {},
+      pluginConstants: const {
+        'plugins.flutter.io/firebase_crashlytics': {
+          'isCrashlyticsCollectionEnabled': false,
+        },
+      },
     );
   }
 
@@ -70,7 +74,11 @@ class MockFirebaseAppWithStorage implements TestFirebaseCoreHostApi {
           messagingSenderId: '123',
           storageBucket: 'truthworld.appspot.com',
         ),
-        pluginConstants: const {},
+        pluginConstants: const {
+          'plugins.flutter.io/firebase_crashlytics': {
+            'isCrashlyticsCollectionEnabled': false,
+          },
+        },
       ),
     ];
   }

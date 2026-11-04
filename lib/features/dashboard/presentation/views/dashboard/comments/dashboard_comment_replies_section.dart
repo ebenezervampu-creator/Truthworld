@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_comments_controller.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
@@ -211,7 +212,7 @@ class DashboardCommentRepliesWidget extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: AppColors.bgSurface,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: AppColors.bgDivider,
@@ -285,8 +286,8 @@ class DashboardCommentRepliesWidget extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  reply.text,
+                ClickableUrlText(
+                  text: reply.text,
                   style: const TextStyle(
                     fontFamily: TWTypography.uiFamily,
                     fontFamilyFallback: TWTypography.fallbackFamilies,

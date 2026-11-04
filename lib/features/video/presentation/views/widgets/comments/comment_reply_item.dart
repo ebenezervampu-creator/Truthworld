@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/widgets/channel_verified_badge.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/features/channel/data/models/channel_loyalty_badge.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
@@ -34,6 +36,7 @@ class CommentReplyItem extends StatelessWidget {
     final isReplyDisliked = commentsController.isReplyDislikedByUser(reply.id);
     final isCreator = reply.channelId.isNotEmpty &&
         reply.channelId == videoChannelId;
+    final canNavigate = reply.isChannelAuthor || isCreator;
     final authorDisplayName = reply.displayName;
 
     return IntrinsicHeight(
@@ -71,9 +74,16 @@ class CommentReplyItem extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   GestureDetector(
-                    onTap: () => CommentActionHandler.navigateToChannel(reply.channelId),
+                    onTap: canNavigate
+                        ? () => CommentActionHandler.navigateToChannel(
+                              reply.channelId,
+                              channelHandle: reply.displayName,
+                            )
+                        : null,
                     child: MouseRegion(
-                      cursor: SystemMouseCursors.click,
+                      cursor: canNavigate
+                          ? SystemMouseCursors.click
+                          : SystemMouseCursors.basic,
                       child: UserAvatar(
                         radius: 12,
                         photoUrl: reply.avatarUrl,
@@ -89,9 +99,16 @@ class CommentReplyItem extends StatelessWidget {
                         Row(
                           children: [
                             GestureDetector(
-                              onTap: () => CommentActionHandler.navigateToChannel(reply.channelId),
+                              onTap: canNavigate
+                                  ? () => CommentActionHandler.navigateToChannel(
+                                        reply.channelId,
+                                        channelHandle: reply.displayName,
+                                      )
+                                  : null,
                               child: MouseRegion(
-                                cursor: SystemMouseCursors.click,
+                                cursor: canNavigate
+                                    ? SystemMouseCursors.click
+                                    : SystemMouseCursors.basic,
                                 child: isCreator
                                     ? Container(
                                         padding: const EdgeInsets.symmetric(
@@ -114,11 +131,7 @@ class CommentReplyItem extends StatelessWidget {
                                               ),
                                             ),
                                             const SizedBox(width: 3),
-                                            const Icon(
-                                              Icons.check,
-                                              size: 11,
-                                              color: Colors.white70,
-                                            ),
+                                            const ChannelVerifiedBadge(size: 11),
                                           ],
                                         ),
                                       )
@@ -157,8 +170,8 @@ class CommentReplyItem extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 2),
-                        Text(
-                          reply.text,
+                        ClickableUrlText(
+                          text: reply.text,
                           style: const TextStyle(
                             fontSize: 13,
                             height: 1.3,

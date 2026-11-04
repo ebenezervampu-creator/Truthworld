@@ -26,201 +26,95 @@ class ExploreTopicsFeaturedSection extends StatelessWidget {
     final controller = Get.find<ExploreTopicsController>();
 
     return Obx(() {
-      final available = controller.availableCategories;
-      final featuredList = available.isNotEmpty
-          ? available.take(3).toList()
-          : TopicCategoriesConfig.categories
-              .where((c) => c.id != 'all')
-              .take(3)
-              .toList();
+      final featuredList = controller.filteredFeaturedCategories;
 
       return LayoutBuilder(
-      builder: (context, constraints) {
-        final isNarrow = isMobile || constraints.maxWidth < 720;
+        builder: (context, constraints) {
+          final isNarrow = isMobile || constraints.maxWidth < 720;
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Section Header
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: isNarrow
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Featured Topics',
-                          style: TextStyle(
-                            fontSize: isDesktop ? 22 : (isTablet ? 20 : 18),
-                            fontWeight: FontWeight.bold,
-                            color: primaryText,
-                            letterSpacing: -0.2,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Popular topics you may like',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: secondaryText,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        // Filter Mode Pills: Discover, Trending, Newest, Popular
-                        _buildFilterPills(controller, isNarrow: true),
-                      ],
-                    )
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Featured Topics',
-                                style: TextStyle(
-                                  fontSize:
-                                      isDesktop ? 22 : (isTablet ? 20 : 18),
-                                  fontWeight: FontWeight.bold,
-                                  color: primaryText,
-                                  letterSpacing: -0.2,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              const Text(
-                                'Popular topics you may like',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: secondaryText,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        // Filter Mode Pills: Discover, Trending, Newest, Popular
-                        Flexible(
-                          child: _buildFilterPills(controller),
-                        ),
-                      ],
-                    ),
-            ),
-
-            // Featured Cards Responsive Layout
-            if (isNarrow)
-              SizedBox(
-                height: 190,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  itemCount: featuredList.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 12),
-                  itemBuilder: (context, index) {
-                    return SizedBox(
-                      width: 280,
-                      child: _FeaturedTopicCard(
-                        category: featuredList[index],
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          controller.selectCategory(featuredList[index].title);
-                        },
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Section Header with necessary icon (subtitle text and tabs removed)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                    );
-                  },
-                ),
-              )
-            else
-              Row(
-                children: [
-                  for (var i = 0; i < featuredList.length; i++) ...[
-                    if (i > 0) const SizedBox(width: 16),
+                      child: const Icon(
+                        Icons.stars_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
                     Expanded(
-                      child: AspectRatio(
-                        aspectRatio: isDesktop ? 1.45 : 1.35,
-                        child: _FeaturedTopicCard(
-                          category: featuredList[i],
-                          onTap: () {
-                            HapticFeedback.lightImpact();
-                            controller.selectCategory(featuredList[i].title);
-                          },
+                      child: Text(
+                        'Featured Topics',
+                        style: TextStyle(
+                          fontSize: isDesktop ? 22 : (isTablet ? 20 : 18),
+                          fontWeight: FontWeight.bold,
+                          color: primaryText,
+                          letterSpacing: -0.2,
                         ),
                       ),
                     ),
                   ],
-                ],
-              ),
-          ],
-        );
-      },
-    );
-    });
-  }
-
-  Widget _buildFilterPills(
-    ExploreTopicsController controller, {
-    bool isNarrow = false,
-  }) {
-    final modes = [
-      (ExploreMode.discover, 'Discover'),
-      (ExploreMode.trending, 'Trending'),
-      (ExploreMode.newest, 'Newest'),
-      (ExploreMode.popular, 'Popular'),
-    ];
-
-    return Obx(() {
-      final currentMode = controller.exploreMode.value;
-
-      return SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: modes.map((entry) {
-            final mode = entry.$1;
-            final label = entry.$2;
-            final isSelected = currentMode == mode;
-
-            return Padding(
-              padding: EdgeInsets.only(
-                right: isNarrow ? 8 : 0,
-                left: isNarrow ? 0 : 8,
-              ),
-              child: InkWell(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  controller.setExploreMode(mode);
-                },
-                borderRadius: BorderRadius.circular(20),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected ? Colors.white : buttonBg,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isSelected
-                          ? Colors.white
-                          : AppColors.textPrimary.withValues(alpha: 0.08),
-                    ),
-                  ),
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.w500,
-                      color: isSelected ? Colors.black : secondaryText,
-                    ),
-                  ),
                 ),
               ),
-            );
-          }).toList(),
-        ),
+
+              // Featured Cards Responsive Layout
+              if (isNarrow)
+                SizedBox(
+                  height: 190,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    itemCount: featuredList.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 12),
+                    itemBuilder: (context, index) {
+                      return SizedBox(
+                        width: 280,
+                        child: _FeaturedTopicCard(
+                          category: featuredList[index],
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            controller.selectCategory(featuredList[index].title);
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                )
+              else
+                Row(
+                  children: [
+                    for (var i = 0; i < featuredList.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 16),
+                      Expanded(
+                        child: AspectRatio(
+                          aspectRatio: isDesktop ? 1.45 : 1.35,
+                          child: _FeaturedTopicCard(
+                            category: featuredList[i],
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              controller.selectCategory(featuredList[i].title);
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+            ],
+          );
+        },
       );
     });
   }

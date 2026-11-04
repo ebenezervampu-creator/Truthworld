@@ -1,4 +1,4 @@
-import type { ResponseSchema } from "@google-cloud/vertexai";
+import { Type } from "@google/genai";
 
 export const COMMUNITY_GUIDELINES_TEXT = `Review the provided content details for violations of the Truthworld Community Guidelines and Standards.
 
@@ -11,15 +11,15 @@ COMMUNITY GUIDELINES & STANDARDS:
 6. No offensive language or profanity.
 7. Content must not be misleading or make false claims.`;
 
-export const MODERATION_RESPONSE_SCHEMA: ResponseSchema = {
-  type: "OBJECT" as any,
+export const MODERATION_RESPONSE_SCHEMA = {
+  type: Type.OBJECT,
   properties: {
     approved: {
-      type: "BOOLEAN" as any,
+      type: Type.BOOLEAN,
       description: "True if content passes all community guidelines, false otherwise.",
     },
     reason: {
-      type: "STRING" as any,
+      type: Type.STRING,
       description: "Explanation of the moderation decision. If rejected, specify which guideline was violated.",
     },
   },

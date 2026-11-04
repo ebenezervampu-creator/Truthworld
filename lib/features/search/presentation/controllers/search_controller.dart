@@ -8,6 +8,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/ai/models/ai_search_intent.dart';
 import 'package:truthworld/core/services/algorithm/user_signal_tracker.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/user_languages_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/domain/usecases/search/search_videos_usecase.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart';
@@ -137,6 +138,19 @@ class SearchController extends BaseController {
         time: debounceDelay,
       ),
     );
+
+    if (Get.isRegistered<UserLanguagesService>()) {
+      addWorker(
+        ever(UserLanguagesService.to.primaryLanguage, (_) {
+          _searchService.clearCache();
+          if (searchQuery.value.trim().isNotEmpty) {
+            _executeSearch(searchQuery.value.trim());
+          } else {
+            fetchRecommendedForFilter(selectedFilter.value);
+          }
+        }),
+      );
+    }
   }
 
   void _onQueryDebounced(String query) {
@@ -261,11 +275,17 @@ class SearchController extends BaseController {
       results: _allResults,
       filter: selectedFilter.value,
       watchedVideoIds: watchedVideoIds,
+      userPrimaryLanguage: Get.isRegistered<UserLanguagesService>()
+          ? UserLanguagesService.to.primaryLanguage.value
+          : 'English',
     );
   }
 
   void setFilter(String filter) {
     selectedFilter.value = filter;
+    if (scrollController.hasClients) {
+      scrollController.jumpTo(0);
+    }
     if (searchQuery.value.trim().isNotEmpty) {
       currentPage.value = 0;
       _loadPage(0);
@@ -425,6 +445,9 @@ class SearchController extends BaseController {
     if (broadenedResults.isNotEmpty) {
       isBroadenedView.value = true;
       _allResults = List<SearchResult>.from(broadenedResults);
+      if (scrollController.hasClients) {
+        scrollController.jumpTo(0);
+      }
       _loadPage(0);
     }
   }
@@ -459,6 +482,7 @@ class SearchController extends BaseController {
   }
 
   void clearSearch() {
+    textEditingController.clear();
     _clearResults();
     searchQuery.value = '';
     richSuggestions.clear();

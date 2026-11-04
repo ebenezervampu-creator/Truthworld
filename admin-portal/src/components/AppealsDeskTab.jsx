@@ -3,12 +3,18 @@ import {
   collection, 
   query, 
   where, 
-  orderBy, 
   limit, 
   onSnapshot 
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "../firebase";
+
+// Helper to strictly validate safe web URLs and prevent XSS (javascript: / data: schemes)
+const isSafeWebUrl = (url) => {
+  if (!url || typeof url !== "string") return false;
+  const trimmed = url.trim().toLowerCase();
+  return trimmed.startsWith("https://") || trimmed.startsWith("http://");
+};
 
 export default function AppealsDeskTab({ user, formatDate }) {
   const [appeals, setAppeals] = useState([]);
@@ -421,9 +427,15 @@ export default function AppealsDeskTab({ user, formatDate }) {
                   <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "12px" }}>
                     {selectedAppeal.evidenceUrls.map((url, idx) => (
                       <li key={idx} style={{ marginBottom: "4px" }}>
-                        <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", textDecoration: "underline", wordBreak: "break-all" }}>
-                          {url}
-                        </a>
+                        {isSafeWebUrl(url) ? (
+                          <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", textDecoration: "underline", wordBreak: "break-all" }}>
+                            {url}
+                          </a>
+                        ) : (
+                          <span style={{ color: "#ef4444", wordBreak: "break-all" }}>
+                            [Blocked Insecure Citation URI]: {String(url).replace(/[<>"'`]/g, "")}
+                          </span>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -541,8 +553,14 @@ export default function AppealsDeskTab({ user, formatDate }) {
               </div>
             )}
 
-            {/* Adjudication Form (only visible if unresolved and not conflicted/already reviewed) */}
-            {!isResolved && !hasConflictOfInterest && !hasAlreadyReviewed && (
+            {isEscalated && (
+              <div style={{ background: "rgba(168, 85, 247, 0.1)", border: "1px solid rgba(168, 85, 247, 0.3)", borderRadius: "8px", padding: "12px 16px", marginBottom: "20px", color: "#c084fc", fontSize: "13px" }}>
+                <strong>🏛️ Escalated to Board:</strong> Ombudsman reviewers diverged on this case. It is currently before the IFCN Editorial Board for full panel consensus.
+              </div>
+            )}
+
+            {/* Adjudication Form (only visible if unresolved, unescalated, and not conflicted/already reviewed) */}
+            {!isResolved && !isEscalated && !hasConflictOfInterest && !hasAlreadyReviewed && (
               <form onSubmit={handleSubmitDecision} style={{ background: "rgba(255, 255, 255, 0.02)", border: "1px solid var(--border)", borderRadius: "10px", padding: "18px", marginBottom: "24px" }}>
                 <h4 style={{ color: "#fff", fontSize: "15px", margin: "0 0 14px", display: "flex", alignItems: "center", gap: "6px" }}>
                   <span>✍️</span> Submit Ombudsman Adjudication

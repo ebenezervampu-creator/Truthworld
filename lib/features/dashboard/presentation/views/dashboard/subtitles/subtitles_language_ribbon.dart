@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/pages/add_subtitle_track_page.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/dialogs/add_subtitles_options_sheet.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class SubtitlesLanguageRibbon extends StatelessWidget {
@@ -31,13 +31,13 @@ class SubtitlesLanguageRibbon extends StatelessWidget {
       height: 52,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: AppColors.bgSurface,
         border: Border(bottom: BorderSide(color: borderColor)),
       ),
       child: Row(
         children: [
           Text(
-            'Tracks:',
+            'Subtitles:',
             style: AppTextStyles.labelMedium.copyWith(
               fontSize: 13,
               fontWeight: FontWeight.bold,
@@ -51,7 +51,7 @@ class SubtitlesLanguageRibbon extends StatelessWidget {
                 scrollDirection: Axis.horizontal,
                 itemCount: controller.availableLanguages.length + 1,
                 itemBuilder: (context, index) {
-                  // Last item is "+ Add Track" button
+                  // Last item is "+ Add Subtitles" button
                   if (index == controller.availableLanguages.length) {
                     return Padding(
                       padding: const EdgeInsets.only(
@@ -66,7 +66,7 @@ class SubtitlesLanguageRibbon extends StatelessWidget {
                           color: Colors.white,
                         ),
                         label: Text(
-                          'Add Track',
+                          'Add Subtitles',
                           style: AppTextStyles.labelMedium.copyWith(
                             color: Colors.white,
                             fontSize: 12,
@@ -80,10 +80,11 @@ class SubtitlesLanguageRibbon extends StatelessWidget {
                             color: AppColors.brand.withValues(alpha: 0.3),
                           ),
                         ),
-                        onPressed: () => Get.to(() => AddSubtitleTrackPage(
-                              controller: controller,
-                              isDarkMode: isDarkMode,
-                            )),
+                        onPressed: () => showAddSubtitlesOptionsSheet(
+                          context: context,
+                          controller: controller,
+                          isDarkMode: isDarkMode,
+                        ),
                       ),
                     );
                   }

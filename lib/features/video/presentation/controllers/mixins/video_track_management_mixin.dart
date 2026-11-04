@@ -7,7 +7,9 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/user_languages_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
+import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -25,6 +27,7 @@ mixin VideoTrackManagementMixin on GetxController {
   Video get video;
   RxList<VideoResolutionV2> get availableResolutions;
   Rx<VideoResolutionV2?> get currentResolution;
+  RxSet<String> get blacklistedStreamUrls;
   RxBool get isAudioOnly;
   RxBool get isSwitchingResolution;
   RxBool get isAutoSwitching;
@@ -33,6 +36,8 @@ mixin VideoTrackManagementMixin on GetxController {
   RxBool get isPlayerInitialized;
   RxList<SubtitleTrack> get availableSubtitles;
   RxList<AudioTrack> get availableAudioTracks;
+  RxList<VideoTrack> get availableVideoTracks;
+  Rx<VideoTrack?> get activeVideoTrack;
   VideoTranscriptController get transcriptController;
   VideoEngagementController get engagementController;
   Duration? get initialSeekPosition;
@@ -87,7 +92,9 @@ mixin VideoTrackManagementMixin on GetxController {
               final directDownloadUrl = variantData['downloadUrl'] as String?;
               final outputPath = variantData['outputPath'] as String?;
 
-              if (directDownloadUrl != null && directDownloadUrl.isNotEmpty) {
+              if (directDownloadUrl != null &&
+                  directDownloadUrl.isNotEmpty &&
+                  !blacklistedStreamUrls.contains(directDownloadUrl)) {
                 foundVariants.add(
                   VideoResolutionV2(
                     label: label.toString(),
@@ -113,6 +120,7 @@ mixin VideoTrackManagementMixin on GetxController {
                           .ref(outputPath)
                           .getDownloadURL();
                     }
+                    if (blacklistedStreamUrls.contains(url)) return null;
                     return VideoResolutionV2(
                       label: label.toString(),
                       url: url,
@@ -150,29 +158,26 @@ mixin VideoTrackManagementMixin on GetxController {
 
             final baseMediaUrl = video.originalUrl.isNotEmpty &&
                     !video.originalUrl.contains('.m3u8') &&
-                    !video.originalUrl.contains('.mpd')
+                    !video.originalUrl.contains('.mpd') &&
+                    !blacklistedStreamUrls.contains(video.originalUrl)
                 ? video.originalUrl
                 : (video.videoUrl.isNotEmpty &&
                         !video.videoUrl.contains('.m3u8') &&
-                        !video.videoUrl.contains('.mpd')
+                        !video.videoUrl.contains('.mpd') &&
+                        !blacklistedStreamUrls.contains(video.videoUrl)
                     ? video.videoUrl
-                    : lowestFoundUrl);
+                    : (!blacklistedStreamUrls.contains(lowestFoundUrl)
+                        ? lowestFoundUrl
+                        : (video.originalUrl.isNotEmpty
+                            ? video.originalUrl
+                            : video.videoUrl)));
 
-            // Merge with existing adaptiveResolutions from video model if present
-            final combinedVariants = <VideoResolutionV2>[...foundVariants];
-            for (final modelRes in video.adaptiveResolutions) {
-              if (modelRes.url.trim().isNotEmpty &&
-                  !combinedVariants.any((r) =>
-                      r.label.toLowerCase() == modelRes.label.toLowerCase() ||
-                      (r.height == modelRes.height && r.fps == modelRes.fps))) {
-                combinedVariants.add(modelRes);
-              }
-            }
-
+            // The completed variants from resolution_jobs define the authentic resolution ladder.
+            // Never merge higher unverified or synthetic tiers that inflate native resolution.
             final completeLadder = VideoResolutionV2.ensureCompleteLadder(
-              combinedVariants,
+              foundVariants,
               fallbackUrl: baseMediaUrl,
-            );
+            ).where((r) => !blacklistedStreamUrls.contains(r.url)).toList();
             availableResolutions.assignAll(completeLadder);
 
             // Update ABR ladder with complete variants
@@ -201,27 +206,29 @@ mixin VideoTrackManagementMixin on GetxController {
         debugPrint('[VideoController] ℹ️ No resolution job found for $docId');
       }
 
-      // FALLBACK 1: If no resolutions from resolution_jobs, check video.adaptiveResolutions
+      // FALLBACK 1: If no resolutions from resolution_jobs, check video.adaptiveResolutions (non-synthetic only)
       if (availableResolutions.isEmpty &&
           video.adaptiveResolutions.isNotEmpty) {
         final modelResolutions = video.adaptiveResolutions
-            .where((r) => r.url.trim().isNotEmpty)
+            .where((r) => r.url.trim().isNotEmpty && !r.isSynthetic && !blacklistedStreamUrls.contains(r.url))
             .toList();
         if (modelResolutions.isNotEmpty) {
           final baseMediaUrl = video.originalUrl.isNotEmpty &&
                   !video.originalUrl.contains('.m3u8') &&
-                  !video.originalUrl.contains('.mpd')
+                  !video.originalUrl.contains('.mpd') &&
+                  !blacklistedStreamUrls.contains(video.originalUrl)
               ? video.originalUrl
               : (video.videoUrl.isNotEmpty &&
                       !video.videoUrl.contains('.m3u8') &&
-                      !video.videoUrl.contains('.mpd')
+                      !video.videoUrl.contains('.mpd') &&
+                      !blacklistedStreamUrls.contains(video.videoUrl)
                   ? video.videoUrl
                   : (modelResolutions.isNotEmpty ? modelResolutions.last.url : ''));
 
           final completeLadder = VideoResolutionV2.ensureCompleteLadder(
             modelResolutions,
             fallbackUrl: baseMediaUrl,
-          );
+          ).where((r) => !blacklistedStreamUrls.contains(r.url)).toList();
           availableResolutions.assignAll(completeLadder);
 
           final abr = _resolveAbr();
@@ -243,20 +250,22 @@ mixin VideoTrackManagementMixin on GetxController {
         }
       }
 
-      // FALLBACK 2: If still empty, fallback to HLS / Original & standard ladder
+      // FALLBACK 2: If still empty, fallback to HLS / Original (never fabricate fake resolutions)
       if (availableResolutions.isEmpty) {
         debugPrint('[VideoController] 💡 Using model fallback for resolutions');
         final baseMediaUrl = video.originalUrl.isNotEmpty &&
                 !video.originalUrl.contains('.m3u8') &&
-                !video.originalUrl.contains('.mpd')
+                !video.originalUrl.contains('.mpd') &&
+                !blacklistedStreamUrls.contains(video.originalUrl)
             ? video.originalUrl
             : (video.videoUrl.isNotEmpty &&
                     !video.videoUrl.contains('.m3u8') &&
-                    !video.videoUrl.contains('.mpd')
+                    !video.videoUrl.contains('.mpd') &&
+                    !blacklistedStreamUrls.contains(video.videoUrl)
                 ? video.videoUrl
                 : '');
 
-        if (video.hlsUrl.isNotEmpty) {
+        if (video.hlsUrl.isNotEmpty && !blacklistedStreamUrls.contains(video.hlsUrl)) {
           availableResolutions.add(
             VideoResolutionV2(
               label: 'Auto',
@@ -269,51 +278,21 @@ mixin VideoTrackManagementMixin on GetxController {
         }
 
         if (baseMediaUrl.isNotEmpty) {
-          availableResolutions.addAll([
+          final nativeH = videoPlayerController?.value.isInitialized == true
+              ? videoPlayerController!.value.size.height.toInt()
+              : 0;
+          final fallbackLabel = nativeH > 0 ? '${nativeH}p' : 'Original';
+          availableResolutions.add(
             VideoResolutionV2(
-              label: '1080p',
+              label: fallbackLabel,
               url: baseMediaUrl,
-              width: 1920,
-              height: 1080,
-              bitrate: 4500000,
+              width: 0,
+              height: nativeH,
+              bitrate: 0,
             ),
-            VideoResolutionV2(
-              label: '720p',
-              url: baseMediaUrl,
-              width: 1280,
-              height: 720,
-              bitrate: 2500000,
-            ),
-            VideoResolutionV2(
-              label: '480p',
-              url: baseMediaUrl,
-              width: 854,
-              height: 480,
-              bitrate: 1200000,
-            ),
-            VideoResolutionV2(
-              label: '360p',
-              url: baseMediaUrl,
-              width: 640,
-              height: 360,
-              bitrate: 800000,
-            ),
-            VideoResolutionV2(
-              label: '240p',
-              url: baseMediaUrl,
-              width: 426,
-              height: 240,
-              bitrate: 400000,
-            ),
-            VideoResolutionV2(
-              label: '144p',
-              url: baseMediaUrl,
-              width: 256,
-              height: 144,
-              bitrate: 200000,
-            ),
-          ]);
+          );
         } else if (video.originalUrl.isNotEmpty &&
+            !blacklistedStreamUrls.contains(video.originalUrl) &&
             !availableResolutions.any((r) => r.label == 'Original')) {
           availableResolutions.add(
             VideoResolutionV2(
@@ -333,18 +312,20 @@ mixin VideoTrackManagementMixin on GetxController {
       if (availableResolutions.isNotEmpty) {
         final baseMediaUrl = video.originalUrl.isNotEmpty &&
                 !video.originalUrl.contains('.m3u8') &&
-                !video.originalUrl.contains('.mpd')
+                !video.originalUrl.contains('.mpd') &&
+                !blacklistedStreamUrls.contains(video.originalUrl)
             ? video.originalUrl
             : (video.videoUrl.isNotEmpty &&
                     !video.videoUrl.contains('.m3u8') &&
-                    !video.videoUrl.contains('.mpd')
+                    !video.videoUrl.contains('.mpd') &&
+                    !blacklistedStreamUrls.contains(video.videoUrl)
                 ? video.videoUrl
                 : availableResolutions.last.url);
 
         final completeLadder = VideoResolutionV2.ensureCompleteLadder(
           availableResolutions,
           fallbackUrl: baseMediaUrl,
-        );
+        ).where((r) => !blacklistedStreamUrls.contains(r.url)).toList();
 
         if (completeLadder.length != availableResolutions.length) {
           availableResolutions.assignAll(completeLadder);
@@ -393,11 +374,19 @@ mixin VideoTrackManagementMixin on GetxController {
         fetchTasks.add(() async {
           try {
             var url = pathOrUrl;
-            if (pathOrUrl.startsWith('gs://')) {
-              url = await FirebaseStorage.instance
-                  .refFromURL(pathOrUrl)
-                  .getDownloadURL();
-            } else if (pathOrUrl.startsWith('subtitles/')) {
+            if (pathOrUrl.startsWith('gs://') ||
+                pathOrUrl.startsWith('https://storage.googleapis.com/') ||
+                pathOrUrl.startsWith('https://firebasestorage.googleapis.com/')) {
+              try {
+                url = await FirebaseStorage.instance
+                    .refFromURL(pathOrUrl)
+                    .getDownloadURL();
+              } catch (_) {
+                // If refFromURL fails on tokenless GCS URL, extract path
+                final stripped = pathOrUrl.replaceFirst(RegExp('^https?://[^/]+/[^/]+/'), '').replaceFirst(RegExp('^gs://[^/]+/'), '');
+                url = await FirebaseStorage.instance.ref(stripped).getDownloadURL();
+              }
+            } else if (pathOrUrl.startsWith('subtitles/') || pathOrUrl.startsWith('videos/')) {
               url = await FirebaseStorage.instance
                   .ref(pathOrUrl)
                   .getDownloadURL();
@@ -457,6 +446,31 @@ mixin VideoTrackManagementMixin on GetxController {
     if (isClosed || _isFetchingAudioTracks) return;
     _isFetchingAudioTracks = true;
     try {
+      // 0. Synchronous zero-latency initialization from authentic in-memory model
+      if (availableAudioTracks.isEmpty && (video.audioTracks.isNotEmpty || video.language.isNotEmpty)) {
+        final initialAudio = <AudioTrack>[];
+        final origLangName = supportedLanguages.firstWhereOrNull((l) => l.code == video.language)?.name ?? video.language.toUpperCase();
+        initialAudio.add(AudioTrack(label: 'Original ($origLangName)', langCode: video.language));
+        for (final entry in video.audioTracks.entries) {
+          final l = supportedLanguages.firstWhereOrNull((lang) => lang.code == entry.key);
+          final label = l?.name != null ? '${l!.name} (Audio)' : '${entry.key.toUpperCase()} (Audio)';
+          initialAudio.add(AudioTrack(label: label, langCode: entry.key, type: 'Audio', url: entry.value));
+        }
+        availableAudioTracks.assignAll(initialAudio);
+      }
+
+      if (availableVideoTracks.isEmpty && (video.dubbedVideos.isNotEmpty || video.language.isNotEmpty)) {
+        final initialVideos = <VideoTrack>[];
+        final origLangName = supportedLanguages.firstWhereOrNull((l) => l.code == video.language)?.name ?? video.language.toUpperCase();
+        initialVideos.add(VideoTrack(label: 'Original ($origLangName)', langCode: video.language));
+        for (final entry in video.dubbedVideos.entries) {
+          final l = supportedLanguages.firstWhereOrNull((lang) => lang.code == entry.key);
+          final label = l?.name != null ? '${l!.name} (Video)' : '${entry.key.toUpperCase()} (Video)';
+          initialVideos.add(VideoTrack(label: label, langCode: entry.key, type: 'Video', url: entry.value));
+        }
+        availableVideoTracks.assignAll(initialVideos);
+      }
+
       final audioTracksMap = Map<String, String>.from(video.audioTracks);
       final loc = await VideoMediaService().getLocalization(video.id);
       if (isClosed) return;
@@ -576,14 +590,53 @@ mixin VideoTrackManagementMixin on GetxController {
       if (isClosed) return;
 
       final dubbedVideosMap = Map<String, String>.from(video.dubbedVideos);
-      final fetchTasks = <Future<AudioTrack?>>[];
+      if (loc.dubbedVideos.isNotEmpty) {
+        dubbedVideosMap.addAll(loc.dubbedVideos);
+      }
 
-      // Add original track
-      fetchTasks.add(
+      // If still empty, check Firestore video document directly for dubbedVideos
+      if (dubbedVideosMap.isEmpty) {
+        try {
+          final videoDoc = await FirebaseFirestore.instance
+              .collection(FirestoreCollections.videos)
+              .doc(video.id)
+              .getCacheFirst();
+          if (isClosed) return;
+          if (videoDoc.exists && videoDoc.data() != null) {
+            final data = videoDoc.data()!;
+            final directDubbed = data['dubbedVideos'] as Map? ??
+                (data['media'] is Map ? (data['media']['dubbedVideos'] as Map?) : null);
+            if (directDubbed != null) {
+              directDubbed.forEach((k, v) {
+                if (k is String && v is String && v.isNotEmpty) {
+                  dubbedVideosMap[k] = v;
+                }
+              });
+            }
+          }
+        } catch (_) {}
+      }
+
+      final fetchAudioTasks = <Future<AudioTrack?>>[];
+      final fetchVideoTasks = <Future<VideoTrack?>>[];
+
+      final origLangName = supportedLanguages.firstWhereOrNull((l) => l.code == video.language)?.name ?? video.language.toUpperCase();
+
+      // Add original audio track
+      fetchAudioTasks.add(
         Future.value(
           AudioTrack(
-            label:
-                'Original (${supportedLanguages.firstWhereOrNull((l) => l.code == video.language)?.name ?? video.language.toUpperCase()})',
+            label: 'Original ($origLangName)',
+            langCode: video.language,
+          ),
+        ),
+      );
+
+      // Add original video track
+      fetchVideoTasks.add(
+        Future.value(
+          VideoTrack(
+            label: 'Original ($origLangName)',
             langCode: video.language,
           ),
         ),
@@ -594,22 +647,18 @@ mixin VideoTrackManagementMixin on GetxController {
         final langCode = entry.key;
         final pathOrUrl = entry.value;
 
-        fetchTasks.add(() async {
+        fetchAudioTasks.add(() async {
           try {
             var url = pathOrUrl;
-            if (pathOrUrl.startsWith('gs://')) {
-              try {
-                url = await FirebaseStorage.instance
-                    .refFromURL(pathOrUrl)
-                    .getDownloadURL();
-              } catch (_) {
-                final stripped = pathOrUrl.replaceFirst(RegExp('^gs://[^/]+/'), '');
-                url = await FirebaseStorage.instance.ref(stripped).getDownloadURL();
+            if (!url.contains('token=')) {
+              final ref = StorageUtils.getStorageRef(url);
+              if (ref != null) {
+                try {
+                  url = await ref.getDownloadURL();
+                } catch (e) {
+                  debugPrint('[AudioDiscovery] getDownloadURL failed for $url: $e');
+                }
               }
-            } else if (pathOrUrl.startsWith('audio/') || pathOrUrl.startsWith('audiotracks/') || pathOrUrl.startsWith('videos/')) {
-              url = await FirebaseStorage.instance
-                  .ref(pathOrUrl)
-                  .getDownloadURL();
             }
 
             final lang = supportedLanguages.firstWhereOrNull(
@@ -662,28 +711,23 @@ mixin VideoTrackManagementMixin on GetxController {
         }());
       }
 
-      // Fetch dubbed video tracks
+      // Fetch dubbed video tracks generated from studio videos tab
       for (final entry in dubbedVideosMap.entries) {
         final langCode = entry.key;
         final pathOrUrl = entry.value;
 
-        // Skip if this language is already handled as audio
-        if (audioTracksMap.containsKey(langCode)) continue;
-
-        fetchTasks.add(() async {
+        fetchVideoTasks.add(() async {
           try {
             var url = pathOrUrl;
-            if (pathOrUrl.startsWith('gs://')) {
-              try {
-                url = await FirebaseStorage.instance
-                    .refFromURL(pathOrUrl)
-                    .getDownloadURL();
-              } catch (_) {
-                final stripped = pathOrUrl.replaceFirst(RegExp('^gs://[^/]+/'), '');
-                url = await FirebaseStorage.instance.ref(stripped).getDownloadURL();
+            if (!url.contains('token=')) {
+              final ref = StorageUtils.getStorageRef(url);
+              if (ref != null) {
+                try {
+                  url = await ref.getDownloadURL();
+                } catch (e) {
+                  debugPrint('[VideoDiscovery] getDownloadURL failed for $url: $e');
+                }
               }
-            } else if (pathOrUrl.startsWith('videos/') || pathOrUrl.startsWith('audio/')) {
-              url = await FirebaseStorage.instance.ref(pathOrUrl).getDownloadURL();
             }
 
             final lang = supportedLanguages.firstWhereOrNull(
@@ -693,7 +737,7 @@ mixin VideoTrackManagementMixin on GetxController {
                 ? '${lang!.name} (Video)'
                 : '${langCode.toUpperCase()} (Video)';
 
-            return AudioTrack(
+            return VideoTrack(
               label: label,
               langCode: langCode,
               type: 'Video',
@@ -703,7 +747,7 @@ mixin VideoTrackManagementMixin on GetxController {
             ErrorHandler.log(
               e,
               stackTrace: s,
-              tag: 'VideoTrackManagementMixin.fetchAvailableAudioTracks.dubbedUrl',
+              tag: 'VideoTrackManagementMixin.fetchAvailableVideoTracks.dubbedUrl',
             );
             return null;
           }
@@ -711,13 +755,41 @@ mixin VideoTrackManagementMixin on GetxController {
       }
 
       if (isClosed) return;
-      final results = await Future.wait(fetchTasks);
+      final audioResults = await Future.wait(fetchAudioTasks);
       if (isClosed) return;
-      final found = results.whereType<AudioTrack>().toList();
-      availableAudioTracks.assignAll(found);
+      final foundAudio = audioResults.whereType<AudioTrack>().toList();
+      availableAudioTracks.assignAll(foundAudio);
+
+      final videoResults = await Future.wait(fetchVideoTasks);
+      if (isClosed) return;
+      final foundVideos = videoResults.whereType<VideoTrack>().toList();
+      availableVideoTracks.assignAll(foundVideos);
+
+      VideoTrack? preferredVideo;
+      if (Get.isRegistered<UserLanguagesService>()) {
+        final service = UserLanguagesService.to;
+        final primary = service.primaryLanguage.value;
+        preferredVideo = foundVideos.firstWhereOrNull(
+          (t) => t.type != 'Original' && service.isLanguageMatch(t.label, t.langCode, primary),
+        );
+      }
+
+      if (preferredVideo != null) {
+        if (activeVideoTrack.value?.label != preferredVideo.label) {
+          activeVideoTrack.value = preferredVideo;
+          if (videoPlayerController != null &&
+              videoPlayerController?.dataSource != preferredVideo.url &&
+              preferredVideo.url != null &&
+              preferredVideo.url!.isNotEmpty) {
+            unawaited(setVideoTrack(preferredVideo));
+          }
+        }
+      } else if (activeVideoTrack.value == null && foundVideos.isNotEmpty) {
+        activeVideoTrack.value = foundVideos.first;
+      }
 
       debugPrint(
-        '[VideoController] ✅ Loaded ${found.length} audio tracks (including original)',
+        '[VideoController] ✅ Loaded ${foundAudio.length} audio tracks and ${foundVideos.length} video tracks',
       );
     } catch (e, s) {
       ErrorHandler.log(
@@ -728,6 +800,18 @@ mixin VideoTrackManagementMixin on GetxController {
     } finally {
       _isFetchingAudioTracks = false;
     }
+  }
+
+  Future<void> setVideoTrack(VideoTrack track) async {
+    activeVideoTrack.value = track;
+    final towerCtrl = TowerPlayerController.getForTagOrActive(video.id);
+    if (track.type == 'Original' || track.url == null || track.url!.isEmpty) {
+      final targetUrl = currentResolution.value?.url ?? video.videoUrl;
+      await initializeVideoPlayer(overrideUrl: targetUrl);
+    } else {
+      await initializeVideoPlayer(overrideUrl: track.url);
+    }
+    towerCtrl?.showToast('Video: ${track.label}');
   }
 
   void listenToLanguageRequests() {
@@ -798,6 +882,10 @@ mixin VideoTrackManagementMixin on GetxController {
     bool isManual = true,
   }) async {
     if (isClosed) return;
+    if (blacklistedStreamUrls.contains(res.url)) {
+      debugPrint('[VideoController] ⚠️ Cannot switch to blacklisted resolution: ${res.label} (${res.url})');
+      return;
+    }
     if (isSwitchingResolution.value) return;
     if (currentResolution.value?.url == res.url &&
         currentResolution.value?.label == res.label &&

@@ -1,13 +1,17 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/analytics/data/models/watch_event_model.dart';
+import 'package:truthworld/features/analytics/data/services/geolocation_service.dart';
 import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart';
 
@@ -465,10 +469,11 @@ class AudienceController extends BaseController {
       }
     }
 
-    if (countryTraffic.isEmpty && stateTraffic.isNotEmpty) {
-      final sum = stateTraffic.values.fold<int>(0, (a, b) => a + b);
-      if (sum > 0) countryTraffic['IN'] = sum;
-    }
+    final sanitizedTraffic = _sanitizeAndReconcileCountryTraffic(
+      countryTraffic,
+      stateTraffic: stateTraffic,
+      totalViewsCount: totalViewsAccum,
+    );
 
     // Update global metrics reactively
     totalViews.value = totalViewsAccum;
@@ -488,7 +493,7 @@ class AudienceController extends BaseController {
     urbanPercentage.value = totalGeo > 0 ? (urbanAccum / totalGeo) * 100 : 0.0;
     ruralPercentage.value = totalGeo > 0 ? (ruralAccum / totalGeo) * 100 : 0.0;
 
-    _buildCompleteCountryItems(countryTraffic, totalViewsAccum, totalSubsAccum);
+    _buildCompleteCountryItems(sanitizedTraffic, totalViewsAccum, totalSubsAccum);
   }
 
   /// Process real-time video_stats_daily as a fallback data source
@@ -539,10 +544,11 @@ class AudienceController extends BaseController {
       }
     }
 
-    if (countryTraffic.isEmpty && stateTraffic.isNotEmpty) {
-      final sum = stateTraffic.values.fold<int>(0, (a, b) => a + b);
-      if (sum > 0) countryTraffic['IN'] = sum;
-    }
+    final sanitizedTraffic = _sanitizeAndReconcileCountryTraffic(
+      countryTraffic,
+      stateTraffic: stateTraffic,
+      totalViewsCount: totalViewsAccum,
+    );
 
     totalViews.value = totalViewsAccum;
     totalSubscribersGained.value = totalSubsAccum;
@@ -561,7 +567,7 @@ class AudienceController extends BaseController {
     urbanPercentage.value = totalGeo > 0 ? (urbanAccum / totalGeo) * 100 : 0.0;
     ruralPercentage.value = totalGeo > 0 ? (ruralAccum / totalGeo) * 100 : 0.0;
 
-    _buildCompleteCountryItems(countryTraffic, totalViewsAccum, totalSubsAccum);
+    _buildCompleteCountryItems(sanitizedTraffic, totalViewsAccum, totalSubsAccum);
   }
 
   // ---------------------------------------------------------------------------
@@ -609,14 +615,15 @@ class AudienceController extends BaseController {
       urbanPercentage.value = data.urbanPercentage;
       ruralPercentage.value = data.ruralPercentage;
 
-      final countryTraffic = Map<String, int>.from(data.countryTraffic);
-      if (countryTraffic.isEmpty && data.stateTraffic.isNotEmpty) {
-        final sum = data.stateTraffic.values.fold<int>(0, (a, b) => a + b);
-        if (sum > 0) countryTraffic['IN'] = sum;
-      }
+      final rawCountryTraffic = Map<String, int>.from(data.countryTraffic);
+      final sanitizedTraffic = _sanitizeAndReconcileCountryTraffic(
+        rawCountryTraffic,
+        stateTraffic: data.stateTraffic,
+        totalViewsCount: data.totalVideoWatches,
+      );
 
       _buildCompleteCountryItems(
-        countryTraffic,
+        sanitizedTraffic,
         data.totalVideoWatches,
         data.subscribersGained,
       );
@@ -871,9 +878,21 @@ class AudienceController extends BaseController {
         ruralPercentage.value = (liveRural / totalGeo) * 100;
       }
 
-      // If country items are empty but country counts were gathered, build country items
-      if (allCountryItems.isEmpty && liveCountryCounts.isNotEmpty) {
-        _buildCompleteCountryItems(liveCountryCounts, totalViews.value, totalSubscribersGained.value);
+      // If country counts were gathered from authentic user profiles, reconcile
+      if (liveCountryCounts.isNotEmpty) {
+        final currentTraffic = <String, int>{
+          for (final item in allCountryItems) item.countryCode: item.viewers,
+        };
+        final reconciledTraffic = _sanitizeAndReconcileCountryTraffic(
+          currentTraffic,
+          liveCountryCounts: liveCountryCounts,
+          totalViewsCount: totalViews.value,
+        );
+        _buildCompleteCountryItems(
+          reconciledTraffic,
+          totalViews.value,
+          totalSubscribersGained.value,
+        );
       }
 
       return totalAge > 0 || totalGender > 0;
@@ -1011,8 +1030,92 @@ class AudienceController extends BaseController {
   }
 
   // ---------------------------------------------------------------------------
-  // COUNTRY DISTRIBUTION BUILDER — ONLY includes countries with viewers > 0
+  // COUNTRY DISTRIBUTION BUILDER & SANITIZER
   // ---------------------------------------------------------------------------
+
+  /// Normalizes, deduplicates, and reconciles country traffic with authentic
+  /// Indian state/city telemetry and user profile signals to correct proxy hop
+  /// false positives (e.g., GFE or Cloud Run reverse proxies mapping to 'US').
+  Map<String, int> _sanitizeAndReconcileCountryTraffic(
+    Map<String, int> rawCountryTraffic, {
+    Map<String, int>? stateTraffic,
+    Map<String, int>? liveCountryCounts,
+    int totalViewsCount = 0,
+  }) {
+    final sanitized = <String, int>{};
+
+    // 1. Normalize and aggregate raw country traffic by uppercase 2-letter ISO code
+    for (final entry in rawCountryTraffic.entries) {
+      final val = entry.value;
+      if (val <= 0) continue;
+      final rawKey = entry.key.trim();
+      final code = rawKey.length == 2
+          ? rawKey.toUpperCase()
+          : (_lookupCountryCode(rawKey) ?? rawKey.toUpperCase());
+      sanitized[code] = (sanitized[code] ?? 0) + val;
+    }
+
+    // 2. Reconcile with verified Indian state traffic
+    var verifiedIndianStateViews = 0;
+    if (stateTraffic != null && stateTraffic.isNotEmpty) {
+      for (final sEntry in stateTraffic.entries) {
+        final stateName = sEntry.key.trim();
+        final count = sEntry.value;
+        if (count > 0 && GeolocationService.isIndianState(stateName)) {
+          verifiedIndianStateViews += count;
+        }
+      }
+    }
+
+    // 3. Reconcile with authentic live user profile country counts
+    var liveIndianUserViews = 0;
+    if (liveCountryCounts != null && liveCountryCounts.isNotEmpty) {
+      for (final lEntry in liveCountryCounts.entries) {
+        final rawKey = lEntry.key.trim();
+        final code = rawKey.length == 2
+            ? rawKey.toUpperCase()
+            : (_lookupCountryCode(rawKey) ?? rawKey.toUpperCase());
+        if (code == 'IN') {
+          liveIndianUserViews += lEntry.value;
+        }
+      }
+    }
+
+    // 4. Correct false-positive 'US' proxy logs if Indian signals are present
+    if (verifiedIndianStateViews > 0 || liveIndianUserViews > 0) {
+      final currentUS = sanitized['US'] ?? 0;
+      final currentIN = sanitized['IN'] ?? 0;
+      final indianViewsToAttribute = math.max(verifiedIndianStateViews, liveIndianUserViews);
+
+      if (currentUS > 0 && indianViewsToAttribute > 0) {
+        final reallocated = math.min(currentUS, indianViewsToAttribute);
+        final remainingUS = currentUS - reallocated;
+        if (remainingUS <= 0) {
+          sanitized.remove('US');
+        } else {
+          sanitized['US'] = remainingUS;
+        }
+        sanitized['IN'] = currentIN + indianViewsToAttribute;
+      } else if (indianViewsToAttribute > 0) {
+        sanitized['IN'] = math.max(currentIN, indianViewsToAttribute);
+      }
+    }
+
+    // 5. If country traffic is completely empty, check fallback signals
+    if (sanitized.isEmpty) {
+      if (verifiedIndianStateViews > 0) {
+        sanitized['IN'] = verifiedIndianStateViews;
+      } else if (liveIndianUserViews > 0) {
+        sanitized['IN'] = liveIndianUserViews;
+      } else if (totalViewsCount > 0 &&
+          Get.isRegistered<CurrencyLocalizationService>() &&
+          CurrencyLocalizationService.to.userCountryCode.value == 'IN') {
+        sanitized['IN'] = totalViewsCount;
+      }
+    }
+
+    return sanitized;
+  }
 
   /// Builds audience country list containing ONLY countries that have > 0 viewers (viewerPercentage > 0.0).
   /// Truthworld is global, so countries with zero views are omitted rather than showing an exhaustive empty list.
@@ -1023,10 +1126,21 @@ class AudienceController extends BaseController {
   ) {
     final items = <CountryAudienceItem>[];
 
+    // 1. First consolidate all entries into canonical uppercase ISO 2-letter codes
+    final consolidatedTraffic = <String, int>{};
+    for (final entry in liveCountryTraffic.entries) {
+      final count = entry.value;
+      if (count <= 0) continue;
+
+      final rawKey = entry.key.trim();
+      final code = rawKey.length == 2
+          ? rawKey.toUpperCase()
+          : (_lookupCountryCode(rawKey) ?? rawKey.toUpperCase());
+      consolidatedTraffic[code] = (consolidatedTraffic[code] ?? 0) + count;
+    }
+
     // Filter ONLY countries with > 0 viewers
-    final activeEntries = liveCountryTraffic.entries
-        .where((e) => e.value > 0)
-        .toList();
+    final activeEntries = consolidatedTraffic.entries.toList();
 
     // Overall conversion coefficient for subscriber estimation
     final conversionRate = totalViewsCount > 0
@@ -1047,15 +1161,12 @@ class AudienceController extends BaseController {
     }
 
     for (final entry in activeEntries) {
-      final rawKey = entry.key.trim();
-      final code = rawKey.length == 2
-          ? rawKey.toUpperCase()
-          : (_lookupCountryCode(rawKey) ?? rawKey);
+      final code = entry.key;
       final name = _countryNamesMap[code] ??
-          _countryNamesMap[rawKey.toUpperCase()] ??
-          rawKey;
+          _countryNamesMap[code.toUpperCase()] ??
+          code;
       final viewCount = entry.value;
-      final subCount = computedSubs[entry.key] ?? 0;
+      final subCount = computedSubs[code] ?? 0;
 
       final viewPct = totalViewersSum > 0
           ? (viewCount / totalViewersSum) * 100
@@ -1086,6 +1197,32 @@ class AudienceController extends BaseController {
 
     allCountryItems.value = items;
   }
+
+  @visibleForTesting
+  Map<String, int> sanitizeAndReconcileTrafficForTesting(
+    Map<String, int> rawCountryTraffic, {
+    Map<String, int>? stateTraffic,
+    Map<String, int>? liveCountryCounts,
+    int totalViewsCount = 0,
+  }) =>
+      _sanitizeAndReconcileCountryTraffic(
+        rawCountryTraffic,
+        stateTraffic: stateTraffic,
+        liveCountryCounts: liveCountryCounts,
+        totalViewsCount: totalViewsCount,
+      );
+
+  @visibleForTesting
+  void buildCompleteCountryItemsForTesting(
+    Map<String, int> liveCountryTraffic,
+    int totalViewsCount,
+    int totalSubsCount,
+  ) =>
+      _buildCompleteCountryItems(
+        liveCountryTraffic,
+        totalViewsCount,
+        totalSubsCount,
+      );
 
   static String? _lookupCountryCode(String nameOrCode) {
     final lower = nameOrCode.toLowerCase();

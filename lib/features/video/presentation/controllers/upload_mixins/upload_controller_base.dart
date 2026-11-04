@@ -16,15 +16,24 @@ import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/domain/repositories/video_upload_repository.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_state.dart';
+import 'package:truthworld/features/video/presentation/views/upload/widgets/topic_selection/topic_selection_host.dart';
 import 'package:video_player/video_player.dart';
 
 export 'package:truthworld/features/video/presentation/controllers/upload_state.dart';
+export 'package:truthworld/features/video/presentation/views/upload/widgets/topic_selection/topic_selection_host.dart';
 
 abstract class UploadControllerBase extends BaseController
-    with ContentValidationMixin {
+    with ContentValidationMixin
+    implements TopicSelectionHost {
   static const int maxTitleLength = 100;
   static const int maxDescriptionLength = 5000;
   static const int maxTags = 5;
+
+  /// Maximum allowed file size for video thumbnails: 2MB (strictly aligned with YouTube limit).
+  static const int maxThumbnailSizeBytes = 2 * 1024 * 1024;
+
+  /// Maximum allowed file size for community post images: 10MB.
+  static const int maxCommunityImageSizeBytes = 10 * 1024 * 1024;
 
   // Immutable State Snapshot (Single Source of Truth)
   Rx<UploadState> get uploadState;
@@ -73,6 +82,12 @@ abstract class UploadControllerBase extends BaseController
     }
     return code.toUpperCase();
   }
+
+  /// Effective spoken language code for this video: defaults to channel designated language.
+  String get effectiveVideoLanguage => channelLanguageCode;
+
+  /// List of supported translation and audio languages
+  List<TranslationLanguage> get supportedLanguagesList => supportedLanguages;
 
   // Quota
   RxInt get todayUploadedDurationSeconds;
@@ -153,9 +168,13 @@ abstract class UploadControllerBase extends BaseController
   RxBool get aiGenerateSubtitles;
   RxBool get aiGenerateDubbing;
   RxBool get aiDiarizationEnabled;
+  RxBool get aiLipSyncEnabled;
   RxBool get aiSummaryEnabled;
   RxList<String> get aiTranslationLanguages;
   RxList<String> get aiDubbingLanguages;
+  RxString get aiDubbingTier;
+  RxBool get aiCinemaGradeEnabled;
+  RxBool get aiStemIsolationEnabled;
   RxBool get aiTTSEnabled;
   RxString get aiTTSVoiceType;
   RxBool get aiFactCheckEnabled;
@@ -166,6 +185,7 @@ abstract class UploadControllerBase extends BaseController
 
   // Topics
   RxString get selectedTopicId;
+  RxList<String> get selectedTopicIds;
   RxList<Topic> get availableTopics;
   RxBool get isTopicsLoading;
   RxString get topicsError;
@@ -203,4 +223,15 @@ abstract class UploadControllerBase extends BaseController
   Future<bool> refreshAuthToken();
   Future<void> ensureStorageAuthReady();
   void resetUploads();
+  String resolveChannelFirstCategory([Channel? channel]);
+
+  // TopicSelectionHost contracts
+  @override
+  void selectTopic(String id);
+  @override
+  void toggleTopicSelection(Topic topic);
+  @override
+  bool isTopicSelected(String key);
+  @override
+  Future<void> fetchAvailableTopics();
 }

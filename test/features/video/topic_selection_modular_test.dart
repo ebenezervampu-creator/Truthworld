@@ -4,19 +4,59 @@ import 'package:get/get.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/presentation/views/upload/widgets/topic_selection/topic_selection_components.dart';
 
-class _FakeUploadController {
+class _FakeUploadController implements TopicSelectionHost {
+  @override
   final TextEditingController titleController =
       TextEditingController(text: 'Quantum Physics and Cosmos');
+  @override
   final RxString selectedCategory = 'Science'.obs;
+  @override
   final RxString selectedTopicId = ''.obs;
+  @override
   final RxString topicSearchQuery = ''.obs;
+  @override
   final RxBool isTopicsLoading = false.obs;
+  @override
   final RxMap<String, dynamic> newTopicData = <String, dynamic>{}.obs;
+  @override
   final RxList<Topic> availableTopics = <Topic>[].obs;
+  @override
+  final RxList<String> selectedTopicIds = <String>[].obs;
 
+  @override
+  int get selectedOwnTopicsCount => 0;
+  @override
+  int get selectedPublicTopicsCount => 0;
+
+  @override
   void selectTopic(String id) {
     selectedTopicId.value = id;
   }
+
+  @override
+  void toggleTopicSelection(Topic topic) {
+    final key = topic.slug.isNotEmpty ? topic.slug : topic.id;
+    if (selectedTopicIds.contains(key)) {
+      selectedTopicIds.remove(key);
+      if (selectedTopicId.value == key) selectedTopicId.value = '';
+    } else {
+      selectedTopicIds.add(key);
+      selectedTopicId.value = key;
+    }
+  }
+
+  @override
+  bool isTopicSelected(String key) =>
+      selectedTopicIds.contains(key) || selectedTopicId.value == key;
+
+  @override
+  bool isOwnTopic(Topic topic) => false;
+
+  @override
+  List<dynamic>? getRankedTopicsForCurrentVideo() => null;
+
+  @override
+  Future<void> fetchAvailableTopics() async {}
 }
 
 Topic _makeTopic({
@@ -251,7 +291,47 @@ void main() {
       expect(find.text('Add video to this topic'), findsOneWidget);
       expect(find.text('Videos'), findsOneWidget);
       expect(find.text('Followers'), findsOneWidget);
+      expect(find.text('Channels'), findsOneWidget);
       expect(find.byIcon(Icons.stars_rounded), findsOneWidget);
+    });
+
+    testWidgets('10. TopicListItemCard displays Followers, Channels, and Videos counts', (tester) async {
+      final controller = _FakeUploadController();
+      final topic = _makeTopic(
+        id: 'quantum_tech',
+        title: 'Quantum Technology Hub',
+        category: 'Technology',
+        videoCount: 15,
+        followerCount: 200,
+      );
+      final match = TopicMatchInfo(
+        topic: topic,
+        matchPercentage: 90,
+        reason: 'Recommended for you',
+        isTopRecommendation: false,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TopicListItemCard(
+              match: match,
+              isSelected: false,
+              isDark: true,
+              textColor: Colors.white,
+              subtextColor: Colors.grey,
+              borderColor: Colors.white24,
+              controller: controller,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Quantum Technology Hub'), findsOneWidget);
+      expect(find.textContaining('followers'), findsWidgets);
+      expect(find.textContaining('channels'), findsWidgets);
+      expect(find.textContaining('videos'), findsWidgets);
+      expect(find.text('Add'), findsOneWidget);
     });
   });
 }

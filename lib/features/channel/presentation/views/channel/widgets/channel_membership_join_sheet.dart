@@ -3,8 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/data/models/channel_loyalty_badge.dart';
+import 'package:truthworld/features/channel/data/services/channel_memory_cache.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_membership_join_controller.dart';
 import 'package:truthworld/features/library/presentation/views/library/widgets/library_constants.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -22,6 +24,12 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
   final Channel? channel;
 
   static void show(BuildContext context, {required String channelId, Channel? channel}) {
+    final effectiveChannel = channel ?? ChannelMemoryCache.get(channelId);
+    if (effectiveChannel != null && !effectiveChannel.isMonetizationActive) {
+      AppSnackbar.info('Channel memberships are only available for monetized channels.');
+      return;
+    }
+
     final tag = 'join_membership_$channelId';
     if (!Get.isRegistered<ChannelMembershipJoinController>(tag: tag)) {
       Get.put(
@@ -90,6 +98,11 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
                     ),
                   ),
                 );
+              }
+
+              final currentChannel = controller.channelData.value ?? channel;
+              if (currentChannel != null && !currentChannel.isMonetizationActive && !controller.isMember.value) {
+                return _buildUnmonetizedState();
               }
 
               if (controller.tiers.isEmpty) {
@@ -305,6 +318,37 @@ class ChannelMembershipJoinSheet extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUnmonetizedState() {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.monetization_on_outlined, color: primaryText, size: 48),
+          SizedBox(height: 16),
+          Text(
+            'Memberships Unavailable',
+            style: TextStyle(
+              color: primaryText,
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Channel memberships and fan funding are only available for monetized channels.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: secondaryText,
+              fontSize: 13,
+              height: 1.4,
             ),
           ),
         ],

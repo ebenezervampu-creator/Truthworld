@@ -18,6 +18,7 @@ import 'package:truthworld/theme/app_theme.dart';
     ChannelType? channelType,
     Set<String>? initialFeatures,
     Set<String>? initialLangs,
+    String? initialDubbingTier,
   }) {
     final effectiveChannelType = channelType ??
         (Get.isRegistered<DashboardController>()
@@ -48,25 +49,40 @@ import 'package:truthworld/theme/app_theme.dart';
         initialFeatures.contains('chapters') &&
         !initialFeatures.contains('dubbing');
 
-    final dialogTitle = isSubtitlesPreselected
-        ? 'Generate Subtitles & Captions'
-        : (isDubbingPreselected
-            ? 'Multilingual AI Dubbing Studio'
-            : (isFactCheckPreselected
-                ? 'Run Credibility & Fact-Check'
-                : (isChaptersPreselected
-                    ? 'Generate Auto-Chapters'
-                    : 'AI Features & Advanced Settings')));
+    final isVideoDubbingPreselected = isDubbingPreselected &&
+        (initialDubbingTier == 'video_pro' || initialDubbingTier == 'video_ultra');
+    final isAudioDubbingPreselected = isDubbingPreselected &&
+        (initialDubbingTier == 'audio_starter' ||
+            initialDubbingTier == 'audio_pro' ||
+            initialDubbingTier == 'audio_ultra');
 
-    final dialogSubtitle = isSubtitlesPreselected
-        ? 'Select target languages to generate synchronized native closed captions (SRT/VTT).'
-        : (isDubbingPreselected
-            ? 'Select target languages to generate voice-matched multilingual audio dubbing with vocal identity.'
-            : (isFactCheckPreselected
-                ? 'Extract spoken claims from speech transcripts and evaluate authenticity against verified sources.'
-                : (isChaptersPreselected
-                    ? 'Detect semantic topic shifts across your video to generate timestamped chapters.'
-                    : 'Generate subtitles, dubbed audio tracks, fact-checking, AI summaries, and chapters anytime on demand.')));
+    final dialogTitle = isVideoDubbingPreselected
+        ? 'Multilingual Video Dubbing & Neural Lip-Sync Studio'
+        : (isAudioDubbingPreselected
+            ? 'Multilingual Audio Dubbing Studio'
+            : (isSubtitlesPreselected
+                ? 'Generate Subtitles & Captions'
+                : (isDubbingPreselected
+                    ? 'Multilingual AI Dubbing Studio'
+                    : (isFactCheckPreselected
+                        ? 'Run Credibility & Fact-Check'
+                        : (isChaptersPreselected
+                            ? 'Generate Auto-Chapters'
+                            : 'AI Features & Advanced Settings')))));
+
+    final dialogSubtitle = isVideoDubbingPreselected
+        ? 'Select target languages to generate cinema-grade neural lip-syncing and vocal identity cloning.'
+        : (isAudioDubbingPreselected
+            ? 'Select target languages to generate studio-grade multilingual audio dubbing.'
+            : (isSubtitlesPreselected
+                ? 'Select target languages to generate synchronized native closed captions (SRT/VTT).'
+                : (isDubbingPreselected
+                    ? 'Select target languages to generate voice-matched multilingual audio dubbing with vocal identity.'
+                    : (isFactCheckPreselected
+                        ? 'Extract spoken claims from speech transcripts and evaluate authenticity against verified sources.'
+                        : (isChaptersPreselected
+                            ? 'Detect semantic topic shifts across your video to generate timestamped chapters.'
+                            : 'Generate subtitles, dubbed audio tracks, fact-checking, AI summaries, and chapters anytime on demand.')))));
 
     final selectedLangs = (initialLangs ?? <String>{'te', 'hi'}).toSet().obs;
     final selectedFeatures = (initialFeatures ?? <String>{
@@ -76,6 +92,7 @@ import 'package:truthworld/theme/app_theme.dart';
       'chapters',
     }).toSet().obs;
     final selectedFactCheckTier = 'standard'.obs;
+    final selectedDubbingTier = (initialDubbingTier ?? (isDubbingPreselected ? 'video_pro' : 'video_pro')).obs;
     final isAccuracyMode = true.obs;
     final showAdvanced = false.obs;
 
@@ -119,18 +136,28 @@ import 'package:truthworld/theme/app_theme.dart';
                   final dubbingLangsSelected = selectedLangs
                       .where(isDubbingSupported)
                       .toList();
-                  final dubbingSubtotal = isDubbingSelected
-                      ? (dubbingLangsSelected.length * flatDubbingRate)
-                      : 0.0;
-                  final totalEstimatedCost =
-                      ChannelWalletService.calculateAIFeatureCost(
-                    selectedFeatures: selectedFeatures.toSet(),
-                    targetLanguages: isDubbingSelected
-                        ? dubbingLangsSelected
-                        : selectedLangs.toList(),
+                  final currentTierPerLangRate = ChannelWalletService.calculateProductionTierCost(
+                    tierId: selectedDubbingTier.value,
+                    languageCount: 1,
                     durationSeconds: videoDurationSec,
-                    channelType: effectiveChannelType,
-                    factCheckTier: selectedFactCheckTier.value,
+                    channel: currentChannel,
+                  );
+                  final dubbingSubtotal = isDubbingSelected
+                      ? (dubbingLangsSelected.length * currentTierPerLangRate)
+                      : 0.0;
+                  final nonDubbingFeatures = selectedFeatures.where((f) => f != 'dubbing').toSet();
+                  final nonDubbingCost = nonDubbingFeatures.isEmpty
+                      ? 0.0
+                      : ChannelWalletService.calculateAIFeatureCost(
+                          selectedFeatures: nonDubbingFeatures,
+                          targetLanguages: selectedLangs.toList(),
+                          durationSeconds: videoDurationSec,
+                          channelType: effectiveChannelType,
+                          factCheckTier: selectedFactCheckTier.value,
+                          channel: currentChannel,
+                        );
+                  final totalEstimatedCost = double.parse(
+                    (nonDubbingCost + dubbingSubtotal).toStringAsFixed(2),
                   );
                   final walletBalance =
                       currentChannel?.walletBalanceUSD ?? 0.0;
@@ -371,11 +398,13 @@ import 'package:truthworld/theme/app_theme.dart';
                     ),
                     buildFeatureCheckbox(
                       title:
-                          'AI Audio Dubbing (Flat \$${flatDubbingRate.toStringAsFixed(2)}/lang • ${dubbingTier.label})',
-                      subtitle: isCustom
-                          ? 'Dubbing is NOT free: Flat rate for ${videoDurationSec > 0 ? VideoDurationUtils.formatDurationSeconds(videoDurationSec) : "detected duration"}. Includes Studio Vocal Identity & Voice Cloning.'
-                          : 'Dubbing is NOT free: Predictable flat pricing for ${videoDurationSec > 0 ? VideoDurationUtils.formatDurationSeconds(videoDurationSec) : "detected duration"} across chosen languages.',
-                      icon: Icons.record_voice_over_outlined,
+                          'AI Audio & Video Dubbing (${DubbingProductionTier.fromId(selectedDubbingTier.value).name} • \$${currentTierPerLangRate.toStringAsFixed(2)}/lang)',
+                      subtitle: DubbingProductionTier.fromId(selectedDubbingTier.value).isLipSync
+                          ? 'Synchronized neural visual lip-sync with vocal identity and multi-language translation.'
+                          : 'Clean localized speech narration across chosen languages with studio vocal clarity.',
+                      icon: DubbingProductionTier.fromId(selectedDubbingTier.value).isLipSync
+                          ? Icons.video_camera_back_outlined
+                          : Icons.record_voice_over_outlined,
                       value: selectedFeatures.contains('dubbing'),
                       onChanged: (val) {
                         if (val ?? false) {
@@ -385,6 +414,94 @@ import 'package:truthworld/theme/app_theme.dart';
                         }
                       },
                     ),
+                    if (selectedFeatures.contains('dubbing')) ...[
+                      Padding(
+                        padding: const EdgeInsets.only(left: 36, bottom: 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Dubbing Production Tier:',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: DubbingProductionTier.allTiers.map((tier) {
+                                final isSelected = selectedDubbingTier.value == tier.id;
+                                return FilterChip(
+                                  label: Text('${tier.name} (${tier.tenMinuteRateFormatted})'),
+                                  selected: isSelected,
+                                  selectedColor: AppColors.brand,
+                                  checkmarkColor: Colors.black,
+                                  labelStyle: AppTextStyles.labelMedium.copyWith(
+                                    fontSize: 11,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                    color: isSelected ? Colors.black : AppColors.textPrimary,
+                                  ),
+                                  backgroundColor: AppColors.bgSurfaceHover,
+                                  side: BorderSide(
+                                    color: isSelected ? AppColors.brand : AppColors.bgDivider,
+                                  ),
+                                  onSelected: (_) {
+                                    selectedDubbingTier.value = tier.id;
+                                  },
+                                );
+                              }).toList(),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                              decoration: BoxDecoration(
+                                color: AppColors.success.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                              ),
+                              child: const Row(
+                                children: [
+                                  Icon(Icons.music_note_rounded, size: 14, color: AppColors.success),
+                                  SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      '100% Studio Preservation: Discrete stems (Vocals, Drums, Bass, Foley) with zero phase loss & dynamic BGM ducking.',
+                                      style: TextStyle(fontSize: 10.5, color: AppColors.success, fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (selectedDubbingTier.value == 'video_ultra') ...[
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.warning.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+                                ),
+                                child: const Row(
+                                  children: [
+                                    Icon(Icons.movie_filter_rounded, size: 14, color: AppColors.warning),
+                                    SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        'Hollywood Cinema: Gemini 4 Argon isometry + Demucs M&E stem separation + 1080p lip sync',
+                                        style: TextStyle(fontSize: 10.5, color: AppColors.warning, fontWeight: FontWeight.w600),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
                     buildFeatureCheckbox(
                       title: 'Fact-Checking & Truth Report (FREE • All Claims Verified)',
                       subtitle:
@@ -733,7 +850,7 @@ import 'package:truthworld/theme/app_theme.dart';
                                 children: [
                                   Text(
                                     isCustom
-                                        ? 'Channel Wallet & Revenue (Custom Channel)'
+                                        ? 'Channel Wallet & Revenue (Pro Channel)'
                                         : 'Channel Wallet & Revenue',
                                     style: AppTextStyles.labelMedium.copyWith(
                                       color: isCustom ? AppColors.info : AppColors.success,
@@ -854,6 +971,7 @@ import 'package:truthworld/theme/app_theme.dart';
                                       'chapters',
                                     ),
                                     factCheckTier: selectedFactCheckTier.value,
+                                    dubbingTier: selectedDubbingTier.value,
                                   );
                                 },
                         ),

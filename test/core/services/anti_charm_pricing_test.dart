@@ -95,5 +95,37 @@ void main() {
       expect(channel.maxAllowedVideos, isNot(equals(999999)));
       expect(channel.maxAllowedVideos, equals(100000));
     });
+
+    test('Subtitle Tiers use exact Starter (\$0.50) and Pro (\$0.75) for 10-minute video subtitles', () {
+      // 10-minute video (600s), 1 language
+      final starterCost10m = ChannelWalletService.calculateSubtitleCost(
+        languageCount: 1,
+        durationSeconds: 600,
+        tierId: 'starter',
+      );
+      expect(starterCost10m, equals(0.50));
+
+      final proCost10m = ChannelWalletService.calculateSubtitleCost(
+        languageCount: 1,
+        durationSeconds: 600,
+        tierId: 'pro',
+      );
+      expect(proCost10m, equals(0.75));
+
+      // Additional language for 10-minute video (+$0.20 Starter, +$0.30 Pro)
+      final starter2Langs = ChannelWalletService.calculateSubtitleCost(
+        languageCount: 2,
+        durationSeconds: 600,
+        tierId: 'starter',
+      );
+      expect(starter2Langs, equals(0.70));
+
+      final pro2Langs = ChannelWalletService.calculateSubtitleCost(
+        languageCount: 2,
+        durationSeconds: 600,
+        tierId: 'pro',
+      );
+      expect(pro2Langs, equals(1.05));
+    });
   });
 }

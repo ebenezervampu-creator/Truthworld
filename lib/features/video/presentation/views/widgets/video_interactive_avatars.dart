@@ -2,7 +2,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
@@ -349,11 +348,11 @@ class _RotatingTopicAvatarState extends State<RotatingTopicAvatar>
                 shape: BoxShape.circle,
                 gradient: const SweepGradient(
                   colors: [
-                    Color(0xFF3B82F6),
+                    AppColors.info,
                     Color(0xFF1D4ED8),
                     Color(0xFF8B5CF6),
                     Color(0xFF1D4ED8),
-                    Color(0xFF3B82F6),
+                    AppColors.info,
                   ],
                 ),
                 border: Border.all(
@@ -362,7 +361,7 @@ class _RotatingTopicAvatarState extends State<RotatingTopicAvatar>
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF3B82F6).withValues(alpha: 0.4),
+                    color: AppColors.info.withValues(alpha: 0.4),
                     blurRadius: 10,
                     spreadRadius: 1,
                   ),
@@ -404,7 +403,7 @@ class _RotatingTopicAvatarState extends State<RotatingTopicAvatar>
             child: Container(
               padding: const EdgeInsets.all(3.5),
               decoration: const BoxDecoration(
-                color: Color(0xFF3B82F6),
+                color: AppColors.info,
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
@@ -525,9 +524,9 @@ class TopicVideosBottomSheet extends StatelessWidget {
               (v) =>
                   v.topics.any((t) => t.toLowerCase() == slug.toLowerCase()) ||
                   v.tags.any(
-                    (t) => t.toLowerCase() == topic.title.toLowerCase(),
+                    (t) => t.toLowerCase() == topic.name.toLowerCase(),
                   ) ||
-                  v.category.toLowerCase() == topic.title.toLowerCase(),
+                  v.category.toLowerCase() == topic.name.toLowerCase(),
             )
             .toList();
         if (fetched.isEmpty && snapFallback.docs.isNotEmpty) {
@@ -651,8 +650,8 @@ class TopicVideosBottomSheet extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        topic.title,
-                        style: GoogleFonts.roboto(
+                        topic.name,
+                        style: TextStyle(
                           color: Colors.white,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -663,7 +662,7 @@ class TopicVideosBottomSheet extends StatelessWidget {
                       const SizedBox(height: 2),
                       Obx(() => Text(
                         '${_allVideos.length} topic videos',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           color: Colors.white60,
                           fontSize: 12,
                         ),
@@ -695,7 +694,7 @@ class TopicVideosBottomSheet extends StatelessWidget {
                     child: FilterChip(
                       label: Text(
                         filter,
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           color: isSelected ? Colors.white : Colors.white70,
                           fontSize: 12,
                           fontWeight: isSelected
@@ -710,13 +709,13 @@ class TopicVideosBottomSheet extends StatelessWidget {
                         }
                       },
                       backgroundColor: Colors.white.withValues(alpha: 0.08),
-                      selectedColor: const Color(0xFF3B82F6),
+                      selectedColor: AppColors.info,
                       checkmarkColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
                         side: BorderSide(
                           color: isSelected
-                              ? const Color(0xFF3B82F6)
+                              ? AppColors.info
                               : Colors.white.withValues(alpha: 0.15),
                         ),
                       ),
@@ -746,7 +745,7 @@ class TopicVideosBottomSheet extends StatelessWidget {
               if (loading) {
                 return const Center(
                   child: CircularProgressIndicator(
-                    color: Color(0xFF3B82F6),
+                    color: AppColors.info,
                   ),
                 );
               }
@@ -754,7 +753,7 @@ class TopicVideosBottomSheet extends StatelessWidget {
                 return Center(
                   child: Text(
                     'No videos found for "$activeFilter"',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       color: Colors.white54,
                       fontSize: 14,
                     ),
@@ -770,7 +769,7 @@ class TopicVideosBottomSheet extends StatelessWidget {
 
                   return Material(
                     color: isCurrent
-                        ? const Color(0xFF3B82F6).withValues(alpha: 0.15)
+                        ? AppColors.info.withValues(alpha: 0.15)
                         : Colors.transparent,
                     child: InkWell(
                       onTap: () {
@@ -835,7 +834,7 @@ class TopicVideosBottomSheet extends StatelessWidget {
                                         ),
                                         child: Text(
                                           video.duration,
-                                          style: GoogleFonts.roboto(
+                                          style: TextStyle(
                                             color: Colors.white,
                                             fontSize: 10,
                                             fontWeight: FontWeight.bold,
@@ -858,9 +857,9 @@ class TopicVideosBottomSheet extends StatelessWidget {
                                       Expanded(
                                         child: Text(
                                           video.title,
-                                          style: GoogleFonts.roboto(
+                                          style: TextStyle(
                                             color: isCurrent
-                                                ? const Color(0xFF3B82F6)
+                                                ? AppColors.info
                                                 : Colors.white,
                                             fontSize: 13,
                                             fontWeight: isCurrent
@@ -877,7 +876,7 @@ class TopicVideosBottomSheet extends StatelessWidget {
                                           isPlaying: controller?.isPlayingRx.value ?? false,
                                           height: 12,
                                           barWidth: 2,
-                                          color: const Color(0xFF3B82F6),
+                                          color: AppColors.info,
                                         )),
                                       ],
                                     ],
@@ -885,7 +884,7 @@ class TopicVideosBottomSheet extends StatelessWidget {
                                   const SizedBox(height: 4),
                                   Text(
                                     '${video.channelName} • ${_formatViews(video.views)} ${video.views == 1 ? 'view' : 'views'} • ${_formatDate(video.createdAt)}',
-                                    style: GoogleFonts.roboto(
+                                    style: TextStyle(
                                       color: Colors.white60,
                                       fontSize: 11,
                                     ),

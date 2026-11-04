@@ -4,11 +4,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/animated_interaction_buttons.dart';
-import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
+import 'package:truthworld/features/channel/presentation/views/channel/channel_description_screen.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/details/channel_details_state_widgets.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/details/channel_details_theme.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/widgets/channel_membership_join_sheet.dart';
@@ -144,29 +145,50 @@ class ChannelHeaderWidget extends StatelessWidget {
                                               ? 'Review Needed: ${controller.detailsAvatarReason.value}'
                                               : 'Avatar Verification Pending'),
                                     child: Center(
-                                      child: Container(
-                                        padding: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: badgeColor,
-                                          shape: BoxShape.circle,
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        child: InkWell(
+                                          onTap: (!isPending)
+                                              ? () =>
+                                                  _showAvatarModerationDetailDialog(
+                                                    context,
+                                                    status: status,
+                                                    reason: controller
+                                                        .detailsAvatarReason
+                                                        .value,
+                                                  )
+                                              : null,
+                                          borderRadius:
+                                              BorderRadius.circular(16),
+                                          child: Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: badgeColor,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: isPending
+                                                ? const SizedBox(
+                                                    width: 14,
+                                                    height: 14,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      valueColor:
+                                                          AlwaysStoppedAnimation<
+                                                            Color
+                                                          >(
+                                                        AppColors.textPrimary,
+                                                      ),
+                                                    ),
+                                                  )
+                                                : Icon(
+                                                    icon,
+                                                    color:
+                                                        AppColors.textPrimary,
+                                                    size: 14,
+                                                  ),
+                                          ),
                                         ),
-                                        child: isPending
-                                            ? const SizedBox(
-                                                width: 14,
-                                                height: 14,
-                                                child: CircularProgressIndicator(
-                                                  strokeWidth: 2,
-                                                  valueColor:
-                                                      AlwaysStoppedAnimation<
-                                                        Color
-                                                      >(AppColors.textPrimary),
-                                                ),
-                                              )
-                                            : Icon(
-                                                icon,
-                                                color: AppColors.textPrimary,
-                                                size: 14,
-                                              ),
                                       ),
                                     ),
                                   ),
@@ -185,29 +207,25 @@ class ChannelHeaderWidget extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            channel.channelName,
-                            style: TextStyle(
-                              fontSize: isDesktop ? 32 : (isTablet ? 28 : 24),
-                              fontWeight: FontWeight.w700,
-                              color: ytTextPrimary,
+                    Obx(() {
+                      final currentChannel =
+                          controller.selectedChannel.value ?? channel;
+                      return Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              currentChannel.channelName,
+                              style: TextStyle(
+                                fontSize: isDesktop ? 32 : (isTablet ? 28 : 24),
+                                fontWeight: FontWeight.w700,
+                                color: ytTextPrimary,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (channel.isVerified) ...[
-                          const SizedBox(width: 8),
-                          Icon(
-                            Icons.check_circle,
-                            color: ytTextSecondary,
-                            size: isDesktop ? 24 : 20,
                           ),
                         ],
-                      ],
-                    ),
+                      );
+                    }),
                     const SizedBox(height: 4),
                     Obx(() {
                       final currentChannel =
@@ -227,12 +245,26 @@ class ChannelHeaderWidget extends StatelessWidget {
                       );
                     }),
                     const SizedBox(height: 8),
-                    _buildExpandableDescription(channel, isDesktop: isDesktop),
-                    const SizedBox(height: 8),
-                    if ((channel.socialLinks?.isNotEmpty ?? false) ||
-                        channel.customLinks.isNotEmpty ||
-                        channel.websiteUrl.isNotEmpty)
-                      _buildChannelLinks(context, channel),
+                    Obx(() {
+                      final currentChannel =
+                          controller.selectedChannel.value ?? channel;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildExpandableDescription(
+                            context,
+                            currentChannel,
+                            isDesktop: isDesktop,
+                          ),
+                          if ((currentChannel.socialLinks?.isNotEmpty ?? false) ||
+                              currentChannel.customLinks.isNotEmpty ||
+                              currentChannel.websiteUrl.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            _buildChannelLinks(context, currentChannel),
+                          ],
+                        ],
+                      );
+                    }),
                   ],
                 ),
               ),
@@ -250,59 +282,18 @@ class ChannelHeaderWidget extends StatelessWidget {
     );
   }
 
-
-  Widget _buildExpandableDescription(
-    Channel channel, {
-    bool isDesktop = false,
-  }) {
-    final text = channel.description.isEmpty
-        ? 'No description available'
-        : channel.description;
-    final isLongText = text.length > 50 || text.contains('\n');
-
-    return Container(
-      constraints: BoxConstraints(maxWidth: isDesktop ? 600 : double.infinity),
-      child: Obx(() {
-        final isExpanded = controller.isDescriptionExpanded.value;
-
-        return InkWell(
-          onTap: isLongText
-              ? controller.isDescriptionExpanded.toggle
-              : null,
-          borderRadius: BorderRadius.circular(4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ClickableUrlText(
-                text: text,
-                maxLines: isExpanded ? null : 2,
-                overflow: isExpanded
-                    ? TextOverflow.visible
-                    : TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12, color: ytTextSecondary),
-              ),
-              if (isLongText) ...[
-                const SizedBox(height: 2),
-                Text(
-                  isExpanded ? '...less' : '...more',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: ytTextPrimary,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        );
-      }),
-    );
+  /// Returns true if the current environment or viewport is mobile-sized (Web mobile, Android, iOS).
+  static bool isMobileSized(BuildContext context, {bool? isDesktop}) {
+    if (isDesktop == true) return false;
+    final width = MediaQuery.sizeOf(context).width;
+    if (width < 900) return true;
+    final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    return isMobileDevice;
   }
 
-
-
-  Widget _buildChannelLinks(BuildContext context, Channel channel) {
+  /// Extracts and parses all available links from a [Channel] instance.
+  static List<Map<String, dynamic>> parseChannelLinks(Channel channel) {
     final allLinks = <Map<String, dynamic>>[];
 
     if (channel.websiteUrl.isNotEmpty) {
@@ -317,7 +308,7 @@ class ChannelHeaderWidget extends StatelessWidget {
     }
 
     if (channel.socialLinks != null) {
-      final platformLabels = {
+      const platformLabels = {
         'youtube': 'YouTube',
         'twitter': 'Twitter / X',
         'x': 'Twitter / X',
@@ -334,7 +325,7 @@ class ChannelHeaderWidget extends StatelessWidget {
         'patreon': 'Patreon',
         'threads': 'Threads',
       };
-      final platformIcons = {
+      const platformIcons = {
         'youtube': Icons.smart_display_outlined,
         'twitter': Icons.alternate_email,
         'x': Icons.alternate_email,
@@ -360,7 +351,10 @@ class ChannelHeaderWidget extends StatelessWidget {
           final domain = uri?.host.replaceAll('www.', '') ?? url;
           final key = entry.key.toLowerCase();
           allLinks.add({
-            'title': platformLabels[key] ?? (key.isNotEmpty ? (key[0].toUpperCase() + key.substring(1)) : 'Link'),
+            'title': platformLabels[key] ??
+                (key.isNotEmpty
+                    ? (key[0].toUpperCase() + key.substring(1))
+                    : 'Link'),
             'display': domain,
             'url': url,
             'icon': platformIcons[key] ?? Icons.link_rounded,
@@ -383,6 +377,119 @@ class ChannelHeaderWidget extends StatelessWidget {
         });
       }
     }
+
+    return allLinks;
+  }
+
+  Widget _buildExpandableDescription(
+    BuildContext context,
+    Channel channel, {
+    bool isDesktop = false,
+  }) {
+    final isMobile = isMobileSized(context, isDesktop: isDesktop);
+    final text = channel.description.isEmpty
+        ? 'No description available'
+        : channel.description;
+    final isLongText = text.length > 50 || text.contains('\n');
+
+    if (isMobile) {
+      return Container(
+        constraints: const BoxConstraints(maxWidth: double.infinity),
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => ChannelDescriptionScreen.open(
+              context,
+              channel: channel,
+              controller: controller,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IgnorePointer(
+                  child: ClickableUrlText(
+                    text: text,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12, color: ytTextSecondary),
+                  ),
+                ),
+                if (isLongText && channel.description.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '...more',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: ytTextPrimary,
+                        ),
+                      ),
+                      SizedBox(width: 2),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 14,
+                        color: ytTextSecondary,
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      constraints: BoxConstraints(maxWidth: isDesktop ? 600 : double.infinity),
+      child: Obx(() {
+        final isExpanded = controller.isDescriptionExpanded.value;
+
+        return MouseRegion(
+          cursor: isLongText ? SystemMouseCursors.click : MouseCursor.defer,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: isLongText
+                ? controller.isDescriptionExpanded.toggle
+                : null,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClickableUrlText(
+                  text: text,
+                  maxLines: isExpanded ? null : 2,
+                  overflow: isExpanded
+                      ? TextOverflow.visible
+                      : TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12, color: ytTextSecondary),
+                ),
+                if (isLongText) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    isExpanded ? '...less' : '...more',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: ytTextPrimary,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildChannelLinks(BuildContext context, Channel channel) {
+    final allLinks = parseChannelLinks(channel);
 
     if (allLinks.isEmpty) return const SizedBox.shrink();
 
@@ -524,47 +631,179 @@ class ChannelHeaderWidget extends StatelessWidget {
     bool isDesktop = false,
     bool isTablet = false,
   }) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Obx(() {
-            final isSubscribed = controller.isSubscribed.value;
-            final notificationsEnabled = controller.notificationsEnabled.value;
-            final notificationOption = controller.notificationOption.value;
-            return AnimatedSubscribeButton(
+    return Obx(() {
+      final currentChannel = controller.selectedChannel.value ?? channel;
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final currentUid = currentUser?.uid;
+      final isOwner = (currentUid != null &&
+              currentUid.isNotEmpty &&
+              (currentUid == currentChannel.ownerId ||
+                  currentUid == channel.ownerId ||
+                  currentUid == controller.selectedChannel.value?.ownerId)) ||
+          controller.isOwnerOfCurrentChannel;
+
+      if (isOwner) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Manage Videos / Studio Button
+              Container(
+                height: 36,
+                decoration: BoxDecoration(
+                  color: ytSurfaceLight,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => StudioLauncher.openStudio(),
+                    borderRadius: BorderRadius.circular(18),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.video_library_outlined,
+                            color: ytTextPrimary,
+                            size: 18,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'Manage videos',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: ytTextPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Analytics Button
+              Container(
+                height: 36,
+                decoration: BoxDecoration(
+                  color: ytSurfaceLight,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => StudioLauncher.openStudio(route: '/studio'),
+                    borderRadius: BorderRadius.circular(18),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.insights_rounded,
+                            color: ytTextPrimary,
+                            size: 18,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'Analytics',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: ytTextPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Share Button
+              Container(
+                height: 36,
+                decoration: BoxDecoration(
+                  color: ytSurfaceLight,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => controller.shareChannel(
+                      currentChannel.channelId,
+                      currentChannel,
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.share, color: ytTextPrimary, size: 18),
+                          SizedBox(width: 6),
+                          Text(
+                            'Share',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: ytTextPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      // Viewer Actions: Subscribe, Join, Share
+      final isSubscribed = controller.isSubscribed.value;
+      final notificationsEnabled = controller.notificationsEnabled.value;
+      final notificationOption = controller.notificationOption.value;
+      final isMonetized = currentChannel.isMonetizationActive;
+      final hasMemberships =
+          (controller.hasChannelMemberships.value ||
+                  currentChannel.hasMemberships) &&
+              isMonetized;
+      final isJoined = controller.isChannelMember.value;
+
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedSubscribeButton(
               isSubscribed: isSubscribed,
               notificationsEnabled: notificationsEnabled,
               notificationOption: notificationOption,
-              onNotificationTap: () => _showNotificationsDialog(context, channel),
+              onNotificationTap: () =>
+                  _showNotificationsDialog(context, currentChannel),
               onPressed: !AuthService.to.isAuthenticated.value
-                  ? () => AuthBottomSheet.show(context)
+                  ? () => AuthService.to.triggerPlatformSignIn()
                   : () async {
                       if (isSubscribed) {
-                        _showNotificationsDialog(context, channel);
+                        _showNotificationsDialog(context, currentChannel);
                       } else {
                         await controller.toggleSubscription(
-                          channel.channelId,
+                          currentChannel.channelId,
                         );
                       }
                     },
-            );
-          }),
-          // Join / Joined Channel Membership Button
-          Obx(() {
-            final currentChannel = controller.selectedChannel.value ?? channel;
-            final hasMemberships = controller.hasChannelMemberships.value || currentChannel.hasMemberships;
-            final isJoined = controller.isChannelMember.value;
-
-            if (!hasMemberships && !isJoined) {
-              return const SizedBox.shrink();
-            }
-
-            return Padding(
-              padding: const EdgeInsets.only(left: 8),
-              child: Container(
+            ),
+            if (hasMemberships || isJoined) ...[
+              const SizedBox(width: 8),
+              Container(
                 height: 36,
                 decoration: BoxDecoration(
                   color: isJoined ? const Color(0xFF1B382B) : ytSurfaceLight,
@@ -581,8 +820,8 @@ class ChannelHeaderWidget extends StatelessWidget {
                   child: InkWell(
                     onTap: () => ChannelMembershipJoinSheet.show(
                       context,
-                      channelId: channel.channelId,
-                      channel: channel,
+                      channelId: currentChannel.channelId,
+                      channel: currentChannel,
                     ),
                     borderRadius: BorderRadius.circular(18),
                     child: Padding(
@@ -601,7 +840,9 @@ class ChannelHeaderWidget extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: isJoined ? const Color(0xFF34D399) : ytTextPrimary,
+                              color: isJoined
+                                  ? const Color(0xFF34D399)
+                                  : ytTextPrimary,
                             ),
                           ),
                         ],
@@ -610,105 +851,154 @@ class ChannelHeaderWidget extends StatelessWidget {
                   ),
                 ),
               ),
-            );
-          }),
-          const SizedBox(width: 8),
-          Container(
-            height: 36,
-            decoration: BoxDecoration(
-              color: ytSurfaceLight,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () => controller.shareChannel(channel.channelId),
+            ],
+            const SizedBox(width: 8),
+            Container(
+              height: 36,
+              decoration: BoxDecoration(
+                color: ytSurfaceLight,
                 borderRadius: BorderRadius.circular(18),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    children: [
-                      Icon(Icons.share, color: ytTextPrimary, size: 18),
-                      SizedBox(width: 6),
-                      Text(
-                        'Share',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: ytTextPrimary,
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => controller.shareChannel(
+                    currentChannel.channelId,
+                    currentChannel,
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        Icon(Icons.share, color: ytTextPrimary, size: 18),
+                        SizedBox(width: 6),
+                        Text(
+                          'Share',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: ytTextPrimary,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    });
   }
 
+  void _showAvatarModerationDetailDialog(
+    BuildContext context, {
+    required String status,
+    required String reason,
+  }) {
+    final title =
+        status == 'REJECTED' ? 'Avatar Rejected' : 'Avatar Review Needed';
+    final cleanReason = reason.isNotEmpty
+        ? reason
+        : 'The uploaded avatar image did not meet community guidelines.';
 
-
-  void _showUnsubscribeConfirmation(BuildContext context, Channel channel) {
-    showDialog(
+    showDialog<void>(
       context: context,
-      builder: (context) => Dialog(
+      builder: (dialogCtx) => Dialog(
         backgroundColor: ytSurface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Unsubscribe from ${channel.channelName}?',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                  color: ytTextPrimary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                "You will no longer see this channel's content in your feed.",
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: ytTextSecondary),
-              ),
-              const SizedBox(height: 24),
               Row(
                 children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(
-                          color: ytTextPrimary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: (status == 'REJECTED'
+                              ? const Color(0xFFEF4444)
+                              : const Color(0xFFF59E0B))
+                          .withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      status == 'REJECTED'
+                          ? Icons.error_outline_rounded
+                          : Icons.warning_amber_rounded,
+                      color: status == 'REJECTED'
+                          ? const Color(0xFFEF4444)
+                          : const Color(0xFFF59E0B),
+                      size: 24,
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        controller.toggleSubscription(channel.channelId);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: ytTextPrimary,
-                        foregroundColor: ytBackground,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: ytTextPrimary,
                       ),
-                      child: const Text(
-                        'Unsubscribe',
-                        style: TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                cleanReason,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: ytTextSecondary,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogCtx).pop(),
+                    child: const Text(
+                      'Dismiss',
+                      style: TextStyle(
+                        color: ytTextSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(dialogCtx).pop();
+                      controller.requestManualReview(
+                        channelId: channel.channelId,
+                        isBanner: false,
+                        reason: cleanReason,
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ytTextPrimary,
+                      foregroundColor: ytBackground,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                    ),
+                    child: const Text(
+                      'Request Review',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
                       ),
                     ),
                   ),

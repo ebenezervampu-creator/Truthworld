@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/pages/generate_ai_subtitles_page.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class SubtitlesAiProgressBanner extends StatelessWidget {
@@ -26,7 +27,7 @@ class SubtitlesAiProgressBanner extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
+          color: AppColors.bgSurface,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: AppColors.brand.withValues(alpha: 0.3),
@@ -87,6 +88,41 @@ class SubtitlesAiProgressBanner extends StatelessWidget {
                 valueColor: const AlwaysStoppedAnimation<Color>(AppColors.brand),
                 minHeight: 6,
               ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(
+                  Icons.cloud_done_rounded,
+                  size: 13,
+                  color: Colors.white70,
+                ),
+                const SizedBox(width: 5),
+                const Expanded(
+                  child: Text(
+                    'Runs in background • Safe to leave or close app',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textTertiary,
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => Get.to(() => GenerateAiSubtitlesPage(
+                        controller: controller,
+                        isDarkMode: true,
+                      )),
+                  child: const Text(
+                    'View Progress',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

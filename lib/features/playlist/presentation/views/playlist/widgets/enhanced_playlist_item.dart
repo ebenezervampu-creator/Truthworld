@@ -1,7 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/widgets/playlist_options_sheet.dart';
@@ -106,7 +105,7 @@ class EnhancedPlaylistItem extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             label,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               color: Colors.white,
               fontSize: 10,
               fontWeight: FontWeight.bold,
@@ -166,7 +165,7 @@ class EnhancedPlaylistItem extends StatelessWidget {
           playlist.playlistName,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
             color: Colors.white,
@@ -175,7 +174,7 @@ class EnhancedPlaylistItem extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           "${playlist.isPublic ? 'Public' : 'Private'} • ${isPodcast ? 'Podcast' : 'Playlist'}",
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 13,
             color: Colors.white.withValues(alpha: 0.6),
             fontWeight: FontWeight.w400,
@@ -187,7 +186,7 @@ class EnhancedPlaylistItem extends StatelessWidget {
             playlist.updatedAt.toDate(),
             prefix: 'Updated',
           ),
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 13,
             color: Colors.white.withValues(alpha: 0.6),
             fontWeight: FontWeight.w400,
@@ -205,7 +204,7 @@ class EnhancedPlaylistItem extends StatelessWidget {
           },
           child: Text(
             "View full ${isPodcast ? 'podcast' : 'playlist'}",
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 13,
               color: AppColors.textLink,
               fontWeight: FontWeight.w500,
@@ -258,7 +257,7 @@ class EnhancedPlaylistItem extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       '${playlist.effectiveVideoCount}',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         color: Colors.white,
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
@@ -300,7 +299,7 @@ class EnhancedPlaylistItem extends StatelessWidget {
                 playlist.playlistName,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
@@ -314,7 +313,7 @@ class EnhancedPlaylistItem extends StatelessWidget {
                       final count = playlist.effectiveVideoCount;
                       return '$count ${count == 1 ? "video" : "videos"}';
                     }(),
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 14,
                       color: Colors.white.withValues(alpha: 0.6),
                       fontWeight: FontWeight.w500,

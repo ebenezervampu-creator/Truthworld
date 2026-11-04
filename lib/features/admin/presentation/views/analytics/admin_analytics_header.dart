@@ -57,7 +57,7 @@ class AdminAnalyticsHeader extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
               decoration: BoxDecoration(
-                color: const Color(0xFF181818),
+                color: AppColors.bgPage,
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
               ),
@@ -65,7 +65,7 @@ class AdminAnalyticsHeader extends StatelessWidget {
                 () => DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: controller.analyticsTimeRange.value,
-                    dropdownColor: const Color(0xFF1F1F1F),
+                    dropdownColor: AppColors.bgSurface,
                     icon: const Icon(
                       Icons.keyboard_arrow_down_rounded,
                       color: Colors.white,
@@ -105,7 +105,7 @@ class AdminAnalyticsHeader extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF181818),
+                      color: AppColors.bgPage,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: Colors.white.withValues(alpha: 0.12),

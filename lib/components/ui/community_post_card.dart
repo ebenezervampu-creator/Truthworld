@@ -37,6 +37,10 @@ class CommunityPostCard extends StatelessWidget {
       final isOwner = controller.currentUid != null &&
           (controller.currentUid == post.ownerId || controller.currentUid == post.channelId);
 
+      if (controller.isDeleted.value) {
+        return const SizedBox.shrink();
+      }
+
       // On channel details page, studio dashboard, saved posts, or if user is the creator,
       // NEVER hide the post from view!
       if (!isChannelContext && !isOwner && isHidden) {
@@ -101,6 +105,12 @@ class CommunityPostCard extends StatelessWidget {
             if (post.images.isNotEmpty)
               CommunityPostImageCarousel(
                 images: post.images,
+              ),
+
+            // Interactive Poll Widget
+            if (post.poll != null || controller.poll.value != null)
+              CommunityPostPollWidget(
+                controller: controller,
               ),
 
             // Interaction Action Bar (Like, Dislike, Comment, Share)

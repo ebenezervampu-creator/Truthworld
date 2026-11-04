@@ -22,13 +22,24 @@ class LocalPlaybackProxyServer {
   static final LocalPlaybackProxyServer instance = LocalPlaybackProxyServer._();
 
   HttpServer? _server;
-  String? _sessionToken;
+  final Map<String, String> _streamTokens = {};
   final Map<String, File> _registeredFiles = {};
   Completer<void>? _startCompleter;
 
   bool get isRunning => _server != null;
   int? get port => _server?.port;
-  String? get sessionToken => _sessionToken;
+  String? get sessionToken => _streamTokens.values.lastOrNull;
+  String? getStreamToken(String videoId) => _streamTokens[videoId];
+
+  /// Generates a cryptographically secure 128-bit random hexadecimal token.
+  static String _generateSecureToken() {
+    final random = Random.secure();
+    final tokenBytes = Uint8List(16);
+    for (var i = 0; i < 16; i++) {
+      tokenBytes[i] = random.nextInt(256);
+    }
+    return tokenBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  }
 
   /// Starts the localhost proxy server if not already running.
   Future<void> start() async {
@@ -39,14 +50,6 @@ class LocalPlaybackProxyServer {
     _startCompleter = Completer<void>();
 
     try {
-      // Generate a secure session token
-      final random = Random.secure();
-      final tokenBytes = Uint8List(16);
-      for (var i = 0; i < 16; i++) {
-        tokenBytes[i] = random.nextInt(256);
-      }
-      _sessionToken = tokenBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-
       // Bind to 127.0.0.1 on port 0 (OS picks an open port)
       _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       _server!.listen(
@@ -76,25 +79,50 @@ class LocalPlaybackProxyServer {
     }
   }
 
-  /// Registers an encrypted file and returns its streamable loopback URL.
+  /// Registers an encrypted file and returns its streamable loopback URL with a stream-scoped token.
   Future<String> serveVideo(String videoId, File encryptedFile) async {
     if (kIsWeb) {
       throw UnsupportedError('LocalPlaybackProxyServer is not used on Web. Use Blob URLs.');
     }
 
     await start();
+    final streamToken = _generateSecureToken();
+    _streamTokens[videoId] = streamToken;
     _registeredFiles[videoId] = encryptedFile;
-    return 'http://127.0.0.1:${_server!.port}/stream/$videoId?token=$_sessionToken';
+    return 'http://127.0.0.1:${_server!.port}/stream/$videoId?token=$streamToken';
   }
 
-  /// Unregisters a video file when playback is dismissed.
+  /// Unregisters a video file when playback is dismissed and invalidates its stream-scoped token.
   void unregisterVideo(String videoId) {
     _registeredFiles.remove(videoId);
+    _streamTokens.remove(videoId);
   }
 
   /// Handles incoming HTTP requests from the media player engine.
   Future<void> _handleRequest(HttpRequest request) async {
     try {
+      final serverPort = _server?.port;
+      final host = request.headers.value(HttpHeaders.hostHeader);
+      final expectedHost1 = '127.0.0.1:$serverPort';
+      final expectedHost2 = 'localhost:$serverPort';
+
+      // 1. Host header validation: strictly allow only loopback hosts to block DNS rebinding
+      if (host == null || (host != expectedHost1 && host != expectedHost2)) {
+        request.response.statusCode = HttpStatus.forbidden;
+        request.response.write('Access denied: invalid Host header');
+        await request.response.close();
+        return;
+      }
+
+      // 2. Origin header validation: reject requests bearing an Origin header to prevent browser DNS rebinding
+      final origin = request.headers.value('origin');
+      if (origin != null && origin.trim().isNotEmpty) {
+        request.response.statusCode = HttpStatus.forbidden;
+        request.response.write('Access denied: cross-origin requests forbidden');
+        await request.response.close();
+        return;
+      }
+
       final uri = request.uri;
       final pathSegments = uri.pathSegments;
 
@@ -108,8 +136,9 @@ class LocalPlaybackProxyServer {
       final videoId = pathSegments[1];
       final token = uri.queryParameters['token'];
 
-      // Authenticate session token
-      if (token == null || token != _sessionToken) {
+      // 3. Authenticate stream-scoped session token
+      final expectedToken = _streamTokens[videoId];
+      if (token == null || expectedToken == null || token != expectedToken) {
         request.response.statusCode = HttpStatus.forbidden;
         request.response.write('Access denied: invalid playback token');
         await request.response.close();
@@ -123,6 +152,10 @@ class LocalPlaybackProxyServer {
         await request.response.close();
         return;
       }
+
+      // Set mandatory security response headers
+      request.response.headers.set('X-Content-Type-Options', 'nosniff');
+      request.response.headers.set('Cross-Origin-Resource-Policy', 'same-origin');
 
       // Read encrypted header to determine MIME type and length
       final headerBytes = await file.openRead(0, MediaCryptoService.headerSize).first;
@@ -235,6 +268,8 @@ class LocalPlaybackProxyServer {
     final isAudio = file.path.endsWith('.mp3');
     final mimeType = isAudio ? 'audio/mpeg' : 'video/mp4';
 
+    request.response.headers.set('X-Content-Type-Options', 'nosniff');
+    request.response.headers.set('Cross-Origin-Resource-Policy', 'same-origin');
     request.response.headers.set(HttpHeaders.acceptRangesHeader, 'bytes');
     request.response.headers.set(HttpHeaders.contentTypeHeader, mimeType);
 
@@ -269,7 +304,7 @@ class LocalPlaybackProxyServer {
     if (_server != null) {
       await _server!.close(force: true);
       _server = null;
-      _sessionToken = null;
+      _streamTokens.clear();
       _registeredFiles.clear();
       _startCompleter = null;
       debugPrint('[LocalPlaybackProxy] Stopped proxy server');

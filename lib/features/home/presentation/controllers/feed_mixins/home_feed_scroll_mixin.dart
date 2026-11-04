@@ -159,8 +159,12 @@ mixin HomeFeedScrollMixin on HomeFeedControllerBase {
           }
 
           final existingIds = videos.map((v) => v.id).toSet();
-          final uniqueNewVideos =
-              videosToAdd.where((v) => !existingIds.contains(v.id)).toList();
+          final uniqueNewVideos = <Video>[];
+          for (final v in videosToAdd) {
+            if (v.id.isNotEmpty && existingIds.add(v.id)) {
+              uniqueNewVideos.add(v);
+            }
+          }
           if (uniqueNewVideos.isNotEmpty) {
             videos.addAll(uniqueNewVideos);
             if (isUnexplored) {

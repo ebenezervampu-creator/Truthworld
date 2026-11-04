@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
@@ -10,6 +9,7 @@ import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/widgets/ad/pinned_sponsor_comment_card.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
 import 'package:truthworld/features/video/data/services/comment_service.dart';
 import 'package:truthworld/theme/app_colors.dart';
@@ -72,7 +72,7 @@ void showSponsorDiscussionModal({
                         Expanded(
                           child: Text(
                             '${ad.advertiser.isNotEmpty ? ad.advertiser : "Sponsor"} Discussion',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               color: Colors.white,
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -161,7 +161,7 @@ void showSponsorDiscussionModal({
                                     const SizedBox(height: 10),
                                     Text(
                                       'No replies yet',
-                                      style: GoogleFonts.roboto(
+                                      style: TextStyle(
                                         color: AppColors.textSecondary,
                                         fontSize: 14,
                                         fontWeight: FontWeight.bold,
@@ -170,7 +170,7 @@ void showSponsorDiscussionModal({
                                     const SizedBox(height: 4),
                                     Text(
                                       'Be the first to reply to ${ad.advertiser.isNotEmpty ? ad.advertiser : "our sponsor"}!',
-                                      style: GoogleFonts.roboto(
+                                      style: TextStyle(
                                         color: AppColors.textDisabled,
                                         fontSize: 12,
                                       ),
@@ -199,7 +199,7 @@ void showSponsorDiscussionModal({
                                   margin: const EdgeInsets.only(bottom: 12),
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF1E1E1E),
+                                    color: AppColors.bgSurface,
                                     borderRadius: BorderRadius.circular(10),
                                     border: Border.all(
                                       color:
@@ -216,7 +216,7 @@ void showSponsorDiscussionModal({
                                             const Color(0xFF333333),
                                         child: Text(
                                           displayName[0].toUpperCase(),
-                                          style: GoogleFonts.roboto(
+                                          style: TextStyle(
                                             color: Colors.white,
                                             fontSize: 12,
                                             fontWeight: FontWeight.bold,
@@ -233,7 +233,7 @@ void showSponsorDiscussionModal({
                                               children: [
                                                 Text(
                                                   displayName,
-                                                  style: GoogleFonts.roboto(
+                                                  style: TextStyle(
                                                     fontWeight: FontWeight.bold,
                                                     color: Colors.white,
                                                     fontSize: 13,
@@ -242,7 +242,7 @@ void showSponsorDiscussionModal({
                                                 const SizedBox(width: 8),
                                                 Text(
                                                   formattedTime,
-                                                  style: GoogleFonts.roboto(
+                                                  style: TextStyle(
                                                     color:
                                                         AppColors.textDisabled,
                                                     fontSize: 10,
@@ -251,9 +251,9 @@ void showSponsorDiscussionModal({
                                               ],
                                             ),
                                             const SizedBox(height: 4),
-                                            Text(
-                                              reply.text,
-                                              style: GoogleFonts.roboto(
+                                            ClickableUrlText(
+                                              text: reply.text,
+                                              style: TextStyle(
                                                 color: Colors.white,
                                                 fontSize: 13,
                                                 height: 1.3,
@@ -295,14 +295,14 @@ void showSponsorDiscussionModal({
                               maxLength: defaultMaxReplyLength,
                               buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                               inputFormatters: TruthworldTextInputFormatters.withLimit(defaultMaxReplyLength),
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 14,
                               ),
                               decoration: InputDecoration(
                                 hintText:
                                     'Reply to ${ad.advertiser.isNotEmpty ? ad.advertiser : "sponsor"}...',
-                                hintStyle: GoogleFonts.roboto(
+                                hintStyle: TextStyle(
                                   color: AppColors.textDisabled,
                                   fontSize: 13,
                                 ),

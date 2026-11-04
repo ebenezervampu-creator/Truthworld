@@ -2,6 +2,7 @@ import * as admin from "firebase-admin";
 import { onCall, HttpsError, onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import { requireAuth } from "../utils/auth";
+import { applySecurityHeaders } from "../utils/securityHeaders";
 
 const db = () => admin.firestore();
 
@@ -35,7 +36,9 @@ export const followChannel = onCall(
     const subscriberRef = db().collection("channel_subscribers").doc(`${channelId}_${userId}`);
     const legacySubRef = db().collection("subscriptions").doc(`${channelId}_${userId}`);
     const channelSubRef = db().collection("channels").doc(channelId).collection("channelSubscribers").doc(userId);
+    const standardChannelSubRef = db().collection("channels").doc(channelId).collection("subscribers").doc(userId);
     const userSubRef = db().collection("users").doc(userId).collection("userSubscriptions").doc(channelId);
+    const standardUserSubRef = db().collection("users").doc(userId).collection("subscriptions").doc(channelId);
     const channelRef = db().collection("channels").doc(channelId);
     const userRef = db().collection("users").doc(userId);
 
@@ -70,7 +73,9 @@ export const followChannel = onCall(
         tx.set(subscriberRef, subPayload);
         tx.set(legacySubRef, subPayload);
         tx.set(channelSubRef, subPayload);
+        tx.set(standardChannelSubRef, subPayload);
         tx.set(userSubRef, subPayload);
+        tx.set(standardUserSubRef, subPayload);
 
         tx.update(channelRef, {
           "stats.subscribersCount": admin.firestore.FieldValue.increment(1),
@@ -113,7 +118,9 @@ export const unfollowChannel = onCall(
     const subscriberRef = db().collection("channel_subscribers").doc(`${channelId}_${userId}`);
     const legacySubRef = db().collection("subscriptions").doc(`${channelId}_${userId}`);
     const channelSubRef = db().collection("channels").doc(channelId).collection("channelSubscribers").doc(userId);
+    const standardChannelSubRef = db().collection("channels").doc(channelId).collection("subscribers").doc(userId);
     const userSubRef = db().collection("users").doc(userId).collection("userSubscriptions").doc(channelId);
+    const standardUserSubRef = db().collection("users").doc(userId).collection("subscriptions").doc(channelId);
     const channelRef = db().collection("channels").doc(channelId);
     const userRef = db().collection("users").doc(userId);
 
@@ -128,7 +135,9 @@ export const unfollowChannel = onCall(
         tx.delete(subscriberRef);
         tx.delete(legacySubRef);
         tx.delete(channelSubRef);
+        tx.delete(standardChannelSubRef);
         tx.delete(userSubRef);
+        tx.delete(standardUserSubRef);
 
         tx.update(channelRef, {
           "stats.subscribersCount": admin.firestore.FieldValue.increment(-1),
@@ -182,14 +191,18 @@ export const updateChannelNotificationSettings = onCall(
     const subscriberRef = db().collection("channel_subscribers").doc(`${channelId}_${userId}`);
     const legacySubRef = db().collection("subscriptions").doc(`${channelId}_${userId}`);
     const channelSubRef = db().collection("channels").doc(channelId).collection("channelSubscribers").doc(userId);
+    const standardChannelSubRef = db().collection("channels").doc(channelId).collection("subscribers").doc(userId);
     const userSubRef = db().collection("users").doc(userId).collection("userSubscriptions").doc(channelId);
+    const standardUserSubRef = db().collection("users").doc(userId).collection("subscriptions").doc(channelId);
 
     try {
       const batch = db().batch();
       batch.set(subscriberRef, updates, { merge: true });
       batch.set(legacySubRef, updates, { merge: true });
       batch.set(channelSubRef, updates, { merge: true });
+      batch.set(standardChannelSubRef, updates, { merge: true });
       batch.set(userSubRef, updates, { merge: true });
+      batch.set(standardUserSubRef, updates, { merge: true });
 
       await batch.commit();
 
@@ -215,6 +228,7 @@ export const updateChannelNotificationSettings = onCall(
 export const getFollowingFeed = onRequest(
   { region: "asia-south1", cors: true, memory: "512MiB" },
   async (req, res) => {
+    applySecurityHeaders(res);
     // L-32: Authenticate the caller instead of trusting client-supplied userId
     const authUser = await requireAuth(req, res);
     if (!authUser) return;
@@ -247,7 +261,7 @@ export const getFollowingFeed = onRequest(
       res.status(200).json({ videos });
     } catch (err) {
       logger.error("[getFollowingFeed] Error:", err);
-      res.status(500).json({ error: "Internal error" });
+      res.status(500).json({ error: "Unable to load following feed. Please try again." });
     }
   }
 );

@@ -256,24 +256,3 @@ class RouteProtection {
     return null;
   }
 }
-
-/// Redirects creators to Channel Wallet (/dashboard) and regular viewers to home (/)
-class WalletRedirectMiddleware extends GetMiddleware {
-  @override
-  int? get priority => 8;
-
-  @override
-  RouteSettings? redirect(String? route) {
-    final auth = Get.isRegistered<AuthService>() ? AuthService.to : null;
-    if (auth != null && auth.hasChannel.value) {
-      if (AppFlavor.isStudio) {
-        return const RouteSettings(name: '/dashboard');
-      }
-      final userChannel = auth.userChannel;
-      if (userChannel != null && userChannel.channelRoute.isNotEmpty) {
-        return RouteSettings(name: userChannel.channelRoute);
-      }
-    }
-    return const RouteSettings(name: '/');
-  }
-}

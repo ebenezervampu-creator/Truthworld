@@ -66,15 +66,15 @@ class AdvertiserInputField extends StatelessWidget {
               color: AppColors.textTertiary,
               fontSize: 13,
             ),
-            fillColor: const Color(0xFF121212),
+            fillColor: AppColors.bgInput,
             filled: true,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFF27272A)),
+              borderSide: const BorderSide(color: AppColors.bgSurface),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFF27272A)),
+              borderSide: const BorderSide(color: AppColors.bgSurface),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),

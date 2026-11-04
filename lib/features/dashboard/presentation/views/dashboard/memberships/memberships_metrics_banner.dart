@@ -21,7 +21,19 @@ class CommissionNoticeBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget buildBanner({
       required bool isNoAdsActive,
+      required bool isCustom,
     }) {
+      final bannerTitle = isNoAdsActive
+          ? 'Channel Premium Active (30% Platform Cut • 70% Creator Take-Home)'
+          : (isCustom
+              ? 'Pro Channel: 0% Platform Commission Guarantee'
+              : 'Standard Channel: 90% Creator Revenue (10% Platform Fee)');
+      final bannerSubtitle = isNoAdsActive
+          ? 'Your channel members enjoy 100% ad-free viewing and 4K Ultra HD streaming across all your videos. TruthWorld retains a 30% revenue share on memberships to fund high-bitrate streaming without ads, and 70% goes directly to you.'
+          : (isCustom
+              ? '100% of your channel memberships & recurring fan support revenues go directly to your creator account without any platform cuts (SaaS infrastructure tier).'
+              : '90% of your channel memberships & recurring fan support revenues go directly to your creator account (10% platform fee covers payment processing & hosting).');
+
       return Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -62,9 +74,7 @@ class CommissionNoticeBanner extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    isNoAdsActive
-                        ? 'Channel Premium Active (30% Platform Cut • 70% Creator Take-Home)'
-                        : '0% Platform Commission Guarantee',
+                    bannerTitle,
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -73,9 +83,7 @@ class CommissionNoticeBanner extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    isNoAdsActive
-                        ? 'Your channel members enjoy 100% ad-free viewing and 4K Ultra HD streaming across all your videos. TruthWorld retains a 30% revenue share on memberships to fund high-bitrate streaming without ads, and 70% goes directly to you.'
-                        : '100% of your channel memberships & recurring fan support revenues go directly to your creator account without any platform cuts or commission fees.',
+                    bannerSubtitle,
                     style: TextStyle(
                       fontSize: 13,
                       color: Colors.white.withValues(alpha: 0.95),
@@ -91,9 +99,12 @@ class CommissionNoticeBanner extends StatelessWidget {
     }
 
     if (controller != null) {
-      return Obx(() => buildBanner(isNoAdsActive: controller!.noAdsForMembers.value));
+      return Obx(() => buildBanner(
+            isNoAdsActive: controller!.noAdsForMembers.value,
+            isCustom: controller!.isCustomChannel.value,
+          ));
     }
-    return buildBanner(isNoAdsActive: false);
+    return buildBanner(isNoAdsActive: false, isCustom: false);
   }
 }
 
@@ -127,11 +138,14 @@ class MembershipsMetricsSummary extends StatelessWidget {
       final rate = Get.isRegistered<CurrencyLocalizationService>()
           ? CurrencyLocalizationService.to.rate
           : CurrencyLocalizationService.defaultRate;
+      final isCustom = controller.isCustomChannel.value;
       final incomeSubtitle = isNoAds
           ? '70% Net Take-Home (30% Platform Cut)'
-          : (isUsd && mrr > 0
-              ? '≈ ₹${(mrr * rate).toStringAsFixed(2)} Payout'
-              : '100% Direct Payout');
+          : (isCustom
+              ? (isUsd && mrr > 0
+                  ? '≈ ₹${(mrr * rate).toStringAsFixed(2)} Payout (100%)'
+                  : '100% Direct Payout (0% Cut)')
+              : '90% Net Payout (10% Fee)');
 
       final activeMemberList = controller.members
           .where((m) => m.status.toLowerCase() == 'active')

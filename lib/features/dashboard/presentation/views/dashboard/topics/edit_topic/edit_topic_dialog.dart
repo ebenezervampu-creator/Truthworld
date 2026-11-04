@@ -66,7 +66,7 @@ class EditTopicDialog extends StatelessWidget {
 
     return Obx(() {
       return Dialog(
-        backgroundColor: const Color(0xFF1E1E1E),
+        backgroundColor: AppColors.bgSurface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
           side: const BorderSide(color: AppColors.bgDivider),
@@ -137,7 +137,7 @@ class EditTopicDialog extends StatelessWidget {
                                   color: const Color(0xFF2C1515),
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
-                                    color: const Color(0xFFEF4444).withValues(alpha: 0.6),
+                                    color: AppColors.error.withValues(alpha: 0.6),
                                   ),
                                 ),
                                 child: Row(
@@ -145,7 +145,7 @@ class EditTopicDialog extends StatelessWidget {
                                   children: [
                                     const Icon(
                                       Icons.warning_amber_rounded,
-                                      color: Color(0xFFEF4444),
+                                      color: AppColors.error,
                                       size: 18,
                                     ),
                                     const SizedBox(width: 10),
@@ -156,7 +156,7 @@ class EditTopicDialog extends StatelessWidget {
                                           const Text(
                                             'Moderation Notice — Action Required',
                                             style: TextStyle(
-                                              color: Color(0xFFEF4444),
+                                              color: AppColors.error,
                                               fontWeight: FontWeight.bold,
                                               fontSize: 13,
                                             ),
@@ -179,11 +179,11 @@ class EditTopicDialog extends StatelessWidget {
                                 ),
                               ),
                             ],
-                            const EditTopicFieldLabel(label: 'Topic Title', isRequired: true),
+                            const EditTopicFieldLabel(label: 'Topic Name', isRequired: true),
                             const SizedBox(height: 8),
                             EditTopicInputField(
-                              controller: editCtrl.titleController,
-                              hintText: 'Enter topic title',
+                              controller: editCtrl.nameController,
+                              hintText: 'Enter topic name',
                               maxLength: 100,
                             ),
                             const SizedBox(height: 16),

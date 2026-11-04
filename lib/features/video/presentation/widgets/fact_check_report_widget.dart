@@ -30,16 +30,7 @@ class FactCheckReportWidget extends StatelessWidget {
       isVideoFactChecked: video.isFactChecked,
     );
 
-    // 🧠 Extract multi-dimensional credibility data
-    final trustScore = parsed.trustScore ?? 0.0;
-    final truthScore = ((data['truthScore'] ?? trustScore) as num).toDouble();
-    final honestyScore = ((data['honestyScore'] ??
-            (data.containsKey('truthScore') || trustScore > 0 ? truthScore : 0.0)) as num)
-        .toDouble();
-    final rationalityScore = ((data['rationalityScore'] ??
-            (data.containsKey('truthScore') || trustScore > 0 ? truthScore : 0.0)) as num)
-        .toDouble();
-
+    // 🧠 Extract verification data
     final stats = data['factCheckStats'] as Map? ?? {};
     final claims = parsed.claims.isNotEmpty ? parsed.claims : (data['claims'] as List? ?? []);
     final diagnostics = data['diagnostics'] as List? ?? [];
@@ -96,13 +87,7 @@ class FactCheckReportWidget extends StatelessWidget {
                   physics: const BouncingScrollPhysics(),
                   children: [
                     const SizedBox(height: 24),
-                    if (hasClaims || (data.containsKey('honestyScore') && data.containsKey('rationalityScore'))) ...[
-                      FactCheckMetricsRow(
-                        truth: truthScore,
-                        honesty: honestyScore,
-                        rationality: rationalityScore,
-                      ),
-                      const SizedBox(height: 24),
+                    if (hasClaims) ...[
                       FactCheckConfidenceBar(confidence: confidence),
                       const SizedBox(height: 32),
                     ] else ...[
@@ -142,7 +127,7 @@ class FactCheckReportWidget extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    'No empirical factual assertions were extracted from this content. Factual truth, honesty, and logic scoring apply exclusively to verifiable propositions.',
+                                    'No empirical factual assertions were extracted from this content. Fact verification applies exclusively to verifiable propositions.',
                                     style: AppTextStyles.bodySmall.copyWith(
                                       color: AppColors.textSecondary,
                                       height: 1.4,
@@ -162,6 +147,8 @@ class FactCheckReportWidget extends StatelessWidget {
                       FactCheckNarrativeSection(narrative: narrative),
                       const SizedBox(height: 32),
                     ],
+                    const FactCheckEpistemicBanner(),
+                    const SizedBox(height: 24),
                     FactCheckClaimsSection(claims: claims, video: video),
                     const SizedBox(height: 32),
                     if (sources.isNotEmpty) ...[

@@ -77,16 +77,13 @@ class SemanticLabels {
   static String duration(String formattedDuration) =>
       'Duration: $formattedDuration';
 
-  /// Credibility badge
+  /// Credibility badge (Zero Video Trust Score Policy)
   static String credibilityBadge({
     required bool isVerified,
     double? trustScore,
   }) {
     if (!isVerified) return 'Not fact-checked';
-    if (trustScore != null) {
-      return 'Fact-checked, trust score ${trustScore.toStringAsFixed(1)} out of 10';
-    }
-    return 'Fact-checked';
+    return 'Fact-checked on transparent claim ledger';
   }
 
   /// Like button

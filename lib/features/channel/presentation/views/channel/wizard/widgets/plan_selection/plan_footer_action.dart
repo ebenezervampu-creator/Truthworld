@@ -26,8 +26,8 @@ class PlanFooterAction extends StatelessWidget {
       final hasSelected = selectedPlan.isNotEmpty;
       final isCustom = selectedPlan == 'custom';
       final buttonText = hasSelected
-          ? 'Continue with ${isCustom ? 'Custom' : 'Standard'} Channel'
-          : 'Select Standard or Custom Plan';
+          ? 'Continue with ${isCustom ? 'Pro' : 'Standard'} Channel'
+          : 'Select Standard or Pro Plan';
 
       final toggleText = isShowingAllFeatures.value
           ? 'Hide All Features'
@@ -36,7 +36,7 @@ class PlanFooterAction extends StatelessWidget {
       void handleProceed() {
         if (!hasSelected) {
           AppSnackbar.info(
-            'Please tap on either Standard or Custom channel plan to select your plan.',
+            'Please tap on either Standard or Pro channel plan to select your plan.',
             title: 'Select Channel Plan',
           );
           return;

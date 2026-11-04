@@ -88,16 +88,12 @@ export const updateAlgorithmRemoteConfig = onCall(
       );
     }
 
-    // Verify admin privileges and recent session
+    // Verify admin privileges and recent session (strictly requires verified email)
     if (!isCallableRecentAdmin(request.auth, 3600)) {
-      const userDoc = await db().collection("users").doc(request.auth.uid).get();
-      const role = userDoc.data()?.role;
-      if (role !== "admin" && role !== "superadmin") {
-        throw new HttpsError(
-          "permission-denied",
-          "Administrative privileges and recent authentication required."
-        );
-      }
+      throw new HttpsError(
+        "permission-denied",
+        "Administrative privileges with verified email and recent authentication required."
+      );
     }
 
     const { version, weights } = request.data || {};

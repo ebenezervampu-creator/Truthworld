@@ -17,6 +17,7 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/widgets/video_analysis_bottom_sheet.dart';
+import 'package:truthworld/features/video/presentation/widgets/video_player_settings_sheet.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class VideoOptionsSheet extends StatelessWidget {
@@ -170,28 +171,57 @@ class VideoOptionsSheet extends StatelessWidget {
                       );
                     },
                   ),
-                  _buildMenuItem(
-                    context,
-                    icon: const Icon(
-                      Icons.download_outlined,
-                      color: AppColors.textPrimary,
-                      size: 24,
-                    ),
-                    title: 'Download video',
-                    onTap: () async {
-                      Get.back();
-                      if (onDownloadVideo != null) {
-                        onDownloadVideo!();
-                        return;
-                      }
-                      await Future.delayed(const Duration(milliseconds: 100));
+                  Builder(
+                    builder: (context) {
                       final downloadsCtrl =
                           Get.isRegistered<DownloadsController>()
                               ? Get.find<DownloadsController>()
                               : Get.put(DownloadsController());
-                      downloadsCtrl.showDownloadQualityDialog(
-                        null,
-                        video,
+                      final isDownloaded =
+                          downloadsCtrl.isVideoDownloaded(video.id);
+
+                      if (isDownloaded) {
+                        return _buildMenuItem(
+                          context,
+                          icon: const Icon(
+                            Icons.download_done_rounded,
+                            color: AppColors.success,
+                            size: 24,
+                          ),
+                          title: 'Downloaded (Options)',
+                          onTap: () async {
+                            Get.back();
+                            VideoPlayerSettingsSheet.showDownloadedOptionsSheet(
+                              context: context,
+                              video: video,
+                              downloadsCtrl: downloadsCtrl,
+                            );
+                          },
+                        );
+                      }
+
+                      return _buildMenuItem(
+                        context,
+                        icon: const Icon(
+                          Icons.download_outlined,
+                          color: AppColors.textPrimary,
+                          size: 24,
+                        ),
+                        title: 'Download video',
+                        onTap: () async {
+                          Get.back();
+                          if (onDownloadVideo != null) {
+                            onDownloadVideo!();
+                            return;
+                          }
+                          await Future.delayed(
+                            const Duration(milliseconds: 100),
+                          );
+                          downloadsCtrl.showDownloadQualityDialog(
+                            null,
+                            video,
+                          );
+                        },
                       );
                     },
                   ),
@@ -218,7 +248,7 @@ class VideoOptionsSheet extends StatelessWidget {
                       );
                     },
                   ),
-                  if (!video.isNonCredibilityCategory)
+                  if (!video.isNonCredibilityCategory) ...[
                     _buildMenuItem(
                       context,
                       icon: const Icon(
@@ -234,6 +264,21 @@ class VideoOptionsSheet extends StatelessWidget {
                         _handleFactCheckAction(context, video);
                       },
                     ),
+                    if (video.hasTruthIntelligence)
+                      _buildMenuItem(
+                        context,
+                        icon: const Icon(
+                          Icons.auto_awesome_rounded,
+                          color: AppColors.textPrimary,
+                          size: 24,
+                        ),
+                        title: 'Ask Truth Intelligence AI',
+                        onTap: () {
+                          Get.back();
+                          AskAiScreen.open(context, video: video);
+                        },
+                      ),
+                  ],
                   _buildMenuItem(
                     context,
                     icon: Transform.flip(
@@ -563,32 +608,36 @@ class VideoOptionsSheet extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            InkWell(
-                              onTap: () {
-                                Navigator.of(context).pop();
-                                Get.toNamed('/copyright-complaint', arguments: {
-                                  'videoId': video.id,
-                                  'videoTitle': video.title,
-                                });
-                              },
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    'Open Official Copyright Takedown Form',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Color(0xFF3B82F6),
-                                      fontWeight: FontWeight.bold,
+                            MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () {
+                                  Navigator.of(context).pop();
+                                  Get.toNamed('/copyright-complaint', arguments: {
+                                    'videoId': video.id,
+                                    'videoTitle': video.title,
+                                  });
+                                },
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'Open Official Copyright Takedown Form',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF3B82F6),
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
-                                  ),
-                                  SizedBox(width: 4),
-                                  Icon(
-                                    Icons.arrow_forward,
-                                    color: Colors.white,
-                                    size: 14,
-                                  ),
-                                ],
+                                    SizedBox(width: 4),
+                                    Icon(
+                                      Icons.arrow_forward,
+                                      color: Colors.white,
+                                      size: 14,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ],
@@ -696,7 +745,7 @@ class VideoOptionsSheet extends StatelessWidget {
   }
 
   static Future<void> _handleFactCheckAction(BuildContext context, Video video) async {
-    if (video.isFactChecked || video.factCheckUrl.isNotEmpty) {
+    if (video.hasTruthIntelligence) {
       if (Get.isBottomSheetOpen == true) {
         Get.back();
       }
@@ -753,7 +802,7 @@ class VideoOptionsSheet extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               const Text(
-                r'On-demand AI video fact-checking is exclusive to the $3 TruthWorld Premium + Fact-Checked Plan. Upgrade to fact-check any video instantly with AI claim verification and truth scores.',
+                r'On-demand AI video fact-checking is exclusive to the $3 TruthWorld Premium + Fact-Checked Plan. Upgrade to fact-check any video instantly with AI claim verification and source citations.',
                 style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textSecondary,

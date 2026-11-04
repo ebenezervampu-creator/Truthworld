@@ -30,9 +30,11 @@ import {
   DubbingCompleteData,
   JobData,
 } from "../types";
-import { translationService } from "../services/translation";
+import { translationService, decodeHtmlEntities } from "../services/translation";
 import { ttsService }         from "../services/tts";
-import { mediaService }       from "../services/media";
+import { mediaService, parseDurationToSeconds } from "../services/media";
+import { lipSyncService } from "../services/lipSyncService";
+import { ELEVENLABS_VOICE_GENDER_MAP, ELEVENLABS_MULTI_SPEAKER_PALETTE } from "../services/googleTextToSpeechService";
 import { costEngine, getFlatDubbingPricePerLanguage } from "../services/cost-engine";
 import { speakerProfilingService } from "../services/speaker-profiling";
 import { audioIdentityService } from "../services/audio-identity";
@@ -41,8 +43,10 @@ import { EdgeLayer }          from "./01-edge";
 import { aggregationLayer }   from "./09-aggregation";
 import { PerformanceLayer }   from "./10-performance";
 import { creatorStyleService } from "../services/creatorStyleService";
+import { refundDubbingFeeOnFailure, creditLipSyncFallbackToWallet } from "../services/refundService";
 import { logger }             from "../utils/logger";
 import { normalizeLanguageCode } from "../../shared/language-normalizer";
+import { filterVideoIds } from "../../utils/videosCollectionGuard";
 
 const db = () => admin.firestore();
 
@@ -82,6 +86,10 @@ export class DubbingEngine {
     if (status === "PROCESSING") {
       logger.info("[Dubbing] Already processing — exiting gracefully", { jobId });
       return [] as any; // Early ACK
+    }
+    if (status === "FAILED") {
+      logger.warn("[Dubbing] Maximum retries exhausted for event — ignoring redelivery", { jobId, eventId });
+      return [] as any;
     }
 
     const t0 = Date.now();
@@ -129,7 +137,7 @@ export class DubbingEngine {
       try {
         const { TranscriptionLayer } = require("./05-transcription");
         const transLayer = new TranscriptionLayer();
-        await transLayer.submitTranscription(jobId, userId, videoUrl, executionPlan, eventId);
+        await transLayer.submitTranscription(jobId, userId, videoUrl, executionPlan, `${eventId}_trans_fallback`);
         stages = { ...(stages || {}), transcription: { status: "completed" } };
       } catch (autoTransErr) {
         logger.error("[Dubbing] Auto-transcription failed:", { jobId, err: String(autoTransErr) });
@@ -149,13 +157,15 @@ export class DubbingEngine {
       });
     }
 
+    const DUBBING_TIMEOUT_MS = parseInt(process.env.DUBBING_TIMEOUT_MS || "540000", 10);
     let timeoutTimer: NodeJS.Timeout | null = null;
     const timeoutPromise = new Promise<never>((_, reject) => {
       timeoutTimer = setTimeout(async () => {
-        logger.error("[Dubbing] Cloud timeout guard reached (480s)", { jobId });
-        await EdgeLayer.failJob(jobId, "dubbing", "Dubbing processing reached maximum cloud engine duration (480s)").catch(() => {});
-        reject(new Error("Dubbing processing reached maximum cloud engine duration (480s)"));
-      }, 480_000);
+        const seconds = Math.round(DUBBING_TIMEOUT_MS / 1000);
+        logger.error(`[Dubbing] Cloud timeout guard reached (${seconds}s)`, { jobId });
+        await EdgeLayer.failJob(jobId, "dubbing", `Dubbing processing reached maximum cloud engine duration (${seconds}s)`).catch(() => {});
+        reject(new Error(`Dubbing processing reached maximum cloud engine duration (${seconds}s)`));
+      }, DUBBING_TIMEOUT_MS);
     });
 
     try {
@@ -178,6 +188,8 @@ export class DubbingEngine {
     eventId:       string,
     t0:            number
   ): Promise<DubbingResult[]> {
+    let createdVoiceCloneId: string | null = null;
+    let isPersistentVoiceClone: boolean = false;
     try {
       // 1. Load transcript segments
       let transcript = await this.loadTranscript(jobId);
@@ -186,7 +198,7 @@ export class DubbingEngine {
         try {
           const { TranscriptionLayer } = require("./05-transcription");
           const transLayer = new TranscriptionLayer();
-          await transLayer.submitTranscription(jobId, userId, videoUrl, executionPlan, eventId);
+          await transLayer.submitTranscription(jobId, userId, videoUrl, executionPlan, `${eventId}_trans_reload`);
           transcript = await this.loadTranscript(jobId);
         } catch (autoErr) {
           logger.error("[Dubbing] Auto-transcription fallback failed:", { jobId, err: String(autoErr) });
@@ -221,67 +233,193 @@ export class DubbingEngine {
       logger.info("[Dubbing] Transcript loaded — starting speaker profiling", { jobId });
 
       // ─── STUDIO RIG: Intelligence & Identity (Phase 2) ─────────────────────
-      
-      // 1.5. Profile all speakers in the transcript (Age, Style, Energy)
-      const speakerProfiles = await speakerProfilingService.profileSpeakers(transcript.utterances ?? []);
-      logger.info("[Dubbing] Speaker profiling complete", { jobId, speakers: speakerProfiles.length });
+      let speakerProfiles: any[] = [];
+      let acousticFingerprint: any = null;
+      let isolatedVocalUrl: string | null = null;
+      let mneStemUrl: string | null = null;
+      const voiceMapping: Record<string, string> = {};
+      const speakerGenderMapping: Record<string, "MALE" | "FEMALE"> = {};
 
-      await db().collection("video_jobs").doc(jobId).set({
-        stages: {
-          onDemandAI: {
-            status: "running",
-            progress: 50,
-            updatedAt: Date.now(),
+      // ⚡ COMPUTE EFFICIENCY GUARD: Full speaker profiling, vocal isolation, voice cloning,
+      // and M&E stem separation are strictly required ONLY when Dubbing is requested.
+      // Subtitles-only jobs skip these routines to save 15-40s latency and conserve AI tokens.
+      if (executionPlan.generateDubbing) {
+        // 1.5. Profile all speakers in the transcript (Age, Style, Energy, Gender)
+        let originalAudioUrl: string = videoUrl;
+        try {
+          const jobDoc = await db().collection("video_jobs").doc(jobId).get();
+          const jobData = jobDoc.data();
+          if (jobData?.artifacts?.transcription?.audioUrl) {
+            originalAudioUrl = jobData.artifacts.transcription.audioUrl;
+          }
+        } catch (_) {}
+
+        speakerProfiles = await speakerProfilingService.profileSpeakers(
+          transcript.utterances ?? [],
+          originalAudioUrl,
+          { preferredGender: executionPlan.voiceGender }
+        );
+        logger.info("[Dubbing] Speaker profiling complete", { jobId, speakers: speakerProfiles.length });
+
+        // Ensure default speaker profile if none detected or utterances were empty
+        if (!speakerProfiles || speakerProfiles.length === 0) {
+          const defaultGender: "male" | "female" = executionPlan.voiceGender === "female" ? "female" : "male";
+          speakerProfiles = [{
+            speakerId: "speaker_0",
+            gender: defaultGender,
+            style: "neutral",
+            pitchBand: defaultGender === "female" ? "high" : "mid",
+            energy: "moderate",
+            ageTone: "adult",
+            role: "host",
+            wordCount: 1,
+            segments: 1,
+          }];
+        }
+
+        await db().collection("video_jobs").doc(jobId).set({
+          stages: {
+            onDemandAI: {
+              status: "running",
+              progress: 50,
+              updatedAt: Date.now(),
+            }
+          }
+        }, { merge: true });
+
+        // 1.6. 100% Studio Preservation: Deep Neural Vocal Isolation & Discrete Stems for ALL Tiers
+        try {
+          const jobDoc = await db().collection("video_jobs").doc(jobId).get();
+          const jobData = jobDoc.data();
+          const originalAudioUrl = jobData?.artifacts?.transcription?.audioUrl || videoUrl;
+
+          logger.info("[Dubbing] 100% Studio Preservation: Isolating Vocals for Zero-Phase M&E Stem Separation across all tiers", { jobId, dubbingTier: executionPlan.dubbingTier });
+          isolatedVocalUrl = await audioIdentityService.isolateVocals(jobId, originalAudioUrl).catch((err) => {
+            logger.warn("[Dubbing] Neural vocal isolation notice, using original audio as fallback:", err);
+            return originalAudioUrl;
+          });
+          acousticFingerprint = await audioIdentityService.captureFingerprint(jobId, isolatedVocalUrl || originalAudioUrl);
+        } catch (fingerprintErr) {
+          logger.warn("[Dubbing] Acoustic fingerprinting notice:", fingerprintErr);
+        }
+
+        // 1.6b. Instant / Persistent Voice Cloning (when dubbingMode is voice_clone)
+        let cloneVoiceGender: "male" | "female" | null = null;
+        if (executionPlan.dubbingMode === "voice_clone") {
+          try {
+            // Check persistent creator voice profiles first (eliminates ElevenLabs slot exhaustion & re-creation delay)
+            const voiceProfileDoc = await db().collection("creator_voice_profiles").doc(userId).get();
+            if (voiceProfileDoc.exists && voiceProfileDoc.data()?.voiceId && voiceProfileDoc.data()?.status === "active") {
+              createdVoiceCloneId = voiceProfileDoc.data()!.voiceId;
+              cloneVoiceGender = voiceProfileDoc.data()?.gender || (speakerProfiles[0]?.gender ?? "male");
+              isPersistentVoiceClone = true;
+              logger.info("[Dubbing] ✅ Reusing persistent creator voice profile", { userId, createdVoiceCloneId, cloneVoiceGender });
+              await db().collection("creator_voice_profiles").doc(userId).update({
+                lastUsedAt: Date.now(),
+                usageCount: admin.firestore.FieldValue.increment(1),
+              }).catch(() => {});
+            } else {
+              const sampleUrl = isolatedVocalUrl || originalAudioUrl;
+              if (sampleUrl) {
+                createdVoiceCloneId = await ttsService.cloneVoice(`TruthWorld-${userId.slice(0, 8)}`, sampleUrl);
+                cloneVoiceGender = speakerProfiles[0]?.gender ?? "male";
+                logger.info("[Dubbing] ✅ Created new persistent creator voice clone", { userId, createdVoiceCloneId, cloneVoiceGender });
+                await db().collection("creator_voice_profiles").doc(userId).set({
+                  userId,
+                  voiceId: createdVoiceCloneId,
+                  name: `TruthWorld-${userId.slice(0, 8)}`,
+                  gender: cloneVoiceGender,
+                  sampleUrl,
+                  status: "active",
+                  provider: "elevenlabs",
+                  createdAt: Date.now(),
+                  lastUsedAt: Date.now(),
+                  usageCount: 1,
+                }, { merge: true });
+                isPersistentVoiceClone = true;
+              }
+            }
+          } catch (cloneErr: any) {
+            logger.warn("[Dubbing] Voice cloning notice (falling back to preset matching):", { jobId, err: cloneErr?.message });
           }
         }
-      }, { merge: true });
 
-      // 1.6. Studio Tier: Extract Vocal Identity & Acoustic Fingerprint
-      let acousticFingerprint = null;
-      let isolatedVocalUrl = null;
+        // 1.6c. 🎛️ Industry Standard M&E (Music & Foley) Stem Extraction & Preservation
+        try {
+          const jobDoc = await db().collection("video_jobs").doc(jobId).get();
+          const jobData = jobDoc.data();
+          const sourceAudio = jobData?.artifacts?.transcription?.audioUrl || originalAudioUrl;
 
-      if (executionPlan.channelType === "custom") {
-        logger.info("[Dubbing] Custom Channel: Capturing Audio Identity", { jobId });
-        const jobDoc = await db().collection("video_jobs").doc(jobId).get();
-        const jobData = jobDoc.data();
-
-        // Use original audio for fingerprinting (extracted by transcription layer)
-        const originalAudioUrl = jobData?.artifacts?.transcription?.audioUrl || videoUrl;
-        isolatedVocalUrl    = await audioIdentityService.isolateVocals(jobId, originalAudioUrl);
-        acousticFingerprint = await audioIdentityService.captureFingerprint(jobId, isolatedVocalUrl);
-      }
-
-      // 1.7. Voice Assignment: Map speakers to production voice presets
-      const voiceMapping: Record<string, string> = {};
-
-      for (const profile of speakerProfiles) {
-        const isPrimary = profile.speakerId === (speakerProfiles[0]?.speakerId ?? "speaker_0");
-        const role = profile.role || "other";
-
-        // Production Voice Strategy: Best-fit voice selection based on speaker acoustic profile and role
-        let voiceId = "EXAVITQu4vr4xnSDxMaL"; // Sarah (Neutral / Default)
-
-        if (role === "host" || isPrimary) {
-          // Primary speaker / host gets signature anchor voice
-          voiceId = profile.pitchBand === "deep"
-            ? "pNInz6obpgDQGcFmaJgB" // Adam (Rich deep male anchor)
-            : "hpp4J3VqNfWAUOO0d1Us"; // Bella (Expressive female anchor)
-        } else if (profile.pitchBand === "deep") {
-          voiceId = "pNInz6obpgDQGcFmaJgB"; // Adam
-        } else if (profile.pitchBand === "high") {
-          voiceId = "hpp4J3VqNfWAUOO0d1Us"; // Bella
-        } else {
-          voiceId = "ErXwobaYiN019PkySvjV"; // Antoni (Well-rounded male narrator)
+          logger.info("[Dubbing] Extracting Music & Effects (M&E) stem for non-destructive preservation", { jobId, sourceAudio });
+          mneStemUrl = await mediaService.extractMneStem(jobId, sourceAudio, {
+            isolatedVocalUrl: (isolatedVocalUrl && isolatedVocalUrl !== sourceAudio) ? isolatedVocalUrl : undefined,
+          });
+          logger.info("[Dubbing] ✅ M&E stem preserved successfully", { jobId, mneStemUrl });
+        } catch (mneErr) {
+          logger.warn("[Dubbing] M&E stem preservation notice (proceeding gracefully):", mneErr);
         }
 
-        voiceMapping[profile.speakerId] = voiceId;
-        logger.info("[Dubbing] Assigned production-grade voice ID", {
-          jobId,
-          speakerId: profile.speakerId,
-          role,
-          pitchBand: profile.pitchBand,
-          voiceId,
-        });
+        // 1.7. Voice Assignment: Map speakers to distinct production voice presets with zero collisions
+        const assignedVoiceIds = new Set<string>();
+        let cloneAssigned = false;
+
+        for (const profile of speakerProfiles) {
+          const role = profile.role || "other";
+          let isMale = profile.gender ? profile.gender === "male" : true;
+          if (executionPlan.voiceGender === "male") isMale = true;
+          if (executionPlan.voiceGender === "female") isMale = false;
+          speakerGenderMapping[profile.speakerId] = isMale ? "MALE" : "FEMALE";
+
+          // 🛡️ Strict Clone Gender Invariant: Never assign a male clone to a female speaker or vice-versa
+          const isGenderMatch = cloneVoiceGender ? (isMale === (cloneVoiceGender === "male")) : true;
+          if (!cloneAssigned && createdVoiceCloneId && isGenderMatch) {
+            voiceMapping[profile.speakerId] = createdVoiceCloneId;
+            assignedVoiceIds.add(createdVoiceCloneId);
+            cloneAssigned = true;
+            logger.info("[Dubbing] Assigned cloned creator voice ID to matching gender speaker", {
+              jobId,
+              speakerId: profile.speakerId,
+              voiceId: createdVoiceCloneId,
+              gender: profile.gender,
+            });
+            continue;
+          }
+
+          // Multi-Speaker Voice Allocation: Select unique, distinct voice matching speaker profile
+          const palette = isMale ? ELEVENLABS_MULTI_SPEAKER_PALETTE.MALE : ELEVENLABS_MULTI_SPEAKER_PALETTE.FEMALE;
+
+          // 1. Try matching both pitchBand and ageTone among unused voices
+          let chosen = palette.find((v) => !assignedVoiceIds.has(v.id) && v.pitchBand === profile.pitchBand && v.ageTone === profile.ageTone);
+          // 2. Try matching pitchBand among unused voices
+          if (!chosen) {
+            chosen = palette.find((v) => !assignedVoiceIds.has(v.id) && v.pitchBand === profile.pitchBand);
+          }
+          // 3. Pick any remaining unused voice in this gender palette
+          if (!chosen) {
+            chosen = palette.find((v) => !assignedVoiceIds.has(v.id));
+          }
+          // 4. If all voices in palette are exhausted, wrap around
+          if (!chosen) {
+            const matchIdx = profile.speakerId.match(/\d+/);
+            const idx = matchIdx ? parseInt(matchIdx[0], 10) : 0;
+            chosen = palette[idx % palette.length];
+          }
+
+          assignedVoiceIds.add(chosen.id);
+          voiceMapping[profile.speakerId] = chosen.id;
+
+          logger.info("[Dubbing] Assigned distinct production-grade voice ID", {
+            jobId,
+            speakerId: profile.speakerId,
+            gender: profile.gender || (isMale ? "male" : "female"),
+            role,
+            pitchBand: profile.pitchBand,
+            voiceId: chosen.id,
+            voiceName: chosen.name,
+          });
+        }
+      } else {
+        logger.info("[Dubbing] Subtitles-only pipeline mode: Bypassing speaker profiling, vocal isolation, and voice cloning to maximize compute efficiency and reduce latency", { jobId });
       }
 
       // 1.8. Creator DNA Style Memory (Phase 4)
@@ -315,7 +453,10 @@ export class DubbingEngine {
             speakerProfiles,
             acousticFingerprint,
             voiceMapping,
-            creatorDNA
+            creatorDNA,
+            speakerGenderMapping,
+            mneStemUrl,
+            isolatedVocalUrl
           )
         )
       );
@@ -374,12 +515,78 @@ export class DubbingEngine {
         throw new Error(`All ${languagesToProcess.length} languages failed for job ${jobId}: ${failureDetails.map(f => `${f.lang}: ${f.error}`).join(" | ")}`);
       }
 
+      // Check for partial language failures & process prorated refund
+      const failedLangs = results
+        .map((r, i) => (r.status === "rejected" ? languagesToProcess[i] : null))
+        .filter((l): l is string => l !== null);
+      if (failedLangs.length > 0) {
+        logger.warn("[Dubbing] Partial language failure detected — processing prorated refund", { jobId, failedLangs });
+        await refundDubbingFeeOnFailure({
+          jobId,
+          userId,
+          failedLanguages: failedLangs,
+          totalLanguages: languagesToProcess,
+          reason: "Partial language dubbing synthesis failure",
+        }).catch((refErr) => logger.error("[Dubbing] Partial refund error:", refErr));
+      }
+
+      // 🛡️ Auto-Credit on no_face_detected / fallback_remux:
+      // If a video falls back to audio-only remux because of screen shares (no on-screen face)
+      // or GPU worker limits, automatically credit the $2.50 lip-sync delta per language
+      // back to the creator's wallet, and notify the channel in Studio.
+      if (executionPlan.enableLipSync) {
+        const lipSyncFallbacks: Array<{ language: string; status: "no_face_detected" | "fallback_remux" }> = [];
+        for (const res of dubbingResults) {
+          if (res.lipSyncStatus === "no_face_detected" || res.lipSyncStatus === "fallback_remux") {
+            lipSyncFallbacks.push({
+              language: res.language,
+              status: res.lipSyncStatus,
+            });
+          }
+        }
+
+        if (lipSyncFallbacks.length > 0) {
+          // Dynamic calculation of delta per language based on tier and duration
+          const videoDurationSeconds = (transcript.utterances?.length)
+            ? Math.max(10, Math.round(transcript.utterances[transcript.utterances.length - 1].end))
+            : 60;
+          const durationMinutes = Math.max(1, videoDurationSeconds / 60);
+          const dynamicDelta = Number((durationMinutes * 0.20).toFixed(2));
+
+          logger.info("[Dubbing] AI Lip-Sync fallback detected — auto-crediting lip-sync delta per language to channel wallet", {
+            jobId,
+            fallbacksCount: lipSyncFallbacks.length,
+            lipSyncFallbacks,
+            dubbingTier: executionPlan.dubbingTier,
+            dynamicDelta,
+          });
+          await creditLipSyncFallbackToWallet({
+            jobId,
+            userId,
+            fallbackLanguages: lipSyncFallbacks,
+            deltaPerLanguageUSD: dynamicDelta,
+            dubbingTier: executionPlan.dubbingTier,
+            durationSeconds: videoDurationSeconds,
+          }).catch((creditErr) => logger.error("[Dubbing] Auto-credit for lip-sync fallback error:", creditErr));
+        }
+      }
+
       // 4. Emit dubbing-complete (AFTER successful Firestore writes in processLanguage)
       const eventData: DubbingCompleteData = {
         languages:       dubbingResults.map((r) => r.language),
         subtitlePaths,
         dubbedVideoPaths: dubbedPaths,
         audioPaths,
+        mneStemPath: mneStemUrl || undefined,
+        stems: {
+          mne: mneStemUrl || undefined,
+          dialogue: dubbingResults.reduce((acc, r) => {
+            if (r.stems?.dialogue) acc[r.language] = r.stems.dialogue;
+            return acc;
+          }, {} as Record<string, string>),
+          master: audioPaths,
+          vocals: isolatedVocalUrl || undefined,
+        },
       };
 
       await this.distribution.publish("dubbing-complete", {
@@ -425,38 +632,58 @@ export class DubbingEngine {
           audioTracks: audioPaths,
           subtitles: subtitlePaths,
           dubbedVideos: dubbedPaths,
+          stems: {
+            mne: mneStemUrl || null,
+            vocals: isolatedVocalUrl || null,
+          },
         }
       }, { merge: true });
 
       return dubbingResults;
 
     } catch (error) {
-      await EdgeLayer.failJob(jobId, "dubbing", error instanceof Error ? error.message : String(error));
+      const errMsg = error instanceof Error ? error.message : String(error);
+
+      // 💳 Two-Phase Commit Automated Wallet Escrow Failure Rollback
+      await refundDubbingFeeOnFailure({
+        jobId,
+        userId,
+        failedLanguages: executionPlan.dubbingLanguages || executionPlan.languages || [],
+        totalLanguages: executionPlan.dubbingLanguages || executionPlan.languages || [],
+        reason: errMsg,
+      }).catch((refErr) => logger.error("[Dubbing] Failure rollback refund error:", refErr));
+
+      // 🔄 Unblock Pub/Sub Retry & Avoid Idempotency Trap
+      await this.distribution.markEventFailed(eventId, errMsg).catch(() => {});
+
+      await EdgeLayer.failJob(jobId, "dubbing", errMsg);
       await db().collection("video_jobs").doc(jobId).set({
         status: "failed",
         stages: {
           dubbing: {
             status: "failed",
-            error: error instanceof Error ? error.message : String(error),
+            error: errMsg,
             failedAt: Date.now(),
           },
           subtitles: {
             status: "failed",
-            error: error instanceof Error ? error.message : String(error),
+            error: errMsg,
             failedAt: Date.now(),
           },
           onDemandAI: {
             status: "failed",
-            error: error instanceof Error ? error.message : String(error),
+            error: errMsg,
             failedAt: Date.now(),
           }
         }
       }, { merge: true });
       throw error;
     } finally {
-      // 💨 Voice Lifecycle Cleanup: Delete temporary clones from ElevenLabs
-      // (Simplified: real API call to delete voiceId would go here)
-      logger.info("[Dubbing] Job Finished — cleaning up temporary voices", { jobId });
+      // 💨 Voice Lifecycle Cleanup: Only delete temporary clones, preserve persistent profiles
+      if (createdVoiceCloneId && !isPersistentVoiceClone) {
+        logger.info("[Dubbing] Job Finished — cleaning up temporary creator voice clone", { jobId, createdVoiceCloneId });
+        await ttsService.deleteVoice(createdVoiceCloneId).catch(() => {});
+      }
     }
   }
 
@@ -473,7 +700,10 @@ export class DubbingEngine {
     speakerProfiles: any[],
     acousticFingerprint: any,
     voiceMapping:    Record<string, string>,
-    creatorDNA?:     any
+    creatorDNA?:     any,
+    speakerGenderMapping?: Record<string, "MALE" | "FEMALE">,
+    mneStemUrl?:     string | null,
+    isolatedVocalUrl?: string | null
   ): Promise<DubbingResult> {
     const targetLang = normalizeLanguageCode(rawTargetLang);
     const sourceLang = normalizeLanguageCode(rawSourceLang);
@@ -536,16 +766,21 @@ export class DubbingEngine {
           speaker:        s.speaker,
         }));
       } else {
+        const subTier = executionPlan.subtitleTier || (executionPlan.channelType === 'custom' ? 'pro' : 'starter');
+        const currentDubbingTier = (executionPlan as any).dubbingTier || "audio_starter";
         dubbingSegs = await this.translateWithCache(
           jobId, segments, sourceLang, targetLang,
           { 
-            model: executionPlan.channelType === 'custom' ? 'premium' : 'standard', 
+            model: 'premium', // All 5 tiers use the hybrid Google v3 + Gemini architecture (Flash for starter/pro, Argon for ultra/video)
             tone: executionPlan.toneMode,
             localeStyle: executionPlan.localeStyle,
             targetPlatform: executionPlan.targetPlatform,
             creatorDNA,
             enableABHooks: executionPlan.enableABHooks ?? true, // Default to true for premium
-            speakerProfiles
+            speakerProfiles,
+            dubbingTier: currentDubbingTier,
+            subtitleTier: subTier,
+            isCinemaGrade: subTier === 'pro' || currentDubbingTier === "video_ultra" || currentDubbingTier === "video_pro" || currentDubbingTier === "audio_ultra" || Boolean((executionPlan as any).cinemaProduction),
           }
         );
 
@@ -632,13 +867,12 @@ export class DubbingEngine {
         try {
           const jobSnap = await db().collection("video_jobs").doc(jobId).get();
           const jobData = jobSnap.data() as JobData;
-          const linkedVideoIds = jobData?.linkedVideoIds || [];
-          if (jobData?.videoId && !linkedVideoIds.includes(jobData.videoId)) {
-            linkedVideoIds.push(jobData.videoId);
+          const rawLinkedVideoIds = jobData?.linkedVideoIds || [];
+          if (jobData?.videoId && !rawLinkedVideoIds.includes(jobData.videoId)) {
+            rawLinkedVideoIds.push(jobData.videoId);
           }
-          if (!linkedVideoIds.includes(jobId)) {
-            linkedVideoIds.push(jobId);
-          }
+          // Guard: only allow UUID video IDs — never write to videos collection with a job_ ID
+          const linkedVideoIds = filterVideoIds(rawLinkedVideoIds, "[Dubbing:subtitle-propagation]");
 
           let directSubtitleUrl = subtitleUrl;
           if (subtitleUrl.startsWith("gs://")) {
@@ -741,8 +975,11 @@ export class DubbingEngine {
 
       // C. TTS + sync (only when dubbing is enabled AND not source language)
       // Source-to-source dubbing is nonsensical — skip TTS for the source language
-      let audioUrl   = "";
-      let videoResult = "";
+      let audioUrl        = "";
+      let videoResult     = "";
+      let rawDialogueUrl  = "";
+      let masterAudioUrl   = "";
+      let lipSyncStatus: string | undefined = undefined;
 
       if (executionPlan.generateDubbing && targetLang !== sourceLang) {
         try {
@@ -753,14 +990,113 @@ export class DubbingEngine {
           }));
 
           // ✅ TTS cache fully wired — checks cache BEFORE calling TTS
-          // Tiered Dubbing: Use the speaker-to-voice mapping (Clones or Presets)
-          const isVoiceClone = executionPlan.dubbingMode === "voice_clone";
+          // Tiered Dubbing: Route based on Audio Starter, Audio Pro, Audio Ultra, Video Pro, Video Ultra
+          const dubbingTier = (executionPlan as any).dubbingTier || "audio_starter";
+          const isVoiceClone = dubbingTier === "audio_ultra" || dubbingTier === "video_pro" || dubbingTier === "video_ultra" || executionPlan.dubbingMode === "voice_clone";
+          const isAudioPro = dubbingTier === "audio_pro";
+          const voiceType = isVoiceClone ? "cloned" : (isAudioPro ? "fast_api" : "standard");
+
           const ttsUrls = await this.parallelTTSWithCache(
-            jobId, userId, normalised, targetLang, voiceMapping, isVoiceClone
+            jobId, userId, normalised, targetLang, voiceMapping, isVoiceClone, speakerGenderMapping,
+            speakerProfiles, acousticFingerprint, dubbingTier, voiceType, executionPlan.voiceGender
           );
 
+          let totalDurationMs: number | undefined = undefined;
+          let totalDurationSeconds = 0;
+
+          try {
+            const jobSnap = await db().collection("video_jobs").doc(jobId).get();
+            const jobData = jobSnap.data() as JobData;
+            const targetVid = jobData?.videoId || jobId;
+            const vDocSnap = await db().collection("videos").doc(targetVid).get();
+            if (vDocSnap.exists) {
+              const vData = vDocSnap.data();
+              if (vData?.dubbingDurationSeconds && Number(vData.dubbingDurationSeconds) > 0) {
+                totalDurationSeconds = Number(vData.dubbingDurationSeconds);
+                totalDurationMs = Math.round(totalDurationSeconds * 1000);
+              } else if (vData?.durationMs && Number(vData.durationMs) > 0) {
+                totalDurationMs = Math.round(Number(vData.durationMs));
+                totalDurationSeconds = totalDurationMs / 1000;
+              } else if (vData?.durationSeconds && Number(vData.durationSeconds) > 0) {
+                totalDurationSeconds = Number(vData.durationSeconds);
+                totalDurationMs = Math.round(totalDurationSeconds * 1000);
+              } else if (vData?.videoDurationSeconds && Number(vData.videoDurationSeconds) > 0) {
+                totalDurationSeconds = Number(vData.videoDurationSeconds);
+                totalDurationMs = Math.round(totalDurationSeconds * 1000);
+              } else if (vData?.duration) {
+                totalDurationSeconds = parseDurationToSeconds(vData.duration);
+                if (totalDurationSeconds > 0) totalDurationMs = totalDurationSeconds * 1000;
+              }
+            }
+          } catch (_) {}
+
+          if (!totalDurationMs || totalDurationMs <= 0) {
+            const rawPlanSec = parseDurationToSeconds(executionPlan.duration || (executionPlan as any).durationSeconds);
+            if (rawPlanSec > 0) {
+              totalDurationSeconds = rawPlanSec;
+              totalDurationMs = totalDurationSeconds * 1000;
+            } else if (segments.length > 0) {
+              totalDurationMs = segments[segments.length - 1].end;
+              totalDurationSeconds = totalDurationMs / 1000;
+            }
+          }
+
+          // Studio Mastering: Apply Acoustic Identity via DSP Rules Engine
+          const dspFilters = acousticFingerprint
+            ? audioIdentityService.getDSPFilters(acousticFingerprint)
+            : "loudnorm=I=-14:TP=-1:LRA=11";
+          logger.info("[Dubbing] Applying DSP mastering chain to audio track", { jobId, targetLang });
+
+          const isCadenceLocked = dubbingTier === "audio_ultra" || 
+            (executionPlan as any)?.isometryMode === "strict_syllable" || 
+            (executionPlan as any)?.uncannyMitigation === "cadence_lock";
+
           const syncInstructions = this.buildSyncInstructions(normalised, ttsUrls);
-          audioUrl = await this.stitchAudio(jobId, ttsUrls, syncInstructions, targetLang);
+          rawDialogueUrl = await this.stitchAudio(
+            jobId,
+            ttsUrls,
+            syncInstructions,
+            targetLang,
+            normalised,
+            totalDurationSeconds,
+            dspFilters,
+            totalDurationMs,
+            isCadenceLocked
+          );
+
+          // 🎛️ Industry Standard: Non-Destructive M&E (Music & Foley) Preservation (All 5 Plan Tiers)
+          // Dynamically sidechain-duck the M&E stem underneath dialogue, swelling music back during pauses
+          masterAudioUrl = rawDialogueUrl;
+          if (!mneStemUrl) {
+            try {
+              const jobDoc = await db().collection("video_jobs").doc(jobId).get();
+              const sourceAudio = jobDoc.data()?.artifacts?.transcription?.audioUrl || videoUrl;
+              logger.info("[Dubbing] Guaranteed M&E extraction for tier", { jobId, targetLang, tier: executionPlan.dubbingTier });
+              mneStemUrl = await mediaService.extractMneStem(jobId, sourceAudio, {
+                isolatedVocalUrl: (isolatedVocalUrl && isolatedVocalUrl !== sourceAudio) ? isolatedVocalUrl : undefined,
+              });
+            } catch (mneFallbackErr) {
+              logger.warn("[Dubbing] On-demand M&E extraction warning:", mneFallbackErr);
+            }
+          }
+
+          if (mneStemUrl) {
+            try {
+              logger.info("[Dubbing] Dynamically sidechain-ducking M&E stem with dubbed speech", { jobId, targetLang, tier: executionPlan.dubbingTier });
+              masterAudioUrl = await mediaService.mixDubWithMne(jobId, targetLang, {
+                mneUrl: mneStemUrl,
+                dubbedAudioUrl: rawDialogueUrl,
+                totalDurationSeconds,
+                totalDurationMs,
+                audioFilters: dspFilters,
+              });
+              logger.info("[Dubbing] ✅ Non-destructive M&E + Dubbed master mix created", { jobId, targetLang, masterAudioUrl });
+            } catch (mixErr) {
+              logger.warn("[Dubbing] M&E mix notice, falling back to dialogue audio:", mixErr);
+            }
+          }
+
+          audioUrl = masterAudioUrl;
 
           // ⚡ Progressive Audio Delivery (Industry Low-Latency Standard):
           // Immediately propagate audio tracks to Firestore and linked videos so creators & players
@@ -776,13 +1112,12 @@ export class DubbingEngine {
             try {
               const jobSnap = await db().collection("video_jobs").doc(jobId).get();
               const jobData = jobSnap.data() as JobData;
-              const linkedVideoIds = jobData?.linkedVideoIds || [];
-              if (jobData?.videoId && !linkedVideoIds.includes(jobData.videoId)) {
-                linkedVideoIds.push(jobData.videoId);
+              const rawLinkedVideoIds = jobData?.linkedVideoIds || [];
+              if (jobData?.videoId && !rawLinkedVideoIds.includes(jobData.videoId)) {
+                rawLinkedVideoIds.push(jobData.videoId);
               }
-              if (!linkedVideoIds.includes(jobId)) {
-                linkedVideoIds.push(jobId);
-              }
+              // Guard: only allow UUID video IDs — never write to videos collection with a job_ ID
+              const linkedVideoIds = filterVideoIds(rawLinkedVideoIds, "[Dubbing:audio-propagation]");
 
               const dotAudioUpdates: Record<string, any> = {
                 audioTracks: {
@@ -856,22 +1191,46 @@ export class DubbingEngine {
             }
           }
 
-          // Studio Mastering: Apply Acoustic Identity via DSP Rules Engine
-          let dspFilters = undefined;
-          if (acousticFingerprint) {
-            dspFilters = audioIdentityService.getDSPFilters(acousticFingerprint);
-            logger.info("[Dubbing] Studio Tier: Applying DSP mastering chain", { jobId, targetLang });
-          }
-
           try {
-            videoResult = await mediaService.mergeAudioToVideo({
-              jobId, videoUrl, audioUrl, 
-              subtitleUrl: executionPlan.genLangSubs ? subtitleUrl : undefined,
-              language: targetLang, format: "mp4",
-              audioFilters: dspFilters, // Pass the mastering chain to FFmpeg
-            });
+            if (executionPlan.enableLipSync) {
+              logger.info("[Dubbing] AI Visual Lip-Sync requested. Engaging GPU LatentSync engine...", { 
+                jobId, 
+                targetLang, 
+                tier: executionPlan.dubbingTier || "video_pro",
+                cinemaGrade: executionPlan.cinemaGrade || executionPlan.dubbingTier === "video_ultra" 
+              });
+              const isCinemaUltra = executionPlan.dubbingTier === "video_ultra" || Boolean(executionPlan.cinemaGrade);
+              const lipSyncRes = await lipSyncService.synchronizeLips({
+                jobId,
+                videoUrl,
+                audioUrl: rawDialogueUrl || masterAudioUrl || audioUrl,
+                masterAudioUrl: masterAudioUrl || audioUrl,
+                language: targetLang,
+                mode: executionPlan.lipSyncMode || "latentsync",
+                dubbingTier: executionPlan.dubbingTier,
+                cinemaGrade: isCinemaUltra,
+                tier: isCinemaUltra ? "video_ultra" : "video_pro",
+                qualityMode: isCinemaUltra ? "ultra" : "pro",
+                subtitleUrl: executionPlan.genLangSubs ? subtitleUrl : undefined,
+                audioFilters: dspFilters,
+                isPreMastered: masterAudioUrl !== rawDialogueUrl,
+              });
+              videoResult = lipSyncRes.videoUrl || videoResult || videoUrl;
+              lipSyncStatus = lipSyncRes.status;
+            } else {
+              videoResult = await mediaService.mergeAudioToVideo({
+                jobId, videoUrl, audioUrl, 
+                subtitleUrl: executionPlan.genLangSubs ? subtitleUrl : undefined,
+                language: targetLang, format: "mp4",
+                audioFilters: dspFilters, // Pass the mastering chain to FFmpeg
+                isPreMastered: masterAudioUrl !== rawDialogueUrl,
+              });
+            }
           } catch (mergeErr) {
             logger.warn("[Dubbing] Video remuxing skipped or deferred (audio track is intact):", mergeErr);
+            if (!videoResult) {
+              videoResult = videoUrl;
+            }
           }
 
           await updateDubbingStage("completed", 100);
@@ -899,6 +1258,18 @@ export class DubbingEngine {
           features: {
             subtitles: executionPlan.genLangSubs,
             dubbing: executionPlan.generateDubbing,
+            lipSync: Boolean(executionPlan.enableLipSync),
+          },
+          lipSync: {
+            enabled: Boolean(executionPlan.enableLipSync),
+            status: lipSyncStatus || (executionPlan.enableLipSync ? "fallback_remux" : "disabled"),
+            videoUrl: executionPlan.enableLipSync ? (videoResult || null) : null,
+          },
+          stems: {
+            mne: mneStemUrl || null,
+            dialogue: rawDialogueUrl || null,
+            master: masterAudioUrl || null,
+            vocals: isolatedVocalUrl || null,
           },
           meta: {
             segments: dubbingSegs.length,
@@ -910,7 +1281,8 @@ export class DubbingEngine {
             channelType: executionPlan.channelType || "standard",
             ratePerLanguageUSD: getFlatDubbingPricePerLanguage(
               executionPlan.duration || 0,
-              executionPlan.channelType || "standard"
+              executionPlan.channelType || "standard",
+              executionPlan.dubbingMode === "voice_clone" ? "voice_clone" : "standard"
             ),
             voiceCloneIncluded: executionPlan.dubbingMode === "voice_clone",
             tier: "raw_at_cost",
@@ -921,13 +1293,12 @@ export class DubbingEngine {
         try {
           const jobSnap = await db().collection("video_jobs").doc(jobId).get();
           const jobData = jobSnap.data() as JobData;
-          const linkedVideoIds = jobData?.linkedVideoIds || [];
-          if (jobData?.videoId && !linkedVideoIds.includes(jobData.videoId)) {
-            linkedVideoIds.push(jobData.videoId);
+          const rawLinkedVideoIds = jobData?.linkedVideoIds || [];
+          if (jobData?.videoId && !rawLinkedVideoIds.includes(jobData.videoId)) {
+            rawLinkedVideoIds.push(jobData.videoId);
           }
-          if (!linkedVideoIds.includes(jobId)) {
-            linkedVideoIds.push(jobId);
-          }
+          // Guard: only allow UUID video IDs — never write to videos collection with a job_ ID
+          const linkedVideoIds = filterVideoIds(rawLinkedVideoIds, "[Dubbing:dubbed-video-propagation]");
 
           const directAudioUrl = audioUrl
             ? (audioUrl.startsWith("gs://")
@@ -1031,6 +1402,14 @@ export class DubbingEngine {
         translationUrl,
         segments:       dubbingSegs.length,
         processingTime: Date.now() - t0,
+        lipSyncUrl:     executionPlan.enableLipSync ? (videoResult || undefined) : undefined,
+        lipSyncStatus:  lipSyncStatus as any,
+        stems: {
+          mne: mneStemUrl || null,
+          dialogue: rawDialogueUrl || undefined,
+          master: masterAudioUrl || undefined,
+          vocals: isolatedVocalUrl || null,
+        },
       };
     } catch (langErr) {
       const errMsg = langErr instanceof Error ? langErr.message : String(langErr);
@@ -1059,7 +1438,13 @@ export class DubbingEngine {
     segments:     DubbingSegment[],
     language:     string,
     voiceMapping: Record<string, string>,
-    preferVoiceCloning: boolean = false
+    preferVoiceCloning: boolean = false,
+    speakerGenderMapping?: Record<string, "MALE" | "FEMALE">,
+    speakerProfiles?: any[],
+    acousticFingerprint?: any,
+    dubbingTier?: string,
+    voiceType?: string,
+    preferredVoiceGender?: "auto" | "male" | "female"
   ): Promise<string[]> {
     const allUrls: string[] = new Array(segments.length).fill("");
 
@@ -1068,14 +1453,59 @@ export class DubbingEngine {
 
       const batchUrls = await Promise.allSettled(
         batch.map(async (seg) => {
-          // Identify the voiceId mapped to this speaker
-          const voiceId = voiceMapping[seg.speaker || "speaker_0"] || "EXAVITQu4vr4xnSDxMaL";
+          // Identify the voiceId mapped to this speaker with strict Cross-Gender Guard
+          const speakerId = seg.speaker || "speaker_0";
+          let isFemaleSpeaker = speakerGenderMapping?.[speakerId] === "FEMALE";
+          if (preferredVoiceGender === "male") isFemaleSpeaker = false;
+          if (preferredVoiceGender === "female") isFemaleSpeaker = true;
 
-          // ✅ Cache check FIRST
+          const defaultVoiceId = isFemaleSpeaker ? "EXAVITQu4vr4xnSDxMaL" : "ErXwobaYiN019PkySvjV"; // Sarah vs Antoni
+          let voiceId = voiceMapping[speakerId] || defaultVoiceId;
+
+          let gender: "MALE" | "FEMALE" = isFemaleSpeaker ? "FEMALE" : "MALE";
+          if (preferredVoiceGender === "male") {
+            gender = "MALE";
+          } else if (preferredVoiceGender === "female") {
+            gender = "FEMALE";
+          } else if (speakerGenderMapping?.[speakerId]) {
+            gender = speakerGenderMapping[speakerId];
+          } else if (voiceId && ELEVENLABS_VOICE_GENDER_MAP[voiceId]) {
+            gender = ELEVENLABS_VOICE_GENDER_MAP[voiceId];
+          }
+
+          // 🛡️ Cross-Gender Firewall: Prevent male input from ever receiving female voice, and vice-versa
+          if (gender === "FEMALE" && ELEVENLABS_VOICE_GENDER_MAP[voiceId] === "MALE") {
+            voiceId = "EXAVITQu4vr4xnSDxMaL"; // Safe female voice
+          } else if (gender === "MALE" && ELEVENLABS_VOICE_GENDER_MAP[voiceId] === "FEMALE") {
+            voiceId = "ErXwobaYiN019PkySvjV"; // Safe male voice
+          }
+
+          // Derive pitch and speakingRate from speaker profile and acoustic fingerprint
+          const profile = speakerProfiles?.find((p: any) => p.speakerId === speakerId);
+          let pitch: number | undefined = undefined;
+          let speakingRate: number | undefined = undefined;
+
+          if (profile) {
+            if (profile.pitchBand === "deep") pitch = -2.0;
+            else if (profile.pitchBand === "high") pitch = 2.0;
+            else if (acousticFingerprint?.pitchSemitones) pitch = acousticFingerprint.pitchSemitones;
+
+            if (profile.energy === "high") speakingRate = 1.06;
+            else if (profile.energy === "low") speakingRate = 0.94;
+            else if (acousticFingerprint?.speakingRate) speakingRate = acousticFingerprint.speakingRate;
+          } else if (acousticFingerprint) {
+            if (acousticFingerprint.pitchSemitones) pitch = acousticFingerprint.pitchSemitones;
+            if (acousticFingerprint.speakingRate) speakingRate = acousticFingerprint.speakingRate;
+          }
+
+          // ✅ Cache check FIRST with strict tier and voice isolation
           const cached = await this.performanceLayer.checkTTSCache(
             seg.translatedText,
             language,
-            voiceId
+            voiceId,
+            dubbingTier,
+            voiceType,
+            preferVoiceCloning ? userId : undefined
           );
 
           if (cached) {
@@ -1091,19 +1521,29 @@ export class DubbingEngine {
             voiceId,
             speakerId: seg.speaker,
             userId,
+            gender,
             preferVoiceCloning,
+            ttsTier: (dubbingTier as any),
+            voiceType: (voiceType as any),
+            pitch,
+            speakingRate,
           });
 
           // ✅ Cost tracking: record TTS cost for synthesized characters
-          const ttsProvider = result.provider === "elevenlabs" ? "elevenlabs" : "google-tts-neural2";
+          const ttsProvider = result.provider === "elevenlabs"
+            ? (dubbingTier === "audio_pro" || voiceType === "fast_api" ? "elevenlabs-turbo" : "elevenlabs")
+            : (result.voiceName?.includes("-Chirp") ? "google-tts-chirp3-hd" : "google-tts-neural2");
           costEngine.recordTTSCost(jobId, userId, seg.translatedText.length, ttsProvider).catch(() => {});
 
-          // Store in cache for next time
+          // Store in cache for next time with strict tier and voice isolation
           await this.performanceLayer.cacheTTSResult(
             seg.translatedText,
             language,
             result.audioUrl,
-            voiceId
+            voiceId,
+            dubbingTier,
+            voiceType,
+            preferVoiceCloning ? userId : undefined
           );
 
           return result.audioUrl;
@@ -1141,7 +1581,10 @@ export class DubbingEngine {
       targetPlatform?: 'youtube' | 'reels' | 'shorts' | 'linkedin' | 'tiktok';
       creatorDNA?: any;
       enableABHooks?: boolean;
-      speakerProfiles?: any[]
+      speakerProfiles?: any[];
+      dubbingTier?: "audio_starter" | "audio_pro" | "audio_ultra" | "video_pro" | "video_ultra";
+      subtitleTier?: "starter" | "pro";
+      isCinemaGrade?: boolean;
     }
   ): Promise<DubbingSegment[]> {
     const texts  = segments.map((s) => s.text);
@@ -1150,17 +1593,28 @@ export class DubbingEngine {
     );
 
     const toTranslate = segments.filter((_, i) => !cached[i]);
-    let newTranslations: Array<{ text: string, confidence?: number }> = [];
+    let newTranslations: Array<{ text: string; confidence?: number; variants?: any }> = [];
 
     if (toTranslate.length > 0) {
       const res = await translationService.translateSegments(
         jobId,
-        toTranslate.map((s: any) => ({ start: 0, end: 0, text: s.text, speaker: s.speaker, isHook: s.isHook })),
+        toTranslate.map((s: any) => ({
+          start: s.start || 0,
+          end: s.end || 0,
+          duration: s.targetDuration || s.duration || ((s.end && s.start) ? s.end - s.start : 0),
+          text: s.text,
+          speaker: s.speaker,
+          isHook: s.isHook,
+        })),
         sourceLang,
         targetLang,
         options
       );
-      newTranslations = res.segments.map((s: any) => ({ text: s.translated, confidence: s.confidence }));
+      newTranslations = res.segments.map((s: any) => ({
+        text: s.translated,
+        confidence: s.confidence,
+        variants: s.variants,
+      }));
 
       await this.performanceLayer.cacheTranslations(
         toTranslate.map((s) => s.text),
@@ -1173,15 +1627,15 @@ export class DubbingEngine {
     let newIdx = 0;
     return segments.map((seg, i) => {
       const translation = cached[i] 
-        ? { text: cached[i]!, confidence: 0.99 } 
-        : newTranslations[newIdx++] || { text: seg.text, confidence: 0 };
+        ? { text: decodeHtmlEntities(cached[i]!), confidence: 0.99, variants: undefined } 
+        : newTranslations[newIdx++] || { text: seg.text, confidence: 0, variants: undefined };
 
       return {
         index:          seg.index,
         originalText:   seg.text,
-        translatedText: translation.text,
+        translatedText: decodeHtmlEntities(translation.text),
         confidence:     translation.confidence,
-        variants:       (translation as any).variants,
+        variants:       translation.variants,
         language:       targetLang,
         start:          seg.start,
         end:            seg.end,
@@ -1264,11 +1718,27 @@ export class DubbingEngine {
     jobId:            string,
     audioUrls:        string[],
     _syncInstructions: SyncInstruction[],
-    targetLang:       string
+    targetLang:       string,
+    segments?:        DubbingSegment[],
+    totalDurationSeconds?: number,
+    audioFilters?:    string,
+    totalDurationMs?:  number,
+    cadenceLock?:     boolean
   ): Promise<string> {
     const valid = audioUrls.filter((u) => u !== "");
     if (valid.length === 0) throw new Error("No valid TTS audio segments to stitch");
-    return mediaService.mergeAudioChunks(jobId, valid, targetLang);
+    const durSec = totalDurationSeconds ? Number(totalDurationSeconds) : parseDurationToSeconds(totalDurationSeconds);
+    const resolvedMs = (typeof totalDurationMs === "number" && totalDurationMs > 0)
+      ? Math.round(totalDurationMs)
+      : (durSec > 0 ? Math.round(durSec * 1000) : undefined);
+
+    return mediaService.mergeAudioChunks(jobId, valid, targetLang, {
+      segments: segments?.map((s) => ({ start: s.start, end: s.end, duration: s.targetDuration })),
+      totalDurationSeconds: durSec,
+      totalDurationMs: resolvedMs,
+      audioFilters,
+      cadenceLock,
+    });
   }
 
   // ─── Phase 3: Premium Stitching Logic ────────────────────────────────────────
@@ -1453,6 +1923,45 @@ export class DubbingEngine {
   }
 
   private async loadTranscript(jobId: string): Promise<any | null> {
+    const vDoc = await db().collection("videos").doc(jobId).get();
+    const vData = vDoc.data();
+    const origJobId = vData?.jobId;
+
+    // 0. PRIORITY 1: Respect Verified Creator-Edited Subtitles from Creator Studio!
+    // If a creator corrected errors or adjusted timings in Studio, use that authoritative dialogue
+    // rather than falling back to stale raw ASR speech transcripts.
+    const existingSubs: Record<string, string> = {
+      ...(vData?.subtitles || {}),
+      ...(vData?.media?.subtitles || {}),
+      ...(vData?.mediaSubtitles || {}),
+    };
+    const preferredLang = vData?.language || vData?.sourceLanguage || "en";
+    const subUrlToUse = existingSubs[preferredLang] || Object.values(existingSubs)[0];
+
+    if (subUrlToUse && (vData?.subtitlesEditedByCreator === true || vData?.subtitlesManualEdit === true)) {
+      try {
+        const subContent = await this.fetchFileContent(subUrlToUse);
+        if (subContent && subContent.trim().length > 0) {
+          const utterances = this.parseSubtitlesToUtterances(subContent);
+          if (utterances.length > 0) {
+            const fullText = utterances.map((u) => u.text).join(" ");
+            const normalized = {
+              text: fullText,
+              utterances,
+              language: preferredLang,
+              source: "creator_edited_subtitles",
+              confidence: 1.0,
+            };
+            logger.info("[Dubbing] Loaded verified creator-edited subtitles as transcript source", { jobId, lang: preferredLang, utterances: utterances.length });
+            await db().collection("transcripts").doc(jobId).set(normalized, { merge: true }).catch(() => {});
+            return normalized;
+          }
+        }
+      } catch (subErr) {
+        logger.warn("[Dubbing] Failed to load creator-edited subtitle, falling back to transcript storage:", subErr);
+      }
+    }
+
     let doc = await db().collection("transcripts").doc(jobId).get();
     if (doc.exists) {
       const data = doc.data();
@@ -1461,9 +1970,6 @@ export class DubbingEngine {
       }
     }
 
-    const vDoc = await db().collection("videos").doc(jobId).get();
-    const vData = vDoc.data();
-    const origJobId = vData?.jobId;
     if (origJobId && origJobId !== jobId) {
       doc = await db().collection("transcripts").doc(origJobId).get();
       if (doc.exists) {
@@ -1517,16 +2023,16 @@ export class DubbingEngine {
       }
     }
 
-    const existingSubs: Record<string, string> = {
+    const fallbackSubs: Record<string, string> = {
       ...(vData?.subtitles || {}),
       ...(vData?.media?.subtitles || {}),
       ...(vData?.mediaSubtitles || {}),
     };
 
-    const availableLangs = Object.keys(existingSubs);
+    const availableLangs = Object.keys(fallbackSubs);
     if (availableLangs.length > 0) {
       for (const lang of availableLangs) {
-        const subUrl = existingSubs[lang];
+        const subUrl = fallbackSubs[lang];
         if (!subUrl) continue;
         try {
           const subContent = await this.fetchFileContent(subUrl);
@@ -1553,16 +2059,31 @@ export class DubbingEngine {
     }
 
     if (vData?.transcript && typeof vData.transcript === "string" && vData.transcript.trim().length > 0) {
-      const dur = (vData.durationSeconds || 60) * 1000;
+      const durSec = Number(vData.duration || vData.durationSeconds || (vData.durationMs ? vData.durationMs / 1000 : 0)) || 60;
+      const dur = durSec * 1000;
+      const rawSentences = vData.transcript.split(/(?<=[.?!।\n])\s+/).filter((s: string) => s.trim().length > 0);
+      const sentences = rawSentences.length > 0 ? rawSentences : [vData.transcript];
+      const slotMs = Math.max(2000, Math.floor(dur / sentences.length));
+
+      const utterances = sentences.map((text: string, idx: number) => {
+        const start = idx * slotMs;
+        const end = Math.min(dur, (idx + 1) * slotMs);
+        return {
+          index: idx,
+          text: text.trim(),
+          start,
+          end,
+          duration: end - start,
+          speaker: "Speaker 1",
+          words: [],
+        };
+      });
+
       return {
         text: vData.transcript,
         language: vData.detectedLanguage || vData.language || "en",
-        utterances: [{
-          text: vData.transcript,
-          start: 0,
-          end: dur,
-          speaker: "Speaker 1",
-        }],
+        utterances,
+        duration: durSec,
       };
     }
 

@@ -172,7 +172,7 @@ class SeekPreviewTooltip extends StatelessWidget {
                                     Padding(
                                       padding: const EdgeInsets.only(bottom: 3),
                                       child: Text(
-                                        activeChapter.title,
+                                        activeChapter.localizedTitle(),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
@@ -183,7 +183,7 @@ class SeekPreviewTooltip extends StatelessWidget {
                                       ),
                                     ),
                                   Text(
-                                    hoveredClaim.text,
+                                    hoveredClaim.localizedText(),
                                     maxLines: 3,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -211,9 +211,8 @@ class SeekPreviewTooltip extends StatelessWidget {
                                       ),
                                     ),
                                     child: Text(
-                                      hoveredClaim.verdict
-                                          .toUpperCase()
-                                          .replaceAll('_', ' '),
+                                      hoveredClaim.localizedVerdictLabel()
+                                          .toUpperCase(),
                                       style: TextStyle(
                                         color: _getVerdictColor(
                                           hoveredClaim.verdict,
@@ -263,7 +262,7 @@ class SeekPreviewTooltip extends StatelessWidget {
                           if (activeChapter != null) ...[
                             const SizedBox(height: 2),
                             Text(
-                              activeChapter.title,
+                              activeChapter.localizedTitle(),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(

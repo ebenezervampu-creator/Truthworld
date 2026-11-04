@@ -1,7 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
@@ -47,7 +47,7 @@ class TopicCardWidget extends StatelessWidget {
   final Widget? trailing;
   final double? aspectRatio;
 
-  final RxBool _isHovered = false.obs;
+  final ValueNotifier<bool> _isHovered = ValueNotifier<bool>(false);
 
   FollowingTopicsController get _followingTopicsController =>
       Get.isRegistered<FollowingTopicsController>()
@@ -152,9 +152,10 @@ class TopicCardWidget extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Obx(
-                () => AnimatedScale(
-                  scale: _isHovered.value ? 1.04 : 1.0,
+              ValueListenableBuilder<bool>(
+                valueListenable: _isHovered,
+                builder: (context, hovered, _) => AnimatedScale(
+                  scale: hovered ? 1.04 : 1.0,
                   duration: const Duration(milliseconds: 200),
                   curve: Curves.easeOutCubic,
                   child: _buildCoverImage(currentTopic),
@@ -193,7 +194,7 @@ class TopicCardWidget extends StatelessWidget {
                             currentTopic.category.isNotEmpty
                                 ? currentTopic.category
                                 : 'Topic',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               color: Colors.white,
                               fontSize: 10.5,
                               fontWeight: FontWeight.w600,
@@ -297,7 +298,7 @@ class TopicCardWidget extends StatelessWidget {
                           const SizedBox(width: 3),
                           Text(
                             '${currentTopic.videoCount} ${currentTopic.videoCount == 1 ? 'video' : 'videos'}',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               color: Colors.white,
                               fontSize: 10.5,
                               fontWeight: FontWeight.w600,
@@ -319,16 +320,8 @@ class TopicCardWidget extends StatelessWidget {
               );
 
         return MouseRegion(
-          onEnter: (_) {
-            if (!_isHovered.value) {
-              _isHovered.value = true;
-            }
-          },
-          onExit: (_) {
-            if (_isHovered.value) {
-              _isHovered.value = false;
-            }
-          },
+          onEnter: (_) => _isHovered.value = true,
+          onExit: (_) => _isHovered.value = false,
           child: InkWell(
             onTap: () {
               if (onExploreTap != null) {
@@ -367,7 +360,7 @@ class TopicCardWidget extends StatelessWidget {
                   // 1. TOP PORTION: Cover Thumbnail Image
                   topPortion,
 
-                  // 2. BOTTOM PORTION: Card Content (Title, Stats Line, Action Buttons Row)
+                  // 2. BOTTOM PORTION: Card Content (Topic Name, Stats Line, Action Buttons Row)
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
@@ -377,10 +370,10 @@ class TopicCardWidget extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Title
+                        // Topic Name
                         Text(
-                          currentTopic.title,
-                          style: GoogleFonts.roboto(
+                          currentTopic.name,
+                          style: TextStyle(
                             fontSize: 14.5,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
@@ -397,17 +390,17 @@ class TopicCardWidget extends StatelessWidget {
                           children: [
                             Text(
                               '${FormatUtils.formatCount(currentTopic.videoCount)} ${currentTopic.videoCount == 1 ? 'Video' : 'Videos'}',
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.w500,
-                                color: const Color(0xFF94A3B8),
+                                color: AppColors.textTertiary,
                               ),
                             ),
                             Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 5),
                               child: Text(
                                 '•',
-                                style: GoogleFonts.roboto(
+                                style: TextStyle(
                                   fontSize: 10,
                                   color: const Color(0xFF64748B),
                                 ),
@@ -419,10 +412,10 @@ class TopicCardWidget extends StatelessWidget {
                                     .getFollowerCount(currentTopic);
                                 return Text(
                                   '${FormatUtils.formatCount(count)} Followers',
-                                  style: GoogleFonts.roboto(
+                                  style: TextStyle(
                                     fontSize: 11.5,
                                     fontWeight: FontWeight.w500,
-                                    color: const Color(0xFF94A3B8),
+                                    color: AppColors.textTertiary,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -440,7 +433,7 @@ class TopicCardWidget extends StatelessWidget {
                               color: const Color(0xFF2C1515),
                               borderRadius: BorderRadius.circular(6),
                               border: Border.all(
-                                color: const Color(0xFFEF4444).withValues(alpha: 0.5),
+                                color: AppColors.error.withValues(alpha: 0.5),
                                 width: 0.8,
                               ),
                             ),
@@ -449,7 +442,7 @@ class TopicCardWidget extends StatelessWidget {
                               children: [
                                 const Icon(
                                   Icons.error_outline_rounded,
-                                  color: Color(0xFFEF4444),
+                                  color: AppColors.error,
                                   size: 13,
                                 ),
                                 const SizedBox(width: 5),
@@ -548,6 +541,7 @@ class TopicCardWidget extends StatelessWidget {
       return ElevatedButton.icon(
         onPressed: onFollowToggle ??
             () {
+              HapticFeedback.lightImpact();
               _followingTopicsController.toggleFollowTopic(currentTopic);
             },
         icon: Icon(
@@ -619,7 +613,7 @@ class TopicCardWidget extends StatelessWidget {
       ),
       style: ElevatedButton.styleFrom(
         backgroundColor: isRejected
-            ? const Color(0xFFFBBF24)
+            ? AppColors.warning
             : Colors.white.withValues(alpha: 0.15),
         foregroundColor: isRejected ? Colors.black : Colors.white,
         elevation: 0,
@@ -658,11 +652,12 @@ class TopicCardWidget extends StatelessWidget {
           size: 17,
         ),
         onPressed: () {
+          HapticFeedback.lightImpact();
           final topicUrl = DeepLinkService.topicUrl(currentTopic.slug);
           final currentFollowerCount =
               _followingTopicsController.getFollowerCount(currentTopic);
           ShareBottomSheet.show(
-            title: currentTopic.title,
+            title: currentTopic.name,
             url: topicUrl,
             thumbnailUrl: currentTopic.coverImage ?? currentTopic.thumbnailUrl,
             followerCount: currentFollowerCount,
@@ -731,7 +726,7 @@ class TopicSectionHeader extends StatelessWidget {
               backgroundColor: const Color(0xFF18181B),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              side: const BorderSide(color: Color(0xFF27272A)),
+              side: const BorderSide(color: AppColors.bgSurface),
             ),
           ),
         ],

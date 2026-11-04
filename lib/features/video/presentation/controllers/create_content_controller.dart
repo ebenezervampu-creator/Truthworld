@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/utils/timestamp_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
@@ -42,6 +43,8 @@ class CreateContentController extends GetxController {
   final TextEditingController communityDescriptionController = TextEditingController();
   final TextEditingController communityTagsController = TextEditingController();
 
+  Worker? _pickedVideoWorker;
+
   @override
   void onInit() {
     super.onInit();
@@ -60,10 +63,30 @@ class CreateContentController extends GetxController {
     } else {
       loadDraftFromArguments();
     }
+
+    _pickedVideoWorker = ever(uploadController.pickedVideo, (file) {
+      if (file != null && titleController.text.trim().isEmpty && file.name.isNotEmpty) {
+        final cleanName = file.name
+            .replaceAll(
+              RegExp(
+                r'\.(mp4|mov|avi|wmv|webm|flv|3gpp|3gp|mpeg|mpg|mkv|mpegps|m4v|dnxhr|prores|cineform|hevc|mp3|wav|m4a|aac|ogg|flac)$',
+                caseSensitive: false,
+              ),
+              '',
+            )
+            .replaceAll('_', ' ')
+            .replaceAll('-', ' ')
+            .trim();
+        if (cleanName.isNotEmpty) {
+          titleController.text = cleanName;
+        }
+      }
+    });
   }
 
   @override
   void onClose() {
+    _pickedVideoWorker?.dispose();
     titleController.dispose();
     descriptionController.dispose();
     tagsController.dispose();
@@ -110,6 +133,15 @@ class CreateContentController extends GetxController {
     if (video.visibility.isNotEmpty &&
         video.visibility.toLowerCase() != 'draft') {
       uploadController.selectedVisibility.value = video.visibility;
+    }
+
+    if (video.isScheduled || video.scheduledPublishAt != null) {
+      uploadController.isScheduled.value = true;
+      if (video.scheduledPublishAt != null) {
+        uploadController.scheduledDate.value = video.scheduledPublishAt!;
+      }
+    } else {
+      uploadController.isScheduled.value = false;
     }
 
     if (video.topics.isNotEmpty) {
@@ -195,6 +227,15 @@ class CreateContentController extends GetxController {
           final summary = moderation['summary'] as String?;
           if (summary != null && summary.isNotEmpty) {
             descriptionController.text = summary;
+          }
+        }
+
+        final schedRaw = doc.data()!['scheduledTime'] ?? doc.data()!['scheduledPublishAt'];
+        if (schedRaw != null) {
+          final schedDt = TimestampUtils.parseToDateTime(schedRaw);
+          if (schedDt != null) {
+            uploadController.isScheduled.value = true;
+            uploadController.scheduledDate.value = schedDt;
           }
         }
 
@@ -296,15 +337,34 @@ class CreateContentController extends GetxController {
     }
   }
 
+  void activateScheduleMode(BuildContext context) {
+    uploadController.isScheduled.value = true;
+    final now = DateTime.now();
+    if (uploadController.scheduledDate.value.isBefore(now)) {
+      final tomorrow = now.add(const Duration(days: 1));
+      uploadController.scheduledDate.value = DateTime(
+        tomorrow.year,
+        tomorrow.month,
+        tomorrow.day,
+        9,
+      );
+    }
+  }
+
   bool canPublishVideo() {
+    final hasThumb = uploadController.thumbnailUrl.value.isNotEmpty ||
+        uploadController.pickedImage.value != null;
     final hasMedia = uploadController.videoUrl.value.isNotEmpty ||
         uploadController.pickedVideo.value != null ||
         uploadController.resumedVideoDraft.value != null;
-    final hasThumb = uploadController.thumbnailUrl.value.isNotEmpty ||
-        uploadController.pickedImage.value != null;
     final hasCategory = uploadController.selectedCategory.value.isNotEmpty;
     final hasChannel = uploadController.selectedChannel.value != null;
-    return hasMedia && hasThumb && hasCategory && hasChannel;
+    if (uploadController.isScheduled.value) {
+      if (uploadController.scheduledDate.value.isBefore(DateTime.now())) {
+        return false;
+      }
+    }
+    return hasThumb && hasMedia && hasCategory && hasChannel;
   }
 
   void showExitConfirmation(BuildContext context) {
@@ -336,7 +396,10 @@ class CreateContentController extends GetxController {
   Future<void> handleVideoUpload({bool isDraft = false}) async {
     if (!isDraft) {
       final selectedChannel = uploadController.selectedChannel.value;
+      final isTrustedChannel =
+          selectedChannel?.trustedModerationBypass == true;
       if (selectedChannel != null &&
+          !isTrustedChannel &&
           selectedChannel.status != ChannelStatus.active) {
         var message = 'Your channel is not active.';
         if (selectedChannel.status == ChannelStatus.underReview) {
@@ -352,16 +415,10 @@ class CreateContentController extends GetxController {
               'Your channel is currently verification pending. You can publish videos once your branding is verified.';
         } else if (selectedChannel.status == ChannelStatus.suspended) {
           message = 'Your channel is suspended. Publishing is disabled.';
+        } else if (selectedChannel.status == ChannelStatus.onHold) {
+          message = 'Your channel is currently on hold. Publishing is temporarily disabled.';
         }
         AppSnackbar.warning(message, title: 'Verification Required');
-        return;
-      }
-
-      if (!uploadController.hasConfirmedCopyrightDeclaration.value) {
-        AppSnackbar.warning(
-          'Please confirm and check the copyright ownership declaration before publishing your video.',
-          title: 'Copyright Declaration Required',
-        );
         return;
       }
 
@@ -372,6 +429,27 @@ class CreateContentController extends GetxController {
           .map((t) => t.trim())
           .where((t) => t.isNotEmpty)
           .toList();
+
+      final hasThumb = uploadController.thumbnailUrl.value.isNotEmpty ||
+          uploadController.pickedImage.value != null;
+      if (!hasThumb) {
+        AppSnackbar.warning(
+          'Please select a thumbnail image for your video.',
+          title: 'Thumbnail Required',
+        );
+        return;
+      }
+
+      final hasMedia = uploadController.videoUrl.value.isNotEmpty ||
+          uploadController.pickedVideo.value != null ||
+          uploadController.resumedVideoDraft.value != null;
+      if (!hasMedia) {
+        AppSnackbar.warning(
+          'Please select a video file to upload.',
+          title: 'Video Required',
+        );
+        return;
+      }
 
       final titleValidation = ContentValidator.validate(
         rawTitle,
@@ -407,14 +485,14 @@ class CreateContentController extends GetxController {
       final canPublish = canPublishVideo();
       if (!canPublish) {
         final reasons = <String>[];
+        if (uploadController.thumbnailUrl.value.isEmpty &&
+            uploadController.pickedImage.value == null) {
+          reasons.add('Thumbnail image is required');
+        }
         if (uploadController.videoUrl.value.isEmpty &&
             uploadController.pickedVideo.value == null &&
             uploadController.resumedVideoDraft.value == null) {
           reasons.add('Video file or draft is required');
-        }
-        if (uploadController.thumbnailUrl.value.isEmpty &&
-            uploadController.pickedImage.value == null) {
-          reasons.add('Thumbnail image is required');
         }
         if (uploadController.selectedCategory.value.isEmpty) {
           reasons.add('Category is required');
@@ -430,18 +508,32 @@ class CreateContentController extends GetxController {
         return;
       }
 
-      final status = uploadController.finalstatus.value;
-      if (status == 'REJECTED') {
-        AppSnackbar.error(
-          'You cannot publish because the thumbnail was rejected: ${uploadController.finalstatusReason.value}',
-          title: 'Thumbnail Rejected',
-        );
-        return;
+      if (!isTrustedChannel) {
+        final status = uploadController.finalstatus.value;
+        if (status == 'REJECTED') {
+          AppSnackbar.error(
+            'You cannot publish because the thumbnail was rejected: ${uploadController.finalstatusReason.value}',
+            title: 'Thumbnail Rejected',
+          );
+          return;
+        }
+        if (uploadController.pickedImage.value != null &&
+            status != 'APPROVED') {
+          AppSnackbar.info(
+            'Your thumbnail is still being verified. Please wait a moment.',
+            title: 'Verification Pending',
+          );
+          return;
+        }
       }
-      if (uploadController.pickedImage.value != null && status != 'APPROVED') {
-        AppSnackbar.info(
-          'Your thumbnail is still being verified. Please wait a moment.',
-          title: 'Verification Pending',
+    }
+
+    if (!isDraft && uploadController.isScheduled.value) {
+      final schedDate = uploadController.scheduledDate.value;
+      if (schedDate.isBefore(DateTime.now())) {
+        AppSnackbar.warning(
+          'Please select a future date and time for scheduled publishing.',
+          title: 'Invalid Schedule Time',
         );
         return;
       }
@@ -455,8 +547,10 @@ class CreateContentController extends GetxController {
 
     try {
       uploadController.isProcessing.value = true;
-      uploadController.processingMessage.value =
-          isDraft ? 'Saving draft...' : 'Publishing video...';
+      final isSched = uploadController.isScheduled.value;
+      uploadController.processingMessage.value = isDraft
+          ? 'Saving...'
+          : (isSched ? 'Scheduling video...' : 'Publishing...');
 
       final rawTags = tagsController.text
           .split(',')
@@ -487,8 +581,10 @@ class CreateContentController extends GetxController {
       HapticFeedback.mediumImpact();
       AppSnackbar.success(
         isDraft
-            ? 'Your video was saved as a draft successfully.'
-            : 'Your video is being processed and will be available soon.',
+            ? 'Your video was saved successfully.'
+            : (isSched
+                ? 'Your video has been scheduled for publication.'
+                : 'Your video is being processed and will be available soon.'),
       );
       Get.offAllNamed('/studio');
     } catch (e) {
@@ -588,7 +684,7 @@ class CreateContentController extends GetxController {
                 )
           : Future.value([]),
       onCreateTopicSubmitted: (createCtrl) async {
-        final title = createCtrl.titleController.text.trim();
+        final name = createCtrl.nameController.text.trim();
         var rawHandle = createCtrl.handleController.text.trim();
         if (rawHandle.startsWith('T/') || rawHandle.startsWith('t/')) {
           rawHandle = rawHandle.substring(2);
@@ -611,7 +707,8 @@ class CreateContentController extends GetxController {
         }
 
         uploadController.newTopicData.value = {
-          'title': title,
+          'name': name,
+          'title': name,
           'handle': finalHandle,
           'description': createCtrl.descriptionController.text.trim(),
           'category': createCtrl.categoryController.text,

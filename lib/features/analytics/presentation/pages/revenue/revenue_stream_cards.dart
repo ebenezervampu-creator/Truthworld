@@ -147,45 +147,6 @@ Widget buildAdRevenueStreamCard(RevenueAnalyticsController controller) {
   );
 }
 
-// ── 4. Watch Time Royalties Stream ─────────────────────────────────────────
-Widget buildWatchTimeStreamCard(RevenueAnalyticsController controller) {
-  final amount = controller.watchTimeRevenue.value;
-  final mins = controller.totalWatchMinutes.value;
-  final creatorCut = amount * 0.70;
-  final formattedAmount = controller.formatCurrency(amount);
-  final formattedPlatformCut = controller.formatCurrency(amount * 0.30);
-  final formattedCreatorCut = controller.formatCurrency(creatorCut);
-
-  return buildStreamContainer(
-    icon: Icons.timer_rounded,
-    title: 'Watch Time & Premium Royalties',
-    subtitle: '$mins Mins Watch Time • Subscriber Retention Royalty',
-    amount: formattedAmount,
-    badgeText: '70% Creator Split',
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 12),
-        buildSplitRow(
-          label: 'Total Watch Time Accumulated',
-          value: '$mins min${mins == 1 ? '' : 's'}',
-        ),
-        const SizedBox(height: 6),
-        buildSplitRow(
-          label: 'Platform Share (30%)',
-          value: formattedPlatformCut,
-        ),
-        const SizedBox(height: 6),
-        buildSplitRow(
-          label: 'Creator Share (70%)',
-          value: formattedCreatorCut,
-          isBold: true,
-        ),
-      ],
-    ),
-  );
-}
-
 Widget buildStreamContainer({
   required IconData icon,
   required String title, required String subtitle, required String amount, required String badgeText, required Widget child, Color? accentColor,

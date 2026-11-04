@@ -48,12 +48,22 @@ class GetXNavigationService implements INavigationService {
     bool preventDuplicates = true,
     Map<String, String>? parameters,
   }) {
+    var effectivePage = page;
+    var effectiveParams = parameters;
+    if (page.contains('?') && parameters != null) {
+      final uri = Uri.parse(page);
+      effectivePage = uri.path;
+      effectiveParams = {
+        ...uri.queryParameters,
+        ...parameters,
+      };
+    }
     return Get.toNamed<T>(
-      page,
+      effectivePage,
       arguments: arguments,
       id: id,
       preventDuplicates: preventDuplicates,
-      parameters: parameters,
+      parameters: effectiveParams,
     );
   }
 
@@ -65,12 +75,22 @@ class GetXNavigationService implements INavigationService {
     bool preventDuplicates = true,
     Map<String, String>? parameters,
   }) {
+    var effectivePage = page;
+    var effectiveParams = parameters;
+    if (page.contains('?') && parameters != null) {
+      final uri = Uri.parse(page);
+      effectivePage = uri.path;
+      effectiveParams = {
+        ...uri.queryParameters,
+        ...parameters,
+      };
+    }
     return Get.offNamed<T>(
-      page,
+      effectivePage,
       arguments: arguments,
       id: id,
       preventDuplicates: preventDuplicates,
-      parameters: parameters,
+      parameters: effectiveParams,
     );
   }
 
@@ -81,11 +101,21 @@ class GetXNavigationService implements INavigationService {
     int? id,
     Map<String, String>? parameters,
   }) {
+    var effectivePage = page;
+    var effectiveParams = parameters;
+    if (page.contains('?') && parameters != null) {
+      final uri = Uri.parse(page);
+      effectivePage = uri.path;
+      effectiveParams = {
+        ...uri.queryParameters,
+        ...parameters,
+      };
+    }
     return Get.offAllNamed<T>(
-      page,
+      effectivePage,
       arguments: arguments,
       id: id,
-      parameters: parameters,
+      parameters: effectiveParams,
     );
   }
 
@@ -215,6 +245,17 @@ class AppNavigator {
     return _service.toNamed(AppRoutes.dashboard);
   }
 
+  /// Navigate to Creator Studio Channel Notifications as a separate page.
+  static Future<void>? toStudioNotifications({
+    String channelId = '',
+    String creatorId = '',
+  }) {
+    return _service.toNamed(
+      AppRoutes.studioNotifications,
+      arguments: {'channelId': channelId, 'creatorId': creatorId},
+    );
+  }
+
   /// Navigate to content creation hub.
   static Future<void>? toUpload() {
     return _service.toNamed(AppRoutes.upload);
@@ -328,6 +369,27 @@ class AppNavigator {
     return _service.toNamed(AppRoutes.settings);
   }
 
+  /// Navigate to trash and restoration screen.
+  ///
+  /// [isConsumer] determines whether to display personal library trash (e.g. private playlists)
+  /// or creator studio trash (e.g. channel videos, topics, posts).
+  static Future<void>? toTrash({
+    bool isConsumer = true,
+    String? channelId,
+  }) {
+    if (isConsumer) {
+      return _service.toNamed(
+        AppRoutes.trash,
+        arguments: {'isConsumer': true, 'channelId': channelId ?? ''},
+      );
+    } else {
+      return _service.toNamed(
+        AppRoutes.studioTrash,
+        arguments: {'isConsumer': false, 'channelId': channelId ?? ''},
+      );
+    }
+  }
+
   /// Navigate to edit user profile screen.
   static Future<void>? toEditProfile() {
     return _service.toNamed(AppRoutes.editProfile);
@@ -371,11 +433,6 @@ class AppNavigator {
   /// Navigate to copyright complaint / DMCA screen.
   static Future<void>? toCopyrightComplaint() {
     return _service.toNamed(AppRoutes.copyrightComplaint);
-  }
-
-  /// Navigate to creator wallet.
-  static Future<void>? toWallet() {
-    return _service.toNamed(AppRoutes.wallet);
   }
 
   /// Navigate to payment checkout screen.

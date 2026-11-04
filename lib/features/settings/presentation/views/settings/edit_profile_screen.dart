@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/components/ui/avatar_options_sheet.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/location/verified_location.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/settings/presentation/controllers/edit_profile_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -25,11 +25,17 @@ class EditProfileScreen extends GetView<EditProfileController> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: Get.back,
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              Get.offAllNamed('/');
+            }
+          },
         ),
         title: Text(
           'Edit Profile Details',
-          style: GoogleFonts.outfit(
+          style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
             color: AppColors.textPrimary,
@@ -51,7 +57,7 @@ class EditProfileScreen extends GetView<EditProfileController> {
                     )
                   : Text(
                       'Save',
-                      style: GoogleFonts.outfit(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
@@ -92,7 +98,7 @@ class EditProfileScreen extends GetView<EditProfileController> {
                           child: Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF1E1E1E),
+                              color: AppColors.bgSurface,
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: Colors.white.withValues(alpha: 0.4),
@@ -112,7 +118,7 @@ class EditProfileScreen extends GetView<EditProfileController> {
                   Obx(
                     () => Text(
                       controller.liveDisplayName.value,
-                      style: GoogleFonts.outfit(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary,
@@ -289,7 +295,7 @@ class EditProfileScreen extends GetView<EditProfileController> {
             const SizedBox(height: 6),
             Text(
               'Search and select your town, city, or village, or pin your exact location on Google Maps.',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 13,
                 color: AppColors.textSecondary,
               ),
@@ -514,7 +520,7 @@ class EditProfileScreen extends GetView<EditProfileController> {
                         )
                       : Text(
                           'Save Profile Details',
-                          style: GoogleFonts.outfit(
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: AppColors.bgPage,
@@ -536,7 +542,7 @@ class EditProfileScreen extends GetView<EditProfileController> {
   Widget _buildSectionHeader(String title) {
     return Text(
       title,
-      style: GoogleFonts.outfit(
+      style: TextStyle(
         fontSize: 16,
         fontWeight: FontWeight.bold,
         color: AppColors.textPrimary,
@@ -565,7 +571,7 @@ class EditProfileScreen extends GetView<EditProfileController> {
               const SizedBox(width: 8),
               Text(
                 'Google Maps Location Tools',
-                style: GoogleFonts.outfit(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: AppColors.textPrimary,
@@ -672,13 +678,14 @@ class EditProfileScreen extends GetView<EditProfileController> {
 
   void _showPasteMapLocationDialog(BuildContext context) {
     final pasteCtrl = TextEditingController();
+    final isVerifying = false.obs;
 
     Get.dialog(
       AlertDialog(
         backgroundColor: context.colors.surface,
         title: Text(
           'Paste Google Maps Location',
-          style: GoogleFonts.outfit(
+          style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
             color: AppColors.textPrimary,
@@ -690,7 +697,7 @@ class EditProfileScreen extends GetView<EditProfileController> {
           children: [
             Text(
               'Paste a Google Maps share link or coordinates (e.g. 40.7128, -74.0060). It will resolve to the nearest verified town, city, or village.',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 13,
                 color: AppColors.textSecondary,
               ),
@@ -719,30 +726,72 @@ class EditProfileScreen extends GetView<EditProfileController> {
                   borderSide: const BorderSide(color: Colors.white),
                 ),
               ),
+              onSubmitted: (_) async {
+                final text = pasteCtrl.text.trim();
+                if (text.isEmpty) {
+                  AppSnackbar.warning('Please enter a Google Maps link or coordinates.');
+                  return;
+                }
+                isVerifying.value = true;
+                try {
+                  final success = await controller.parseAndSetMapLocation(text);
+                  if (success) {
+                    Get.back();
+                  }
+                } finally {
+                  isVerifying.value = false;
+                }
+              },
             ),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: Get.back,
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: AppColors.textSecondary),
+          Obx(
+            () => TextButton(
+              onPressed: isVerifying.value ? null : Get.back,
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
             ),
           ),
-          ElevatedButton(
-            onPressed: () {
-              final text = pasteCtrl.text.trim();
-              if (text.isNotEmpty) {
-                controller.parseAndSetMapLocation(text);
-                Get.back();
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.black, // Rule: Black foreground on white button
+          Obx(
+            () => ElevatedButton(
+              onPressed: isVerifying.value
+                  ? null
+                  : () async {
+                      final text = pasteCtrl.text.trim();
+                      if (text.isEmpty) {
+                        AppSnackbar.warning('Please enter a Google Maps link or coordinates.');
+                        return;
+                      }
+                      isVerifying.value = true;
+                      try {
+                        final success = await controller.parseAndSetMapLocation(text);
+                        if (success) {
+                          Get.back();
+                        }
+                      } finally {
+                        isVerifying.value = false;
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black, // Rule: Black foreground on white button
+                disabledBackgroundColor: Colors.white38,
+                disabledForegroundColor: Colors.black54,
+              ),
+              child: isVerifying.value
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.black, // Rule: Black spinner on white button
+                      ),
+                    )
+                  : const Text('Apply & Verify', style: TextStyle(color: Colors.black)),
             ),
-            child: const Text('Apply & Verify', style: TextStyle(color: Colors.black)),
           ),
         ],
       ),

@@ -20,6 +20,7 @@ import 'package:truthworld/features/search/presentation/controllers/search_contr
     as app;
 import 'package:truthworld/features/search/presentation/pages/search_page.dart';
 import 'package:truthworld/routes/app_routes.dart';
+import 'package:truthworld/routes/app_transitions.dart';
 import 'package:truthworld/routes/modules/admin_routes.dart';
 
 /// Core application routes handling dynamic entry points, home shell, search, and platform about.
@@ -29,6 +30,9 @@ class CoreRoutes {
   static final List<GetPage> routes = [
     GetPage(
       name: AppRoutes.root,
+      transition: AppTransitions.peer,
+      transitionDuration: AppTransitions.peerDuration,
+      curve: AppTransitions.peerCurve,
       page: () {
         if (AppFlavor.isStudio) {
           return DeferredWidget(
@@ -108,6 +112,9 @@ class CoreRoutes {
     ),
     GetPage(
       name: AppRoutes.home,
+      transition: AppTransitions.peer,
+      transitionDuration: AppTransitions.peerDuration,
+      curve: AppTransitions.peerCurve,
       page: () {
         if (AppFlavor.isStudio) {
           return DeferredWidget(
@@ -129,11 +136,17 @@ class CoreRoutes {
     GetPage(
       name: AppRoutes.about,
       page: () => const AboutPage(),
+      transition: AppTransitions.hierarchical,
+      transitionDuration: AppTransitions.hierarchicalDuration,
+      curve: AppTransitions.hierarchicalCurve,
     ),
     GetPage(
       name: AppRoutes.search,
       page: () => const SearchPage(),
       middlewares: [ConsumerRouteGuard()],
+      transition: AppTransitions.hierarchical,
+      transitionDuration: AppTransitions.hierarchicalDuration,
+      curve: AppTransitions.hierarchicalCurve,
       binding: BindingsBuilder(() {
         Get.lazyPut(app.SearchController.new);
       }),

@@ -276,5 +276,39 @@ void main() {
         expect(pendingVideo.isRejected, isFalse);
       });
     });
+
+    group('Non-English Subtitles & Localization Resilience', () {
+      test('safely parses object-based subtitles maps without throwing TypeError', () {
+        final map = Map<String, dynamic>.from(validVideoMap)
+          ..['language'] = 'te'
+          ..['subtitles'] = {
+            'te': {
+              'url': 'https://firebasestorage.googleapis.com/v0/b/truthworld.appspot.com/o/subtitles%2Fjob_123%2Fte.srt?alt=media',
+              'format': 'srt',
+              'provider': 'google-cloud-speech',
+            },
+            'hi': {
+              'srtPath': 'https://storage.googleapis.com/truthworld/subtitles/job_123/hi.srt',
+            },
+          };
+        final video = Video.fromMap(map, 'test-telugu-subtitles');
+        expect(video.mediaSubtitles['te'], contains('te.srt'));
+        expect(video.mediaSubtitles['hi'], contains('hi.srt'));
+      });
+
+      test('safely parses flat string-based subtitles maps', () {
+        final map = Map<String, dynamic>.from(validVideoMap)
+          ..['language'] = 'te'
+          ..['media'] = {
+            'subtitles': {
+              'te': 'https://firebasestorage.googleapis.com/v0/b/truthworld.appspot.com/o/subtitles%2Fjob_123%2Fte.srt',
+              'en': 'https://firebasestorage.googleapis.com/v0/b/truthworld.appspot.com/o/subtitles%2Fjob_123%2Fen.srt',
+            },
+          };
+        final video = Video.fromMap(map, 'test-flat-subtitles');
+        expect(video.mediaSubtitles['te'], contains('te.srt'));
+        expect(video.mediaSubtitles['en'], contains('en.srt'));
+      });
+    });
   });
 }

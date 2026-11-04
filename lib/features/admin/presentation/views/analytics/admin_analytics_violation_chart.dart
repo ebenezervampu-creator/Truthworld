@@ -20,7 +20,7 @@ class AdminAnalyticsViolationChart extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
@@ -94,7 +94,7 @@ class AdminAnalyticsZeroViolationsState extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: const Color(0xFF4CAF50).withValues(alpha: 0.15),
+              color: AppColors.success.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
             child: const Icon(
@@ -139,13 +139,13 @@ class AdminAnalyticsCategoriesList extends StatelessWidget {
   final Map<String, dynamic> categories;
 
   static const List<Color> chartColors = [
-    Color(0xFFEF5350), // Red
-    Color(0xFFFF7043), // Deep Orange
-    Color(0xFFFFA726), // Amber
-    Color(0xFFEC407A), // Pink
-    Color(0xFFAB47BC), // Purple
-    Color(0xFF42A5F5), // Blue
-    Color(0xFF26A69A), // Teal
+    AppColors.error, // Red
+    AppColors.warning, // Deep Orange
+    AppColors.warning, // Amber
+    AppColors.textLink,
+    AppColors.brandVariant,
+    AppColors.info, // Blue
+    AppColors.success, // Teal
   ];
 
   @override
@@ -219,7 +219,7 @@ class AdminAnalyticsBarChartRow extends StatelessWidget {
                 Container(
                   height: 14,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF242424),
+                    color: AppColors.bgSurface,
                     borderRadius: BorderRadius.circular(7),
                   ),
                 ),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
@@ -193,7 +192,7 @@ class _VideoClipDialogBody extends StatelessWidget {
                 const SizedBox(width: 12),
                 Text(
                   'Create Clip',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
@@ -215,11 +214,11 @@ class _VideoClipDialogBody extends StatelessWidget {
           onChanged: clipController.onTitleChanged,
           maxLength: 100,
           inputFormatters: TruthworldTextInputFormatters.withLimit(100),
-          style: GoogleFonts.roboto(color: AppColors.textPrimary, fontSize: 14),
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
           decoration: InputDecoration(
             hintText: 'Add a title (3-100 characters)...',
-            hintStyle: GoogleFonts.roboto(color: AppColors.textSecondary, fontSize: 14),
-            counterStyle: GoogleFonts.roboto(color: AppColors.textSecondary, fontSize: 11),
+            hintStyle: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+            counterStyle: TextStyle(color: AppColors.textSecondary, fontSize: 11),
             filled: true,
             fillColor: AppColors.bgPage.withValues(alpha: 0.8),
             border: OutlineInputBorder(
@@ -253,7 +252,7 @@ class _VideoClipDialogBody extends StatelessWidget {
                 Expanded(
                   child: Text(
                     clipController.titleError.value,
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 12,
                       color: AppColors.error,
                       fontWeight: FontWeight.w500,
@@ -304,7 +303,7 @@ class _SegmentHeader extends StatelessWidget {
         Flexible(
           child: Text(
             'SELECT SEGMENT',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w800,
               color: Colors.white70,
@@ -344,7 +343,7 @@ class _SegmentHeader extends StatelessWidget {
                 const SizedBox(width: 3),
                 Text(
                   '${duration.toStringAsFixed(1)}s',
-                  style: GoogleFonts.robotoMono(
+                  style: TextStyle(
                     fontSize: 11.5,
                     fontWeight: FontWeight.bold,
                     color: isOutOfRange ? AppColors.error : Colors.white,
@@ -352,7 +351,7 @@ class _SegmentHeader extends StatelessWidget {
                 ),
                 Text(
                   ' (5s-30s)',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 10,
                     color: AppColors.textSecondary,
                   ),
@@ -383,7 +382,7 @@ class _DurationPresetChips extends StatelessWidget {
         children: [
           Text(
             'Quick Length:',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 11,
               color: AppColors.textSecondary,
               fontWeight: FontWeight.w500,
@@ -415,7 +414,7 @@ class _DurationPresetChips extends StatelessWidget {
                     ),
                     child: Text(
                       '${seconds.toInt()}s',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 11.5,
                         fontWeight:
                             isSelected ? FontWeight.bold : FontWeight.w500,
@@ -508,7 +507,7 @@ class _TimelineSlider extends StatelessWidget {
                 children: [
                   Text(
                     FormatUtils.formatDuration(Duration(seconds: start.toInt())),
-                    style: GoogleFonts.robotoMono(
+                    style: TextStyle(
                       fontSize: 11,
                       color: Colors.white70,
                       fontWeight: FontWeight.w600,
@@ -522,7 +521,7 @@ class _TimelineSlider extends StatelessWidget {
                     ),
                     child: Text(
                       '${(end - start).toStringAsFixed(1)}s',
-                      style: GoogleFonts.robotoMono(
+                      style: TextStyle(
                         fontSize: 10,
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -531,7 +530,7 @@ class _TimelineSlider extends StatelessWidget {
                   ),
                   Text(
                     FormatUtils.formatDuration(Duration(seconds: end.toInt())),
-                    style: GoogleFonts.robotoMono(
+                    style: TextStyle(
                       fontSize: 11,
                       color: Colors.white70,
                       fontWeight: FontWeight.w600,
@@ -616,7 +615,7 @@ class _TimeAdjustCard extends StatelessWidget {
         children: [
           Text(
             label,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w700,
               color: AppColors.textSecondary,
@@ -630,7 +629,7 @@ class _TimeAdjustCard extends StatelessWidget {
                 : clipController.endSeconds.value;
             return Text(
               FormatUtils.formatDuration(Duration(seconds: seconds.toInt())),
-              style: GoogleFonts.robotoMono(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
@@ -691,7 +690,7 @@ class _TimeAdjustCard extends StatelessWidget {
                     const SizedBox(width: 3),
                     Text(
                       'Use Current',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
                         color: Colors.white,
@@ -727,7 +726,7 @@ class _StepButton extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.bold,
             color: Colors.white,
@@ -787,7 +786,7 @@ class _PreviewAndShiftToolbar extends StatelessWidget {
                     const SizedBox(width: 4),
                     Text(
                       isPlaying ? 'Pause' : 'Preview Clip',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
                         color: isPlaying ? Colors.black : Colors.white,
@@ -805,7 +804,7 @@ class _PreviewAndShiftToolbar extends StatelessWidget {
             children: [
               Text(
                 'Shift: ',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 10.5,
                   color: AppColors.textSecondary,
                 ),
@@ -827,7 +826,7 @@ class _PreviewAndShiftToolbar extends StatelessWidget {
                           size: 12, color: Colors.white),
                       Text(
                         ' 5s',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 10,
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
@@ -853,7 +852,7 @@ class _PreviewAndShiftToolbar extends StatelessWidget {
                     children: [
                       Text(
                         '5s ',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 10,
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
@@ -907,7 +906,7 @@ class _ActionButtons extends StatelessWidget {
                           ),
                     label: Text(
                       'Save Clip',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 14.5,
                         fontWeight: FontWeight.bold,
                         color: Colors.black,
@@ -939,7 +938,7 @@ class _ActionButtons extends StatelessWidget {
                     ),
                     label: Text(
                       'Share Clip',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 14.5,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
@@ -970,7 +969,7 @@ class _ActionButtons extends StatelessWidget {
               onPressed: Get.back,
               child: Text(
                 'Cancel',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontWeight: FontWeight.w500,
                   fontSize: 13,

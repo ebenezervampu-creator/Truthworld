@@ -24,33 +24,23 @@ class TruthVerificationClaimCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color borderColor;
-    Color headerBg;
     String badgeText;
     Color badgeFg;
     IconData tierIcon;
 
     if (claim.isHighConcern) {
-      borderColor = AppColors.error.withValues(alpha: 0.6);
-      headerBg = AppColors.error.withValues(alpha: 0.12);
       badgeText = '🔴 HIGH CONCERN • NO EVIDENCE FOUND';
       badgeFg = AppColors.error;
       tierIcon = Icons.warning_amber_rounded;
     } else if (claim.isNeedsSource) {
-      borderColor = AppColors.warning.withValues(alpha: 0.6);
-      headerBg = AppColors.warning.withValues(alpha: 0.12);
       badgeText = '🟡 NEEDS EVIDENCE / CITATION';
       badgeFg = AppColors.warning;
       tierIcon = Icons.help_outline_rounded;
     } else if (claim.isDisputed) {
-      borderColor = Colors.purple.withValues(alpha: 0.6);
-      headerBg = Colors.purple.withValues(alpha: 0.12);
       badgeText = '🟣 CITATION UNDER REVIEW';
       badgeFg = Colors.purpleAccent;
       tierIcon = Icons.gavel_rounded;
     } else {
-      borderColor = AppColors.success.withValues(alpha: 0.5);
-      headerBg = AppColors.success.withValues(alpha: 0.12);
       badgeText =
           '🟢 VERIFIED EVIDENCE (${(claim.confidenceScore * 100).toInt()}%)';
       badgeFg = AppColors.success;
@@ -60,11 +50,11 @@ class TruthVerificationClaimCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: isDarkMode ? AppColors.bgSurface : Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        color: AppColors.appBarSurface,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: borderColor,
-          width: 1.2,
+          color: AppColors.bgSurface,
+          width: 1.0,
         ),
       ),
       child: Column(
@@ -73,10 +63,10 @@ class TruthVerificationClaimCard extends StatelessWidget {
           // Header Ribbon
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: headerBg,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(12)),
+            decoration: const BoxDecoration(
+              color: AppColors.bgInput,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(11)),
+              border: Border(bottom: BorderSide(color: AppColors.bgSurface)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -105,15 +95,16 @@ class TruthVerificationClaimCard extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: AppColors.info.withValues(alpha: 0.15),
+                    color: AppColors.appBarSurface,
                     borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: AppColors.bgSurface),
                   ),
                   child: Text(
                     claim.timestamp,
                     style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.info,
+                      color: Colors.white,
                     ),
                   ),
                 ),

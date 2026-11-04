@@ -136,7 +136,7 @@ void main() {
       expect(find.textContaining('Playing video 1 of 2'), findsOneWidget);
     });
 
-    testWidgets('3. VideoTopicBanner renders topic title and video count',
+    testWidgets('3. VideoTopicBanner renders topic name and video count',
         (tester) async {
       final controller = VideoController();
       Get.put(controller);

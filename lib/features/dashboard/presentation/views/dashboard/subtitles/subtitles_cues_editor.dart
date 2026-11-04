@@ -30,15 +30,19 @@ class SubtitlesCuesEditor extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Cues Toolbar (Search, Find & Replace, Shift Timings, Sort, Clear)
-        SubtitlesCuesToolbar(
-          controller: controller,
-          surfaceColor: surfaceColor,
-          textColor: textColor,
-          borderColor: borderColor,
-        ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final hasExtremelyConstrainedHeight = constraints.maxHeight < 140;
+
+        final cuesContent = Column(
+          children: [
+            // Cues Toolbar (Search, Find & Replace, Shift Timings, Sort, Clear)
+            SubtitlesCuesToolbar(
+              controller: controller,
+              surfaceColor: surfaceColor,
+              textColor: textColor,
+              borderColor: borderColor,
+            ),
 
         // Cues Header Row (Responsive)
         if (!isMobile)
@@ -129,7 +133,10 @@ class SubtitlesCuesEditor extends StatelessWidget {
                     physics: const AlwaysScrollableScrollPhysics(),
                     child: ConstrainedBox(
                       constraints:
-                          BoxConstraints(minHeight: constraints.maxHeight),
+                          BoxConstraints(
+                              minHeight: constraints.maxHeight > 0
+                                  ? constraints.maxHeight
+                                  : 0.0),
                       child: Center(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
@@ -180,7 +187,7 @@ class SubtitlesCuesEditor extends StatelessWidget {
                                       ),
                                     ),
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF2E2E2E),
+                                      backgroundColor: AppColors.bgSurfaceHigh,
                                       foregroundColor: Colors.white,
                                       side: BorderSide(
                                         color: AppColors.brand
@@ -259,7 +266,21 @@ class SubtitlesCuesEditor extends StatelessWidget {
         ),
       ],
     );
-  }
+
+    if (hasExtremelyConstrainedHeight) {
+      return SingleChildScrollView(
+        physics: const ClampingScrollPhysics(),
+        child: SizedBox(
+          height: 220,
+          child: cuesContent,
+        ),
+      );
+    }
+
+    return cuesContent;
+  },
+);
+}
 }
 
 class SubtitlesCuesToolbar extends StatelessWidget {
@@ -434,7 +455,7 @@ class SubtitlesCueCardItem extends StatelessWidget {
                         const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color:
-                          isActive ? AppColors.brand : const Color(0xFF2E2E2E),
+                          isActive ? AppColors.brand : AppColors.bgSurfaceHigh,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
@@ -449,38 +470,43 @@ class SubtitlesCueCardItem extends StatelessWidget {
                   const SizedBox(width: 8),
 
                   // Timing interval pill (Clickable to seek video!)
-                  InkWell(
-                    onTap: () => controller.seekToCue(index),
-                    borderRadius: BorderRadius.circular(4),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF141414),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: InkWell(
+                        onTap: () => controller.seekToCue(index),
                         borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: borderColor),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.play_circle_fill_rounded,
-                            size: 13,
-                            color: AppColors.brand,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
                           ),
-                          const SizedBox(width: 5),
-                          Text(
-                            '${cue.startTime.split('.').first} ➔ ${cue.endTime.split('.').first}',
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
+                          decoration: BoxDecoration(
+                            color: AppColors.bgPage,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: borderColor),
                           ),
-                        ],
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.play_circle_fill_rounded,
+                                size: 13,
+                                color: AppColors.brand,
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                '${cue.startTime.split('.').first} ➔ ${cue.endTime.split('.').first}',
+                                style: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -570,41 +596,48 @@ class SubtitlesCueCardItem extends StatelessWidget {
                         vertical: 3,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF141414),
+                        color: AppColors.bgPage,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
                           color: borderColor.withValues(alpha: 0.5),
                         ),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Start',
-                              style: TextStyle(
-                                  fontSize: 10, color: textSecondaryColor)),
-                          InkWell(
-                            onTap: () => controller.shiftCueTiming(
-                              index,
-                              shiftMilliseconds: -500,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Start',
+                                style: TextStyle(
+                                    fontSize: 10, color: textSecondaryColor)),
+                            const SizedBox(width: 4),
+                            InkWell(
+                              onTap: () => controller.shiftCueTiming(
+                                index,
+                                shiftMilliseconds: -500,
+                              ),
+                              child: const Icon(Icons.remove_circle_outline,
+                                  size: 14, color: Colors.white),
                             ),
-                            child: const Icon(Icons.remove_circle_outline,
-                                size: 14, color: Colors.white),
-                          ),
-                          InkWell(
-                            onTap: () => controller.shiftCueTiming(index),
-                            child: const Icon(Icons.add_circle_outline,
-                                size: 14, color: Colors.white),
-                          ),
-                          Tooltip(
-                            message: 'Set Start to Video Playhead',
-                            child: InkWell(
-                              onTap: () =>
-                                  controller.setStartToCurrentTime(index),
-                              child: const Icon(Icons.my_location_rounded,
-                                  size: 13, color: AppColors.brand),
+                            const SizedBox(width: 4),
+                            InkWell(
+                              onTap: () => controller.shiftCueTiming(index),
+                              child: const Icon(Icons.add_circle_outline,
+                                  size: 14, color: Colors.white),
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 4),
+                            Tooltip(
+                              message: 'Set Start to Video Playhead',
+                              child: InkWell(
+                                onTap: () =>
+                                    controller.setStartToCurrentTime(index),
+                                child: const Icon(Icons.my_location_rounded,
+                                    size: 13, color: AppColors.brand),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -618,45 +651,52 @@ class SubtitlesCueCardItem extends StatelessWidget {
                         vertical: 3,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF141414),
+                        color: AppColors.bgPage,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
                           color: borderColor.withValues(alpha: 0.5),
                         ),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('End',
-                              style: TextStyle(
-                                  fontSize: 10, color: textSecondaryColor)),
-                          InkWell(
-                            onTap: () => controller.shiftCueTiming(
-                              index,
-                              isStart: false,
-                              shiftMilliseconds: -500,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('End',
+                                style: TextStyle(
+                                    fontSize: 10, color: textSecondaryColor)),
+                            const SizedBox(width: 4),
+                            InkWell(
+                              onTap: () => controller.shiftCueTiming(
+                                index,
+                                isStart: false,
+                                shiftMilliseconds: -500,
+                              ),
+                              child: const Icon(Icons.remove_circle_outline,
+                                  size: 14, color: Colors.white),
                             ),
-                            child: const Icon(Icons.remove_circle_outline,
-                                size: 14, color: Colors.white),
-                          ),
-                          InkWell(
-                            onTap: () => controller.shiftCueTiming(
-                              index,
-                              isStart: false,
+                            const SizedBox(width: 4),
+                            InkWell(
+                              onTap: () => controller.shiftCueTiming(
+                                index,
+                                isStart: false,
+                              ),
+                              child: const Icon(Icons.add_circle_outline,
+                                  size: 14, color: Colors.white),
                             ),
-                            child: const Icon(Icons.add_circle_outline,
-                                size: 14, color: Colors.white),
-                          ),
-                          Tooltip(
-                            message: 'Set End to Video Playhead',
-                            child: InkWell(
-                              onTap: () =>
-                                  controller.setEndToCurrentTime(index),
-                              child: const Icon(Icons.my_location_rounded,
-                                  size: 13, color: AppColors.brand),
+                            const SizedBox(width: 4),
+                            Tooltip(
+                              message: 'Set End to Video Playhead',
+                              child: InkWell(
+                                onTap: () =>
+                                    controller.setEndToCurrentTime(index),
+                                child: const Icon(Icons.my_location_rounded,
+                                    size: 13, color: AppColors.brand),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -779,69 +819,75 @@ class SubtitlesTimingBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 180,
+      constraints: const BoxConstraints(maxWidth: 180),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: AppColors.bgSurface,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: AppColors.bgDivider),
       ),
       child: Column(
         children: [
           // Start Time row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              InkWell(
-                onTap: () =>
-                    controller.shiftCueTiming(index, shiftMilliseconds: -500),
-                child: const Icon(
-                  Icons.remove_circle_outline,
-                  size: 14,
-                  color: Colors.white,
-                ),
-              ),
-              Tooltip(
-                message: 'Seek Video to Cue',
-                child: InkWell(
-                  onTap: () => controller.seekToCue(index),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.timer_outlined,
-                        size: 11,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        cue.startTime.split('.').first,
-                        style: AppTextStyles.labelMedium.copyWith(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: textColor,
-                        ),
-                      ),
-                    ],
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                InkWell(
+                  onTap: () =>
+                      controller.shiftCueTiming(index, shiftMilliseconds: -500),
+                  child: const Icon(
+                    Icons.remove_circle_outline,
+                    size: 14,
+                    color: Colors.white,
                   ),
                 ),
-              ),
-              InkWell(
-                onTap: () => controller.shiftCueTiming(index),
-                child: const Icon(
-                  Icons.add_circle_outline,
-                  size: 14,
-                  color: Colors.white,
+                const SizedBox(width: 4),
+                Tooltip(
+                  message: 'Seek Video to Cue',
+                  child: InkWell(
+                    onTap: () => controller.seekToCue(index),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.timer_outlined,
+                          size: 11,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          cue.startTime.split('.').first,
+                          style: AppTextStyles.labelMedium.copyWith(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: textColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.my_location_rounded, size: 12),
-                color: Colors.white,
-                tooltip: 'Set Start to Video Playhead',
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                onPressed: () => controller.setStartToCurrentTime(index),
-              ),
-            ],
+                const SizedBox(width: 4),
+                InkWell(
+                  onTap: () => controller.shiftCueTiming(index),
+                  child: const Icon(
+                    Icons.add_circle_outline,
+                    size: 14,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: const Icon(Icons.my_location_rounded, size: 12),
+                  color: Colors.white,
+                  tooltip: 'Set Start to Video Playhead',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () => controller.setStartToCurrentTime(index),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 2),
           const Icon(
@@ -851,46 +897,71 @@ class SubtitlesTimingBadge extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           // End Time row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              InkWell(
-                onTap: () => controller.shiftCueTiming(
-                  index,
-                  isStart: false,
-                  shiftMilliseconds: -500,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                InkWell(
+                  onTap: () => controller.shiftCueTiming(
+                    index,
+                    isStart: false,
+                    shiftMilliseconds: -500,
+                  ),
+                  child: const Icon(
+                    Icons.remove_circle_outline,
+                    size: 14,
+                    color: Colors.white,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.remove_circle_outline,
-                  size: 14,
+                const SizedBox(width: 4),
+                Tooltip(
+                  message: 'Seek Video to Cue End',
+                  child: InkWell(
+                    onTap: () => controller.seekToCue(index),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.timer_outlined,
+                          size: 11,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          cue.endTime.split('.').first,
+                          style: AppTextStyles.labelMedium.copyWith(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: textColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                InkWell(
+                  onTap: () => controller.shiftCueTiming(
+                    index,
+                    isStart: false,
+                  ),
+                  child: const Icon(
+                    Icons.add_circle_outline,
+                    size: 14,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: const Icon(Icons.my_location_rounded, size: 12),
                   color: Colors.white,
+                  tooltip: 'Set End to Video Playhead',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () => controller.setEndToCurrentTime(index),
                 ),
-              ),
-              Text(
-                cue.endTime.split('.').first,
-                style: AppTextStyles.labelMedium.copyWith(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: textSecondaryColor,
-                ),
-              ),
-              InkWell(
-                onTap: () => controller.shiftCueTiming(index, isStart: false),
-                child: const Icon(
-                  Icons.add_circle_outline,
-                  size: 14,
-                  color: Colors.white,
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.my_location_rounded, size: 12),
-                color: Colors.white,
-                tooltip: 'Set End to Video Playhead',
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                onPressed: () => controller.setEndToCurrentTime(index),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),

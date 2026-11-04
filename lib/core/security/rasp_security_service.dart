@@ -151,9 +151,23 @@ class RaspSecurityService extends GetxService {
     return fallback;
   }
 
+  DateTime? _lastSecurityCheckTime;
+  static const Duration _securityCheckTtl = Duration(minutes: 5);
+
   /// Returns `true` if the runtime environment is free of dynamic memory hooking or debuggers.
-  Future<bool> isEnvironmentSecure() async {
+  Future<bool> isEnvironmentSecure({bool force = false}) async {
+    final now = DateTime.now();
+    if (!force &&
+        _lastSecurityCheckTime != null &&
+        lastAssessment.value != null &&
+        lastAssessment.value!.isSecure &&
+        now.difference(_lastSecurityCheckTime!) < _securityCheckTtl) {
+      return true;
+    }
     final assessment = await checkSecurityThreats();
+    if (assessment.isSecure) {
+      _lastSecurityCheckTime = DateTime.now();
+    }
     return assessment.isSecure;
   }
 

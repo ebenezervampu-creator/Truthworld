@@ -44,7 +44,7 @@ class AudioDubsManagerArea extends StatelessWidget {
       final tracks = ad.audioTracks ?? {};
 
       return Container(
-        color: const Color(0xFF161618),
+        color: AppColors.appBarSurface,
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -108,7 +108,7 @@ class AudioDubsManagerArea extends StatelessWidget {
                       ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white,
-                        side: const BorderSide(color: Color(0xFF3F3F46)),
+                        side: const BorderSide(color: AppColors.bgElevated),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -143,7 +143,7 @@ class AudioDubsManagerArea extends StatelessWidget {
                 ),
               ],
             ),
-            const Divider(color: Color(0xFF27272A), height: 32),
+            const Divider(color: AppColors.bgSurface, height: 32),
             if (controller.isTranslatingAudio.value)
               PipelineProgressCard(
                 status: controller.audioStatusText.value,

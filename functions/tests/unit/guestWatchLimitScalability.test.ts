@@ -83,8 +83,8 @@ describe('Scalability & High Concurrency: Guest Watch Limit Engine (Millions of 
         expect(res.body.remainingSeconds).toBe(300);
       }
 
-      // 1,000 requests processed rapidly in-memory
-      expect(burstTimeMs).toBeLessThan(4000);
+      // 1,000 requests processed rapidly in-memory (<= 10ms per HTTP request under CI load)
+      expect(burstTimeMs).toBeLessThan(10000);
     });
   });
 

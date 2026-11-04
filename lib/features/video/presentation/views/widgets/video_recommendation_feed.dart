@@ -18,6 +18,8 @@ import 'package:truthworld/theme/app_theme.dart';
 
 export 'package:truthworld/features/video/presentation/views/widgets/video_recommendation_card.dart';
 
+/// High-performance video recommendation feed using true sliver virtualization.
+/// Participates directly in CustomScrollView sliver layout without expensive shrinkWrapping.
 class RecommendationFeed extends StatelessWidget {
   const RecommendationFeed({
     required this.video,
@@ -27,6 +29,7 @@ class RecommendationFeed extends StatelessWidget {
     this.physics,
     this.videos,
     this.isGrid = false,
+    this.asSliver,
   });
 
   final Video video;
@@ -35,16 +38,56 @@ class RecommendationFeed extends StatelessWidget {
   final ScrollPhysics? physics;
   final List<Video>? videos;
   final bool isGrid;
+  final bool? asSliver;
 
   @override
   Widget build(BuildContext context) {
     final controller = Get.find<VideoController>(tag: videoTag);
+    final effectiveAsSliver = asSliver ?? !shrinkWrap;
 
     return Obx(() {
+      Widget buildSliverLoadingSkeletons(bool isGrid) {
+        if (isGrid) {
+          return SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 1.15,
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (context, index) => const ShimmerVideoGridCard(),
+                childCount: 4,
+              ),
+            ),
+          );
+        }
+        return SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          sliver: SliverList.separated(
+            itemCount: 4,
+            separatorBuilder: (context, index) => const SizedBox(height: 16),
+            itemBuilder: (context, index) => const ShimmerVideoGridCard(),
+          ),
+        );
+      }
+
       if (controller.isLoadingRecommendations.value) {
-        return isGrid
-            ? buildShimmerVideoGrid(count: 4)
-            : buildShimmerVideoList(count: 4);
+        final loadingGroup = SliverMainAxisGroup(
+          slivers: [
+            buildSliverLoadingSkeletons(isGrid),
+          ],
+        );
+        if (!effectiveAsSliver) {
+          return CustomScrollView(
+            shrinkWrap: shrinkWrap,
+            physics: physics ?? const NeverScrollableScrollPhysics(),
+            slivers: [loadingGroup],
+          );
+        }
+        return loadingGroup;
       }
 
       final displayVideos = videos ?? controller.filteredRecommendedVideos;
@@ -223,7 +266,18 @@ class RecommendationFeed extends StatelessWidget {
       final isAllTab =
           (selectedFilter == 'All' || selectedFilter == 'Flip Coin') &&
               videos == null;
-      final displayItems = isAllTab ? controller.recommendedItems : displayVideos;
+      final rawDisplayItems = isAllTab ? controller.recommendedItems : displayVideos;
+      final seenItemIds = <String>{};
+      final displayItems = <dynamic>[];
+      for (final item in rawDisplayItems) {
+        if (item is Video) {
+          if (item.id.isNotEmpty && seenItemIds.add(item.id)) {
+            displayItems.add(item);
+          }
+        } else {
+          displayItems.add(item);
+        }
+      }
 
       Widget buildVideoItem(Video item, {required bool isGridItem}) {
         final isCurrentVideo = item.id == controller.video.id;
@@ -243,8 +297,8 @@ class RecommendationFeed extends StatelessWidget {
             if (isCurrentVideo) return;
             final activeTopic = currentTopic ??
                 controller.videoTopicsList.firstWhereOrNull((t) =>
-                    t.title.trim() == selectedFilter ||
-                    'Topic: ${t.title.trim()}' == selectedFilter);
+                    t.name.trim() == selectedFilter ||
+                    'Topic: ${t.name.trim()}' == selectedFilter);
             MiniplayerNavigationHelper.navigateToVideoScreen(
               video: item,
               routeArguments: {
@@ -283,7 +337,6 @@ class RecommendationFeed extends StatelessWidget {
             );
           } else {
             return Container(
-              margin: const EdgeInsets.fromLTRB(12, 0, 12, 16),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
@@ -296,7 +349,7 @@ class RecommendationFeed extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
                     child: Row(
                       children: [
                         Obx(
@@ -328,153 +381,143 @@ class RecommendationFeed extends StatelessWidget {
         return card;
       }
 
-      final videoList = isGrid
-          ? LayoutBuilder(
-              builder: (context, constraints) {
-                final width = constraints.maxWidth;
-                final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
-                    defaultTargetPlatform == TargetPlatform.iOS;
-                var crossAxisCount = 1;
-                var aspectRatio = 1.2;
+      Widget buildSliverVideoList(
+        BuildContext context,
+        List<dynamic> items, {
+        required bool isGrid,
+      }) {
+        if (isGrid) {
+          return SliverLayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.crossAxisExtent;
+              final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
+                  defaultTargetPlatform == TargetPlatform.iOS;
+              var crossAxisCount = 1;
+              var aspectRatio = 1.2;
 
-                if (!isMobileDevice && width >= 1000) {
-                  if (width >= 2400) {
-                    crossAxisCount = 5;
-                    aspectRatio = 1.15;
-                  } else if (width >= 1700) {
-                    crossAxisCount = 4;
-                    aspectRatio = 1.15;
-                  } else if (width >= 1100) {
-                    crossAxisCount = 3;
-                    aspectRatio = 1.15;
-                  } else {
-                    crossAxisCount = 2;
-                    aspectRatio = 1.15;
-                  }
+              if (!isMobileDevice && width >= 1000) {
+                if (width >= 2400) {
+                  crossAxisCount = 5;
+                  aspectRatio = 1.15;
+                } else if (width >= 1700) {
+                  crossAxisCount = 4;
+                  aspectRatio = 1.15;
+                } else if (width >= 1100) {
+                  crossAxisCount = 3;
+                  aspectRatio = 1.15;
                 } else {
-                  if (width > 1200) {
-                    crossAxisCount = 4;
-                    aspectRatio = 1.1;
-                  } else if (width > 900) {
-                    crossAxisCount = 3;
-                    aspectRatio = 1.1;
-                  } else if (width > 600) {
-                    crossAxisCount = 2;
-                    aspectRatio = 1.2;
-                  }
+                  crossAxisCount = 2;
+                  aspectRatio = 1.15;
                 }
+              } else {
+                if (width > 1200) {
+                  crossAxisCount = 4;
+                  aspectRatio = 1.1;
+                } else if (width > 900) {
+                  crossAxisCount = 3;
+                  aspectRatio = 1.1;
+                } else if (width > 600) {
+                  crossAxisCount = 2;
+                  aspectRatio = 1.2;
+                }
+              }
 
-                return GridView.builder(
-                  shrinkWrap: shrinkWrap,
-                  physics: physics,
-                  padding: const EdgeInsets.all(16),
+              return SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                sliver: SliverGrid(
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: crossAxisCount,
                     crossAxisSpacing: 16,
                     mainAxisSpacing: 16,
                     childAspectRatio: aspectRatio,
                   ),
-                  itemCount: displayItems.length,
-                  itemBuilder: (context, index) {
-                    final item = displayItems[index];
-                    if (item is Topic) {
-                      return TopicCardWidget(
-                        topic: item,
-                      );
-                    }
-                    if (item is CommunityPostModel) {
-                      return CommunityPostCard(
-                        post: item,
-                      );
-                    }
-                    if (item is Video) {
-                      return buildVideoItem(item, isGridItem: true);
-                    }
-                    if (item is AdItem) {
-                      if (item.adType == 'homepage') {
-                        return const SizedBox.shrink();
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final item = items[index];
+                      if (item is Topic) {
+                        return TopicCardWidget(topic: item);
                       }
-                      return HomepageAdCard(
-                        ad: item,
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  },
-                );
-              },
-            )
-          : ListView.builder(
-              shrinkWrap: shrinkWrap,
-              physics: physics,
-              padding: EdgeInsets.zero,
-              itemCount: displayItems.length,
-              itemBuilder: (context, index) {
-                final item = displayItems[index];
-                if (item is Topic) {
-                  return Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: TopicCardWidget(
-                      topic: item,
-                    ),
-                  );
-                }
-                if (item is CommunityPostModel) {
-                  return Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: CommunityPostCard(
-                      post: item,
-                    ),
-                  );
-                }
-                if (item is Video) {
-                  return buildVideoItem(item, isGridItem: false);
-                }
-                if (item is AdItem) {
-                  if (item.adType == 'homepage') {
-                    return const SizedBox.shrink();
-                  }
-                  return Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: ScrollAdCard(
-                      ad: item,
-                      contextChannelId: video.channelId,
-                    ),
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            );
-
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          pillsBar,
-          if (isPlaylistTab)
-            playlistHeader,
-          if (isTopicTab)
-            topicHeader,
-          // Render Scroll Ad before recommended videos
-          if (Get.isRegistered<AdService>() && AdService.to.showAds.value)
-            Obx(() {
-              final scrollAds = AdService.to.getAdsForType('scroll');
-              final sponsorAd = AdService.to.getSponsorAdForVideo(controller.video.id);
-              final displayAd = scrollAds.isNotEmpty ? scrollAds.first : sponsorAd;
-              if (displayAd == null || displayAd.adType == 'homepage') return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsets.only(left: 16, right: 16, top: 4, bottom: 8),
-                child: ScrollAdCard(
-                  ad: displayAd,
-                  contextChannelId: controller.video.channelId,
+                      if (item is CommunityPostModel) {
+                        return CommunityPostCard(post: item);
+                      }
+                      if (item is Video) {
+                        return buildVideoItem(item, isGridItem: true);
+                      }
+                      if (item is AdItem) {
+                        if (item.adType == 'homepage') {
+                          return const SizedBox.shrink();
+                        }
+                        return HomepageAdCard(ad: item);
+                      }
+                      return const SizedBox.shrink();
+                    },
+                    childCount: items.length,
+                  ),
                 ),
               );
-            }),
-          if (controller.isTabLoading.value)
-            isGrid
-                ? buildShimmerVideoGrid(count: 4)
-                : buildShimmerVideoList(count: 4)
-          else if (displayItems.isEmpty)
-            Center(
+            },
+          );
+        }
+
+        return SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          sliver: SliverList.separated(
+            itemCount: items.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 16),
+            itemBuilder: (context, index) {
+              final item = items[index];
+              if (item is Topic) {
+                return TopicCardWidget(topic: item);
+              }
+              if (item is CommunityPostModel) {
+                return CommunityPostCard(post: item);
+              }
+              if (item is Video) {
+                return buildVideoItem(item, isGridItem: false);
+              }
+              if (item is AdItem) {
+                if (item.adType == 'homepage') {
+                  return const SizedBox.shrink();
+                }
+                return ScrollAdCard(
+                  ad: item,
+                  contextChannelId: video.channelId,
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+        );
+      }
+
+      Widget? scrollAdSliver;
+      if (Get.isRegistered<AdService>() && AdService.to.showAds.value) {
+        final scrollAds = AdService.to.getAdsForType('scroll');
+        final sponsorAd = AdService.to.getSponsorAdForVideo(controller.video.id);
+        final displayAd = scrollAds.isNotEmpty ? scrollAds.first : sponsorAd;
+        if (displayAd != null && displayAd.adType != 'homepage') {
+          scrollAdSliver = SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(left: 16, right: 16, top: 4, bottom: 8),
+              child: ScrollAdCard(
+                ad: displayAd,
+                contextChannelId: controller.video.channelId,
+              ),
+            ),
+          );
+        }
+      }
+
+      final slivers = <Widget>[
+        SliverToBoxAdapter(child: pillsBar),
+        if (isPlaylistTab) SliverToBoxAdapter(child: playlistHeader),
+        if (isTopicTab) SliverToBoxAdapter(child: topicHeader),
+        if (scrollAdSliver != null) scrollAdSliver,
+        if (controller.isTabLoading.value)
+          buildSliverLoadingSkeletons(isGrid)
+        else if (displayItems.isEmpty)
+          SliverToBoxAdapter(
+            child: Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
                 child: Text(
@@ -484,11 +527,23 @@ class RecommendationFeed extends StatelessWidget {
                   style: const TextStyle(color: Colors.white24),
                 ),
               ),
-            )
-          else
-            shrinkWrap ? videoList : Expanded(child: videoList),
-        ],
-      );
+            ),
+          )
+        else
+          buildSliverVideoList(context, displayItems, isGrid: isGrid),
+      ];
+
+      final sliverGroup = SliverMainAxisGroup(slivers: slivers);
+
+      if (!effectiveAsSliver) {
+        return CustomScrollView(
+          shrinkWrap: shrinkWrap,
+          physics: physics ?? const NeverScrollableScrollPhysics(),
+          slivers: [sliverGroup],
+        );
+      }
+
+      return sliverGroup;
     });
   }
 }

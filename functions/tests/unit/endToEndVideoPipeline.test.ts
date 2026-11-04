@@ -153,8 +153,6 @@ describe('End-to-End Pipeline: Video Uploaded to Aggregated Completion', () => {
       trustScore: 98,
       trustLabel: 'Verified High Accuracy',
       truthScore: 99.0,
-      honestyScore: 98.0,
-      rationalityScore: 97.0,
       confidence: 0.985,
       confidenceTier: 'high',
       claims: extractedClaims,

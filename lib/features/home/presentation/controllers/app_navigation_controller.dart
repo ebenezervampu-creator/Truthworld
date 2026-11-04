@@ -12,6 +12,8 @@ import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart' as app_exceptions;
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/services/distributed_counter_service.dart';
 import 'package:truthworld/core/services/guest_playback_limit_service.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
@@ -189,6 +191,7 @@ class AppNavigationController extends BaseController {
   ///   - idempotencyKey: prevents duplicate writes on function retries
   ///   - viewerHash: privacy-safe anonymous identity for server dedup
   ///   - dedupKey: explicit dedup doc ID for qualified_view enforcement
+  ///   - sessionId: unique playback instance session ID
   Future<bool> trackWatchEvent({
     required String videoId,
     required String eventType,
@@ -201,34 +204,36 @@ class AppNavigationController extends BaseController {
     String trafficSource = 'direct',
     String? viewerHash,
     String? dedupKey,
+    String? sessionId,
   }) async {
     if (videoId.isEmpty) return false;
 
     try {
       final currentUser = _auth.currentUser;
       final userId = (currentUser != null && !currentUser.isAnonymous) ? currentUser.uid : null;
-      final sessionId = "session_${videoId}_${userId ?? 'anon'}";
-
-      // Increment distributed counter shards and parent documents in Firestore (authenticated users only)
-      if (userId != null && (watchTimeSecondsDelta ?? 0) > 0) {
-        final counterService = Get.isRegistered<DistributedCounterService>()
-            ? DistributedCounterService.to
-            : Get.put(DistributedCounterService());
-        counterService.incrementWatchTime(
-          videoId: videoId,
-          secondsDelta: watchTimeSecondsDelta!,
-          channelId: channelId,
-        );
-      }
+      final effectiveSessionId = sessionId ?? 'session_${videoId}_${userId ?? 'anon'}';
 
       final timestampMs = DateTime.now().millisecondsSinceEpoch;
-      final eventId = '${sessionId}_${position}_${eventType}_$timestampMs';
+      final eventId = '${effectiveSessionId}_${position}_${eventType}_$timestampMs';
+
+      var effectiveCountry = 'IN';
+      try {
+        if (Get.isRegistered<AuthService>() &&
+            AuthService.to.userCountry.value?.isNotEmpty == true) {
+          effectiveCountry = AuthService.to.userCountry.value!;
+        } else if (Get.isRegistered<CurrencyLocalizationService>() &&
+            CurrencyLocalizationService.to.userCountryCode.value.isNotEmpty) {
+          effectiveCountry = CurrencyLocalizationService.to.userCountryCode.value;
+        } else if (PlatformDispatcher.instance.locale.countryCode?.isNotEmpty == true) {
+          effectiveCountry = PlatformDispatcher.instance.locale.countryCode!;
+        }
+      } catch (_) {}
 
       final payload = jsonEncode({
         'videoId': videoId,
         'channelId': channelId ?? '',
         'userId': userId ?? 'anonymous',
-        'sessionId': sessionId,
+        'sessionId': effectiveSessionId,
         'eventId': eventId,
         'eventType': eventType,
         'position': position,
@@ -237,6 +242,7 @@ class AppNavigationController extends BaseController {
         'isSubscriber': isSubscriber,
         'isNotSubscriber': isNotSubscriber,
         'trafficSource': trafficSource,
+        'country': effectiveCountry,
         // Anti-fraud / dedup fields
         'idempotencyKey': eventId,
         'viewerHash': viewerHash, // Privacy-safe anonymous identity

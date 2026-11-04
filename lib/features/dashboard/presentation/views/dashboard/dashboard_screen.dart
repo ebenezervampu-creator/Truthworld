@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/services/auth_service.dart';
-import 'package:truthworld/core/ux/app_snackbar.dart';
-import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
+import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/channel_screen_wizard.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_view_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/sections/sections.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/dashboard_screen_barrel.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/studio_shortcuts_modal.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 export 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
@@ -29,11 +25,20 @@ class DashboardScreen extends StatelessWidget {
       child: Builder(
         builder: (context) {
           return GetBuilder<DashboardViewController>(
-            init: Get.isRegistered<DashboardViewController>()
+            autoRemove: false,
+            init: (Get.isRegistered<DashboardViewController>() &&
+                    !Get.find<DashboardViewController>().isDisposed)
                 ? Get.find<DashboardViewController>()
-                : DashboardViewController(),
+                : Get.put(DashboardViewController(), permanent: false),
             builder: (viewController) {
-              final dashboardController = viewController.dashboardController;
+              final effectiveViewController = (viewController.isDisposed)
+                  ? (Get.isRegistered<DashboardViewController>() &&
+                          !Get.find<DashboardViewController>().isDisposed
+                      ? Get.find<DashboardViewController>()
+                      : Get.put(DashboardViewController(), permanent: false))
+                  : viewController;
+              final dashboardController = effectiveViewController.dashboardController;
+              dashboardController.applyRouteTargetIfPresent();
 
               return Obx(() {
                 final mediaQuery = MediaQuery.of(context);
@@ -51,33 +56,27 @@ class DashboardScreen extends StatelessWidget {
                 if (!AuthService.to.isAuthenticated.value) {
                   return DashboardFallbackLogin(
                     onSignIn: () {
-                      AuthBottomSheet.show(context);
+                      AuthService.to.triggerPlatformSignIn();
                     },
                   );
                 }
 
-                if (viewController.isSelectingDefault.value) {
-                  return ShimmerDashboard(
-                    isMobile: isMobile,
-                    isTablet: isTablet,
-                    isDesktop: isDesktop,
-                    horizontalPadding: horizontalPadding,
-                    isDarkMode: isDarkMode,
-                  );
+                if (effectiveViewController.isSelectingDefault.value) {
+                  return const StudioLoadingIndicator();
                 }
 
-                if (viewController.isChannelInDeletionGracePeriod.value &&
-                    viewController.channelPendingDeletion.value != null) {
+                if (effectiveViewController.isChannelInDeletionGracePeriod.value &&
+                    effectiveViewController.channelPendingDeletion.value != null) {
                   return ChannelDeletionGracePeriodPage(
-                    channel: viewController.channelPendingDeletion.value!,
-                    isRestoring: viewController.isRestoringChannel.value,
-                    onCancelDeletion: viewController.cancelChannelDeletion,
-                    onSignOut: viewController.handleSignOut,
+                    channel: effectiveViewController.channelPendingDeletion.value!,
+                    isRestoring: effectiveViewController.isRestoringChannel.value,
+                    onCancelDeletion: effectiveViewController.cancelChannelDeletion,
+                    onSignOut: effectiveViewController.handleSignOut,
                   );
                 }
 
-                final currentChannel = viewController.channel;
-                final channelId = viewController.getChannelId(currentChannel);
+                final currentChannel = effectiveViewController.channel;
+                final channelId = effectiveViewController.getChannelId(currentChannel);
                 if (channelId.isEmpty &&
                     !AuthService.to.hasChannel.value &&
                     AuthService.to.userChannel == null) {
@@ -86,86 +85,43 @@ class DashboardScreen extends StatelessWidget {
 
                 return FocusScope(
                   autofocus: true,
-                  child: CallbackShortcuts(
-                    bindings: <ShortcutActivator, VoidCallback>{
-                      const SingleActivator(LogicalKeyboardKey.question): () {
-                        StudioShortcutsModal.show(context);
-                      },
-                      const SingleActivator(LogicalKeyboardKey.slash, shift: true): () {
-                        StudioShortcutsModal.show(context);
-                      },
-                      const SingleActivator(LogicalKeyboardKey.slash): () {
-                        final primaryFocus = FocusManager.instance.primaryFocus;
-                        if (primaryFocus == null ||
-                            primaryFocus.context?.widget is! EditableText) {
-                          viewController.searchFocusNode.requestFocus();
-                        }
-                      },
-                      const SingleActivator(LogicalKeyboardKey.keyK, control: true): () {
-                        viewController.searchFocusNode.requestFocus();
-                      },
-                      const SingleActivator(LogicalKeyboardKey.keyK, meta: true): () {
-                        viewController.searchFocusNode.requestFocus();
-                      },
-                      const SingleActivator(LogicalKeyboardKey.keyS, control: true): () {
-                        AppSnackbar.success(
-                          'All studio metadata and edits are up to date.',
-                          title: 'Studio Saved',
-                        );
-                      },
-                      const SingleActivator(LogicalKeyboardKey.keyS, meta: true): () {
-                        AppSnackbar.success(
-                          'All studio metadata and edits are up to date.',
-                          title: 'Studio Saved',
-                        );
-                      },
-                      const SingleActivator(LogicalKeyboardKey.escape): () {
-                        if (viewController.searchFocusNode.hasFocus) {
-                          viewController.searchFocusNode.unfocus();
-                        }
-                      },
-                    },
-                    child: Focus(
-                      autofocus: true,
-                      child: Scaffold(
-                        backgroundColor: AppColors.bgPage,
-                        appBar: DashboardCreatorAppBar(
-                          viewController: viewController,
-                          dashboardController: dashboardController,
-                          isDarkMode: isDarkMode,
-                          isDesktop: isDesktop,
-                          isMobile: isMobile,
+                  child: Scaffold(
+                    backgroundColor: AppColors.bgPage,
+                    appBar: DashboardCreatorAppBar(
+                      viewController: effectiveViewController,
+                      dashboardController: dashboardController,
+                      isDarkMode: isDarkMode,
+                      isDesktop: isDesktop,
+                      isMobile: isMobile,
+                    ),
+                    drawer: isDesktop
+                        ? null
+                        : DashboardMobileDrawer(
+                            controller: dashboardController,
+                            isDarkMode: isDarkMode,
+                            onSignOut: effectiveViewController.handleSignOut,
+                          ),
+                    body: Row(
+                      children: [
+                        if (isDesktop)
+                          DashboardDesktopSidebar(
+                            controller: dashboardController,
+                            isDarkMode: isDarkMode,
+                            drawerAnimation: effectiveViewController.drawerAnimation,
+                            onSignOut: effectiveViewController.handleSignOut,
+                          ),
+                        Expanded(
+                          child: DashboardViewRouter(
+                            viewController: effectiveViewController,
+                            dashboardController: dashboardController,
+                            isDarkMode: isDarkMode,
+                            isMobile: isMobile,
+                            isDesktop: isDesktop,
+                            isTablet: isTablet,
+                            horizontalPadding: horizontalPadding,
+                          ),
                         ),
-                        drawer: isDesktop
-                            ? null
-                            : DashboardMobileDrawer(
-                                controller: dashboardController,
-                                isDarkMode: isDarkMode,
-                                onSignOut: viewController.handleSignOut,
-                              ),
-                        body: Row(
-                          children: [
-                            if (isDesktop)
-                              DashboardDesktopSidebar(
-                                controller: dashboardController,
-                                isDarkMode: isDarkMode,
-                                drawerAnimation: viewController.drawerAnimation,
-                                onSignOut: viewController.handleSignOut,
-                              ),
-                            Expanded(
-                              child: DashboardViewRouter(
-                                viewController: viewController,
-                                dashboardController: dashboardController,
-                                isDarkMode: isDarkMode,
-                                isMobile: isMobile,
-                                isDesktop: isDesktop,
-                                isTablet: isTablet,
-                                horizontalPadding: horizontalPadding,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      ],
                     ),
                   ),
                 );

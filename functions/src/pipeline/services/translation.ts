@@ -376,9 +376,13 @@ export class TranslationService {
       const confidenceScores: number[] = new Array(texts.length).fill(0.95);
       const segmentVariants: any[] = new Array(texts.length).fill(undefined);
 
+      const isKnownDubbingTier = Boolean(options?.dubbingTier);
       const isVideoLipSync = options?.dubbingTier === "video_pro" || options?.dubbingTier === "video_ultra";
       const isVideoUltra = options?.dubbingTier === "video_ultra" || options?.isCinemaGrade === true;
-      const requestedModel = (isVideoUltra || isVideoLipSync) ? "premium" : (options?.model || "standard");
+      // All 5 tiers use the hybrid Google v3 + Gemini architecture:
+      // Audio Starter & Pro -> Google v3 + Gemini 2.5 Flash
+      // Audio Ultra, Video Pro & Video Ultra -> Google v3 + Gemini 4 Argon
+      const requestedModel = (isKnownDubbingTier || isVideoUltra || isVideoLipSync || options?.model === "premium") ? "premium" : (options?.model || "standard");
 
       // ── Lane Routing Logic ───────────────────────────────────────────────
       const premiumIndices: number[] = [];
@@ -699,7 +703,8 @@ export class TranslationService {
       required: ["translations", "confidences"]
     };
 
-    const isProOrCinema = Boolean(isCinemaGrade) || subtitleTier === "pro";
+    const isUltraTier = dubbingTier === "audio_ultra" || dubbingTier === "video_pro" || dubbingTier === "video_ultra";
+    const isProOrCinema = Boolean(isCinemaGrade) || subtitleTier === "pro" || isUltraTier;
     const targetModelName = isProOrCinema
       ? (PIPELINE_CONFIG.GEMINI_MODELS?.reasoning || "gemini-4-argon")
       : (PIPELINE_CONFIG.GEMINI_MODELS?.translation || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-2.5-flash");
@@ -774,7 +779,8 @@ export class TranslationService {
       });
 
       const isUltra = Boolean(isCinemaGrade) || dubbingTier === "video_ultra";
-      const isPro = dubbingTier === "video_pro";
+      const isVideoPro = dubbingTier === "video_pro";
+      const isAudioUltra = dubbingTier === "audio_ultra";
 
       const cinemaTheatricalPrompt = isUltra
         ? `\n\n*** MANDATORY HOLLYWOOD CINEMA THEATRICAL ISOMETRY (GEMINI 4 ARGON) ***
@@ -782,12 +788,19 @@ export class TranslationService {
 - STRICT RHYTHM & ISOMETRY: Match the actor's visual mouth cadence. Translated speech length must match durationSeconds within +/- 5%.
 - BILABIAL PHONEME ALIGNMENT: Prioritize bilabial plosive consonants (B, P, M) at initial and terminal closures where the speaker's lips meet on screen.
 - PREVENT AUDIO RAMPING: Dialogue must never require unnatural speeding up or slowing down. Dialogue must feel like native studio cinematic dubbing.`
-        : isPro
+        : isVideoPro
           ? `\n\n*** STUDIO ISOCHRONIC LIP-SYNC CADENCE (GEMINI 4 ARGON) ***
 - This video is undergoing studio visual lip-sync dubbing (Cinema Pro).
 - Match the speaker's natural pacing and syllable cadence within +/- 10% of durationSeconds.
 - Avoid run-on sentences or overly verbose phrasing to ensure natural lip closure matching.`
-          : "";
+          : isAudioUltra
+            ? `\n\n*** CREATOR VOICE CLONING VISEME CADENCE HARMONY (GEMINI 4 ARGON) ***
+- This audio track is undergoing voice cloning via ElevenLabs v4 on Audio Ultra with Anti-Uncanny Viseme Locking.
+- STRICT VISEME DURATION & MOUTH-CLOSURE CONSTRAINT: Match the speaker's on-screen pacing within +/- 5% of durationSeconds.
+- PREVENT VOCAL OVERHANG: Spoken delivery must stop before or exactly when the speaker's mouth closes (utterance.end). The translated phrase MUST NOT exceed targetSyllableBudget.
+- NATURAL PAUSE CADENCE: Align translated sentence pauses with the original speaker's breath and pauses so speech cadence feels visually harmonious with the creator's natural body language without audio-visual mismatch.`
+            : `\n\n*** NATURAL CREATOR CONVERSATIONAL SPEECH (GEMINI 2.5 FLASH) ***
+- Deliver lively, natural conversational dialogue. Avoid archaic, literary, or textbook translations. Use modern creator phrasing.`;
 
       const prompt = `Translate the following ${sourceLanguage} text segments to ${targetLanguage}.
 Tone: ${tone}

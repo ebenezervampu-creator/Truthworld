@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/theme/dark_professional_theme.dart';
 
@@ -41,7 +41,7 @@ class HomeBottomNavigation extends StatelessWidget {
                   );
                 }),
                 labelTextStyle: WidgetStateProperty.resolveWith((states) {
-                  final style = GoogleFonts.roboto(
+                  final style = TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                     letterSpacing: 0.5,
@@ -79,8 +79,9 @@ class HomeBottomNavigation extends StatelessWidget {
               ),
               NavigationDestination(
                 icon: (() {
-                  final user = homeController.currentUser.value;
-                  if (user == null) {
+                  final isAuth = Get.isRegistered<AuthService>() &&
+                      AuthService.to.isAuthenticated.value;
+                  if (!isAuth) {
                     return const Icon(Icons.account_circle_outlined);
                   }
                   return const UserAvatar(
@@ -89,8 +90,9 @@ class HomeBottomNavigation extends StatelessWidget {
                   );
                 })(),
                 selectedIcon: (() {
-                  final user = homeController.currentUser.value;
-                  if (user == null) {
+                  final isAuth = Get.isRegistered<AuthService>() &&
+                      AuthService.to.isAuthenticated.value;
+                  if (!isAuth) {
                     return const Icon(Icons.account_circle_rounded);
                   }
                   return const UserAvatar(

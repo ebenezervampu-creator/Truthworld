@@ -5,7 +5,6 @@ import 'package:truthworld/features/video/presentation/views/upload/components/c
 import 'package:truthworld/features/video/presentation/views/upload/components/create_content_page_header.dart';
 import 'package:truthworld/features/video/presentation/views/upload/widgets/create_content_ai_section.dart';
 import 'package:truthworld/features/video/presentation/views/upload/widgets/create_content_category_visibility_sections.dart';
-import 'package:truthworld/features/video/presentation/views/upload/widgets/create_content_copyright_section.dart';
 import 'package:truthworld/features/video/presentation/views/upload/widgets/create_content_media_sections.dart';
 import 'package:truthworld/features/video/presentation/views/upload/widgets/create_content_metadata_sections.dart';
 import 'package:truthworld/features/video/presentation/views/upload/widgets/create_content_playlist_topic_sections.dart';
@@ -52,70 +51,25 @@ class CreateContentVideoLayout extends StatelessWidget {
                               uploadController: uploadController,
                               isDesktop: isWide,
                             ),
-                            const SizedBox(height: 16),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF161618),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(6),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.08),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: const Icon(
-                                      Icons.public,
-                                      color: Colors.white70,
-                                      size: 18,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: RichText(
-                                      text: TextSpan(
-                                        style: const TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 12,
-                                          height: 1.4,
-                                        ),
-                                        children: [
-                                          const TextSpan(
-                                            text: 'All languages are supported for channel uploads. ',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                          TextSpan(
-                                            text: 'Global Fact-Checking, Subtitles, and Dubbing now fully active across all languages.',
-                                            style: TextStyle(
-                                              color: Colors.white.withValues(alpha: 0.6),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
                             const SizedBox(height: 24),
                             if (isWide)
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // Left Column (Sections 1-5: Metadata & Visibility)
+                                  // Left Column (Sections 1-5: Thumbnail, Video File, Title, Description, Tags)
                                   Expanded(
-                                    flex: 5,
+                                    flex: 6,
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
+                                        CreateContentThumbnailSection(
+                                          uploadController: uploadController,
+                                        ),
+                                        const SizedBox(height: 20),
+                                        CreateContentVideoFileSection(
+                                          uploadController: uploadController,
+                                        ),
+                                        const SizedBox(height: 20),
                                         CreateContentTitleSection(
                                           titleController: contentController.titleController,
                                         ),
@@ -127,30 +81,22 @@ class CreateContentVideoLayout extends StatelessWidget {
                                         CreateContentTagsSection(
                                           tagsController: contentController.tagsController,
                                         ),
-                                        const SizedBox(height: 20),
-                                        CreateContentCategorySection(
-                                          uploadController: uploadController,
-                                        ),
-                                        const SizedBox(height: 20),
-                                        CreateContentVisibilitySection(
-                                          uploadController: uploadController,
-                                        ),
                                       ],
                                     ),
                                   ),
                                   const SizedBox(width: 32),
 
-                                  // Right Column (Sections 6-10: Media, Playlist, Topic, AI)
+                                  // Right Column (Sections 6-13: Category, Visibility, Playlist, Topic, Subtitles & Dubbing, Truth Verification, Diarization, Chapters)
                                   Expanded(
-                                    flex: 6,
+                                    flex: 5,
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        CreateContentVideoFileSection(
+                                        CreateContentCategorySection(
                                           uploadController: uploadController,
                                         ),
                                         const SizedBox(height: 20),
-                                        CreateContentThumbnailSection(
+                                        CreateContentVisibilitySection(
                                           uploadController: uploadController,
                                         ),
                                         const SizedBox(height: 20),
@@ -165,8 +111,20 @@ class CreateContentVideoLayout extends StatelessWidget {
                                               contentController.showCreateTopicModal(context, isDark),
                                         ),
                                         const SizedBox(height: 20),
-                                        CreateContentAISection(
-                                          controller: uploadController,
+                                        CreateContentSubtitlesDubbingSection(
+                                          uploadController: uploadController,
+                                        ),
+                                        const SizedBox(height: 20),
+                                        CreateContentTruthVerificationSection(
+                                          uploadController: uploadController,
+                                        ),
+                                        const SizedBox(height: 20),
+                                        CreateContentSpeakerDiarizationSection(
+                                          uploadController: uploadController,
+                                        ),
+                                        const SizedBox(height: 20),
+                                        CreateContentAutoChaptersSection(
+                                          uploadController: uploadController,
                                         ),
                                       ],
                                     ),
@@ -177,6 +135,14 @@ class CreateContentVideoLayout extends StatelessWidget {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  CreateContentThumbnailSection(
+                                    uploadController: uploadController,
+                                  ),
+                                  const SizedBox(height: 20),
+                                  CreateContentVideoFileSection(
+                                    uploadController: uploadController,
+                                  ),
+                                  const SizedBox(height: 20),
                                   CreateContentTitleSection(
                                     titleController: contentController.titleController,
                                   ),
@@ -197,14 +163,6 @@ class CreateContentVideoLayout extends StatelessWidget {
                                     uploadController: uploadController,
                                   ),
                                   const SizedBox(height: 20),
-                                  CreateContentVideoFileSection(
-                                    uploadController: uploadController,
-                                  ),
-                                  const SizedBox(height: 20),
-                                  CreateContentThumbnailSection(
-                                    uploadController: uploadController,
-                                  ),
-                                  const SizedBox(height: 20),
                                   CreateContentPlaylistSection(
                                     uploadController: uploadController,
                                     playlistController: contentController.playlistController,
@@ -216,21 +174,23 @@ class CreateContentVideoLayout extends StatelessWidget {
                                         contentController.showCreateTopicModal(context, isDark),
                                   ),
                                   const SizedBox(height: 20),
-                                  CreateContentAISection(
-                                    controller: uploadController,
+                                  CreateContentSubtitlesDubbingSection(
+                                    uploadController: uploadController,
                                   ),
                                   const SizedBox(height: 20),
-                                  CreateContentCopyrightSection(
-                                    controller: uploadController,
+                                  CreateContentTruthVerificationSection(
+                                    uploadController: uploadController,
+                                  ),
+                                  const SizedBox(height: 20),
+                                  CreateContentSpeakerDiarizationSection(
+                                    uploadController: uploadController,
+                                  ),
+                                  const SizedBox(height: 20),
+                                  CreateContentAutoChaptersSection(
+                                    uploadController: uploadController,
                                   ),
                                 ],
                               ),
-                            if (isWide) ...[
-                              const SizedBox(height: 24),
-                              CreateContentCopyrightSection(
-                                controller: uploadController,
-                              ),
-                            ],
                             const SizedBox(height: 32),
                             if (isWide)
                               CreateContentDesktopFooterActions(

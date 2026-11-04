@@ -35,6 +35,7 @@ mixin TowerPlayerTimelineMixin on GetxController {
   void cancelHideTimer();
   void startHideTimer([Duration? timeout]);
   void hideSeekPreview();
+  void syncActiveSubtitle({Duration? overridePos});
 
   // ── Scrubbing Lifecycle ───────────────────────────────────
 
@@ -133,6 +134,7 @@ mixin TowerPlayerTimelineMixin on GetxController {
     _checkMarkerHaptics(oldPos, newPos, chapters, claims);
 
     scrubPosition.value = newPos;
+    syncActiveSubtitle(overridePos: newPos);
   }
 
   /// Concludes scrubbing and commits the final seek operation.

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -136,7 +136,7 @@ class SettingsUnauthenticatedView extends StatelessWidget {
       child: ElevatedButton.icon(
         onPressed: () {
           HapticFeedback.lightImpact();
-          AuthBottomSheet.show(context);
+          AuthService.to.triggerPlatformSignIn();
         },
         icon: const Icon(
           Icons.login_rounded,

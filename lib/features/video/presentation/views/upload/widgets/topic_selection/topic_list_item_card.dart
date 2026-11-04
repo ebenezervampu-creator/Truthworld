@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/presentation/views/upload/widgets/topic_selection/topic_match_info.dart';
+import 'package:truthworld/features/video/presentation/views/upload/widgets/topic_selection/topic_selection_host.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Item card for ranked topics in the topics list view.
@@ -25,29 +26,33 @@ class TopicListItemCard extends StatelessWidget {
   final Color textColor;
   final Color subtextColor;
   final Color borderColor;
-  final dynamic controller;
+  final TopicSelectionHost controller;
   final Function(Topic? topic)? onTopicSelected;
 
   @override
   Widget build(BuildContext context) {
     final topic = match.topic;
     final imageSrc = topic.thumbnailUrl ?? topic.coverImage;
+    final activeSelected = controller.isTopicSelected(
+      topic.slug.isNotEmpty ? topic.slug : topic.id,
+    );
+    final isOwn = controller.isOwnTopic(topic);
 
     return Container(
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF0F141C) : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isSelected
+          color: activeSelected
               ? const Color(0xFF38BDF8)
               : (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
-          width: isSelected ? 1.8 : 1.0,
+          width: activeSelected ? 1.8 : 1.0,
         ),
       ),
       padding: const EdgeInsets.all(12),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 480;
+          final isCompact = constraints.maxWidth < 640;
 
           return Row(
             children: [
@@ -77,7 +82,7 @@ class TopicListItemCard extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            topic.title,
+                            topic.name,
                             style: AppTextStyles.bodyLarge.copyWith(
                               fontWeight: FontWeight.bold,
                               fontSize: 15,
@@ -88,21 +93,38 @@ class TopicListItemCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF0284C7).withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text(
-                            'RECOMMENDED',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF38BDF8),
+                        if (isOwn)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'OWN TOPIC',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                          )
+                        else
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0284C7).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'RECOMMENDED',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF38BDF8),
+                              ),
                             ),
                           ),
-                        ),
                       ],
                     ),
                     if (topic.description.isNotEmpty) ...[
@@ -133,7 +155,27 @@ class TopicListItemCard extends StatelessWidget {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              '${FormatUtils.formatCount(topic.followerCount)} followers',
+                              '${FormatUtils.formatCount(topic.followerCount)} ${topic.followerCount == 1 ? 'follower' : 'followers'}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text('•', style: TextStyle(color: subtextColor, fontSize: 10)),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.video_library_outlined,
+                              size: 13,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${FormatUtils.formatCount(topic.channelCount)} ${topic.channelCount == 1 ? 'channel' : 'channels'}',
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
@@ -153,7 +195,7 @@ class TopicListItemCard extends StatelessWidget {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              '${FormatUtils.formatCount(topic.videoCount)} videos',
+                              '${FormatUtils.formatCount(topic.videoCount)} ${topic.videoCount == 1 ? 'video' : 'videos'}',
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
@@ -230,6 +272,43 @@ class TopicListItemCard extends StatelessWidget {
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
+                        Icons.video_library_outlined,
+                        size: 14,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          FormatUtils.formatCount(topic.channelCount),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: textColor,
+                          ),
+                        ),
+                        Text(
+                          'Channels',
+                          style: TextStyle(fontSize: 10, color: subtextColor),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 14),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : const Color(0xFFF1F5F9),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
                         Icons.people_outline_rounded,
                         size: 14,
                         color: Colors.white,
@@ -259,19 +338,19 @@ class TopicListItemCard extends StatelessWidget {
               ],
 
               OutlinedButton.icon(
-                onPressed: () => TopicRecommendationEngine.handleTopicSelection(
+                onPressed: () => TopicRecommendationEngine.handleTopicToggle(
                   context,
                   controller,
                   topic,
                   onTopicSelected,
                 ),
                 icon: Icon(
-                  isSelected ? Icons.check_rounded : Icons.add_rounded,
+                  activeSelected ? Icons.check_rounded : Icons.add_rounded,
                   size: 16,
                   color: Colors.white,
                 ),
                 label: Text(
-                  isSelected ? 'Added' : 'Add',
+                  activeSelected ? 'Added' : 'Add',
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
@@ -279,12 +358,12 @@ class TopicListItemCard extends StatelessWidget {
                   ),
                 ),
                 style: OutlinedButton.styleFrom(
-                  backgroundColor: isSelected
+                  backgroundColor: activeSelected
                       ? const Color(0xFF18181B)
                       : (isDark ? const Color(0xFF18181B) : const Color(0xFFF1F5F9)),
                   foregroundColor: Colors.white,
                   side: BorderSide(
-                    color: isSelected ? AppColors.brand : borderColor,
+                    color: activeSelected ? AppColors.brand : borderColor,
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

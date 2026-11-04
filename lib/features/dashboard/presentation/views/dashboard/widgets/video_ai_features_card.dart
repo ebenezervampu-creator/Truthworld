@@ -490,32 +490,22 @@ class VideoAIFeaturesOverviewCard extends StatelessWidget {
                   _buildFeatureRow(
                     context: context,
                     icon: Icons.fact_check_rounded,
-                    title: 'AI Fact-Checking & Trust Score',
+                    title: 'AI Fact-Checking & Claim Ledger',
                     countText: isFactChecked
                         ? (cred.claims.isEmpty
                             ? '0 Empirical Claims • Subjective Discourse'
-                            : (effectiveTrustScore > 0
-                                ? '${effectiveTrustScore.toInt()}% Trust Score • ${cred.claims.length} Claims Evaluated'
-                                : '${cred.claims.length} Claims Evaluated • Qualitative Analysis'))
+                            : '${cred.claims.length} Claims Evaluated on Master Ledger')
                         : 'Not Fact-Checked',
                     statusBadge: _buildStatusBadge(
                       label: isFactChecked
                           ? (cred.claims.isEmpty
                               ? 'UNASSESSED'
-                              : (effectiveTrustScore >= 75
-                                  ? 'HIGH TRUST'
-                                  : (effectiveTrustScore >= 50
-                                      ? 'CAUTION'
-                                      : 'FLAGGED')))
+                              : 'CLAIM LEDGER VERIFIED')
                           : 'NOT CHECKED',
                       color: isFactChecked
                           ? (cred.claims.isEmpty
                               ? AppColors.textTertiary
-                              : (effectiveTrustScore >= 75
-                                  ? AppColors.success
-                                  : (effectiveTrustScore >= 50
-                                      ? AppColors.warning
-                                      : AppColors.error)))
+                              : AppColors.success)
                           : AppColors.textTertiary,
                     ),
                     content: isFactChecked

@@ -368,3 +368,155 @@ class VideoCardPrivateBadge extends StatelessWidget {
     );
   }
 }
+
+/// Unlisted video badge displayed on thumbnail when viewed by the channel owner.
+class VideoCardUnlistedBadge extends StatelessWidget {
+  const VideoCardUnlistedBadge({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: 14,
+      right: 14,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 8,
+          vertical: 4,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.8),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.2),
+          ),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.link_rounded,
+              color: Colors.white,
+              size: 13,
+            ),
+            SizedBox(width: 4),
+            Text(
+              'Unlisted',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 11,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Members-only video badge displayed on thumbnail.
+class VideoCardMembersOnlyBadge extends StatelessWidget {
+  const VideoCardMembersOnlyBadge({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: 14,
+      right: 14,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 8,
+          vertical: 4,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.25),
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black45,
+              blurRadius: 4,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.stars_rounded,
+              color: Color(0xFF00E676),
+              size: 13,
+            ),
+            SizedBox(width: 4),
+            Text(
+              'Members only',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 11,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Subscribers-only video badge displayed on thumbnail.
+class VideoCardSubscribersOnlyBadge extends StatelessWidget {
+  const VideoCardSubscribersOnlyBadge({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: 14,
+      right: 14,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 8,
+          vertical: 4,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.25),
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black45,
+              blurRadius: 4,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.subscriptions_rounded,
+              color: Colors.white,
+              size: 13,
+            ),
+            SizedBox(width: 4),
+            Text(
+              'Subscribers only',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 11,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

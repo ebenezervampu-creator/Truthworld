@@ -407,6 +407,7 @@ class _MyVideoListCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
+      borderRadius: BorderRadius.circular(12),
       onTap: () {
         MiniplayerNavigationHelper.navigateToVideoScreen(video: video);
       },

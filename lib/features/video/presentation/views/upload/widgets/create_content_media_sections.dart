@@ -8,7 +8,7 @@ import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Section 6: Video File Selection, Preview Player, and Upload Progress
+/// Section 2: Video File Selection, Preview Player, and Upload Progress
 class CreateContentVideoFileSection extends StatelessWidget {
   const CreateContentVideoFileSection({
     required this.uploadController,
@@ -47,7 +47,7 @@ class CreateContentVideoFileSection extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '6. Video File',
+                  '2. Video File',
                   style: context.themeTypography.title.copyWith(
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
@@ -217,7 +217,7 @@ class CreateContentVideoFileSection extends StatelessWidget {
   }
 }
 
-/// Section 7: Thumbnail Image Selection and 16:9 Aspect Ratio Preview
+/// Section 1: Thumbnail Image Selection and 16:9 Aspect Ratio Preview
 class CreateContentThumbnailSection extends StatelessWidget {
   const CreateContentThumbnailSection({
     required this.uploadController,
@@ -243,7 +243,7 @@ class CreateContentThumbnailSection extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '7. Thumbnail',
+              '1. Thumbnail',
               style: context.themeTypography.title.copyWith(
                 fontWeight: FontWeight.bold,
                 fontSize: 15,
@@ -330,7 +330,7 @@ class CreateContentThumbnailSection extends StatelessWidget {
                                 fontSize: 13),
                           ),
                           Text(
-                            '16:9 Aspect Ratio (1280x720). PNG, JPG or WEBP.',
+                            '16:9 Aspect Ratio (1280x720). Max 2MB. PNG, JPG or WEBP.',
                             style: TextStyle(
                                 color: Colors.white.withValues(alpha: 0.4),
                                 fontSize: 11),

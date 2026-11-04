@@ -3,9 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
 import 'package:truthworld/components/ui/playlist_card.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
@@ -55,7 +53,7 @@ class SubscriptionsPage extends GetView<SubscriptionController> {
                         ),
                         child: Text(
                           'Subscriptions',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 32,
                             fontWeight: FontWeight.bold,
                             color: AppColors.textPrimary,
@@ -413,7 +411,7 @@ class SubscriptionsPage extends GetView<SubscriptionController> {
                         ? controller.errorMessage
                         : 'Something went wrong'),
                 textAlign: TextAlign.center,
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
@@ -425,7 +423,7 @@ class SubscriptionsPage extends GetView<SubscriptionController> {
                     ? 'Sign in to see updates from your favorite channels'
                     : 'Please try again later',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textSecondary,
                 ),
@@ -433,11 +431,11 @@ class SubscriptionsPage extends GetView<SubscriptionController> {
               const SizedBox(height: 24),
               if (isUnauthenticated)
                 ElevatedButton.icon(
-                  onPressed: () => AuthBottomSheet.show(context),
+                  onPressed: () => AuthService.to.triggerPlatformSignIn(),
                   icon: const Icon(Icons.account_circle_outlined, color: Colors.black),
                   label: Text(
                     'Sign in',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: Colors.black,
@@ -484,7 +482,7 @@ class SubscriptionsPage extends GetView<SubscriptionController> {
               Text(
                 hasNoSubs ? 'No subscriptions yet' : 'No content found',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
@@ -496,7 +494,7 @@ class SubscriptionsPage extends GetView<SubscriptionController> {
                     ? 'Channels you subscribe to will show up here'
                     : 'Try changing your filter settings to see more content',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textSecondary,
                 ),
@@ -521,7 +519,7 @@ class SubscriptionsPage extends GetView<SubscriptionController> {
                   ),
                   child: Text(
                     'Discover Channels',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: Colors.black,

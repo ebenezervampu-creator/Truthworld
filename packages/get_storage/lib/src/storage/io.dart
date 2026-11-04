@@ -31,8 +31,22 @@ class StorageImpl {
     await Future.wait([box.delete(), backup.delete()]);
   }
 
+  static dynamic _toEncodable(dynamic nonEncodable) {
+    if (nonEncodable is DateTime) return nonEncodable.toIso8601String();
+    try {
+      return (nonEncodable as dynamic).toJson();
+    } catch (_) {}
+    try {
+      return (nonEncodable as dynamic).toDate().toIso8601String();
+    } catch (_) {}
+    try {
+      return (nonEncodable as dynamic).millisecondsSinceEpoch;
+    } catch (_) {}
+    return nonEncodable.toString();
+  }
+
   Future<void> flush() async {
-    final buffer = utf8.encode(json.encode(subject.value));
+    final buffer = utf8.encode(json.encode(subject.value, toEncodable: _toEncodable));
     final length = buffer.length;
     RandomAccessFile _file = await _getRandomFile();
 
@@ -47,7 +61,7 @@ class StorageImpl {
   void _madeBackup() {
     _getFile(true).then(
       (value) => value.writeAsString(
-        json.encode(subject.value),
+        json.encode(subject.value, toEncodable: _toEncodable),
         flush: true,
       ),
     );

@@ -170,6 +170,9 @@ class CreatorKycVerification {
     return '$d/$m/$y';
   }
 
+  String get legalName => panLegalName;
+  String get dob => formattedDob;
+
   /// Indian PAN validation (10 alphanumeric characters: 5 uppercase letters, 4 digits, 1 uppercase letter)
   static bool isValidPan(String pan) {
     final trimmed = pan.trim().toUpperCase();

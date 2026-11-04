@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/widgets/skeletons/shimmer_base.dart';
@@ -14,6 +13,7 @@ import 'package:truthworld/features/channel/presentation/controllers/channel_con
 import 'package:truthworld/features/channel/presentation/views/channel/widgets/channel_notification_options_sheet.dart';
 import 'package:truthworld/features/channel/presentation/widgets/channel_trust_badge.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
+import 'package:truthworld/routes/app_routes.dart';
 
 /// Channel header and action bar for both Mobile and Desktop views, providing
 /// 0ms optimistic channel display, memory caching, responsive shimmer skeletons,
@@ -141,6 +141,7 @@ class VideoChannelActionBar {
 
           return _buildMobileChannelContent(
             context: context,
+            controller: controller,
             channel: channel,
             channelTrust: channelTrust,
             subCtrl: subCtrl,
@@ -155,6 +156,7 @@ class VideoChannelActionBar {
 
   static Widget _buildMobileChannelContent({
     required BuildContext context,
+    required VideoController controller,
     required Channel channel,
     required ChannelTrustScore? channelTrust,
     required ChannelSubscriptionController subCtrl,
@@ -179,7 +181,7 @@ class VideoChannelActionBar {
               // Left: Channel Avatar + Info
               Expanded(
                 child: InkWell(
-                  onTap: () => Get.offAndToNamed(
+                  onTap: () => Get.toNamed(
                     channel.channelRoute,
                     arguments: {'channel': channel},
                   ),
@@ -260,29 +262,13 @@ class VideoChannelActionBar {
                                     channel.channelName,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: GoogleFonts.roboto(
+                                    style: TextStyle(
                                       fontWeight: FontWeight.w700,
                                       fontSize: isCompact ? 13 : 14,
                                       color: Colors.white,
                                     ),
                                   ),
                                 ),
-                                if (channel.isVerified) ...[
-                                  const SizedBox(width: 4),
-                                  Container(
-                                    width: 14,
-                                    height: 14,
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.shade400,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.check,
-                                      size: 10,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                ],
                                 if (channelTrust != null && !isUltraCompact) ...[
                                   const SizedBox(width: 6),
                                   ChannelTrustBadge(score: channelTrust),
@@ -303,7 +289,7 @@ class VideoChannelActionBar {
                                   '${FormatUtils.formatCount(subCount)} subscribers',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.roboto(
+                                  style: TextStyle(
                                     color: Colors.grey.shade400,
                                     fontSize: 11,
                                     fontWeight: FontWeight.w400,
@@ -320,9 +306,57 @@ class VideoChannelActionBar {
               ),
               SizedBox(width: isUltraCompact ? 4 : 8),
 
-              // Right: Subscribe Button + Notification bell if subbed
+              // Right: Subscribe Button (or Analytics if Owner) + Notification bell if subbed
               Flexible(
                 child: Obx(() {
+                  final currentUid = AuthService.to.uid;
+                  final userChannelId = AuthService.to.userChannel?.id;
+                  final isOwner = currentUid.isNotEmpty &&
+                      (channel.ownerId == currentUid ||
+                          channel.channelId == currentUid ||
+                          controller.video.ownerId == currentUid ||
+                          controller.video.userId == currentUid ||
+                          (userChannelId != null &&
+                              userChannelId.isNotEmpty &&
+                              (channel.channelId == userChannelId ||
+                                  controller.video.channelId == userChannelId)));
+
+                  if (isOwner) {
+                    return InkWell(
+                      onTap: () => Get.toNamed(AppRoutes.analytics),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isUltraCompact ? 8 : (isCompact ? 10 : 14),
+                          vertical: isCompact ? 6 : 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.analytics_outlined,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              'Analytics',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: isCompact ? 12 : 13.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
                   final isSubbed =
                       subCtrl.isSubscribedTo(channel.channelId).value;
                   final notificationsEnabled =
@@ -345,7 +379,9 @@ class VideoChannelActionBar {
                       Flexible(
                         child: InkWell(
                           onTap: () {
-                            if (!isUserSignedIn) return onSignInPrompt();
+                            if (!AuthService.to.isAuthenticated.value) {
+                              return onSignInPrompt();
+                            }
                             if (isSubbed) {
                               showNotificationsDialog(
                                 context: context,
@@ -378,7 +414,7 @@ class VideoChannelActionBar {
                                 children: [
                                   Text(
                                     isSubbed ? 'Subscribed' : 'Subscribe',
-                                    style: GoogleFonts.roboto(
+                                    style: TextStyle(
                                       color: isSubbed ? Colors.white : Colors.black,
                                       fontWeight: FontWeight.w600,
                                       fontSize: isCompact ? 12 : 13.5,
@@ -498,6 +534,7 @@ class VideoChannelActionBar {
 
           return _buildDesktopChannelContent(
             context: context,
+            controller: controller,
             channel: channel,
             channelTrust: channelTrust,
             subCtrl: subCtrl,
@@ -512,6 +549,7 @@ class VideoChannelActionBar {
 
   static Widget _buildDesktopChannelContent({
     required BuildContext context,
+    required VideoController controller,
     required Channel channel,
     required ChannelTrustScore? channelTrust,
     required ChannelSubscriptionController subCtrl,
@@ -530,7 +568,7 @@ class VideoChannelActionBar {
         children: [
           // Channel Avatar + Info - Tappable to navigate to channel
           InkWell(
-            onTap: () => Get.offAndToNamed(
+            onTap: () => Get.toNamed(
               channel.channelRoute,
               arguments: {'channel': channel},
             ),
@@ -611,7 +649,7 @@ class VideoChannelActionBar {
                           constraints: const BoxConstraints(maxWidth: 180),
                           child: Text(
                             channel.channelName,
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               fontWeight: FontWeight.w700,
                               fontSize: 14,
                               color: Colors.white,
@@ -620,23 +658,6 @@ class VideoChannelActionBar {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (channel.isVerified) ...[
-                          const SizedBox(width: 4),
-                          // Grey/white checkmark badge
-                          Container(
-                            width: 14,
-                            height: 14,
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade400,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.check,
-                              size: 10,
-                              color: Colors.black,
-                            ),
-                          ),
-                        ],
                         if (channelTrust != null) ...[
                           const SizedBox(width: 6),
                           ChannelTrustBadge(score: channelTrust),
@@ -655,7 +676,7 @@ class VideoChannelActionBar {
                       );
                       return Text(
                         '${FormatUtils.formatCount(subCount)} subscribers',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           color: Colors.grey.shade400,
                           fontSize: 12,
                           fontWeight: FontWeight.w400,
@@ -669,8 +690,50 @@ class VideoChannelActionBar {
           ),
           const SizedBox(width: 16),
 
-          // Subscribe Button - White pill
+          // Subscribe Button (or Analytics if Owner) - White pill
           Obx(() {
+            final currentUid = AuthService.to.uid;
+            final userChannelId = AuthService.to.userChannel?.id;
+            final isOwner = currentUid.isNotEmpty &&
+                (channel.ownerId == currentUid ||
+                    channel.channelId == currentUid ||
+                    controller.video.ownerId == currentUid ||
+                    controller.video.userId == currentUid ||
+                    (userChannelId != null &&
+                        userChannelId.isNotEmpty &&
+                        (channel.channelId == userChannelId ||
+                            controller.video.channelId == userChannelId)));
+
+            if (isOwner) {
+              return OutlinedButton.icon(
+                onPressed: () => Get.toNamed(AppRoutes.analytics),
+                icon: const Icon(
+                  Icons.analytics_outlined,
+                  size: 18,
+                  color: Colors.white,
+                ),
+                label: Text(
+                  'Analytics',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.3),
+                  ),
+                  backgroundColor: Colors.white.withValues(alpha: 0.08),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  minimumSize: const Size(0, 40),
+                ),
+              );
+            }
+
             final isSubscribed =
                 subCtrl.isSubscribedTo(channel.channelId).value;
             final notificationsEnabled =
@@ -692,7 +755,9 @@ class VideoChannelActionBar {
               children: [
                 ElevatedButton(
                   onPressed: () {
-                    if (!isUserSignedIn) return onSignInPrompt();
+                    if (!AuthService.to.isAuthenticated.value) {
+                      return onSignInPrompt();
+                    }
                     if (isSubscribed) {
                       showNotificationsDialog(
                         context: context,
@@ -727,7 +792,7 @@ class VideoChannelActionBar {
                     children: [
                       Text(
                         isSubscribed ? 'Subscribed' : 'Subscribe',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           color: isSubscribed ? Colors.white : Colors.black,
                           fontWeight: FontWeight.w600,
                           fontSize: 15,

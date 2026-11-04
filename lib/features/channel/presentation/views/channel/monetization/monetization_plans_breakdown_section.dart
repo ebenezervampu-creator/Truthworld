@@ -34,7 +34,7 @@ class ChannelPlansBreakdownSection extends StatelessWidget {
               const Icon(Icons.layers, color: Colors.white, size: 22),
               const SizedBox(width: 10),
               Text(
-                'Custom Channel Infrastructure Plans',
+                'Pro Channel Infrastructure Plans',
                 style: typography.headline.copyWith(color: Colors.white),
               ),
             ],
@@ -242,19 +242,33 @@ class ChannelPlansBreakdownSection extends StatelessWidget {
                                   ? (isAutoPay ? 'Auto Pay with Balance' : 'Pay with Balance')
                                   : (isAutoPay ? 'Auto Pay via Cashfree' : 'Pay via Cashfree');
 
+                              final isProcessingThis = controller.isUpdatingRx.value &&
+                                  controller.selectedPlanId.value == plan.id;
+
                               return SizedBox(
                                 width: double.infinity,
                                 child: ElevatedButton.icon(
-                                  onPressed: () => controller.subscribePlan(context, plan),
-                                  icon: Icon(
-                                    canAfford
-                                        ? Icons.account_balance_wallet_rounded
-                                        : Icons.payment_rounded,
-                                    color: Colors.white,
-                                    size: 14,
-                                  ),
+                                  onPressed: isProcessingThis
+                                      ? null
+                                      : () => controller.subscribePlan(context, plan),
+                                  icon: isProcessingThis
+                                      ? const SizedBox(
+                                          width: 14,
+                                          height: 14,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                          ),
+                                        )
+                                      : Icon(
+                                          canAfford
+                                              ? Icons.account_balance_wallet_rounded
+                                              : Icons.payment_rounded,
+                                          color: Colors.white,
+                                          size: 14,
+                                        ),
                                   label: Text(
-                                    buttonText,
+                                    isProcessingThis ? 'Connecting to Payment...' : buttonText,
                                     style: typography.caption.copyWith(
                                       color: Colors.white,
                                       fontWeight: FontWeight.bold,
@@ -304,7 +318,7 @@ class ChannelTierUpgradeCard extends StatelessWidget {
     final channel = controller.channel;
     final typography = context.twTypography;
     final hasPending = channel.pendingChannelType != null;
-    final targetTypeStr = isCustom ? 'Standard' : 'Custom';
+    final targetTypeStr = isCustom ? 'Standard' : 'Pro';
     final daysLeft = controller.calculateDaysLeftToSwitch();
 
     return Container(
@@ -320,14 +334,14 @@ class ChannelTierUpgradeCard extends StatelessWidget {
           Text(
             isCustom
                 ? 'Request Switch to Standard Channel'
-                : 'Request Switch to Custom Channel (100% Revenue Share)',
+                : 'Request Switch to Pro Channel (100% Revenue Share)',
             style: typography.headline.copyWith(color: Colors.white),
           ),
           const SizedBox(height: 8),
           Text(
             isCustom
-                ? r'Standard channels have $0 upfront monthly cost, a 70/30 split on ads & premium subscriptions, and 100% creator share on superchats & memberships. Switching will take effect at the start of your next billing cycle.'
-                : r'Custom channels let you keep 100% of revenue across all sources with flexible infrastructure plans ($15, $30, $45, $100, $200/mo etc.). Requesting a switch locks your request to take effect on the 1st of next month.',
+                ? r'Standard channels have $0 upfront monthly cost, a 70/30 split on ads & premium subscriptions, and 90% creator share on superchats & memberships (10% platform fee). Switching will take effect at the start of your next billing cycle.'
+                : r'Pro channels let you keep 100% of revenue across all sources with flexible SaaS infrastructure plans ($15, $25, $50/mo etc.). Requesting a switch locks your request to take effect on the 1st of next month.',
             style: typography.bodySmall.copyWith(
               color: AppColors.textSecondary,
             ),

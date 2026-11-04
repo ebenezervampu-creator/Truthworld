@@ -94,7 +94,7 @@ class TruthWorldPlayerTimeline extends StatelessWidget {
       final val = ctrl.vv;
       if (!val.isInitialized) return const SizedBox(height: 16);
 
-      final dur = val.duration;
+      final dur = ctrl.effectiveDuration;
       final pos = ctrl.isScrubbing.value ? ctrl.scrubPosition.value : val.position;
       final buf = val.buffered.isNotEmpty ? val.buffered.last.end : Duration.zero;
 

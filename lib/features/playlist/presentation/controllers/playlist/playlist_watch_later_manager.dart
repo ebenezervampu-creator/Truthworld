@@ -40,13 +40,7 @@ class PlaylistWatchLaterManager {
         .snapshots()
         .listen(
           (snapshot) {
-            watchLaterVideoIds.value =
-                snapshot.docs.map((doc) => doc.id).toList();
-            if (watchLaterVideoIds.isNotEmpty) {
-              _fetchFirstThumbnail(watchLaterVideoIds.first);
-            } else {
-              firstVideoThumbnail.value = '';
-            }
+            _syncWatchLaterVideos(snapshot.docs);
           },
           onError: (error, stackTrace) {
             ErrorHandler.log(
@@ -58,6 +52,96 @@ class PlaylistWatchLaterManager {
         );
   }
 
+  Future<void> _syncWatchLaterVideos(List<QueryDocumentSnapshot> docs) async {
+    if (docs.isEmpty) {
+      watchLaterVideoIds.clear();
+      firstVideoThumbnail.value = '';
+      return;
+    }
+
+    final candidateIds = <String>[];
+    for (final doc in docs) {
+      final data = doc.data() as Map<String, dynamic>?;
+      final vid = (data?['videoId'] as String?)?.trim();
+      final id = (vid != null && vid.isNotEmpty) ? vid : doc.id.trim();
+      if (id.isNotEmpty && !candidateIds.contains(id)) {
+        candidateIds.add(id);
+      }
+    }
+
+    if (candidateIds.isEmpty) {
+      watchLaterVideoIds.clear();
+      firstVideoThumbnail.value = '';
+      return;
+    }
+
+    // Initial update from candidate documents
+    watchLaterVideoIds.value = candidateIds;
+
+    try {
+      const batchSize = 10;
+      final batches = <List<String>>[];
+      for (var i = 0; i < candidateIds.length; i += batchSize) {
+        batches.add(candidateIds.skip(i).take(batchSize).toList());
+      }
+
+      final snapshots = await Future.wait(
+        batches.map(
+          (batch) => _firestore
+              .collection(FirestoreCollections.videos)
+              .where(FieldPath.documentId, whereIn: batch)
+              .get(),
+        ),
+      );
+
+      final validVideoMap = <String, Map<String, dynamic>>{};
+      for (final snap in snapshots) {
+        for (final doc in snap.docs) {
+          final data = doc.data();
+          final status = (data['status'] as String?)?.toLowerCase();
+          if (status == null ||
+              status == 'active' ||
+              status == 'ready' ||
+              status == 'processed') {
+            validVideoMap[doc.id] = data;
+          }
+        }
+      }
+
+      final validIds = candidateIds.where(validVideoMap.containsKey).toList();
+
+      var thumb = '';
+      for (final id in validIds) {
+        final t = (validVideoMap[id]?['thumbnailUrl'] as String?)?.trim() ?? '';
+        if (t.isNotEmpty) {
+          thumb = t;
+          break;
+        }
+      }
+
+      if (validIds.isNotEmpty) {
+        watchLaterVideoIds.value = validIds;
+        if (thumb.isNotEmpty) {
+          firstVideoThumbnail.value = thumb;
+        }
+      } else if (candidateIds.isNotEmpty) {
+        // Fallback for single doc query or offline cache
+        await _fetchFirstThumbnail(candidateIds.first);
+      } else {
+        firstVideoThumbnail.value = '';
+      }
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'PlaylistWatchLaterManager._syncWatchLaterVideos',
+      );
+      if (candidateIds.isNotEmpty && firstVideoThumbnail.value.isEmpty) {
+        await _fetchFirstThumbnail(candidateIds.first);
+      }
+    }
+  }
+
   Future<void> _fetchFirstThumbnail(String videoId) async {
     try {
       final doc = await _firestore
@@ -65,9 +149,18 @@ class PlaylistWatchLaterManager {
           .doc(videoId)
           .get();
       if (doc.exists) {
-        firstVideoThumbnail.value = doc.data()?['thumbnailUrl'] ?? '';
+        final t = (doc.data()?['thumbnailUrl'] as String?)?.trim() ?? '';
+        if (t.isNotEmpty) {
+          firstVideoThumbnail.value = t;
+        }
       }
     } catch (_) {}
+  }
+
+  void setFirstThumbnail(String url) {
+    if (url.trim().isNotEmpty && firstVideoThumbnail.value != url.trim()) {
+      firstVideoThumbnail.value = url.trim();
+    }
   }
 
   PlaylistModel? getWatchLaterPlaylist() {
@@ -155,6 +248,48 @@ class PlaylistWatchLaterManager {
 
   bool isInWatchLater(String videoId) {
     return watchLaterVideoIds.contains(videoId);
+  }
+
+  Future<bool> clearWatchLater() async {
+    final user = getUserId();
+    if (user.isEmpty) {
+      AppSnackbar.warning('Please sign in to update Watch Later.');
+      return false;
+    }
+
+    try {
+      _rxIsLoading.value = true;
+      final collection = _firestore
+          .collection(FirestoreCollections.users)
+          .doc(user)
+          .collection('watch_later');
+
+      while (true) {
+        final snapshots = await collection.limit(450).get();
+        if (snapshots.docs.isEmpty) break;
+        final batch = _firestore.batch();
+        for (final doc in snapshots.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+        if (snapshots.docs.length < 450) break;
+      }
+
+      watchLaterVideoIds.clear();
+      firstVideoThumbnail.value = '';
+      AppSnackbar.success('Watch Later list cleared.');
+      return true;
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'PlaylistWatchLaterManager.clearWatchLater',
+      );
+      AppSnackbar.error('Unable to clear Watch Later. Please try again.');
+      return false;
+    } finally {
+      _rxIsLoading.value = false;
+    }
   }
 
   void dispose() {

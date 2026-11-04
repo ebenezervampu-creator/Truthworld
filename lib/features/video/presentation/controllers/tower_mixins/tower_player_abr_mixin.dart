@@ -34,24 +34,41 @@ mixin TowerPlayerAbrMixin on GetxController {
     if (!Get.isRegistered<AdaptiveBitrateController>(tag: tag)) {
       Get.put(abr, tag: tag);
     }
-    var ladder = List<ResolutionTier>.from(ResolutionTier.defaultLadder);
+    var ladder = <ResolutionTier>[];
 
     try {
       final vc = videoController;
       if (vc != null) {
         if (vc.availableResolutions.isNotEmpty) {
-          final complete = VideoResolutionV2.ensureCompleteLadder(
-            vc.availableResolutions,
-            fallbackUrl: vc.video.videoUrl.isNotEmpty
-                ? vc.video.videoUrl
-                : vc.video.originalUrl,
-          );
-          if (complete.length != vc.availableResolutions.length) {
-            vc.availableResolutions.assignAll(complete);
-          }
-          ladder = vc.availableResolutions.reversed
-              .map(ResolutionTier.fromVideoResolution)
+          final realResolutions = vc.availableResolutions
+              .where((r) => !r.isSynthetic && !vc.blacklistedStreamUrls.contains(r.url))
               .toList();
+          if (realResolutions.isNotEmpty) {
+            final fallbackMediaUrl = vc.video.videoUrl.isNotEmpty && !vc.blacklistedStreamUrls.contains(vc.video.videoUrl)
+                ? vc.video.videoUrl
+                : (!vc.blacklistedStreamUrls.contains(vc.video.originalUrl)
+                    ? vc.video.originalUrl
+                    : '');
+            final complete = VideoResolutionV2.ensureCompleteLadder(
+              realResolutions,
+              fallbackUrl: fallbackMediaUrl,
+            ).where((r) => !vc.blacklistedStreamUrls.contains(r.url)).toList();
+            if (complete.length != vc.availableResolutions.length) {
+              if (WidgetsBinding.instance.schedulerPhase ==
+                  SchedulerPhase.persistentCallbacks) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!vc.isClosed) {
+                    vc.availableResolutions.assignAll(complete);
+                  }
+                });
+              } else {
+                vc.availableResolutions.assignAll(complete);
+              }
+            }
+            ladder = vc.availableResolutions.reversed
+                .map(ResolutionTier.fromVideoResolution)
+                .toList();
+          }
         }
       }
     } catch (e, s) {
@@ -60,6 +77,19 @@ mixin TowerPlayerAbrMixin on GetxController {
         stackTrace: s,
         tag: 'TowerPlayerAbrMixin.initABR.ladderLookup',
       );
+    }
+
+    if (ladder.isEmpty) {
+      final nativeH = videoPlayerController.value.isInitialized
+          ? videoPlayerController.value.size.height.toInt()
+          : 0;
+      final defaultTiers = ResolutionTier.defaultLadder;
+      if (nativeH > 0) {
+        ladder = defaultTiers.where((t) => t.height <= nativeH).toList();
+      }
+      if (ladder.isEmpty) {
+        ladder = List<ResolutionTier>.from(defaultTiers);
+      }
     }
 
     final isPremium = hasPremiumPlaybackAccess;
@@ -118,15 +148,19 @@ mixin TowerPlayerAbrMixin on GetxController {
           if (tierIndex >= 0 && tierIndex < abr.resolutionLadder.length) {
             final tier = abr.resolutionLadder[tierIndex];
             final match = vc.availableResolutions.firstWhereOrNull(
-                  (r) => r.label.toLowerCase() == tier.label.toLowerCase(),
+                  (r) => !vc.blacklistedStreamUrls.contains(r.url) &&
+                      r.label.toLowerCase() == tier.label.toLowerCase(),
                 ) ??
                 vc.availableResolutions.firstWhereOrNull(
-                  (r) => r.height == tier.height && r.fps == tier.fps,
+                  (r) => !vc.blacklistedStreamUrls.contains(r.url) &&
+                      r.height == tier.height &&
+                      r.fps == tier.fps,
                 ) ??
                 vc.availableResolutions.firstWhereOrNull(
-                  (r) => r.height == tier.height,
+                  (r) => !vc.blacklistedStreamUrls.contains(r.url) &&
+                      r.height == tier.height,
                 );
-            if (match == null) return;
+            if (match == null || vc.blacklistedStreamUrls.contains(match.url)) return;
 
             // For auto ABR (!isManual), do not re-initialize player if already on this exact URL and height/fps
             if (!isManual &&

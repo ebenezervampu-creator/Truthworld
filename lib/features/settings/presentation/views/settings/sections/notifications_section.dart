@@ -94,6 +94,15 @@ class NotificationsSection extends StatelessWidget {
               )
               .toList(),
         ),
+        actions: [
+          TextButton(
+            onPressed: Get.back,
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+        ],
       ),
     );
   }

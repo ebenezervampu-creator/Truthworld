@@ -7,7 +7,7 @@
  *   2. Cloud Firestore: recursive deletion of user document and all subcollections
  *      (playlists, likedVideos, clips, etc.), channel docs and subcollections,
  *      uploaded videos, subscriptions, comments, notifications, userTrust, userCache.
- *   3. Realtime Database: user presence, session logs, live chat handles.
+ *   3. Realtime Database: user presence, session logs.
  */
 
 import { auth, logger, runWith } from "firebase-functions/v1";
@@ -15,7 +15,7 @@ import { onRequest, onCall } from "firebase-functions/v2/https";
 import type { UserRecord } from "firebase-admin/auth";
 import * as admin from "firebase-admin";
 import { verifyAuth, setCorsHeaders } from "../utils/auth";
-import { isSessionRecent } from "../utils/securityHeaders";
+import { isSessionRecent, applySecurityHeaders } from "../utils/securityHeaders";
 import { EmailService } from "../services/emailService";
 import { getDynamicPlatformLimits } from "../config/platformLimits";
 
@@ -393,6 +393,7 @@ export const purgeUserAccount = onRequest(
     maxInstances: 5,
   },
   async (req, res) => {
+    applySecurityHeaders(res);
     setCorsHeaders(req, res);
     if (req.method === "OPTIONS") {
       res.status(204).send("");
@@ -417,13 +418,31 @@ export const purgeUserAccount = onRequest(
         return;
       }
 
-      // Step-up authentication required for admin purging another user
-      if (user.uid !== targetUid && user.isAdmin && user.authTime && !isSessionRecent(user.authTime, 3600)) {
-        res.status(403).json({
-          error: "Step-up authentication required. Please re-authenticate to purge another user's data.",
-          code: "AUTH_STEP_UP_REQUIRED",
-        });
-        return;
+      // Step-up authentication and verified email required for admin purging another user
+      if (user.uid !== targetUid && user.isAdmin) {
+        if (!user.emailVerified) {
+          res.status(403).json({ error: "Forbidden: verified email required for administrative actions." });
+          return;
+        }
+        if (!user.authTime || !isSessionRecent(user.authTime, 3600)) {
+          res.status(403).json({
+            error: "Step-up authentication required. Please re-authenticate to purge another user's data.",
+            code: "AUTH_STEP_UP_REQUIRED",
+          });
+          return;
+        }
+      }
+
+      // Prohibit purging administrative accounts
+      const targetUserDoc = await admin.firestore().collection("users").doc(targetUid).get();
+      if (targetUserDoc.exists) {
+        const targetData = targetUserDoc.data();
+        if (targetData?.role === "admin" || targetData?.role === "superadmin" || targetData?.isAdmin === true) {
+          res.status(403).json({
+            error: "Administrative accounts cannot be deleted or purged via this endpoint.",
+          });
+          return;
+        }
       }
 
       logger.info(`[purgeUserAccount] Initiated purge for UID: ${targetUid} by ${user.uid} (isAdmin: ${user.isAdmin})`);

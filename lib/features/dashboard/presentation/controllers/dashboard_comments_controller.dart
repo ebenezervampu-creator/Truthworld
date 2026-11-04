@@ -12,6 +12,7 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/services/comment_service.dart';
 
@@ -161,6 +162,27 @@ class DashboardCommentsController extends BaseController {
   }
 
   void loadCommentsForChannel() => _loadAllCommentsForChannel();
+
+  /// Real-time eviction when a video is moved to trash or permanently deleted
+  void removeVideo(String videoId) {
+    final cleanId = videoId.trim();
+    if (cleanId.isEmpty) return;
+
+    // Evict video from reactive list
+    videosWithComments.removeWhere((v) => v.videoId == cleanId);
+
+    // Evict comments for this video
+    _commentsByVideo.remove(cleanId);
+    allComments.removeWhere((c) => c.videoId == cleanId);
+
+    // If currently selected video is the deleted one, reset to All Videos
+    if (selectedVideoId.value == cleanId) {
+      selectedVideoId.value = null;
+    }
+
+    _filterComments();
+    logger.info('Evicted video $cleanId from DashboardCommentsController', tag: _tag);
+  }
 
   /// User comment interactions state
   final userCommentInteractions = RxMap<String, Map<String, bool>>();
@@ -406,6 +428,17 @@ class DashboardCommentsController extends BaseController {
         }
       }
 
+      // Cross-check with VideoManagementController if registered and active
+      final activeChannelVideoIds = <String>{};
+      if (Get.isRegistered<VideoManagementController>()) {
+        try {
+          final vm = Get.find<VideoManagementController>();
+          if (vm.channelVideos.isNotEmpty) {
+            activeChannelVideoIds.addAll(vm.channelVideos.map((v) => v.id));
+          }
+        } catch (_) {}
+      }
+
       final videos = <CreatorVideoWithComments>[];
 
       for (final videoDoc in foundDocsMap.values) {
@@ -417,6 +450,35 @@ class DashboardCommentsController extends BaseController {
         final videoUrl = (videoData['videoUrl'] as String?)?.trim() ?? '';
         if (title.isEmpty && videoUrl.isEmpty) {
           // This is a phantom/metadata-free entry in videos collection, skip
+          continue;
+        }
+
+        // Strictly filter out deleted, trashed, or deletion-pending videos
+        final status = (videoData['status'] as String?)?.trim().toLowerCase() ?? '';
+        final isDeleted = videoData['isDeleted'] == true;
+        if (isDeleted ||
+            status == 'deleted' ||
+            status == 'deletion_pending' ||
+            status == 'trashed' ||
+            status == 'trash') {
+          continue;
+        }
+
+        // Check timestamp deletion markers
+        if (videoData['deletedAt'] != null ||
+            videoData['deletionRequestedAt'] != null ||
+            videoData['deletionPendingAt'] != null) {
+          continue;
+        }
+
+        // Check visibility markers
+        final visibility = (videoData['visibility'] as String?)?.trim().toLowerCase() ?? '';
+        if (visibility == 'trash' || visibility == 'deleted') {
+          continue;
+        }
+
+        // If VideoManagementController has active channelVideos, verify video is present
+        if (activeChannelVideoIds.isNotEmpty && !activeChannelVideoIds.contains(videoDoc.id)) {
           continue;
         }
 
@@ -607,9 +669,18 @@ class DashboardCommentsController extends BaseController {
   }
 
   void _updateMergedComments() {
+    final validVideoIds = videosWithComments.map((v) => v.videoId).toSet();
     final combined = <Comment>[];
-    for (final list in _commentsByVideo.values) {
-      for (final comment in list) {
+    for (final entry in _commentsByVideo.entries) {
+      if (entry.key != 'channel_all' && !validVideoIds.contains(entry.key)) {
+        continue;
+      }
+      for (final comment in entry.value) {
+        if (comment.videoId.isNotEmpty &&
+            comment.videoId != 'channel_all' &&
+            !validVideoIds.contains(comment.videoId)) {
+          continue;
+        }
         if (!combined.any((c) => c.id == comment.id)) {
           combined.add(comment);
         }

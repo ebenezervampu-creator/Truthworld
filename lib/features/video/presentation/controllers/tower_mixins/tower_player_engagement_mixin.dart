@@ -25,7 +25,6 @@ mixin TowerPlayerEngagementMixin on GetxController {
   RxBool get showCommentsPopup;
   RxBool get showTranscriptPopup;
   RxBool get showFactCheckPopup;
-  RxBool get showLiveChat;
   RxBool get subtitlesEnabled;
 
   // ── Chapters ──────────────────────────────────────────────
@@ -53,6 +52,44 @@ mixin TowerPlayerEngagementMixin on GetxController {
   final Rxn<ClaimResult> activeClaim = Rxn<ClaimResult>();
   final RxBool showFactOverlay = true.obs;
   final RxBool isFactCheckAutoPlay = true.obs;
+  final RxBool isFactOverlayExpanded = false.obs;
+  final Set<String> _dismissedClaimKeys = <String>{};
+  Timer? _factOverlayAutoDismissTimer;
+  DateTime? _lastClaimSwitchTime;
+
+  void toggleFactOverlayExpanded() {
+    isFactOverlayExpanded.toggle();
+    if (isFactOverlayExpanded.value) {
+      _factOverlayAutoDismissTimer?.cancel();
+    } else if (activeClaim.value != null) {
+      _startFactOverlayAutoDismiss(const Duration(seconds: 4));
+    }
+  }
+
+  void _startFactOverlayAutoDismiss([Duration duration = const Duration(seconds: 7)]) {
+    _factOverlayAutoDismissTimer?.cancel();
+    _factOverlayAutoDismissTimer = Timer(duration, () {
+      if (!isFactOverlayExpanded.value && activeClaim.value != null) {
+        activeClaim.value = null;
+      }
+    });
+  }
+
+  void dismissActiveClaim() {
+    final cur = activeClaim.value;
+    if (cur != null) {
+      final key = '${cur.start}_${cur.text}';
+      _dismissedClaimKeys.add(key);
+    }
+    _factOverlayAutoDismissTimer?.cancel();
+    activeClaim.value = null;
+    isFactOverlayExpanded.value = false;
+  }
+
+  void stopFactOverlayTimers() {
+    _factOverlayAutoDismissTimer?.cancel();
+    _factOverlayAutoDismissTimer = null;
+  }
 
   List<ClaimResult> get availableClaims {
     final claims = videoController?.video.uiReport?.keyClaims;
@@ -71,14 +108,24 @@ mixin TowerPlayerEngagementMixin on GetxController {
     return const [];
   }
 
+  /// Claims sorted chronologically by timestamp (for Chapter mode)
+  List<ClaimResult> get timestampedClaims {
+    final list = List<ClaimResult>.from(availableClaims);
+    list.sort((a, b) => (a.start ?? 0.0).compareTo(b.start ?? 0.0));
+    return list;
+  }
+
   void playClaim(ClaimResult claim) {
-    if (claim.start != null) {
-      seekTo(Duration(seconds: claim.start!.toInt()));
-      videoPlayerController.play();
-      showFactOverlay.value = true;
-      activeClaim.value = claim;
-      showToast('Playing claim: ${claim.verdict.replaceAll("_", " ")}');
-    }
+    seekTo(claim.startDuration);
+    videoPlayerController.play();
+    showFactOverlay.value = true;
+    final key = '${claim.start}_${claim.text}';
+    _dismissedClaimKeys.remove(key);
+    activeClaim.value = claim;
+    isFactOverlayExpanded.value = false;
+    _lastClaimSwitchTime = DateTime.now();
+    _startFactOverlayAutoDismiss(const Duration(seconds: 7));
+    showToast('Playing claim: ${claim.verdict.replaceAll("_", " ")}');
   }
 
   void playNextClaim() {
@@ -123,6 +170,9 @@ mixin TowerPlayerEngagementMixin on GetxController {
   }
 
   void syncActiveClaim(Duration pos) {
+    if (!isFactCheckAutoPlay.value || !showFactOverlay.value) {
+      return;
+    }
     ClaimResult? nextActiveClaim;
     try {
       final claims = availableClaims;
@@ -130,6 +180,9 @@ mixin TowerPlayerEngagementMixin on GetxController {
         final posSec = pos.inMilliseconds / 1000.0;
         for (final claim in claims) {
           if (claim.start != null) {
+            final key = '${claim.start}_${claim.text}';
+            if (_dismissedClaimKeys.contains(key)) continue;
+
             final s = claim.start!;
             final e = claim.end ?? (s + 8.0);
             if (posSec >= s && posSec <= e) {
@@ -147,7 +200,21 @@ mixin TowerPlayerEngagementMixin on GetxController {
       );
     }
     if (activeClaim.value != nextActiveClaim) {
+      // Debounce rapid automatic switching (at least 1.5s display time)
+      final now = DateTime.now();
+      if (nextActiveClaim != null && _lastClaimSwitchTime != null && activeClaim.value != null) {
+        if (now.difference(_lastClaimSwitchTime!).inMilliseconds < 1500) {
+          return;
+        }
+      }
+      _lastClaimSwitchTime = now;
       activeClaim.value = nextActiveClaim;
+      isFactOverlayExpanded.value = false;
+      if (nextActiveClaim != null) {
+        _startFactOverlayAutoDismiss(const Duration(seconds: 7));
+      } else {
+        _factOverlayAutoDismissTimer?.cancel();
+      }
     }
   }
 
@@ -157,15 +224,6 @@ mixin TowerPlayerEngagementMixin on GetxController {
   final Rxn<Comment> currentAutoPlayComment = Rxn<Comment>();
   final RxInt activeAutoPlayCommentIndex = 0.obs;
   Timer? commentsAutoPlayTimer;
-
-  void toggleLiveChat() {
-    showLiveChat.toggle();
-    if (showLiveChat.value) {
-      showCommentsPopup.value = false;
-      showTranscriptPopup.value = false;
-      showFactCheckPopup.value = false;
-    }
-  }
 
   void toggleCommentsAutoPlay() {
     isCommentsAutoPlay.toggle();

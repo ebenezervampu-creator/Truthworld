@@ -29,14 +29,14 @@ Widget buildCampaignMediaUploadSlot({
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isUploading
               ? AppColors.brand
               : hasFile
-              ? const Color(0xFF10B981).withValues(alpha: 0.4)
-              : const Color(0xFF27272A),
+              ? AppColors.success.withValues(alpha: 0.4)
+              : AppColors.bgSurface,
         ),
       ),
       child: Column(
@@ -68,17 +68,17 @@ Widget buildCampaignMediaUploadSlot({
                           vertical: 1.5,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFEF4444).withValues(alpha: 0.2),
+                          color: AppColors.error.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(4),
                           border: Border.all(
-                            color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                            color: AppColors.error.withValues(alpha: 0.4),
                           ),
                         ),
                         child: const Text(
                           'Required',
                           style: TextStyle(
                             fontFamily: TWTypography.uiFamily,
-                            color: Color(0xFFF87171),
+                            color: AppColors.error,
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                           ),
@@ -105,9 +105,9 @@ Widget buildCampaignMediaUploadSlot({
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF18181B),
+                color: AppColors.bgPage,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFF27272A)),
+                border: Border.all(color: AppColors.bgSurface),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -153,7 +153,7 @@ Widget buildCampaignMediaUploadSlot({
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
                       value: progress.clamp(0.0, 1.0),
-                      backgroundColor: const Color(0xFF27272A),
+                      backgroundColor: AppColors.bgSurface,
                       valueColor: const AlwaysStoppedAnimation<Color>(AppColors.brand),
                       minHeight: 6,
                     ),
@@ -165,10 +165,10 @@ Widget buildCampaignMediaUploadSlot({
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                color: const Color(0xFF18181B),
+                color: AppColors.bgPage,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                  color: AppColors.success.withValues(alpha: 0.3),
                 ),
               ),
               child: Row(
@@ -176,7 +176,7 @@ Widget buildCampaignMediaUploadSlot({
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                      color: AppColors.success.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Icon(
@@ -210,14 +210,14 @@ Widget buildCampaignMediaUploadSlot({
                                 vertical: 1,
                               ),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                                color: AppColors.success.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(3),
                               ),
                               child: const Text(
                                 'READY',
                                 style: TextStyle(
                                   fontFamily: TWTypography.uiFamily,
-                                  color: Color(0xFF10B981),
+                                  color: AppColors.success,
                                   fontSize: 9,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -258,7 +258,7 @@ Widget buildCampaignMediaUploadSlot({
                     ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
-                      side: const BorderSide(color: Color(0xFF3F3F46)),
+                      side: const BorderSide(color: AppColors.bgElevated),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,
                         vertical: 8,
@@ -334,7 +334,7 @@ Widget buildCampaignMediaUploadSlot({
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF18181B),
+                    backgroundColor: AppColors.bgPage,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 14,
@@ -342,7 +342,7 @@ Widget buildCampaignMediaUploadSlot({
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
-                      side: const BorderSide(color: Color(0xFF27272A)),
+                      side: const BorderSide(color: AppColors.bgSurface),
                     ),
                     elevation: 0,
                   ),

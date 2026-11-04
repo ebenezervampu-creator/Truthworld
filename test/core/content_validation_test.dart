@@ -136,7 +136,7 @@ void main() {
       final perk1 = ContentValidator.validate('Loyalty badge, Early access to videos', fieldName: 'Perk');
       expect(perk1.isValid, isTrue);
 
-      final perk2 = ContentValidator.validate('Custom channel emojis in live chat & comments', fieldName: 'Perk');
+      final perk2 = ContentValidator.validate('Custom channel emojis in comments & community posts', fieldName: 'Perk');
       expect(perk2.isValid, isTrue);
 
       final perk3 = ContentValidator.validate('Behind-the-scenes clips & bloopers', fieldName: 'Perk');

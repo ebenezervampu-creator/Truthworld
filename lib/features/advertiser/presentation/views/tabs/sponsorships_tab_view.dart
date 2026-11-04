@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/constants/app_categories.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/core/widgets/channel_verified_badge.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -71,9 +72,9 @@ class SponsorshipsTabView extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: const Color(0xFF161618),
+          color: AppColors.appBarSurface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF27272A)),
+          border: Border.all(color: AppColors.bgSurface),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -103,7 +104,7 @@ class SponsorshipsTabView extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF27272A),
+                    color: AppColors.bgSurface,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -128,16 +129,16 @@ class SponsorshipsTabView extends StatelessWidget {
                   margin: const EdgeInsets.only(bottom: 12),
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF121214),
+                    color: AppColors.bgInput,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFF27272A)),
+                    border: Border.all(color: AppColors.bgSurface),
                   ),
                   child: Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1C1C20),
+                          color: AppColors.bgSurface,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Icon(
@@ -268,9 +269,9 @@ class SponsorshipsTabView extends StatelessWidget {
                       ),
                       selected: isSelected,
                       selectedColor: AppColors.brand,
-                      backgroundColor: const Color(0xFF1E1E22),
+                      backgroundColor: AppColors.bgSurface,
                       side: BorderSide(
-                        color: isSelected ? AppColors.brand : const Color(0xFF323238),
+                        color: isSelected ? AppColors.brand : AppColors.bgElevated,
                       ),
                       onSelected: (_) {
                         controller.selectedSponsorshipCategory.value = cat;
@@ -297,11 +298,11 @@ class SponsorshipsTabView extends StatelessWidget {
               prefixIcon: Icon(Icons.search_rounded, color: Colors.white, size: 18),
               isDense: true,
               filled: true,
-              fillColor: Color(0xFF161618),
+              fillColor: AppColors.appBarSurface,
               contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.all(Radius.circular(8)),
-                borderSide: BorderSide(color: Color(0xFF27272A)),
+                borderSide: BorderSide(color: AppColors.bgSurface),
               ),
             ),
           ),
@@ -344,15 +345,17 @@ class SponsorshipsTabView extends StatelessWidget {
         runSpacing: 20,
         children: filtered.map((creator) {
           final packages = (creator['packages'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
-          final avatarColor = Color(creator['avatarColor'] as int? ?? 0xFF3B82F6);
+          final avatarColor = creator['avatarColor'] is int
+              ? Color(creator['avatarColor'] as int)
+              : AppColors.info;
 
           return Container(
             width: 350,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: const Color(0xFF161618),
+              color: AppColors.appBarSurface,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF27272A)),
+              border: Border.all(color: AppColors.bgSurface),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -390,12 +393,10 @@ class SponsorshipsTabView extends StatelessWidget {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              const SizedBox(width: 4),
-                              const Icon(
-                                Icons.verified_rounded,
-                                color: Colors.white,
-                                size: 14,
-                              ),
+                              if (creator['isTrusted'] == true) ...[
+                                const SizedBox(width: 4),
+                                const ChannelVerifiedBadge(size: 14),
+                              ],
                             ],
                           ),
                           Text(
@@ -412,7 +413,7 @@ class SponsorshipsTabView extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF27272A),
+                        color: AppColors.bgSurface,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
@@ -442,17 +443,17 @@ class SponsorshipsTabView extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF121214),
+                    color: AppColors.bgInput,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFF27272A)),
+                    border: Border.all(color: AppColors.bgSurface),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       _buildMetricCol('Subscribers', creator['subscribers'] as String),
-                      Container(width: 1, height: 24, color: const Color(0xFF27272A)),
+                      Container(width: 1, height: 24, color: AppColors.bgSurface),
                       _buildMetricCol('Avg Views', creator['avgViews'] as String),
-                      Container(width: 1, height: 24, color: const Color(0xFF27272A)),
+                      Container(width: 1, height: 24, color: AppColors.bgSurface),
                       _buildMetricCol('Engage Rate', creator['engagement'] as String),
                     ],
                   ),
@@ -570,10 +571,10 @@ class SponsorshipsTabView extends StatelessWidget {
 
     Get.dialog(
       AlertDialog(
-        backgroundColor: const Color(0xFF161618),
+        backgroundColor: AppColors.appBarSurface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFF27272A)),
+          side: const BorderSide(color: AppColors.bgSurface),
         ),
         title: Row(
           children: [
@@ -606,7 +607,7 @@ class SponsorshipsTabView extends StatelessWidget {
                   labelText: 'Campaign / Product Name',
                   labelStyle: TextStyle(color: AppColors.textSecondary),
                   filled: true,
-                  fillColor: Color(0xFF121214),
+                  fillColor: AppColors.bgInput,
                   border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
                 ),
               ),
@@ -623,11 +624,11 @@ class SponsorshipsTabView extends StatelessWidget {
               Obx(() {
                 return DropdownButtonFormField<String>(
                   value: selectedFormat.value,
-                  dropdownColor: const Color(0xFF1C1C1F),
+                  dropdownColor: AppColors.bgSurface,
                   style: const TextStyle(color: Colors.white, fontFamily: TWTypography.uiFamily),
                   decoration: const InputDecoration(
                     filled: true,
-                    fillColor: Color(0xFF121214),
+                    fillColor: AppColors.bgInput,
                     border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
                   ),
                   items: packages.map((pkg) {
@@ -665,7 +666,7 @@ class SponsorshipsTabView extends StatelessWidget {
                   prefixStyle: TextStyle(color: Colors.white),
                   labelStyle: TextStyle(color: AppColors.textSecondary),
                   filled: true,
-                  fillColor: Color(0xFF121214),
+                  fillColor: AppColors.bgInput,
                   border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
                 ),
               ),
@@ -681,7 +682,7 @@ class SponsorshipsTabView extends StatelessWidget {
                   labelText: 'Pitch / Briefing Note for Creator',
                   labelStyle: TextStyle(color: AppColors.textSecondary),
                   filled: true,
-                  fillColor: Color(0xFF121214),
+                  fillColor: AppColors.bgInput,
                   border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
                 ),
               ),
@@ -689,9 +690,9 @@ class SponsorshipsTabView extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF121214),
+                  color: AppColors.bgInput,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFF27272A)),
+                  border: Border.all(color: AppColors.bgSurface),
                 ),
                 child: const Row(
                   children: [

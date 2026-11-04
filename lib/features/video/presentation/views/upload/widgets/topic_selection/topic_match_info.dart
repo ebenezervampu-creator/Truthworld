@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/video/presentation/views/upload/widgets/topic_selection/topic_selection_host.dart';
 
 /// Topic Recommendation Item helper representing ranking, score, and justification.
 class TopicMatchInfo {
@@ -24,45 +25,41 @@ class TopicRecommendationEngine {
 
   /// Calculates dynamic topic recommendations for the active video.
   static List<TopicMatchInfo> computeRankedTopicMatches(
-    dynamic controller,
+    TopicSelectionHost controller,
     List<Topic> topics,
   ) {
     if (topics.isEmpty) return [];
 
     try {
-      if (controller != null) {
-        final ranked = controller.getRankedTopicsForCurrentVideo?.call();
-        if (ranked != null && ranked.isNotEmpty) {
-          final results = <TopicMatchInfo>[];
-          for (var i = 0; i < ranked.length; i++) {
-            final r = ranked[i];
-            results.add(
-              TopicMatchInfo(
-                topic: r.topic as Topic,
-                matchPercentage: r.matchPercentage as int,
-                reason: r.recommendationReason as String,
-                isTopRecommendation: i == 0,
-              ),
-            );
-          }
-          return results;
+      final ranked = controller.getRankedTopicsForCurrentVideo();
+      if (ranked != null && ranked.isNotEmpty) {
+        final results = <TopicMatchInfo>[];
+        for (var i = 0; i < ranked.length; i++) {
+          final r = ranked[i];
+          results.add(
+            TopicMatchInfo(
+              topic: r.topic as Topic,
+              matchPercentage: r.matchPercentage as int,
+              reason: r.recommendationReason as String,
+              isTopRecommendation: i == 0,
+            ),
+          );
         }
+        return results;
       }
     } catch (e, s) {
-      if (e is! NoSuchMethodError) {
-        ErrorHandler.log(
-          e,
-          stackTrace: s,
-          tag: 'TopicRecommendationEngine.computeRankedTopicMatches',
-        );
-      }
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'TopicRecommendationEngine.computeRankedTopicMatches',
+      );
     }
 
     // Smart fallback recommendation ranking
     final videoTitle =
-        (controller?.titleController?.text as String? ?? '').trim().toLowerCase();
+        (controller.titleController?.text ?? '').trim().toLowerCase();
     final videoCat =
-        (controller?.selectedCategory?.value as String? ?? '').trim().toLowerCase();
+        (controller.selectedCategory?.value ?? '').trim().toLowerCase();
 
     final fallback = <TopicMatchInfo>[];
     for (var i = 0; i < topics.length; i++) {
@@ -80,7 +77,7 @@ class TopicRecommendationEngine {
       }
 
       if (videoTitle.isNotEmpty &&
-          t.title.toLowerCase().split(' ').any(
+          t.name.toLowerCase().split(' ').any(
                 (w) => w.length > 3 && videoTitle.contains(w),
               )) {
         score += 15;
@@ -123,22 +120,18 @@ class TopicRecommendationEngine {
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
 
-  /// Handles selection of an authentic Topic.
+  /// Handles selection of an authentic Topic and dismisses sheet.
   static void handleTopicSelection(
     BuildContext context,
-    dynamic controller,
+    TopicSelectionHost controller,
     Topic topic,
     Function(Topic? topic)? onTopicSelected,
   ) {
-    if (controller?.selectTopic != null) {
-      controller.selectTopic(topic.slug.isNotEmpty ? topic.slug : topic.id);
-    } else if (controller?.selectedTopicId != null) {
-      controller.selectedTopicId.value =
-          topic.slug.isNotEmpty ? topic.slug : topic.id;
+    final key = topic.slug.isNotEmpty ? topic.slug : topic.id;
+    if (!controller.isTopicSelected(key)) {
+      controller.toggleTopicSelection(topic);
     }
-    if (controller?.newTopicData != null) {
-      controller.newTopicData.clear();
-    }
+    controller.newTopicData.clear();
     if (onTopicSelected != null) {
       onTopicSelected(topic);
     }
@@ -146,20 +139,28 @@ class TopicRecommendationEngine {
     Navigator.pop(context);
   }
 
+  /// Handles toggling of an authentic Topic for multi-topic selection (keeps sheet open).
+  static void handleTopicToggle(
+    BuildContext context,
+    TopicSelectionHost controller,
+    Topic topic,
+    Function(Topic? topic)? onTopicSelected,
+  ) {
+    controller.toggleTopicSelection(topic);
+    if (onTopicSelected != null) {
+      onTopicSelected(topic);
+    }
+    HapticFeedback.lightImpact();
+  }
+
   /// Handles deselecting / removing topic association.
   static void handleNoneTopicSelection(
     BuildContext context,
-    dynamic controller,
+    TopicSelectionHost controller,
     Function(Topic? topic)? onTopicSelected,
   ) {
-    if (controller?.selectTopic != null) {
-      controller.selectTopic('');
-    } else if (controller?.selectedTopicId != null) {
-      controller.selectedTopicId.value = '';
-    }
-    if (controller?.newTopicData != null) {
-      controller.newTopicData.clear();
-    }
+    controller.selectTopic('');
+    controller.newTopicData.clear();
     if (onTopicSelected != null) {
       onTopicSelected(null);
     }
@@ -170,13 +171,9 @@ class TopicRecommendationEngine {
   /// Handles choosing an in-progress draft topic.
   static void handleDraftTopicSelection(
     BuildContext context,
-    dynamic controller,
+    TopicSelectionHost controller,
   ) {
-    if (controller?.selectTopic != null) {
-      controller.selectTopic('new_topic_draft');
-    } else if (controller?.selectedTopicId != null) {
-      controller.selectedTopicId.value = 'new_topic_draft';
-    }
+    controller.selectTopic('new_topic_draft');
     HapticFeedback.lightImpact();
     Navigator.pop(context);
   }

@@ -107,59 +107,12 @@ Widget buildSection2Handle(BuildContext context, CreateTopicController controlle
   );
 }
 
-/// Section 3: Title Input
-Widget buildSection3Title(BuildContext context, CreateTopicController controller) {
-  return buildCreateTopicCardContainer(
-    context: context,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        buildCreateTopicSectionTitle(context, '3. Title'),
-        const SizedBox(height: 12),
-        Stack(
-          alignment: Alignment.centerRight,
-          children: [
-            TextFormField(
-              controller: controller.titleController,
-              maxLength: 100,
-              inputFormatters: TruthworldTextInputFormatters.withLimit(100),
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              decoration: buildCreateTopicInputDecoration(hintText: 'Enter a catchy title for your topic'),
-              validator: (val) {
-                if (val == null || val.trim().isEmpty) return 'Title is required';
-                return null;
-              },
-            ),
-            Positioned(
-              right: 14,
-              child: Text(
-                '${controller.titleController.text.length}/100',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.4),
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'This title will be shown on your topic page.',
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.45),
-            fontSize: 12,
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-/// Section 4: Description Input
-Widget buildSection4Description(
+/// Section 3: Description Input (Previously Section 4, title requirement removed)
+Widget buildSection3Description(
   BuildContext context,
   CreateTopicController controller, {
   bool isDesktop = false,
+  String title = '3. Description',
 }) {
   final minLines = isDesktop ? 12 : 5;
   final maxLines = isDesktop ? 14 : 5;
@@ -169,7 +122,7 @@ Widget buildSection4Description(
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        buildCreateTopicSectionTitle(context, '4. Description'),
+        buildCreateTopicSectionTitle(context, title),
         const SizedBox(height: 12),
         Stack(
           children: [
@@ -223,6 +176,18 @@ Widget buildSection4Description(
     ),
   );
 }
+
+/// Backward compatibility alias for Section 3/4 Description
+Widget buildSection4Description(
+  BuildContext context,
+  CreateTopicController controller, {
+  bool isDesktop = false,
+  String title = '4. Description',
+}) => buildSection3Description(context, controller, isDesktop: isDesktop, title: title);
+
+/// Deprecated: Section 3 Title removed. Topic has Topic Name only.
+@Deprecated('Title requirement has been removed for Topics. Topics have Topic Name only.')
+Widget buildSection3Title(BuildContext context, CreateTopicController controller) => const SizedBox.shrink();
 
 /// Section 7: Tags Input & Tag Chips (Positioned above Add Videos)
 Widget buildSection7Tags(

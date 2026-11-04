@@ -30,10 +30,10 @@ class AudienceReachCounter extends StatelessWidget {
         vertical: 8,
       ),
       decoration: BoxDecoration(
-        color: const Color(0xFF18181B),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: const Color(0xFF27272A),
+          color: AppColors.bgSurface,
         ),
       ),
       child: Row(

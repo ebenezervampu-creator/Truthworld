@@ -54,7 +54,7 @@ class TeamMemberRow extends StatelessWidget {
                 radius: 18,
                 backgroundColor: isPrimaryOwner
                     ? AppColors.brand.withValues(alpha: 0.2)
-                    : const Color(0xFF282828),
+                    : AppColors.bgSurface,
                 child: Text(
                   name.isNotEmpty ? name[0].toUpperCase() : 'A',
                   style: TextStyle(
@@ -135,7 +135,7 @@ class TeamMemberRow extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF101010),
+                  color: AppColors.bgPage,
                   borderRadius: BorderRadius.circular(8),
                   border:
                       Border.all(color: Colors.white.withValues(alpha: 0.08)),

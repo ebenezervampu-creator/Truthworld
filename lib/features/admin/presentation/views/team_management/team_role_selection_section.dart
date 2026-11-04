@@ -78,7 +78,7 @@ class TeamRoleSelectionSection extends StatelessWidget {
           Container(
             constraints: const BoxConstraints(maxHeight: 220),
             decoration: BoxDecoration(
-              color: const Color(0xFF141414),
+              color: AppColors.bgPage,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
@@ -113,7 +113,7 @@ class TeamRoleSelectionSection extends StatelessWidget {
                       children: [
                         Checkbox(
                           value: isSelected,
-                          activeColor: const Color(0xFF2BA640),
+                          activeColor: AppColors.success,
                           checkColor: Colors.white,
                           side: BorderSide(
                             color: Colors.white.withValues(alpha: 0.3),
@@ -157,7 +157,7 @@ class TeamRoleSelectionSection extends StatelessWidget {
                                         vertical: 1,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFF8B5CF6)
+                                        color: AppColors.info
                                             .withValues(alpha: 0.2),
                                         borderRadius: BorderRadius.circular(4),
                                       ),
@@ -165,7 +165,7 @@ class TeamRoleSelectionSection extends StatelessWidget {
                                         'ALL TABS',
                                         style: TextStyle(
                                           fontSize: 8,
-                                          color: Color(0xFFD8B4FE),
+                                          color: AppColors.info,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),

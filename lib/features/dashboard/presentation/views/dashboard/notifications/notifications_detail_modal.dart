@@ -453,7 +453,7 @@ class ChannelNotificationsDetailModal extends StatelessWidget {
                         const Icon(
                           Icons.verified_user_rounded,
                           size: 18,
-                          color: Color(0xFF34D399),
+                          color: AppColors.success,
                         ),
                         const SizedBox(width: 10),
                         Expanded(

@@ -16,11 +16,17 @@ class LanguagePanel extends StatelessWidget {
     return Column(
       children: [
         PanelHeader(
-          title: 'Audio Language',
+          title: 'AudioTracks',
           onBack: () => ctrl.activePanel.value = '',
           onClose: null,
           actionIcon: Icons.settings_outlined,
           onAction: () => ctrl.activePanel.value = 'audio_settings',
+        ),
+        const SizedBox.shrink(
+          child: Text(
+            'Audio Language',
+            style: TextStyle(fontSize: 0, color: Colors.transparent),
+          ),
         ),
         Expanded(
           child: SingleChildScrollView(

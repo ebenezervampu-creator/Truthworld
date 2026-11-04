@@ -7,6 +7,7 @@ import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_discovery_controller.dart';
 
 class HomeNavigationController extends BaseController with GetTickerProviderStateMixin {
@@ -295,6 +296,22 @@ class HomeNavigationController extends BaseController with GetTickerProviderStat
 
     switch (index) {
       case 0:
+        if (sideNavSelectedIndex.value == indexHome && isAtHome) {
+          if (Get.isRegistered<HomeController>()) {
+            final homeCtrl = Get.find<HomeController>();
+            if (homeCtrl.scrollController.hasClients) {
+              if (homeCtrl.scrollController.offset > 0) {
+                homeCtrl.scrollController.animateTo(
+                  0,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutCubic,
+                );
+              } else {
+                homeCtrl.refreshHomeFeed();
+              }
+            }
+          }
+        }
         sideNavSelectedIndex.value = indexHome;
         if (!isAtHome) RouteStackObserver.navigateToHome();
       case 1:
@@ -344,7 +361,12 @@ class HomeNavigationController extends BaseController with GetTickerProviderStat
       showSignInSnackbar();
       return;
     }
-    await StudioLauncher.openStudio();
+    final channel = _authService.userChannel;
+    if (channel != null) {
+      navigateToChannelDetail(channel);
+    } else {
+      await StudioLauncher.openStudio();
+    }
   }
 
   Future<void> navigateToWatchLater() async {

@@ -1,7 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
@@ -14,6 +14,7 @@ import 'package:truthworld/features/video/data/services/video_media_service.dart
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
+import 'package:truthworld/features/video/presentation/views/video_description_screen.dart';
 import 'package:truthworld/features/video/presentation/views/widgets/transcript_segment_tile.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -23,18 +24,32 @@ class VideoDescriptionBox extends StatelessWidget {
   const VideoDescriptionBox({
     required this.controller,
     required this.mainController,
+    this.isDesktop,
     super.key,
   });
 
   final VideoController controller;
   final MainController mainController;
+  final bool? isDesktop;
 
-  static String _formatViews(int views) {
+  /// Returns true if the current environment or viewport is mobile-sized (Web mobile, Android, iOS).
+  static bool isMobileSized(BuildContext context, {bool? isDesktop}) {
+    if (isDesktop == true) return false;
+    final width = MediaQuery.sizeOf(context).width;
+    if (width < 900) return true;
+    final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    return isMobileDevice;
+  }
+
+  static String formatViews(int views) {
     if (views >= 1000000000) return '${(views / 1000000000).toStringAsFixed(1)}B';
     if (views >= 1000000) return '${(views / 1000000).toStringAsFixed(1)}M';
     if (views >= 1000) return '${(views / 1000).toStringAsFixed(1)}K';
     return views.toString();
   }
+
+  static String _formatViews(int views) => formatViews(views);
 
   @override
   Widget build(BuildContext context) {
@@ -42,8 +57,10 @@ class VideoDescriptionBox extends StatelessWidget {
   }
   Widget _buildDescriptionBox(BuildContext context) {
     return Obx(() {
-      final expanded = controller.isExpanded.value;
-      final showTranscript = controller.isTranscriptVisible.value;
+      final isMobile = isMobileSized(context, isDesktop: isDesktop);
+      final expanded = !isMobile && controller.isExpanded.value;
+      final showTranscript = !isMobile && controller.isTranscriptVisible.value;
+      final showSummary = !isMobile && controller.isSummaryVisible.value;
       final video = controller.rxVideo.value;
       final videoId = video.id;
       final channelId = video.channelId.isNotEmpty
@@ -69,9 +86,23 @@ class VideoDescriptionBox extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            InkWell(
-              onTap: () => controller.isExpanded.value = !expanded,
-              child: Column(
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  if (isMobile) {
+                    VideoDescriptionScreen.open(
+                      context,
+                      video: video,
+                      controller: controller,
+                      mainController: mainController,
+                    );
+                  } else {
+                    controller.isExpanded.value = !expanded;
+                  }
+                },
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Wrap(
@@ -97,7 +128,7 @@ class VideoDescriptionBox extends StatelessWidget {
                           ),
                         ),
                       Text(
-                        '${_formatViews(viewsCount)} ${viewsCount == 1 ? 'view' : 'views'}',
+                        '${formatViews(viewsCount)} ${viewsCount == 1 ? 'view' : 'views'}',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 13,
@@ -121,17 +152,42 @@ class VideoDescriptionBox extends StatelessWidget {
                     overflow: expanded
                         ? TextOverflow.visible
                         : TextOverflow.ellipsis,
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       color: Colors.white,
                       fontSize: 14,
                       height: 1.5,
                     ),
                   ),
-                  if (!expanded && video.description.length > 60)
+                  if (!expanded && (video.description.length > 60 || isMobile))
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '...more',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.7),
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          if (isMobile) ...[
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              size: 10,
+                              color: Colors.white.withValues(alpha: 0.7),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  if (expanded && video.description.length > 60)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
                       child: Text(
-                        '...more',
+                        'Show less',
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.7),
                           fontSize: 13,
@@ -139,10 +195,11 @@ class VideoDescriptionBox extends StatelessWidget {
                         ),
                       ),
                     ),
-                  if (expanded) _buildChannelLinksSection(channel, video),
+                  if (expanded) buildChannelLinksSection(channel, video),
                 ],
               ),
             ),
+          ),
             const SizedBox(height: 12),
             // Action Buttons: AI Summary & Show Transcript
             Wrap(
@@ -152,6 +209,16 @@ class VideoDescriptionBox extends StatelessWidget {
                 // AI Summary button
                 InkWell(
                   onTap: () {
+                    if (isMobile) {
+                      VideoDescriptionScreen.open(
+                        context,
+                        video: video,
+                        controller: controller,
+                        mainController: mainController,
+                        initialSection: VideoDescriptionSection.summary,
+                      );
+                      return;
+                    }
                     final nextVisible = !controller.isSummaryVisible.value;
                     controller.isSummaryVisible.value = nextVisible;
                     if (nextVisible) {
@@ -165,12 +232,12 @@ class VideoDescriptionBox extends StatelessWidget {
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: controller.isSummaryVisible.value
+                      color: (!isMobile && controller.isSummaryVisible.value)
                           ? AppColors.brand.withValues(alpha: 0.25)
                           : Colors.white.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: controller.isSummaryVisible.value
+                        color: (!isMobile && controller.isSummaryVisible.value)
                             ? AppColors.brand.withValues(alpha: 0.5)
                             : Colors.white.withValues(alpha: 0.2),
                       ),
@@ -185,10 +252,10 @@ class VideoDescriptionBox extends StatelessWidget {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          controller.isSummaryVisible.value
+                          (!isMobile && controller.isSummaryVisible.value)
                               ? 'Hide Summary'
                               : 'AI Summary',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             color: Colors.white,
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -196,10 +263,12 @@ class VideoDescriptionBox extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
                         Icon(
-                          controller.isSummaryVisible.value
+                          (!isMobile && controller.isSummaryVisible.value)
                               ? Icons.keyboard_arrow_up_rounded
-                              : Icons.keyboard_arrow_down_rounded,
-                          size: 18,
+                              : (isMobile
+                                  ? Icons.arrow_forward_ios_rounded
+                                  : Icons.keyboard_arrow_down_rounded),
+                          size: isMobile ? 12 : 18,
                           color: Colors.white70,
                         ),
                       ],
@@ -210,7 +279,17 @@ class VideoDescriptionBox extends StatelessWidget {
                 // Show Transcript button
                 InkWell(
                   onTap: () {
-                    final nextVisible = !showTranscript;
+                    if (isMobile) {
+                      VideoDescriptionScreen.open(
+                        context,
+                        video: video,
+                        controller: controller,
+                        mainController: mainController,
+                        initialSection: VideoDescriptionSection.transcript,
+                      );
+                      return;
+                    }
+                    final nextVisible = !controller.isTranscriptVisible.value;
                     controller.isTranscriptVisible.value = nextVisible;
                     if (nextVisible) {
                       final playerCtrl = TowerPlayerController.getForTagOrActive(controller.video.id);
@@ -232,12 +311,12 @@ class VideoDescriptionBox extends StatelessWidget {
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: showTranscript
+                      color: (!isMobile && controller.isTranscriptVisible.value)
                           ? AppColors.brand.withValues(alpha: 0.25)
                           : Colors.white.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: showTranscript
+                        color: (!isMobile && controller.isTranscriptVisible.value)
                             ? AppColors.brand.withValues(alpha: 0.5)
                             : Colors.white.withValues(alpha: 0.2),
                       ),
@@ -252,8 +331,10 @@ class VideoDescriptionBox extends StatelessWidget {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          showTranscript ? 'Hide Transcript' : 'Show Transcript',
-                          style: GoogleFonts.roboto(
+                          (!isMobile && controller.isTranscriptVisible.value)
+                              ? 'Hide Transcript'
+                              : 'Show Transcript',
+                          style: TextStyle(
                             color: Colors.white,
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -261,10 +342,12 @@ class VideoDescriptionBox extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
                         Icon(
-                          showTranscript
+                          (!isMobile && controller.isTranscriptVisible.value)
                               ? Icons.keyboard_arrow_up_rounded
-                              : Icons.keyboard_arrow_down_rounded,
-                          size: 18,
+                              : (isMobile
+                                  ? Icons.arrow_forward_ios_rounded
+                                  : Icons.keyboard_arrow_down_rounded),
+                          size: isMobile ? 12 : 18,
                           color: Colors.white70,
                         ),
                       ],
@@ -273,9 +356,9 @@ class VideoDescriptionBox extends StatelessWidget {
                 ),
               ],
             ),
-            if (controller.isSummaryVisible.value) ...[
+            if (showSummary) ...[
               const SizedBox(height: 12),
-              _buildSummaryContent(context),
+              buildSummaryContent(context, controller: controller),
             ],
             if (showTranscript) ...[
               const SizedBox(height: 12),
@@ -289,7 +372,7 @@ class VideoDescriptionBox extends StatelessWidget {
                     color: Colors.white.withValues(alpha: 0.1),
                   ),
                 ),
-                child: _buildTranscriptContent(context),
+                child: buildTranscriptContent(context, controller: controller),
               ),
             ],
           ],
@@ -298,7 +381,13 @@ class VideoDescriptionBox extends StatelessWidget {
     });
   }
 
-  Widget _buildSummaryContent(BuildContext context) {
+  Widget _buildSummaryContent(BuildContext context) =>
+      buildSummaryContent(context, controller: controller);
+
+  static Widget buildSummaryContent(
+    BuildContext context, {
+    required VideoController controller,
+  }) {
     return Obx(() {
       if (controller.isLoadingSummary.value) {
         return Container(
@@ -324,7 +413,7 @@ class VideoDescriptionBox extends StatelessWidget {
               const SizedBox(width: 10),
               Text(
                 'Fetching AI video summary...',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   color: Colors.white70,
                   fontSize: 13,
                   fontStyle: FontStyle.italic,
@@ -376,7 +465,7 @@ class VideoDescriptionBox extends StatelessWidget {
               Expanded(
                 child: Text(
                   'No AI summary generated for this video yet.',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: Colors.white70,
                     fontSize: 13,
                     fontStyle: FontStyle.italic,
@@ -411,7 +500,7 @@ class VideoDescriptionBox extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   'AI SUMMARY',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                     color: AppColors.brand,
@@ -423,7 +512,7 @@ class VideoDescriptionBox extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               summary,
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 color: Colors.white,
                 fontSize: 13,
                 height: 1.5,
@@ -435,7 +524,13 @@ class VideoDescriptionBox extends StatelessWidget {
     });
   }
 
-  Widget _buildTranscriptContent(BuildContext context) {
+  Widget _buildTranscriptContent(BuildContext context) =>
+      buildTranscriptContent(context, controller: controller);
+
+  static Widget buildTranscriptContent(
+    BuildContext context, {
+    required VideoController controller,
+  }) {
     final playerCtrl = TowerPlayerController.getForTagOrActive(controller.video.id);
 
     if (controller.transcriptSegments.isEmpty &&
@@ -475,7 +570,7 @@ class VideoDescriptionBox extends StatelessWidget {
                 const SizedBox(width: 10),
                 Text(
                   'Loading transcript...',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: Colors.white70,
                     fontSize: 13,
                     fontStyle: FontStyle.italic,
@@ -498,7 +593,7 @@ class VideoDescriptionBox extends StatelessWidget {
               Expanded(
                 child: Text(
                   'No timestamped transcript available for this video.',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: Colors.white70,
                     fontSize: 13,
                     fontStyle: FontStyle.italic,
@@ -511,7 +606,7 @@ class VideoDescriptionBox extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   child: Text(
                     'Retry',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       color: Colors.white,
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
@@ -544,7 +639,7 @@ class VideoDescriptionBox extends StatelessWidget {
             children: [
               Text(
                 'TIMESTAMPED TRANSCRIPT',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                   color: Colors.white54,
@@ -573,7 +668,7 @@ class VideoDescriptionBox extends StatelessWidget {
                         const SizedBox(width: 4),
                         Text(
                           'Resume auto-scroll',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w500,
                             color: Colors.white,
@@ -629,7 +724,10 @@ class VideoDescriptionBox extends StatelessWidget {
     });
   }
 
-  Widget _buildChannelLinksSection(Channel? channel, Video video) {
+  Widget _buildChannelLinksSection(Channel? channel, Video video) =>
+      buildChannelLinksSection(channel, video);
+
+  static Widget buildChannelLinksSection(Channel? channel, Video video) {
     final links = <Map<String, dynamic>>[];
 
     if (channel != null) {
@@ -709,7 +807,7 @@ class VideoDescriptionBox extends StatelessWidget {
         if (links.isNotEmpty) ...[
           Text(
             'LINKS',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
               color: Colors.white70,
@@ -738,7 +836,7 @@ class VideoDescriptionBox extends StatelessWidget {
                       const SizedBox(width: 5),
                       Text(
                         link['title'] as String,
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           color: Colors.white,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -747,7 +845,7 @@ class VideoDescriptionBox extends StatelessWidget {
                       const SizedBox(width: 4),
                       Text(
                         '(${link['display']})',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           color: Colors.white54,
                           fontSize: 11,
                         ),
@@ -763,7 +861,7 @@ class VideoDescriptionBox extends StatelessWidget {
           if (links.isNotEmpty) const SizedBox(height: 10),
           Text(
             'SOURCE REFERENCES',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
               color: Colors.white70,
@@ -794,7 +892,7 @@ class VideoDescriptionBox extends StatelessWidget {
                       const SizedBox(width: 5),
                       Text(
                         host,
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           color: Colors.white,
                           fontSize: 11,
                           fontWeight: FontWeight.w500,

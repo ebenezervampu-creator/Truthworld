@@ -6,6 +6,8 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/services/image_verification_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -14,6 +16,7 @@ import 'package:truthworld/features/channel/data/models/channel_availability_sta
 import 'package:truthworld/features/channel/data/models/channel_image_data.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_mixins/channel_mixins.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
+import 'package:truthworld/features/channel/presentation/views/channel/wizard/widgets/channel_wizard_view_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:uuid/uuid.dart';
 
@@ -26,13 +29,13 @@ export 'package:truthworld/features/channel/presentation/controllers/channel_sub
 
 class ChannelController extends ChannelControllerBase
     with
-        ChannelAvailabilityMixin,
         ChannelMediaMixin,
         ChannelCreationMixin,
         ChannelDraftMixin,
         ChannelManagementMixin,
         ChannelDetailsMixin,
-        ChannelTopicsMixin {
+        ChannelTopicsMixin,
+        ChannelAvailabilityMixin {
   static final RxMap<String, int> globalSubscriberCounts = <String, int>{}.obs;
 
   bool _isDisposed = false;
@@ -83,7 +86,21 @@ class ChannelController extends ChannelControllerBase
   @override
   final RxBool planSelectionError = false.obs;
   @override
-  final RxString country = 'US'.obs;
+  final RxString country = _resolveDefaultCountry().obs;
+
+  static String _resolveDefaultCountry() {
+    try {
+      if (Get.isRegistered<AuthService>() &&
+          AuthService.to.userCountry.value?.isNotEmpty == true) {
+        return AuthService.to.userCountry.value!;
+      }
+      if (Get.isRegistered<CurrencyLocalizationService>() &&
+          CurrencyLocalizationService.to.userCountryCode.value.isNotEmpty) {
+        return CurrencyLocalizationService.to.userCountryCode.value;
+      }
+    } catch (_) {}
+    return 'IN';
+  }
   @override
   final RxString channelTypeCategory = ''.obs;
   @override
@@ -291,17 +308,19 @@ class ChannelController extends ChannelControllerBase
     if (user != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (isClosed) return;
-        // Auto-populate channel name from user's display name if empty
-        if (channelName.text.isEmpty) {
-          final name = user.displayName ?? '';
-          if (name.isNotEmpty) {
-            channelName.text = name;
-            checkChannelNameAvailability(name);
+        // Auto-populate channel name from user's display name if empty during channel creation wizard
+        if (Get.isRegistered<ChannelWizardViewController>()) {
+          if (channelName.text.isEmpty) {
+            final name = user.displayName ?? '';
+            if (name.isNotEmpty) {
+              channelName.text = name;
+              checkChannelNameAvailability(name);
+            }
           }
-        }
 
-        loadDraft();
-        startAnimations();
+          loadDraft();
+          startAnimations();
+        }
 
         // Keep channels RxList in sync with Firestore
         rxIsLoading.value = true;

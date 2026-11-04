@@ -7,12 +7,12 @@ Widget buildRevenueDistributionCard(RevenueAnalyticsController controller) {
   final memberships = controller.membershipsRevenue.value;
   final superchats = controller.superchatRevenue.value;
   final ads = controller.adsRevenue.value;
-  final watchTime = controller.watchTimeRevenue.value;
+  final premiumSubs = controller.premiumSubsRevenue.value;
 
   final memPct = total > 0 ? (memberships / total) : (memberships > 0 ? 1.0 : 0.0);
   final scPct = total > 0 ? (superchats / total) : 0.0;
   final adsPct = total > 0 ? (ads / total) : 0.0;
-  final wtPct = total > 0 ? (watchTime / total) : 0.0;
+  final premPct = total > 0 ? (premiumSubs / total) : 0.0;
 
   return Container(
     padding: const EdgeInsets.all(18),
@@ -59,9 +59,9 @@ Widget buildRevenueDistributionCard(RevenueAnalyticsController controller) {
                     flex: (adsPct * 1000).toInt().clamp(1, 1000),
                     child: Container(color: const Color(0xFFA1A1AA)),
                   ),
-                if (wtPct > 0)
+                if (premPct > 0)
                   Expanded(
-                    flex: (wtPct * 1000).toInt().clamp(1, 1000),
+                    flex: (premPct * 1000).toInt().clamp(1, 1000),
                     child: Container(color: const Color(0xFF71717A)),
                   ),
                 if (total == 0)
@@ -90,7 +90,7 @@ Widget buildRevenueDistributionCard(RevenueAnalyticsController controller) {
               color: const Color(0xFFA1A1AA),
             ),
             buildRevenueLegendItem(
-              label: 'Watch Time: ${(wtPct * 100).toStringAsFixed(0)}%',
+              label: 'Premium Subs: ${(premPct * 100).toStringAsFixed(0)}%',
               color: const Color(0xFF71717A),
             ),
           ],
@@ -160,8 +160,7 @@ Widget buildPayoutAndUsabilityCard(RevenueAnalyticsController controller) {
         const Text(
           '• Payout Schedule: YouTube-style monthly cycle — open on the 1st of every month with a 1-day grace period on Day 2 (Min ₹100 threshold • Missed earnings roll over automatically).\n'
           '• Two-Phase Settlement: Direct fan tips and memberships clear after a 7-day anti-chargeback hold; ad revenue finalizes at calendar month end.\n'
-          '• Zero-Debt Guarantee: Payout is protected at a floor of ₹0.00 — creator balance never goes negative.\n'
-          '• Instant AI Features: Unwithdrawn revenue can be used anytime for AI Subtitles and Dubbing!',
+          '• Zero-Debt Guarantee: Payout is protected at a floor of ₹0.00 — creator balance never goes negative.',
           style: TextStyle(
             color: AppColors.textSecondary,
             fontSize: 12,

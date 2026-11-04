@@ -225,36 +225,20 @@ class LibraryNavList extends StatelessWidget {
                 title: 'Clips',
                 onTap: AppNavigator.toClips,
               ),
-              LibraryListTile(
+              const LibraryListTile(
                 icon: Icons.file_download_outlined,
                 title: 'Downloads',
-                trailing: const Icon(
+                trailing: Icon(
                   Icons.check_circle,
                   color: AppColors.textPrimary,
                   size: 20,
                 ),
-                onTap: () {
-                  if (Get.isRegistered<HomeController>()) {
-                    Get.find<HomeController>().onSideNavItemSelect(
-                      HomeController.indexDownloads,
-                    );
-                  } else {
-                    AppNavigator.toDownloads();
-                  }
-                },
+                onTap: AppNavigator.toDownloads,
               ),
-              LibraryListTile(
+              const LibraryListTile(
                 icon: Icons.settings_outlined,
                 title: 'Settings',
-                onTap: () {
-                  if (Get.isRegistered<HomeController>()) {
-                    Get.find<HomeController>().onSideNavItemSelect(
-                      HomeController.indexSettings,
-                    );
-                  } else {
-                    AppNavigator.toSettings();
-                  }
-                },
+                onTap: AppNavigator.toSettings,
               ),
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 8),
@@ -341,6 +325,7 @@ class LibraryListTile extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
+        borderRadius: BorderRadius.circular(12),
         onTap: () {
           HapticFeedback.lightImpact();
           onTap();

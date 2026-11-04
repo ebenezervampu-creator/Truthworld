@@ -72,68 +72,26 @@ class AuthFirestoreSync {
 
       if (!docSnapshot.exists) {
         debugPrint(
-          'AuthFirestoreSync: No document found by UID. Checking for legacy/duplicate accounts...',
+          'AuthFirestoreSync: No document found by UID. Creating user profile...',
         );
-        // Immediately notify that onboarding is needed for this new user so the UI is never delayed
         onNeedsOnboardingChanged(true);
 
-        final legacyData = await _consolidateLegacyUserAccounts(
-          user: user,
-          currentUid: user.uid,
-        );
-
-        final hasCompletedOnboarding =
-            legacyData?['hasCompletedOnboarding'] as bool? ?? false;
-        onNeedsOnboardingChanged(!hasCompletedOnboarding);
-
-        final restoredName = (legacyData?['displayName'] as String?) ??
-            (legacyData?['name'] as String?) ??
-            (user.displayName ?? '');
-        final restoredPhoto = (legacyData?['photoURL'] as String?) ??
-            (legacyData?['avatarUrl'] as String?) ??
-            (user.photoURL ?? '');
-
         final newUser = UserModel.fromFirebaseUser(user).copyWith(
-          displayName: restoredName,
-          photoURL: restoredPhoto,
+          displayName: user.displayName ?? '',
+          photoURL: user.photoURL ?? '',
           metadata: metadata,
-          channelId: legacyData?['channelId'] as String?,
-          gender: legacyData?['gender'] as String?,
           age: _sanitizeAge(
-            (legacyData?['age'] as num?)?.toInt() ??
             (lastGooglePeopleData?['age'] as num?)?.toInt(),
           ),
-          ageGroup: legacyData?['ageGroup'] as String?,
-          birthdate:
-              legacyData?['birthdate'] as String? ??
-              lastGooglePeopleData?['birthdate'] as String?,
-          location:
-              legacyData?['location'] as String? ??
-              lastGooglePeopleData?['location'] as String?,
-          city:
-              legacyData?['city'] as String? ?? lastGooglePeopleData?['city'] as String?,
-          state:
-              legacyData?['state'] as String? ?? lastGooglePeopleData?['state'] as String?,
-          country:
-              legacyData?['country'] as String? ??
-              lastGooglePeopleData?['country'] as String?,
-          hasCompletedOnboarding: hasCompletedOnboarding,
+          birthdate: lastGooglePeopleData?['birthdate'] as String?,
+          location: lastGooglePeopleData?['location'] as String?,
+          city: lastGooglePeopleData?['city'] as String?,
+          state: lastGooglePeopleData?['state'] as String?,
+          country: lastGooglePeopleData?['country'] as String?,
+          hasCompletedOnboarding: false,
         );
 
         final createMap = newUser.toFirestoreCreate();
-        if (legacyData != null) {
-          if (legacyData['username'] != null) createMap['username'] = legacyData['username'];
-          if (legacyData['handle'] != null) createMap['handle'] = legacyData['handle'];
-          if (legacyData['bio'] != null) createMap['bio'] = legacyData['bio'];
-          if (legacyData['avatarUrl'] != null) createMap['avatarUrl'] = legacyData['avatarUrl'];
-          if (legacyData['avatarFileId'] != null) createMap['avatarFileId'] = legacyData['avatarFileId'];
-          if (legacyData['avatarStatus'] != null) createMap['avatarStatus'] = legacyData['avatarStatus'];
-          if (legacyData['avatarStatusReason'] != null) createMap['avatarStatusReason'] = legacyData['avatarStatusReason'];
-          if (legacyData['interests'] != null) createMap['interests'] = legacyData['interests'];
-          if (legacyData['topicAffinities'] != null) createMap['topicAffinities'] = legacyData['topicAffinities'];
-          if (legacyData['topicExploreCounts'] != null) createMap['topicExploreCounts'] = legacyData['topicExploreCounts'];
-          if (legacyData['exploredTopicSlugs'] != null) createMap['exploredTopicSlugs'] = legacyData['exploredTopicSlugs'];
-        }
 
         // 🔒 Phase 1 Capacity Enforcement: Cap registrations after 10,000 users
         try {
@@ -165,50 +123,17 @@ class AuthFirestoreSync {
 
         await userDoc.set(createMap, SetOptions(merge: true));
         debugPrint(
-          'AuthFirestoreSync: NEW user record created successfully (legacy data consolidated if present)',
+          'AuthFirestoreSync: NEW user record created successfully.',
         );
 
-        if (restoredName.isNotEmpty && user.displayName != restoredName) {
-          try {
-            await user.updateDisplayName(restoredName);
-          } catch (_) {}
-        }
-        if (restoredPhoto.isNotEmpty && user.photoURL != restoredPhoto) {
-          try {
-            await user.updatePhotoURL(restoredPhoto);
-          } catch (_) {}
-        }
-
-        if (!hasCompletedOnboarding && onPromptOnboarding != null) {
+        if (onPromptOnboarding != null) {
           onPromptOnboarding();
         }
       } else {
         debugPrint(
-          'AuthFirestoreSync: Document exists. Checking for legacy duplicates & updating lifecycle timestamps...',
+          'AuthFirestoreSync: Document exists. Updating lifecycle timestamps...',
         );
         final docData = docSnapshot.data() ?? {};
-
-        final legacyData = await _consolidateLegacyUserAccounts(
-          user: user,
-          currentUid: user.uid,
-          currentDocData: docData,
-        );
-
-        var hasConsolidatedData = false;
-        if (legacyData != null && legacyData.isNotEmpty) {
-          hasConsolidatedData = true;
-          for (final entry in legacyData.entries) {
-            final key = entry.key;
-            final val = entry.value;
-            final cur = docData[key];
-            if (cur == null || (cur is String && cur.trim().isEmpty)) {
-              docData[key] = val;
-            }
-          }
-          if (legacyData['hasCompletedOnboarding'] == true) {
-            docData['hasCompletedOnboarding'] = true;
-          }
-        }
 
         final hasCompletedOnboarding =
             docData['hasCompletedOnboarding'] as bool? ??
@@ -330,8 +255,7 @@ class AuthFirestoreSync {
                 (lastGooglePeopleData['location'] != null &&
                     docData['location'] == null));
 
-        final needsWrite = hasConsolidatedData ||
-            isDeactivated ||
+        final needsWrite = isDeactivated ||
             emailNeedsUpdate ||
             phoneNeedsUpdate ||
             hasNewDisplayName ||
@@ -581,179 +505,6 @@ class AuthFirestoreSync {
         tag: 'AuthFirestoreSync.deleteCollectionInBatches',
       );
     }
-  }
-  /// Searches for and consolidates legacy or duplicate user documents belonging to the same email or phone number.
-  /// Returns a map of consolidated fields to be merged into the active user document.
-  Future<Map<String, dynamic>?> _consolidateLegacyUserAccounts({
-    required User user,
-    required String currentUid,
-    Map<String, dynamic>? currentDocData,
-  }) async {
-    final firestore = FirebaseFirestore.instance;
-    final legacyDocs = <DocumentSnapshot<Map<String, dynamic>>>[];
-    final seenDocIds = <String>{currentUid};
-
-    // Execute parallel lookups for email and phone numbers to eliminate sequential query latency
-    final searchTasks = <Future<void>>[];
-    final email = user.email;
-    if (email != null && email.isNotEmpty) {
-      searchTasks.add(() async {
-        try {
-          final emailQuery = await firestore
-              .collection(FirestoreCollections.users)
-              .where('email', isEqualTo: email)
-              .limit(5)
-              .get()
-              .timeout(const Duration(seconds: 2));
-          for (final doc in emailQuery.docs) {
-            if (!seenDocIds.contains(doc.id)) {
-              seenDocIds.add(doc.id);
-              legacyDocs.add(doc);
-            }
-          }
-        } catch (e, s) {
-          ErrorHandler.log(e, stackTrace: s, tag: 'AuthFirestoreSync.legacyEmailQuery');
-        }
-      }());
-    }
-
-    final phone = user.phoneNumber;
-    if (phone != null && phone.isNotEmpty) {
-      searchTasks.add(() async {
-        try {
-          final phoneQuery = await firestore
-              .collection(FirestoreCollections.users)
-              .where('phoneNumber', isEqualTo: phone)
-              .limit(5)
-              .get()
-              .timeout(const Duration(seconds: 2));
-          for (final doc in phoneQuery.docs) {
-            if (!seenDocIds.contains(doc.id)) {
-              seenDocIds.add(doc.id);
-              legacyDocs.add(doc);
-            }
-          }
-        } catch (e, s) {
-          ErrorHandler.log(e, stackTrace: s, tag: 'AuthFirestoreSync.legacyPhoneQuery');
-        }
-      }());
-
-      searchTasks.add(() async {
-        try {
-          final metaPhoneQuery = await firestore
-              .collection(FirestoreCollections.users)
-              .where('metadata.phoneNumber', isEqualTo: phone)
-              .limit(5)
-              .get()
-              .timeout(const Duration(seconds: 2));
-          for (final doc in metaPhoneQuery.docs) {
-            if (!seenDocIds.contains(doc.id)) {
-              seenDocIds.add(doc.id);
-              legacyDocs.add(doc);
-            }
-          }
-        } catch (e, s) {
-          ErrorHandler.log(e, stackTrace: s, tag: 'AuthFirestoreSync.legacyMetaPhoneQuery');
-        }
-      }());
-    }
-
-    if (searchTasks.isNotEmpty) {
-      await Future.wait(searchTasks);
-    }
-
-    if (legacyDocs.isEmpty) return null;
-
-    debugPrint(
-      'AuthFirestoreSync: Found ${legacyDocs.length} legacy/duplicate user doc(s) for UID: $currentUid. Consolidating...',
-    );
-
-    final mergedData = <String, dynamic>{};
-
-    for (final oldDoc in legacyDocs) {
-      final oldData = oldDoc.data() ?? {};
-
-      void mergeField(String key) {
-        final val = oldData[key];
-        if (val != null) {
-          final currentVal = currentDocData?[key] ?? mergedData[key];
-          if (currentVal == null ||
-              (currentVal is String && currentVal.trim().isEmpty)) {
-            mergedData[key] = val;
-          }
-        }
-      }
-
-      mergeField('displayName');
-      mergeField('name');
-      mergeField('username');
-      mergeField('handle');
-      mergeField('bio');
-      mergeField('photoURL');
-      mergeField('photoUrl');
-      mergeField('avatarUrl');
-      mergeField('avatarFileId');
-      mergeField('avatarStatus');
-      mergeField('avatarStatusReason');
-      mergeField('gender');
-      mergeField('age');
-      mergeField('ageGroup');
-      mergeField('birthdate');
-      mergeField('location');
-      mergeField('city');
-      mergeField('state');
-      mergeField('country');
-      mergeField('profession');
-      mergeField('interests');
-      mergeField('topicAffinities');
-      mergeField('topicExploreCounts');
-      mergeField('exploredTopicSlugs');
-
-      final oldHasCompletedOnboarding =
-          oldData['hasCompletedOnboarding'] as bool? ?? false;
-      if (oldHasCompletedOnboarding) {
-        mergedData['hasCompletedOnboarding'] = true;
-      }
-
-      final oldChannelId = oldData['channelId'] as String?;
-      if (oldChannelId != null && oldChannelId.isNotEmpty) {
-        mergedData['channelId'] = oldChannelId;
-        try {
-          await firestore
-              .collection(FirestoreCollections.channels)
-              .doc(oldChannelId)
-              .update({
-                'ownerId': currentUid,
-                'userId': currentUid,
-                'updatedAt': FieldValue.serverTimestamp(),
-              });
-          debugPrint(
-            'AuthFirestoreSync: Re-linked channel $oldChannelId to active UID $currentUid',
-          );
-        } catch (chErr, chStack) {
-          ErrorHandler.log(
-            chErr,
-            stackTrace: chStack,
-            tag: 'AuthFirestoreSync.relinkChannel',
-          );
-        }
-      }
-
-      try {
-        await oldDoc.reference.delete();
-        debugPrint(
-          'AuthFirestoreSync: Cleaned up legacy user doc ${oldDoc.id}',
-        );
-      } catch (delErr, delStack) {
-        ErrorHandler.log(
-          delErr,
-          stackTrace: delStack,
-          tag: 'AuthFirestoreSync.deleteLegacyDoc',
-        );
-      }
-    }
-
-    return mergedData;
   }
 
   /// Rejects any age outside the valid human range [1, 120].

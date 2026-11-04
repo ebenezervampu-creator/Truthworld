@@ -244,78 +244,107 @@ class _CustomizationView extends StatelessWidget {
   }
 
   Widget _buildBrandingTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionTitle('Channel Banner'),
-          const SizedBox(height: 6),
-          const Text(
-            'Recommended size: 2560 x 1440 pixels (Displays across mobile, desktop & TV feeds)',
-            style: TextStyle(
-              fontFamily: TWTypography.uiFamily,
-              fontFamilyFallback: TWTypography.fallbackFamilies,
-              color: AppColors.textSecondary,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Obx(
-            () => _buildImagePicker(
-              currentUrl: controller.bannerUrl.value,
-              newBytes: controller.newBannerBytes.value,
-              onTap: () => controller.pickImage(false),
-              height: 200,
-              label: 'Channel Banner',
-            ),
-          ),
-          Obx(
-            () => _buildImageStatusNotice(
-              status: controller.bannerStatus.value,
-              reason: controller.bannerStatusReason.value,
-              isBanner: true,
-            ),
-          ),
-          const SizedBox(height: 32),
-          _buildSectionTitle('Channel Avatar'),
-          const SizedBox(height: 6),
-          const Text(
-            'Recommended size: 800 x 800 pixels',
-            style: TextStyle(
-              fontFamily: TWTypography.uiFamily,
-              fontFamilyFallback: TWTypography.fallbackFamilies,
-              color: AppColors.textSecondary,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Obx(
-                  () => _buildImagePicker(
-                    currentUrl: controller.avatarUrl.value,
-                    newBytes: controller.newAvatarBytes.value,
-                    onTap: () => controller.pickImage(true),
-                    height: 150,
-                    isCircular: true,
-                    label: 'Channel Avatar',
-                  ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktop = constraints.maxWidth >= 720;
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. Channel Avatar Section (Picture) - Displayed before banner
+              _buildSectionTitle('Channel Avatar'),
+              const SizedBox(height: 6),
+              const Text(
+                'Your profile picture will appear where your channel is presented on TruthWorld, like next to your videos and comments.',
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  height: 1.4,
                 ),
-                Obx(
-                  () => _buildImageStatusNotice(
-                    status: controller.avatarStatus.value,
-                    reason: controller.avatarStatusReason.value,
-                    isBanner: false,
-                  ),
+              ),
+              const SizedBox(height: 20),
+              if (isDesktop)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildAvatarCard(),
+                    const SizedBox(width: 24),
+                    Expanded(
+                      child: _buildAvatarControls(),
+                    ),
+                  ],
+                )
+              else
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(child: _buildAvatarCard()),
+                    const SizedBox(height: 16),
+                    _buildAvatarControls(),
+                  ],
                 ),
-              ],
-            ),
+
+              const SizedBox(height: 36),
+              const Divider(color: AppColors.bgDivider, height: 1),
+              const SizedBox(height: 36),
+
+              // 2. Channel Banner Section - Industry Standard Size on Desktop
+              _buildSectionTitle('Channel Banner'),
+              const SizedBox(height: 6),
+              const Text(
+                'This image will appear across the top of your channel on desktop, mobile, and TV feeds.',
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 20),
+              if (isDesktop)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: 400,
+                        minWidth: 300,
+                      ),
+                      child: AspectRatio(
+                        aspectRatio: 16 / 9,
+                        child: _buildBannerCard(),
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                    Expanded(
+                      child: _buildBannerControls(),
+                    ),
+                  ],
+                )
+              else
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 420),
+                      child: AspectRatio(
+                        aspectRatio: 16 / 9,
+                        child: _buildBannerCard(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildBannerControls(),
+                  ],
+                ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1092,109 +1121,346 @@ class _CustomizationView extends StatelessWidget {
     );
   }
 
-  Widget _buildImagePicker({
-    required String currentUrl,
-    required Uint8List? newBytes,
-    required VoidCallback onTap,
-    required double height,
-    required String label,
-    bool isCircular = false,
-  }) {
-    Widget imageWidget;
+  Widget _buildAvatarCard() {
+    return Obx(() {
+      final currentUrl = controller.avatarUrl.value;
+      final newBytes = controller.newAvatarBytes.value;
 
-    if (newBytes != null) {
-      imageWidget = Image.memory(newBytes, fit: BoxFit.cover);
-    } else if (currentUrl.isNotEmpty) {
-      final cleanUrl = currentUrl.trim().replaceAll(' ', '%20');
-      imageWidget = CachedNetworkImage(
-        imageUrl: cleanUrl,
-        fit: BoxFit.cover,
-        placeholder: (context, url) => const ColoredBox(
-          color: Color(0xFF1E1E1E),
-        ),
-        errorWidget: (context, url, error) {
-          if (kIsWeb) {
-            return Image.network(
-              cleanUrl,
-              fit: BoxFit.cover,
-              errorBuilder: (context, err, stack) => const ColoredBox(
+      Widget contentWidget;
+      if (newBytes != null) {
+        contentWidget = Image.memory(newBytes, fit: BoxFit.cover);
+      } else if (currentUrl.isNotEmpty) {
+        final cleanUrl = currentUrl.trim().replaceAll(' ', '%20');
+        contentWidget = CachedNetworkImage(
+          imageUrl: cleanUrl,
+          fit: BoxFit.cover,
+          placeholder: (context, url) => const ColoredBox(
+            color: AppColors.bgSurface,
+          ),
+          errorWidget: (context, url, error) {
+            if (kIsWeb) {
+              return Image.network(
+                cleanUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (context, err, stack) =>
+                    _buildAvatarPlaceholder(),
+              );
+            }
+            return _buildAvatarPlaceholder();
+          },
+        );
+      } else {
+        contentWidget = _buildAvatarPlaceholder();
+      }
+
+      return MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: InkWell(
+          onTap: () => controller.pickImage(true),
+          borderRadius: BorderRadius.circular(65),
+          child: SizedBox(
+            width: 130,
+            height: 130,
+            child: Container(
+              decoration: BoxDecoration(
                 color: AppColors.bgSurface,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.broken_image_rounded,
-                      size: 40,
-                      color: Colors.white,
-                    ),
-                    SizedBox(height: 6),
-                    Text(
-                      'Failed to load image',
-                      style: TextStyle(
-                        fontFamily: TWTypography.uiFamily,
-                        fontFamilyFallback: TWTypography.fallbackFamilies,
-                        color: AppColors.textTertiary,
-                        fontSize: 11,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppColors.bgDivider,
+                  width: 2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  contentWidget,
+                  Positioned(
+                    bottom: 4,
+                    right: 4,
+                    child: Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: AppColors.bgSurface,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.bgDivider,
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.camera_alt_rounded,
+                        color: Colors.white,
+                        size: 15,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            );
-          }
-          return const ColoredBox(
-            color: AppColors.bgSurface,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.broken_image_rounded,
-                  size: 40,
+            ),
+          ),
+        ),
+      );
+    });
+  }
+
+  Widget _buildAvatarPlaceholder() {
+    return const ColoredBox(
+      color: AppColors.bgSurface,
+      child: Center(
+        child: Icon(
+          Icons.account_circle_rounded,
+          size: 64,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatarControls() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'It’s recommended to use a picture that’s at least 98 x 98 pixels (800 x 800 recommended) and 4MB or less. Use a PNG or JPG file. Make sure your picture follows the TruthWorld Community Guidelines.',
+          style: TextStyle(
+            fontFamily: TWTypography.uiFamily,
+            fontFamilyFallback: TWTypography.fallbackFamilies,
+            color: AppColors.textSecondary,
+            fontSize: 12,
+            height: 1.45,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Obx(() {
+          final hasAvatar = controller.newAvatarBytes.value != null ||
+              controller.avatarUrl.value.isNotEmpty;
+
+          return Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => controller.pickImage(true),
+                icon: const Icon(
+                  Icons.file_upload_outlined,
+                  size: 16,
                   color: Colors.white,
                 ),
-                SizedBox(height: 6),
-                Text(
-                  'Failed to load image',
-                  style: TextStyle(
+                label: Text(
+                  hasAvatar ? 'Change' : 'Upload',
+                  style: const TextStyle(
                     fontFamily: TWTypography.uiFamily,
                     fontFamilyFallback: TWTypography.fallbackFamilies,
-                    color: AppColors.textTertiary,
-                    fontSize: 11,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
                   ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: AppColors.bgElevated),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+              if (hasAvatar)
+                TextButton.icon(
+                  onPressed: controller.removeAvatar,
+                  icon: const Icon(
+                    Icons.delete_outline_rounded,
+                    size: 16,
+                    color: AppColors.textSecondary,
+                  ),
+                  label: const Text(
+                    'Remove',
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      fontFamilyFallback: TWTypography.fallbackFamilies,
+                      color: AppColors.textSecondary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        }),
+        Obx(
+          () => _buildImageStatusNotice(
+            status: controller.avatarStatus.value,
+            reason: controller.avatarStatusReason.value,
+            isBanner: false,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBannerCard() {
+    return Obx(() {
+      final currentUrl = controller.bannerUrl.value;
+      final newBytes = controller.newBannerBytes.value;
+      final hasBanner = newBytes != null || currentUrl.isNotEmpty;
+
+      Widget contentWidget;
+      if (newBytes != null) {
+        contentWidget = Image.memory(newBytes, fit: BoxFit.cover);
+      } else if (currentUrl.isNotEmpty) {
+        final cleanUrl = currentUrl.trim().replaceAll(' ', '%20');
+        contentWidget = CachedNetworkImage(
+          imageUrl: cleanUrl,
+          fit: BoxFit.cover,
+          placeholder: (context, url) => const ColoredBox(
+            color: AppColors.bgSurface,
+          ),
+          errorWidget: (context, url, error) {
+            if (kIsWeb) {
+              return Image.network(
+                cleanUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (context, err, stack) =>
+                    _buildBannerPlaceholder(hasError: true),
+              );
+            }
+            return _buildBannerPlaceholder(hasError: true);
+          },
+        );
+      } else {
+        contentWidget = _buildBannerPlaceholder(hasError: false);
+      }
+
+      return MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: InkWell(
+          onTap: () => controller.pickImage(false),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.bgSurface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppColors.bgDivider,
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
                 ),
               ],
             ),
-          );
-        },
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                contentWidget,
+                if (hasBanner) ...[
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            AppColors.bgPage.withValues(alpha: 0.35),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 10,
+                    right: 10,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.bgSurfaceHover,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.camera_alt_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
       );
-    } else {
-      imageWidget = ColoredBox(
-        color: AppColors.bgSurface,
+    });
+  }
+
+  Widget _buildBannerPlaceholder({required bool hasError}) {
+    return ColoredBox(
+      color: AppColors.bgSurface,
+      child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              isCircular
-                  ? Icons.account_circle_rounded
+              hasError
+                  ? Icons.broken_image_rounded
                   : Icons.add_photo_alternate_rounded,
-              size: 48,
+              size: 38,
               color: Colors.white,
             ),
             const SizedBox(height: 8),
             Text(
-              'Upload $label',
-              style: const TextStyle(
+              hasError ? 'Failed to load banner' : 'Upload Channel Banner',
+              style: TextStyle(
                 fontFamily: TWTypography.uiFamily,
                 fontFamilyFallback: TWTypography.fallbackFamilies,
-                color: AppColors.textSecondary,
+                color: hasError
+                    ? AppColors.textTertiary
+                    : AppColors.textSecondary,
                 fontSize: 13,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
-              'Tap to select image',
-              style: TextStyle(
+            Text(
+              hasError ? 'Click to re-select' : 'Recommended 2560 x 1440 px',
+              style: const TextStyle(
                 fontFamily: TWTypography.uiFamily,
                 fontFamilyFallback: TWTypography.fallbackFamilies,
                 color: AppColors.textTertiary,
@@ -1203,92 +1469,111 @@ class _CustomizationView extends StatelessWidget {
             ),
           ],
         ),
-      );
-    }
-
-    final pickerCard = Container(
-      height: isCircular ? height : null,
-      width: isCircular ? height : double.infinity,
-      decoration: BoxDecoration(
-        color: AppColors.bgSurface,
-        borderRadius: isCircular
-            ? BorderRadius.circular(height / 2)
-            : BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.bgDivider,
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        children: [
-          Positioned.fill(child: imageWidget),
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    AppColors.bgPage.withValues(alpha: 0.35),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 12,
-            right: 12,
-            child: Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.bgSurfaceHover,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.3),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.camera_alt_rounded,
-                color: Colors.white,
-                size: 18,
-              ),
-            ),
-          ),
-        ],
       ),
     );
+  }
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: isCircular
-            ? BorderRadius.circular(height / 2)
-            : BorderRadius.circular(12),
-        child: isCircular
-            ? SizedBox(
-                width: height,
-                height: height,
-                child: pickerCard,
-              )
-            : AspectRatio(
-                aspectRatio: 16 / 9,
-                child: pickerCard,
+  Widget _buildBannerControls() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'For the best results on all devices, use an image that’s at least 2048 x 1152 pixels (2560 x 1440 recommended) and 6MB or less.',
+          style: TextStyle(
+            fontFamily: TWTypography.uiFamily,
+            fontFamilyFallback: TWTypography.fallbackFamilies,
+            color: AppColors.textSecondary,
+            fontSize: 12,
+            height: 1.45,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Safe Area: Logos and text should remain centered within the 1546 x 423 px safe zone so they display consistently across TV, desktop, and mobile screens.',
+          style: TextStyle(
+            fontFamily: TWTypography.uiFamily,
+            fontFamilyFallback: TWTypography.fallbackFamilies,
+            color: AppColors.textTertiary,
+            fontSize: 11,
+            height: 1.4,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Obx(() {
+          final hasBanner = controller.newBannerBytes.value != null ||
+              controller.bannerUrl.value.isNotEmpty;
+
+          return Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => controller.pickImage(false),
+                icon: const Icon(
+                  Icons.file_upload_outlined,
+                  size: 16,
+                  color: Colors.white,
+                ),
+                label: Text(
+                  hasBanner ? 'Change' : 'Upload',
+                  style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: AppColors.bgElevated),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
               ),
-      ),
+              if (hasBanner)
+                TextButton.icon(
+                  onPressed: controller.removeBanner,
+                  icon: const Icon(
+                    Icons.delete_outline_rounded,
+                    size: 16,
+                    color: AppColors.textSecondary,
+                  ),
+                  label: const Text(
+                    'Remove',
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      fontFamilyFallback: TWTypography.fallbackFamilies,
+                      color: AppColors.textSecondary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        }),
+        Obx(
+          () => _buildImageStatusNotice(
+            status: controller.bannerStatus.value,
+            reason: controller.bannerStatusReason.value,
+            isBanner: true,
+          ),
+        ),
+      ],
     );
   }
 

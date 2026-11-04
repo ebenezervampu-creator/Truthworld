@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/theme/app_colors.dart';
 import 'package:truthworld/theme/dark_professional_theme.dart';
@@ -142,7 +141,7 @@ class NavRailSectionHeader extends StatelessWidget {
       padding: const EdgeInsets.only(left: 4, bottom: 8, top: 4),
       child: Text(
         title,
-        style: GoogleFonts.roboto(
+        style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w500,
           color: isDarkMode ? Colors.white54 : AppColors.textSecondary,

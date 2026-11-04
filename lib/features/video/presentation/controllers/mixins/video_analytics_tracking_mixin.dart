@@ -36,6 +36,10 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
   bool get isAlreadyWatched;
   set isAlreadyWatched(bool val);
 
+  String? _playbackSessionId;
+  String get playbackSessionId =>
+      _playbackSessionId ??= 'session_${video.id}_${DateTime.now().millisecondsSinceEpoch}_${math.Random().nextInt(10000)}';
+
   bool get isAlreadyWatchedVideo {
     if (isAlreadyWatched) return true;
     final dur = video.durationSeconds > 0
@@ -179,6 +183,7 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
       isNotSubscriber: !isSub,
       trafficSource: trafficSource,
       viewerHash: viewerHash.isNotEmpty ? viewerHash : null,
+      sessionId: playbackSessionId,
     );
   }
 
@@ -274,6 +279,7 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
       trafficSource: trafficSource,
       viewerHash: viewerHash.isNotEmpty ? viewerHash : null,
       dedupKey: dedupKey,
+      sessionId: playbackSessionId,
     );
   }
 

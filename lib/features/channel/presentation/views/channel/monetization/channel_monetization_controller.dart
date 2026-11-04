@@ -43,15 +43,21 @@ class ChannelMonetizationController extends GetxController {
 
   SpendableBalance get spendableBalance {
     final isCustom = channel.channelType == ChannelType.custom;
+    final membershipPlatformCutRate = (!isCustom && channel.noAdsForMembers)
+        ? 0.30
+        : (!isCustom ? 0.10 : 0.0);
+    final membershipPlatformCut = membershipsRevenue * membershipPlatformCutRate;
+    final creatorMemberships = membershipsRevenue * (1.0 - membershipPlatformCutRate);
+    final creatorTips = isCustom ? tipsRevenue : (tipsRevenue * 0.90);
+    final platformTips = isCustom ? 0.0 : (tipsRevenue * 0.10);
+
     final totalCreatorRevenue =
-        adRevenue + premiumSubRevenue + tipsRevenue + membershipsRevenue;
-    final membershipPlatformCut = (!isCustom && channel.noAdsForMembers)
-        ? ((membershipsRevenue > 0 ? membershipsRevenue / 0.70 : 0.0) * 0.30)
-        : 0.0;
+        adRevenue + premiumSubRevenue + creatorTips + creatorMemberships;
     final platformCut = isCustom
         ? 0.0
         : (((adRevenue > 0 ? adRevenue / 0.70 : 0.0) * 0.30) +
             ((premiumSubRevenue > 0 ? premiumSubRevenue / 0.70 : 0.0) * 0.30) +
+            platformTips +
             membershipPlatformCut);
     final grossTotal = totalCreatorRevenue + platformCut;
     return walletService.getSpendableBalance(
@@ -275,6 +281,7 @@ class ChannelMonetizationController extends GetxController {
     BuildContext context,
     CustomChannelPlanTier plan,
   ) async {
+    selectedPlanId.value = plan.id;
     final spendable = spendableBalance;
     if (spendable.canAfford(plan.priceUSD)) {
       await subscribePlanWithBalance(context, plan);
@@ -283,60 +290,63 @@ class ChannelMonetizationController extends GetxController {
 
     // Direct Cashfree payment with Auto Pay option
     isUpdatingRx.value = true;
-    final success = await walletService.buyCustomPlanWithCashfree(
-      channel: channel,
-      plan: plan,
-      autoPay: autoPayEnabled.value,
-    );
-
-    if (success) {
-      final existingInfra = channel.infraConfig;
-      final updatedInfra = CustomChannelInfraConfig(
-        stripeConnectAccountId: existingInfra?.stripeConnectAccountId ?? '',
-        subscriptionId: existingInfra?.subscriptionId ?? 'sub_${channel.id}',
-        storageUsedBytes: existingInfra?.storageUsedBytes ?? 0,
-        storageQuotaBytes: plan.storageGB * 1024 * 1024 * 1024,
-        bandwidthUsedBytesThisMonth: existingInfra?.bandwidthUsedBytesThisMonth ?? 0,
-        bandwidthQuotaBytesThisMonth: plan.bandwidthGB * 1024 * 1024 * 1024,
-        planTier: plan.id,
+    try {
+      final success = await walletService.buyCustomPlanWithCashfree(
+        channel: channel,
+        plan: plan,
         autoPay: autoPayEnabled.value,
       );
 
-      channelRx.value = Channel(
-        id: channel.id,
-        name: channel.name,
-        nameLowercase: channel.nameLowercase,
-        handle: channel.handle,
-        handleLowercase: channel.handleLowercase,
-        description: channel.description,
-        avatarUrl: channel.avatarUrl,
-        bannerUrl: channel.bannerUrl,
-        ownerId: channel.ownerId,
-        createdAt: channel.createdAt,
-        updatedAt: Timestamp.now(),
-        subscriberCount: channel.subscriberCount,
-        videoCount: channel.videoCount,
-        metrics: channel.metrics,
-        status: channel.status,
-        isVerified: channel.isVerified,
-        category: channel.category,
-        categories: channel.categories,
-        language: channel.language,
-        monetizationTier: channel.monetizationTier,
-        channelType: ChannelType.custom,
-        infraConfig: updatedInfra,
-      );
-      selectedPlanId.value = plan.id;
+      if (success) {
+        final existingInfra = channel.infraConfig;
+        final updatedInfra = CustomChannelInfraConfig(
+          stripeConnectAccountId: existingInfra?.stripeConnectAccountId ?? '',
+          subscriptionId: existingInfra?.subscriptionId ?? 'sub_${channel.id}',
+          storageUsedBytes: existingInfra?.storageUsedBytes ?? 0,
+          storageQuotaBytes: plan.storageGB * 1024 * 1024 * 1024,
+          bandwidthUsedBytesThisMonth: existingInfra?.bandwidthUsedBytesThisMonth ?? 0,
+          bandwidthQuotaBytesThisMonth: plan.bandwidthGB * 1024 * 1024 * 1024,
+          planTier: plan.id,
+          autoPay: autoPayEnabled.value,
+        );
 
-      final autoPayNote = autoPayEnabled.value
-          ? ' Auto Pay is active for monthly renewals.'
-          : ' Valid for 1 month.';
-      AppSnackbar.success(
-        'Successfully subscribed to ${plan.title} plan (\$${plan.priceUSD.toStringAsFixed(0)}/mo)!$autoPayNote',
-        title: 'Plan Activated!',
-      );
+        channelRx.value = Channel(
+          id: channel.id,
+          name: channel.name,
+          nameLowercase: channel.nameLowercase,
+          handle: channel.handle,
+          handleLowercase: channel.handleLowercase,
+          description: channel.description,
+          avatarUrl: channel.avatarUrl,
+          bannerUrl: channel.bannerUrl,
+          ownerId: channel.ownerId,
+          createdAt: channel.createdAt,
+          updatedAt: Timestamp.now(),
+          subscriberCount: channel.subscriberCount,
+          videoCount: channel.videoCount,
+          metrics: channel.metrics,
+          status: channel.status,
+          isVerified: channel.isVerified,
+          category: channel.category,
+          categories: channel.categories,
+          language: channel.language,
+          monetizationTier: channel.monetizationTier,
+          channelType: ChannelType.custom,
+          infraConfig: updatedInfra,
+        );
+        selectedPlanId.value = plan.id;
+
+        final autoPayNote = autoPayEnabled.value
+            ? ' Auto Pay is active for monthly renewals.'
+            : ' Valid for 1 month.';
+        AppSnackbar.success(
+          'Successfully subscribed to ${plan.title} plan (\$${plan.priceUSD.toStringAsFixed(0)}/mo)!$autoPayNote',
+          title: 'Plan Activated!',
+        );
+      }
+    } finally {
+      isUpdatingRx.value = false;
     }
-    isUpdatingRx.value = false;
   }
 
   /// Evaluates and compiles real-time hype surge metrics across all 4 revenue streams

@@ -34,8 +34,6 @@ void main() {
   final testData = <String, dynamic>{
     'trustScore': 85.0,
     'truthScore': 90.0,
-    'honestyScore': 82.0,
-    'rationalityScore': 88.0,
     'confidence': 0.92,
     'factCheckStats': {
       'totalClaims': 5,
@@ -121,13 +119,10 @@ void main() {
       expect(find.text('AI FULL DISCLOSURE'), findsOneWidget);
       expect(find.text('CRYPTO-VERIFIED ANALYSIS'), findsOneWidget);
 
-      // Verify metrics
-      expect(find.text('TRUTH'), findsOneWidget);
-      expect(find.text('HONESTY'), findsOneWidget);
-      expect(find.text('LOGIC'), findsOneWidget);
-      expect(find.text('90%'), findsOneWidget);
-      expect(find.text('82%'), findsOneWidget);
-      expect(find.text('88%'), findsOneWidget);
+      // Verify subjective pseudo-metrics are removed
+      expect(find.text('TRUTH'), findsNothing);
+      expect(find.text('HONESTY'), findsNothing);
+      expect(find.text('LOGIC'), findsNothing);
 
       // Verify confidence bar
       expect(find.text('ANALYSIS CONFIDENCE'), findsOneWidget);
@@ -211,27 +206,6 @@ void main() {
       expect(find.text('No additional diagnostic data recorded.'), findsOneWidget);
     });
 
-    testWidgets('FactCheckMetricsRow & FactCheckMetricRing render scores correctly', (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
-            body: FactCheckMetricsRow(
-              truth: 95.0,
-              honesty: 85.0,
-              rationality: 75.0,
-            ),
-          ),
-        ),
-      );
-      await tester.pump(const Duration(seconds: 3));
-
-      expect(find.text('95%'), findsOneWidget);
-      expect(find.text('85%'), findsOneWidget);
-      expect(find.text('75%'), findsOneWidget);
-      expect(find.text('TRUTH'), findsOneWidget);
-      expect(find.text('HONESTY'), findsOneWidget);
-      expect(find.text('LOGIC'), findsOneWidget);
-    });
 
     testWidgets('FactCheckConfidenceBar normalizes >1.0 and displays percent', (tester) async {
       await tester.pumpWidget(

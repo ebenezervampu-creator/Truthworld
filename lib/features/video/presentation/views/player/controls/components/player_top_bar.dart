@@ -1,7 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -12,6 +11,7 @@ import 'package:truthworld/features/video/presentation/views/player/controls/com
 import 'package:truthworld/features/video/presentation/views/player/controls/components/player_notifications_dialog.dart';
 import 'package:truthworld/features/video/presentation/views/player/controls/fullscreen_actions_bar.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
+import 'package:truthworld/features/video/presentation/views/player/overlays/components/audio_only_overlay.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class PlayerTopBar extends StatelessWidget {
@@ -61,11 +61,15 @@ class PlayerTopBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Back / minimize fullscreen
+          // Back / minimize fullscreen or minimize to miniplayer (YouTube style)
           IconBtn(
-            icon: Icons.arrow_back_rounded,
+            icon: ctrl.isFullScreen.value
+                ? Icons.arrow_back_rounded
+                : Icons.keyboard_arrow_down_rounded,
             size: 22,
-            onTap: ctrl.toggleFullscreen,
+            onTap: ctrl.isFullScreen.value
+                ? ctrl.toggleFullscreen
+                : () => vc?.minimizeWithAnimation(),
           ),
           const SizedBox(width: 8),
 
@@ -124,36 +128,56 @@ class PlayerTopBar extends StatelessWidget {
           ),
 
           // Right cluster: Channel Subscribe + Action Dock
-          if (ctrl.isFullScreen.value && vc != null) ...[
-            if (isWide && subCtrl != null) ...[
+          if (ctrl.isFullScreen.value) ...[
+            if (vc != null && isWide && subCtrl != null) ...[
               const SizedBox(width: 14),
               // Channel Avatar
-              ClipOval(
-                child: vc.video.channelAvatarUrl.isNotEmpty
-                    ? CachedNetworkImage(
-                        imageUrl: vc.video.channelAvatarUrl,
-                        width: 28,
-                        height: 28,
-                        fit: BoxFit.cover,
-                      )
-                    : Container(
-                        width: 28,
-                        height: 28,
-                        color: AppColors.textSecondary,
-                        child: const Icon(
-                          Icons.person,
-                          size: 16,
-                          color: AppColors.textPrimary,
+              InkWell(
+                onTap: () {
+                  final chId = vc!.video.channelId.isNotEmpty
+                      ? vc.video.channelId
+                      : vc.video.ownerId;
+                  if (chId.isNotEmpty) {
+                    if (ctrl.isFullScreen.value) {
+                      ctrl.toggleFullscreen();
+                    }
+                    Get.toNamed('/channel/$chId');
+                  }
+                },
+                borderRadius: BorderRadius.circular(14),
+                child: ClipOval(
+                  child: vc.video.channelAvatarUrl.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: vc.video.channelAvatarUrl,
+                          width: 28,
+                          height: 28,
+                          fit: BoxFit.cover,
+                        )
+                      : Container(
+                          width: 28,
+                          height: 28,
+                          color: AppColors.textSecondary,
+                          child: const Icon(
+                            Icons.person,
+                            size: 16,
+                            color: AppColors.textPrimary,
+                          ),
                         ),
-                      ),
+                ),
               ),
               const SizedBox(width: 8),
               // Subscribe Button & Notification Bell
               _buildSubscribeButton(context, vc, subCtrl),
             ],
-            const SizedBox(width: 10),
-            // Floating Action Dock (Like, Comments, Share, More ⋯)
-            FullscreenFloatingActionDock(ctrl: ctrl, vc: vc),
+            if (ctrl.isAudioOnly.value && !ctrl.isPiP.value) ...[
+              const SizedBox(width: 8),
+              AudioThemeSwitcherPill(ctrl: ctrl),
+            ],
+            if (vc != null) ...[
+              const SizedBox(width: 10),
+              // Floating Action Dock (Like, Comments, Share, More ⋯)
+              FullscreenFloatingActionDock(ctrl: ctrl, vc: vc),
+            ],
           ],
         ],
       ),
@@ -167,6 +191,8 @@ class PlayerTopBar extends StatelessWidget {
     bool compact = false,
   }) {
     final video = vc.video;
+    if (video.isNonCredibilityCategory) return const SizedBox.shrink();
+
     final currentUid = AuthService.to.uid;
     final userChannelId = AuthService.to.userChannel?.id;
     final isOwner = currentUid.isNotEmpty &&
@@ -203,7 +229,6 @@ class PlayerTopBar extends StatelessWidget {
             ctrl.showFactCheckPopup.value = ctrl.overlayManager.isFactCheckOpen;
             ctrl.showCommentsPopup.value = false;
             ctrl.showTranscriptPopup.value = false;
-            ctrl.showLiveChat.value = false;
             ctrl.startHideTimer();
           },
           borderRadius: BorderRadius.circular(14),
@@ -252,11 +277,29 @@ class PlayerTopBar extends StatelessWidget {
     VideoController vc,
     ChannelSubscriptionController subCtrl,
   ) {
+    final effectiveChannelId = vc.video.channelId.isNotEmpty
+        ? vc.video.channelId
+        : vc.video.ownerId;
+
+    final currentUid = AuthService.to.uid;
+    final userChannelId = AuthService.to.userChannel?.id;
+    final isOwner = currentUid.isNotEmpty &&
+        (vc.video.ownerId == currentUid ||
+            vc.video.userId == currentUid ||
+            (userChannelId != null &&
+                userChannelId.isNotEmpty &&
+                (vc.video.channelId == userChannelId ||
+                    effectiveChannelId == userChannelId)));
+
+    if (isOwner || effectiveChannelId.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return Obx(() {
-      final isSubbed = subCtrl.isSubscribedTo(vc.video.channelId).value;
+      final isSubbed = subCtrl.isSubscribedTo(effectiveChannelId).value;
       final notificationsEnabled = subCtrl.notificationsEnabled.value;
       final notificationOption =
-          subCtrl.getNotificationOption(vc.video.channelId).value;
+          subCtrl.getNotificationOption(effectiveChannelId).value;
 
       IconData bellIcon;
       if (!notificationsEnabled || notificationOption == 'none') {
@@ -279,7 +322,7 @@ class PlayerTopBar extends StatelessWidget {
                   'Please sign in to subscribe to channels.',
                   title: 'Sign In Required',
                   actionLabel: 'SIGN IN',
-                  onAction: () => AuthBottomSheet.show(context),
+                  onAction: () => AuthService.to.triggerPlatformSignIn(),
                 );
                 return;
               }
@@ -287,11 +330,11 @@ class PlayerTopBar extends StatelessWidget {
                 PlayerNotificationsDialog.show(
                   context,
                   subCtrl,
-                  vc.video.channelId,
+                  effectiveChannelId,
                   channelName: vc.video.channelName,
                 );
               } else {
-                subCtrl.subscribeToChannel(vc.video.channelId);
+                subCtrl.subscribeToChannel(effectiveChannelId);
               }
             },
             borderRadius: BorderRadius.circular(14),
@@ -341,7 +384,7 @@ class PlayerTopBar extends StatelessWidget {
                 PlayerNotificationsDialog.show(
                   context,
                   subCtrl,
-                  vc.video.channelId,
+                  effectiveChannelId,
                   channelName: vc.video.channelName,
                 );
               },

@@ -1,9 +1,11 @@
+import 'dart:math';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
-/// Theme 2: Retro Vinyl Turntable
-/// Spinning 33⅓ RPM grooved vinyl record with album art center, rotational animation, and analog audio vibe.
+/// Theme 2: Classic Vinyl Turntable
+/// Audiophile-grade precision vinyl experience with micro-grooved matte obsidian disc,
+/// rotating album art center label, and warm, refined analog aesthetic.
 class RetroVinylTheme extends StatefulWidget {
   const RetroVinylTheme({
     required this.isPlaying,
@@ -27,7 +29,7 @@ class _RetroVinylThemeState extends State<RetroVinylTheme>
     super.initState();
     _spinController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 8), // ~33 RPM aesthetic
+      duration: const Duration(seconds: 8), // ~33⅓ RPM aesthetic
     );
     if (widget.isPlaying) {
       _spinController.repeat();
@@ -59,22 +61,27 @@ class _RetroVinylThemeState extends State<RetroVinylTheme>
         : 'TruthWorld Vinyl Master';
     final channel = widget.video?.channelName.isNotEmpty == true
         ? widget.video!.channelName
-        : 'TruthWorld Acoustic Records';
+        : 'Acoustic Master Series';
     final thumb = widget.video?.thumbnailUrl ?? '';
 
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Warm Analog Background
-        const ColoredBox(color: Color(0xFF0C0D10)),
+        // Warm Charcoal Studio Backdrop
+        const ColoredBox(color: Color(0xFF0A0A0D)),
+
+        // Soft Ambient Studio Light
         Container(
           decoration: BoxDecoration(
             gradient: RadialGradient(
-              radius: 0.9,
+              center: Alignment.center,
+              radius: 0.95,
               colors: [
-                const Color(0xFFD97706).withValues(alpha: 0.12),
-                Colors.black,
+                const Color(0xFFD4AF37).withValues(alpha: 0.05), // Subtle titanium gold hint
+                Colors.black.withValues(alpha: 0.7),
+                const Color(0xFF0A0A0D),
               ],
+              stops: const [0.0, 0.6, 1.0],
             ),
           ),
         ),
@@ -82,58 +89,49 @@ class _RetroVinylThemeState extends State<RetroVinylTheme>
         // Center Stage Vinyl Record + Metadata
         Center(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Spinning Grooved Vinyl Disc
-                RotationTransition(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isNarrow = constraints.maxWidth < 440;
+                final discSize = isNarrow ? 120.0 : 136.0;
+
+                final discWidget = RotationTransition(
                   turns: _spinController,
                   child: Container(
-                    width: 120,
-                    height: 120,
+                    width: discSize,
+                    height: discSize,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: const Color(0xFF141416),
+                      color: const Color(0xFF0F0F12),
                       border: Border.all(
-                        color: const Color(0xFF26262B),
-                        width: 4,
+                        color: Colors.white.withValues(alpha: 0.12),
+                        width: 1.5,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.85),
-                          blurRadius: 30,
-                          spreadRadius: 4,
-                        ),
-                        BoxShadow(
-                          color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
-                          blurRadius: 15,
+                          color: Colors.black.withValues(alpha: 0.7),
+                          blurRadius: 28,
+                          offset: const Offset(0, 10),
                         ),
                       ],
                     ),
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        // Concentric Grooves
+                        // Micro Grooves
                         CustomPaint(
-                          size: const Size(120, 120),
+                          size: Size(discSize, discSize),
                           painter: _VinylGroovesPainter(),
                         ),
-                        // Center Vinyl Label with Thumbnail
+                        // Circular Album Art Center Label
                         Container(
-                          width: 52,
-                          height: 52,
+                          width: discSize * 0.42,
+                          height: discSize * 0.42,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: const Color(0xFFF59E0B),
-                              width: 1.5,
-                            ),
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFB45309), Color(0xFFF59E0B)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
+                              color: Colors.white.withValues(alpha: 0.25),
+                              width: 1.2,
                             ),
                           ),
                           child: ClipOval(
@@ -141,117 +139,142 @@ class _RetroVinylThemeState extends State<RetroVinylTheme>
                                 ? CachedNetworkImage(
                                     imageUrl: thumb,
                                     fit: BoxFit.cover,
-                                    errorWidget: (_, _, _) =>
-                                        _vinylCenterHole(),
+                                    errorWidget: (_, _, _) => _vinylCenterHole(),
                                     placeholder: (_, _) => _vinylCenterHole(),
                                   )
                                 : _vinylCenterHole(),
                           ),
                         ),
-                        // Spindle Hole
+                        // Brushed Aluminum Spindle Ring
                         Container(
                           width: 10,
                           height: 10,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: Colors.black,
+                            color: const Color(0xFF18181B),
                             border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.3),
+                              color: Colors.white.withValues(alpha: 0.5),
+                              width: 1.5,
                             ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
+                );
 
-                const SizedBox(width: 16),
-
-                // Vinyl Metadata Card
-                Flexible(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 300),
-                    child: Column(
+                final metaWidget = Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: isNarrow
+                      ? CrossAxisAlignment.center
+                      : CrossAxisAlignment.start,
+                  children: [
+                    // Clean Frosted Badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.14),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.album_rounded,
+                            size: 11,
+                            color: widget.isPlaying
+                                ? const Color(0xFFE2E8F0)
+                                : Colors.white38,
+                          ),
+                          const SizedBox(width: 5),
+                          const Text(
+                            '33⅓ RPM VINYL',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: isNarrow ? TextAlign.center : TextAlign.start,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      channel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: isNarrow ? TextAlign.center : TextAlign.start,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.65),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    // Analog Status
+                    Row(
                       mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 5,
-                                height: 5,
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Color(0xFFF59E0B),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              const Flexible(
-                                child: Text(
-                                  '33⅓ RPM HIGH-FIDELITY',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Color(0xFFFBBF24),
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 0.8,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
                         Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          channel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          widget.isPlaying ? 'PLAYING ANALOG MASTER' : 'PAUSED',
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.7),
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Analog Remaster • Lossless Stereo',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.4),
+                            color: Colors.white.withValues(alpha: 0.45),
                             fontSize: 10,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.6,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ),
-              ],
+                  ],
+                );
+
+                if (isNarrow) {
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      discWidget,
+                      const SizedBox(height: 14),
+                      Flexible(child: metaWidget),
+                    ],
+                  );
+                }
+
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    discWidget,
+                    const SizedBox(width: 24),
+                    Flexible(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 300),
+                        child: metaWidget,
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -260,10 +283,14 @@ class _RetroVinylThemeState extends State<RetroVinylTheme>
   }
 
   Widget _vinylCenterHole() {
-    return const ColoredBox(
-      color: Color(0xFFB45309),
-      child: Center(
-        child: Icon(Icons.album_rounded, size: 28, color: Colors.white70),
+    return Container(
+      color: const Color(0xFF1E2028),
+      child: const Center(
+        child: Icon(
+          Icons.music_note_rounded,
+          size: 18,
+          color: Colors.white70,
+        ),
       ),
     );
   }
@@ -273,16 +300,43 @@ class _VinylGroovesPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final paint = Paint()
+    final maxR = size.width / 2;
+
+    final groovePaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.045)
       ..style = PaintingStyle.stroke
-      ..color = Colors.white.withValues(alpha: 0.05)
       ..strokeWidth = 1.0;
 
-    for (var r = 32.0; r < size.width / 2 - 4; r += 5.5) {
-      canvas.drawCircle(center, r, paint);
+    // Concentric micro-grooves
+    final grooveRadii = [
+      maxR * 0.52,
+      maxR * 0.60,
+      maxR * 0.68,
+      maxR * 0.76,
+      maxR * 0.84,
+      maxR * 0.92,
+    ];
+
+    for (final r in grooveRadii) {
+      canvas.drawCircle(center, r, groovePaint);
     }
+
+    // Dynamic light sheen across grooves
+    final sheenPaint = Paint()
+      ..shader = SweepGradient(
+        colors: [
+          Colors.transparent,
+          Colors.white.withValues(alpha: 0.07),
+          Colors.transparent,
+          Colors.white.withValues(alpha: 0.05),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 0.25, 0.5, 0.75, 1.0],
+      ).createShader(Rect.fromCircle(center: center, radius: maxR));
+
+    canvas.drawCircle(center, maxR - 4, sheenPaint);
   }
 
   @override
-  bool shouldRepaint(_VinylGroovesPainter oldDelegate) => false;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

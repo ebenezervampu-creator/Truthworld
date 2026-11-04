@@ -5,7 +5,6 @@ import 'package:truthworld/core/services/infrastructure_metering_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/monetization/monetization_widgets.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_account_hub_card.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_wallet_card.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 export 'package:truthworld/features/channel/presentation/views/channel/monetization/monetization_widgets.dart';

@@ -6,7 +6,9 @@ import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/video_options_sheet.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/widgets/channel_verified_badge.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/explore_topics_controller.dart';
@@ -39,6 +41,16 @@ class ExploreTopicVideoSection extends StatelessWidget {
     final followingController = Get.isRegistered<FollowingTopicsController>()
         ? Get.find<FollowingTopicsController>()
         : Get.put(FollowingTopicsController());
+
+    // Lazy load videos for this topic if not already fetched
+    if (!controller.topicVideosMap.containsKey(key) &&
+        controller.isLoadingVideosMap[key] != true) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!controller.isClosed) {
+          controller.fetchVideosForTopic(topic);
+        }
+      });
+    }
 
     final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS;
@@ -79,7 +91,7 @@ class ExploreTopicVideoSection extends StatelessWidget {
                     children: [
                       Flexible(
                         child: Text(
-                          'Explore ${topic.title}',
+                          'Explore ${topic.name}',
                           style: TextStyle(
                             fontSize: isMobile ? 18 : (isTablet ? 22 : 24),
                             fontWeight: FontWeight.bold,
@@ -356,6 +368,9 @@ class HorizontalVideoCard extends StatelessWidget {
                     child: CachedNetworkImage(
                       imageUrl: video.thumbnailUrl,
                       fit: BoxFit.cover,
+                      memCacheWidth: kIsWeb ? null : 1280,
+                      maxWidthDiskCache: kIsWeb ? null : 1280,
+                      filterQuality: FilterQuality.medium,
                       placeholder: (context, url) => Container(
                         color: buttonBg,
                       ),
@@ -387,7 +402,7 @@ class HorizontalVideoCard extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (video.isFactChecked) ...[
+                        if (video.hasPublicAiCredibility) ...[
                           const Icon(
                             Icons.verified_rounded,
                             color: Color(0xFF00E676),
@@ -454,15 +469,33 @@ class HorizontalVideoCard extends StatelessWidget {
             const SizedBox(height: 4),
 
             // Channel Name
-            Text(
-              video.channelName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: isMobile ? 12 : 13,
-                color: secondaryText,
-                fontWeight: FontWeight.w400,
-              ),
+            Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    video.channelName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: isMobile ? 12 : 13,
+                      color: secondaryText,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ),
+                if (video.showVerifiedBadge ||
+                    (DeepLinkService.instance
+                            .getChannelFromCache(video.channelId)
+                            ?.showVerifiedBadge ??
+                        false) ||
+                    (DeepLinkService.instance
+                            .getChannelFromCache(video.channelName)
+                            ?.showVerifiedBadge ??
+                        false)) ...[
+                  const SizedBox(width: 4),
+                  const ChannelVerifiedBadge(size: 13),
+                ],
+              ],
             ),
 
             const SizedBox(height: 2),

@@ -21,6 +21,9 @@ class EditVideoController extends BaseController with ContentValidationMixin {
   late final RxBool showLikeCount;
   late final RxBool showDislikeCount;
   late final RxBool autoChaptersEnabled;
+  late final RxBool allowComments;
+
+  RxBool get enableComments => allowComments;
   late final RxInt resubmitCount;
   final RxBool isResubmitting = false.obs;
 
@@ -51,6 +54,7 @@ class EditVideoController extends BaseController with ContentValidationMixin {
     showLikeCount = video.showLikeCount.obs;
     showDislikeCount = video.showDislikeCount.obs;
     autoChaptersEnabled = video.autoChaptersEnabled.obs;
+    allowComments = video.allowComments.obs;
     resubmitCount = video.resubmitCount.obs;
   }
 
@@ -115,6 +119,8 @@ class EditVideoController extends BaseController with ContentValidationMixin {
       'showLikeCount': showLikeCount.value,
       'showDislikeCount': showDislikeCount.value,
       'autoChaptersEnabled': autoChaptersEnabled.value,
+      'allowComments': allowComments.value,
+      'enableComments': allowComments.value,
       'aiFeatures': {'autoChapters': autoChaptersEnabled.value},
     };
 
@@ -131,7 +137,7 @@ class EditVideoController extends BaseController with ContentValidationMixin {
     }
   }
 
-  void save() {
+  Future<void> save() async {
     if (!formKey.currentState!.validate()) return;
 
     final title = titleController.text.trim();
@@ -182,10 +188,12 @@ class EditVideoController extends BaseController with ContentValidationMixin {
       'showLikeCount': showLikeCount.value,
       'showDislikeCount': showDislikeCount.value,
       'autoChaptersEnabled': autoChaptersEnabled.value,
+      'allowComments': allowComments.value,
+      'enableComments': allowComments.value,
       'aiFeatures': {'autoChapters': autoChaptersEnabled.value},
     };
 
-    videoManagementController.updateVideo(video.id, updatedData);
+    await videoManagementController.updateVideo(video.id, updatedData);
     Get.back();
   }
 }

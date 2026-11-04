@@ -51,8 +51,9 @@ class UploadState {
     this.currentVideoId,
 
     // Metadata & Form Configuration
-    this.selectedCategory = 'Other',
+    this.selectedCategory = '',
     this.selectedVisibility = 'Public',
+    this.selectedLanguage = '',
     this.isKidFriendly = false,
     this.isShort = false,
     this.uploadQuality = 'Auto',
@@ -69,7 +70,7 @@ class UploadState {
     this.titleValidationReason = '',
     this.descriptionValidationStatus = 'UNKNOWN',
     this.descriptionValidationReason = '',
-    this.hasConfirmedCopyrightDeclaration = false,
+    this.hasConfirmedCopyrightDeclaration = true,
     this.videoModerationStatus = 'PENDING',
     this.videoModerationReason = '',
     this.videoModerationSummary = '',
@@ -80,6 +81,7 @@ class UploadState {
     this.aiGenerateSubtitles = false,
     this.aiGenerateDubbing = false,
     this.aiDiarizationEnabled = false,
+    this.aiLipSyncEnabled = false,
     this.aiSummaryEnabled = true,
     this.aiTranslationLanguages = const [],
     this.aiDubbingLanguages = const [],
@@ -149,6 +151,7 @@ class UploadState {
   // Metadata & Form Configuration
   final String selectedCategory;
   final String selectedVisibility;
+  final String selectedLanguage;
   final bool isKidFriendly;
   final bool isShort;
   final String uploadQuality;
@@ -176,6 +179,7 @@ class UploadState {
   final bool aiGenerateSubtitles;
   final bool aiGenerateDubbing;
   final bool aiDiarizationEnabled;
+  final bool aiLipSyncEnabled;
   final bool aiSummaryEnabled;
   final List<String> aiTranslationLanguages;
   final List<String> aiDubbingLanguages;
@@ -260,6 +264,7 @@ class UploadState {
       videoDurationSeconds: 0,
       selectedPlaylist: '',
       selectedTopicId: '',
+      selectedLanguage: '',
       newTopicData: const {},
       isScheduled: false,
       currentVideoId: null,
@@ -270,7 +275,7 @@ class UploadState {
       isProcessing: false,
       processingMessage: '',
       isFormValid: false,
-      hasConfirmedCopyrightDeclaration: false,
+      hasConfirmedCopyrightDeclaration: true,
       videoMetadata: const {},
     );
   }
@@ -307,6 +312,7 @@ class UploadState {
     Object? currentVideoId = _sentinel,
     String? selectedCategory,
     String? selectedVisibility,
+    String? selectedLanguage,
     bool? isKidFriendly,
     bool? isShort,
     String? uploadQuality,
@@ -330,6 +336,7 @@ class UploadState {
     bool? aiGenerateSubtitles,
     bool? aiGenerateDubbing,
     bool? aiDiarizationEnabled,
+    bool? aiLipSyncEnabled,
     bool? aiSummaryEnabled,
     List<String>? aiTranslationLanguages,
     List<String>? aiDubbingLanguages,
@@ -401,6 +408,7 @@ class UploadState {
           : currentVideoId as String?,
       selectedCategory: selectedCategory ?? this.selectedCategory,
       selectedVisibility: selectedVisibility ?? this.selectedVisibility,
+      selectedLanguage: selectedLanguage ?? this.selectedLanguage,
       isKidFriendly: isKidFriendly ?? this.isKidFriendly,
       isShort: isShort ?? this.isShort,
       uploadQuality: uploadQuality ?? this.uploadQuality,
@@ -435,6 +443,7 @@ class UploadState {
       aiGenerateSubtitles: aiGenerateSubtitles ?? this.aiGenerateSubtitles,
       aiGenerateDubbing: aiGenerateDubbing ?? this.aiGenerateDubbing,
       aiDiarizationEnabled: aiDiarizationEnabled ?? this.aiDiarizationEnabled,
+      aiLipSyncEnabled: aiLipSyncEnabled ?? this.aiLipSyncEnabled,
       aiSummaryEnabled: aiSummaryEnabled ?? this.aiSummaryEnabled,
       aiTranslationLanguages:
           aiTranslationLanguages ?? this.aiTranslationLanguages,
@@ -526,6 +535,7 @@ class UploadState {
         other.aiGenerateSubtitles == aiGenerateSubtitles &&
         other.aiGenerateDubbing == aiGenerateDubbing &&
         other.aiDiarizationEnabled == aiDiarizationEnabled &&
+        other.aiLipSyncEnabled == aiLipSyncEnabled &&
         other.aiSummaryEnabled == aiSummaryEnabled &&
         listEquals(other.aiTranslationLanguages, aiTranslationLanguages) &&
         listEquals(other.aiDubbingLanguages, aiDubbingLanguages) &&

@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_wallet_topup_sheet.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_dubbing_controller.dart';
-import 'package:truthworld/theme/app_colors.dart';
 
-/// Live pricing breakdown card for dubbing selection.
+/// Live pricing breakdown card for dubbing selection with ElevenLabs polish.
 class DubbingPricingCard extends StatelessWidget {
   const DubbingPricingCard({required this.controller, super.key});
   final UploadDubbingController controller;
@@ -19,19 +17,17 @@ class DubbingPricingCard extends StatelessWidget {
       final wallet = controller.walletBalance;
       final isInsufficient = controller.isInsufficientBalance;
 
-      return Material(
-        color: const Color(0xFF141418),
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isInsufficient
-                  ? const Color(0xFFEF4444).withValues(alpha: 0.5)
-                  : Colors.white.withValues(alpha: 0.08),
-            ),
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF14151B),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isInsufficient
+                ? const Color(0xFFEF4444).withValues(alpha: 0.6)
+                : const Color(0xFF262834),
           ),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -52,16 +48,25 @@ class DubbingPricingCard extends StatelessWidget {
                         color: Colors.white,
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
+                        letterSpacing: -0.2,
                       ),
                     ),
                   ],
                 ),
-                Text(
-                  '\$${flatRate.toStringAsFixed(2)} / lang',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1F212A),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFF2D303E)),
+                  ),
+                  child: Text(
+                    '\$${flatRate.toStringAsFixed(2)} / lang',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -72,11 +77,18 @@ class DubbingPricingCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.black26,
+                color: const Color(0xFF101116),
                 borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFF20222C)),
               ),
               child: Column(
                 children: [
+                  _buildMetricRow(
+                    'Selected Production Tier:',
+                    '${controller.currentProductionTier.name} (${controller.currentProductionTier.badge})',
+                    highlightColor: controller.isCinemaGradeEnabled.value ? const Color(0xFFFDE047) : null,
+                  ),
+                  const SizedBox(height: 6),
                   _buildMetricRow('Target Dubbing Languages:', '$totalSelected'),
                   const SizedBox(height: 6),
                   _buildMetricRow(
@@ -89,175 +101,122 @@ class DubbingPricingCard extends StatelessWidget {
                     'Free ($totalSelected languages)',
                     highlightColor: const Color(0xFF34D399),
                   ),
-                  const Divider(color: Colors.white10, height: 16),
-                  _buildMetricRow(
-                    'Total Dubbing Cost:',
-                    '\$${cost.toStringAsFixed(2)}',
-                    isTotal: true,
-                  ),
+                  if (controller.isLipSyncEnabled.value) ...[
+                    const SizedBox(height: 6),
+                    _buildMetricRow(
+                      'AI Visual Lip-Sync (LatentSync):',
+                      'Included in ${controller.currentProductionTier.name}',
+                      highlightColor: const Color(0xFF38BDF8),
+                    ),
+                  ],
+                  if (controller.isCinemaGradeEnabled.value) ...[
+                    const SizedBox(height: 6),
+                    _buildMetricRow(
+                      'Cinema 4K + Stem Isolation:',
+                      'Included in Video Ultra',
+                      highlightColor: const Color(0xFFFACC15),
+                    ),
+                  ],
                 ],
               ),
             ),
             const SizedBox(height: 12),
 
-            // Wallet Balance & Topup
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: isInsufficient
-                    ? const Color(0xFFEF4444).withValues(alpha: 0.1)
-                    : Colors.white.withValues(alpha: 0.04),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: isInsufficient
-                      ? const Color(0xFFEF4444).withValues(alpha: 0.4)
-                      : Colors.white10,
+            // Total & Wallet balance row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Total Dubbing Cost',
+                      style: TextStyle(
+                        color: Color(0xFFA1A1AA),
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '\$${cost.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.account_balance_wallet_outlined,
-                        color: isInsufficient
-                            ? const Color(0xFFF87171)
-                            : Colors.white70,
-                        size: 16,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'Wallet Balance: \$${wallet.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        color: isInsufficient ? const Color(0xFFEF4444) : const Color(0xFFA1A1AA),
+                        fontSize: 12,
+                        fontWeight: isInsufficient ? FontWeight.bold : FontWeight.normal,
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Wallet Balance: \$${wallet.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          color: isInsufficient
-                              ? const Color(0xFFF87171)
-                              : Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (controller.channel != null)
-                    GestureDetector(
-                      onTap: () {
-                        ChannelWalletTopupSheet.show(
-                          context,
-                          channel: controller.channel!,
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.brand,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
+                    ),
+                    const SizedBox(height: 2),
+                    if (isInsufficient)
+                      InkWell(
+                        onTap: () {
+                          if (controller.channel != null) {
+                            ChannelWalletTopupSheet.show(
+                              context,
+                              channel: controller.channel!,
+                            );
+                          }
+                        },
                         child: const Text(
-                          '+ Add Money',
+                          '+ Add Funds',
                           style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 11,
+                            color: Color(0xFF60A5FA),
+                            fontSize: 12,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
+                      )
+                    else
+                      const Text(
+                        '100% At-Cost Platform Rate',
+                        style: TextStyle(
+                          color: Color(0xFF34D399),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                ],
-              ),
-            ),
-
-            if (isInsufficient) ...[
-              const SizedBox(height: 8),
-              Text(
-                '⚠️ Insufficient wallet balance (\$${wallet.toStringAsFixed(2)} available vs \$${cost.toStringAsFixed(2)} required). Please top up channel wallet or reduce selected languages.',
-                style: const TextStyle(
-                  color: Color(0xFFFCA5A5),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
+                  ],
                 ),
-              ),
-            ],
-
-            const SizedBox(height: 10),
-            Theme(
-              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-              child: ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                collapsedIconColor: Colors.white60,
-                iconColor: Colors.white,
-                title: const Text(
-                  'View Dubbing Duration Tiers',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                children: ChannelWalletService.dubbingDurationTiers.map((tier) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '${tier.name} (${tier.durationLabel})',
-                          style: const TextStyle(color: Colors.white60, fontSize: 11),
-                        ),
-                        Text(
-                          tier.standardFlatRatePerLanguage == tier.customFlatRatePerLanguage
-                              ? '\$${tier.standardFlatRatePerLanguage.toStringAsFixed(2)} / lang (At-Cost)'
-                              : '\$${tier.standardFlatRatePerLanguage.toStringAsFixed(2)} Std / \$${tier.customFlatRatePerLanguage.toStringAsFixed(2)} Partner',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
+              ],
             ),
           ],
         ),
-      ),
-    );
-  });
+      );
+    });
   }
 
-
-  Widget _buildMetricRow(
-    String label,
-    String value, {
-    Color? highlightColor,
-    bool isTotal = false,
-  }) {
+  Widget _buildMetricRow(String label, String value, {Color? highlightColor}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           label,
-          style: TextStyle(
-            color: isTotal ? Colors.white : Colors.white70,
-            fontSize: isTotal ? 13 : 11.5,
-            fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+          style: const TextStyle(
+            color: Color(0xFFA1A1AA),
+            fontSize: 11.5,
           ),
         ),
         Text(
           value,
           style: TextStyle(
             color: highlightColor ?? Colors.white,
-            fontSize: isTotal ? 14 : 12,
-            fontWeight: isTotal ? FontWeight.bold : FontWeight.w600,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],
     );
   }
-
 }

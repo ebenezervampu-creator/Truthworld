@@ -19,7 +19,7 @@ void showChangeAdminPasswordDialog(
 
   Get.dialog(
     Dialog(
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: AppColors.bgSurface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: Container(
         width: 420,

@@ -1,8 +1,11 @@
+import 'package:truthworld/core/services/user_languages_service.dart';
+
 class VideoChapter {
   VideoChapter({
     required this.title,
     required this.startTime,
     this.thumbnailUrl,
+    this.localizedTitles = const {},
   });
 
   factory VideoChapter.fromMap(Map<String, dynamic> map) {
@@ -26,21 +29,52 @@ class VideoChapter {
       }
     }
 
+    final rawLocalized =
+        map['localizedTitles'] ?? map['translations'] ?? map['titles'];
+    final localizedMap = <String, String>{};
+    if (rawLocalized is Map) {
+      for (final entry in rawLocalized.entries) {
+        if (entry.key != null && entry.value != null) {
+          localizedMap[UserLanguagesService.normalizeCode(entry.key.toString())] =
+              entry.value.toString();
+        }
+      }
+    }
+
     return VideoChapter(
       title: map['title'] ?? '',
       startTime: parsedStartTime,
       thumbnailUrl: map['thumbnailUrl'],
+      localizedTitles: localizedMap,
     );
   }
   final String title;
   final Duration startTime;
   final String? thumbnailUrl;
+  final Map<String, String> localizedTitles;
+
+  /// Returns the chapter title translated into the requested [langCode] or the user's
+  /// active primary language. Seamlessly falls back to the default canonical [title].
+  String localizedTitle([String? langCode]) {
+    final code = (langCode != null && langCode.trim().isNotEmpty)
+        ? UserLanguagesService.normalizeCode(langCode)
+        : (UserLanguagesService.isRegistered
+            ? UserLanguagesService.to.primaryLanguageCode
+            : 'en');
+
+    if (localizedTitles.containsKey(code)) {
+      final loc = localizedTitles[code];
+      if (loc != null && loc.trim().isNotEmpty) return loc;
+    }
+    return title;
+  }
 
   Map<String, dynamic> toMap() {
     return {
       'title': title,
       'startTimeMs': startTime.inMilliseconds,
       'thumbnailUrl': thumbnailUrl,
+      if (localizedTitles.isNotEmpty) 'localizedTitles': localizedTitles,
     };
   }
 

@@ -36,9 +36,10 @@ class BiometricSecurityService extends GetxService {
   static bool? mockAuthenticationResult;
 
   /// Check whether the current device supports local biometric or device credential verification.
+  /// Fails closed on Web or when native authentication is unavailable.
   Future<bool> isDeviceSupported() async {
-    if (!enableNativeAuth || kIsWeb) {
-      return true;
+    if (kIsWeb || !enableNativeAuth) {
+      return false;
     }
 
     try {
@@ -54,9 +55,10 @@ class BiometricSecurityService extends GetxService {
   }
 
   /// Check whether biometric sensors can be checked on this hardware.
+  /// Fails closed on Web or when native authentication is unavailable.
   Future<bool> canCheckBiometrics() async {
-    if (!enableNativeAuth || kIsWeb) {
-      return true;
+    if (kIsWeb || !enableNativeAuth) {
+      return false;
     }
 
     try {
@@ -91,29 +93,89 @@ class BiometricSecurityService extends GetxService {
 
   /// Authenticates the user via biometric prompt or device lock screen credentials (PIN/Pattern/Passcode).
   ///
-  /// Returns `true` if authentication succeeded or if the device lacks security hardware
-  /// (to prevent user lockout on legacy devices), and `false` if rejected or cancelled.
+  /// Strictly fails closed: Returns `false` on Web or if the device lacks security hardware
+  /// or when authentication is rejected/cancelled. Optionally executes [fallbackAuth]
+  /// (e.g. Firebase Auth re-authentication) if provided. Never allows compatibility pass-throughs.
   Future<bool> authenticateForHighValueAction({
     required String reason,
     bool biometricOnly = false,
     bool showFriendlyWarningOnFailure = true,
+    Future<bool> Function()? fallbackAuth,
   }) async {
-    if (!enableNativeAuth || kIsWeb) {
-      return mockAuthenticationResult ?? true;
-    }
-
+    // 1. Deterministic test override
     if (mockAuthenticationResult != null) {
       return mockAuthenticationResult!;
     }
 
+    // 2. Web platform: fail closed or execute secondary fallback
+    if (kIsWeb) {
+      logger.warning(
+        'Biometric authentication is not supported on Web; failing closed or executing fallback verification',
+        tag: 'BiometricSecurity',
+      );
+      if (fallbackAuth != null) {
+        try {
+          return await fallbackAuth();
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'BiometricSecurityService.fallbackAuth.web',
+          );
+          return false;
+        }
+      }
+      if (showFriendlyWarningOnFailure) {
+        AppSnackbar.warning(
+          'Device security verification is unavailable on Web. High-value actions must be performed on a secure mobile device.',
+        );
+      }
+      return false;
+    }
+
+    // 3. Native authentication switch guard: fail closed or execute secondary fallback
+    if (!enableNativeAuth) {
+      if (fallbackAuth != null) {
+        try {
+          return await fallbackAuth();
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'BiometricSecurityService.fallbackAuth.nativeDisabled',
+          );
+          return false;
+        }
+      }
+      return false;
+    }
+
     try {
+      // 4. Unsupported hardware / missing screen lock: strictly fail closed or execute secondary fallback
       final supported = await isDeviceSupported();
       if (!supported) {
-        logger.info(
-          'Device does not support local biometric or lock-screen authentication; allowing compatibility pass-through',
+        logger.warning(
+          'Device does not support local biometric or lock-screen authentication; failing closed or executing fallback verification',
           tag: 'BiometricSecurity',
         );
-        return true;
+        if (fallbackAuth != null) {
+          try {
+            return await fallbackAuth();
+          } catch (e, s) {
+            ErrorHandler.log(
+              e,
+              stackTrace: s,
+              tag: 'BiometricSecurityService.fallbackAuth.unsupportedDevice',
+            );
+            return false;
+          }
+        }
+        if (showFriendlyWarningOnFailure) {
+          AppSnackbar.warning(
+            'A secure device screen lock (PIN, Pattern, or Biometrics) is required to perform high-value actions.',
+          );
+        }
+        return false;
       }
 
       final authenticated = await _localAuth.authenticate(

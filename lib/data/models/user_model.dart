@@ -117,12 +117,9 @@ class UserModel {
       status: AccountStatus.fromString(data['status'] as String? ?? 'active'),
       createdAt: _toDateTime(data['createdAt']),
       lastLoginAt: _toDateTime(data['lastLoginAt']),
-      fcmTokens: (data['fcmTokens'] as Map? ?? {}).map(
-        (key, value) => MapEntry(
-          key.toString(),
-          value is Map ? (value['token'] as String? ?? '') : value.toString(),
-        ),
-      ),
+      fcmTokens: (data['fcmTokens'] is Map)
+          ? Map<String, dynamic>.from(data['fcmTokens'] as Map)
+          : const {},
       metadata: Map<String, dynamic>.from(data['metadata'] as Map? ?? {}),
       channelId: data['channelId'] as String?,
       gender: data['gender'] as String?,
@@ -161,7 +158,13 @@ class UserModel {
   final AccountStatus status;
   final DateTime? createdAt;
   final DateTime? lastLoginAt;
-  final Map<String, String> fcmTokens; // deviceId → token
+  final Map<String, dynamic> fcmTokens; // deviceId → token string or token object
+
+  /// Extracts active token strings for display or routing
+  List<String> get activeFcmTokenStrings => fcmTokens.values
+      .map((v) => v is Map ? (v['token'] as String? ?? '') : v.toString())
+      .where((t) => t.trim().isNotEmpty)
+      .toList();
   final Map<String, dynamic> metadata; // extensible key-value store
   final String? channelId;
   final String? gender;
@@ -237,7 +240,7 @@ class UserModel {
     String? photoURL,
     AccountStatus? status,
     DateTime? lastLoginAt,
-    Map<String, String>? fcmTokens,
+    Map<String, dynamic>? fcmTokens,
     Map<String, dynamic>? metadata,
     String? channelId,
     String? gender,

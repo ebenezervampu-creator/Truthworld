@@ -135,20 +135,119 @@ void main() {
       expect(find.text('tech_official'), findsOneWidget);
       expect(find.text('tech_channel'), findsOneWidget);
 
+      // Pre-cache tech_official so suggestion tap resolves instantly without network timer
+      controller.setCachedHandleStatus('tech_official', AvailabilityStatus.available);
+
       // Tap suggestion chip
       await tester.tap(find.text('tech_official'));
       await tester.pump(const Duration(milliseconds: 350));
 
       expect(controller.customUrl.text, 'tech_official');
+      expect(controller.customUrlAvailability.value, AvailabilityStatus.available);
 
-      // Simulate Handle Available
-      controller.customUrlAvailability.value = AvailabilityStatus.available;
-      controller.customUrlAvailabilityMessage.value = 'Handle @tech_official is available!';
-      controller.handleSuggestions.clear();
+      // Simulate Handle Error and verify Retry action appears
+      controller.customUrlAvailability.value = AvailabilityStatus.error;
+      controller.customUrlAvailabilityMessage.value = 'Unable to check handle availability. Tap retry to check again.';
       await tester.pump();
 
-      expect(find.text('Handle @tech_official is available!'), findsOneWidget);
-      expect(find.text('Suggested handles:'), findsNothing);
+      expect(find.text('Unable to check handle availability. Tap retry to check again.'), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+
+      // Tap Retry button
+      await tester.tap(find.text('Retry'));
+      await tester.pump();
+      expect(controller.customUrlAvailability.value == AvailabilityStatus.checking ||
+             controller.customUrlAvailability.value == AvailabilityStatus.available, isTrue);
+
+      controller.disposeAvailabilityTimers();
+      await tester.pump();
+    });
+
+    test('verifyCustomUrlAvailabilityDirect performs instant local validation and handles reserved/invalid formats', () async {
+      final controller = Get.put(ChannelController());
+
+      // Empty handle returns unknown
+      final emptyResult = await controller.verifyCustomUrlAvailabilityDirect('');
+      expect(emptyResult, AvailabilityStatus.unknown);
+
+      // Too short returns invalid
+      final shortResult = await controller.verifyCustomUrlAvailabilityDirect('ab');
+      expect(shortResult, AvailabilityStatus.invalid);
+
+      // Too long returns invalid
+      final longResult = await controller.verifyCustomUrlAvailabilityDirect('a' * 31);
+      expect(longResult, AvailabilityStatus.invalid);
+
+      // Invalid format returns invalid
+      final formatResult = await controller.verifyCustomUrlAvailabilityDirect('invalid@handle!');
+      expect(formatResult, AvailabilityStatus.invalid);
+
+      // Reserved returns taken
+      final reservedResult = await controller.verifyCustomUrlAvailabilityDirect('truthworld');
+      expect(reservedResult, AvailabilityStatus.taken);
+      expect(controller.handleSuggestions.isNotEmpty, isTrue);
+
+      controller.disposeAvailabilityTimers();
+    });
+
+    test('verifyChannelNameAvailabilityDirect performs instant local validation for empty, short, and long names', () async {
+      final controller = Get.put(ChannelController());
+
+      // Empty name returns unknown
+      final emptyResult = await controller.verifyChannelNameAvailabilityDirect('');
+      expect(emptyResult, AvailabilityStatus.unknown);
+
+      // Too short returns invalid
+      final shortResult = await controller.verifyChannelNameAvailabilityDirect('ab');
+      expect(shortResult, AvailabilityStatus.invalid);
+
+      // Too long returns invalid
+      final longResult = await controller.verifyChannelNameAvailabilityDirect('a' * 101);
+      expect(longResult, AvailabilityStatus.invalid);
+
+      controller.disposeAvailabilityTimers();
+    });
+
+    test('ChannelWizardViewController validateAndSubmitChannel blocks when channel name is taken', () async {
+      final controller = Get.put(ChannelController());
+      final wizardCtrl = Get.put(ChannelWizardViewController());
+
+      // Fill basic required details
+      controller.channelName.text = 'Taken Channel Name';
+      controller.customUrl.text = 'valid_handle';
+      controller.description.text = 'Description of truth science hub';
+      wizardCtrl.addTag('science');
+      controller.selectedCategories.add('Science & Technology');
+      controller.agreeTerms.value = true;
+      controller.agreeGuidelines.value = true;
+
+      // When channel name is marked taken, submit immediately rejects
+      controller.channelNameAvailability.value = AvailabilityStatus.taken;
+      await wizardCtrl.validateAndSubmitChannel();
+
+      expect(controller.channelNameAvailability.value, AvailabilityStatus.taken);
+      controller.disposeAvailabilityTimers();
+    });
+
+    test('ChannelWizardViewController validateAndSubmitChannel blocks when handle is taken', () async {
+      final controller = Get.put(ChannelController());
+      final wizardCtrl = Get.put(ChannelWizardViewController());
+
+      // Fill basic required details
+      controller.channelName.text = 'Truth Science Hub';
+      controller.customUrl.text = 'taken_handle';
+      controller.description.text = 'Description of truth science hub';
+      wizardCtrl.addTag('science');
+      controller.selectedCategories.add('Science & Technology');
+      controller.agreeTerms.value = true;
+      controller.agreeGuidelines.value = true;
+
+      // When handle is already marked taken, submit immediately rejects
+      controller.customUrlAvailability.value = AvailabilityStatus.taken;
+      await wizardCtrl.validateAndSubmitChannel();
+
+      expect(controller.customUrlAvailability.value, AvailabilityStatus.taken);
+      controller.disposeAvailabilityTimers();
     });
   });
 }

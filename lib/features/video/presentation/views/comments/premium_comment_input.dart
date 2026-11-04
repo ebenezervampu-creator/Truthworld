@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
@@ -13,8 +12,10 @@ import 'package:truthworld/core/services/cashfree/cashfree_country_support.dart'
 import 'package:truthworld/core/services/cashfree_service.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/features/channel/data/services/channel_memory_cache.dart';
 import 'package:truthworld/features/video/data/services/comment_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class PremiumCommentInputController extends BaseController {
@@ -53,6 +54,7 @@ class PremiumCommentInput extends StatelessWidget {
     this.onCancel,
     this.channelId,
     this.videoTitle,
+    this.isChannelMonetized,
   });
   final String videoId;
   final bool isReply;
@@ -60,6 +62,25 @@ class PremiumCommentInput extends StatelessWidget {
   final VoidCallback? onCancel;
   final String? channelId;
   final String? videoTitle;
+  final bool? isChannelMonetized;
+
+  bool get _effectiveChannelMonetized {
+    if (isChannelMonetized != null) return isChannelMonetized!;
+    if (channelId != null && channelId!.isNotEmpty) {
+      final cached = ChannelMemoryCache.getReactive(channelId!);
+      if (cached != null) return cached.isMonetizationActive;
+    }
+    if (Get.isRegistered<VideoController>()) {
+      final vCtrl = Get.find<VideoController>();
+      if (vCtrl.video.id == videoId) {
+        final ch = ChannelMemoryCache.get(vCtrl.video.channelId) ??
+            vCtrl.channelController.selectedChannel.value;
+        if (ch != null) return ch.isMonetizationActive;
+        return vCtrl.video.isMonetized;
+      }
+    }
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -96,7 +117,7 @@ class PremiumCommentInput extends StatelessWidget {
             'Please sign in to post a comment',
             title: 'Sign In Required',
             actionLabel: 'SIGN IN',
-            onAction: AuthBottomSheet.prompt,
+            onAction: () => AuthService.to.triggerPlatformSignIn(),
           );
           return;
         }
@@ -215,13 +236,14 @@ class PremiumCommentInput extends StatelessWidget {
                             child: const Text('Cancel'),
                           ),
                           const SizedBox(width: 8),
-                          if (!isReply) ...[
+                          if (!isReply && _effectiveChannelMonetized) ...[
                             IconButton(
                               onPressed: () => showSuperThanksModal(
                                 context,
                                 videoId: videoId,
                                 channelId: channelId,
                                 videoTitle: videoTitle,
+                                isChannelMonetized: _effectiveChannelMonetized,
                                 onSubmit: onSubmit,
                               ),
                               icon: Container(
@@ -340,7 +362,7 @@ class PremiumCommentInput extends StatelessWidget {
           ElevatedButton(
             onPressed: () async {
               HapticFeedback.lightImpact();
-              await AuthBottomSheet.show(context);
+              await AuthService.to.triggerPlatformSignIn();
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
@@ -369,6 +391,7 @@ class PremiumCommentInput extends StatelessWidget {
     required String videoId,
     String? channelId,
     String? videoTitle,
+    bool? isChannelMonetized,
     Function(String text, bool postAsChannel, String? channelId)? onSubmit,
   }) {
     if (!AuthService.to.isAuthenticated.value) {
@@ -376,7 +399,28 @@ class PremiumCommentInput extends StatelessWidget {
         'Please sign in to send Super Thanks.',
         title: 'Authentication Required',
         actionLabel: 'SIGN IN',
-        onAction: () => AuthBottomSheet.show(context),
+        onAction: () => AuthService.to.triggerPlatformSignIn(),
+      );
+      return;
+    }
+
+    final effectiveChannelId = channelId ??
+        (Get.isRegistered<CommentsController>()
+            ? Get.find<CommentsController>().video?.channelId
+            : null);
+    final cachedChannel = effectiveChannelId != null && effectiveChannelId.isNotEmpty
+        ? ChannelMemoryCache.get(effectiveChannelId)
+        : null;
+    final monetized = isChannelMonetized ??
+        (cachedChannel != null
+            ? cachedChannel.isMonetizationActive
+            : (Get.isRegistered<VideoController>()
+                ? Get.find<VideoController>().video.isMonetized
+                : false));
+
+    if (!monetized) {
+      AppSnackbar.info(
+        'Super Thanks and super chats are only available for monetized channels.',
       );
       return;
     }

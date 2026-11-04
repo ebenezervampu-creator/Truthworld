@@ -173,7 +173,7 @@ class ChannelHorizontalVideoCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            topic.title,
+                            topic.name,
                             style: const TextStyle(
                               color: AppColors.textPrimary,
                               fontSize: 10,
@@ -200,7 +200,7 @@ class ChannelHorizontalVideoCard extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (video.isFactChecked) ...[
+                        if (video.hasPublicAiCredibility) ...[
                           const Icon(
                             Icons.verified_rounded,
                             color: Color(0xFF00E676),
@@ -388,7 +388,7 @@ class ChannelTopicPills extends GetView<ChannelController> {
                     children: [
                       Flexible(
                         child: Text(
-                          topic.title,
+                          topic.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -466,7 +466,7 @@ class ChannelTopicVideoSection extends GetView<ChannelController> {
                     children: [
                       Flexible(
                         child: Text(
-                          topic.title,
+                          topic.name,
                           style: TextStyle(
                             fontSize: isMobile ? 18 : 22,
                             fontWeight: FontWeight.bold,
@@ -550,7 +550,7 @@ class ChannelTopicVideoSection extends GetView<ChannelController> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              topic.title,
+                              topic.name,
                               style: const TextStyle(
                                 color: AppColors.textPrimary,
                                 fontWeight: FontWeight.bold,
@@ -705,7 +705,12 @@ class ChannelTopicsTabView extends GetView<ChannelController> {
         final topics = snapshot.data!.docs
             .map(Topic.fromDocumentSnapshot)
             .where((topic) {
-              if (!topic.isValidTopic || topic.videoCount <= 0) return false;
+              if (topic.isArchivedOrDeleted) return false;
+              if (topic.name.trim().isEmpty || topic.slug.trim().isEmpty) return false;
+              final hasContent = topic.videoCount > 0 ||
+                  topic.featuredVideoIds.isNotEmpty ||
+                  topic.postCount > 0;
+              if (!hasContent && !isOwner) return false;
               if (isOwner) return true;
               if (topic.visibilityType == TopicVisibilityType.public) return true;
               if (topic.visibilityType == TopicVisibilityType.channelOnly && isSubscribed) return true;

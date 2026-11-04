@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
@@ -20,6 +19,8 @@ import 'package:truthworld/theme/app_theme.dart';
 /// Modal bottom sheet for viewing and posting video comments with comment sorting,
 /// threaded replies, and premium comment inputs.
 class VideoCommentsSheet {
+  static bool isOpen = false;
+
   static List<Widget> buildCommentsSlivers({
     required BuildContext context,
     required VideoController controller,
@@ -43,7 +44,7 @@ class VideoCommentsSheet {
                     final count = commentsController.comments.length;
                     return Text(
                       '$count Comments',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
@@ -113,7 +114,7 @@ class VideoCommentsSheet {
                           const SizedBox(width: 8),
                           Text(
                             'Sort by',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
                               color: Colors.white,
@@ -131,7 +132,9 @@ class VideoCommentsSheet {
                     ? controller.video.channelId
                     : controller.video.ownerId;
                 final channel = ChannelMemoryCache.getReactive(channelId);
-                final allowComments = channel == null || channel.allowComments;
+                final channelAllows = channel == null || channel.allowComments;
+                final videoAllows = controller.video.allowComments;
+                final allowComments = channelAllows && videoAllows;
 
                 if (!allowComments) {
                   return Container(
@@ -151,8 +154,10 @@ class VideoCommentsSheet {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          'Comments are turned off for this channel.',
-                          style: GoogleFonts.roboto(
+                          !videoAllows
+                              ? 'Comments are turned off for this video.'
+                              : 'Comments are turned off for this channel.',
+                          style: TextStyle(
                             color: Colors.white70,
                             fontSize: 13,
                           ),
@@ -162,18 +167,33 @@ class VideoCommentsSheet {
                   );
                 }
 
+                final ch = channel ??
+                    controller.channelController.selectedChannel.value;
+                final isMonetized = ch != null ? ch.isMonetizationActive : controller.video.isMonetized;
+
                 return PremiumCommentInput(
                   key: ValueKey('main_comment_input_${controller.video.id}'),
                   videoId: controller.video.id,
                   channelId: controller.video.channelId,
                   videoTitle: controller.video.title,
+                  isChannelMonetized: isMonetized,
                   onSubmit: (text, postAsChannel, channelId) async {
                     try {
-                      final targetUserAvatar = AuthService.to.activePhotoUrl;
+                      final authService = AuthService.to;
+                      final hasChannel =
+                          postAsChannel && authService.userChannel != null;
+                      final userChannel =
+                          hasChannel ? authService.userChannel : null;
 
                       await commentsController.submitComment(
                         text: text,
-                        userProfilePicUrl: targetUserAvatar,
+                        channelId: userChannel?.id,
+                        channelName: userChannel?.name,
+                        channelHandle: userChannel?.handle,
+                        channelProfilePicUrl: userChannel?.avatarUrl,
+                        isChannel: hasChannel,
+                        userProfilePicUrl: authService.userPhotoUrl.value ??
+                            authService.user?.photoURL,
                       );
                       AppSnackbar.success('Comment posted');
                     } catch (e) {
@@ -205,12 +225,18 @@ class VideoCommentsSheet {
 
       Obx(() {
         if (commentsController.commentsError.value != null) {
+          final rawErr = commentsController.commentsError.value ?? '';
+          final displayMsg = UserFeedbackSanitizer.sanitizeMessage(rawErr);
           return SliverFillRemaining(
             hasScrollBody: false,
             child: Center(
-              child: Text(
-                'Error: ${commentsController.commentsError.value}',
-                style: const TextStyle(color: AppColors.textSecondary),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  displayMsg,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppColors.textSecondary),
+                ),
               ),
             ),
           );
@@ -330,12 +356,15 @@ class VideoCommentsSheet {
     required MainController mainController,
     required VoidCallback onSignInPrompt,
   }) {
+    if (isOpen) return;
+    isOpen = true;
+
     final tag = 'video_${controller.video.id}';
     final commentsController = Get.isRegistered<CommentsController>(tag: tag)
         ? Get.find<CommentsController>(tag: tag)
         : Get.put(CommentsController(video: controller.video), tag: tag);
 
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -352,7 +381,7 @@ class VideoCommentsSheet {
             builder: (context, scrollController) {
             return Container(
               decoration: const BoxDecoration(
-                color: Color(0xFF0F0F0F),
+                color: AppColors.bgPage,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
               ),
               child: Column(
@@ -384,7 +413,7 @@ class VideoCommentsSheet {
                             isFlipped
                                 ? 'Counter-Arguments ($count)'
                                 : 'Comments ($count)',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
@@ -448,7 +477,7 @@ class VideoCommentsSheet {
                                   const SizedBox(height: 16),
                                   Text(
                                     'No comments yet',
-                                    style: GoogleFonts.roboto(
+                                    style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 16,
                                     ),
@@ -542,7 +571,9 @@ class VideoCommentsSheet {
                           ? controller.video.channelId
                           : controller.video.ownerId;
                       final channel = ChannelMemoryCache.getReactive(channelId);
-                      final allowComments = channel == null || channel.allowComments;
+                      final channelAllows = channel == null || channel.allowComments;
+                      final videoAllows = controller.video.allowComments;
+                      final allowComments = channelAllows && videoAllows;
 
                       if (!allowComments) {
                         return Padding(
@@ -565,8 +596,10 @@ class VideoCommentsSheet {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    'Comments are turned off for this channel.',
-                                    style: GoogleFonts.roboto(
+                                    !videoAllows
+                                        ? 'Comments are turned off for this video.'
+                                        : 'Comments are turned off for this channel.',
+                                    style: TextStyle(
                                       color: Colors.white70,
                                       fontSize: 13,
                                     ),
@@ -578,19 +611,35 @@ class VideoCommentsSheet {
                         );
                       }
 
+                      final ch = channel ??
+                          controller.channelController.selectedChannel.value;
+                      final isMonetized = ch != null ? ch.isMonetizationActive : controller.video.isMonetized;
+
                       return PremiumCommentInput(
                         key: ValueKey(
                           'popup_comment_input_${controller.video.id}',
                         ),
                         videoId: controller.video.id,
+                        channelId: controller.video.channelId,
+                        videoTitle: controller.video.title,
+                        isChannelMonetized: isMonetized,
                         onSubmit: (text, postAsChannel, channelId) async {
                           try {
-                            final targetUserAvatar =
-                                AuthService.to.activePhotoUrl;
+                            final authService = AuthService.to;
+                            final hasChannel =
+                                postAsChannel && authService.userChannel != null;
+                            final userChannel =
+                                hasChannel ? authService.userChannel : null;
 
                             await commentsController.submitComment(
                               text: text,
-                              userProfilePicUrl: targetUserAvatar,
+                              channelId: userChannel?.id,
+                              channelName: userChannel?.name,
+                              channelHandle: userChannel?.handle,
+                              channelProfilePicUrl: userChannel?.avatarUrl,
+                              isChannel: hasChannel,
+                              userProfilePicUrl: authService.userPhotoUrl.value ??
+                                  authService.user?.photoURL,
                             );
                           } catch (e, s) {
                             ErrorHandler.log(
@@ -611,7 +660,9 @@ class VideoCommentsSheet {
         ),
       );
     },
-  );
+    ).whenComplete(() {
+      isOpen = false;
+    });
   }
 
 

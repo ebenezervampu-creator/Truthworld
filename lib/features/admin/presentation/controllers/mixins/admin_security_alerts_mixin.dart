@@ -587,7 +587,7 @@ mixin AdminSecurityAlertsMixin on BaseController {
 
     Get.dialog(
       AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
+        backgroundColor: AppColors.bgSurface,
         title: Row(
           children: [
             const Icon(Icons.security, color: Colors.white, size: 22),
@@ -692,7 +692,7 @@ mixin AdminSecurityAlertsMixin on BaseController {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFCF6679),
+              backgroundColor: AppColors.error,
               foregroundColor: Colors.white,
             ),
             onPressed: () async {

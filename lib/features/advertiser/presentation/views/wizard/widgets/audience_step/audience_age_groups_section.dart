@@ -55,11 +55,11 @@ class AudienceAgeGroupsSection extends StatelessWidget {
                     showCheckmark: isSelected,
                     checkmarkColor: isSelected ? Colors.black : Colors.white,
                     selectedColor: AppColors.brand,
-                    backgroundColor: const Color(0xFF18181B),
+                    backgroundColor: AppColors.bgPage,
                     side: BorderSide(
                       color: isSelected
                           ? AppColors.brand
-                          : const Color(0xFF27272A),
+                          : AppColors.bgSurface,
                     ),
                     onSelected: (selected) {
                       if (selected) {

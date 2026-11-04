@@ -24,6 +24,9 @@ function requireEnv(name: string): string {
 }
 
 export const PIPELINE_CONFIG = {
+  get SARVAM_API_KEY(): string {
+    return process.env.SARVAM_API_KEY || "";
+  },
   get ASSEMBLYAI_KEY(): string {
     return requireEnv("ASSEMBLYAI_KEY");
   },
@@ -42,6 +45,7 @@ export const PIPELINE_CONFIG = {
     return process.env.GOOGLE_TTS_API_KEY || process.env.GOOGLE_TRANSLATION_API_KEY || "";
   },
   FFMPEG_SERVICE_URL: process.env.FFMPEG_SERVICE_URL || "https://placeholder.run",
+  LIPSYNC_SERVICE_URL: process.env.LIPSYNC_SERVICE_URL || "https://ebenezervampu--truthworld-latentsync-worker-fastapi-app.us-east.modal.run",
   PUBLIC_FUNCTION_BASE_URL: "https://asia-south1-truthworld-1.cloudfunctions.net",
   VIDEO_BUCKET: "truthworld-1.firebasestorage.app",
 
@@ -56,16 +60,16 @@ export const PIPELINE_CONFIG = {
    * Saves ~50% on worker spend while ensuring frontier truth verification on sensitive claims.
    */
   GEMINI_MODELS: {
-    extraction: process.env.GEMINI_EXTRACTION_MODEL || "gemini-2.5-flash",   // Fast, cost-effective claim extraction (worker)
+    extraction: process.env.GEMINI_EXTRACTION_MODEL || "gemini-2.5-flash",   // Fast, cost-effective claim extraction (Flash-Lite)
     verification: process.env.GEMINI_VERIFICATION_MODEL || "gemini-2.5-flash", // Truth arbiter (Gemini 2.5 Flash)
-    reasoning: process.env.GEMINI_REASONING_MODEL || "gemini-4-argon",       // Vertex AI Frontier Reasoning Model (Gemini 4 Argon)
-    synthesis: process.env.GEMINI_SYNTHESIS_MODEL || "gemini-2.5-flash",    // Intelligence summaries & video metadata (worker)
-    consistency: process.env.GEMINI_CONSISTENCY_MODEL || "gemini-2.5-flash",  // Contradiction detection (worker)
+    reasoning: process.env.GEMINI_REASONING_MODEL || "gemini-2.5-flash",       // Vertex AI Frontier Reasoning Model (Gemini 2.5 Flash)
+    synthesis: process.env.GEMINI_SYNTHESIS_MODEL || "gemini-2.5-flash",    // Intelligence summaries & video metadata (Flash-Lite)
+    consistency: process.env.GEMINI_CONSISTENCY_MODEL || "gemini-2.5-flash",  // Contradiction detection (Flash-Lite)
     translation: process.env.GEMINI_TRANSLATION_MODEL || "gemini-2.5-flash",  // Translation lane (worker)
-    profiling: process.env.GEMINI_PROFILING_MODEL || "gemini-2.0-flash-lite", // Speaker profiling (worker: Flash-Lite)
+    profiling: process.env.GEMINI_PROFILING_MODEL || "gemini-2.5-flash", // Speaker profiling (worker: Flash-Lite)
     moderation: process.env.GEMINI_MODERATION_MODEL || "gemini-2.5-flash",   // Multimodal video, channel, and topic moderation (Flash)
-    fastTier: process.env.GEMINI_FAST_TIER_MODEL || "gemini-2.0-flash-lite",     // Instant lightweight verification (Flash-Lite)
-    queryDecomposition: process.env.GEMINI_QUERY_MODEL || "gemini-2.0-flash-lite", // Search query decomposition (Flash-Lite)
+    fastTier: process.env.GEMINI_FAST_TIER_MODEL || "gemini-2.5-flash",     // Instant lightweight verification (Flash-Lite)
+    queryDecomposition: process.env.GEMINI_QUERY_MODEL || "gemini-2.5-flash", // Search query decomposition (Flash-Lite)
   },
 
   /**

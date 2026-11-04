@@ -26,6 +26,21 @@ async function main() {
     if (!written) {
       fs.writeFileSync(outputPath, content);
     }
+    // Ensure fonts directory is mirrored to lib/fonts for compiled distribution
+    const srcFonts = path.join(__dirname, 'fonts');
+    const destFonts = path.join(__dirname, 'lib', 'fonts');
+    if (fs.existsSync(srcFonts)) {
+      if (!fs.existsSync(destFonts)) fs.mkdirSync(destFonts, { recursive: true });
+      const fontFiles = fs.readdirSync(srcFonts);
+      for (const file of fontFiles) {
+        const srcPath = path.join(srcFonts, file);
+        const destPath = path.join(destFonts, file);
+        if (fs.statSync(srcPath).isFile()) {
+          fs.copyFileSync(srcPath, destPath);
+        }
+      }
+    }
+
     console.log('[manifest] Successfully generated functions.yaml (' + Object.keys(wireFormat.endpoints || {}).length + ' endpoints)');
     process.exit(0);
   } catch (err) {

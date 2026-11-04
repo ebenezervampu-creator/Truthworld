@@ -5,7 +5,7 @@ import 'package:truthworld/features/dashboard/presentation/controllers/playlists
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/playlists/playlist_cards.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/playlists/playlists_state_widgets.dart';
 
-/// Responsive playlists view displaying grid or list of channel playlists.
+/// Responsive playlists view displaying YouTube Studio-inspired grid or list of channel playlists.
 class PlaylistsViewBody extends GetView<PlaylistsManagementController> {
   const PlaylistsViewBody({
     required this.channelId,
@@ -57,13 +57,23 @@ class PlaylistsViewBody extends GetView<PlaylistsManagementController> {
               builder: (context, constraints) {
                 final width = constraints.maxWidth;
                 var crossAxisCount = 1;
-                if (width >= 1200) {
+                if (width >= 1300) {
                   crossAxisCount = 4;
-                } else if (width >= 850) {
+                } else if (width >= 900) {
                   crossAxisCount = 3;
-                } else if (width >= 550) {
+                } else if (width >= 580) {
                   crossAxisCount = 2;
                 }
+
+                const spacing = 16.0;
+                final totalSpacing = (crossAxisCount - 1) * spacing;
+                final itemWidth = (width - totalSpacing) / crossAxisCount;
+
+                // Dynamically calculate aspect ratio to perfectly fit 16:9 thumbnail + metadata
+                final thumbnailHeight = (itemWidth - 20) * (9 / 16) + 16;
+                const metadataHeight = 180.0;
+                final totalCardHeight = thumbnailHeight + metadataHeight;
+                final childAspectRatio = (itemWidth / totalCardHeight).clamp(0.65, 1.25);
 
                 return GridView.builder(
                   shrinkWrap: true,
@@ -71,9 +81,9 @@ class PlaylistsViewBody extends GetView<PlaylistsManagementController> {
                   itemCount: filtered.length,
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: crossAxisCount,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 0.85,
+                    crossAxisSpacing: spacing,
+                    mainAxisSpacing: spacing,
+                    childAspectRatio: childAspectRatio,
                   ),
                   itemBuilder: (context, index) {
                     final playlist = filtered[index];

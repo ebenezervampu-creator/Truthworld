@@ -90,12 +90,12 @@ void main() {
         ),
       );
 
-      expect(find.text('Custom Plan'), findsOneWidget);
+      expect(find.text('Pro Plan'), findsOneWidget);
       expect(find.text('Maximum Revenue'), findsOneWidget);
       expect(find.text('100% Creator Ad & Premium Revenue'), findsOneWidget);
-      expect(find.text('How Custom Channel Works:'), findsOneWidget);
+      expect(find.text('How Pro Channel Works:'), findsOneWidget);
 
-      await tester.tap(find.text('Custom Plan'));
+      await tester.tap(find.text('Pro Plan'));
       await tester.pumpAndSettle();
 
       expect(controller.selectedPlan.value, ChannelPlanType.custom);
@@ -128,19 +128,19 @@ void main() {
 
       expect(find.text('Select Channel Type'), findsOneWidget);
       expect(find.text('Standard Channel'), findsOneWidget);
-      expect(find.text('Custom Channel'), findsOneWidget);
+      expect(find.text('Pro Channel'), findsOneWidget);
       expect(find.text('Standard Channel Benefits'), findsOneWidget);
       expect(find.text('Continue with Standard Channel'), findsOneWidget);
 
       // Tap Custom Channel
-      await tester.tap(find.text('Custom Channel'));
+      await tester.tap(find.text('Pro Channel'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Custom Channel Benefits'), findsOneWidget);
-      expect(find.text('Continue with Custom Channel'), findsOneWidget);
+      expect(find.text('Pro Channel Benefits'), findsOneWidget);
+      expect(find.text('Continue with Pro Channel'), findsOneWidget);
 
       // Tap Continue
-      await tester.tap(find.text('Continue with Custom Channel'));
+      await tester.tap(find.text('Continue with Pro Channel'));
       await tester.pumpAndSettle();
 
       expect(resultPlan, ChannelPlanType.custom);

@@ -38,7 +38,7 @@ class AdminAnalyticsMetricsCards extends StatelessWidget {
                   ? 'Moderate Risk'
                   : 'High Risk Backlog'),
           color: safetyScore >= 80
-              ? const Color(0xFF4CAF50)
+              ? AppColors.success
               : (safetyScore >= 50 ? Colors.amber : AppColors.error),
           icon: Icons.shield_outlined,
           width: cardWidth,
@@ -55,7 +55,7 @@ class AdminAnalyticsMetricsCards extends StatelessWidget {
           title: 'Auto-Approved Rate',
           value: '$autoApprovalRate%',
           subtitle: 'Clean Content Pass Rate',
-          color: const Color(0xFF42A5F5),
+          color: AppColors.info,
           icon: Icons.verified_user_outlined,
           width: cardWidth,
         ),
@@ -66,7 +66,7 @@ class AdminAnalyticsMetricsCards extends StatelessWidget {
               ? 'Pending action or unresolved reports'
               : 'Zero active violations',
           color:
-              activeViolations > 0 ? AppColors.error : const Color(0xFF4CAF50),
+              activeViolations > 0 ? AppColors.error : AppColors.success,
           icon: Icons.warning_amber_rounded,
           width: cardWidth,
         ),
@@ -100,7 +100,7 @@ class AdminAnalyticsMetricCard extends StatelessWidget {
       width: width,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),

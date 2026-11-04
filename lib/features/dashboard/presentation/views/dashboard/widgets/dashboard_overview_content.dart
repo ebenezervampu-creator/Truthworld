@@ -1,3 +1,4 @@
+import 'package:truthworld/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
@@ -35,7 +36,7 @@ class DashboardOverviewContent extends StatelessWidget {
 
     return RefreshIndicator(
       color: Colors.white,
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: AppColors.bgSurface,
       onRefresh: () => dashboardController.refreshData(showFeedback: true),
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),

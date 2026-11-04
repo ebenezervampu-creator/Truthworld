@@ -63,10 +63,10 @@ class CampaignWizardBudgetStep extends StatelessWidget {
             margin: const EdgeInsets.only(bottom: 20),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF18181B),
+              color: AppColors.bgPage,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: const Color(0xFF27272A),
+                color: AppColors.bgSurface,
               ),
             ),
             child: Column(

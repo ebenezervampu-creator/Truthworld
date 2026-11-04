@@ -13,7 +13,7 @@
  * Cost: ~$0.001 per call vs ~$0.05 for deep tier
  */
 
-import type { VertexAI } from "@google-cloud/vertexai";
+import type { VertexAI } from "../utils/ai-client";
 import { logger } from "../utils/logger";
 import { z } from "zod";
 import { getVertexAI } from "../utils/ai-client";

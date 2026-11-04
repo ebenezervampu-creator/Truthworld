@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/ux/app_toast.dart';
 import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -22,8 +23,6 @@ class SnackbarService {
   static const Duration _longDuration = Duration(seconds: 5);
 
   /// Show success snackbar
-  ///
-  /// Green accent with Crimson Noir harmony
   static void success({
     required String message,
     String? title,
@@ -32,22 +31,16 @@ class SnackbarService {
     String? actionLabel,
     VoidCallback? onAction,
   }) {
-    _show(
-      message: message,
+    AppToast.success(
+      message,
       title: title,
       duration: duration,
-      onTap: onTap,
+      onAction: onAction ?? onTap,
       actionLabel: actionLabel,
-      onAction: onAction,
-      icon: Icons.check_circle,
-      backgroundColor: AppTokens.colors.success,
-      borderColor: AppTokens.colors.success.withValues(alpha: 0.3),
     );
   }
 
   /// Show error snackbar
-  ///
-  /// Crimson highlight with clear error indication
   static void error({
     required String message,
     String? title,
@@ -56,23 +49,16 @@ class SnackbarService {
     String? actionLabel,
     VoidCallback? onAction,
   }) {
-    _show(
-      message: message,
+    AppToast.error(
+      message,
       title: title,
       duration: duration,
-      onTap: onTap,
+      onAction: onAction ?? onTap,
       actionLabel: actionLabel,
-      onAction: onAction,
-      icon: Icons.error_outline,
-      backgroundColor: AppTokens.colors.error.withValues(alpha: 0.15),
-      borderColor: AppTokens.colors.error,
-      textColor: AppColors.textPrimary,
     );
   }
 
   /// Show warning snackbar
-  ///
-  /// Muted amber tone for caution messages
   static void warning({
     required String message,
     String? title,
@@ -81,23 +67,16 @@ class SnackbarService {
     String? actionLabel,
     VoidCallback? onAction,
   }) {
-    _show(
-      message: message,
+    AppToast.warning(
+      message,
       title: title,
       duration: duration,
-      onTap: onTap,
+      onAction: onAction ?? onTap,
       actionLabel: actionLabel,
-      onAction: onAction,
-      icon: Icons.warning_amber_rounded,
-      backgroundColor: AppTokens.colors.warning.withValues(alpha: 0.15),
-      borderColor: AppTokens.colors.warning.withValues(alpha: 0.5),
-      textColor: AppColors.textPrimary,
     );
   }
 
   /// Show info snackbar
-  ///
-  /// Neutral info tone for general information
   static void info({
     required String message,
     String? title,
@@ -106,17 +85,12 @@ class SnackbarService {
     String? actionLabel,
     VoidCallback? onAction,
   }) {
-    _show(
-      message: message,
+    AppToast.info(
+      message,
       title: title,
       duration: duration,
-      onTap: onTap,
+      onAction: onAction ?? onTap,
       actionLabel: actionLabel,
-      onAction: onAction,
-      icon: Icons.info_outline,
-      backgroundColor: AppTokens.colors.info.withValues(alpha: 0.15),
-      borderColor: AppTokens.colors.info.withValues(alpha: 0.5),
-      textColor: AppColors.textPrimary,
     );
   }
 
@@ -206,29 +180,32 @@ class SnackbarService {
       titleText: sanitizedTitle != null
           ? Text(
               sanitizedTitle,
-              style: TextStyle(
-                color: textColor ?? AppColors.textPrimary,
+              style: const TextStyle(
+                color: Colors.black,
                 fontWeight: FontWeight.w700,
                 fontSize: 14,
-                letterSpacing: 0.2,
+                fontFamily: TWTypography.uiFamily,
+                fontFamilyFallback: TWTypography.fallbackFamilies,
+                letterSpacing: 0.1,
               ),
             )
           : const SizedBox.shrink(),
       messageText: Text(
         sanitizedMessage,
-        style: TextStyle(
-          color: (textColor ?? AppColors.textPrimary).withValues(alpha: 0.9),
+        style: const TextStyle(
+          color: Color(0xFF1F2937),
           fontWeight: FontWeight.w400,
           fontSize: 13,
-          letterSpacing: 0.1,
-          height: 1.4,
+          fontFamily: TWTypography.uiFamily,
+          fontFamilyFallback: TWTypography.fallbackFamilies,
+          height: 1.35,
         ),
       ),
-      backgroundColor: backgroundColor.withValues(alpha: 0.85),
-      colorText: textColor ?? AppColors.textPrimary,
-      borderColor: borderColor?.withValues(alpha: 0.4),
-      borderWidth: borderColor != null ? 0.5 : 0,
-      borderRadius: 14,
+      backgroundColor: Colors.white,
+      colorText: Colors.black,
+      borderColor: const Color(0xFFE5E7EB),
+      borderWidth: 1.0,
+      borderRadius: 22,
       margin: EdgeInsets.only(
         bottom: isMobile ? 16 : 24,
         left: 16,
@@ -241,14 +218,14 @@ class SnackbarService {
       maxWidth: actualMaxWidth,
       snackPosition: SnackPosition.BOTTOM,
       isDismissible: true,
-      animationDuration: const Duration(milliseconds: 400),
-      forwardAnimationCurve: Curves.easeOutCirc,
-      reverseAnimationCurve: Curves.easeInCirc,
+      animationDuration: const Duration(milliseconds: 350),
+      forwardAnimationCurve: Curves.easeOutCubic,
+      reverseAnimationCurve: Curves.easeInCubic,
       boxShadows: [
         BoxShadow(
-          color: AppColors.bgPage.withValues(alpha: 0.25),
-          blurRadius: 16,
-          offset: const Offset(0, 8),
+          color: Colors.black.withValues(alpha: 0.28),
+          blurRadius: 18,
+          offset: const Offset(0, 6),
         ),
       ],
       icon: icon != null
@@ -256,8 +233,8 @@ class SnackbarService {
               padding: const EdgeInsets.only(right: 4),
               child: Icon(
                 icon,
-                color: Colors.white,
-                size: 22,
+                color: Colors.black,
+                size: 24,
               ),
             )
           : null,
@@ -269,39 +246,36 @@ class SnackbarService {
                 onAction?.call();
               },
               style: TextButton.styleFrom(
+                foregroundColor: Colors.black,
+                backgroundColor: Colors.white,
+                side: const BorderSide(color: Color(0xFFD1D5DB), width: 1.2),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 8,
                 ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
-                  side: BorderSide(
-                    color: (borderColor ?? AppColors.brand).withValues(alpha: 0.4),
-                    width: 1.2,
-                  ),
                 ),
-                backgroundColor: (borderColor ?? AppColors.brand).withValues(
-                  alpha: 0.15,
-                ),
-                minimumSize: const Size(68, 38),
+                minimumSize: const Size(68, 36),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               child: Text(
                 actionLabel,
                 maxLines: 1,
-                style: TextStyle(
-                  color: borderColor ?? AppColors.brand,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13.5,
-                  letterSpacing: 0.3,
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontFamily: TWTypography.uiFamily,
+                  fontFamilyFallback: TWTypography.fallbackFamilies,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
                 ),
               ),
             )
           : null,
       showProgressIndicator: showProgress,
       progressIndicatorBackgroundColor: Colors.transparent,
-      progressIndicatorValueColor: AlwaysStoppedAnimation<Color>(
-        borderColor ?? AppColors.brand,
+      progressIndicatorValueColor: const AlwaysStoppedAnimation<Color>(
+        Colors.black,
       ),
       duration: duration,
       onTap: (_) => onTap?.call(),
@@ -347,7 +321,7 @@ class SnackbarContent extends StatelessWidget {
               padding: EdgeInsets.only(right: AppTokens.spacing.space12),
               child: Icon(
                 icon,
-                color: iconColor ?? AppColors.textPrimary,
+                color: iconColor ?? Colors.black,
                 size: 20,
               ),
             ),
@@ -364,8 +338,10 @@ class SnackbarContent extends StatelessWidget {
                     child: Text(
                       title!,
                       style: TextStyle(
-                        color: textColor ?? AppColors.textPrimary,
-                        fontWeight: FontWeight.w500,
+                        color: textColor ?? Colors.black,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: TWTypography.uiFamily,
+                        fontFamilyFallback: TWTypography.fallbackFamilies,
                         fontSize: 13,
                       ),
                     ),
@@ -375,7 +351,9 @@ class SnackbarContent extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: textColor ?? AppColors.textSecondary,
+                    color: textColor ?? const Color(0xFF1F2937),
+                    fontFamily: TWTypography.uiFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
                     fontSize: 12,
                     height: 1.4,
                   ),
@@ -388,32 +366,34 @@ class SnackbarContent extends StatelessWidget {
           if (actionLabel != null)
             Padding(
               padding: EdgeInsets.only(left: AppTokens.spacing.space12),
-              child: TextButton(
+              child: OutlinedButton(
                 onPressed: onAction,
-                style: TextButton.styleFrom(
+                style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 8,
                   ),
-                  minimumSize: const Size(68, 38),
+                  minimumSize: const Size(68, 36),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  backgroundColor: AppColors.brand.withValues(alpha: 0.15),
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                  side: const BorderSide(
+                    color: Color(0xFFD1D5DB),
+                    width: 1.2,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
-                    side: BorderSide(
-                      color: AppColors.brand.withValues(alpha: 0.4),
-                      width: 1.2,
-                    ),
                   ),
                 ),
                 child: Text(
                   actionLabel!,
                   maxLines: 1,
                   style: const TextStyle(
-                    color: AppColors.brand,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13.5,
-                    letterSpacing: 0.3,
+                    color: Colors.black,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: TWTypography.uiFamily,
+                    fontFamilyFallback: TWTypography.fallbackFamilies,
+                    fontSize: 13,
                   ),
                 ),
               ),

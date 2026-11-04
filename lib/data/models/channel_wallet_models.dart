@@ -163,6 +163,7 @@ class DubbingDurationTier {
   final int maxSeconds;
   final double standardFlatRatePerLanguage;
   final double customFlatRatePerLanguage;
+  final double? voiceCloneRatePerLanguage;
 
   const DubbingDurationTier({
     required this.id,
@@ -171,6 +172,7 @@ class DubbingDurationTier {
     required this.maxSeconds,
     required this.standardFlatRatePerLanguage,
     required this.customFlatRatePerLanguage,
+    this.voiceCloneRatePerLanguage,
   });
 
   double flatRateForChannel(ChannelType type) {
@@ -179,7 +181,227 @@ class DubbingDurationTier {
         : standardFlatRatePerLanguage;
   }
 
+  double flatRateForVoiceType({
+    required String voiceType,
+    ChannelType type = ChannelType.standard,
+  }) {
+    if (voiceType == 'cloned' || voiceType == 'voice_clone') {
+      return voiceCloneRatePerLanguage ?? flatRateForChannel(type);
+    }
+    return flatRateForChannel(type);
+  }
+
   String get label => durationLabel;
+}
+
+/// Authoritative definition of TruthWorld Audio and Video Dubbing Tiers.
+/// Clean, transparent, zero charm-pricing ($1, $2, $3, $4, $5 for 10-minute videos).
+class DubbingProductionTier {
+  final String id;
+  final String name;
+  final String category; // 'audio' | 'video'
+  final double perMinuteRateUSD; // 0.10, 0.20, 0.30, 0.40, 0.50
+  final double tenMinutePriceUSD; // 1.0, 2.0, 3.0, 4.0, 5.0
+  final String asrProvider;
+  final String translationEngine;
+  final String ttsEngine;
+  final String visualSync;
+  final String badge;
+  final String description;
+  final bool isCinemaGrade;
+  final bool isLipSync;
+  final bool isVoiceClone;
+
+  const DubbingProductionTier({
+    required this.id,
+    required this.name,
+    required this.category,
+    required this.perMinuteRateUSD,
+    required this.tenMinutePriceUSD,
+    required this.asrProvider,
+    required this.translationEngine,
+    required this.ttsEngine,
+    required this.visualSync,
+    required this.badge,
+    required this.description,
+    this.isCinemaGrade = false,
+    this.isLipSync = false,
+    this.isVoiceClone = false,
+  });
+
+  static const DubbingProductionTier audioStarter = DubbingProductionTier(
+    id: 'audio_starter',
+    name: 'Audio Starter',
+    category: 'audio',
+    perMinuteRateUSD: 0.10,
+    tenMinutePriceUSD: 1.00,
+    asrProvider: 'AssemblyAI Universal 3.5 Pro (18 Core Langs) + Google Chirp',
+    translationEngine: 'Google Cloud Translation v3 + Gemini 2.5',
+    ttsEngine: 'Google Chirp HD 3 (Journey & Studio)',
+    visualSync: 'None (Clean Audio Track)',
+    badge: '100% BGM Preserved',
+    description: 'Clean localized multi-language narration with 100% Studio Preservation (discrete Vocals, Drums, Bass, Foley separation & zero phase cancellation).',
+    isCinemaGrade: false,
+    isLipSync: false,
+    isVoiceClone: false,
+  );
+
+  static const DubbingProductionTier audioPro = DubbingProductionTier(
+    id: 'audio_pro',
+    name: 'Audio Pro',
+    category: 'audio',
+    perMinuteRateUSD: 0.20,
+    tenMinutePriceUSD: 2.00,
+    asrProvider: 'AssemblyAI (18 Langs) + Sarvam AI Indic + Google Chirp',
+    translationEngine: 'Google Cloud Translation v3 + Gemini 2.5',
+    ttsEngine: 'ElevenLabs v4 Fast API (Ultra-Expressive)',
+    visualSync: 'None (Clean Audio Track)',
+    badge: '100% BGM Preserved',
+    description: 'Emotionally expressive neural voices with Sarvam AI Indic accuracy and 100% Studio Preservation (discrete stems with zero phase cancellation).',
+    isCinemaGrade: false,
+    isLipSync: false,
+    isVoiceClone: false,
+  );
+
+  static const DubbingProductionTier audioUltra = DubbingProductionTier(
+    id: 'audio_ultra',
+    name: 'Audio Ultra',
+    category: 'audio',
+    perMinuteRateUSD: 0.30,
+    tenMinutePriceUSD: 3.00,
+    asrProvider: 'AssemblyAI (18 Langs) + Sarvam AI Indic + Google Chirp',
+    translationEngine: 'Google Cloud Translation v3 + Gemini 2.5',
+    ttsEngine: 'ElevenLabs v4 Studio Voice Cloning',
+    visualSync: 'Viseme Cadence Locking (Zero Overhang)',
+    badge: '100% BGM Preserved',
+    description: 'Replicates creator vocal identity with 100% Studio Preservation & Viseme Cadence Locking (prevents vocal overhang on talking-head videos with zero phase cancellation).',
+    isCinemaGrade: false,
+    isLipSync: false,
+    isVoiceClone: true,
+  );
+
+  static const DubbingProductionTier videoPro = DubbingProductionTier(
+    id: 'video_pro',
+    name: 'Video Pro',
+    category: 'video',
+    perMinuteRateUSD: 0.40,
+    tenMinutePriceUSD: 4.00,
+    asrProvider: 'AssemblyAI (18 Langs) + Sarvam AI Indic + Google Chirp',
+    translationEngine: 'Google Cloud Translation v3 + Gemini 2.5',
+    ttsEngine: 'ElevenLabs v4 Voice Cloning',
+    visualSync: 'AI Visual Lip-Sync (LatentSync GPU)',
+    badge: '100% BGM Preserved',
+    description: 'Synchronized mouth movement re-targeting with 100% Studio Preservation (discrete stems, CodeFormer & ElevenLabs voice cloning).',
+    isCinemaGrade: false,
+    isLipSync: true,
+    isVoiceClone: true,
+  );
+
+  static const DubbingProductionTier videoUltra = DubbingProductionTier(
+    id: 'video_ultra',
+    name: 'Video Ultra',
+    category: 'video',
+    perMinuteRateUSD: 0.50,
+    tenMinutePriceUSD: 5.00,
+    asrProvider: 'AssemblyAI (18 Langs) + Sarvam AI Indic + Google Chirp',
+    translationEngine: 'Google Cloud Translation v3 + Gemini 4 Argon (Isometric)',
+    ttsEngine: 'ElevenLabs v4 Voice Cloning + Multi-Speaker Diarized Casting',
+    visualSync: 'Cinema Neural Lip-Sync & Face Motion Retention',
+    badge: 'Cinema Grade',
+    description: 'Hollywood theatrical grade with 100% Studio Preservation (discrete 4-stem Demucs M&E isolation, Gemini 4 Argon isometry & Poisson blending).',
+    isCinemaGrade: true,
+    isLipSync: true,
+    isVoiceClone: true,
+  );
+
+  static const List<DubbingProductionTier> allTiers = [
+    audioStarter,
+    audioPro,
+    audioUltra,
+    videoPro,
+    videoUltra,
+  ];
+
+  static List<DubbingProductionTier> get audioTiers =>
+      allTiers.where((t) => t.category == 'audio').toList();
+
+  static List<DubbingProductionTier> get videoTiers =>
+      allTiers.where((t) => t.category == 'video').toList();
+
+  static DubbingProductionTier fromId(String? id) {
+    if (id == null || id.isEmpty) return audioStarter;
+    return allTiers.firstWhere(
+      (t) => t.id == id,
+      orElse: () => audioStarter,
+    );
+  }
+
+  String get tenMinuteRateFormatted => '\$${tenMinutePriceUSD.toInt()}';
+}
+
+/// Authoritative definition of TruthWorld Subtitle Tiers (Starter & Pro).
+/// Clean, transparent, zero charm-pricing ($0.50 & $0.75 for 10-minute video subtitles).
+class SubtitleProductionTier {
+  final String id; // 'starter' | 'pro'
+  final String name;
+  final double perMinuteRateUSD; // 0.05 (Starter: $0.50 for 10m), 0.075 (Pro: $0.75 for 10m)
+  final double tenMinutePriceUSD; // 0.50, 0.75
+  final double additionalLangTenMinutePriceUSD; // 0.20 (Starter), 0.30 (Pro)
+  final double additionalLangPerMinuteUSD; // 0.02 (Starter), 0.03 (Pro)
+  final String asrProvider;
+  final String translationEngine;
+  final String badge;
+  final String description;
+  final bool isPro;
+
+  const SubtitleProductionTier({
+    required this.id,
+    required this.name,
+    required this.perMinuteRateUSD,
+    required this.tenMinutePriceUSD,
+    required this.additionalLangTenMinutePriceUSD,
+    required this.additionalLangPerMinuteUSD,
+    required this.asrProvider,
+    required this.translationEngine,
+    required this.badge,
+    required this.description,
+    this.isPro = false,
+  });
+
+  static const SubtitleProductionTier starter = SubtitleProductionTier(
+    id: 'starter',
+    name: 'Starter Subtitles',
+    perMinuteRateUSD: 0.05,
+    tenMinutePriceUSD: 0.50,
+    additionalLangTenMinutePriceUSD: 0.20,
+    additionalLangPerMinuteUSD: 0.02,
+    asrProvider: 'AssemblyAI Universal 3.5 Pro + Sarvam AI Indic + Google Chirp',
+    translationEngine: 'Google Cloud Translation v3 + Gemini 2.5 Flash',
+    badge: 'Starter',
+    description: 'High-speed, cost-effective subtitles with duration-aware sync and clean reading flow.',
+    isPro: false,
+  );
+
+  static const SubtitleProductionTier pro = SubtitleProductionTier(
+    id: 'pro',
+    name: 'Pro Subtitles',
+    perMinuteRateUSD: 0.075,
+    tenMinutePriceUSD: 0.75,
+    additionalLangTenMinutePriceUSD: 0.30,
+    additionalLangPerMinuteUSD: 0.03,
+    asrProvider: 'AssemblyAI Universal 3.5 Pro + Sarvam AI Indic + Google Chirp',
+    translationEngine: 'Google Cloud Translation v3 + Gemini 4 Argon',
+    badge: 'Cinema-Grade',
+    description: 'Cinema-grade cultural adaptation, idiomatic transcreation, and precision split timing.',
+    isPro: true,
+  );
+
+  static const List<SubtitleProductionTier> allTiers = [starter, pro];
+
+  static SubtitleProductionTier fromId(String? id) {
+    if (id == 'pro') return pro;
+    return starter;
+  }
 }
 
 /// Video duration tiers for flat subtitle pricing.

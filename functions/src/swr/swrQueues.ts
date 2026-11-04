@@ -11,9 +11,20 @@ import { logger } from "../pipeline/utils/logger";
 const runSWRTask = async (event: any) => {
   try {
     const payload = event.data;
-    if (!payload || !payload.jobId || !payload.claimIds || !payload.cacheKeys) {
+    if (
+      !payload ||
+      typeof payload.jobId !== "string" ||
+      !Array.isArray(payload.claimIds) ||
+      !Array.isArray(payload.cacheKeys)
+    ) {
       logger.error("[SWR Task] Invalid payload", { payload });
       return;
+    }
+    if (payload.claimIds.length > 50) {
+      payload.claimIds = payload.claimIds.slice(0, 50);
+    }
+    if (payload.cacheKeys.length > 50) {
+      payload.cacheKeys = payload.cacheKeys.slice(0, 50);
     }
     const geminiKey = PIPELINE_CONFIG.GEMINI_API_KEY;
     const { CredibilityEngine } = require("../pipeline/layers/06-credibility");

@@ -2,7 +2,6 @@ import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/services/location/location_lookup_service.dart';
 import 'package:truthworld/core/services/location/verified_location.dart';
@@ -200,52 +199,55 @@ class LocationPinPickerDialog extends StatelessWidget {
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Dialog(
-      backgroundColor: context.colors.surface,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: SizedBox(
-          width: 540,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: AppColors.bgDivider)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.pin_drop,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Pin Location on Map',
-                        style: GoogleFonts.outfit(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+    return PopScope(
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          Get.delete<LocationPinPickerController>(tag: tag);
+        }
+      },
+      child: Dialog(
+        backgroundColor: context.colors.surface,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: SizedBox(
+            width: 540,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Header
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: const BoxDecoration(
+                    border: Border(bottom: BorderSide(color: AppColors.bgDivider)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.pin_drop,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Pin Location on Map',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
                         ),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: AppColors.textSecondary, size: 20),
-                      onPressed: () {
-                        Get.delete<LocationPinPickerController>(tag: tag);
-                        Get.back();
-                      },
-                    ),
-                  ],
+                      IconButton(
+                        icon: const Icon(Icons.close, color: AppColors.textSecondary, size: 20),
+                        onPressed: Get.back,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
 
               // Interactive Map View
               SizedBox(
@@ -303,7 +305,7 @@ class LocationPinPickerDialog extends StatelessWidget {
                                         color: isDark ? const Color(0xFF1A1A1A) : Colors.grey[200],
                                       ),
                                       errorWidget: (context, url, err) => Container(
-                                        color: isDark ? const Color(0xFF1E1E1E) : Colors.grey[300],
+                                        color: isDark ? AppColors.bgSurface : Colors.grey[300],
                                       ),
                                     ),
                                   ),
@@ -318,7 +320,7 @@ class LocationPinPickerDialog extends StatelessWidget {
                               child: Stack(
                                 children: [
                                   Container(
-                                    color: isDark ? const Color(0xFF121212) : Colors.grey[100],
+                                    color: isDark ? AppColors.bgInput : Colors.grey[100],
                                     child: Stack(children: tiles),
                                   ),
                                 ],
@@ -339,7 +341,7 @@ class LocationPinPickerDialog extends StatelessWidget {
                             const Icon(
                               Icons.location_on,
                               size: 42,
-                              color: Color(0xFFEF4444),
+                              color: AppColors.error,
                               shadows: [
                                 Shadow(
                                   color: Colors.black54,
@@ -433,7 +435,7 @@ class LocationPinPickerDialog extends StatelessWidget {
                         const SizedBox(width: 12),
                         Text(
                           'Locating nearest town, city, or village...',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 13,
                             color: AppColors.textSecondary,
                           ),
@@ -459,7 +461,7 @@ class LocationPinPickerDialog extends StatelessWidget {
                             Expanded(
                               child: Text(
                                 loc.name,
-                                style: GoogleFonts.outfit(
+                                style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.textPrimary,
@@ -492,7 +494,7 @@ class LocationPinPickerDialog extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           loc.formattedAddress,
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 13,
                             color: AppColors.textSecondary,
                           ),
@@ -502,7 +504,7 @@ class LocationPinPickerDialog extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           '${controller.latitude.value.toStringAsFixed(4)}°, ${controller.longitude.value.toStringAsFixed(4)}°',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 11,
                             color: AppColors.textTertiary,
                           ),
@@ -525,7 +527,7 @@ class LocationPinPickerDialog extends StatelessWidget {
                           controller.resolveError.value.isNotEmpty
                               ? controller.resolveError.value
                               : 'No town, city, or village found near this pin. Please pan closer to an inhabited locality.',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 12,
                             color: Colors.amber[200],
                           ),
@@ -543,13 +545,10 @@ class LocationPinPickerDialog extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     TextButton(
-                      onPressed: () {
-                        Get.delete<LocationPinPickerController>(tag: tag);
-                        Get.back();
-                      },
+                      onPressed: Get.back,
                       child: Text(
                         'Cancel',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           color: AppColors.textSecondary,
                           fontWeight: FontWeight.w500,
                         ),
@@ -565,7 +564,6 @@ class LocationPinPickerDialog extends StatelessWidget {
                         onPressed: canConfirm
                             ? () {
                                 final loc = controller.currentLocality.value!;
-                                Get.delete<LocationPinPickerController>(tag: tag);
                                 Get.back(result: loc);
                               }
                             : null,
@@ -582,7 +580,7 @@ class LocationPinPickerDialog extends StatelessWidget {
                         ),
                         child: Text(
                           'Confirm & Pin Location',
-                          style: GoogleFonts.outfit(
+                          style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
                             color: canConfirm ? Colors.black : Colors.white38,
@@ -597,8 +595,9 @@ class LocationPinPickerDialog extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildMapIconButton({
     required IconData icon,
@@ -608,7 +607,7 @@ class LocationPinPickerDialog extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: const Color(0xFF1E1E1E).withValues(alpha: 0.9),
+        color: AppColors.bgSurface.withValues(alpha: 0.9),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
           side: const BorderSide(color: AppColors.bgDivider),

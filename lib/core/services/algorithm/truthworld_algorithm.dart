@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/app_categories.dart';
 import 'package:truthworld/core/services/algorithm/algorithm_engine.dart';
 import 'package:truthworld/core/services/algorithm/algorithm_remote_config.dart';
 import 'package:truthworld/core/services/algorithm/diversity_config.dart';
@@ -10,6 +11,7 @@ import 'package:truthworld/core/services/algorithm/scored_video.dart';
 import 'package:truthworld/core/services/algorithm/session_interest_tracker.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
+import 'package:truthworld/core/services/user_languages_service.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -131,6 +133,19 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
         break;
     }
 
+    final userPrimary = _profile?.primaryLanguage ??
+        (Get.isRegistered<UserLanguagesService>()
+            ? UserLanguagesService.to.primaryLanguage.value
+            : 'English');
+    final secondaryLangs = _profile?.secondaryLanguages ??
+        (Get.isRegistered<UserLanguagesService>()
+            ? UserLanguagesService.to.secondaryLanguages.toList()
+            : const []);
+    final knownLangs = _profile?.knownLanguages ??
+        (Get.isRegistered<UserLanguagesService>()
+            ? UserLanguagesService.to.knownLanguages.toList()
+            : const ['English']);
+
     return AlgorithmEngine.scoreSingleVideo(
       video: video,
       surface: surface,
@@ -140,6 +155,9 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
       explorationBudget: _explorationBudget,
       sessionCreatorExposure: _sessionCreatorExposure,
       diversityConfig: diversityConfig,
+      userPrimaryLanguage: userPrimary,
+      secondaryLanguages: secondaryLangs,
+      knownLanguages: knownLangs,
     );
   }
 
@@ -151,6 +169,19 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
   }) {
     final config = Get.find<AlgorithmRemoteConfig>();
     final baseWeights = config.getWeightProfile(surface);
+    final userPrimary = _profile?.primaryLanguage ??
+        (Get.isRegistered<UserLanguagesService>()
+            ? UserLanguagesService.to.primaryLanguage.value
+            : 'English');
+    final secondaryLangs = _profile?.secondaryLanguages ??
+        (Get.isRegistered<UserLanguagesService>()
+            ? UserLanguagesService.to.secondaryLanguages.toList()
+            : const []);
+    final knownLangs = _profile?.knownLanguages ??
+        (Get.isRegistered<UserLanguagesService>()
+            ? UserLanguagesService.to.knownLanguages.toList()
+            : const ['English']);
+
     final task = AlgorithmRankingTask(
       candidates: candidates,
       surface: surface,
@@ -159,6 +190,9 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
       sessionEvents: _sessionTracker.recentEvents,
       sessionCreatorExposure: Map<String, int>.from(_sessionCreatorExposure),
       diversityConfig: diversityConfig,
+      userPrimaryLanguage: userPrimary,
+      secondaryLanguages: secondaryLangs,
+      knownLanguages: knownLangs,
     );
 
     final finalFeed = rankVideosWorker(task);
@@ -184,6 +218,19 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
 
     final config = Get.find<AlgorithmRemoteConfig>();
     final baseWeights = config.getWeightProfile(surface);
+    final userPrimary = _profile?.primaryLanguage ??
+        (Get.isRegistered<UserLanguagesService>()
+            ? UserLanguagesService.to.primaryLanguage.value
+            : 'English');
+    final secondaryLangs = _profile?.secondaryLanguages ??
+        (Get.isRegistered<UserLanguagesService>()
+            ? UserLanguagesService.to.secondaryLanguages.toList()
+            : const []);
+    final knownLangs = _profile?.knownLanguages ??
+        (Get.isRegistered<UserLanguagesService>()
+            ? UserLanguagesService.to.knownLanguages.toList()
+            : const ['English']);
+
     final task = AlgorithmRankingTask(
       candidates: candidates,
       surface: surface,
@@ -192,6 +239,9 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
       sessionEvents: _sessionTracker.recentEvents,
       sessionCreatorExposure: Map<String, int>.from(_sessionCreatorExposure),
       diversityConfig: diversityConfig,
+      userPrimaryLanguage: userPrimary,
+      secondaryLanguages: secondaryLangs,
+      knownLanguages: knownLangs,
     );
 
     final finalFeed = await compute(rankVideosWorker, task);
@@ -232,6 +282,22 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
       );
   double _computeKnowledgeQuality(Video video) =>
       AlgorithmEngine.computeKnowledgeQuality(video);
+  double _computeLanguageAffinity(Video video) =>
+      AlgorithmEngine.computeLanguageAffinity(
+        video,
+        _profile?.primaryLanguage ??
+            (Get.isRegistered<UserLanguagesService>()
+                ? UserLanguagesService.to.primaryLanguage.value
+                : 'English'),
+        secondaryLanguages: _profile?.secondaryLanguages ??
+            (Get.isRegistered<UserLanguagesService>()
+                ? UserLanguagesService.to.secondaryLanguages.toList()
+                : const []),
+        knownLanguages: _profile?.knownLanguages ??
+            (Get.isRegistered<UserLanguagesService>()
+                ? UserLanguagesService.to.knownLanguages.toList()
+                : const ['English']),
+      );
   double _computeCreatorFairness(Video video, DiversityConfig config) =>
       AlgorithmEngine.computeCreatorFairness(
         video,
@@ -357,10 +423,15 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
           ? _computeCreatorFairness(video, diversityConfig)
           : 0.0;
 
+      final langAffinity = _computeLanguageAffinity(video);
+      final langBoost =
+          langAffinity >= 0.85 ? 2.5 : (langAffinity <= 0.15 ? -1.0 : 0.0);
+
       final totalOppositeScore = (contrastScore * 10.0) +
           unexploredBoost +
           (knowledgeQuality * 3.0) +
           (engagement * 2.0) +
+          langBoost +
           creatorFairness;
 
       scored.add(
@@ -495,19 +566,41 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
           ? _computeCreatorFairness(video, diversityConfig)
           : 0.0;
 
+      // Fact-Checking Priority Boost for the 10 High-Credibility Categories on Unexplored Feed
+      var factCheckCategoryBoost = 0.0;
+      if (AppCategories.isFactCheckRelevant(video.category)) {
+        if (video.isFactChecked || video.hasPublicAiCredibility) {
+          factCheckCategoryBoost += 3.5;
+          if (video.trustScore >= 3.5) {
+            factCheckCategoryBoost += 1.5;
+          }
+        }
+      }
+
+      final langAffinity = _computeLanguageAffinity(video);
+      final langBoost =
+          langAffinity >= 0.85 ? 2.5 : (langAffinity <= 0.15 ? -1.0 : 0.0);
+
       final totalUnexploredScore = (loveAffinity * 3.5) +
           unexploredBonus +
           archetypeBonus +
           (knowledgeQuality * 2.5) +
           (engagement * 1.5) +
-          creatorFairness;
+          langBoost +
+          creatorFairness +
+          factCheckCategoryBoost;
 
+      final hasFactCheckBonus = factCheckCategoryBoost > 0.0;
       scored.add(
         ScoredVideo(
           video: video,
           score: totalUnexploredScore,
-          recommendationReason: RecommendationReasons.inYourTopics,
-          recommendationExplanation: 'Unexplored Horizon (Personalized Latent Love)',
+          recommendationReason: hasFactCheckBonus
+              ? RecommendationReasons.factChecked
+              : RecommendationReasons.inYourTopics,
+          recommendationExplanation: hasFactCheckBonus
+              ? 'Fact-checked for verified accuracy in ${video.category}'
+              : 'Unexplored Horizon (Personalized Latent Love)',
           surface: surface,
           signalBreakdown: {
             'loveAffinity': loveAffinity,
@@ -515,6 +608,7 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
             'archetypeBonus': archetypeBonus,
             'knowledgeQuality': knowledgeQuality,
             'engagement': engagement,
+            'factCheckCategoryBoost': factCheckCategoryBoost,
           },
         ),
       );

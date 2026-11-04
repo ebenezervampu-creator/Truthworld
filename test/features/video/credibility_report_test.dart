@@ -13,7 +13,6 @@ void main() {
         'expertise': 0.4,
         'freshness': 0.3,
         'safety': 0.2,
-        'honesty': 0.1,
       };
 
       final factors = ScoringFactors.fromMap(map);
@@ -25,7 +24,6 @@ void main() {
       expect(factors.expertise, 0.4);
       expect(factors.freshness, 0.3);
       expect(factors.safety, 0.2);
-      expect(factors.honesty, 0.1);
 
       expect(factors.toMap(), equals(map));
     });
@@ -40,39 +38,6 @@ void main() {
       expect(factors.expertise, 0.0);
       expect(factors.freshness, 0.0);
       expect(factors.safety, 0.0);
-      expect(factors.honesty, 0.0);
-    });
-  });
-
-  group('HonestyBreakdown', () {
-    test('fromMap and toMap round-trip', () {
-      final map = {
-        'score': 0.85,
-        'opinionLabeledOpinion': 1,
-        'beliefLabeledBelief': 2,
-        'beliefPresentedAsFact': 3,
-        'opinionPresentedAsFact': 4,
-        'speculationLabeledSpeculation': 5,
-        'assertivenessMismatchPenalty': 0.15,
-      };
-
-      final breakdown = HonestyBreakdown.fromMap(map);
-      expect(breakdown.score, 0.85);
-      expect(breakdown.opinionLabeledOpinion, 1);
-      expect(breakdown.beliefLabeledBelief, 2);
-      expect(breakdown.beliefPresentedAsFact, 3);
-      expect(breakdown.opinionPresentedAsFact, 4);
-      expect(breakdown.speculationLabeledSpeculation, 5);
-      expect(breakdown.assertivenessMismatchPenalty, 0.15);
-
-      expect(breakdown.toMap(), equals(map));
-    });
-
-    test('defaults when keys missing', () {
-      final breakdown = HonestyBreakdown.fromMap({});
-      expect(breakdown.score, 0.0);
-      expect(breakdown.opinionLabeledOpinion, 0);
-      expect(breakdown.assertivenessMismatchPenalty, 0.0);
     });
   });
 
@@ -204,17 +169,11 @@ void main() {
     test('nullable doubles', () {
       final summary = UISummary.fromMap({
         'rating': 4.5,
-        'honestyScore': 0.8,
-        'rationalityScore': 0.7,
       });
       expect(summary.rating, 4.5);
-      expect(summary.honestyScore, 0.8);
-      expect(summary.rationalityScore, 0.7);
 
       final empty = UISummary.fromMap({});
       expect(empty.rating, null);
-      expect(empty.honestyScore, null);
-      expect(empty.rationalityScore, null);
     });
   });
 

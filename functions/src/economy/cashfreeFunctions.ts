@@ -25,8 +25,6 @@ async function fulfillOrder(
   const firestore = admin.firestore();
   const orderRef = firestore.collection("payment_orders").doc(orderId);
 
-  let didFulfill = false;
-  let effectiveCurrency = "INR";
   await firestore.runTransaction(async (transaction) => {
     // -------------------------------------------------------------
     // 1. ALL READ OPERATIONS MUST BE EXECUTED BEFORE ANY WRITES
@@ -41,7 +39,6 @@ async function fulfillOrder(
     }
 
     const orderCurrency = (currentData.currency || currency || metadata?.currency || "INR").toUpperCase();
-    effectiveCurrency = orderCurrency;
 
     let wasActiveMember = false;
     let oldTierRef: admin.firestore.DocumentReference | null = null;
@@ -99,7 +96,6 @@ async function fulfillOrder(
     // -------------------------------------------------------------
     // 2. ALL WRITES COMMENCE AFTER ALL READS ARE COMPLETE
     // -------------------------------------------------------------
-    didFulfill = true;
     transaction.update(orderRef, {
       status: "FULFILLED",
       fulfilledAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -155,24 +151,9 @@ async function fulfillOrder(
         { merge: true }
       );
     } else if (purpose === "advertiser_wallet") {
-      const isExclusive = Boolean(metadata.isNet || metadata.gstInclusive === false);
-      let net: number;
-      let tax: number;
-
-      if (isExclusive) {
-        net = Number(amount.toFixed(2));
-        tax = Number((amount * 0.18).toFixed(2));
-      } else if (metadata.netAmount !== undefined && !isNaN(Number(metadata.netAmount)) && Number(metadata.netAmount) > 0) {
-        net = Number(Number(metadata.netAmount).toFixed(2));
-        tax = metadata.taxAmount !== undefined && !isNaN(Number(metadata.taxAmount))
-          ? Number(Number(metadata.taxAmount).toFixed(2))
-          : Number((amount - net).toFixed(2));
-      } else {
-        // GST is inclusive in gross amount paid (e.g. ₹1,180 gross = ₹1,000 ad credit + ₹180 GST)
-        net = Number((amount * (100 / 118)).toFixed(2));
-        tax = Number((amount - net).toFixed(2));
-      }
-
+      // Compute advertiser wallet credit purely server-side based on amount / 1.18 (18% GST)
+      const net = Number((amount / 1.18).toFixed(2));
+      const tax = Number((amount - net).toFixed(2));
       const spendableCredit = net;
 
       const advertiserRef = firestore.collection("advertiser_profiles").doc(userId);
@@ -237,7 +218,10 @@ async function fulfillOrder(
       if (channelId) {
         const channelRef = firestore.collection("channels").doc(channelId);
         const packType = metadata.packType;
-        const amountUSD = metadata.amountUSD || (amount > 0 ? Number((amount / 84.0).toFixed(2)) : 0);
+        // Compute channel wallet amountUSD based on verified amount and authoritative conversion
+        const amountUSD = orderCurrency === "USD"
+          ? Number(amount.toFixed(2))
+          : (amount > 0 ? Number((amount / 84.0).toFixed(2)) : 0);
 
         if (purpose === "custom_channel_plan") {
           const planTier = String(metadata.planTier || "starter_15");
@@ -280,25 +264,45 @@ async function fulfillOrder(
             { merge: true }
           );
         } else if (packType === "storage") {
-          const additionalBytes = (metadata.gigabytes || 0) * 1024 * 1024 * 1024;
-          transaction.set(
-            channelRef,
-            {
-              "infraConfig.storageQuotaBytes": admin.firestore.FieldValue.increment(additionalBytes),
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            },
-            { merge: true }
-          );
+          const STORAGE_PACK_GB: Record<string, number> = {
+            storage_25gb: 25,
+            storage_50gb: 50,
+            storage_100gb: 100,
+            storage_500gb: 500,
+          };
+          const packId = String(metadata.packId || "");
+          const gb = STORAGE_PACK_GB[packId] || (amountUSD > 0 ? Math.round(amountUSD * 10) : 0);
+          const additionalBytes = gb * 1024 * 1024 * 1024;
+          if (additionalBytes > 0) {
+            transaction.set(
+              channelRef,
+              {
+                "infraConfig.storageQuotaBytes": admin.firestore.FieldValue.increment(additionalBytes),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+          }
         } else if (packType === "bandwidth") {
-          const additionalBytes = (metadata.gigabytes || 0) * 1024 * 1024 * 1024;
-          transaction.set(
-            channelRef,
-            {
-              "infraConfig.bandwidthQuotaBytesThisMonth": admin.firestore.FieldValue.increment(additionalBytes),
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            },
-            { merge: true }
-          );
+          const BANDWIDTH_PACK_GB: Record<string, number> = {
+            bandwidth_100gb: 100,
+            bandwidth_250gb: 250,
+            bandwidth_500gb: 500,
+            bandwidth_1tb: 1000,
+          };
+          const packId = String(metadata.packId || "");
+          const gb = BANDWIDTH_PACK_GB[packId] || 0;
+          const additionalBytes = gb * 1024 * 1024 * 1024;
+          if (additionalBytes > 0) {
+            transaction.set(
+              channelRef,
+              {
+                "infraConfig.bandwidthQuotaBytesThisMonth": admin.firestore.FieldValue.increment(additionalBytes),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+          }
         } else if (packType === "balance" || purpose === "channel_wallet_topup") {
           transaction.set(
             channelRef,
@@ -495,63 +499,7 @@ async function fulfillOrder(
     }
   });
 
-  // Post Superchat event to Realtime Database stream for live chat overlay (only on genuine fulfillment)
-  if (didFulfill && purpose === "superchat" && metadata.videoId) {
-    try {
-      const rtdb = admin.database();
-      const videoId = metadata.videoId;
-      const userName = metadata.userName || "Supporter";
-      const userProfilePicUrl = metadata.userProfilePicUrl || "";
-      const text = metadata.text || "";
-      const tierColor = metadata.tierColor || "#1E88E5";
-      const now = Date.now();
 
-      let displayDurationMs = 60 * 1000;
-      if (amount >= 4000) {
-        displayDurationMs = 10 * 60 * 1000;
-      } else if (amount >= 1500) {
-        displayDurationMs = 5 * 60 * 1000;
-      } else if (amount >= 800) {
-        displayDurationMs = 2 * 60 * 1000;
-      } else if (amount >= 400) {
-        displayDurationMs = 90 * 1000;
-      }
-      const expiresAt = now + displayDurationMs;
-
-      const messageRef = rtdb.ref(`liveChat/${videoId}/messages`).push();
-      const messageId = messageRef.key;
-
-      await messageRef.set({
-        id: messageId,
-        videoId,
-        userId,
-        userName,
-        userProfilePicUrl,
-        text,
-        isSuperchat: true,
-        superchatAmount: amount,
-        superchatCurrency: effectiveCurrency,
-        superchatTierColor: tierColor,
-        timestamp: admin.database.ServerValue.TIMESTAMP,
-      });
-
-      await rtdb.ref(`liveChat/${videoId}/pinned`).set({
-        superchatId: orderId,
-        messageId,
-        userId,
-        userName,
-        userProfilePicUrl,
-        text,
-        amount,
-        currency: effectiveCurrency,
-        tierColor,
-        expiresAt,
-        createdAt: now,
-      });
-    } catch (rtdbErr) {
-      console.warn("[fulfillOrder] Failed to post superchat to RTDB:", rtdbErr);
-    }
-  }
 }
 
 /**
@@ -667,12 +615,29 @@ export const createCashfreeOrder = onCall(
     const orderId = `cf_${cleanPurpose}_${Date.now()}_${randomHex}`;
     const isAutoPay = Boolean(metadata?.autoPay === true || metadata?.autoPay === "true");
 
+    // Sanitize client metadata: explicitly strip all financial, tax, quota, and balance overrides
+    const FORBIDDEN_METADATA_KEYS = new Set([
+      "netAmount",
+      "taxAmount",
+      "amountUSD",
+      "gigabytes",
+      "bytes",
+      "walletBalance",
+      "walletBalanceUSD",
+      "balanceOverride",
+      "spendableCredit",
+      "isNet",
+      "customBalance",
+      "gstInclusive",
+      "priceUSD",
+    ]);
+
     const ALLOWED_METADATA_KEYS = [
       "planId",
       "channelId",
       "campaignId",
       "billingCycle",
-      "amountUSD",
+      "amountINR",
       "adId",
       "creatorId",
       "tierId",
@@ -688,11 +653,18 @@ export const createCashfreeOrder = onCall(
       "originalAmount",
       "originalCurrency",
       "isDebug",
+      "packType",
+      "packId",
+      "category",
+      "description",
+      "channelName",
+      "tierName",
+      "planTier",
     ];
     const safeMetadata: Record<string, any> = {};
     if (metadata && typeof metadata === "object") {
       for (const k of ALLOWED_METADATA_KEYS) {
-        if (k in metadata) {
+        if (k in metadata && !FORBIDDEN_METADATA_KEYS.has(k)) {
           safeMetadata[k] = metadata[k];
         }
       }
@@ -784,7 +756,7 @@ export const createCashfreeOrder = onCall(
           authLink,
           paymentSessionId,
           metadata: {
-            ...metadata,
+            ...safeMetadata,
             autoPay: true,
             orderId,
           },
@@ -805,7 +777,7 @@ export const createCashfreeOrder = onCall(
           paymentSessionId,
           paymentLink: authLink,
           metadata: {
-            ...metadata,
+            ...safeMetadata,
             autoPay: true,
             subscriptionId: subId,
           },
@@ -849,9 +821,9 @@ export const createCashfreeOrder = onCall(
         orderTags: sanitizedTags,
       });
 
-      // Direct Web / Desktop checkouts to TruthWorld's secure hosted checkout container
+      // Authoritative TruthWorld Hosted Checkout Portal URL (initializes Cashfree Web Checkout SDK / POST session relay)
       const envParam = CashfreeService.PublicEnvironment.toLowerCase();
-      const paymentLink = `https://www.truthworld.in/checkout?session_id=${encodeURIComponent(cfOrder.payment_session_id || "")}&order_id=${encodeURIComponent(orderId)}&env=${envParam}`;
+      const hostedCheckoutUrl = `https://www.truthworld.in/checkout?session_id=${encodeURIComponent(cfOrder.payment_session_id || "")}&order_id=${encodeURIComponent(orderId)}&env=${envParam}`;
 
       await firestore.collection("payment_orders").doc(orderId).set({
         orderId,
@@ -862,8 +834,9 @@ export const createCashfreeOrder = onCall(
         purpose,
         status: "ACTIVE",
         paymentSessionId: cfOrder.payment_session_id || "",
-        paymentLink: paymentLink || "",
-        metadata,
+        paymentLink: hostedCheckoutUrl,
+        hostedCheckoutUrl,
+        metadata: safeMetadata,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
@@ -873,7 +846,8 @@ export const createCashfreeOrder = onCall(
         paymentSessionId: cfOrder.payment_session_id || "",
         orderAmount: amount,
         orderCurrency: currency,
-        paymentLink: paymentLink || "",
+        paymentLink: hostedCheckoutUrl,
+        hostedCheckoutUrl,
         environment: CashfreeService.PublicEnvironment,
       };
     } catch (err: any) {
@@ -1231,29 +1205,29 @@ export const cashfreeWebhook = onRequest(
     const signature = (req.headers["x-webhook-signature"] as string) || "";
     const timestamp = (req.headers["x-webhook-timestamp"] as string) || "";
 
-    if (timestamp) {
-      const tsNum = parseInt(timestamp, 10);
-      const nowSec = Math.floor(Date.now() / 1000);
-      const effectiveTs = tsNum > 1000000000000 ? Math.floor(tsNum / 1000) : tsNum;
-      if (Math.abs(nowSec - effectiveTs) > 300) {
-        console.warn(`[cashfreeWebhook] Rejected webhook with expired timestamp: ${timestamp}`);
-        res.status(400).send("Expired webhook timestamp");
-        return;
-      }
-    }
-
-    if (signature && timestamp) {
-      const rawBody = (req as any).rawBody ? (req as any).rawBody.toString("utf8") : JSON.stringify(req.body);
-      const isValid = CashfreeService.verifyWebhookSignature(signature, rawBody, timestamp);
-      if (!isValid) {
-        console.warn("[cashfreeWebhook] Rejected webhook with invalid HMAC signature");
-        res.status(401).send("Invalid webhook signature");
-        return;
-      }
-    } else if (CashfreeService.isConfigured()) {
-      // Unconditionally reject webhooks missing signature headers when Cashfree is configured
+    // Unconditionally reject webhooks missing signature or timestamp headers
+    if (!signature || !timestamp) {
       console.warn("[cashfreeWebhook] Rejected webhook: missing x-webhook-signature / x-webhook-timestamp");
       res.status(401).send("Missing webhook signature headers");
+      return;
+    }
+
+    const tsNum = parseInt(timestamp, 10);
+    const nowSec = Math.floor(Date.now() / 1000);
+    const effectiveTs = tsNum > 1000000000000 ? Math.floor(tsNum / 1000) : tsNum;
+    if (isNaN(tsNum) || Math.abs(nowSec - effectiveTs) > 300) {
+      console.warn(`[cashfreeWebhook] Rejected webhook with expired timestamp: ${timestamp}`);
+      res.status(400).send("Expired webhook timestamp");
+      return;
+    }
+
+    const rawBody = (req as any).rawBody
+      ? (Buffer.isBuffer((req as any).rawBody) ? (req as any).rawBody.toString("utf8") : String((req as any).rawBody))
+      : JSON.stringify(req.body);
+    const isValid = CashfreeService.verifyWebhookSignature(signature, rawBody, timestamp);
+    if (!isValid) {
+      console.warn("[cashfreeWebhook] Rejected webhook with invalid HMAC signature");
+      res.status(401).send("Invalid webhook signature");
       return;
     }
 
@@ -1447,22 +1421,6 @@ export const cashfreeHostedCheckout = onRequest(
         const gatewayStatus = (cfOrder?.order_status || orderData?.status || "UNKNOWN").toUpperCase();
         const isPaid = gatewayStatus === "PAID" || orderData?.status === "PAID" || orderData?.status === "FULFILLED";
 
-        if (isPaid && orderData && orderData.status !== "FULFILLED") {
-          await firestore.collection("payment_orders").doc(orderId).update({
-            status: "PAID",
-            verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
-            cfOrderStatus: "PAID",
-          });
-
-          await fulfillOrder(
-            orderId,
-            orderData.userId,
-            orderData.purpose,
-            orderData.amount,
-            orderData.metadata || {}
-          );
-        }
-
         const currencyCode = (cfOrder?.order_currency || orderData?.currency || "INR").toUpperCase();
         const amountVal = cfOrder?.order_amount ?? orderData?.amount;
         const amountDisplay = amountVal != null ? CashfreeService.formatCurrencyAmount(Number(amountVal), currencyCode) : "";
@@ -1643,9 +1601,9 @@ export const cashfreeHostedCheckout = onRequest(
       }
     }
 
-    // 2. Checkout Container View (Direct Form Post with SDK v3 fallback)
+    // 2. Direct Forwarding to Cashfree Hosted Portal
     if (orderId) {
-      console.log(`[cashfreeHostedCheckout] Launching session for order ${orderId}`);
+      console.log(`[cashfreeHostedCheckout] Forwarding session for order ${orderId}`);
     }
 
     if (!sessionId || !/^[a-zA-Z0-9_\-]+$/.test(sessionId)) {
@@ -1653,24 +1611,25 @@ export const cashfreeHostedCheckout = onRequest(
       return;
     }
 
+    const isSandbox = env === "sandbox";
+    const postActionUrl = isSandbox
+      ? "https://sandbox.cashfree.com/pg/view/sessions/checkout"
+      : "https://api.cashfree.com/pg/view/sessions/checkout";
+    const cashfreeMode = isSandbox ? "sandbox" : "production";
+
+    // Provide robust headers for safe, direct payment gateway navigation
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.setHeader("Permissions-Policy", "payment=*");
-    res.setHeader(
-      "Content-Security-Policy",
-      "default-src 'self' 'unsafe-inline' https: data: blob:; " +
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.cashfree.com https://*.cashfree.com https:; " +
-      "connect-src 'self' https: wss:; " +
-      "frame-src 'self' https: data: blob:; " +
-      "form-action 'self' https:; " +
-      "img-src 'self' data: blob: https: https://*.cashfree.com;"
-    );
+    res.setHeader("Cross-Origin-Opener-Policy", "unsafe-none");
+    res.setHeader("Cross-Origin-Embedder-Policy", "unsafe-none");
 
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>TruthWorld Secure Checkout</title>
-  <script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
+  <title>Securing Payment - TruthWorld</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -1706,105 +1665,82 @@ export const cashfreeHostedCheckout = onRequest(
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     .title { font-size: 18px; font-weight: 600; margin-bottom: 8px; color: #ffffff; }
-    .subtitle { font-size: 13px; color: #a1a1aa; line-height: 1.5; margin-bottom: 0; }
+    .subtitle { font-size: 13px; color: #a1a1aa; line-height: 1.5; margin-bottom: 20px; }
     .action-btn {
-      margin-top: 24px;
+      display: inline-block;
+      width: 100%;
       background: #ffffff;
       color: #000000;
       border: none;
-      padding: 12px 24px;
+      padding: 13px 24px;
       border-radius: 8px;
       font-size: 14px;
       font-weight: 600;
+      text-decoration: none;
       cursor: pointer;
-      display: none;
       transition: background 0.2s;
     }
     .action-btn:hover {
       background: #e4e4e7;
     }
   </style>
+  <script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
 </head>
 <body>
   <div class="card">
-    <div id="loader" class="spinner"></div>
-    <div id="title" class="title">Redirecting to Secure Payment...</div>
-    <div id="subtitle" class="subtitle">Connecting to Cashfree Payment Gateway. Please do not refresh.</div>
-    <button id="proceedBtn" class="action-btn" onclick="retryCheckout()">Continue to Cashfree</button>
+    <div class="spinner"></div>
+    <div class="title">Securing Payment Session...</div>
+    <div class="subtitle">Connecting to Cashfree Payments. Please do not close or refresh this page.</div>
+    <form id="cashfreeForm" method="POST" action="${postActionUrl}">
+      <input type="hidden" name="payment_session_id" value="${sessionId}">
+      <input type="hidden" name="x_request_id" value="x_request_id_form_atom">
+      <input type="hidden" name="form_id" value="form_id_atom">
+      <button type="submit" id="payBtn" class="action-btn" style="display:none;">Continue to Payment</button>
+    </form>
   </div>
-
   <script>
-    let hasInitiated = false;
-    const clientEnv = ${JSON.stringify(env)};
-    const clientSessionId = ${JSON.stringify(sessionId)};
-    const directCheckoutUrl = (clientEnv === 'sandbox'
-      ? 'https://payments-test.cashfree.com/order/#'
-      : 'https://payments.cashfree.com/order/#') + encodeURIComponent(clientSessionId);
-
-    function initiateCheckout() {
-      if (hasInitiated) return;
-      try {
-        if (typeof window.Cashfree === 'function') {
-          hasInitiated = true;
-          const cf = window.Cashfree({ mode: clientEnv });
-          cf.checkout({
-            paymentSessionId: clientSessionId,
-            redirectTarget: "_self"
-          }).then(function(result) {
-            if (result && result.error) {
-              console.warn("[Cashfree SDK result error, redirecting directly]:", result.error);
-              window.location.replace(directCheckoutUrl);
-            }
-          }).catch(function(err) {
-            console.warn("[Cashfree SDK catch error, redirecting directly]:", err);
-            window.location.replace(directCheckoutUrl);
-          });
-          return;
-        }
-      } catch (e) {
-        console.warn("[Cashfree Init Exception, redirecting directly]:", e);
-        window.location.replace(directCheckoutUrl);
-      }
+    var checkoutStarted = false;
+    function fallbackSubmit() {
+      if (checkoutStarted) return;
+      checkoutStarted = true;
+      var f = document.getElementById('cashfreeForm');
+      if (f) f.submit();
     }
-
-    function showError(msg) {
-      document.getElementById('loader').style.display = 'none';
-      document.getElementById('title').textContent = 'Opening Payment Gateway...';
-      document.getElementById('subtitle').textContent = msg || 'If redirect does not start automatically, please tap Continue below.';
-      const btn = document.getElementById('proceedBtn');
-      btn.style.display = 'inline-block';
-      btn.textContent = 'Continue to Cashfree';
-    }
-
-    function retryCheckout() {
-      window.location.replace(directCheckoutUrl);
-    }
-
-    let checks = 0;
-    function checkSdkReady() {
-      if (typeof window.Cashfree === 'function') {
-        initiateCheckout();
-      } else if (checks < 20) {
-        checks++;
-        setTimeout(checkSdkReady, 100);
+    try {
+      if (typeof Cashfree !== 'undefined') {
+        var cashfree = Cashfree({ mode: ${JSON.stringify(cashfreeMode)} });
+        checkoutStarted = true;
+        cashfree.checkout({
+          paymentSessionId: ${JSON.stringify(sessionId)},
+          redirectTarget: "_self"
+        }).then(function(res) {
+          if (res && res.error) {
+            console.warn('SDK returned error, falling back to direct post:', res.error);
+            checkoutStarted = false;
+            fallbackSubmit();
+          }
+        }).catch(function(e) {
+          console.warn('SDK failed, falling back to direct post:', e);
+          checkoutStarted = false;
+          fallbackSubmit();
+        });
       } else {
-        // Automatically direct-fallback to Cashfree hosted portal without blocking
-        console.warn("[Cashfree JS SDK timeout, auto-redirecting to portal]");
-        window.location.replace(directCheckoutUrl);
+        fallbackSubmit();
       }
+    } catch (err) {
+      console.warn('SDK error caught, submitting form:', err);
+      fallbackSubmit();
     }
-
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-      checkSdkReady();
-    } else {
-      window.addEventListener('DOMContentLoaded', checkSdkReady);
-      window.addEventListener('load', checkSdkReady);
-    }
+    setTimeout(function() {
+      var btn = document.getElementById('payBtn');
+      if (btn) btn.style.display = 'block';
+      fallbackSubmit();
+    }, 1200);
   </script>
 </body>
 </html>`;
 
-    res.setHeader("Content-Type", "text/html");
     res.status(200).send(html);
+    return;
   }
 );

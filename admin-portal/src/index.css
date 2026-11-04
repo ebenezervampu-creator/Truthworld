@@ -591,9 +591,48 @@ body {
   color: var(--color-success);
 }
 
-.badge.rejected {
+.badge.rejected,
+.badge.verificationrejected,
+.badge.verificationRejected {
   background: var(--color-danger-bg);
   color: var(--color-danger);
+}
+
+.badge.onhold,
+.badge.onHold,
+.badge.hold {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.btn-hold {
+  background: transparent;
+  color: #f59e0b;
+  border: 1px solid #f59e0b;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-hold:hover {
+  background: rgba(245, 158, 11, 0.15);
+}
+
+.btn-hold-confirm {
+  background: #f59e0b;
+  color: #000000;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-hold-confirm:hover {
+  background: #d97706;
 }
 
 .badge.priority-high {

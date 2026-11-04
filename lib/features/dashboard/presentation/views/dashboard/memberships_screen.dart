@@ -78,6 +78,12 @@ class MembershipsScreen extends StatelessWidget {
                     : 'Create a new tier (${controller.remainingTierSlots} slots remaining)',
                 child: ElevatedButton.icon(
                   onPressed: () {
+                    if (!controller.isChannelMonetized.value) {
+                      AppSnackbar.warning(
+                        'Channel Memberships are only available for monetized channels. Please apply for monetization in the Monetization tab first.',
+                      );
+                      return;
+                    }
                     if (atMax) {
                       AppSnackbar.warning(
                         'Channels can have up to 3 membership tiers only. Please edit or remove an existing tier to add a new one.',
@@ -128,6 +134,52 @@ class MembershipsScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Monetization Status Advisory Banner for Unmonetized Channels
+            Obx(() {
+              if (controller.isChannelMonetized.value) {
+                return const SizedBox.shrink();
+              }
+              return Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: isDarkMode
+                      ? AppColors.warningContainer
+                      : Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isDarkMode
+                        ? AppColors.warning.withValues(alpha: 0.4)
+                        : Colors.amber.shade300,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.monetization_on_outlined,
+                      color: isDarkMode
+                          ? AppColors.warning
+                          : Colors.amber.shade800,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Channel Memberships and fan funding are only available for monetized channels. Please apply for monetization in the Monetization tab.',
+                        style: TextStyle(
+                          color: isDarkMode
+                              ? AppColors.textPrimary
+                              : Colors.black87,
+                          fontSize: 13,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+
             // Commission Notice Banner (reflects 0% Guarantee OR 30% Platform Cut when Member Ad-Free is enabled)
             CommissionNoticeBanner(
               controller: controller,

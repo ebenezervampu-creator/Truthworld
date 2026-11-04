@@ -13,6 +13,7 @@ import 'package:truthworld/routes/modules/user_library_routes.dart';
 import 'package:truthworld/routes/modules/video_routes.dart';
 
 export 'app_routes.dart';
+export 'app_transitions.dart';
 
 /// Clean Architecture Composite Router for TruthWorld.
 ///

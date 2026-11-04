@@ -227,7 +227,7 @@ export class BenchmarkRunner {
       /\b(?:war|invasion|bombed|strike|missile|military|troops)\b/i,
       /\b(?:election|voted|president|prime minister|leader|supreme)\b/i,
       /\b(?:sanction|embargo|blockade|tariff)\b/i,
-      /\b(?:pandemic|outbreak|vaccine|mortality|cancer cure)\b/i,
+      /\b(?:pandemic|outbreak|vaccine|mortality|cancer|cancer cure|cures? cancer)\b/i,
       /\b(?:bankrupt|crash|recession|inflation|gdp|trillion)\b/i,
       /\b(?:genocide|ethnic cleansing|war crime|human rights)\b/i,
       /\b(?:nuclear|chemical weapon|biological weapon)\b/i,

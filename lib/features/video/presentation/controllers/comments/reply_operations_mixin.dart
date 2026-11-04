@@ -18,7 +18,9 @@ mixin ReplyOperationsMixin on CommentsStateBase {
     required String userProfilePicUrl,
     String? channelId,
     String? channelName,
+    String? channelHandle,
     String? channelProfilePicUrl,
+    bool? isChannel,
     String? commentAuthorId,
   }) async {
     if (text.trim().isEmpty || video == null) return;
@@ -41,20 +43,33 @@ mixin ReplyOperationsMixin on CommentsStateBase {
       commentError.value = null;
 
       final authService = AuthService.to;
-      final rawName = authService.activeDisplayName;
+      final hasActiveChannel = isChannel ??
+          (authService.hasChannel.value && authService.userChannel != null);
+      final userChannel = hasActiveChannel ? authService.userChannel : null;
+
+      final resolvedChannelId = (channelId != null && channelId.isNotEmpty)
+          ? channelId
+          : (userChannel?.id ?? '');
+      final resolvedChannelHandle =
+          (channelHandle != null && channelHandle.isNotEmpty)
+              ? channelHandle
+              : userChannel?.handle;
+      final resolvedChannelName =
+          (channelName != null && channelName.isNotEmpty)
+              ? channelName
+              : userChannel?.name;
+      final resolvedChannelProfilePicUrl =
+          (channelProfilePicUrl != null && channelProfilePicUrl.isNotEmpty)
+              ? channelProfilePicUrl
+              : userChannel?.avatarUrl;
+
+      final rawName = authService.userDisplayName.value ??
+          authService.user?.displayName ??
+          'User';
       final finalUserName =
           rawName.startsWith('@') ? rawName.substring(1) : rawName;
-      final finalUserProfilePicUrl = authService.activePhotoUrl;
-      final finalChannelId = (channelId != null && channelId.isNotEmpty)
-          ? channelId
-          : null;
-      final finalChannelName = (channelName != null && channelName.isNotEmpty)
-          ? channelName
-          : null;
-      final finalChannelProfilePicUrl =
-          (channelName != null && channelName.isNotEmpty)
-              ? channelProfilePicUrl
-              : null;
+      final finalUserProfilePicUrl =
+          userProfilePicUrl.isNotEmpty ? userProfilePicUrl : (authService.userPhotoUrl.value ?? authService.user?.photoURL ?? '');
 
       // Channel Membership & Loyalty Badge lookup
       var isMember = false;
@@ -90,9 +105,11 @@ mixin ReplyOperationsMixin on CommentsStateBase {
         userId: currentUserId,
         userName: finalUserName,
         userProfilePicUrl: finalUserProfilePicUrl,
-        channelId: finalChannelId ?? currentUserId,
-        channelName: finalChannelName,
-        channelProfilePicUrl: finalChannelProfilePicUrl,
+        channelId: resolvedChannelId,
+        channelName: resolvedChannelName,
+        channelHandle: resolvedChannelHandle,
+        channelProfilePicUrl: resolvedChannelProfilePicUrl,
+        isChannel: hasActiveChannel,
         text: ContentValidator.cleanProfanity(text.trim()),
         isMember: isMember,
         memberSince: memberSince,
@@ -114,14 +131,22 @@ mixin ReplyOperationsMixin on CommentsStateBase {
         final displayUserName = rawName.startsWith('@')
             ? rawName.substring(1)
             : rawName;
+        final isCreator = (video?.channelId != null && video!.channelId == authService.userChannel?.id) ||
+                          (video?.userId != null && video!.userId == currentUserId) ||
+                          (video?.ownerId != null && video!.ownerId == currentUserId);
+        final creatorName = video?.channelName.isNotEmpty == true ? video!.channelName : (resolvedChannelName ?? 'Creator');
+        final title = isCreator
+            ? '$creatorName replied to your comment!'
+            : (hasActiveChannel && resolvedChannelName != null ? '$resolvedChannelName replied to your comment' : 'New Reply');
 
         notificationService.createNotification(
           userId: commentAuthorId,
           type: 'comment_reply',
           severity: NotificationSeverity.info,
-          title: 'New Reply',
+          title: title,
           message: '$displayUserName replied to your comment: "${ContentValidator.cleanProfanity(text.trim())}"',
-          actionUrl: '/watch?v=${video!.id}',
+          actionUrl: '/watch?v=${video!.id}&commentId=$commentId&replyId=$replyId',
+          targetApp: 'all',
           metadata: {
             'videoId': video!.id,
             'commentId': commentId,
@@ -129,6 +154,8 @@ mixin ReplyOperationsMixin on CommentsStateBase {
             'thumbnailUrl': video!.thumbnailUrl,
             'channelId': video!.channelId,
             'userAvatar': authService.activePhotoUrl,
+            'isCreatorReply': isCreator,
+            'isChannel': hasActiveChannel || isCreator,
           },
         );
       }
@@ -208,6 +235,13 @@ mixin ReplyOperationsMixin on CommentsStateBase {
           commentId: commentId,
           replyId: replyId,
           userId: userId,
+          asChannel: likeAsChannel,
+        );
+        triggerReplyLikeNotification(
+          commentId,
+          replyId,
+          replyAuthorId,
+          replyText,
           asChannel: likeAsChannel,
         );
       }
@@ -303,8 +337,9 @@ mixin ReplyOperationsMixin on CommentsStateBase {
     String commentId,
     String replyId,
     String? replyAuthorId,
-    String? replyText,
-  ) {
+    String? replyText, {
+    bool asChannel = false,
+  }) {
     if (video == null ||
         currentUserId.isEmpty ||
         replyAuthorId == null ||
@@ -315,14 +350,27 @@ mixin ReplyOperationsMixin on CommentsStateBase {
 
     final authService = AuthService.to;
     final notificationService = UserNotificationService();
+    final isVideoCreator = video != null && currentUserId == video!.ownerId;
+    final videoCreatorName = video?.channelName.isNotEmpty ?? false ? video!.channelName : 'Creator';
+    final rawName = currentUserName;
+    final displayUserName = rawName.startsWith('@') ? rawName.substring(1) : rawName;
+    final channelName = authService.userChannel?.name;
+
+    final notifTitle = isVideoCreator
+        ? '$videoCreatorName liked your reply!'
+        : (asChannel && channelName != null ? '$channelName liked your reply' : 'Reply Liked');
+    final notifMessage = isVideoCreator
+        ? '$videoCreatorName liked your reply: "${replyText ?? ''}"'
+        : '$displayUserName liked your reply: "${replyText ?? ''}"';
+
     notificationService.createNotification(
       userId: replyAuthorId,
-      type: 'reply_like',
+      type: 'comment_like',
       severity: NotificationSeverity.info,
-      title: 'Reply Liked',
-      message:
-          '${currentUserName.startsWith('@') ? currentUserName.substring(1) : currentUserName} liked your reply: "${replyText ?? ''}"',
-      actionUrl: '/watch?v=${video!.id}',
+      title: notifTitle,
+      message: notifMessage,
+      actionUrl: '/watch?v=${video!.id}&commentId=$commentId&replyId=$replyId',
+      targetApp: 'all',
       metadata: {
         'videoId': video!.id,
         'commentId': commentId,
@@ -330,6 +378,8 @@ mixin ReplyOperationsMixin on CommentsStateBase {
         'thumbnailUrl': video!.thumbnailUrl,
         'channelId': video!.channelId,
         'userAvatar': authService.activePhotoUrl,
+        'isCreator': isVideoCreator,
+        'isChannel': asChannel || isVideoCreator,
       },
     );
   }

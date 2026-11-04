@@ -36,7 +36,7 @@ class TopicQueueTab extends StatelessWidget {
 
       final filterBar = Container(
         padding: const EdgeInsets.all(12),
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
@@ -108,13 +108,13 @@ class TopicQueueTab extends StatelessWidget {
                     final topic = filteredList[index];
                     final isSelected =
                         controller.selectedTopic.value?['id'] == topic['id'];
-                    final title = topic['title'] ?? topic['name'] ?? 'Untitled Topic';
+                    final name = topic['name'] ?? topic['title'] ?? 'Untitled Topic';
                     final handle = topic['handle'] ?? topic['slug'] ?? 'none';
                     final status = topic['status'] ?? (topic['isApproved'] == true || topic['geminiApproved'] == true ? 'active' : 'underReview');
                     final thumbUrl = topic['thumbnailUrl'] ?? topic['coverImageUrl'] ?? topic['imageUrl'];
 
                     return Material(
-                      color: isSelected ? const Color(0xFF212121) : Colors.transparent,
+                      color: isSelected ? AppColors.bgSurface : Colors.transparent,
                       child: InkWell(
                         onTap: () {
                           controller.selectedTopic.value = topic;
@@ -131,7 +131,7 @@ class TopicQueueTab extends StatelessWidget {
                                 width: 50,
                                 height: 50,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF212121),
+                                  color: AppColors.bgSurface,
                                   borderRadius: BorderRadius.circular(8),
                                   image: thumbUrl != null && thumbUrl.toString().isNotEmpty
                                       ? DecorationImage(
@@ -153,7 +153,7 @@ class TopicQueueTab extends StatelessWidget {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      '#$title',
+                                      '#$name',
                                       style: const TextStyle(
                                         fontFamily: TWTypography.brandFamily,
                                         color: AppColors.textPrimary,
@@ -204,7 +204,7 @@ class TopicQueueTab extends StatelessWidget {
           );
         }
 
-        final title = selected['title'] ?? selected['name'] ?? 'Untitled Topic';
+        final name = selected['name'] ?? selected['title'] ?? 'Untitled Topic';
         final handle = selected['handle'] ?? selected['slug'] ?? 'none';
         final status = (selected['status'] ?? (selected['isApproved'] == true || selected['geminiApproved'] == true ? 'active' : 'underReview')).toString();
         final thumbUrl = selected['thumbnailUrl'] ?? selected['coverImageUrl'] ?? selected['imageUrl'];
@@ -235,7 +235,7 @@ class TopicQueueTab extends StatelessWidget {
                   ),
                 ),
               Text(
-                '#$title',
+                '#$name',
                 style: const TextStyle(
                   fontFamily: TWTypography.brandFamily,
                   color: AppColors.textPrimary,
@@ -339,7 +339,7 @@ class TopicQueueTab extends StatelessWidget {
                     height: 180,
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF181818),
+                      color: AppColors.bgPage,
                       image: DecorationImage(
                         image: CachedNetworkImageProvider(thumbUrl.toString()),
                         fit: BoxFit.contain,
@@ -363,7 +363,7 @@ class TopicQueueTab extends StatelessWidget {
               const SizedBox(height: 12),
               _buildMetadataTable([
                 MetadataRow('Topic ID', (selected['id'] ?? 'N/A').toString()),
-                MetadataRow('Title', title.toString()),
+                MetadataRow('Topic Name', name.toString()),
                 MetadataRow('Handle / Slug', '@$handle'),
                 MetadataRow('Category', (selected['category'] ?? 'General').toString()),
                 MetadataRow('Description', (selected['description'] ?? 'None').toString()),

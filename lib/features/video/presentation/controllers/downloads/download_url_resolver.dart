@@ -9,55 +9,7 @@ import 'package:truthworld/features/video/data/models/video.dart';
 class DownloadUrlResolver {
   /// Extracts a reliable Firebase Storage Reference from any path or URL format.
   static Reference? getStorageRef(String urlOrPath) {
-    if (urlOrPath.isEmpty) return null;
-    if (urlOrPath.startsWith('gs://')) {
-      try {
-        return FirebaseStorage.instance.refFromURL(urlOrPath);
-      } catch (e, s) {
-        ErrorHandler.log(
-          e,
-          stackTrace: s,
-          tag: 'DownloadUrlResolver.getStorageRef.gs',
-        );
-      }
-    }
-    if (urlOrPath.startsWith('http://') || urlOrPath.startsWith('https://')) {
-      if (urlOrPath.contains('firebasestorage.googleapis.com') ||
-          urlOrPath.contains('storage.googleapis.com')) {
-        try {
-          return FirebaseStorage.instance.refFromURL(urlOrPath);
-        } catch (e, s) {
-          ErrorHandler.log(
-            e,
-            stackTrace: s,
-            tag: 'DownloadUrlResolver.getStorageRef.refFromURL',
-          );
-          try {
-            final uri = Uri.parse(urlOrPath);
-            final segments = uri.pathSegments;
-            final oIndex = segments.indexOf('o');
-            if (oIndex != -1 && oIndex + 1 < segments.length) {
-              final encodedPath = segments.sublist(oIndex + 1).join('/');
-              final decodedPath = Uri.decodeComponent(encodedPath);
-              return FirebaseStorage.instance.ref(decodedPath);
-            }
-          } catch (e2, s2) {
-            ErrorHandler.log(
-              e2,
-              stackTrace: s2,
-              tag: 'DownloadUrlResolver.getStorageRef.decodePath',
-            );
-          }
-        }
-      }
-    } else {
-      final clean =
-          urlOrPath.startsWith('/') ? urlOrPath.substring(1) : urlOrPath;
-      if (clean.isNotEmpty) {
-        return FirebaseStorage.instance.ref(clean);
-      }
-    }
-    return null;
+    return StorageUtils.getStorageRef(urlOrPath);
   }
 
   /// Resolves the fastest direct downloadable stream URL for a given video / quality.

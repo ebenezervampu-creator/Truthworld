@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
@@ -29,12 +31,24 @@ class UserPreferencesService extends GetxService {
   final RxSet<String> blockedChannelIds = <String>{}.obs;
   final RxSet<String> blockedChannelNames = <String>{}.obs;
   final RxSet<String> hiddenTopicIds = <String>{}.obs;
+  StreamSubscription<User?>? _authSubscription;
 
   @override
   void onInit() {
     super.onInit();
     _loadFromStorage();
     _syncFromFirestore();
+    _authSubscription = _auth.authStateChanges().listen((user) {
+      if (user != null) {
+        _syncFromFirestore();
+      }
+    });
+  }
+
+  @override
+  void onClose() {
+    _authSubscription?.cancel();
+    super.onClose();
   }
 
   void _loadFromStorage() {
@@ -171,23 +185,42 @@ class UserPreferencesService extends GetxService {
     }
   }
 
-  Future<void> hideTopic(String topicId, {String? topicSlug}) async {
-    if (topicId.isEmpty && (topicSlug == null || topicSlug.isEmpty)) return;
-    if (topicId.isNotEmpty) hiddenTopicIds.add(topicId);
-    if (topicSlug != null && topicSlug.isNotEmpty) hiddenTopicIds.add(topicSlug);
+  Future<void> hideTopic(
+    String topicId, {
+    String? topicSlug,
+    String? topicName,
+    String? canonicalKey,
+  }) async {
+    final idsToAdd = <String>{};
+    if (topicId.isNotEmpty) {
+      idsToAdd.add(topicId);
+      idsToAdd.add(topicId.toLowerCase());
+    }
+    if (topicSlug != null && topicSlug.isNotEmpty) {
+      idsToAdd.add(topicSlug);
+      idsToAdd.add(topicSlug.toLowerCase());
+    }
+    if (topicName != null && topicName.isNotEmpty) {
+      idsToAdd.add(topicName);
+      idsToAdd.add(topicName.toLowerCase());
+    }
+    if (canonicalKey != null && canonicalKey.isNotEmpty) {
+      idsToAdd.add(canonicalKey);
+      idsToAdd.add(canonicalKey.toLowerCase());
+    }
+    if (idsToAdd.isEmpty) return;
+
+    hiddenTopicIds.addAll(idsToAdd);
     await _saveToStorage();
 
     final user = _auth.currentUser;
     if (user != null) {
       try {
-        final idsToAdd = <String>[];
-        if (topicId.isNotEmpty) idsToAdd.add(topicId);
-        if (topicSlug != null && topicSlug.isNotEmpty) idsToAdd.add(topicSlug);
         await _firestore
             .collection(FirestoreCollections.users)
             .doc(user.uid)
             .set({
-              'notInterestedTopicIds': FieldValue.arrayUnion(idsToAdd),
+              'notInterestedTopicIds': FieldValue.arrayUnion(idsToAdd.toList()),
               'updatedAt': FieldValue.serverTimestamp(),
             }, SetOptions(merge: true));
       } catch (e, s) {
@@ -200,23 +233,42 @@ class UserPreferencesService extends GetxService {
     }
   }
 
-  Future<void> unhideTopic(String topicId, {String? topicSlug}) async {
-    if (topicId.isEmpty && (topicSlug == null || topicSlug.isEmpty)) return;
-    if (topicId.isNotEmpty) hiddenTopicIds.remove(topicId);
-    if (topicSlug != null && topicSlug.isNotEmpty) hiddenTopicIds.remove(topicSlug);
+  Future<void> unhideTopic(
+    String topicId, {
+    String? topicSlug,
+    String? topicName,
+    String? canonicalKey,
+  }) async {
+    final idsToRemove = <String>{};
+    if (topicId.isNotEmpty) {
+      idsToRemove.add(topicId);
+      idsToRemove.add(topicId.toLowerCase());
+    }
+    if (topicSlug != null && topicSlug.isNotEmpty) {
+      idsToRemove.add(topicSlug);
+      idsToRemove.add(topicSlug.toLowerCase());
+    }
+    if (topicName != null && topicName.isNotEmpty) {
+      idsToRemove.add(topicName);
+      idsToRemove.add(topicName.toLowerCase());
+    }
+    if (canonicalKey != null && canonicalKey.isNotEmpty) {
+      idsToRemove.add(canonicalKey);
+      idsToRemove.add(canonicalKey.toLowerCase());
+    }
+    if (idsToRemove.isEmpty) return;
+
+    hiddenTopicIds.removeAll(idsToRemove);
     await _saveToStorage();
 
     final user = _auth.currentUser;
     if (user != null) {
       try {
-        final idsToRemove = <String>[];
-        if (topicId.isNotEmpty) idsToRemove.add(topicId);
-        if (topicSlug != null && topicSlug.isNotEmpty) idsToRemove.add(topicSlug);
         await _firestore
             .collection(FirestoreCollections.users)
             .doc(user.uid)
             .set({
-              'notInterestedTopicIds': FieldValue.arrayRemove(idsToRemove),
+              'notInterestedTopicIds': FieldValue.arrayRemove(idsToRemove.toList()),
               'updatedAt': FieldValue.serverTimestamp(),
             }, SetOptions(merge: true));
       } catch (e, s) {
@@ -229,17 +281,59 @@ class UserPreferencesService extends GetxService {
     }
   }
 
-  bool isTopicHidden(String topicId, {String? topicSlug}) {
-    if (topicId.isNotEmpty && hiddenTopicIds.contains(topicId)) return true;
-    if (topicSlug != null && topicSlug.isNotEmpty && hiddenTopicIds.contains(topicSlug)) {
+  bool isTopicHidden(
+    String topicId, {
+    String? topicSlug,
+    String? topicName,
+    String? canonicalKey,
+  }) {
+    if (hiddenTopicIds.isEmpty) return false;
+    if (topicId.isNotEmpty &&
+        (hiddenTopicIds.contains(topicId) ||
+            hiddenTopicIds.contains(topicId.toLowerCase()))) {
+      return true;
+    }
+    if (topicSlug != null &&
+        topicSlug.isNotEmpty &&
+        (hiddenTopicIds.contains(topicSlug) ||
+            hiddenTopicIds.contains(topicSlug.toLowerCase()))) {
+      return true;
+    }
+    if (topicName != null && topicName.isNotEmpty) {
+      final nameLower = topicName.toLowerCase();
+      if (hiddenTopicIds.contains(topicName) ||
+          hiddenTopicIds.contains(nameLower)) {
+        return true;
+      }
+      final computedSlug = nameLower
+          .replaceAll(RegExp('[^a-z0-9]+'), '-')
+          .replaceAll(RegExp(r'^-+|-+$'), '');
+      if (computedSlug.isNotEmpty && hiddenTopicIds.contains(computedSlug)) {
+        return true;
+      }
+    }
+    if (canonicalKey != null &&
+        canonicalKey.isNotEmpty &&
+        (hiddenTopicIds.contains(canonicalKey) ||
+            hiddenTopicIds.contains(canonicalKey.toLowerCase()))) {
       return true;
     }
     return false;
   }
 
+  bool isTopicBlocked(Topic topic) {
+    if (hiddenTopicIds.isEmpty) return false;
+    return isTopicHidden(
+      topic.id,
+      topicSlug: topic.slug,
+      topicName: topic.name,
+      canonicalKey: topic.canonicalKey,
+    );
+  }
+
   List<Topic> filterTopics(List<Topic> topics) {
     if (topics.isEmpty) return topics;
-    return topics.where((t) => !isTopicHidden(t.id, topicSlug: t.slug)).toList();
+    return topics.where((t) => !isTopicBlocked(t)).toList();
   }
 
   Future<void> blockChannel(String channelId, {String? channelName}) async {
@@ -339,6 +433,9 @@ class UserPreferencesService extends GetxService {
     if (isVideoHidden(video.id)) return true;
     if (isChannelBlocked(video.channelId, channelName: video.channelName)) {
       return true;
+    }
+    for (final topic in video.topics) {
+      if (isTopicHidden(topic, topicName: topic)) return true;
     }
     return false;
   }

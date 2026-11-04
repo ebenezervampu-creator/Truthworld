@@ -14,7 +14,7 @@ class ProgressBar extends StatelessWidget {
       final val = ctrl.vv;
       if (!val.isInitialized) return const SizedBox(height: 20);
 
-      final dur = val.duration;
+      final dur = ctrl.effectiveDuration;
       final pos = ctrl.isDragging.value ? ctrl.dragPos.value : val.position;
       final buf = val.buffered.isNotEmpty
           ? val.buffered.last.end

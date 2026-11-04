@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
@@ -212,17 +211,9 @@ class HomeController extends BaseController {
   String? get userName => _authService.user?.displayName;
   
   Future<void> signInWithGoogle() async {
-    final ctx = Get.context;
-    if (ctx != null) {
-      await AuthBottomSheet.show(ctx);
-      return;
-    }
     try {
       isLoadingAuth.value = true;
-      await _authService.signInWithGoogle();
-      if (!_authService.isAuthenticated.value) {
-        _showErrorWithRetry('Sign-in failed. Please try again.');
-      }
+      await _authService.triggerPlatformSignIn();
     } on GoogleSignInException catch (e) {
       _handleGoogleSignInError(e);
     } catch (e) {
@@ -297,12 +288,9 @@ class HomeController extends BaseController {
     AppSnackbar.error(displayMessage, title: 'Sign-In Failed');
   }
 
-  /// Opens the unified authentication bottom sheet (Google, Apple, Phone)
-  Future<void> showAuthBottomSheet([BuildContext? context]) async {
-    final ctx = context ?? Get.context;
-    if (ctx != null) {
-      await AuthBottomSheet.show(ctx);
-    }
+  /// Initiates platform sign-in directly across all entrypoints
+  Future<void> signIn([BuildContext? context]) async {
+    await _authService.triggerPlatformSignIn();
   }
 
   Future<void> signOut() => _authService.logout();

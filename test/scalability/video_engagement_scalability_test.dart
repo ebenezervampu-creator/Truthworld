@@ -2,7 +2,6 @@
 //
 // Verifies VideoSanitizer filtering throughput across large video catalogs,
 // CommentsController sorting & counter-argument NLP heuristic processing at scale,
-// Live Chat message stream buffering and superchat aggregation, and
 // Adaptive Bitrate (ABR) resolution ladder conversion & bandwidth tier selection.
 //
 // Pure Dart tests — zero mock data, zero network calls.
@@ -13,7 +12,6 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/services/video_sanitizer.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
-import 'package:truthworld/features/video/data/models/live_chat_message.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/adaptive_bitrate_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
@@ -314,114 +312,6 @@ void main() {
     });
   });
 
-  // ── Group 3: Live Chat Message Buffering & Superchat Classification ───────
-
-  group('Live Chat Buffer — Stream Ingestion & Superchat Aggregation at Scale', () {
-    test('Processes and bounds 1,000 LiveChatMessage records in under 60 ms', () {
-      final nowMs = DateTime.now().millisecondsSinceEpoch;
-      final rawMessages = List<LiveChatMessage>.generate(1000, (i) {
-        return LiveChatMessage(
-          id: 'msg_$i',
-          videoId: 'live_stream_01',
-          userId: 'user_${i % 200}',
-          userName: 'Viewer ${i % 200}',
-          userProfilePicUrl: 'https://example.com/pic_${i % 200}.png',
-          text: 'Chat message $i: fast message stream!',
-          timestamp: nowMs + i * 100,
-        );
-      });
-
-      final boundedBuffer = <LiveChatMessage>[];
-      const maxBufferSize = 100;
-      var unread = 0;
-      const isAutoScroll = false;
-
-      final stopwatch = Stopwatch()..start();
-      for (final msg in rawMessages) {
-        boundedBuffer.add(msg);
-        if (boundedBuffer.length > maxBufferSize) {
-          boundedBuffer.removeAt(0);
-        }
-        if (!isAutoScroll) {
-          unread++;
-        }
-      }
-      stopwatch.stop();
-
-      expect(boundedBuffer.length, equals(maxBufferSize));
-      expect(boundedBuffer.last.id, equals('msg_999'));
-      expect(unread, equals(1000));
-      expect(stopwatch.elapsedMilliseconds, lessThan(60),
-          reason: 'Bounded buffering 1,000 messages must complete in < 60 ms. '
-              'Took ${stopwatch.elapsedMilliseconds} ms.');
-    });
-
-    test('Superchat aggregation & highest-tier pinned message selection across 1,000 messages', () {
-      final nowMs = DateTime.now().millisecondsSinceEpoch;
-      final messages = List<LiveChatMessage>.generate(1000, (i) {
-        final isSuper = (i % 20 == 0); // 50 superchats
-        final amount = isSuper ? ((i + 20) * 2.5) : 0.0;
-        return LiveChatMessage(
-          id: 'm_$i',
-          videoId: 'live_01',
-          userId: 'u_$i',
-          userName: 'Donor $i',
-          userProfilePicUrl: '',
-          text: 'Superchat $i',
-          timestamp: nowMs + i,
-          isSuperchat: isSuper,
-          superchatAmount: amount,
-        );
-      });
-
-      final stopwatch = Stopwatch()..start();
-      // Filter superchats and find highest active donation
-      final superchats = messages.where((m) => m.isSuperchat && m.superchatAmount > 0).toList();
-      superchats.sort((a, b) => b.superchatAmount.compareTo(a.superchatAmount));
-      final topPinned = superchats.isNotEmpty ? superchats.first : null;
-      stopwatch.stop();
-
-      expect(superchats.length, equals(50));
-      expect(topPinned, isNotNull);
-      expect(topPinned!.superchatAmount, equals((980 + 20) * 2.5));
-      expect(stopwatch.elapsedMilliseconds, lessThan(40),
-          reason: 'Superchat aggregation over 1,000 messages must complete in < 40 ms. '
-              'Took ${stopwatch.elapsedMilliseconds} ms.');
-    });
-
-    test('Deserializes 1,000 LiveChatMessage fromMap records in under 100 ms', () {
-      final rawMaps = List<Map<String, dynamic>>.generate(1000, (i) => {
-        'videoId': 'vid_live',
-        'userId': 'usr_$i',
-        'userName': 'Viewer $i',
-        'userProfilePicUrl': 'https://example.com/avatar.png',
-        'text': 'Truthworld live comment $i',
-        'timestamp': 1700000000000 + i * 1000,
-        'superchatAmount': (i % 50 == 0) ? 25.0 : 0.0,
-        'isModerator': (i % 100 == 0),
-        'isCreator': (i == 0),
-      });
-
-      // Warmup pass
-      for (var i = 0; i < 20; i++) {
-        LiveChatMessage.fromMap('warm_$i', rawMaps[i]);
-      }
-
-      final stopwatch = Stopwatch()..start();
-      final parsed = <LiveChatMessage>[];
-      for (var i = 0; i < rawMaps.length; i++) {
-        parsed.add(LiveChatMessage.fromMap('id_$i', rawMaps[i]));
-      }
-      stopwatch.stop();
-
-      expect(parsed.length, equals(1000));
-      expect(parsed.first.isCreator, isTrue);
-      expect(stopwatch.elapsedMilliseconds, lessThan(100),
-          reason: 'Deserializing 1,000 LiveChatMessage maps must complete in < 100 ms. '
-              'Took ${stopwatch.elapsedMilliseconds} ms.');
-    });
-  });
-
   // ── Group 4: Adaptive Bitrate Quality Ladder & Resolution Scaling ─────────
 
   group('Adaptive Bitrate Engine — Quality Ladder & Resolution Scaling', () {
@@ -461,7 +351,7 @@ void main() {
 
     test('Evaluates resolution tier selection across 10,000 bandwidth samples in under 80 ms', () {
       final ladder = ResolutionTier.defaultLadder;
-      expect(ladder.length, equals(9));
+      expect(ladder.length, equals(8));
 
       // Generate 10,000 bandwidth samples between 50 kbps and 25,000 kbps
       final bandwidthSamples = List<double>.generate(

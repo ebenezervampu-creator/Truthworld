@@ -22,7 +22,8 @@ class EditTopicController extends GetxController {
     required this.managementController,
   });
 
-  late final TextEditingController titleController;
+  late final TextEditingController nameController;
+  TextEditingController get titleController => nameController;
   late final TextEditingController descriptionController;
   late final TextEditingController categoryController;
   late final TextEditingController accessCodeController;
@@ -46,7 +47,7 @@ class EditTopicController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    titleController = TextEditingController(text: topic.title);
+    nameController = TextEditingController(text: topic.name);
     descriptionController = TextEditingController(text: topic.description);
     categoryController = TextEditingController(
       text: categories.contains(topic.category) ? topic.category : 'Technology',
@@ -60,7 +61,7 @@ class EditTopicController extends GetxController {
 
   @override
   void onClose() {
-    titleController.dispose();
+    nameController.dispose();
     descriptionController.dispose();
     categoryController.dispose();
     accessCodeController.dispose();
@@ -156,14 +157,14 @@ class EditTopicController extends GetxController {
   }
 
   Future<void> submitUpdate({BuildContext? context}) async {
-    final titleVal = ContentValidator.validate(
-      titleController.text.trim(),
-      fieldName: 'Topic Title',
+    final nameVal = ContentValidator.validate(
+      nameController.text.trim(),
+      fieldName: 'Topic Name',
       minLength: 3,
       maxLength: 100,
     );
-    if (!titleVal.isValid) {
-      AppSnackbar.warning(titleVal.message);
+    if (!nameVal.isValid) {
+      AppSnackbar.warning(nameVal.message);
       return;
     }
 
@@ -212,7 +213,8 @@ class EditTopicController extends GetxController {
 
       final success = await managementController.updateTopic(
         topic: topic,
-        title: titleController.text,
+        name: nameController.text,
+        title: nameController.text,
         description: descriptionController.text,
         category: categoryController.text.isEmpty ? 'General' : categoryController.text,
         selectedVideoIds: selectedVideoIds,

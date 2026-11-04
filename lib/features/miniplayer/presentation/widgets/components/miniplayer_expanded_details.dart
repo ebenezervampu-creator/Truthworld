@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -60,14 +59,14 @@ class MiniplayerExpandedDetails extends StatelessWidget {
                 children: [
                   Text(
                     pos,
-                    style: GoogleFonts.robotoMono(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 11,
                     ),
                   ),
                   Text(
                     dur,
-                    style: GoogleFonts.robotoMono(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 11,
                     ),
@@ -192,7 +191,7 @@ class MiniplayerExpandedDetails extends StatelessWidget {
                                 const SizedBox(width: 4),
                                 Text(
                                   'CLIP MODE',
-                                  style: GoogleFonts.robotoMono(
+                                  style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 9,
                                     fontWeight: FontWeight.w700,
@@ -249,7 +248,7 @@ class MiniplayerExpandedDetails extends StatelessWidget {
                                 const SizedBox(width: 4),
                                 Text(
                                   'AUDIO ONLY',
-                                  style: GoogleFonts.robotoMono(
+                                  style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 9,
                                     fontWeight: FontWeight.w700,

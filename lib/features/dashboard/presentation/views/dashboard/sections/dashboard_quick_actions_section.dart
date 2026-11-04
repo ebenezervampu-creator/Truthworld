@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/studio_interactive_card.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class DashboardQuickActionsSection extends StatelessWidget {
@@ -82,11 +83,12 @@ class DashboardQuickActionsSection extends StatelessWidget {
               itemBuilder: (context, index) {
                 final action = actions[index];
                 return TweenAnimationBuilder<double>(
-                  duration: Duration(milliseconds: 300 + (index * 80)),
+                  duration: Duration(milliseconds: 280 + (index * 60)),
+                  curve: Curves.easeOutCubic,
                   tween: Tween(begin: 0, end: 1),
                   builder: (context, value, child) {
-                    return Transform.scale(
-                      scale: 0.9 + (0.1 * value),
+                    return Transform.translate(
+                      offset: Offset(0, 14 * (1 - value)),
                       child: Opacity(
                         opacity: value,
                         child: DashboardQuickActionCard(
@@ -118,62 +120,47 @@ class DashboardQuickActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.bgDivider,
-        ),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () {
-            final onTap = action['onTap'];
-            if (onTap is VoidCallback) {
-              onTap();
-            }
-            HapticFeedback.lightImpact();
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: AppColors.bgSurfaceHover,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    action['icon'] as IconData,
-                    color: AppColors.textPrimary,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    action['title'] as String,
-                    style: const TextStyle(
-                      fontFamily: TWTypography.uiFamily,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                  ),
-                ),
-              ],
+    return StudioInteractiveCard(
+      onTap: () {
+        final onTap = action['onTap'];
+        if (onTap is VoidCallback) {
+          onTap();
+        }
+        HapticFeedback.lightImpact();
+      },
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.bgSurfaceHover,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              action['icon'] as IconData,
+              color: AppColors.textPrimary,
+              size: 22,
             ),
           ),
-        ),
+          const SizedBox(height: 10),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              action['title'] as String,
+              style: const TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+            ),
+          ),
+        ],
       ),
     );
   }

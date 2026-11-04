@@ -65,8 +65,13 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
-  // Bypass Firebase internal reserved endpoints (OAuth auth handler, etc.)
-  if (url.pathname.startsWith('/__/')) {
+  // Bypass Firebase internal reserved endpoints, payment gateways, and dynamic server APIs
+  if (
+    url.pathname.startsWith('/__/') ||
+    url.pathname.startsWith('/checkout') ||
+    url.pathname.startsWith('/payment-result') ||
+    url.pathname.startsWith('/api/')
+  ) {
     return;
   }
 

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/presentation/views/upload/widgets/topic_selection/topic_match_info.dart';
+import 'package:truthworld/features/video/presentation/views/upload/widgets/topic_selection/topic_selection_host.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Top Hero card highlighting the #1 AI-recommended topic for the active video.
@@ -25,7 +26,7 @@ class TopicHeroCard extends StatelessWidget {
   final Color textColor;
   final Color subtextColor;
   final Color borderColor;
-  final dynamic controller;
+  final TopicSelectionHost controller;
   final Function(Topic? topic)? onTopicSelected;
 
   @override
@@ -34,7 +35,6 @@ class TopicHeroCard extends StatelessWidget {
     final imageSrc = topic.thumbnailUrl ?? topic.coverImage;
     final categoryText =
         topic.category.isNotEmpty ? topic.category.toUpperCase() : 'GENERAL';
-    final dateStr = TopicRecommendationEngine.formatTopicDate(topic.createdAt);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -83,14 +83,23 @@ class TopicHeroCard extends StatelessWidget {
                         color: Color(0xFF38BDF8),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '(${match.reason})',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF94A3B8),
+                    if (match.reason.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Tooltip(
+                          message: match.reason,
+                          child: Text(
+                            '(${match.reason})',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF94A3B8),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -132,7 +141,7 @@ class TopicHeroCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          topic.title,
+                          topic.name,
                           style: AppTextStyles.titleLarge.copyWith(
                             fontSize: isNarrow ? 20 : 24,
                             fontWeight: FontWeight.bold,
@@ -157,20 +166,49 @@ class TopicHeroCard extends StatelessWidget {
                         const SizedBox(height: 10),
                         Row(
                           children: [
-                            const Icon(
-                              Icons.calendar_today_outlined,
-                              size: 14,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              dateStr,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFFCBD5E1),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.bolt_rounded,
+                                    size: 13,
+                                    color: Color(0xFF10B981),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${match.matchPercentage}% Relevance Match',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF10B981),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
+                            if (topic.handle.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  topic.handle,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFFCBD5E1),
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ],
@@ -181,34 +219,21 @@ class TopicHeroCard extends StatelessWidget {
 
               const SizedBox(height: 18),
 
-              if (isNarrow)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    TopicHeroStatsRow(topic: topic),
-                    const SizedBox(height: 14),
-                    TopicHeroActionButton(
-                      topic: topic,
-                      isSelected: isSelected,
-                      controller: controller,
-                      onTopicSelected: onTopicSelected,
-                    ),
-                  ],
-                )
-              else
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    TopicHeroStatsRow(topic: topic),
-                    const SizedBox(width: 16),
-                    TopicHeroActionButton(
-                      topic: topic,
-                      isSelected: isSelected,
-                      controller: controller,
-                      onTopicSelected: onTopicSelected,
-                    ),
-                  ],
-                ),
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 16,
+                runSpacing: 14,
+                children: [
+                  TopicHeroStatsRow(topic: topic),
+                  TopicHeroActionButton(
+                    topic: topic,
+                    isSelected: isSelected,
+                    controller: controller,
+                    onTopicSelected: onTopicSelected,
+                  ),
+                ],
+              ),
             ],
           ),
         );
@@ -228,10 +253,13 @@ class TopicHeroStatsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    return Wrap(
+      spacing: 16,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               padding: const EdgeInsets.all(7),
@@ -258,9 +286,9 @@ class TopicHeroStatsRow extends StatelessWidget {
                     color: Colors.white,
                   ),
                 ),
-                const Text(
-                  'Videos',
-                  style: TextStyle(
+                Text(
+                  topic.videoCount == 1 ? 'Video' : 'Videos',
+                  style: const TextStyle(
                     fontSize: 11,
                     color: Color(0xFF94A3B8),
                   ),
@@ -269,10 +297,9 @@ class TopicHeroStatsRow extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(width: 16),
         Container(width: 1, height: 28, color: const Color(0xFF334155)),
-        const SizedBox(width: 16),
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               padding: const EdgeInsets.all(7),
@@ -299,9 +326,49 @@ class TopicHeroStatsRow extends StatelessWidget {
                     color: Colors.white,
                   ),
                 ),
-                const Text(
-                  'Followers',
-                  style: TextStyle(
+                Text(
+                  topic.followerCount == 1 ? 'Follower' : 'Followers',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF94A3B8),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        Container(width: 1, height: 28, color: const Color(0xFF334155)),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.video_library_outlined,
+                size: 16,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  FormatUtils.formatCount(topic.channelCount),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                Text(
+                  topic.channelCount == 1 ? 'Channel' : 'Channels',
+                  style: const TextStyle(
                     fontSize: 11,
                     color: Color(0xFF94A3B8),
                   ),
@@ -327,39 +394,45 @@ class TopicHeroActionButton extends StatelessWidget {
 
   final Topic topic;
   final bool isSelected;
-  final dynamic controller;
+  final TopicSelectionHost controller;
   final Function(Topic? topic)? onTopicSelected;
 
   @override
   Widget build(BuildContext context) {
+    final activeSelected = controller.isTopicSelected(
+      topic.slug.isNotEmpty ? topic.slug : topic.id,
+    );
+
     return ElevatedButton.icon(
-      onPressed: () => TopicRecommendationEngine.handleTopicSelection(
+      onPressed: () => TopicRecommendationEngine.handleTopicToggle(
         context,
         controller,
         topic,
         onTopicSelected,
       ),
       icon: Icon(
-        isSelected ? Icons.check_rounded : Icons.add_rounded,
+        activeSelected ? Icons.check_rounded : Icons.add_rounded,
         size: 18,
-        color: isSelected ? Colors.white : Colors.black,
+        color: activeSelected ? Colors.white : Colors.black,
       ),
       label: Text(
-        isSelected ? 'Added to topic' : 'Add video to this topic',
+        activeSelected ? 'Added to topic' : 'Add video to this topic',
         style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.bold,
-          color: isSelected ? Colors.white : Colors.black,
+          color: activeSelected ? Colors.white : Colors.black,
         ),
       ),
       style: ElevatedButton.styleFrom(
-        backgroundColor: isSelected ? const Color(0xFF18181B) : AppColors.brand,
-        foregroundColor: isSelected ? Colors.white : Colors.black,
+        backgroundColor:
+            activeSelected ? const Color(0xFF18181B) : AppColors.brand,
+        foregroundColor: activeSelected ? Colors.white : Colors.black,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         elevation: 0,
         side: BorderSide(
-          color: isSelected ? const Color(0xFF27272A) : Colors.transparent,
+          color:
+              activeSelected ? const Color(0xFF27272A) : Colors.transparent,
         ),
       ),
     );

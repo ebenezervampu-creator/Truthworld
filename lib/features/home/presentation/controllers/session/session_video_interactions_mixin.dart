@@ -8,6 +8,7 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart' as app_exceptions;
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/domain/usecases/video/toggle_like_video_usecase.dart';
 
 /// Mixin managing video like and dislike interactions with Firestore transactions
@@ -37,7 +38,8 @@ mixin SessionVideoInteractionsMixin on BaseController {
     if (videoId.isEmpty || userId.isEmpty) return;
 
     // Security: always use server-verified UID, never trust caller-supplied userId
-    final authenticatedUid = FirebaseAuth.instance.currentUser?.uid;
+    final authenticatedUid = FirebaseAuth.instance.currentUser?.uid ??
+        (Get.isRegistered<AuthService>() ? AuthService.to.uid : null);
     if (authenticatedUid == null || authenticatedUid.isEmpty) return;
     if (authenticatedUid != userId) return;
 
@@ -71,27 +73,35 @@ mixin SessionVideoInteractionsMixin on BaseController {
           .doc(videoId);
 
       await _firestore.runTransaction((transaction) async {
+        final videoSnap = await transaction.get(videoRef);
         final likedDoc = await transaction.get(userLikedRef);
         final dislikedDoc = await transaction.get(userDislikedRef);
 
         if (likedDoc.exists) {
           // Unlike
           transaction.delete(userLikedRef);
-          transaction.update(videoRef, {'likeCount': FieldValue.increment(-1)});
+          if (videoSnap.exists) {
+            transaction.update(videoRef, {'likeCount': FieldValue.increment(-1)});
+          }
         } else {
           // Like
           transaction.set(userLikedRef, {
             'videoId': videoId,
             'timestamp': FieldValue.serverTimestamp(),
           });
-          transaction.update(videoRef, {'likeCount': FieldValue.increment(1)});
+
+          final videoUpdates = <String, dynamic>{
+            'likeCount': FieldValue.increment(1),
+          };
 
           // Remove dislike if exists
           if (dislikedDoc.exists) {
             transaction.delete(userDislikedRef);
-            transaction.update(videoRef, {
-              'dislikeCount': FieldValue.increment(-1),
-            });
+            videoUpdates['dislikeCount'] = FieldValue.increment(-1);
+          }
+
+          if (videoSnap.exists) {
+            transaction.update(videoRef, videoUpdates);
           }
         }
       });
@@ -117,7 +127,8 @@ mixin SessionVideoInteractionsMixin on BaseController {
     if (videoId.isEmpty || userId.isEmpty) return;
 
     // Security: always use server-verified UID, never trust caller-supplied userId
-    final authenticatedUid = FirebaseAuth.instance.currentUser?.uid;
+    final authenticatedUid = FirebaseAuth.instance.currentUser?.uid ??
+        (Get.isRegistered<AuthService>() ? AuthService.to.uid : null);
     if (authenticatedUid == null || authenticatedUid.isEmpty) return;
     if (authenticatedUid != userId) return;
 
@@ -142,31 +153,37 @@ mixin SessionVideoInteractionsMixin on BaseController {
           .doc(videoId);
 
       await _firestore.runTransaction((transaction) async {
+        final videoSnap = await transaction.get(videoRef);
         final likedDoc = await transaction.get(userLikedRef);
         final dislikedDoc = await transaction.get(userDislikedRef);
 
         if (dislikedDoc.exists) {
           // Undislike
           transaction.delete(userDislikedRef);
-          transaction.update(videoRef, {
-            'dislikeCount': FieldValue.increment(-1),
-          });
+          if (videoSnap.exists) {
+            transaction.update(videoRef, {
+              'dislikeCount': FieldValue.increment(-1),
+            });
+          }
         } else {
           // Dislike
           transaction.set(userDislikedRef, {
             'videoId': videoId,
             'timestamp': FieldValue.serverTimestamp(),
           });
-          transaction.update(videoRef, {
+
+          final videoUpdates = <String, dynamic>{
             'dislikeCount': FieldValue.increment(1),
-          });
+          };
 
           // Remove like if exists
           if (likedDoc.exists) {
             transaction.delete(userLikedRef);
-            transaction.update(videoRef, {
-              'likeCount': FieldValue.increment(-1),
-            });
+            videoUpdates['likeCount'] = FieldValue.increment(-1);
+          }
+
+          if (videoSnap.exists) {
+            transaction.update(videoRef, videoUpdates);
           }
         }
       });

@@ -32,7 +32,7 @@ class CreateOrEditTierPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: isDarkMode ? AppColors.bgPage : const Color(0xFFF9FAFB),
+      backgroundColor: isDarkMode ? AppColors.bgPage : AppColors.textPrimary,
       appBar: _buildAppBar(context),
       body: SafeArea(
         child: LayoutBuilder(
@@ -232,12 +232,12 @@ class CreateOrEditTierPage extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFF10B981).withValues(alpha: 0.15),
+              color: AppColors.success.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
             child: const Icon(
               Icons.stars_rounded,
-              color: Color(0xFF10B981),
+              color: AppColors.success,
               size: 24,
             ),
           ),
@@ -323,7 +323,7 @@ class CreateOrEditTierPage extends StatelessWidget {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0xFF10B981), width: 1.5),
+                borderSide: const BorderSide(color: AppColors.success, width: 1.5),
               ),
             ),
           ),
@@ -614,6 +614,11 @@ class CreateOrEditTierPage extends StatelessWidget {
       final currentPrice = tierController.priceRx.value;
       final curr = tierController.selectedCurrency.value;
       final symbol = curr == 'INR' ? '₹' : r'$';
+      final isCustom = controller.isCustomChannel.value;
+      final standardCreatorAmount = currentPrice * 0.90;
+      final standardCreatorFormatted = standardCreatorAmount == standardCreatorAmount.truncateToDouble()
+          ? standardCreatorAmount.toInt().toString()
+          : standardCreatorAmount.toStringAsFixed(2);
       final creatorAmount = currentPrice * 0.70;
       final platformAmount = currentPrice * 0.30;
       final creatorFormatted = creatorAmount == creatorAmount.truncateToDouble()
@@ -639,7 +644,7 @@ class CreateOrEditTierPage extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isBundleActive
-                ? const Color(0xFF6366F1)
+                ? AppColors.info
                 : (isDarkMode ? AppColors.bgDivider : Colors.grey.shade200),
             width: isBundleActive ? 1.5 : 1,
           ),
@@ -653,7 +658,7 @@ class CreateOrEditTierPage extends StatelessWidget {
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: isBundleActive
-                        ? const Color(0xFF6366F1).withValues(alpha: 0.2)
+                        ? AppColors.info.withValues(alpha: 0.2)
                         : (isDarkMode ? AppColors.bgSurfaceHigh : Colors.grey.shade200),
                     shape: BoxShape.circle,
                   ),
@@ -661,7 +666,7 @@ class CreateOrEditTierPage extends StatelessWidget {
                     Icons.workspace_premium_rounded,
                     size: 20,
                     color: isBundleActive
-                        ? const Color(0xFF818CF8)
+                        ? AppColors.info
                         : (isDarkMode ? Colors.white70 : Colors.black54),
                   ),
                 ),
@@ -692,7 +697,9 @@ class CreateOrEditTierPage extends StatelessWidget {
                               borderRadius: BorderRadius.circular(5),
                             ),
                             child: Text(
-                              isBundleActive ? '70% Creator / 30% Cut' : '100% Net (0% Cut)',
+                              isBundleActive
+                                  ? '70% Creator / 30% Cut'
+                                  : (isCustom ? '100% Net (0% Cut)' : '90% Net (10% Fee)'),
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
@@ -717,7 +724,7 @@ class CreateOrEditTierPage extends StatelessWidget {
                 ),
                 Switch.adaptive(
                   value: isBundleActive,
-                  activeColor: const Color(0xFF6366F1),
+                  activeColor: AppColors.info,
                   onChanged: tierController.togglePremiumBundle,
                 ),
               ],
@@ -730,7 +737,7 @@ class CreateOrEditTierPage extends StatelessWidget {
                 color: isDarkMode ? Colors.black.withValues(alpha: 0.3) : Colors.white,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: isDarkMode ? const Color(0xFF27272A) : Colors.grey.shade200,
+                  color: isDarkMode ? AppColors.bgSurface : Colors.grey.shade200,
                 ),
               ),
               child: Column(
@@ -772,7 +779,9 @@ class CreateOrEditTierPage extends StatelessWidget {
                     child: Text(
                       isBundleActive
                           ? 'Creator receives 70% ($symbol$creatorFormatted/mo) • TruthWorld fee 30% ($symbol$platformFormatted/mo) from $symbol$priceFormatted/mo.'
-                          : 'Creator receives 100% of revenue ($symbol$priceFormatted/mo) with 0% platform commission.',
+                          : (isCustom
+                              ? 'Creator receives 100% of revenue ($symbol$priceFormatted/mo) with 0% platform commission.'
+                              : 'Creator receives 90% of revenue ($symbol$standardCreatorFormatted/mo) with 10% platform fee.'),
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
@@ -864,7 +873,7 @@ class CreateOrEditTierPage extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Subscribers automatically level up from New Member, 3 months, 6 months, 1 year, 2 years, up to 10 years in live chat, comments, and community discussions.',
+            'Subscribers automatically level up from New Member, 3 months, 6 months, 1 year, 2 years, up to 10 years in comments and community discussions.',
             style: TextStyle(
               fontSize: 12,
               color: isDarkMode ? AppColors.textSecondary : Colors.black54,
@@ -972,7 +981,7 @@ class CreateOrEditTierPage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: isBundle
-                          ? const Color(0xFF6366F1)
+                          ? AppColors.info
                           : (isDarkMode ? AppColors.bgDivider : Colors.grey.shade300),
                     ),
                   ),
@@ -983,7 +992,7 @@ class CreateOrEditTierPage extends StatelessWidget {
                         const Icon(
                           Icons.workspace_premium_rounded,
                           size: 14,
-                          color: Color(0xFF818CF8),
+                          color: AppColors.info,
                         ),
                         const SizedBox(width: 4),
                       ],
@@ -1107,7 +1116,7 @@ class CreateOrEditTierPage extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.add, size: 13, color: Color(0xFF10B981)),
+                        const Icon(Icons.add, size: 13, color: AppColors.success),
                         const SizedBox(width: 4),
                         Flexible(
                           child: Text(
@@ -1156,7 +1165,7 @@ class CreateOrEditTierPage extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.remove_red_eye_rounded, size: 16, color: Color(0xFF10B981)),
+              const Icon(Icons.remove_red_eye_rounded, size: 16, color: AppColors.success),
               const SizedBox(width: 6),
               Text(
                 'LIVE FAN PREVIEW',
@@ -1176,7 +1185,7 @@ class CreateOrEditTierPage extends StatelessWidget {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: isDarkMode
-                    ? [const Color(0xFF18181B), const Color(0xFF09090B)]
+                    ? [AppColors.bgPage, const Color(0xFF09090B)]
                     : [Colors.grey.shade50, Colors.white],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -1233,18 +1242,18 @@ class CreateOrEditTierPage extends StatelessWidget {
                       return Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF6366F1).withValues(alpha: 0.2),
+                          color: AppColors.info.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.5)),
+                          border: Border.all(color: AppColors.info.withValues(alpha: 0.5)),
                         ),
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.workspace_premium_rounded, size: 12, color: Color(0xFF818CF8)),
+                            Icon(Icons.workspace_premium_rounded, size: 12, color: AppColors.info),
                             SizedBox(width: 4),
                             Text(
                               'Premium',
-                              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF818CF8)),
+                              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.info),
                             ),
                           ],
                         ),
@@ -1318,7 +1327,7 @@ class CreateOrEditTierPage extends StatelessWidget {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF10B981)),
+                            const Icon(Icons.check_circle_rounded, size: 14, color: AppColors.success),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -1381,7 +1390,7 @@ class CreateOrEditTierPage extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.trending_up_rounded, size: 18, color: Color(0xFF10B981)),
+                  const Icon(Icons.trending_up_rounded, size: 18, color: AppColors.success),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -1562,7 +1571,7 @@ class CreateOrEditTierPage extends StatelessWidget {
         Icon(
           Icons.check_circle_rounded,
           size: 14,
-          color: isActive ? const Color(0xFF818CF8) : Colors.grey,
+          color: isActive ? AppColors.info : Colors.grey,
         ),
         const SizedBox(width: 8),
         Expanded(

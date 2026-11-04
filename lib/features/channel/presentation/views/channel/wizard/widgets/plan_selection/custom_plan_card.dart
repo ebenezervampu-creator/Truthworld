@@ -88,7 +88,7 @@ class CustomPlanCard extends StatelessWidget {
                   CustomRocket3DGraphic(isDesktop: isDesktop),
                   SizedBox(height: isDesktop ? 6 : 12),
                   const Text(
-                    'Custom Channel',
+                    'Pro Channel',
                     style: TextStyle(
                       fontFamily: TWTypography.brandFamily,
                       fontSize: 18,
@@ -140,7 +140,7 @@ class CustomPlanCard extends StatelessWidget {
                   ),
                   SizedBox(height: isDesktop ? 4 : 10),
                   const Text(
-                    'Select Custom Pricing Tier:',
+                    'Select Pro Pricing Tier:',
                     style: TextStyle(
                       fontFamily: TWTypography.uiFamily,
                       fontSize: 11,
@@ -209,7 +209,7 @@ class CustomPlanCard extends StatelessWidget {
                   Obx(() {
                     final isAutoPay = controller.customPlanAutoPay.value;
                     final tier = controller.customPricingTier.value;
-                    final tierLabel = tier == 'Custom' ? 'Custom tier' : '$tier/mo';
+                    final tierLabel = tier == 'Custom' ? 'Pro tier' : '$tier/mo';
 
                     return Container(
                       padding: EdgeInsets.symmetric(

@@ -24,14 +24,14 @@ class AddSubtitleTrackPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final video = controller.selectedVideo.value;
     final surfaceColor =
-        isDarkMode ? const Color(0xFF1E1E1E) : AppColors.bgSurface;
+        isDarkMode ? AppColors.bgSurface : AppColors.bgSurface;
     const bgColor = AppColors.bgPage;
     final textColor =
         isDarkMode ? AppColors.textPrimary : AppColors.textPrimary;
     final textSecondaryColor =
         isDarkMode ? AppColors.textSecondary : AppColors.textSecondary;
     final borderColor =
-        isDarkMode ? AppColors.bgDivider : const Color(0xFF2A2A2A);
+        isDarkMode ? AppColors.bgDivider : AppColors.bgSurface;
 
     // Reactive state for the page (Zero setState policy)
     final creationMode = 'manual'.obs; // 'manual' | 'duplicate' | 'upload'
@@ -272,13 +272,15 @@ class AddSubtitleTrackPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Row(
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Text(
                       'Duration: ${video.duration}',
                       style: TextStyle(fontSize: 12, color: textSecondaryColor),
                     ),
-                    const SizedBox(width: 12),
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 6,
@@ -536,12 +538,16 @@ class AddSubtitleTrackPage extends StatelessWidget {
                 color: Colors.white,
               ),
               const SizedBox(width: 8),
-              Text(
-                'Source Track to Copy Timings From',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: textColor,
+              Expanded(
+                child: Text(
+                  'Source Track to Copy Timings From',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -616,12 +622,16 @@ class AddSubtitleTrackPage extends StatelessWidget {
                 color: Colors.white,
               ),
               const SizedBox(width: 8),
-              Text(
-                'Subtitle File (.vtt, .srt, .txt, .json)',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: textColor,
+              Expanded(
+                child: Text(
+                  'Subtitle File (.vtt, .srt, .txt, .json)',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -867,127 +877,134 @@ class AddSubtitleTrackPage extends StatelessWidget {
                   l.code.toLowerCase().contains(query);
             }).toList();
 
-            return Container(
-              constraints: const BoxConstraints(maxHeight: 260),
-              decoration: BoxDecoration(
-                color: AppColors.bgPage,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: borderColor),
-              ),
-              child: filtered.isEmpty
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          'No languages match "$query"',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: textSecondaryColor,
+            return Material(
+              color: AppColors.bgPage,
+              borderRadius: BorderRadius.circular(8),
+              clipBehavior: Clip.antiAlias,
+              child: Container(
+                constraints: const BoxConstraints(maxHeight: 260),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: borderColor),
+                ),
+                child: filtered.isEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(
+                            'No languages match "$query"',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: textSecondaryColor,
+                            ),
                           ),
                         ),
-                      ),
-                    )
-                  : ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: filtered.length,
-                      separatorBuilder: (_, _) =>
-                          Divider(height: 1, color: borderColor),
-                      itemBuilder: (context, index) {
-                        final lang = filtered[index];
-                        final isAlreadyAdded =
-                            controller.availableLanguages.contains(lang.code);
+                      )
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: filtered.length,
+                        separatorBuilder: (_, _) =>
+                            Divider(height: 1, color: borderColor),
+                        itemBuilder: (context, index) {
+                          final lang = filtered[index];
+                          final isAlreadyAdded =
+                              controller.availableLanguages.contains(lang.code);
 
-                        return Obx(() {
-                          final isSelected =
-                              selectedLanguage.value?.code == lang.code;
+                          return Obx(() {
+                            final isSelected =
+                                selectedLanguage.value?.code == lang.code;
 
-                          return ListTile(
-                            dense: true,
-                            enabled: !isAlreadyAdded,
-                            tileColor: isSelected
-                                ? AppColors.brand.withValues(alpha: 0.1)
-                                : Colors.transparent,
-                            leading: Container(
-                              width: 32,
-                              height: 32,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? AppColors.brand
-                                    : surfaceColor,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                lang.code.toUpperCase(),
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: isSelected ? Colors.black : textColor,
-                                ),
-                              ),
-                            ),
-                            title: Text(
-                              lang.name,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: isSelected
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                color: isAlreadyAdded
-                                    ? AppColors.textDisabled
-                                    : (isSelected
+                            return Material(
+                              color: Colors.transparent,
+                              child: ListTile(
+                                dense: true,
+                                enabled: !isAlreadyAdded,
+                                tileColor: isSelected
+                                    ? AppColors.brand.withValues(alpha: 0.1)
+                                    : Colors.transparent,
+                                leading: Container(
+                                  width: 32,
+                                  height: 32,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: isSelected
                                         ? AppColors.brand
-                                        : textColor),
-                              ),
-                            ),
-                            subtitle: Text(
-                              lang.nativeName,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: isAlreadyAdded
-                                    ? AppColors.textDisabled
-                                    : textSecondaryColor,
-                              ),
-                            ),
-                            trailing: isAlreadyAdded
-                                ? Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
+                                        : surfaceColor,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    lang.code.toUpperCase(),
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: isSelected ? Colors.black : textColor,
                                     ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.05),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: const Text(
-                                      'Added',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: AppColors.textDisabled,
-                                      ),
-                                    ),
-                                  )
-                                : (isSelected
-                                    ? const Icon(
-                                        Icons.check_circle_rounded,
-                                        size: 20,
-                                        color: AppColors.brand,
+                                  ),
+                                ),
+                                title: Text(
+                                  lang.name,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                    color: isAlreadyAdded
+                                        ? AppColors.textDisabled
+                                        : (isSelected
+                                            ? AppColors.brand
+                                            : textColor),
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  lang.nativeName,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: isAlreadyAdded
+                                        ? AppColors.textDisabled
+                                        : textSecondaryColor,
+                                  ),
+                                ),
+                                trailing: isAlreadyAdded
+                                    ? Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(alpha: 0.05),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: const Text(
+                                          'Added',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: AppColors.textDisabled,
+                                          ),
+                                        ),
                                       )
-                                    : const Icon(
-                                        Icons.radio_button_unchecked_rounded,
-                                        size: 18,
-                                        color: Colors.white38,
-                                      )),
-                            onTap: () {
-                              selectedLanguage.value = lang;
-                              if (titleController.text.trim().isEmpty) {
-                                titleController.text = lang.name;
-                              }
-                            },
-                          );
-                        });
-                      },
-                    ),
+                                    : (isSelected
+                                        ? const Icon(
+                                            Icons.check_circle_rounded,
+                                            size: 20,
+                                            color: AppColors.brand,
+                                          )
+                                        : const Icon(
+                                            Icons.radio_button_unchecked_rounded,
+                                            size: 18,
+                                            color: Colors.white38,
+                                          )),
+                                onTap: () {
+                                  selectedLanguage.value = lang;
+                                  if (titleController.text.trim().isEmpty) {
+                                    titleController.text = lang.name;
+                                  }
+                                },
+                              ),
+                            );
+                          });
+                        },
+                      ),
+              ),
             );
           }),
         ],
@@ -1073,92 +1090,99 @@ class AddSubtitleTrackPage extends StatelessWidget {
       final isUploading = controller.isUploadingFile.value;
 
       return Row(
-        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          OutlinedButton(
-            onPressed: isUploading ? null : () => Get.back<void>(),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white,
-              side: const BorderSide(color: AppColors.bgDivider),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          Expanded(
+            flex: 1,
+            child: OutlinedButton(
+              onPressed: isUploading ? null : () => Get.back<void>(),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                side: const BorderSide(color: AppColors.bgDivider),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: const Text('Cancel'),
             ),
-            child: const Text('Cancel'),
           ),
-          const SizedBox(width: 14),
-          ElevatedButton.icon(
-            onPressed: isUploading
-                ? null
-                : () async {
-                    final lang = selectedLanguage.value;
-                    if (lang == null) {
-                      controller.showError('Please select a target language.');
-                      return;
-                    }
-
-                    final title = titleController.text.trim().isNotEmpty
-                        ? titleController.text.trim()
-                        : lang.name;
-
-                    final check = await controller.validateContent(
-                      title,
-                      fieldName: 'Track Title',
-                    );
-                    if (!check.isValid) {
-                      titleError.value = check.message;
-                      controller.showError(check.message);
-                      return;
-                    }
-
-                    if (creationMode.value == 'upload') {
-                      final file = pickedFile.value;
-                      if (file == null) {
-                        controller.showError('Please select a subtitle file.');
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: ElevatedButton.icon(
+              onPressed: isUploading
+                  ? null
+                  : () async {
+                      final lang = selectedLanguage.value;
+                      if (lang == null) {
+                        controller.showError('Please select a target language.');
                         return;
                       }
 
-                      await controller.uploadSubtitleTrack(
-                        languageCode: lang.code,
-                        title: title,
-                        file: file,
+                      final title = titleController.text.trim().isNotEmpty
+                          ? titleController.text.trim()
+                          : lang.name;
+
+                      final check = await controller.validateContent(
+                        title,
+                        fieldName: 'Track Title',
                       );
-                      Get.back<void>();
-                    } else if (creationMode.value == 'duplicate') {
-                      controller.addLanguageTrack(
-                        lang.code,
-                        copyCuesFromCurrent: true,
-                      );
-                      Get.back<void>();
-                    } else {
-                      controller.addLanguageTrack(lang.code);
-                      Get.back<void>();
-                    }
-                  },
-            icon: isUploading
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                      if (!check.isValid) {
+                        titleError.value = check.message;
+                        controller.showError(check.message);
+                        return;
+                      }
+
+                      if (creationMode.value == 'upload') {
+                        final file = pickedFile.value;
+                        if (file == null) {
+                          controller.showError('Please select a subtitle file.');
+                          return;
+                        }
+
+                        await controller.uploadSubtitleTrack(
+                          languageCode: lang.code,
+                          title: title,
+                          file: file,
+                        );
+                        Get.back<void>();
+                      } else if (creationMode.value == 'duplicate') {
+                        controller.addLanguageTrack(
+                          lang.code,
+                          copyCuesFromCurrent: true,
+                        );
+                        Get.back<void>();
+                      } else {
+                        controller.addLanguageTrack(lang.code);
+                        Get.back<void>();
+                      }
+                    },
+              icon: isUploading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                      ),
+                    )
+                  : const Icon(
+                      Icons.add_circle_outline_rounded,
+                      size: 16,
+                      color: Colors.black,
                     ),
-                  )
-                : const Icon(
-                    Icons.add_circle_outline_rounded,
-                    size: 16,
-                    color: Colors.black,
-                  ),
-            label: Text(
-              isUploading ? 'Uploading...' : 'Create Subtitle Track',
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
+              label: Text(
+                isUploading ? 'Uploading...' : 'Create Subtitle Track',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
               ),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.brand,
-              foregroundColor: Colors.black,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.brand,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              ),
             ),
           ),
         ],

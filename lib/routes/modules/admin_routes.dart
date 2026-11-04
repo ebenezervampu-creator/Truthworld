@@ -9,6 +9,7 @@ import 'package:truthworld/features/admin/presentation/views/admin_dashboard_scr
 import 'package:truthworld/features/admin/presentation/views/admin_login_screen.dart'
     deferred as admin_login;
 import 'package:truthworld/routes/app_routes.dart';
+import 'package:truthworld/routes/app_transitions.dart';
 
 /// Admin portal and moderation feature routes.
 class AdminRoutes {
@@ -29,6 +30,9 @@ class AdminRoutes {
     GetPage(
       name: AppRoutes.adminRoot,
       binding: AdminBinding(),
+      transition: AppTransitions.modal,
+      transitionDuration: AppTransitions.modalDuration,
+      curve: AppTransitions.modalCurve,
       middlewares: [AdminRedirectMiddleware()],
       page: () => DeferredWidget(
         loader: admin_login.loadLibrary,
@@ -38,6 +42,9 @@ class AdminRoutes {
     GetPage(
       name: AppRoutes.adminLogin,
       binding: AdminBinding(),
+      transition: AppTransitions.modal,
+      transitionDuration: AppTransitions.modalDuration,
+      curve: AppTransitions.modalCurve,
       middlewares: [AdminRedirectMiddleware()],
       page: () => DeferredWidget(
         loader: admin_login.loadLibrary,
@@ -47,6 +54,9 @@ class AdminRoutes {
     GetPage(
       name: AppRoutes.adminDashboard,
       binding: AdminBinding(),
+      transition: AppTransitions.peer,
+      transitionDuration: AppTransitions.peerDuration,
+      curve: AppTransitions.peerCurve,
       middlewares: [AdminAuthGuardMiddleware()],
       page: () => DeferredWidget(
         loader: admin_dashboard.loadLibrary,

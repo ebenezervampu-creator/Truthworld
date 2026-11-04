@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
@@ -27,7 +26,7 @@ class SavedCommunityPostsScreen
           if (currentUser == null || !controller.isSearching.value) {
             return Text(
               'Saved Posts',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 color: AppColors.textPrimary,
                 fontWeight: FontWeight.bold,
                 fontSize: 20,
@@ -142,7 +141,7 @@ class SavedCommunityPostsScreen
                   controller.searchQuery.value.isNotEmpty
                       ? 'No matching saved posts'
                       : 'No saved posts yet',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,

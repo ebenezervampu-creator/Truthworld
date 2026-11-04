@@ -213,11 +213,11 @@ class EditTopicThumbnailSelector extends StatelessWidget {
                                           imageUrl: videoUrl,
                                           fit: BoxFit.cover,
                                           errorWidget: (c, o, s) => Container(
-                                            color: const Color(0xFF1E1E1E),
+                                            color: AppColors.bgSurface,
                                           ),
                                         )
                                       : Container(
-                                          color: const Color(0xFF1E1E1E),
+                                          color: AppColors.bgSurface,
                                         ),
                                 ),
                                 if (isSelected)

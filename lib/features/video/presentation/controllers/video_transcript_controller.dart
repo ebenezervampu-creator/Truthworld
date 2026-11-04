@@ -11,9 +11,11 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/network/app_http_client.dart';
+import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/utils/isolate_compute_utils.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
+import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
@@ -36,6 +38,9 @@ class VideoTranscriptController extends BaseController {
   final RxBool autoScrollEnabled = true.obs;
   DateTime _lastAutoScroll = DateTime(2000);
   String? currentVideoId;
+
+  /// In-memory cache of parsed transcripts by videoId to eliminate redundant network round-trips
+  static final Map<String, List<SubtitleSegment>> _transcriptCache = {};
 
   final Map<int, GlobalKey> _segmentKeys = <int, GlobalKey>{};
   Timer? _autoResumeTimer;
@@ -248,9 +253,31 @@ class VideoTranscriptController extends BaseController {
     currentVideoId = video.id;
 
     // 0. Fast-path memory cache checks
+    if (forceRefresh) {
+      _transcriptCache.remove(video.id);
+    } else if (_transcriptCache.containsKey(video.id) && _transcriptCache[video.id]!.isNotEmpty) {
+      final cachedSegs = _transcriptCache[video.id]!;
+      transcriptSegments.assignAll(cachedSegs);
+      if (playerCtrl != null) {
+        playerCtrl.subtitleSegments.assignAll(cachedSegs);
+        playerCtrl.startSubtitleSyncTimer();
+        playerCtrl.syncActiveSubtitle();
+      }
+      if (isTranscriptVisible.value) {
+        final currentPos = playerCtrl?.videoPlayerController.value.position ?? Duration.zero;
+        syncToCurrentPosition(currentPos, forceScroll: true);
+      }
+      isLoadingTranscript.value = false;
+      playerCtrl?.isLoadingSubtitles.value = false;
+      hasAttemptedTranscriptFetch.value = true;
+      return;
+    }
+
     if (transcriptSegments.isNotEmpty) {
       if (playerCtrl != null && playerCtrl.subtitleSegments.isEmpty) {
         playerCtrl.subtitleSegments.assignAll(transcriptSegments);
+        playerCtrl.startSubtitleSyncTimer();
+        playerCtrl.syncActiveSubtitle();
       }
       if (isTranscriptVisible.value) {
         final currentPos = playerCtrl?.videoPlayerController.value.position ?? Duration.zero;
@@ -274,17 +301,72 @@ class VideoTranscriptController extends BaseController {
     playerCtrl?.isLoadingSubtitles.value = true;
     try {
       void applySegments(List<SubtitleSegment> segs) {
+        _transcriptCache[video.id] = List<SubtitleSegment>.from(segs);
         transcriptSegments.assignAll(segs);
         playerCtrl?.subtitleSegments.assignAll(segs);
+        playerCtrl?.startSubtitleSyncTimer();
+        playerCtrl?.syncActiveSubtitle();
         if (isTranscriptVisible.value) {
           final currentPos = playerCtrl?.videoPlayerController.value.position ?? Duration.zero;
           syncToCurrentPosition(currentPos, forceScroll: true);
         }
       }
 
-      // 1. Check existing availableSubtitles or mediaSubtitles
-      var candidateUrl = video.mediaSubtitles['en'] ??
-          (video.mediaSubtitles.isNotEmpty ? video.mediaSubtitles.values.first : null) ??
+      // 1. Resolve preferred language (active track selection > video native language > en)
+      final videoLangRaw = video.language.trim().toLowerCase();
+      final videoLangCode = normalizeLanguageCode(video.language);
+      final videoLangObj = supportedLanguages.firstWhereOrNull((l) => l.code == videoLangCode);
+      final videoLangName = videoLangObj?.name.toLowerCase() ?? '';
+
+      final activeTrackRaw = playerCtrl?.activeSubLang.value.trim().toLowerCase() ?? '';
+      final isTrackActive = activeTrackRaw.isNotEmpty &&
+          activeTrackRaw != 'off' &&
+          activeTrackRaw != 'auto';
+      final activeTrackCode = isTrackActive ? normalizeLanguageCode(activeTrackRaw) : '';
+      final activeTrackObj = isTrackActive
+          ? supportedLanguages.firstWhereOrNull((l) => l.code == activeTrackCode)
+          : null;
+      final activeTrackName = activeTrackObj?.name.toLowerCase() ?? '';
+
+      String? findMatchingUrlInMap(Map? map) {
+        if (map == null || map.isEmpty) return null;
+
+        String? extractUrl(dynamic val) {
+          if (val == null) return null;
+          if (val is String && val.trim().isNotEmpty) return val.trim();
+          if (val is Map) {
+            final u = (val['url'] ?? val['srtPath'] ?? val['vttPath'] ?? val['subtitleUrl'])?.toString();
+            if (u != null && u.trim().isNotEmpty) return u.trim();
+          }
+          final s = val.toString().trim();
+          return s.isNotEmpty ? s : null;
+        }
+
+        // 1. If explicit user track selection (e.g. 'Telugu', 'te')
+        if (isTrackActive) {
+          final direct = extractUrl(map[activeTrackRaw]) ??
+              (activeTrackCode.isNotEmpty ? extractUrl(map[activeTrackCode]) : null) ??
+              (activeTrackName.isNotEmpty ? extractUrl(map[activeTrackName]) : null);
+          if (direct != null) return direct;
+        }
+
+        // 2. Video native language (e.g. 'te', 'telugu')
+        if (videoLangCode.isNotEmpty) {
+          final native = extractUrl(map[videoLangCode]) ??
+              (videoLangRaw.isNotEmpty ? extractUrl(map[videoLangRaw]) : null) ??
+              (videoLangName.isNotEmpty ? extractUrl(map[videoLangName]) : null);
+          if (native != null) return native;
+        }
+
+        // 3. Fallback to English
+        final en = extractUrl(map['en']) ?? extractUrl(map['english']);
+        if (en != null) return en;
+
+        // 4. Fallback to first available entry
+        return extractUrl(map.values.first);
+      }
+
+      var candidateUrl = findMatchingUrlInMap(video.mediaSubtitles) ??
           (video.transcriptionUrl.isNotEmpty ? video.transcriptionUrl : null) ??
           defaultSubtitleUrl;
 
@@ -292,7 +374,7 @@ class VideoTranscriptController extends BaseController {
       if (candidateUrl == null || candidateUrl.isEmpty) {
         final loc = await VideoMediaService().getLocalization(video.id);
         if (loc.subtitles.isNotEmpty) {
-          candidateUrl = loc.subtitles['en'] ?? loc.subtitles.values.first;
+          candidateUrl = findMatchingUrlInMap(loc.subtitles);
         }
       }
 
@@ -313,7 +395,7 @@ class VideoTranscriptController extends BaseController {
           if (candidateUrl == null || candidateUrl.isEmpty) {
             final subs = (media?['subtitles'] ?? data['subtitles']) as Map?;
             if (subs != null && subs.isNotEmpty) {
-              candidateUrl = subs['en']?.toString() ?? subs.values.first?.toString();
+              candidateUrl = findMatchingUrlInMap(subs);
             }
           }
         }
@@ -321,7 +403,9 @@ class VideoTranscriptController extends BaseController {
 
       // 4. If candidate URL found, fetch and parse
       if (candidateUrl != null && candidateUrl.isNotEmpty) {
-        if (playerCtrl != null) {
+        final isTranscriptJson = candidateUrl.endsWith('.json') ||
+            candidateUrl.contains('/transcripts/');
+        if (!isTranscriptJson && playerCtrl != null) {
           await playerCtrl.fetchAndParseSubtitles(candidateUrl);
           if (playerCtrl.subtitleSegments.isNotEmpty) {
             applySegments(playerCtrl.subtitleSegments);
@@ -373,47 +457,65 @@ class VideoTranscriptController extends BaseController {
         } catch (_) {}
       }
 
-      // 5. Direct probe into Firebase Storage for pipeline-generated transcripts
+      // 5. Canonical fallback probe into Cloud Storage if Firestore URL metadata was absent
       final storage = FirebaseStorage.instance;
-      final probePaths = [
+      final probePaths = <String>[
         'transcripts/${video.id}/full.json',
+        if (videoLangCode.isNotEmpty && videoLangCode != 'en') ...[
+          'subtitles/${video.id}/$videoLangCode.vtt',
+          'subtitles/${video.id}/$videoLangCode.srt',
+          if (videoLangRaw.isNotEmpty && videoLangRaw != videoLangCode) ...[
+            'subtitles/${video.id}/$videoLangRaw.vtt',
+            'subtitles/${video.id}/$videoLangRaw.srt',
+          ],
+        ],
         'subtitles/${video.id}/en.vtt',
         'subtitles/${video.id}/en.srt',
-        'subtitles/${video.id}/transcript.json',
-        'subtitles/${video.id}/transcription.json',
-        'transcripts/${video.id}.json',
-        'transcripts/${video.id}.vtt',
-        'transcripts/${video.id}.srt',
-        'videos/${video.id}/transcript.json',
-        'videos/${video.id}/transcription.json',
         if (retrievedJobId != null && retrievedJobId.isNotEmpty && retrievedJobId != video.id) ...[
           'transcripts/$retrievedJobId/full.json',
+          if (videoLangCode.isNotEmpty && videoLangCode != 'en') ...[
+            'subtitles/$retrievedJobId/$videoLangCode.vtt',
+            'subtitles/$retrievedJobId/$videoLangCode.srt',
+            if (videoLangRaw.isNotEmpty && videoLangRaw != videoLangCode) ...[
+              'subtitles/$retrievedJobId/$videoLangRaw.vtt',
+              'subtitles/$retrievedJobId/$videoLangRaw.srt',
+            ],
+          ],
           'subtitles/$retrievedJobId/en.vtt',
           'subtitles/$retrievedJobId/en.srt',
         ],
       ];
 
-      for (final p in probePaths) {
+      // Parallel probe across candidate storage paths with tight timeout to eliminate sequential waterfall
+      final probeFutures = probePaths.map((p) async {
         try {
-          final data = await storage.ref(p).getData();
+          final data = await StorageUtils.getDataWithTimeout(
+            storage.ref(p),
+            timeout: const Duration(milliseconds: 2000),
+          );
           if (data != null && data.isNotEmpty) {
-            final content = utf8.decode(data, allowMalformed: true);
-            final segs = await parseTranscriptContent(content);
-            if (segs.isNotEmpty) {
-              applySegments(segs);
-              debugPrint('[VideoTranscriptController] ✅ Found transcript via storage probe: $p');
-              return;
-            }
+            return MapEntry<String, Uint8List>(p, data);
           }
         } catch (e) {
           final errStr = e.toString().toLowerCase();
-          // If storage access is unauthorized, stop speculative probing immediately
           if (errStr.contains('unauthorized') ||
               errStr.contains('permission-denied')) {
-            debugPrint('[VideoTranscriptController] Storage probes unauthorized, stopping.');
-            break;
+            debugPrint('[VideoTranscriptController] Storage probe unauthorized for $p');
           }
-          // Normal probe miss: continue silently to next path
+        }
+        return null;
+      });
+
+      final probeResults = await Future.wait(probeFutures);
+      for (final res in probeResults) {
+        if (res != null) {
+          final content = utf8.decode(res.value, allowMalformed: true);
+          final segs = await parseTranscriptContent(content);
+          if (segs.isNotEmpty) {
+            applySegments(segs);
+            debugPrint('[VideoTranscriptController] ✅ Found transcript via storage probe: ${res.key}');
+            return;
+          }
         }
       }
     } catch (e, stackTrace) {
@@ -434,41 +536,52 @@ class VideoTranscriptController extends BaseController {
       String? content;
       try {
         final resolvedUrl = StorageUtils.getFastDownloadUrl(url);
-        final response = await AppHttpClient.get(Uri.parse(resolvedUrl));
+        final headers = await StorageUtils.getMediaHeaders();
+        final response = await AppHttpClient.get(
+          Uri.parse(resolvedUrl),
+          headers: headers,
+        );
         if (response.statusCode == 200) {
           content = utf8.decode(response.bodyBytes, allowMalformed: true);
         }
-      } catch (e, stackTrace) {
-        ErrorHandler.log(
-          e,
-          stackTrace: stackTrace,
+      } catch (e) {
+        logger.warning(
+          'Transcript HTTP fast download failed or skipped: $e',
           tag: 'VideoTranscriptController.downloadHttpTranscript',
         );
       }
 
       if (content == null || content.isEmpty) {
-        Uint8List? data;
-        if (url.startsWith('gs://') ||
-            url.startsWith('https://storage.googleapis.com/') ||
-            url.startsWith('https://firebasestorage.googleapis.com/')) {
-          data = await FirebaseStorage.instance.refFromURL(url).getData();
-        } else if (url.startsWith('subtitles/') || url.startsWith('transcripts/') || url.startsWith('videos/')) {
-          data = await FirebaseStorage.instance.ref(url).getData();
-        }
-        if (data != null && data.isNotEmpty) {
-          content = utf8.decode(data, allowMalformed: true);
-        }
+        try {
+          final ref = StorageUtils.getStorageRef(url);
+          if (ref != null) {
+            final data = await StorageUtils.getDataWithTimeout(ref);
+            if (data != null && data.isNotEmpty) {
+              content = utf8.decode(data, allowMalformed: true);
+            }
+          }
+        } catch (_) {}
       }
 
       if (content != null && content.isNotEmpty) {
         return await parseTranscriptContent(content);
       }
     } catch (e, stackTrace) {
-      ErrorHandler.log(
-        e,
-        stackTrace: stackTrace,
-        tag: 'VideoTranscriptController.downloadAndParseTranscript',
-      );
+      final errStr = e.toString().toLowerCase();
+      if (errStr.contains('unauthorized') ||
+          errStr.contains('permission-denied') ||
+          errStr.contains('object-not-found')) {
+        logger.warning(
+          'Transcript download unavailable: $e',
+          tag: 'VideoTranscriptController.downloadAndParseTranscript',
+        );
+      } else {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'VideoTranscriptController.downloadAndParseTranscript',
+        );
+      }
     }
     return [];
   }

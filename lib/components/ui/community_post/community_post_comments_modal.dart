@@ -1,8 +1,7 @@
+import 'package:truthworld/theme/app_theme.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
@@ -17,11 +16,21 @@ import 'package:truthworld/features/community/presentation/views/widgets/communi
 void showCommunityCommentsModal(
   BuildContext context,
   CommunityPostModel post,
-  CommunityPostController controller,
-) {
+  CommunityPostController controller, {
+  String? targetCommentId,
+  String? targetReplyId,
+}) {
   final isSortNewest = false.obs;
+  final isSubmitting = false.obs;
   final textController = TextEditingController();
   final commentsStream = controller.commentsStream;
+
+  final resolvedCommentId = targetCommentId ??
+      (Get.arguments is Map ? (Get.arguments['commentId'] as String?) : null) ??
+      Get.parameters['commentId'];
+  final resolvedReplyId = targetReplyId ??
+      (Get.arguments is Map ? (Get.arguments['replyId'] as String?) : null) ??
+      Get.parameters['replyId'];
 
   showModalBottomSheet<void>(
     context: context,
@@ -40,7 +49,7 @@ void showCommunityCommentsModal(
           builder: (context, scrollController) {
             return Container(
               decoration: const BoxDecoration(
-                color: Color(0xFF0F0F0F),
+                color: AppColors.bgPage,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
               ),
               child: Column(
@@ -72,7 +81,7 @@ void showCommunityCommentsModal(
                                 controller.commentCount.value;
                             return Text(
                               'Comments ($count)',
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
@@ -188,7 +197,7 @@ void showCommunityCommentsModal(
                                 const SizedBox(height: 16),
                                 Text(
                                   'No comments yet',
-                                  style: GoogleFonts.roboto(
+                                  style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 16,
                                   ),
@@ -240,6 +249,8 @@ void showCommunityCommentsModal(
                                 commentData: commentData,
                                 currentUid: controller.currentUid,
                                 postOwnerId: post.ownerId,
+                                targetCommentId: resolvedCommentId,
+                                targetReplyId: resolvedReplyId,
                               );
                             },
                           );
@@ -251,6 +262,22 @@ void showCommunityCommentsModal(
                   SafeArea(
                     top: false,
                     child: Obx(() {
+                      if (!post.isCommentsEnabled) {
+                        return Container(
+                          padding: const EdgeInsets.all(16),
+                          color: const Color(0xFF181818),
+                          child: const Center(
+                            child: Text(
+                              'Comments are turned off for this post.',
+                              style: TextStyle(
+                                color: Colors.white54,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+
                       if (!AuthService.to.isAuthenticated.value) {
                         return Container(
                           padding: const EdgeInsets.symmetric(
@@ -260,7 +287,7 @@ void showCommunityCommentsModal(
                           color: const Color(0xFF181818),
                           child: Center(
                             child: TextButton.icon(
-                              onPressed: () => AuthBottomSheet.show(context),
+                              onPressed: () => AuthService.to.triggerPlatformSignIn(),
                               icon: const Icon(
                                 Icons.login_rounded,
                                 size: 16,
@@ -315,79 +342,109 @@ void showCommunityCommentsModal(
                               ),
                             ),
                             IconButton(
-                              icon: const Icon(
-                                Icons.send_rounded,
-                                color: Colors.white, // Rule compliance: white icon
-                                size: 20,
-                              ),
-                              onPressed: () async {
-                                final text = textController.text.trim();
-                                if (text.isEmpty) return;
-                                if (!AuthService.to.isAuthenticated.value) {
-                                  AppSnackbar.warning(
-                                    'Please sign in to comment.',
-                                    actionLabel: 'SIGN IN',
-                                    onAction: () => AuthBottomSheet.show(context),
-                                  );
-                                  return;
-                                }
-                                final uid = AuthService.to.uid;
-                                if (uid.isEmpty) return;
-                                final validation = ContentValidator.validate(
-                                  text,
-                                  fieldName: 'Comment',
-                                  maxLength: defaultMaxCommentLength,
-                                );
-                                if (!validation.isValid) {
-                                  AppSnackbar.warning(
-                                    validation.message,
+                              icon: isSubmitting.value
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.send_rounded,
+                                      color: Colors.white, // Rule compliance: white icon
+                                      size: 20,
+                                    ),
+                              onPressed: isSubmitting.value
+                                  ? null
+                                  : () async {
+                                      final text = textController.text.trim();
+                                      if (text.isEmpty) return;
+                                      if (!AuthService.to.isAuthenticated.value) {
+                                        AppSnackbar.warning(
+                                          'Please sign in to comment.',
+                                          actionLabel: 'SIGN IN',
+                                          onAction: () => AuthService.to.triggerPlatformSignIn(),
+                                        );
+                                        return;
+                                      }
+                                      final uid = AuthService.to.uid;
+                                      if (uid.isEmpty) return;
+                                      final validation = ContentValidator.validate(
+                                        text,
+                                        fieldName: 'Comment',
+                                        maxLength: defaultMaxCommentLength,
+                                      );
+                                      if (!validation.isValid) {
+                                        AppSnackbar.warning(
+                                          validation.message,
+                                        );
+                                        return;
+                                      }
+                                      isSubmitting.value = true;
+                                      textController.clear();
+                                      try {
+                                        final authService = AuthService.to;
+                                        final hasChannel =
+                                            authService.hasChannel.value &&
+                                            authService.userChannel != null;
+                                        final userChannel =
+                                            hasChannel ? authService.userChannel : null;
 
-                                  );
-                                  return;
-                                }
-                                textController.clear();
-                                try {
-                                  final authService = AuthService.to;
-                                  final userAvatar =
-                                      authService.activePhotoUrl;
-                                  final rawName =
-                                      authService.activeDisplayName;
-                                  final userName = rawName.startsWith('@')
-                                      ? rawName.substring(1)
-                                      : rawName;
+                                        final rawName =
+                                            authService.userDisplayName.value ??
+                                            authService.user?.displayName ??
+                                            'User';
+                                        final userName = rawName.startsWith('@')
+                                            ? rawName.substring(1)
+                                            : rawName;
+                                        final userAvatar =
+                                            authService.userPhotoUrl.value ??
+                                            authService.user?.photoURL ??
+                                            '';
 
-                                  final postDoc = FirebaseFirestore.instance
-                                      .collection(FirestoreCollections.community)
-                                      .doc(post.id);
-                                  await postDoc.collection('comments').add({
-                                    'text': ContentValidator.cleanProfanity(text),
-                                    'userId': uid,
-                                    'userName': userName,
-                                    'userImage': userAvatar,
-                                    'userProfilePicUrl': userAvatar,
-                                    'createdAt': FieldValue.serverTimestamp(),
-                                    'timestamp': FieldValue.serverTimestamp(),
-                                    'likeCount': 0,
-                                    'dislikeCount': 0,
-                                    'likedBy': [],
-                                    'dislikedBy': [],
-                                    'replyCount': 0,
-                                  });
-                                  await postDoc.update({
-                                    'commentCount': FieldValue.increment(1),
-                                  });
-                                  controller.commentCount.value += 1;
-                                } catch (e, stackTrace) {
-                                  ErrorHandler.log(
-                                    e,
-                                    stackTrace: stackTrace,
-                                    context: 'CommunityPostCard.postComment',
-                                  );
-                                  AppSnackbar.error(
-                                    'Unable to post comment. Please try again.',
-                                  );
-                                }
-                              },
+                                        final postDoc = FirebaseFirestore.instance
+                                            .collection(FirestoreCollections.community)
+                                            .doc(post.id);
+                                        await postDoc.collection('comments').add({
+                                          'text': ContentValidator.cleanProfanity(text),
+                                          'userId': uid,
+                                          'userName': userName,
+                                          'userImage': userAvatar,
+                                          'userProfilePicUrl': userAvatar,
+                                          'isChannel': hasChannel,
+                                          'channelId': hasChannel ? userChannel!.id : '',
+                                          'channelHandle': userChannel?.handle,
+                                          'channelName': userChannel?.name,
+                                          'channelProfilePicUrl': userChannel?.avatarUrl,
+                                          'createdAt': FieldValue.serverTimestamp(),
+                                          'timestamp': FieldValue.serverTimestamp(),
+                                          'likeCount': 0,
+                                          'dislikeCount': 0,
+                                          'likedBy': [],
+                                          'dislikedBy': [],
+                                          'replyCount': 0,
+                                        });
+                                        try {
+                                          await postDoc.update({
+                                            'commentCount': FieldValue.increment(1),
+                                          });
+                                        } catch (_) {}
+                                        controller.commentCount.value += 1;
+                                      } catch (e, stackTrace) {
+                                        ErrorHandler.log(
+                                          e,
+                                          stackTrace: stackTrace,
+                                          context: 'CommunityPostCard.postComment',
+                                        );
+                                        AppSnackbar.error(
+                                          'Unable to post comment. Please try again.',
+                                        );
+                                      } finally {
+                                        isSubmitting.value = false;
+                                      }
+                                    },
                             ),
                           ],
                         ),

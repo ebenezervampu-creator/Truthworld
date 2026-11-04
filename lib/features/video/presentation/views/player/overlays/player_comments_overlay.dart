@@ -3,11 +3,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
@@ -237,8 +237,8 @@ class FullscreenCommentItem extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 // Comment text
-                Text(
-                  comment.text,
+                ClickableUrlText(
+                  text: comment.text,
                   style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 13,
@@ -381,7 +381,7 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
           color: Colors.black26,
           child: Center(
             child: TextButton.icon(
-              onPressed: () => AuthBottomSheet.show(context),
+              onPressed: () => AuthService.to.triggerPlatformSignIn(),
               icon: const Icon(Icons.login_rounded, size: 16, color: Colors.white),
               label: const Text(
                 'Sign in to comment',
@@ -576,8 +576,8 @@ class FloatingAutoPlayCommentOverlay extends StatelessWidget {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        Text(
-                          comment.text,
+                        ClickableUrlText(
+                          text: comment.text,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(

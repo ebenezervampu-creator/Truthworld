@@ -1,5 +1,6 @@
 export 'audio_theme_panel.dart';
 export 'chapters_panel.dart';
+export 'claims_panel.dart';
 export 'language_panel.dart';
 export 'language_requests.dart';
 export 'main_settings_menu.dart';
@@ -10,3 +11,4 @@ export 'settings_tiles.dart';
 export 'speed_zoom_panels.dart';
 export 'subtitle_style_panel.dart';
 export 'subtitles_panel.dart';
+export 'video_language_panel.dart';

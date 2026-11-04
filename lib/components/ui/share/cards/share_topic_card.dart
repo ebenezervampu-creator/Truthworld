@@ -6,7 +6,7 @@ import 'package:truthworld/core/utils/format_utils.dart';
 
 /// High-fidelity preview card displaying a topic according to TruthWorld social preview architecture:
 /// - Exact Topic Banner / Thumbnail at top (widescreen, rounded top corners)
-/// - Topic Title with Gold Verified Checkmark Badge
+/// - Topic Name with Gold Verified Checkmark Badge
 /// - Topic Handle (@ handle)
 /// - Follower count & Video count with separator
 /// - Multi-line Topic Description (up to 3 lines)
@@ -15,7 +15,8 @@ import 'package:truthworld/core/utils/format_utils.dart';
 /// - Interactive tap to navigate directly to Truthworld topic
 class ShareTopicCard extends StatelessWidget {
   const ShareTopicCard({
-    required this.title,
+    String? name,
+    String? title,
     super.key,
     this.url,
     this.thumbnailUrl,
@@ -26,9 +27,10 @@ class ShareTopicCard extends StatelessWidget {
     this.handle,
     this.isVerified = true,
     this.onTap,
-  });
+  }) : name = (name != null && name != '') ? name : (title ?? '');
 
-  final String title;
+  final String name;
+  String get title => name;
   final String? url;
   final String? thumbnailUrl;
   final String? bannerUrl;
@@ -58,11 +60,11 @@ class ShareTopicCard extends StatelessWidget {
         ? thumbnailUrl
         : bannerUrl;
 
-    final cleanTitle = title.replaceAll(RegExp('^[#Tt]/'), '').trim();
+    final cleanName = name.replaceAll(RegExp('^[#Tt]/'), '').trim();
 
     final cleanHandle = handle != null && handle!.isNotEmpty
         ? handle!.replaceAll(RegExp('^[#@Tt]/'), '').trim()
-        : cleanTitle.toLowerCase().replaceAll(RegExp(r'\s+'), '_');
+        : cleanName.toLowerCase().replaceAll(RegExp(r'\s+'), '_');
 
     final effectiveUrl = (url != null && url!.isNotEmpty)
         ? url!
@@ -137,9 +139,9 @@ class ShareTopicCard extends StatelessWidget {
                               ),
                             ),
                             errorWidget: (context, url, err) =>
-                                _buildBannerFallback(cleanTitle),
+                                _buildBannerFallback(cleanName),
                           )
-                        : _buildBannerFallback(cleanTitle),
+                        : _buildBannerFallback(cleanName),
                   );
                 },
               ),
@@ -151,9 +153,9 @@ class ShareTopicCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Topic Title (Follow option removed, Verified badge removed)
+                    // Topic Name (Follow option removed, Verified badge removed)
                     Text(
-                      cleanTitle,
+                      cleanName,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,

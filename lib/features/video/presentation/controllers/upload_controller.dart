@@ -67,8 +67,21 @@ class UploadController extends UploadControllerBase
   void onInit() {
     super.onInit();
     initializeContentFilters();
+    final initialCat = resolveChannelFirstCategory();
+    if (initialCat.isNotEmpty && (selectedCategory.value.isEmpty || selectedCategory.value == 'Other')) {
+      selectedCategory.value = initialCat;
+    }
     fetchChannelsWithRetry();
     fetchAvailableTopics();
+
+    // Typo-tolerant Typesense remote topic search worker
+    addWorker(
+      debounce(
+        topicSearchQuery,
+        searchTopicsRemote,
+        time: const Duration(milliseconds: 350),
+      ),
+    );
 
     // Every video doesn't have video rating only when user enabled Factchecking
     addWorker(

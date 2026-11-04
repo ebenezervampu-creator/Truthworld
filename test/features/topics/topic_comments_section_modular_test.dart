@@ -128,6 +128,7 @@ void main() {
 
       expect(find.text('2 Comments'), findsOneWidget);
       expect(find.text('Sort by'), findsOneWidget);
+      expect(find.byIcon(Icons.image_outlined), findsNothing);
     });
 
     test('TopicCommentsHeaderController sorts comments by newest and top correctly', () {
@@ -250,6 +251,7 @@ void main() {
 
       expect(find.byType(TopicCommentsSection), findsOneWidget);
       expect(find.text('Sort by'), findsOneWidget);
+      expect(find.byIcon(Icons.image_outlined), findsNothing);
     });
   });
 }

@@ -63,6 +63,8 @@ class SettingsPanel extends StatelessWidget {
                           return SubtitleStylePanel(ctrl: ctrl);
                         case 'language':
                           return LanguagePanel(ctrl: ctrl);
+                        case 'video_language':
+                          return VideoLanguagePanel(ctrl: ctrl);
                         case 'audio_settings':
                           return AudioSettingsPanel(ctrl: ctrl);
                         case 'audio_theme':
@@ -73,6 +75,8 @@ class SettingsPanel extends StatelessWidget {
                           return RatingPanel(ctrl: ctrl);
                         case 'chapters':
                           return ChaptersPanel(ctrl: ctrl);
+                        case 'claims':
+                          return ClaimsPanel(ctrl: ctrl);
                         default:
                           return MainSettingsMenu(ctrl: ctrl);
                       }

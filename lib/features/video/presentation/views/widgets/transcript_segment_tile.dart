@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_transcript_controller.dart';
@@ -14,23 +13,23 @@ class TranscriptSegmentTile extends StatelessWidget {
   final int? segmentIndex;
   final VideoTranscriptController? transcriptCtrl;
 
-  static final TextStyle _monoActive = GoogleFonts.robotoMono(
+  static final TextStyle _monoActive = TextStyle(
     color: AppColors.brand,
     fontSize: 12,
     fontWeight: FontWeight.bold,
   );
-  static final TextStyle _monoInactive = GoogleFonts.robotoMono(
+  static final TextStyle _monoInactive = TextStyle(
     color: Colors.white70,
     fontSize: 12,
     fontWeight: FontWeight.normal,
   );
-  static final TextStyle _textActive = GoogleFonts.roboto(
+  static final TextStyle _textActive = TextStyle(
     color: Colors.white,
     fontSize: 13,
     fontWeight: FontWeight.w600,
     height: 1.3,
   );
-  static final TextStyle _textInactive = GoogleFonts.roboto(
+  static final TextStyle _textInactive = TextStyle(
     color: Colors.white70,
     fontSize: 13,
     fontWeight: FontWeight.normal,

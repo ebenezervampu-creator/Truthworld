@@ -65,14 +65,86 @@ class ChannelWalletPricing {
     ),
   ];
 
-  /// Transparent flat pricing tiers for Dubbing based on video duration:
-  /// Raw API provider pass-through at-cost with 0% platform profit.
-  /// - Tier 1 (Shorts / Clips): <= 60s (up to 1 min) -> $0.10 per language
-  /// - Tier 2 (Mini Video): 61s – 300s (1 to 5 mins) -> $0.25 per language
-  /// - Tier 3 (Standard Video): 301s – 600s (5 to 10 mins) -> $0.50 per language
-  /// - Tier 4 (Extended Video): 601s – 1800s (10 to 30 mins) -> $1.25 per language
-  /// - Tier 5 (Long-Form Video): 1801s – 3600s (30 to 60 mins) -> $2.50 per language
-  /// - Tier 6 (Feature-Length): > 3600s -> $2.50 + $1.25 / extra 30 mins
+  /// Transparent proportional per-minute pricing rate cards (like ElevenLabs model):
+  /// - Audio Starter: $0.10 / min ($1.00 for 10-minute video)
+  /// - Audio Pro: $0.20 / min ($2.00 for 10-minute video)
+  /// - Audio Ultra: $0.30 / min ($3.00 for 10-minute video)
+  /// - Video Pro: $0.40 / min ($4.00 for 10-minute video)
+  /// - Video Ultra (Hollywood Cinema Grade): $0.50 / min ($5.00 for 10-minute video)
+  static const double perMinuteAudioStarterRate = 0.10;
+  static const double perMinuteAudioProRate = 0.20;
+  static const double perMinuteAudioUltraRate = 0.30;
+  static const double perMinuteVideoProRate = 0.40;
+  static const double perMinuteVideoUltraRate = 0.50;
+
+  // Legacy aliases for backward compatibility
+  static const double perMinuteStandardDubbingRate = 0.10;
+  static const double perMinuteVoiceCloneRate = 0.20;
+  static const double perMinuteLipSyncRate = 0.30;
+
+  /// Production-Ready Dubbing Tiers Catalog
+  static const List<DubbingProductionTier> productionTiers = DubbingProductionTier.allTiers;
+
+  /// Resolve the per-minute rate for a given tier ID
+  static double getTierRatePerMinute(String tierId) {
+    switch (tierId) {
+      case 'audio_pro':
+        return perMinuteAudioProRate;
+      case 'audio_ultra':
+        return perMinuteAudioUltraRate;
+      case 'video_pro':
+        return perMinuteVideoProRate;
+      case 'video_ultra':
+        return perMinuteVideoUltraRate;
+      case 'audio_starter':
+      default:
+        return perMinuteAudioStarterRate;
+    }
+  }
+
+  /// Get the flat dubbing rate per language based on tier and duration.
+  static double getFlatRateForTier({
+    required String tierId,
+    required int durationSeconds,
+  }) {
+    final perMinuteRate = getTierRatePerMinute(tierId);
+    if (durationSeconds <= 0) {
+      return perMinuteRate;
+    }
+    final effectiveSeconds = math.max(60, durationSeconds);
+    final calculated = (effectiveSeconds / 60.0) * perMinuteRate;
+    return double.parse(calculated.toStringAsFixed(2));
+  }
+
+  /// Calculate total cost for a specific Dubbing Production Tier
+  static double calculateProductionTierCost({
+    required String tierId,
+    required int languageCount,
+    required int durationSeconds,
+    Channel? channel,
+    double? discountPercent,
+  }) {
+    if (languageCount <= 0) return 0.0;
+    final effDiscount = (discountPercent != null
+            ? discountPercent
+            : (channel?.effectiveDubbingDiscountPercent ?? 0.0))
+        .clamp(0.0, 100.0);
+
+    if (effDiscount >= 100.0 || (channel != null && channel.isDubbingFree)) {
+      return 0.0;
+    }
+
+    final rate = getFlatRateForTier(tierId: tierId, durationSeconds: durationSeconds);
+    final baseCost = languageCount * rate;
+
+    if (effDiscount > 0.0) {
+      final discountedCost = baseCost * (1.0 - (effDiscount / 100.0));
+      return double.parse(discountedCost.toStringAsFixed(2));
+    }
+    return double.parse(baseCost.toStringAsFixed(2));
+  }
+
+  /// Duration tier references for display, grouping, and ceiling calculation
   static const List<DubbingDurationTier> dubbingDurationTiers = [
     DubbingDurationTier(
       id: 'tier_shorts',
@@ -81,71 +153,66 @@ class ChannelWalletPricing {
       maxSeconds: 60,
       standardFlatRatePerLanguage: 0.10,
       customFlatRatePerLanguage: 0.10,
+      voiceCloneRatePerLanguage: 0.20,
     ),
     DubbingDurationTier(
       id: 'tier_mini',
       name: 'Mini Video',
       durationLabel: '1 to 5 mins (61s – 300s)',
       maxSeconds: 300,
-      standardFlatRatePerLanguage: 0.25,
-      customFlatRatePerLanguage: 0.25,
+      standardFlatRatePerLanguage: 0.50,
+      customFlatRatePerLanguage: 0.50,
+      voiceCloneRatePerLanguage: 1.00,
     ),
     DubbingDurationTier(
       id: 'tier_standard',
       name: 'Standard Video',
       durationLabel: '5 to 10 mins (301s – 600s)',
       maxSeconds: 600,
-      standardFlatRatePerLanguage: 0.50,
-      customFlatRatePerLanguage: 0.50,
+      standardFlatRatePerLanguage: 1.00,
+      customFlatRatePerLanguage: 1.00,
+      voiceCloneRatePerLanguage: 2.00,
     ),
     DubbingDurationTier(
       id: 'tier_extended',
       name: 'Extended Video',
       durationLabel: '10 to 30 mins (601s – 1800s)',
       maxSeconds: 1800,
-      standardFlatRatePerLanguage: 1.25,
-      customFlatRatePerLanguage: 1.25,
+      standardFlatRatePerLanguage: 3.00,
+      customFlatRatePerLanguage: 3.00,
+      voiceCloneRatePerLanguage: 6.00,
     ),
     DubbingDurationTier(
       id: 'tier_longform',
       name: 'Long-Form Video',
       durationLabel: '30 to 60 mins (1801s – 3600s)',
       maxSeconds: 3600,
-      standardFlatRatePerLanguage: 2.50,
-      customFlatRatePerLanguage: 2.50,
+      standardFlatRatePerLanguage: 6.00,
+      customFlatRatePerLanguage: 6.00,
+      voiceCloneRatePerLanguage: 12.00,
     ),
   ];
 
-  /// Get the flat dubbing rate per language based on video duration and channel type.
+  /// Get the flat dubbing rate per language based on video duration, channel type, and voice synthesis mode.
   /// Billed at raw provider pass-through cost with 0% platform profit.
+  /// Proportional per-minute calculation (ElevenLabs model) so 7-min video pays less than 10-min video.
   static double getFlatDubbingPricePerLanguage({
     required int durationSeconds,
     ChannelType channelType = ChannelType.standard,
+    String voiceType = 'standard',
+    bool isVoiceClone = false,
   }) {
+    final clone = isVoiceClone || voiceType == 'cloned' || voiceType == 'voice_clone';
+    final perMinuteRate = clone ? perMinuteVoiceCloneRate : perMinuteStandardDubbingRate;
+
     if (durationSeconds <= 0) {
-      return customDubbingRatePerLanguage;
+      return perMinuteRate; // Default 1-minute floor
     }
-    if (durationSeconds <= 60) {
-      return 0.10;
-    }
-    if (durationSeconds <= 300) {
-      return 0.25;
-    }
-    if (durationSeconds <= 600) {
-      return 0.50;
-    }
-    if (durationSeconds <= 1800) {
-      return 1.25;
-    }
-    if (durationSeconds <= 3600) {
-      return 2.50;
-    }
-    // Beyond 60 mins: base 60 min rate ($2.50) + $1.25 per additional 30 min block (at-cost pass-through)
-    final extraSeconds = durationSeconds - 3600;
-    final extraBlocks = (extraSeconds / 1800).ceil();
-    const base = 2.50;
-    const perBlock = 1.25;
-    return double.parse((base + (extraBlocks * perBlock)).toStringAsFixed(2));
+
+    // Proportional per-minute calculation (ElevenLabs model) with 60s minimum floor
+    final effectiveSeconds = math.max(60, durationSeconds);
+    final calculated = (effectiveSeconds / 60.0) * perMinuteRate;
+    return double.parse(calculated.toStringAsFixed(2));
   }
 
   /// Get the duration tier for a given video duration in seconds.
@@ -157,59 +224,157 @@ class ChannelWalletPricing {
     return dubbingDurationTiers[4];
   }
 
-  /// Dubbing rate per language at raw provider pass-through cost ($0.25/lang, min $0.75, cap $5.00, 0% platform profit)
-  static const double standardDubbingRatePerLanguage = 0.25;
-  static const double standardDubbingMinCost = 0.75;
-  static const double standardDubbingCapCost = 5.00;
+  /// Base rates per minute
+  static const double standardDubbingRatePerLanguage = 0.10;
+  static const double standardDubbingMinCost = 0.10;
+  static const double standardDubbingCapCost = 10.00;
 
-  /// Dubbing rate per language for custom channels ($0.25/lang, min $0.75, cap $5.00, 0% platform profit)
-  static const double customDubbingRatePerLanguage = 0.25;
-  static const double customDubbingMinCost = 0.75;
-  static const double customDubbingCapCost = 5.00;
+  static const double customDubbingRatePerLanguage = 0.10;
+  static const double customDubbingMinCost = 0.10;
+  static const double customDubbingCapCost = 10.00;
 
-  /// Get dubbing rate per language based on channel type
-  static double getDubbingRatePerLanguage(ChannelType type) {
-    return type == ChannelType.custom
-        ? customDubbingRatePerLanguage
-        : standardDubbingRatePerLanguage;
+  static const double standardVoiceCloneRatePerLanguage = 0.20;
+  static const double standardVoiceCloneMinCost = 0.20;
+  static const double standardVoiceCloneCapCost = 20.00;
+
+  static const double customVoiceCloneRatePerLanguage = 0.20;
+  static const double customVoiceCloneMinCost = 0.20;
+  static const double customVoiceCloneCapCost = 20.00;
+
+  /// Get dubbing rate per language based on channel type and voice synthesis mode
+  static double getDubbingRatePerLanguage(
+    ChannelType type, {
+    String voiceType = 'standard',
+    bool isVoiceClone = false,
+  }) {
+    final clone = isVoiceClone || voiceType == 'cloned' || voiceType == 'voice_clone';
+    if (clone) {
+      return standardVoiceCloneRatePerLanguage;
+    }
+    return standardDubbingRatePerLanguage;
   }
 
-  /// Get minimum dubbing job cost based on channel type
-  static double getDubbingMinCost(ChannelType type) {
-    return type == ChannelType.custom
-        ? customDubbingMinCost
-        : standardDubbingMinCost;
+  /// Get minimum dubbing job cost based on channel type and voice synthesis mode
+  static double getDubbingMinCost(
+    ChannelType type, {
+    String voiceType = 'standard',
+    bool isVoiceClone = false,
+  }) {
+    final clone = isVoiceClone || voiceType == 'cloned' || voiceType == 'voice_clone';
+    if (clone) {
+      return standardVoiceCloneMinCost;
+    }
+    return standardDubbingMinCost;
   }
 
-  /// Get maximum dubbing cost cap based on channel type
-  static double getDubbingCapCost(ChannelType type) {
-    return type == ChannelType.custom
-        ? customDubbingCapCost
-        : standardDubbingCapCost;
+  /// Get maximum dubbing cost cap based on channel type and voice synthesis mode
+  static double getDubbingCapCost(
+    ChannelType type, {
+    String voiceType = 'standard',
+    bool isVoiceClone = false,
+  }) {
+    final clone = isVoiceClone || voiceType == 'cloned' || voiceType == 'voice_clone';
+    if (clone) {
+      return standardVoiceCloneCapCost;
+    }
+    return standardDubbingCapCost;
   }
 
-  /// Calculates dubbing generation flat cost based on video duration, language count, and channel type.
+  /// Calculates dubbing generation flat cost based on video duration, language count, channel type, voice synthesis mode, and channel discounts.
   /// When [durationSeconds] > 0, calculates flat price by duration tier.
-  /// When [durationSeconds] is 0 or omitted, falls back to standard base rate per language with min clamp.
+  /// When [durationSeconds] is 0 or omitted, falls back to base rate per language with min/cap clamps.
+  /// Applies any Super Admin granted [discountPercent] or [channel] discounts (e.g. Free, 50%, or custom %).
   static double calculateDubbingCost({
     required int languageCount,
     int durationSeconds = 0,
     ChannelType channelType = ChannelType.standard,
+    String voiceType = 'standard',
+    bool isVoiceClone = false,
+    Channel? channel,
+    double? discountPercent,
   }) {
     if (languageCount <= 0) return 0.0;
+
+    // Resolve applicable discount (Super Admin benefit)
+    final effDiscount = (discountPercent != null
+            ? discountPercent
+            : (channel?.effectiveDubbingDiscountPercent ?? 0.0))
+        .clamp(0.0, 100.0);
+
+    if (effDiscount >= 100.0 || (channel != null && channel.isDubbingFree)) {
+      return 0.0;
+    }
+
+    double baseCost;
     if (durationSeconds > 0) {
       final rate = getFlatDubbingPricePerLanguage(
         durationSeconds: durationSeconds,
         channelType: channelType,
+        voiceType: voiceType,
+        isVoiceClone: isVoiceClone,
       );
-      return double.parse((languageCount * rate).toStringAsFixed(2));
+      baseCost = languageCount * rate;
+    } else {
+      final rate = getDubbingRatePerLanguage(
+        channelType,
+        voiceType: voiceType,
+        isVoiceClone: isVoiceClone,
+      );
+      final minCost = getDubbingMinCost(
+        channelType,
+        voiceType: voiceType,
+        isVoiceClone: isVoiceClone,
+      );
+      final capCost = getDubbingCapCost(
+        channelType,
+        voiceType: voiceType,
+        isVoiceClone: isVoiceClone,
+      );
+      baseCost = (languageCount * rate).clamp(minCost, capCost);
     }
-    final rate = getDubbingRatePerLanguage(channelType);
-    final minCost = getDubbingMinCost(channelType);
-    final capCost = getDubbingCapCost(channelType);
-    return double.parse(
-      (languageCount * rate).clamp(minCost, capCost).toStringAsFixed(2),
+
+    if (effDiscount > 0.0) {
+      final discountedCost = baseCost * (1.0 - (effDiscount / 100.0));
+      return double.parse(discountedCost.toStringAsFixed(2));
+    }
+    return double.parse(baseCost.toStringAsFixed(2));
+  }
+
+  /// Transparent rate card for AI Visual Lip-Sync (LatentSync GPU pass-through)
+  /// Proportional per-minute calculation ($0.30/min, yielding $3.00 for 10 min, $2.10 for 7 min).
+  /// Channels do NOT pay the same flat amount for 10 minutes and 7 minutes.
+  static double getFlatLipSyncPricePerLanguage({
+    required int durationSeconds,
+    ChannelType channelType = ChannelType.standard,
+  }) {
+    const perMinuteRate = perMinuteLipSyncRate; // $0.30 / min ($3.00 for 10-minute video)
+    if (durationSeconds <= 0) {
+      return perMinuteRate; // Default 1-minute floor
+    }
+    final effectiveSeconds = math.max(60, durationSeconds);
+    final calculated = (effectiveSeconds / 60.0) * perMinuteRate;
+    return double.parse(calculated.toStringAsFixed(2));
+  }
+
+  /// Calculate total cost for AI Visual Lip-Sync across selected languages.
+  static double calculateLipSyncCost({
+    required int languageCount,
+    int durationSeconds = 0,
+    ChannelType channelType = ChannelType.standard,
+    double discountPercent = 0.0,
+  }) {
+    if (languageCount <= 0 || durationSeconds <= 0) return 0.0;
+    if (discountPercent >= 100.0) return 0.0;
+    final rate = getFlatLipSyncPricePerLanguage(
+      durationSeconds: durationSeconds,
+      channelType: channelType,
     );
+    final baseCost = languageCount * rate;
+    if (discountPercent > 0.0) {
+      final discountedCost = baseCost * (1.0 - (discountPercent / 100.0));
+      return double.parse(discountedCost.toStringAsFixed(2));
+    }
+    return double.parse(baseCost.toStringAsFixed(2));
   }
 
   /// Transparent flat pricing tiers for Subtitles based on video duration:
@@ -267,30 +432,62 @@ class ChannelWalletPricing {
     return subtitleDurationTiers[3];
   }
 
-  /// Get the flat subtitle rate per language based on video duration and channel type.
-  /// Billed at raw provider pass-through cost with 0% platform profit.
+  /// Production-Ready Subtitle Tiers Catalog (Starter: $0.50 / 10m, Pro: $0.75 / 10m)
+  static const List<SubtitleProductionTier> subtitleTiers = SubtitleProductionTier.allTiers;
+
+  /// Transparent proportional per-minute pricing for Subtitles:
+  /// - Starter: $0.05 / min ($0.50 for 10-minute video)
+  /// - Pro: $0.075 / min ($0.75 for 10-minute video)
+  static const double perMinuteSubtitleStarterRate = 0.05;
+  static const double perMinuteSubtitleProRate = 0.075;
+  static const double perMinuteSubtitleStarterAddLangRate = 0.02;
+  static const double perMinuteSubtitleProAddLangRate = 0.03;
+
+  /// Calculate total cost for Subtitles with Starter vs Pro tier
+  static double calculateSubtitleTierCost({
+    required String tierId, // 'starter' | 'pro'
+    required int languageCount,
+    required int durationSeconds,
+    Channel? channel,
+    double? discountPercent,
+  }) {
+    if (languageCount <= 0) return 0.0;
+    final effDiscount = (discountPercent != null
+            ? discountPercent
+            : (channel?.effectiveSubtitlesDiscountPercent ?? 0.0))
+        .clamp(0.0, 100.0);
+
+    if (effDiscount >= 100.0 || (channel != null && channel.isSubtitlesFree)) {
+      return 0.0;
+    }
+
+    final tier = SubtitleProductionTier.fromId(tierId);
+    final effectiveSeconds = math.max(60, durationSeconds > 0 ? durationSeconds : 600);
+    final effectiveMinutes = effectiveSeconds / 60.0;
+
+    final baseCost = effectiveMinutes * tier.perMinuteRateUSD;
+    final additionalLanguages = math.max(0, languageCount - 1);
+    final additionalCost = additionalLanguages * effectiveMinutes * tier.additionalLangPerMinuteUSD;
+
+    final total = baseCost + additionalCost;
+
+    if (effDiscount > 0.0) {
+      final discountedCost = total * (1.0 - (effDiscount / 100.0));
+      return double.parse(discountedCost.toStringAsFixed(2));
+    }
+    return double.parse(total.toStringAsFixed(2));
+  }
+
+  /// Get the flat subtitle rate per language based on video duration, channel type, and tier.
   static double getFlatSubtitlePricePerLanguage({
     required int durationSeconds,
     ChannelType channelType = ChannelType.standard,
+    String tierId = 'starter',
   }) {
-    if (durationSeconds <= 300) {
-      return 0.025;
-    }
-    if (durationSeconds <= 600) {
-      return 0.05;
-    }
-    if (durationSeconds <= 1800) {
-      return 0.10;
-    }
-    if (durationSeconds <= 3600) {
-      return 0.20;
-    }
-    // Beyond 60 mins: base 60 min rate ($0.20) + $0.075 per additional 30 min block (at-cost pass-through)
-    final extraSeconds = durationSeconds - 3600;
-    final extraBlocks = (extraSeconds / 1800).ceil();
-    const base = 0.20;
-    const perBlock = 0.075;
-    return double.parse((base + (extraBlocks * perBlock)).toStringAsFixed(3));
+    final tier = SubtitleProductionTier.fromId(tierId);
+    final effectiveSeconds = math.max(60, durationSeconds > 0 ? durationSeconds : 600);
+    final cost = (effectiveSeconds / 60.0) * tier.perMinuteRateUSD;
+    return double.parse(cost.toStringAsFixed(3));
   }
 
   /// Subtitle rate per language defaults (0% platform profit pass-through at-cost)
@@ -301,30 +498,22 @@ class ChannelWalletPricing {
   static const double standardSubtitleCapCost = 2.50;
   static const double customSubtitleCapCost = 2.50;
 
-  /// Calculates subtitle generation flat cost based on video duration, language count, and channel type.
+  /// Calculates subtitle generation flat cost based on video duration, language count, channel type, tier, and channel discounts.
+  /// Applies any Super Admin granted [discountPercent] or [channel] discounts (e.g. Free, 50%, or custom %).
   static double calculateSubtitleCost({
     required int languageCount,
     int durationSeconds = 0,
     ChannelType channelType = ChannelType.standard,
+    Channel? channel,
+    double? discountPercent,
+    String tierId = 'starter',
   }) {
-    if (languageCount <= 0) return 0.0;
-    final isCustom = channelType == ChannelType.custom;
-    final minCost = isCustom ? customSubtitleMinCost : standardSubtitleMinCost;
-
-    if (durationSeconds > 0) {
-      final rate = getFlatSubtitlePricePerLanguage(
-        durationSeconds: durationSeconds,
-        channelType: channelType,
-      );
-      final rawCost = languageCount * rate;
-      return double.parse(math.max(minCost, rawCost).toStringAsFixed(2));
-    }
-
-    final rate =
-        isCustom ? customSubtitleRatePerLanguage : standardSubtitleRatePerLanguage;
-    final capCost = isCustom ? customSubtitleCapCost : standardSubtitleCapCost;
-    return double.parse(
-      (languageCount * rate).clamp(minCost, capCost).toStringAsFixed(2),
+    return calculateSubtitleTierCost(
+      tierId: tierId,
+      languageCount: languageCount,
+      durationSeconds: durationSeconds,
+      channel: channel,
+      discountPercent: discountPercent,
     );
   }
 
@@ -429,7 +618,7 @@ class ChannelWalletPricing {
       perks: [
         'Complete Ground-Truth Fact-Checking on All Uploads (100% Free)',
         'Full Epistemic Claim Extraction & Authoritative Citations',
-        'Truth Score Badge on Thumbnail & Video Player',
+        'Credibility Badge on Thumbnail & Video Player',
         '+20% Maximum Discovery Advantage Boost',
         'Sponsored 100% by the TruthWorld Platform',
       ],
@@ -462,13 +651,19 @@ class ChannelWalletPricing {
     return 0.0;
   }
 
-  /// Computes AI Feature generation cost based on selected capabilities, target languages, video duration, and channel type
+  /// Computes AI Feature generation cost based on selected capabilities, target languages, video duration, channel type, and channel discounts.
   static double calculateAIFeatureCost({
     required Set<String> selectedFeatures,
     required List<String> targetLanguages,
     ChannelType channelType = ChannelType.standard,
     int durationSeconds = 0,
     String factCheckTier = 'standard',
+    String voiceType = 'standard',
+    bool isVoiceClone = false,
+    Channel? channel,
+    double? dubbingDiscountPercent,
+    double? subtitlesDiscountPercent,
+    String subtitleTier = 'starter',
   }) {
     if (selectedFeatures.isEmpty) return 0.0;
 
@@ -480,6 +675,9 @@ class ChannelWalletPricing {
         languageCount: langCount,
         durationSeconds: durationSeconds,
         channelType: channelType,
+        channel: channel,
+        discountPercent: subtitlesDiscountPercent,
+        tierId: subtitleTier,
       );
     }
 
@@ -489,22 +687,27 @@ class ChannelWalletPricing {
         languageCount: dubbingCount,
         durationSeconds: durationSeconds,
         channelType: channelType,
+        voiceType: voiceType,
+        isVoiceClone: isVoiceClone,
+        channel: channel,
+        discountPercent: dubbingDiscountPercent,
       );
     }
 
+    // Epistemic Ground-Truth Fact-Checking is 100% Free for all creators (sponsored by TruthWorld)
     if (selectedFeatures.contains('factcheck')) {
-      // Epistemic Fact Check & Truth Score Report for Channels
       cost += calculateFactCheckCost(
         durationSeconds: durationSeconds,
         channelType: channelType,
         tierType: factCheckTier,
-      );
+      ); // Always returns 0.00
     }
 
-    // AI Video Summary is 100% Free (automatically generated via Community Guidelines verification)
+    // AI Video Summary & Timestamped Auto-Chapters are 100% Free platform features
+    // (generated via Community Guidelines verification & Gemini Gateway with 0% creator markup).
+    // Maintained at $0.00 for creator adoption and platform parity with YouTube.
     if (selectedFeatures.contains('chapters')) {
-      // Timestamped Auto-Chapters
-      cost += 0.50;
+      cost += 0.00;
     }
 
     return double.parse(cost.toStringAsFixed(2));

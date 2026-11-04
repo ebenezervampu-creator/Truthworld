@@ -45,6 +45,7 @@ mixin SubtitlesChannelVideosMixin on SubtitlesControllerBase {
       }
 
       listenToChannelVideos();
+      unawaited(refreshSpendableBalance());
     } catch (e, stack) {
       logger.error(
         'Failed to initialize subtitles context',
@@ -60,6 +61,7 @@ mixin SubtitlesChannelVideosMixin on SubtitlesControllerBase {
     if (id.isNotEmpty && channelId.value != id) {
       channelId.value = id;
       listenToChannelVideos();
+      unawaited(refreshSpendableBalance());
     }
   }
 
@@ -176,11 +178,14 @@ mixin SubtitlesChannelVideosMixin on SubtitlesControllerBase {
     }).toList();
   }
 
+  String? _inFlightSelectingVideoId;
+
   Future<void> selectVideo(Video? video) async {
-    selectedVideo.value = video;
-    hasUnsavedChanges.value = false;
-    requestsSubscription?.cancel();
     if (video == null) {
+      _inFlightSelectingVideoId = null;
+      selectedVideo.value = null;
+      hasUnsavedChanges.value = false;
+      requestsSubscription?.cancel();
       aiJobSubscription?.cancel();
       isGeneratingAI.value = false;
       disposeVideoPlayer();
@@ -191,46 +196,69 @@ mixin SubtitlesChannelVideosMixin on SubtitlesControllerBase {
       return;
     }
 
+    if (_inFlightSelectingVideoId == video.id ||
+        (selectedVideo.value?.id == video.id &&
+         videoPlayerController != null &&
+         availableLanguages.isNotEmpty)) {
+      return;
+    }
+    _inFlightSelectingVideoId = video.id;
+    selectedVideo.value = video;
+    hasUnsavedChanges.value = false;
+    requestsSubscription?.cancel();
+
     logger.info('Selected video for subtitles: ${video.title}', tag: SubtitlesControllerBase.subtitlesTag);
 
     unawaited(checkAndResumeAIJob(video.id));
+    unawaited(refreshSpendableBalance());
     listenToLanguageRequests(video.id);
-
-    // Lazy-load localization from subcollection first
-    final loc = await VideoMediaService().getLocalization(video.id);
 
     // Parse existing mediaSubtitles map
     final subs = Map<String, String>.from(video.mediaSubtitles);
-    if (loc.subtitles.isNotEmpty) {
-      subs.addAll(loc.subtitles);
+
+    // If local mediaSubtitles is empty, await localization subcollection; otherwise load in parallel
+    if (subs.isEmpty) {
+      final loc = await VideoMediaService().getLocalization(video.id);
+      if (loc.subtitles.isNotEmpty) {
+        subs.addAll(loc.subtitles);
+        selectedVideo.value = video.copyWith(mediaSubtitles: subs);
+      }
+    } else {
+      unawaited(VideoMediaService().getLocalization(video.id).then((loc) {
+        if (loc.subtitles.isNotEmpty && selectedVideo.value?.id == video.id) {
+          final mergedSubs = Map<String, String>.from(selectedVideo.value!.mediaSubtitles)..addAll(loc.subtitles);
+          selectedVideo.value = selectedVideo.value!.copyWith(mediaSubtitles: mergedSubs);
+          for (final lang in loc.subtitles.keys) {
+            final code = normalizeLanguageCode(lang);
+            if (!availableLanguages.contains(code)) {
+              availableLanguages.add(code);
+            }
+          }
+        }
+      }));
     }
 
     final orderedLangs = <String>[];
 
     // Always add primary video language first if defined, then 'en'
-    final primaryLang = video.language.trim().isNotEmpty ? video.language.trim().toLowerCase() : 'en';
-    if (!orderedLangs.contains(primaryLang)) {
-      orderedLangs.add(primaryLang);
-    }
+    final primaryLang = normalizeLanguageCode(video.language);
+    orderedLangs.add(primaryLang);
     if (!orderedLangs.contains('en')) {
       orderedLangs.add('en');
     }
 
     // Add all languages that have existing subtitle URLs
     for (final lang in subs.keys) {
-      if (!orderedLangs.contains(lang)) {
-        orderedLangs.add(lang);
+      final code = normalizeLanguageCode(lang);
+      if (!orderedLangs.contains(code)) {
+        orderedLangs.add(code);
       }
     }
 
     // Add pending translation languages from video.languages using comprehensive supportedLanguages
     for (final langName in video.languages) {
-      final match = supportedLanguages.firstWhereOrNull((l) =>
-          l.name.toLowerCase() == langName.toLowerCase() ||
-          l.nativeName.toLowerCase() == langName.toLowerCase() ||
-          l.code.toLowerCase() == langName.toLowerCase());
-      final code = match?.code ?? langName.toLowerCase();
-      if (!orderedLangs.contains(code) && !orderedLangs.contains(langName)) {
+      final code = normalizeLanguageCode(langName);
+      if (!orderedLangs.contains(code)) {
         orderedLangs.add(code);
       }
     }
@@ -244,10 +272,14 @@ mixin SubtitlesChannelVideosMixin on SubtitlesControllerBase {
       final defaultLang =
           orderedLangs.contains('en') ? 'en' : orderedLangs.first;
       selectedLanguage.value = defaultLang;
-      parseCuesForLanguage(defaultLang, subs[defaultLang]);
+      final subUrl = subs[defaultLang] ??
+          subs[video.language] ??
+          (video.transcriptionUrl.isNotEmpty ? video.transcriptionUrl : null);
+      parseCuesForLanguage(defaultLang, subUrl);
     }
     selectedVideo.refresh();
     initVideoPlayer(video);
+    _inFlightSelectingVideoId = null;
   }
 
   void listenToLanguageRequests(String videoId) {
@@ -287,14 +319,55 @@ mixin SubtitlesChannelVideosMixin on SubtitlesControllerBase {
   }
 
   void switchLanguage(String langCode) {
-    if (!availableLanguages.contains(langCode)) return;
-    selectedLanguage.value = langCode;
-    hasUnsavedChanges.value = false;
-    final subs = selectedVideo.value?.mediaSubtitles ?? {};
-    if (subs.containsKey(langCode)) {
-      parseCuesForLanguage(langCode, subs[langCode]);
+    final normCode = normalizeLanguageCode(langCode);
+    if (!availableLanguages.contains(langCode) &&
+        !availableLanguages.contains(normCode) &&
+        !configuredLanguages.contains(normCode)) {
+      return;
+    }
+    if (!availableLanguages.contains(langCode)) {
+      if (availableLanguages.contains(normCode)) {
+        selectedLanguage.value = normCode;
+      } else {
+        availableLanguages.add(normCode);
+        selectedLanguage.value = normCode;
+      }
     } else {
-      currentCues.clear();
+      selectedLanguage.value = langCode;
+    }
+    hasUnsavedChanges.value = false;
+
+    final targetLang = selectedLanguage.value;
+    final video = selectedVideo.value;
+    final subs = video?.mediaSubtitles ?? {};
+
+    // 1. Resolve subtitle URL from mediaSubtitles (exact or normalized match)
+    String? subUrl = subs[targetLang] ?? subs[normCode];
+    if (subUrl == null || subUrl.isEmpty) {
+      for (final entry in subs.entries) {
+        if (normalizeLanguageCode(entry.key) == normCode) {
+          subUrl = entry.value;
+          break;
+        }
+      }
+    }
+
+    // 2. Auto-fallback to video.transcriptionUrl for the base/original language
+    final isBaseLang = video != null &&
+        (normCode == normalizeLanguageCode(video.language) ||
+         normCode == 'en' ||
+         targetLang == video.language);
+
+    if ((subUrl == null || subUrl.isEmpty) && isBaseLang && video != null) {
+      if (video.transcriptionUrl.isNotEmpty) {
+        subUrl = video.transcriptionUrl;
+      }
+    }
+
+    if (subUrl != null && subUrl.isNotEmpty) {
+      parseCuesForLanguage(targetLang, subUrl);
+    } else {
+      parseCuesForLanguage(targetLang, null);
     }
   }
 }

@@ -87,6 +87,9 @@ class PushNotificationService extends GetxService {
         ),
       );
 
+      // 4. Automatically subscribe to global broadcast topics so all installed devices receive platform broadcasts
+      unawaited(subscribeToBroadcastTopics());
+
       logger.info(
         'PushNotificationService initialized successfully',
         tag: 'PUSH_NOTIFICATIONS',
@@ -149,6 +152,8 @@ class PushNotificationService extends GetxService {
           await _saveTokenToFirestore(userId, token);
           _registeredUserId = userId;
           _registeredToken = token;
+          unawaited(syncSubscribedChannelTopics(userId));
+          unawaited(subscribeToBroadcastTopics());
         }
 
         // Keep tokens up-to-date across lifecycle events without leaking duplicate listeners
@@ -158,6 +163,7 @@ class PushNotificationService extends GetxService {
             await _saveTokenToFirestore(userId, newToken);
             _registeredUserId = userId;
             _registeredToken = newToken;
+            unawaited(subscribeToBroadcastTopics());
           },
           onError: (e, stackTrace) => logger.error(
             'Error in onTokenRefresh: $e',
@@ -240,6 +246,10 @@ class PushNotificationService extends GetxService {
           .collection(FirestoreCollections.users)
           .doc(userId);
 
+      final platformStr = GetPlatform.isWeb
+          ? 'web'
+          : (GetPlatform.isAndroid ? 'android' : 'ios');
+
       // Check existing tokens to prune any redundant keys holding this identical token
       final updates = <String, dynamic>{};
       try {
@@ -252,14 +262,38 @@ class PushNotificationService extends GetxService {
               final k = entry.key;
               final v = entry.value;
               var existingTokenStr = '';
+              var existingApp = '';
+              var existingPlatform = '';
+
               if (v is String) {
                 existingTokenStr = v.trim();
-              } else if (v is Map && v['token'] is String) {
-                existingTokenStr = (v['token'] as String).trim();
+              } else if (v is Map) {
+                if (v['token'] is String) {
+                  existingTokenStr = (v['token'] as String).trim();
+                }
+                existingApp = (v['app'] as String? ?? v['appFlavor'] as String? ?? '').trim().toLowerCase();
+                existingPlatform = (v['platform'] as String? ?? '').trim().toLowerCase();
               }
 
-              // Prune old device entry holding the identical token
-              if (k != deviceId && existingTokenStr == token.trim()) {
+              if (existingApp.isEmpty) {
+                if (k.startsWith('studio_')) {
+                  existingApp = 'studio';
+                } else if (k.startsWith('admin_')) {
+                  existingApp = 'admin';
+                } else if (k.startsWith('advertiser_')) {
+                  existingApp = 'advertiser';
+                } else if (k.startsWith('app_')) {
+                  existingApp = 'app';
+                }
+              }
+
+              // Prune old device entry holding identical token OR superseded same-flavor device token
+              final isSameToken = existingTokenStr == token.trim();
+              final isSupersededSameFlavorDevice = k != deviceId &&
+                  existingApp == currentApp &&
+                  (existingPlatform.isEmpty || existingPlatform == platformStr);
+
+              if (k != deviceId && (isSameToken || isSupersededSameFlavorDevice)) {
                 updates['fcmTokens.$k'] = FieldValue.delete();
               }
             }
@@ -271,10 +305,6 @@ class PushNotificationService extends GetxService {
           tag: 'PUSH_NOTIFICATIONS',
         );
       }
-
-      final platformStr = GetPlatform.isWeb
-          ? 'web'
-          : (GetPlatform.isAndroid ? 'android' : 'ios');
 
       updates['fcmTokens.$deviceId'] = {
         'token': token.trim(),
@@ -526,6 +556,69 @@ class PushNotificationService extends GetxService {
     } catch (e) {
       logger.warning(
         'Failed to unsubscribe from FCM topic for channel $channelId: $e',
+        tag: 'PUSH_NOTIFICATIONS',
+      );
+    }
+  }
+
+  /// Synchronizes FCM broadcast topic subscriptions for all active channel subscriptions.
+  /// Ensures device receives instant push notifications when subscribed creators post content.
+  Future<void> syncSubscribedChannelTopics(String userId) async {
+    if (!_isSupportedPlatform || userId.isEmpty || userId == 'guest_user') return;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection(FirestoreCollections.userSubscriptions(userId))
+          .get();
+
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final channelId = (data['channelId'] as String? ?? doc.id).trim();
+        if (channelId.isEmpty) continue;
+
+        final notifsEnabled = data['notificationsEnabled'] ?? true;
+        final option = (data['notificationOption'] as String? ??
+                data['notificationPreference'] as String? ??
+                (notifsEnabled ? 'personalized' : 'none'))
+            .toLowerCase();
+
+        if (notifsEnabled && option != 'none') {
+          await subscribeToChannelTopic(channelId);
+        } else {
+          await unsubscribeFromChannelTopic(channelId);
+        }
+      }
+    } catch (e) {
+      logger.warning(
+        'Failed to sync subscribed channel topics for user $userId: $e',
+        tag: 'PUSH_NOTIFICATIONS',
+      );
+    }
+  }
+
+  /// Subscribes the current device to global broadcast push topics (`all_devices`, `flavor_$app`).
+  /// Eliminates redundant overlapping platform topics to prevent duplicate broadcast delivery.
+  Future<void> subscribeToBroadcastTopics() async {
+    if (!_isSupportedPlatform) return;
+    try {
+      final messaging = FirebaseMessaging.instance;
+      // 1. Universal broadcast topic across all installed devices (Android + iOS)
+      await messaging.subscribeToTopic('all_devices');
+
+      // Clean up legacy overlapping platform topics if previously subscribed
+      unawaited(messaging.unsubscribeFromTopic('all_android').catchError((_) {}));
+      unawaited(messaging.unsubscribeFromTopic('all_ios').catchError((_) {}));
+
+      // 2. App flavor broadcast topic (e.g. flavor_app, flavor_studio)
+      final flavor = AppFlavor.active.name;
+      await messaging.subscribeToTopic('flavor_$flavor');
+
+      logger.info(
+        'Successfully subscribed device to broadcast topics: all_devices, flavor_$flavor',
+        tag: 'PUSH_NOTIFICATIONS',
+      );
+    } catch (e) {
+      logger.warning(
+        'Failed to subscribe to broadcast topics: $e',
         tag: 'PUSH_NOTIFICATIONS',
       );
     }

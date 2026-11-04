@@ -103,6 +103,18 @@ class AccessibilitySection extends StatelessWidget {
             ),
           ],
         ),
+        actions: [
+          TextButton(
+            onPressed: Get.back,
+            child: const Text(
+              'Done',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -183,6 +195,15 @@ class AccessibilitySection extends StatelessWidget {
               )
               .toList(),
         ),
+        actions: [
+          TextButton(
+            onPressed: Get.back,
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+        ],
       ),
     );
   }

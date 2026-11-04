@@ -4,14 +4,15 @@ import 'package:get/get.dart';
 import 'package:truthworld/components/ui/auth/email_verification_sheet.dart';
 import 'package:truthworld/components/ui/auth/phone_verification_sheet.dart';
 import 'package:truthworld/components/ui/avatar_options_sheet.dart';
-import 'package:truthworld/components/ui/google_onboarding_sheet.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/navigation/app_navigator.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/user_languages_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/settings/presentation/views/settings/widgets/settings_section_card.dart';
+import 'package:truthworld/features/video/presentation/widgets/language_preferences_dialog.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class GeneralAccountSection extends StatelessWidget {
@@ -32,6 +33,7 @@ class GeneralAccountSection extends StatelessWidget {
           _buildUserInfoTile(context),
           _buildPhoneVerificationTile(context),
           _buildEmailVerificationTile(context),
+          _buildPrimaryLanguageTile(context),
           _buildAgeAndGenderTile(context),
           _buildLocationSettingsTile(context),
           _buildSubscriptionTile(context),
@@ -498,6 +500,54 @@ class GeneralAccountSection extends StatelessWidget {
     });
   }
 
+  Widget _buildPrimaryLanguageTile(BuildContext context) {
+    if (!Get.isRegistered<UserLanguagesService>()) {
+      return const SizedBox.shrink();
+    }
+    final langService = UserLanguagesService.to;
+    return Obx(() {
+      final primary = langService.primaryLanguage.value;
+      final known = langService.knownLanguages;
+      final subtitle = known.length > 1
+          ? 'Primary: $primary • Also knows: ${known.where((l) => l != primary).join(", ")}'
+          : 'Primary: $primary';
+
+      return ListTile(
+        leading: const Icon(
+          Icons.translate_rounded,
+          color: Colors.white,
+          size: 22,
+        ),
+        title: const Text(
+          'Language & Localization',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.7),
+            fontSize: 13,
+          ),
+        ),
+        trailing: const Icon(
+          Icons.chevron_right,
+          color: Colors.white70,
+          size: 20,
+        ),
+        onTap: () {
+          showDialog(
+            context: context,
+            builder: (_) => const LanguagePreferencesDialog(),
+          );
+        },
+      );
+    });
+  }
+
   Widget _buildAgeAndGenderTile(BuildContext context) {
     final authService = AuthService.to;
     return Obx(() {
@@ -540,7 +590,7 @@ class GeneralAccountSection extends StatelessWidget {
           Icons.chevron_right,
           color: AppColors.textPrimary,
         ),
-        onTap: () => GoogleOnboardingSheet.show(context),
+        onTap: () => _showEditProfileDialog(context),
       );
     });
   }
@@ -704,6 +754,15 @@ class GeneralAccountSection extends StatelessWidget {
             ),
           ],
         ),
+        actions: [
+          TextButton(
+            onPressed: Get.back,
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: context.colors.textSecondary),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -724,11 +783,13 @@ class GeneralAccountSection extends StatelessWidget {
           style: TextStyle(color: colors.textSecondary),
         ),
         actions: [
-          TextButton(
-            onPressed: Get.back,
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: colors.textSecondary),
+          Obx(
+            () => TextButton(
+              onPressed: isProcessing.value ? null : Get.back,
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: colors.textSecondary),
+              ),
             ),
           ),
           Obx(
@@ -769,6 +830,7 @@ class GeneralAccountSection extends StatelessWidget {
           ),
         ],
       ),
+      barrierDismissible: false,
     );
   }
 
@@ -853,11 +915,13 @@ class GeneralAccountSection extends StatelessWidget {
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: Get.back,
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: colors.textSecondary),
+          Obx(
+            () => TextButton(
+              onPressed: isProcessing.value ? null : Get.back,
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: colors.textSecondary),
+              ),
             ),
           ),
           Obx(
@@ -917,11 +981,14 @@ class GeneralAccountSection extends StatelessWidget {
           ),
         ],
       ),
+      barrierDismissible: false,
     );
   }
 
   void _showLogoutConfirmation(BuildContext context) {
     final colors = context.colors;
+    final isLoggingOut = false.obs;
+
     Get.dialog(
       AlertDialog(
         backgroundColor: colors.surface,
@@ -931,20 +998,36 @@ class GeneralAccountSection extends StatelessWidget {
           style: TextStyle(color: colors.textSecondary),
         ),
         actions: [
-          TextButton(
-            onPressed: Get.back,
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: colors.textSecondary),
+          Obx(
+            () => TextButton(
+              onPressed: isLoggingOut.value ? null : Get.back,
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: colors.textSecondary),
+              ),
             ),
           ),
-          TextButton(
-            onPressed: () async {
-              Get.back();
-              await AuthService.to.logout();
-              Get.offAllNamed('/');
-            },
-            child: Text('Log Out', style: TextStyle(color: colors.error)),
+          Obx(
+            () => TextButton(
+              onPressed: isLoggingOut.value
+                  ? null
+                  : () async {
+                      isLoggingOut.value = true;
+                      Get.back();
+                      await AuthService.to.logout();
+                      Get.offAllNamed('/');
+                    },
+              child: isLoggingOut.value
+                  ? SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: colors.error,
+                      ),
+                    )
+                  : Text('Log Out', style: TextStyle(color: colors.error)),
+            ),
           ),
         ],
       ),

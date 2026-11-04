@@ -33,8 +33,12 @@ class UploadDubbingController extends GetxController {
   // Working copy of selections
   final RxSet<String> selectedLanguages = <String>{}.obs;
   final RxBool isDubbingEnabled = true.obs;
-  final RxString voiceType = 'standard'.obs; // 'standard' | 'cloned'
+  final RxString selectedDubbingTier = 'audio_starter'.obs;
+  final RxString voiceType = 'standard'.obs; // 'standard' | 'fast_api' | 'cloned'
   final RxBool isDiarizationEnabled = false.obs;
+  final RxBool isLipSyncEnabled = false.obs;
+  final RxBool isStemIsolationEnabled = false.obs;
+  final RxBool isCinemaGradeEnabled = false.obs;
 
   @override
   void onInit() {
@@ -51,8 +55,52 @@ class UploadDubbingController extends GetxController {
     selectedLanguages.assignAll(normalized);
     isDubbingEnabled.value = uploadController.aiDubbingLanguages.isEmpty ||
         uploadController.aiGenerateDubbing.value;
-    voiceType.value = uploadController.aiTTSVoiceType.value == 'cloned' ? 'cloned' : 'standard';
+
+    final initialTier = uploadController.aiDubbingTier.value;
+    if (initialTier.isNotEmpty && DubbingProductionTier.allTiers.any((t) => t.id == initialTier)) {
+      selectedDubbingTier.value = initialTier;
+    } else if (uploadController.aiLipSyncEnabled.value) {
+      selectedDubbingTier.value = uploadController.aiCinemaGradeEnabled.value ? 'video_ultra' : 'video_pro';
+    } else if (uploadController.aiTTSVoiceType.value == 'cloned') {
+      selectedDubbingTier.value = 'audio_ultra';
+    } else if (uploadController.aiTTSVoiceType.value == 'fast_api') {
+      selectedDubbingTier.value = 'audio_pro';
+    } else {
+      selectedDubbingTier.value = 'audio_starter';
+    }
+
+    voiceType.value = uploadController.aiTTSVoiceType.value == 'cloned'
+        ? 'cloned'
+        : (uploadController.aiTTSVoiceType.value == 'fast_api' ? 'fast_api' : 'standard');
     isDiarizationEnabled.value = uploadController.aiDiarizationEnabled.value;
+    isLipSyncEnabled.value = uploadController.aiLipSyncEnabled.value;
+    isCinemaGradeEnabled.value = uploadController.aiCinemaGradeEnabled.value;
+    isStemIsolationEnabled.value = uploadController.aiStemIsolationEnabled.value;
+  }
+
+  DubbingProductionTier get currentProductionTier =>
+      DubbingProductionTier.fromId(selectedDubbingTier.value);
+
+  void selectTier(String tierId) {
+    selectedDubbingTier.value = tierId;
+    final tier = DubbingProductionTier.fromId(tierId);
+    if (tier.category == 'video') {
+      isLipSyncEnabled.value = true;
+      voiceType.value = 'cloned';
+      isCinemaGradeEnabled.value = tier.isCinemaGrade;
+      isStemIsolationEnabled.value = tier.isCinemaGrade;
+    } else {
+      isLipSyncEnabled.value = false;
+      isCinemaGradeEnabled.value = false;
+      isStemIsolationEnabled.value = false;
+      if (tierId == 'audio_ultra') {
+        voiceType.value = 'cloned';
+      } else if (tierId == 'audio_pro') {
+        voiceType.value = 'fast_api';
+      } else {
+        voiceType.value = 'standard';
+      }
+    }
   }
 
   static DubbingLanguageInfo? findLanguage(String identifier) {
@@ -104,25 +152,37 @@ class UploadDubbingController extends GetxController {
   ChannelType get channelType =>
       (channel?.channelType == ChannelType.custom) ? ChannelType.custom : ChannelType.standard;
   bool get isCustomChannel => channelType == ChannelType.custom;
-  double get walletBalance => channel?.walletBalanceUSD ?? 0.0;
+  double get walletBalance => channel != null
+      ? ChannelWalletService().getSpendableBalance(channel: channel!).totalSpendableBalance
+      : 0.0;
 
   DubbingDurationTier get dubbingTier =>
       ChannelWalletService.getDubbingDurationTier(durationSeconds);
 
   double get flatDubbingRatePerLang =>
-      ChannelWalletService.getFlatDubbingPricePerLanguage(
+      ChannelWalletService.getFlatRateForTier(
+        tierId: selectedDubbingTier.value,
         durationSeconds: durationSeconds,
-        channelType: channelType,
       );
 
-  double get calculatedCost => ChannelWalletService.calculateDubbingCost(
-        languageCount: selectedLanguages.length,
+  double get flatLipSyncRatePerLang =>
+      ChannelWalletService.getFlatRateForTier(
+        tierId: 'video_pro',
         durationSeconds: durationSeconds,
-        channelType: channelType,
       );
+
+  double get calculatedCost {
+    final cost = ChannelWalletService.calculateProductionTierCost(
+      tierId: selectedDubbingTier.value,
+      languageCount: selectedLanguages.length,
+      durationSeconds: durationSeconds,
+      channel: channel,
+    );
+    return double.parse(cost.toStringAsFixed(2));
+  }
 
   bool get isInsufficientBalance =>
-      selectedLanguages.isNotEmpty && walletBalance < calculatedCost;
+      selectedLanguages.isNotEmpty && calculatedCost > 0 && walletBalance < calculatedCost;
 
   String get channelLanguageCode => uploadController.channelLanguageCode;
   String get channelLanguageDisplayName => uploadController.channelLanguageDisplayName;
@@ -340,11 +400,22 @@ class UploadDubbingController extends GetxController {
   }
 
   void applyAndSave() {
+    if (isInsufficientBalance && selectedLanguages.isNotEmpty && isDubbingEnabled.value) {
+      AppSnackbar.warning(
+        'Insufficient channel wallet balance (\$${walletBalance.toStringAsFixed(2)} available vs \$${calculatedCost.toStringAsFixed(2)} required). Please add money to your wallet to proceed with AI Audio Dubbing for these languages.',
+      );
+      return;
+    }
+
     uploadController.aiDubbingLanguages.assignAll(selectedLanguages.toList());
+    uploadController.aiDubbingTier.value = selectedDubbingTier.value;
+    uploadController.aiCinemaGradeEnabled.value = isCinemaGradeEnabled.value;
+    uploadController.aiStemIsolationEnabled.value = isStemIsolationEnabled.value;
     uploadController.aiGenerateDubbing.value =
         selectedLanguages.isNotEmpty && isDubbingEnabled.value;
     uploadController.aiTTSVoiceType.value = voiceType.value;
     uploadController.aiDiarizationEnabled.value = isDiarizationEnabled.value;
+    uploadController.aiLipSyncEnabled.value = isLipSyncEnabled.value;
 
     // Automatically ensure dubbed languages have matching subtitles
     if (uploadController.aiGenerateDubbing.value) {

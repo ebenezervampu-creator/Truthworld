@@ -68,8 +68,24 @@ class VideoEngagementController extends BaseController {
             .getCacheFirst(),
       ]);
 
-      isLiked.value = futures[0].exists;
-      isDisliked.value = futures[1].exists;
+      final hasLiked = futures[0].exists;
+      final hasDisliked = futures[1].exists;
+
+      if (hasLiked && hasDisliked) {
+        // Enforce strict mutual exclusion: like takes precedence, purge corrupted dislike doc
+        isLiked.value = true;
+        isDisliked.value = false;
+        _firestore
+            .collection(FirestoreCollections.users)
+            .doc(userId)
+            .collection('dislikedVideos')
+            .doc(videoId)
+            .delete()
+            .catchError((_) {});
+      } else {
+        isLiked.value = hasLiked;
+        isDisliked.value = hasDisliked;
+      }
       isSubscribed.value = futures[2].exists;
     } catch (e, s) {
       if (!e.toString().contains('permission-denied')) {
@@ -98,8 +114,13 @@ class VideoEngagementController extends BaseController {
     final wasLiked = isLiked.value;
     final wasDisliked = isDisliked.value;
 
-    isLiked.value = !wasLiked;
-    if (isLiked.value) isDisliked.value = false;
+    if (wasLiked) {
+      isLiked.value = false;
+      isDisliked.value = false;
+    } else {
+      isLiked.value = true;
+      isDisliked.value = false;
+    }
 
     final currentLikes = mainController.videoLikes[videoId] ?? defaultLikeCount;
     final currentDislikes =
@@ -155,8 +176,13 @@ class VideoEngagementController extends BaseController {
     final wasLiked = isLiked.value;
     final wasDisliked = isDisliked.value;
 
-    isDisliked.value = !wasDisliked;
-    if (isDisliked.value) isLiked.value = false;
+    if (wasDisliked) {
+      isDisliked.value = false;
+      isLiked.value = false;
+    } else {
+      isDisliked.value = true;
+      isLiked.value = false;
+    }
 
     final currentLikes = mainController.videoLikes[videoId] ?? defaultLikeCount;
     final currentDislikes =

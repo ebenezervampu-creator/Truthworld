@@ -115,6 +115,13 @@ class ChannelMembershipJoinController extends BaseController {
           .snapshots()
           .listen(
         (snapshot) {
+          final currentChannel = channelData.value ?? channel;
+          if (currentChannel != null && !currentChannel.isMonetizationActive) {
+            tiers.value = [];
+            isLoadingTiers.value = false;
+            return;
+          }
+
           final list = snapshot.docs
               .map((doc) => ChannelMembershipTier.fromMap(doc.data(), doc.id))
               .where((tier) => tier.isEnabled)
@@ -239,6 +246,14 @@ class ChannelMembershipJoinController extends BaseController {
       return;
     }
 
+    final ch = channelData.value ?? channel;
+    if (ch != null && !ch.isMonetizationActive) {
+      AppSnackbar.warning(
+        'Channel memberships are only available for monetized channels.',
+      );
+      return;
+    }
+
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -255,8 +270,8 @@ class ChannelMembershipJoinController extends BaseController {
 
     isProcessing.value = true;
     try {
-      // Ensure absolute latest real-time forex rate before initiating payment
-      await CurrencyLocalizationService.to.fetchRealtimeRate();
+      // Refresh rate non-blockingly without stalling payment initiation
+      unawaited(CurrencyLocalizationService.to.fetchRealtimeRate());
 
       final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
           CurrencyLocalizationService.to.isIndianUser;

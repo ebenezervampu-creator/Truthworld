@@ -8,7 +8,6 @@ import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
-import 'package:truthworld/core/utils/web_platform_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/features/video/data/datasources/local/database_helpers.dart';
@@ -66,41 +65,33 @@ mixin VideoOfflineDownloadMixin on GetxController {
         TowerPlayerController.globalAudioOnly = isAudio;
       }
 
-      if (kIsWeb) {
-        final bytes = await getVideoBytes(video.id);
-        if (bytes == null || bytes.length < 512) {
-          throw Exception('Offline media content not found or corrupted');
-        }
-        // Check for M3U8 text playlist header '#EXTM3U'
-        if (bytes.length >= 7 &&
-            bytes[0] == 0x23 && // '#'
-            bytes[1] == 0x45 && // 'E'
-            bytes[2] == 0x58 && // 'X'
-            bytes[3] == 0x4D && // 'M'
-            bytes[4] == 0x33 && // '3'
-            bytes[5] == 0x55) { // 'U'
-          throw Exception(
-            'Downloaded file is an HLS playlist rather than direct media. Please re-download.',
-          );
-        }
-
-        final mime = isAudio ? 'audio/mpeg' : 'video/mp4';
-        offlineBlobUrl = WebPlatformUtils.createBlobUrl(bytes, mime);
-      } else {
-        final proxyUrl = await getOfflinePlaybackUrl(video.id);
-        if (proxyUrl != null && proxyUrl.isNotEmpty) {
-          offlineBlobUrl = proxyUrl;
-        } else {
+      var playbackUrl = offlineMeta?.videoUrl;
+      if (playbackUrl == null || playbackUrl.isEmpty) {
+        playbackUrl = await getOfflinePlaybackUrl(video.id);
+      }
+      if (playbackUrl == null || playbackUrl.isEmpty) {
+        if (!kIsWeb) {
           final filePath = await getVideoFilePath(video.id);
           if (filePath != null &&
               File(filePath).existsSync() &&
               (await File(filePath).length()) > 512) {
-            offlineBlobUrl = filePath;
-          } else {
-            throw Exception('Offline media content not found or corrupted');
+            playbackUrl = filePath;
           }
         }
       }
+      if (playbackUrl == null || playbackUrl.isEmpty) {
+        if (video.hlsUrl.isNotEmpty) {
+          playbackUrl = video.hlsUrl;
+        } else if (video.videoUrl.isNotEmpty) {
+          playbackUrl = video.videoUrl;
+        }
+      }
+
+      if (playbackUrl == null || playbackUrl.isEmpty) {
+        throw Exception('Saved video streaming URL not found.');
+      }
+
+      offlineBlobUrl = playbackUrl;
 
       // Create a dummy resolution for the UI
       availableResolutions.assignAll([

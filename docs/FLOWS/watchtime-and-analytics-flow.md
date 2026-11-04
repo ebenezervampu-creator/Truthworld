@@ -38,7 +38,7 @@ sequenceDiagram
 
 ---
 
-## 2. Live Stream Viewers & Chat Architecture
+## 2. Live Stream Viewers & High-Throughput Presence Architecture
 
 * **High-Throughput Presence**: Realtime Database (RTDB) handles concurrent live viewer counts. When a client connects, Firebase RTDB `.info/connected` attaches an `onDisconnect()` handler:
   ```json

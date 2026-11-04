@@ -89,36 +89,36 @@ describe('Industry-Standard Hybrid Text-to-Speech (TTS) Architecture', () => {
       expect(googleTtsService.resolveLocale('ar')).toBe('ar-XA');
     });
 
-    it('selects high-fidelity Neural2 / Journey / Standard voices by gender', () => {
-      // Hindi: Neural2
+    it('selects high-fidelity Chirp 3: HD voices by gender across Indian regional and global languages', () => {
+      // Hindi: Chirp 3: HD
       const hiFemale = googleTtsService.resolveVoice({
         jobId: 'job_1', language: 'hi', text: 'नमस्ते', gender: 'FEMALE',
       });
       expect(hiFemale.locale).toBe('hi-IN');
-      expect(hiFemale.voiceName).toBe('hi-IN-Neural2-A');
-      expect(hiFemale.modelType).toBe('neural2');
+      expect(hiFemale.voiceName).toBe('hi-IN-Chirp3-HD-Kore');
+      expect(hiFemale.modelType).toBe('chirp3-hd');
 
       const hiMale = googleTtsService.resolveVoice({
         jobId: 'job_1', language: 'hi', text: 'नमस्ते', gender: 'MALE',
       });
-      expect(hiMale.voiceName).toBe('hi-IN-Neural2-B');
-      expect(hiMale.modelType).toBe('neural2');
+      expect(hiMale.voiceName).toBe('hi-IN-Chirp3-HD-Fenrir');
+      expect(hiMale.modelType).toBe('chirp3-hd');
 
-      // Telugu: Native Standard subcontinent voice
+      // Telugu: Generative Chirp 3: HD voice (No more robotic standard voice)
       const teFemale = googleTtsService.resolveVoice({
         jobId: 'job_1', language: 'te', text: 'నమస్కారం', gender: 'FEMALE',
       });
       expect(teFemale.locale).toBe('te-IN');
-      expect(teFemale.voiceName).toBe('te-IN-Standard-A');
-      expect(teFemale.modelType).toBe('standard');
+      expect(teFemale.voiceName).toBe('te-IN-Chirp3-HD-Kore');
+      expect(teFemale.modelType).toBe('chirp3-hd');
 
-      // English: Journey natural voice
+      // English: Chirp 3: HD natural voice
       const enFemale = googleTtsService.resolveVoice({
         jobId: 'job_1', language: 'en', text: 'Hello', gender: 'FEMALE',
       });
       expect(enFemale.locale).toBe('en-US');
-      expect(enFemale.voiceName).toBe('en-US-Journey-F');
-      expect(enFemale.modelType).toBe('journey');
+      expect(enFemale.voiceName).toBe('en-US-Chirp3-HD-Kore');
+      expect(enFemale.modelType).toBe('chirp3-hd');
     });
 
     it('maps legacy voiceId presets to gender when gender is omitted', () => {
@@ -126,13 +126,13 @@ describe('Industry-Standard Hybrid Text-to-Speech (TTS) Architecture', () => {
       const adamVoice = googleTtsService.resolveVoice({
         jobId: 'job_1', language: 'hi', text: 'परीक्षण', voiceId: 'pNInz6obpgDQGcFmaJgB',
       });
-      expect(adamVoice.voiceName).toBe('hi-IN-Neural2-B');
+      expect(adamVoice.voiceName).toBe('hi-IN-Chirp3-HD-Fenrir');
 
       // Bella preset voiceId -> Female
       const bellaVoice = googleTtsService.resolveVoice({
         jobId: 'job_1', language: 'te', text: 'పరీక్ష', voiceId: 'hpp4J3VqNfWAUOO0d1Us',
       });
-      expect(bellaVoice.voiceName).toBe('te-IN-Standard-A');
+      expect(bellaVoice.voiceName).toBe('te-IN-Chirp3-HD-Kore');
     });
 
     it('preserves native Google Cloud voice ID if passed directly', () => {
@@ -168,13 +168,13 @@ describe('Industry-Standard Hybrid Text-to-Speech (TTS) Architecture', () => {
         'job_tts_123',
         'user_456',
         request.text.length,
-        'google-tts-neural2'
+        'google-tts-chirp3-hd'
       );
     });
   });
 
-  describe('3. Hybrid Routing (Google Cloud TTS Default vs ElevenLabs Voice Cloning)', () => {
-    it('routes standard dubbing requests to Google Cloud Text-to-Speech by default', async () => {
+  describe('3. Dubbing Architecture Routing (Google Cloud Chirp Default vs ElevenLabs Voice Cloning)', () => {
+    it('routes video dubbing audio track requests to Google Cloud Chirp 3: HD by default', async () => {
       const request: TTSRequest = {
         jobId: 'job_std_dubbing',
         userId: 'user_creator_1',
@@ -185,13 +185,14 @@ describe('Industry-Standard Hybrid Text-to-Speech (TTS) Architecture', () => {
 
       const result = await hybridTtsService.synthesize(request);
 
-      // Verified: Google Cloud TTS called, ElevenLabs NOT called
+      // Verified: Google Cloud Chirp called, ElevenLabs NOT called
       expect(mockGoogleClient.synthesizeSpeech).toHaveBeenCalledTimes(1);
       expect(mockedAxios.post).not.toHaveBeenCalled();
       expect(result.provider).toBe('google-cloud-tts');
+      expect(result.voiceName).toBe('te-IN-Chirp3-HD-Kore');
     });
 
-    it('routes voice cloning requests (preferVoiceCloning: true) to ElevenLabs', async () => {
+    it('routes voice cloning requests (preferVoiceCloning: true) strictly to ElevenLabs', async () => {
       mockedAxios.post.mockResolvedValueOnce({
         data: Buffer.from('mock-elevenlabs-cloned-audio-bytes'),
       });
@@ -213,17 +214,42 @@ describe('Industry-Standard Hybrid Text-to-Speech (TTS) Architecture', () => {
       expect(result.provider).toBe('elevenlabs');
       expect(result.voiceName).toBe('custom_voice_clone_abc');
     });
+
+    it('routes Audio Pro requests strictly to ElevenLabs v4 Turbo (eleven_v4_turbo)', async () => {
+      mockedAxios.post.mockResolvedValueOnce({
+        data: Buffer.from('mock-elevenlabs-v4-turbo-audio-bytes'),
+      });
+
+      const request: TTSRequest = {
+        jobId: 'job_pro_audio',
+        userId: 'user_creator_pro',
+        language: 'en',
+        text: 'This is high-speed audio pro dubbing with ElevenLabs v4 Turbo.',
+        ttsTier: 'audio_pro',
+      };
+
+      const result = await hybridTtsService.synthesize(request);
+
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+      expect(mockedAxios.post.mock.calls[0][1]).toMatchObject({ model_id: 'eleven_v4_turbo' });
+      expect(mockGoogleClient.synthesizeSpeech).not.toHaveBeenCalled();
+      expect(result.provider).toBe('elevenlabs');
+    });
   });
 
-  describe('4. Resilient Fallback to Google Cloud Text-to-Speech', () => {
-    it('seamlessly falls back to Google Cloud TTS when ElevenLabs returns 429 Rate Limit', async () => {
-      mockedAxios.post.mockRejectedValue({
-        response: {
-          status: 429,
-          data: { detail: 'Too many requests' },
-        },
-        message: 'Request failed with status code 429',
-      });
+  describe('4. Resilient Fallback to ElevenLabs Tier 2 and Graceful Google Chirp Fallback', () => {
+    it('seamlessly falls back to Tier 2 (eleven_v3) when Tier 1 (eleven_v4) returns 429 Rate Limit', async () => {
+      mockedAxios.post
+        .mockRejectedValueOnce({
+          response: {
+            status: 429,
+            data: { detail: 'Too many requests' },
+          },
+          message: 'Request failed with status code 429',
+        })
+        .mockResolvedValueOnce({
+          data: Buffer.from('mock-v3-audio-bytes'),
+        });
 
       const request: TTSRequest = {
         jobId: 'job_rate_limited',
@@ -235,16 +261,19 @@ describe('Industry-Standard Hybrid Text-to-Speech (TTS) Architecture', () => {
 
       const result = await hybridTtsService.synthesize(request);
 
-      // Verified: ElevenLabs attempted, failed, then fallback to Google Cloud TTS succeeded
-      expect(mockedAxios.post).toHaveBeenCalled();
-      expect(mockGoogleClient.synthesizeSpeech).toHaveBeenCalledTimes(1);
-      expect(result.provider).toBe('google-cloud-tts');
+      // Verified: ElevenLabs attempted v4, failed, then fallback to v3 succeeded
+      expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+      expect(mockedAxios.post.mock.calls[0][1]).toMatchObject({ model_id: 'eleven_v4' });
+      expect(mockedAxios.post.mock.calls[1][1]).toMatchObject({ model_id: 'eleven_v3' });
+      expect(result.provider).toBe('elevenlabs');
       expect(result.audioUrl).toContain('gs://truthworld-test-bucket/audio/job_rate_limited/hi/chunk-');
     });
 
-    it('falls back to Google Cloud TTS when ElevenLabs API key is missing', async () => {
-      const noKeyElevenLabs = new ElevenLabsTTSService('');
-      const fallbackHybrid = new TTSService(googleTtsService, noKeyElevenLabs);
+    it('gracefully falls back to Google Cloud Chirp 3: HD if voice cloning is requested without an ElevenLabs API key', async () => {
+      const serviceWithoutKey = new TTSService(
+        googleTtsService,
+        new ElevenLabsTTSService('')
+      );
 
       const request: TTSRequest = {
         jobId: 'job_no_key',
@@ -254,25 +283,20 @@ describe('Industry-Standard Hybrid Text-to-Speech (TTS) Architecture', () => {
         preferVoiceCloning: true,
       };
 
-      const result = await fallbackHybrid.synthesize(request);
-
-      expect(mockedAxios.post).not.toHaveBeenCalled();
+      const result = await serviceWithoutKey.synthesize(request);
       expect(mockGoogleClient.synthesizeSpeech).toHaveBeenCalledTimes(1);
       expect(result.provider).toBe('google-cloud-tts');
+      expect(result.voiceName).toBe('te-IN-Chirp3-HD-Fenrir');
     });
   });
 
   describe('5. Cost Engine Verification', () => {
-    it('has accurate rate cards for Google TTS Neural2, Standard, and ElevenLabs', () => {
-      expect(RATE_CARDS['google-tts-standard'].perCharacter).toBe(0.000004);
+    it('has accurate rate cards for Google TTS Chirp 3: HD, Neural2, Standard, and ElevenLabs', () => {
+      expect(RATE_CARDS['google-tts-chirp3-hd'].perCharacter).toBe(0.000030);
       expect(RATE_CARDS['google-tts-neural2'].perCharacter).toBe(0.000016);
-      expect(RATE_CARDS.elevenlabs.perCharacter).toBe(0.000030);
-
-      // Google Neural2 is 46.7% cheaper than ElevenLabs
-      expect(RATE_CARDS['google-tts-neural2'].perCharacter).toBeLessThan(RATE_CARDS.elevenlabs.perCharacter);
-
-      // Google Standard is 86.7% cheaper than ElevenLabs
-      expect(RATE_CARDS['google-tts-standard'].perCharacter).toBeLessThan(RATE_CARDS['google-tts-neural2'].perCharacter);
+      expect(RATE_CARDS['google-tts-standard'].perCharacter).toBe(0.000004);
+      expect(RATE_CARDS['elevenlabs-turbo'].perCharacter).toBe(0.000040);
+      expect(RATE_CARDS.elevenlabs.perCharacter).toBe(0.000200);
     });
   });
 });

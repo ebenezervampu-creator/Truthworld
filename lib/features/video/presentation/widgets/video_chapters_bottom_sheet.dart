@@ -5,9 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
+import 'package:truthworld/features/video/data/services/storyboard_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
+import 'package:truthworld/features/video/presentation/views/player/overlays/components/storyboard_thumbnail_widget.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Modal bottom sheet and standalone widgets for displaying video chapters
@@ -144,6 +147,7 @@ class VideoChaptersBottomSheet extends StatelessWidget {
                             chapter: chapter,
                             video: video,
                             playerCtrl: playerCtrl,
+                            index: index,
                           );
                         },
                       ),
@@ -164,12 +168,14 @@ class ChapterTile extends StatelessWidget {
     super.key,
     this.playerCtrl,
     this.onTapOverride,
+    this.index = 0,
   });
 
   final VideoChapter chapter;
   final Video video;
   final TowerPlayerController? playerCtrl;
   final VoidCallback? onTapOverride;
+  final int index;
 
   @override
   Widget build(BuildContext context) {
@@ -184,12 +190,8 @@ class ChapterTile extends StatelessWidget {
   }
 
   Widget _buildContent(BuildContext context, {required bool isCurrent}) {
-    final thumbUrl =
-        (chapter.thumbnailUrl != null && chapter.thumbnailUrl!.isNotEmpty)
-            ? chapter.thumbnailUrl!
-            : video.thumbnailUrl;
-
     return InkWell(
+      borderRadius: BorderRadius.circular(12),
       onTap: onTapOverride ??
           () {
             if (playerCtrl != null) {
@@ -203,42 +205,41 @@ class ChapterTile extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Chapter Thumbnail Container
+            // Chapter Thumbnail Container with Unique Timestamp-specific Frame
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: Container(
                 width: 140,
                 height: 78,
                 color: AppColors.bgInput,
-                child: thumbUrl.isNotEmpty
-                    ? CachedNetworkImage(
-                        imageUrl: thumbUrl,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => const Center(
-                          child: SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _buildChapterThumbnailWidget(),
+                    Positioned(
+                      bottom: 4,
+                      right: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 2,
                         ),
-                        errorWidget: (context, url, error) => const Center(
-                          child: Icon(
-                            Icons.play_circle_outline,
-                            color: Colors.white, // Rule: White icon
-                            size: 28,
-                          ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.75),
+                          borderRadius: BorderRadius.circular(4),
                         ),
-                      )
-                    : const Center(
-                        child: Icon(
-                          Icons.play_circle_outline,
-                          color: Colors.white, // Rule: White icon
-                          size: 28,
+                        child: Text(
+                          chapter.formattedStartTime,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -250,7 +251,7 @@ class ChapterTile extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    chapter.title,
+                    chapter.localizedTitle(),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: context.twTypography.title.copyWith(
@@ -269,12 +270,17 @@ class ChapterTile extends StatelessWidget {
                           borderRadius: BorderRadius.circular(20),
                           onTap: () {
                             ShareBottomSheet.show(
-                              title: chapter.title,
-                              url:
-                                  'https://truthworld.app/watch?v=${video.id}&t=${chapter.startTime.inSeconds}',
+                              title: chapter.localizedTitle(),
+                              url: DeepLinkService.chapterUrl(
+                                video.id,
+                                timestampSeconds: chapter.startTime.inSeconds,
+                              ),
                               thumbnailUrl:
                                   chapter.thumbnailUrl ?? video.thumbnailUrl,
                               currentPosition: chapter.startTime,
+                              channelName: video.channelName,
+                              durationMs: video.durationMs,
+                              type: 'chapter',
                             );
                           },
                           child: const Padding(
@@ -328,6 +334,150 @@ class ChapterTile extends StatelessWidget {
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChapterThumbnailWidget() {
+    // 1. Dedicated custom/resolved chapter thumbnail (must be distinct from video main cover)
+    final hasDedicatedThumbnail = chapter.thumbnailUrl != null &&
+        chapter.thumbnailUrl!.isNotEmpty &&
+        chapter.thumbnailUrl != video.thumbnailUrl;
+
+    if (hasDedicatedThumbnail) {
+      return CachedNetworkImage(
+        imageUrl: chapter.thumbnailUrl!,
+        fit: BoxFit.cover,
+        memCacheWidth: 280,
+        memCacheHeight: 156,
+        placeholder: (context, url) => const Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        errorWidget: (context, url, error) => _buildChapterPlaceholder(),
+      );
+    }
+
+    // 2. Storyboard frame preview at chapter.startTime
+    final track = playerCtrl?.storyboardTrack.value ??
+        ((video.storyboardUrl.isNotEmpty ||
+                video.storyboardVariants.isNotEmpty ||
+                video.thumbnailVariants.isNotEmpty)
+            ? StoryboardService.generateHighDensityTrack(
+                totalDuration: video.durationValue,
+                multiSheetUrls: video.storyboardVariants,
+                singleSheetUrl: video.storyboardUrl,
+                thumbnailVariants: video.thumbnailVariants,
+              )
+            : null);
+
+    if (track != null && track.isNotEmpty) {
+      return StoryboardThumbnailWidget(
+        position: chapter.startTime,
+        storyboardTrack: track,
+        fallbackThumbnailUrl: index == 0 ? video.thumbnailUrl : null,
+        width: 140,
+        height: 78,
+        borderRadius: BorderRadius.zero,
+      );
+    }
+
+    // 3. High-density distinct thumbnail variant for this timestamp if available
+    final distinctVariants = video.thumbnailVariants
+        .where((v) => v.isNotEmpty && v != video.thumbnailUrl)
+        .toList();
+    if (distinctVariants.isNotEmpty && video.durationValue > Duration.zero) {
+      final ratio = (chapter.startTime.inMilliseconds /
+              video.durationValue.inMilliseconds)
+          .clamp(0.0, 1.0);
+      final varIdx = (ratio * (distinctVariants.length - 1))
+          .round()
+          .clamp(0, distinctVariants.length - 1);
+      final variantUrl = distinctVariants[varIdx];
+      return CachedNetworkImage(
+        imageUrl: variantUrl,
+        fit: BoxFit.cover,
+        memCacheWidth: 280,
+        memCacheHeight: 156,
+        placeholder: (context, url) => const Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        errorWidget: (context, url, error) => _buildChapterPlaceholder(),
+      );
+    }
+
+    // 4. Chapter 0 (start 0:00) may use the video thumbnail as intro cover
+    if (index == 0 && video.thumbnailUrl.isNotEmpty) {
+      return CachedNetworkImage(
+        imageUrl: video.thumbnailUrl,
+        fit: BoxFit.cover,
+        memCacheWidth: 280,
+        memCacheHeight: 156,
+        placeholder: (context, url) => const Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        errorWidget: (context, url, error) => _buildChapterPlaceholder(),
+      );
+    }
+
+    // 5. Industry-standard distinct placeholder for subsequent chapters (NEVER repeat main cover!)
+    return _buildChapterPlaceholder();
+  }
+
+  Widget _buildChapterPlaceholder() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.bgElevated,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.bgElevated,
+            const Color(0xFF162A45).withValues(alpha: 0.6),
+          ],
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.video_library_outlined,
+              color: Colors.white70,
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Ch ${index + 1}',
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
               ),
             ),
           ],

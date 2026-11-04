@@ -1,6 +1,6 @@
 # TruthWorld — Database Schema, Realtime Models & Security Rules
 
-TruthWorld uses a hybrid persistence architecture: **Cloud Firestore** for structured, relational document models, and **Firebase Realtime Database (RTDB)** for ultra-low latency presence and live chat.
+TruthWorld uses a hybrid persistence architecture: **Cloud Firestore** for structured, relational document models, and **Firebase Realtime Database (RTDB)** for ultra-low latency presence and live viewers.
 
 ---
 
@@ -37,18 +37,6 @@ RTDB (`truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app`) handles 
         "timestamp": 1718000000000
       }
     }
-  },
-  "live_chat": {
-    "$videoId": {
-      "$messageId": {
-        "senderId": "string",
-        "senderName": "string",
-        "avatarUrl": "string",
-        "message": "string",
-        "superchatAmount": 0,
-        "timestamp": 1718000000000
-      }
-    }
   }
 }
 ```
@@ -79,9 +67,8 @@ TruthWorld includes over 2,000 lines of hardened production security rules acros
    * Requires authenticated App Check tokens to prevent automated bot scrapers.
 
 2. **`storage.rules`**:
-   * Enforces file size limits (max 2GB for raw videos, max 10MB for thumbnails/avatars).
+   * Enforces file size limits (max 2GB for raw videos, max 2MB for video thumbnails matching YouTube, max 10MB for community images, max 15MB for general images).
    * Validates MIME types (`video/mp4`, `image/webp`, `image/png`, `text/vtt`).
 
 3. **`database.rules.json`**:
-   * Restricts live chat writes to authenticated users.
    * Restricts viewer presence updates to active session IDs.

@@ -24,9 +24,11 @@ import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { requireRecentAdmin } from "../utils/auth";
+import { applySecurityHeaders } from "../utils/securityHeaders";
 import { PIPELINE_CONFIG } from "../pipeline/config";
 import { notifyUser } from "../notifications/notifications";
 import { contentModerationService } from "../pipeline/services/contentModerationService";
+import { getBigQueryAnalyticsService } from "../analytics/bigqueryService";
 
 const db = admin.firestore();
 const REGION = "asia-south1";
@@ -263,6 +265,28 @@ export const onContentUploadedForModeration = onObjectFinalized(
         durationMs: result.processingTimeMs,
       });
 
+      // ─── BigQuery Analytics: Content Moderation Telemetry ──────────────
+      try {
+        getBigQueryAnalyticsService().enqueueModerationScan({
+          scan_id: `mod_scan_${videoId}_${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          video_id: videoId,
+          channel_id: videoData?.channelId || null,
+          uploader_id: videoData?.userId || videoData?.ownerId || videoData?.uploaderId || null,
+          moderation_status: moderationStatus,
+          risk_level: result.riskLevel || null,
+          confidence_score: typeof result.confidenceScore === "number" ? result.confidenceScore : null,
+          policy_action: result.policyAction || null,
+          violation_reason: result.violationReason || null,
+          violation_categories: Array.isArray(result.violationCategories) ? result.violationCategories : null,
+          detected_language: result.detectedLanguage || "en",
+          model: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || "gemini-2.5-flash",
+          processing_time_ms: typeof result.processingTimeMs === "number" ? result.processingTimeMs : null,
+        });
+      } catch (bqErr) {
+        console.warn("[ContentModeration] Failed to enqueue moderation scan to BigQuery:", bqErr);
+      }
+
       // ─── STEP 4: Route based on moderation decision ────────────────
       if (moderationStatus === "rejected") {
         // ─── REJECTED → cancel any in-progress pipeline ──────────────
@@ -426,6 +450,7 @@ export const moderateContentManual = onRequest(
     maxInstances: 10,
   },
   async (req, res) => {
+    applySecurityHeaders(res);
     try {
       const authUser = await requireRecentAdmin(req, res, 3600);
       if (!authUser) return; // Response is already handled by requireRecentAdmin
@@ -539,9 +564,41 @@ export const moderateContentManual = onRequest(
           }
         }
 
+        // ─── BigQuery Analytics: Moderator Action (Approve) ───────────────
+        try {
+          getBigQueryAnalyticsService().enqueueModeratorAction({
+            action_id: `mod_act_${videoId}_${now}`,
+            timestamp: new Date(now).toISOString(),
+            video_id: videoId,
+            channel_id: videoDoc.data()?.channelId || null,
+            moderator_id: authUser.uid,
+            action_type: "approve",
+            justification: reason || "Manually approved by administrator.",
+            statutory_legal_basis: (req.body?.statutoryLegalBasis as string) || null,
+          });
+        } catch (bqErr) {
+          console.warn("[ContentModeration] Failed to enqueue moderator approve action to BigQuery:", bqErr);
+        }
+
         res.status(200).json({ success: true, message: `Video approved manually.` });
       } else {
         // action === "reject"
+        // ─── BigQuery Analytics: Moderator Action (Reject) ───────────────
+        try {
+          getBigQueryAnalyticsService().enqueueModeratorAction({
+            action_id: `mod_act_${videoId}_${now}`,
+            timestamp: new Date(now).toISOString(),
+            video_id: videoId,
+            channel_id: videoDoc.data()?.channelId || null,
+            moderator_id: authUser.uid,
+            action_type: "reject",
+            justification: reason || "Manually rejected by administrator.",
+            statutory_legal_basis: (req.body?.statutoryLegalBasis as string) || null,
+          });
+        } catch (bqErr) {
+          console.warn("[ContentModeration] Failed to enqueue moderator reject action to BigQuery:", bqErr);
+        }
+
         // 1. Delete entire Video document from Videos collection
         await videoRef.delete();
 
@@ -690,6 +747,28 @@ export const scheduledContentModerationRetry = onSchedule(
           });
 
           console.log(`[ContentModerationRetry] Successfully self-healed video: ${videoId} -> ${moderationStatus}`);
+
+          // ─── BigQuery Analytics: Moderation Scan Telemetry ──────────────
+          try {
+            getBigQueryAnalyticsService().enqueueModerationScan({
+              scan_id: `mod_retry_${videoId}_${Date.now()}`,
+              timestamp: new Date().toISOString(),
+              video_id: videoId,
+              channel_id: retryData?.channelId || null,
+              uploader_id: retryData?.userId || retryData?.ownerId || retryData?.uploaderId || null,
+              moderation_status: moderationStatus,
+              risk_level: result.riskLevel || null,
+              confidence_score: typeof result.confidenceScore === "number" ? result.confidenceScore : null,
+              policy_action: result.policyAction || null,
+              violation_reason: result.violationReason || null,
+              violation_categories: Array.isArray(result.violationCategories) ? result.violationCategories : null,
+              detected_language: result.detectedLanguage || "en",
+              model: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || "gemini-2.5-flash",
+              processing_time_ms: typeof result.processingTimeMs === "number" ? result.processingTimeMs : null,
+            });
+          } catch (bqErr) {
+            console.warn("[ContentModerationRetry] Failed to enqueue moderation scan to BigQuery:", bqErr);
+          }
         } catch (retryErr: any) {
           console.error(`[ContentModerationRetry] Retry failed for video ${videoId}:`, retryErr?.message || retryErr);
           await doc.ref.update({
@@ -761,9 +840,9 @@ export const resubmitVideoForModeration = onCall(
     const videoData = videoDoc.data();
     const ownerId = videoData?.ownerId || videoData?.userId || videoData?.uploaderId;
 
-    if (ownerId && ownerId !== callerUid) {
+    if (!ownerId || ownerId !== callerUid) {
       const token = request.auth.token;
-      const isAdmin = token?.admin === true || token?.role === "admin";
+      const isAdmin = token?.admin === true && token?.email_verified === true;
       if (!isAdmin) {
         throw new HttpsError("permission-denied", "Only the video owner can resubmit this video.");
       }
@@ -883,7 +962,5 @@ export const resubmitVideoForModeration = onCall(
   }
 );
 
-// ─── Backward Compatibility Aliases ──────────────────────────────────────────
-export const onVideoUploadedForModeration = onContentUploadedForModeration;
+// ─── Manual Video Moderation (Caller Endpoint) ────────────────────────────────
 export const moderateVideoManual = moderateContentManual;
-export const scheduledVideoModerationRetry = scheduledContentModerationRetry;

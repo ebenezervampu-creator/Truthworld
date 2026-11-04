@@ -79,17 +79,6 @@ mixin RevenueAnalyticsStreamsMixin on RevenueAnalyticsStateBase {
               0;
           totalViews.value = views;
 
-          final watchMins = (data['totalWatchTimeMinutes'] as num?)?.toInt() ??
-              ((data['totalWatchTimeSeconds'] as num?) != null
-                  ? (((data['totalWatchTimeSeconds'] as num).toDouble()) / 60.0)
-                      .round()
-                  : 0);
-          totalWatchMinutes.value = watchMins;
-
-          final watchRevenue =
-              (data['watchTimeRevenueTotal'] as num?)?.toDouble() ?? 0.0;
-          watchTimeRevenue.value = watchRevenue;
-
           final membershipTotal = ((data['membershipRevenueTotal'] ??
                   data['membershipsRevenueTotal']) as num?)
               ?.toDouble() ??
@@ -333,11 +322,6 @@ mixin RevenueAnalyticsStreamsMixin on RevenueAnalyticsStateBase {
               (data['grossPremiumSubsRevenue'] as num?)?.toDouble() ?? 0.0;
           if (grossPremium > 0 && premiumSubsRevenue.value == 0.0) {
             premiumSubsRevenue.value = grossPremium;
-          }
-          final grossWatch =
-              (data['grossWatchTimeRevenue'] as num?)?.toDouble() ?? 0.0;
-          if (grossWatch > 0 && watchTimeRevenue.value == 0.0) {
-            watchTimeRevenue.value = grossWatch;
           }
           final creatorShare =
               (data['creatorShare'] as num?)?.toDouble() ?? 0.0;

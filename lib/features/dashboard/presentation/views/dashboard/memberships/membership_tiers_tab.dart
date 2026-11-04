@@ -403,7 +403,7 @@ class MemberAdFreeFeatureCard extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              'Transform channel memberships into a Channel Premium subscription for your audience. Active members unlock zero ads across your channel and high resolutions up to 2K (1440p QHD) video streaming for entire channel videos. TruthWorld takes a 30% platform cut on tiers with this bundle (Creator receives 70%). Tiers without the bundle receive 100% of revenue with 0% platform commission.',
+              'Transform channel memberships into a Channel Premium subscription for your audience. Active members unlock zero ads across your channel and high resolutions up to 2K (1440p QHD) video streaming for entire channel videos. TruthWorld takes a 30% platform cut on tiers with this bundle (Creator receives 70%). Tiers without the bundle receive 90% of revenue on Standard channels (10% platform fee) and 100% on Pro channels (0% platform cut).',
               style: TextStyle(
                 fontSize: 12,
                 color: isDarkMode ? AppColors.textSecondary : Colors.black54,

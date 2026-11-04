@@ -1,9 +1,11 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
+import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/widgets/detail/playlist_detail_constants.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/widgets/detail/playlist_detail_video_loader.dart';
 
@@ -19,6 +21,38 @@ class PlaylistActionButtons extends StatelessWidget {
   final PlaylistModel playlist;
   final bool isDesktop;
   final bool isTablet;
+
+  void _handleShare(PlaylistModel playlist) {
+    final playlistCtrl = Get.isRegistered<PlaylistController>()
+        ? Get.find<PlaylistController>()
+        : null;
+    final isWatchLater = playlist.id == 'watchlater' ||
+        playlist.playlistName.toLowerCase().trim() == 'watch later';
+    final liveThumb = playlistCtrl?.firstVideoThumbnail.value ?? '';
+    final effectiveThumb =
+        playlist.thumbnailUrl.isNotEmpty ? playlist.thumbnailUrl : liveThumb;
+    final count = (isWatchLater &&
+            playlistCtrl != null &&
+            playlistCtrl.watchLaterVideoIds.isNotEmpty)
+        ? playlistCtrl.watchLaterVideoIds.length
+        : playlist.effectiveVideoCount;
+    final user = FirebaseAuth.instance.currentUser;
+    final channelName = playlist.channelId.isEmpty
+        ? (user?.displayName?.isNotEmpty == true
+            ? user!.displayName!
+            : 'TruthWorld')
+        : null;
+
+    if (Get.isRegistered<MainController>()) {
+      Get.find<MainController>().sharePlaylist(
+        playlist.id,
+        playlist.playlistName,
+        thumbnailUrl: effectiveThumb,
+        videoCount: count,
+        channelName: channelName,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -109,30 +143,14 @@ class PlaylistActionButtons extends StatelessWidget {
           const SizedBox(width: 8),
           PlaylistActionButtonIcon(
             icon: Icons.share,
-            onTap: () {
-              if (Get.isRegistered<MainController>()) {
-                Get.find<MainController>().sharePlaylist(
-                  playlist.id,
-                  playlist.playlistName,
-                  thumbnailUrl: playlist.thumbnailUrl,
-                );
-              }
-            },
+            onTap: () => _handleShare(playlist),
             tooltip: 'Share',
           ),
         ] else ...[
           const SizedBox(width: 8),
           PlaylistActionButtonIcon(
             icon: Icons.share,
-            onTap: () {
-              if (Get.isRegistered<MainController>()) {
-                Get.find<MainController>().sharePlaylist(
-                  playlist.id,
-                  playlist.playlistName,
-                  thumbnailUrl: playlist.thumbnailUrl,
-                );
-              }
-            },
+            onTap: () => _handleShare(playlist),
             tooltip: 'Share',
           ),
         ],

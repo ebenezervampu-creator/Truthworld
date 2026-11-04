@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -23,8 +24,7 @@ import 'package:truthworld/theme/app_theme.dart';
 /// - Contributing channels section with electric blue ring cards
 /// - Explore topic videos section with interactive filter tab pills
 /// - Video cards with duration/index badges and 3-dots menus
-/// - "No more videos" status card
-/// - Comments section with rounded input box, image attachment icon, and thread replies
+/// - Comments section with rounded input box and thread replies
 /// - Fully responsive across mobile, tablet, desktop, and ultra-wide displays
 class TopicPage extends StatelessWidget {
   const TopicPage({super.key, this.slug});
@@ -605,70 +605,72 @@ class TopicPage extends StatelessWidget {
 
   Widget _buildVideosHeaderRow(bool isDesktop, bool isTablet) {
     return _buildSectionHeader(
-      'Explore ${controller.topicTitle}',
+      'Explore ${controller.topicName}',
       isDesktop,
       isTablet,
     );
   }
 
   Widget _buildTopicFilterTabs() {
-    final tabs = <String>[
-      'Trending',
-      'From Subscribed channels',
-      'New',
-      'Popular',
-    ];
-    if (controller.hasFactCheckedVideos) {
-      tabs.add('Fact checked');
-    }
+    return Obx(() {
+      final tabs = <String>[
+        'Trending',
+        'From Subscribed channels',
+        'New',
+        'Popular',
+      ];
+      if (controller.hasFactCheckedVideos) {
+        tabs.add('Fact checked');
+      }
 
-    return SizedBox(
-      height: 38,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: tabs.length,
-        physics: const BouncingScrollPhysics(),
-        itemBuilder: (context, index) {
-          final tab = tabs[index];
-          final isSelected = controller.selectedTab.value == tab;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: GestureDetector(
-              onTap: () {
-                controller.selectTab(tab);
-                HapticFeedback.selectionClick();
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? Colors.white
-                      : const Color(0xFF272727),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  tab,
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: isSelected
-                        ? FontWeight.bold
-                        : FontWeight.w500,
+      return SizedBox(
+        height: 38,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: tabs.length,
+          physics: const BouncingScrollPhysics(),
+          itemBuilder: (context, index) {
+            final tab = tabs[index];
+            final isSelected = controller.selectedTab.value == tab;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: GestureDetector(
+                onTap: () {
+                  controller.selectTab(tab);
+                  HapticFeedback.selectionClick();
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
                     color: isSelected
-                        ? Colors.black
-                        : Colors.white,
+                        ? Colors.white
+                        : const Color(0xFF272727),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    tab,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.w500,
+                      color: isSelected
+                          ? Colors.black
+                          : Colors.white,
+                    ),
                   ),
                 ),
               ),
-            ),
-          );
-        },
-      ),
-    );
+            );
+          },
+        ),
+      );
+    });
   }
 
   Widget _buildFeaturedCard(dynamic video, bool isDesktop, bool isTablet) {
@@ -711,6 +713,9 @@ class TopicPage extends StatelessWidget {
                 CachedNetworkImage(
                   imageUrl: video.thumbnailUrl ?? '',
                   fit: BoxFit.cover,
+                  memCacheWidth: kIsWeb ? null : 1280,
+                  maxWidthDiskCache: kIsWeb ? null : 1280,
+                  filterQuality: FilterQuality.medium,
                   placeholder: (context, url) => const ColoredBox(
                     color: AppColors.bgSurfaceContainerHighest,
                   ),

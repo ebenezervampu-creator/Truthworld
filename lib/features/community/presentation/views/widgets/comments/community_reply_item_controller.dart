@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
@@ -79,7 +78,7 @@ class CommunityReplyItemController extends BaseController {
     AppSnackbar.warning(
       'Please sign in to $action.',
       actionLabel: 'SIGN IN',
-      onAction: AuthBottomSheet.prompt,
+      onAction: () => AuthService.to.triggerPlatformSignIn(),
     );
   }
 
@@ -89,6 +88,11 @@ class CommunityReplyItemController extends BaseController {
       _showSignInPrompt('react to replies');
       return;
     }
+
+    final prevLiked = isLiked.value;
+    final prevDisliked = isDisliked.value;
+    final prevLikes = likeCount.value;
+    final prevDislikes = dislikeCount.value;
 
     final willLike = !isLiked.value;
     isLiked.value = willLike;
@@ -108,7 +112,9 @@ class CommunityReplyItemController extends BaseController {
           'likes': FieldValue.increment(1),
           'likeCount': FieldValue.increment(1),
           'likedBy': FieldValue.arrayUnion([uid]),
+          'likedby': FieldValue.arrayUnion([uid]),
           'dislikedBy': FieldValue.arrayRemove([uid]),
+          'dislikedby': FieldValue.arrayRemove([uid]),
         });
         await replyRef.collection('likes').doc(uid).set({
           'likedAt': FieldValue.serverTimestamp(),
@@ -127,6 +133,7 @@ class CommunityReplyItemController extends BaseController {
           'likes': FieldValue.increment(-1),
           'likeCount': FieldValue.increment(-1),
           'likedBy': FieldValue.arrayRemove([uid]),
+          'likedby': FieldValue.arrayRemove([uid]),
         });
         await replyRef
             .collection('likes')
@@ -144,6 +151,10 @@ class CommunityReplyItemController extends BaseController {
         stackTrace: stackTrace,
         tag: 'CommunityReplyItemController.toggleReplyLike',
       );
+      isLiked.value = prevLiked;
+      isDisliked.value = prevDisliked;
+      likeCount.value = prevLikes;
+      dislikeCount.value = prevDislikes;
     }
   }
 
@@ -153,6 +164,11 @@ class CommunityReplyItemController extends BaseController {
       _showSignInPrompt('react to replies');
       return;
     }
+
+    final prevLiked = isLiked.value;
+    final prevDisliked = isDisliked.value;
+    final prevLikes = likeCount.value;
+    final prevDislikes = dislikeCount.value;
 
     final willDislike = !isDisliked.value;
     isDisliked.value = willDislike;
@@ -172,7 +188,9 @@ class CommunityReplyItemController extends BaseController {
           'dislikes': FieldValue.increment(1),
           'dislikeCount': FieldValue.increment(1),
           'dislikedBy': FieldValue.arrayUnion([uid]),
+          'dislikedby': FieldValue.arrayUnion([uid]),
           'likedBy': FieldValue.arrayRemove([uid]),
+          'likedby': FieldValue.arrayRemove([uid]),
         });
         await replyRef.collection('dislikes').doc(uid).set({
           'dislikedAt': FieldValue.serverTimestamp(),
@@ -191,6 +209,7 @@ class CommunityReplyItemController extends BaseController {
           'dislikes': FieldValue.increment(-1),
           'dislikeCount': FieldValue.increment(-1),
           'dislikedBy': FieldValue.arrayRemove([uid]),
+          'dislikedby': FieldValue.arrayRemove([uid]),
         });
         await replyRef
             .collection('dislikes')
@@ -208,6 +227,10 @@ class CommunityReplyItemController extends BaseController {
         stackTrace: stackTrace,
         tag: 'CommunityReplyItemController.toggleReplyDislike',
       );
+      isLiked.value = prevLiked;
+      isDisliked.value = prevDisliked;
+      likeCount.value = prevLikes;
+      dislikeCount.value = prevDislikes;
     }
   }
 

@@ -55,6 +55,20 @@ class TopicRepliesSection extends StatelessWidget {
             .map(Reply.fromDocumentSnapshot)
             .toList();
 
+        final argReplyId = Get.arguments is Map ? (Get.arguments['replyId'] as String?) : null;
+        final paramReplyId = Get.parameters['replyId'];
+        final targetReplyId = (argReplyId != null && argReplyId.isNotEmpty)
+            ? argReplyId
+            : ((paramReplyId != null && paramReplyId.isNotEmpty) ? paramReplyId : null);
+
+        if (targetReplyId != null && replies.any((r) => r.id == targetReplyId)) {
+          if (!_isRepliesExpanded.value) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _isRepliesExpanded.value = true;
+            });
+          }
+        }
+
         return Obx(() {
           final isExpanded = _isRepliesExpanded.value;
 

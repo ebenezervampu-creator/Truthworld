@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
-import 'package:truthworld/features/dashboard/presentation/controllers/channel_notifications_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/channel_notifications_page.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
 
@@ -31,6 +30,10 @@ void main() {
 
   Widget wrapWithMaterial(Widget child) {
     return GetMaterialApp(
+      theme: ThemeData(
+        splashFactory: NoSplash.splashFactory,
+        useMaterial3: false,
+      ),
       home: Scaffold(
         body: child,
       ),
@@ -47,439 +50,707 @@ void main() {
     read: false,
     createdAt: DateTime.now(),
     priority: NotificationPriority.high,
-    analyticsSnapshot: AnalyticsSnapshotData(
-      views: 15400,
-      subscribers: 1200,
-      likes: 850,
-      comments: 64,
-      shares: 32,
-      watchHours: 124.5,
-      ctr: 0.08,
-      avd: 4.5,
-      subscriberDelta: 45,
-      snapshotAt: DateTime.now(),
-    ),
   );
 
-  final sampleCriticalNotification = UserNotification(
-    id: 'notif_crit_001',
+  final sampleTopicNotification = UserNotification(
+    id: 'notif_topic_001',
     userId: 'creator_123',
-    type: 'verification_failed',
-    severity: NotificationSeverity.warning,
-    priority: NotificationPriority.critical,
-    title: 'Verification Flag Detected',
-    message: 'Fact-checking algorithms flagged unverified claims in section 2.',
+    type: 'new_video_topic',
+    severity: NotificationSeverity.info,
+    title: 'New Topic Discussion',
+    message: 'A new video was posted in Economy topic.',
+    read: true,
+    createdAt: DateTime.now(),
+  );
+
+  final sampleCommentNotification = UserNotification(
+    id: 'notif_comment_001',
+    userId: 'creator_123',
+    type: 'comment',
+    severity: NotificationSeverity.info,
+    title: 'New Comment',
+    message: 'Jyothi commented on your video.',
     read: false,
     createdAt: DateTime.now(),
   );
 
-  group('ChannelNotificationsPage Modular Architecture Tests', () {
-    testWidgets('1. ChannelNotificationsHeaderBanner renders title, description and unread badge',
+  final sampleMentionNotification = UserNotification(
+    id: 'notif_mention_001',
+    userId: 'creator_123',
+    type: 'mention',
+    severity: NotificationSeverity.info,
+    title: 'You were mentioned',
+    message: 'Alice mentioned you in a comment.',
+    read: false,
+    createdAt: DateTime.now(),
+  );
+
+  group('ChannelNotificationsPage Consumer Architecture & UI Theme Tests', () {
+    testWidgets('1. ChannelNotificationsPage renders Notifications title and AppBar from consumerapp',
         (tester) async {
-      final controller = Get.put(
-        ChannelNotificationsController(
-          channelId: 'chan_test_101',
-          creatorId: 'creator_123',
-        ),
-        tag: 'chan_test_101',
-      );
-      controller.unreadCount.value = 3;
+      final controller = Get.put(NotificationViewController());
+      controller.feedController.rxIsLoading.value = false;
+      controller.userNotificationController.rxIsLoading.value = false;
 
       await tester.pumpWidget(
         wrapWithMaterial(
-          ChannelNotificationsHeaderBanner(controller: controller),
+          const ChannelNotificationsPage(
+            channelId: 'chan_test_101',
+            creatorId: 'creator_123',
+          ),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Channel Notifications'), findsOneWidget);
-      expect(find.text('3 UNREAD'), findsOneWidget);
-      expect(find.text('Mark all as read'), findsOneWidget);
-      expect(find.byIcon(Icons.notifications_rounded), findsOneWidget);
+      expect(find.text('Notifications'), findsOneWidget);
+      expect(find.byIcon(Icons.search_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.more_vert_rounded), findsOneWidget);
     });
 
-    testWidgets('2. ChannelNotificationsFilterChips renders categories and handles tap',
+    testWidgets('2. NotificationPillTabs renders All, Topics, Comments, Mentions and handles tap',
         (tester) async {
-      tester.view.physicalSize = const Size(1400, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(() => tester.view.resetPhysicalSize());
-
-      final controller = Get.put(
-        ChannelNotificationsController(
-          channelId: 'chan_test_102',
-          creatorId: 'creator_123',
-        ),
-        tag: 'chan_test_102',
-      );
+      final controller = Get.put(NotificationViewController());
+      controller.feedController.rxIsLoading.value = false;
+      controller.userNotificationController.rxIsLoading.value = false;
 
       await tester.pumpWidget(
         wrapWithMaterial(
-          ChannelNotificationsFilterChips(controller: controller),
+          NotificationPillTabs(viewController: controller),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('All Notifications'), findsOneWidget);
-      expect(find.text('Critical & Policy'), findsOneWidget);
-      expect(find.text('Milestones & Growth'), findsOneWidget);
-      expect(find.text('Fact Verification'), findsOneWidget);
+      expect(find.text('All'), findsOneWidget);
+      expect(find.text('Topics'), findsOneWidget);
+      expect(find.text('Comments'), findsOneWidget);
+      expect(find.text('Mentions'), findsOneWidget);
 
-      await tester.tap(find.text('Critical & Policy'));
+      await tester.tap(find.text('Comments'));
       await tester.pumpAndSettle();
 
-      expect(controller.selectedCategory.value, equals('critical'));
+      expect(controller.selectedTabIndex.value, equals(2));
     });
 
-    testWidgets('3. ChannelNotificationsEmptyState renders illustration and guidance',
+    testWidgets('3. NotificationSearchBar toggles and renders Search notifications...',
         (tester) async {
+      final controller = Get.put(NotificationViewController());
+      controller.feedController.rxIsLoading.value = false;
+      controller.userNotificationController.rxIsLoading.value = false;
+
       await tester.pumpWidget(
         wrapWithMaterial(
-          const ChannelNotificationsEmptyState(),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('No Notifications Yet'), findsOneWidget);
-      expect(
-        find.textContaining('Channel milestones, updates, video verification audit reports'),
-        findsOneWidget,
-      );
-      expect(find.byIcon(Icons.notifications_none_rounded), findsOneWidget);
-    });
-
-    testWidgets('4. ChannelNotificationsIssueCard renders badge, message and action buttons',
-        (tester) async {
-      await tester.pumpWidget(
-        wrapWithMaterial(
-          ChannelNotificationsIssueCard(
-            title: 'Avatar Image Flagged',
-            description: 'Image flagged for potential guidelines violation.',
-            statusType: 'FLAGGED',
-            icon: Icons.warning_amber_rounded,
-            actions: [
-              ElevatedButton(
-                onPressed: () {},
-                child: const Text('Resolve Now'),
-              ),
+          CustomScrollView(
+            slivers: [
+              NotificationAppBar(viewController: controller),
             ],
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Avatar Image Flagged'), findsOneWidget);
+      // Tap search icon to toggle search bar
+      await tester.tap(find.byIcon(Icons.search_rounded));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Search notifications...'), findsOneWidget);
+    });
+
+    testWidgets('4. PopupMenuButton renders Mark all as read',
+        (tester) async {
+      final controller = Get.put(NotificationViewController());
+      controller.feedController.rxIsLoading.value = false;
+      controller.userNotificationController.rxIsLoading.value = false;
+
+      await tester.pumpWidget(
+        wrapWithMaterial(
+          CustomScrollView(
+            slivers: [
+              NotificationAppBar(viewController: controller),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.more_vert_rounded));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Mark all as read'), findsOneWidget);
+    });
+
+    testWidgets('5. NotificationEmptyGeneralState renders No notifications and subtext',
+        (tester) async {
+      await tester.pumpWidget(
+        wrapWithMaterial(
+          const CustomScrollView(
+            slivers: [
+              NotificationEmptyGeneralState(),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('No notifications'), findsOneWidget);
       expect(
-        find.text('Image flagged for potential guidelines violation.'),
+        find.text('You have no notifications in this section.'),
         findsOneWidget,
       );
-      expect(find.text('Resolve Now'), findsOneWidget);
-      expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.notifications_off_rounded), findsOneWidget);
     });
 
-    testWidgets('5. ChannelNotificationsCriticalSection renders urgent notices',
+    testWidgets('6. NotificationEmptyTopicsState and NotificationEmptyMentionsState render exact text',
         (tester) async {
-      final controller = Get.put(
-        ChannelNotificationsController(
-          channelId: 'chan_test_103',
-          creatorId: 'creator_123',
-        ),
-        tag: 'chan_test_103',
-      );
-      controller.notifications.assignAll([sampleCriticalNotification]);
-
       await tester.pumpWidget(
         wrapWithMaterial(
-          ChannelNotificationsCriticalSection(
-            controller: controller,
-            channelId: 'chan_test_103',
+          const CustomScrollView(
+            slivers: [
+              NotificationEmptyTopicsState(),
+            ],
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('ACTION REQUIRED'), findsOneWidget);
-      expect(find.text('Verification Flag Detected'), findsOneWidget);
-      expect(find.byIcon(Icons.warning_rounded), findsOneWidget);
-    });
-
-    testWidgets('6. ChannelNotificationsNotificationCard renders analytics pill and content',
-        (tester) async {
-      final controller = Get.put(
-        ChannelNotificationsController(
-          channelId: 'chan_test_104',
-          creatorId: 'creator_123',
-        ),
-        tag: 'chan_test_104',
-      );
+      expect(find.text('No topic updates yet'), findsOneWidget);
+      expect(find.byIcon(Icons.topic_rounded), findsOneWidget);
 
       await tester.pumpWidget(
         wrapWithMaterial(
-          ChannelNotificationsNotificationCard(
-            controller: controller,
-            notification: sampleNotification,
-            channelId: 'chan_test_104',
+          const CustomScrollView(
+            slivers: [
+              NotificationEmptyMentionsState(),
+            ],
           ),
         ),
       );
       await tester.pumpAndSettle();
 
+      expect(find.text('No mentions yet'), findsOneWidget);
+      expect(find.byIcon(Icons.alternate_email_rounded), findsOneWidget);
+    });
+
+    testWidgets('7. Channel notifications render in Today section using CompactNotificationTile',
+        (tester) async {
+      final controller = Get.put(NotificationViewController());
+      controller.feedController.rxIsLoading.value = false;
+      controller.userNotificationController.rxIsLoading.value = false;
+      controller.userNotificationController.notifications.assignAll([
+        sampleNotification,
+      ]);
+
+      await tester.pumpWidget(
+        wrapWithMaterial(
+          const ChannelNotificationsPage(
+            channelId: 'chan_test_today',
+            creatorId: 'creator_123',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Today'), findsOneWidget);
       expect(find.text('Views Surging on Latest Video'), findsOneWidget);
       expect(
         find.text('Your latest upload gained 1,000 views in the past hour.'),
         findsOneWidget,
       );
-      expect(find.textContaining('15.4K views'), findsOneWidget);
-      expect(find.textContaining('1.2K subs'), findsOneWidget);
-      expect(find.byIcon(Icons.history_rounded), findsOneWidget);
+      expect(find.byType(CompactNotificationTile), findsOneWidget);
     });
 
-    testWidgets('7. ChannelNotificationsNotificationCard renders category tag, status tag and clarity notice',
+    testWidgets('8. NotificationActionMenu renders Mark as read and Delete notification',
         (tester) async {
-      final controller = Get.put(
-        ChannelNotificationsController(
-          channelId: 'chan_test_105',
-          creatorId: 'creator_123',
-        ),
-        tag: 'chan_test_105',
+      final controller = Get.put(NotificationViewController());
+      final item = UnifiedNotificationItem(
+        alert: sampleNotification,
+        timestamp: sampleNotification.createdAt,
+        isSeen: sampleNotification.read,
       );
 
       await tester.pumpWidget(
         wrapWithMaterial(
-          ChannelNotificationsNotificationCard(
-            controller: controller,
-            notification: sampleNotification,
-            channelId: 'chan_test_105',
+          NotificationActionMenu(
+            item: item,
+            viewController: controller,
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('PERFORMANCE INSIGHT'), findsOneWidget);
-      expect(find.text('Audience Surge'), findsOneWidget);
-      expect(find.text('Understand Notice'), findsOneWidget);
-      expect(find.textContaining('Engagement surge detected'), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.more_vert_rounded));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Mark as read'), findsOneWidget);
+      expect(find.text('Delete notification'), findsOneWidget);
     });
 
-    testWidgets('8. Tapping Understand Notice opens ChannelNotificationsDetailModal with standing impact',
+    testWidgets('9. NotificationFloatingActions renders Mark All Read when unread notifications exist',
         (tester) async {
-      tester.view.physicalSize = const Size(1200, 1000);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(() => tester.view.resetPhysicalSize());
-
-      final controller = Get.put(
-        ChannelNotificationsController(
-          channelId: 'chan_test_106',
-          creatorId: 'creator_123',
-        ),
-        tag: 'chan_test_106',
-      );
+      final controller = Get.put(NotificationViewController());
+      controller.feedController.rxIsLoading.value = false;
+      controller.userNotificationController.rxIsLoading.value = false;
+      controller.userNotificationController.notifications.assignAll([
+        sampleNotification,
+      ]);
 
       await tester.pumpWidget(
         wrapWithMaterial(
-          ChannelNotificationsNotificationCard(
-            controller: controller,
-            notification: sampleNotification,
-            channelId: 'chan_test_106',
-          ),
+          NotificationFloatingActions(viewController: controller),
         ),
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Understand Notice'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('CHANNEL STANDING & SAFETY'), findsOneWidget);
-      expect(find.textContaining('In Good Standing (0 Strikes)'), findsOneWidget);
-      expect(find.text('RECOMMENDED NEXT STEPS'), findsOneWidget);
-      expect(find.text('Close'), findsOneWidget);
+      expect(find.text('Mark All Read'), findsOneWidget);
+      expect(find.byIcon(Icons.done_all_rounded), findsOneWidget);
     });
 
-    testWidgets('9. Tapping How it works in HeaderBanner opens ChannelNotificationsGuideModal',
+    testWidgets('10. Notifications filter correctly across Topics, Comments, and Mentions tabs',
         (tester) async {
-      tester.view.physicalSize = const Size(1200, 1000);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(() => tester.view.resetPhysicalSize());
+      final controller = Get.put(NotificationViewController());
+      controller.feedController.rxIsLoading.value = false;
+      controller.userNotificationController.rxIsLoading.value = false;
+      controller.userNotificationController.notifications.assignAll([
+        sampleNotification,
+        sampleTopicNotification,
+        sampleCommentNotification,
+        sampleMentionNotification,
+      ]);
 
-      final controller = Get.put(
-        ChannelNotificationsController(
-          channelId: 'chan_test_107',
-          creatorId: 'creator_123',
-        ),
-        tag: 'chan_test_107',
-      );
+      // Tab 0: All
+      controller.selectedTabIndex.value = 0;
+      var items = controller.getUnifiedNotificationsForTab();
+      expect(items.length, equals(4));
 
-      await tester.pumpWidget(
-        wrapWithMaterial(
-          ChannelNotificationsHeaderBanner(controller: controller),
-        ),
-      );
-      await tester.pumpAndSettle();
+      // Tab 1: Topics
+      controller.selectedTabIndex.value = 1;
+      items = controller.getUnifiedNotificationsForTab();
+      expect(items.length, equals(1));
+      expect(items.first.alert?.id, equals('notif_topic_001'));
 
-      expect(find.text('How it works'), findsOneWidget);
-      await tester.tap(find.text('How it works'));
-      await tester.pumpAndSettle();
+      // Tab 2: Comments
+      controller.selectedTabIndex.value = 2;
+      items = controller.getUnifiedNotificationsForTab();
+      expect(items.length, equals(1));
+      expect(items.first.alert?.id, equals('notif_comment_001'));
 
-      expect(find.text('Channel Notifications Guide'), findsOneWidget);
-      expect(find.textContaining('Creator Review First'), findsOneWidget);
-      expect(find.text('Got it'), findsOneWidget);
+      // Tab 3: Mentions
+      controller.selectedTabIndex.value = 3;
+      items = controller.getUnifiedNotificationsForTab();
+      expect(items.length, equals(1));
+      expect(items.first.alert?.id, equals('notif_mention_001'));
     });
 
-    testWidgets('10. Comment notification renders clean card without noisy standing box, raw UUIDs, or understand notice',
+    testWidgets('11. Channel video issues (rejection, manual review) synthesize and render with exact UI',
         (tester) async {
-      final controller = Get.put(
-        ChannelNotificationsController(
-          channelId: 'chan_test_comment',
-          creatorId: 'creator_123',
-        ),
-        tag: 'chan_test_comment',
-      );
-      controller.videoTitlesCache['video_uuid_1234'] = 'How TruthWorld Works';
+      final controller = Get.put(NotificationViewController());
+      controller.feedController.rxIsLoading.value = false;
+      controller.userNotificationController.rxIsLoading.value = false;
+      controller.setChannelContext(channelId: 'chan_test_101', creatorId: 'creator_123');
 
-      final commentNotification = UserNotification(
-        id: 'notif_comment_1',
+      final rejectedIssue = UserNotification(
+        id: 'issue_video_rejected_vid_99',
         userId: 'creator_123',
-        type: 'comment',
-        severity: NotificationSeverity.info,
-        title: 'New Comment!',
-        message: 'Jyothi Yerrola commented: "Nice video anna..."',
+        channelId: 'chan_test_101',
+        type: 'verification_result',
+        severity: NotificationSeverity.priority,
+        priority: NotificationPriority.critical,
+        title: 'Truth Verification Action Required',
+        message: 'Your video "Deepfake Probe" was not accepted: Content violated accuracy policies.',
+        thumbnailUrl: 'https://example.com/thumb.jpg',
+        actionUrl: '/studio',
+        category: 'verification',
+        metadata: {'videoId': 'vid_99', 'videoTitle': 'Deepfake Probe', 'tab': 15},
         read: false,
         createdAt: DateTime.now(),
-        metadata: {
-          'videoId': 'video_uuid_1234',
-          'videoTitle': 'How TruthWorld Works',
-          'commenterName': 'Jyothi Yerrola',
-        },
+        targetApp: 'studio',
       );
+
+      final manualReviewIssue = UserNotification(
+        id: 'issue_video_manual_review_vid_100',
+        userId: 'creator_123',
+        channelId: 'chan_test_101',
+        type: 'fact_check_pending',
+        severity: NotificationSeverity.warning,
+        priority: NotificationPriority.high,
+        title: 'Video Under Manual Review',
+        message: 'Your video "Climate Summary" is held for manual human review.',
+        thumbnailUrl: 'https://example.com/thumb2.jpg',
+        actionUrl: '/studio',
+        category: 'verification',
+        metadata: {'videoId': 'vid_100', 'videoTitle': 'Climate Summary', 'tab': 15},
+        read: false,
+        createdAt: DateTime.now().subtract(const Duration(minutes: 10)),
+        targetApp: 'studio',
+      );
+
+      controller.channelIssues.assignAll([manualReviewIssue, rejectedIssue]);
 
       await tester.pumpWidget(
         wrapWithMaterial(
-          ChannelNotificationsNotificationCard(
-            controller: controller,
-            notification: commentNotification,
-            channelId: 'chan_test_comment',
+          const ChannelNotificationsPage(
+            channelId: 'chan_test_101',
+            creatorId: 'creator_123',
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      // Verified: Comment author and quote rendered
-      expect(find.text('Jyothi Yerrola'), findsOneWidget);
-      expect(find.text('"Nice video anna..."'), findsOneWidget);
+      // Verify exact titles and messages appear in the CompactNotificationTile layout
+      expect(find.text('Truth Verification Action Required'), findsOneWidget);
+      expect(find.textContaining('Content violated accuracy policies'), findsOneWidget);
+      expect(find.text('Video Under Manual Review'), findsOneWidget);
+      expect(find.textContaining('Climate Summary'), findsOneWidget);
 
-      // Verified: Real video title rendered, NO raw UUID
-      expect(find.text('How TruthWorld Works'), findsOneWidget);
-      expect(find.textContaining('video_uuid_1234'), findsNothing);
-
-      // Verified: Tag is COMMENT, NOT CHANNEL NOTICE
-      expect(find.text('COMMENT'), findsOneWidget);
-      expect(find.text('CHANNEL NOTICE'), findsNothing);
-
-      // Verified: Clean Reply button exists
-      expect(find.text('Reply'), findsOneWidget);
-
-      // Verified: No noisy All Good or Understand Notice on comments!
-      expect(find.textContaining('All Good: Your channel is in Good Standing'), findsNothing);
-      expect(find.text('Understand Notice'), findsNothing);
+      // Verify critical priority item is ranked first in the unified list
+      final items = controller.getUnifiedNotificationsForTab();
+      expect(items.first.alert?.id, equals('issue_video_rejected_vid_99'));
     });
 
-    testWidgets('11. Subscriber notification renders clean card without Manage in Videos or noisy standing box',
+    testWidgets('12. Copyright claims and branding issues render seamlessly with action routing',
         (tester) async {
-      final controller = Get.put(
-        ChannelNotificationsController(
-          channelId: 'chan_test_sub',
-          creatorId: 'creator_123',
-        ),
-        tag: 'chan_test_sub',
+      final controller = Get.put(NotificationViewController());
+      controller.feedController.rxIsLoading.value = false;
+      controller.userNotificationController.rxIsLoading.value = false;
+      controller.setChannelContext(channelId: 'chan_test_101', creatorId: 'creator_123');
+
+      final copyrightIssue = UserNotification(
+        id: 'issue_copyright_claim_55',
+        userId: 'creator_123',
+        channelId: 'chan_test_101',
+        type: 'copyright_claim',
+        severity: NotificationSeverity.priority,
+        priority: NotificationPriority.critical,
+        title: 'Copyright Claim Notice',
+        message: 'A copyright claim was submitted for your video "Soundtrack Song".',
+        actionUrl: '/studio',
+        category: 'copyright',
+        metadata: {'claimId': 'claim_55', 'videoId': 'vid_song', 'tab': 9},
+        read: false,
+        createdAt: DateTime.now(),
+        targetApp: 'studio',
       );
 
-      final subNotification = UserNotification(
-        id: 'notif_sub_1',
+      final avatarIssue = UserNotification(
+        id: 'issue_channel_avatar_chan_test_101',
         userId: 'creator_123',
+        channelId: 'chan_test_101',
+        type: 'channel_policy',
+        severity: NotificationSeverity.warning,
+        priority: NotificationPriority.high,
+        title: 'Channel Profile Picture Notice',
+        message: 'Your channel profile picture requires attention (Low resolution flagged).',
+        actionUrl: '/studio',
+        category: 'channel',
+        metadata: {'channelId': 'chan_test_101', 'tab': 6},
+        read: false,
+        createdAt: DateTime.now(),
+        targetApp: 'studio',
+      );
+
+      controller.channelIssues.assignAll([copyrightIssue, avatarIssue]);
+
+      await tester.pumpWidget(
+        wrapWithMaterial(
+          const ChannelNotificationsPage(
+            channelId: 'chan_test_101',
+            creatorId: 'creator_123',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Copyright Claim Notice'), findsOneWidget);
+      expect(find.textContaining('A copyright claim was submitted'), findsOneWidget);
+      expect(find.text('Channel Profile Picture Notice'), findsOneWidget);
+      expect(find.textContaining('Low resolution flagged'), findsOneWidget);
+    });
+
+    testWidgets('13. Audience tab alerts (subscribers milestone & new follower) render in exact style',
+        (tester) async {
+      final controller = Get.put(NotificationViewController());
+      controller.feedController.rxIsLoading.value = false;
+      controller.userNotificationController.rxIsLoading.value = false;
+      controller.setChannelContext(channelId: 'chan_test_101', creatorId: 'creator_123');
+
+      final milestoneAlert = UserNotification(
+        id: 'sub_milestone_10k',
+        userId: 'creator_123',
+        channelId: 'chan_test_101',
+        type: 'subscribers_milestone_v1',
+        severity: NotificationSeverity.success,
+        priority: NotificationPriority.high,
+        title: '🎉 Milestone Achieved: 10,000 Subscribers!',
+        message: 'Congratulations! Your channel reached 10,000 subscribers (+250 this week).',
+        actionUrl: '/subscribers',
+        category: 'growth',
+        metadata: {'channelId': 'chan_test_101', 'tab': 12},
+        read: false,
+        createdAt: DateTime.now(),
+      );
+
+      final newSubscriberAlert = UserNotification(
+        id: 'sub_new_alice',
+        userId: 'creator_123',
+        channelId: 'chan_test_101',
         type: 'new_follower',
         severity: NotificationSeverity.info,
         title: 'New Subscriber!',
-        message: 'Jyothi Yerrola subscribed to your channel.',
-        read: false,
-        createdAt: DateTime.now(),
-        metadata: {
-          'subscriberId': 'user_jyothi_1',
-        },
+        message: 'Alice subscribed to your channel.',
+        actionUrl: '/studio',
+        category: 'growth',
+        metadata: {'channelId': 'chan_test_101', 'subscriberId': 'user_alice'},
+        read: true,
+        createdAt: DateTime.now().subtract(const Duration(minutes: 15)),
       );
+
+      controller.userNotificationController.notifications.assignAll([
+        milestoneAlert,
+        newSubscriberAlert,
+      ]);
 
       await tester.pumpWidget(
         wrapWithMaterial(
-          ChannelNotificationsNotificationCard(
-            controller: controller,
-            notification: subNotification,
-            channelId: 'chan_test_sub',
+          const ChannelNotificationsPage(
+            channelId: 'chan_test_101',
+            creatorId: 'creator_123',
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      // Verified: Content rendered
+      expect(find.text('🎉 Milestone Achieved: 10,000 Subscribers!'), findsOneWidget);
+      expect(find.textContaining('Congratulations! Your channel reached 10,000 subscribers'), findsOneWidget);
       expect(find.text('New Subscriber!'), findsOneWidget);
-      expect(find.text('Jyothi Yerrola subscribed to your channel.'), findsOneWidget);
-
-      // Verified: Tag is SUBSCRIBER
-      expect(find.text('SUBSCRIBER'), findsOneWidget);
-      expect(find.text('View Profile'), findsOneWidget);
-
-      // Verified: No noisy Manage in Videos, All Good or Understand Notice on subscribers!
-      expect(find.text('Manage in Videos'), findsNothing);
-      expect(find.textContaining('All Good: Your channel is in Good Standing'), findsNothing);
-      expect(find.text('Understand Notice'), findsNothing);
+      expect(find.text('Alice subscribed to your channel.'), findsOneWidget);
     });
 
-    testWidgets('12. Category filter chips and video title resolution guarantee zero raw UUID leaks',
+    testWidgets('14. Analytics page alerts (AI Coach & performance insight) render in exact style',
         (tester) async {
-      final controller = Get.put(
-        ChannelNotificationsController(
-          channelId: 'chan_test_filters',
-          creatorId: 'creator_123',
+      final controller = Get.put(NotificationViewController());
+      controller.feedController.rxIsLoading.value = false;
+      controller.userNotificationController.rxIsLoading.value = false;
+      controller.setChannelContext(channelId: 'chan_test_101', creatorId: 'creator_123');
+
+      final coachAlert = UserNotification(
+        id: 'coach_tip_01',
+        userId: 'creator_123',
+        channelId: 'chan_test_101',
+        type: 'coach_growth_tip_v1',
+        severity: NotificationSeverity.info,
+        priority: NotificationPriority.medium,
+        title: '💡 AI Creator Coach: High Engagement Window',
+        message: 'Posting on Fridays at 6 PM resulted in 40% more comments on this channel.',
+        actionUrl: '/analytics',
+        category: 'education',
+        metadata: {'channelId': 'chan_test_101', 'tab': 3},
+        read: false,
+        createdAt: DateTime.now(),
+      );
+
+      final retentionAlert = UserNotification(
+        id: 'retention_spike_01',
+        userId: 'creator_123',
+        channelId: 'chan_test_101',
+        type: 'retention_spike',
+        severity: NotificationSeverity.info,
+        priority: NotificationPriority.high,
+        title: 'Audience Retention Spike',
+        message: 'Viewer retention peaked at 2:30 in your recent video.',
+        actionUrl: '/analytics',
+        category: 'analytics',
+        metadata: {'channelId': 'chan_test_101', 'tab': 3},
+        read: true,
+        createdAt: DateTime.now().subtract(const Duration(minutes: 5)),
+      );
+
+      controller.userNotificationController.notifications.assignAll([
+        coachAlert,
+        retentionAlert,
+      ]);
+
+      await tester.pumpWidget(
+        wrapWithMaterial(
+          const ChannelNotificationsPage(
+            channelId: 'chan_test_101',
+            creatorId: 'creator_123',
+          ),
         ),
-        tag: 'chan_test_filters',
       );
+      await tester.pumpAndSettle();
 
-      final commentNotif = UserNotification(
-        id: 'c1',
+      expect(find.text('💡 AI Creator Coach: High Engagement Window'), findsOneWidget);
+      expect(find.textContaining('Posting on Fridays at 6 PM'), findsOneWidget);
+      expect(find.text('Audience Retention Spike'), findsOneWidget);
+      expect(find.textContaining('Viewer retention peaked at 2:30'), findsOneWidget);
+    });
+
+    testWidgets('15. Dismissing and marking issue notifications as read updates list reactively',
+        (tester) async {
+      final controller = Get.put(NotificationViewController());
+      controller.feedController.rxIsLoading.value = false;
+      controller.userNotificationController.rxIsLoading.value = false;
+      controller.setChannelContext(channelId: 'chan_test_101', creatorId: 'creator_123');
+
+      final testIssue = UserNotification(
+        id: 'issue_video_failed_vid_err',
         userId: 'creator_123',
-        type: 'comment',
-        severity: NotificationSeverity.info,
-        title: 'New Comment!',
-        message: 'Someone commented: "Great info!"',
+        channelId: 'chan_test_101',
+        type: 'video_processing_failed',
+        severity: NotificationSeverity.warning,
+        title: 'Video Processing Issue',
+        message: 'Video "Test Upload" failed to process.',
         read: false,
         createdAt: DateTime.now(),
       );
 
-      final subNotif = UserNotification(
-        id: 's1',
-        userId: 'creator_123',
-        type: 'new_follower',
-        severity: NotificationSeverity.info,
-        title: 'New Subscriber!',
-        message: 'John subscribed to your channel.',
+      controller.channelIssues.assignAll([testIssue]);
+
+      var items = controller.getUnifiedNotificationsForTab();
+      expect(items.length, equals(1));
+      expect(items.first.isSeen, isFalse);
+
+      // Mark as read
+      controller.markIssueAsRead('issue_video_failed_vid_err');
+      items = controller.getUnifiedNotificationsForTab();
+      expect(items.first.isSeen, isTrue);
+
+      // Dismiss / delete issue
+      controller.dismissIssue('issue_video_failed_vid_err');
+      items = controller.getUnifiedNotificationsForTab();
+      expect(items.isEmpty, isTrue);
+    });
+
+    testWidgets('16. NotificationPillTabs in Creator Studio renders 6 tabs (All, Verifications, Studio Alerts, Topics, Comments, Mentions)',
+        (tester) async {
+      tester.view.physicalSize = const Size(1920, 1080);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final controller = Get.put(NotificationViewController());
+      controller.setChannelContext(channelId: 'channel_studio_test_001', creatorId: 'creator_001');
+      controller.feedController.rxIsLoading.value = false;
+      controller.userNotificationController.rxIsLoading.value = false;
+
+      await tester.pumpWidget(
+        wrapWithMaterial(
+          NotificationPillTabs(viewController: controller),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('All'), findsOneWidget);
+      expect(find.text('Verifications'), findsOneWidget);
+      expect(find.text('Studio Alerts'), findsOneWidget);
+      expect(find.text('Topics'), findsOneWidget);
+      expect(find.text('Comments'), findsOneWidget);
+      expect(find.text('Mentions'), findsOneWidget);
+
+      // Tap Verifications tab (index 1)
+      await tester.tap(find.text('Verifications'));
+      await tester.pumpAndSettle();
+      expect(controller.selectedTabIndex.value, equals(1));
+      expect(controller.activeTabId, equals('verifications'));
+
+      // Tap Studio Alerts tab (index 2)
+      await tester.tap(find.text('Studio Alerts'));
+      await tester.pumpAndSettle();
+      expect(controller.selectedTabIndex.value, equals(2));
+      expect(controller.activeTabId, equals('studio_alerts'));
+
+      // Tap Topics tab (index 3)
+      await tester.tap(find.text('Topics'));
+      await tester.pumpAndSettle();
+      expect(controller.selectedTabIndex.value, equals(3));
+      expect(controller.activeTabId, equals('topics'));
+    });
+
+    testWidgets('17. Creator Studio Verifications and Studio Alerts tabs filter notifications and render empty states',
+        (tester) async {
+      final controller = Get.put(NotificationViewController());
+      controller.setChannelContext(channelId: 'channel_studio_test_002', creatorId: 'creator_002');
+      controller.feedController.rxIsLoading.value = false;
+      controller.userNotificationController.rxIsLoading.value = false;
+
+      final verifAlert = UserNotification(
+        id: 'verif_001',
+        userId: 'creator_002',
+        channelId: 'channel_studio_test_002',
+        type: 'verification_result',
+        severity: NotificationSeverity.priority,
+        title: 'Truth Verification Passed',
+        message: 'Your video truth claims are fully verified with 100% accuracy.',
         read: false,
         createdAt: DateTime.now(),
       );
 
-      controller.notifications.assignAll([commentNotif, subNotif]);
+      final studioAlert = UserNotification(
+        id: 'copyright_001',
+        userId: 'creator_002',
+        channelId: 'channel_studio_test_002',
+        type: 'copyright_claim',
+        severity: NotificationSeverity.warning,
+        title: 'Copyright Claim Notice',
+        message: 'A copyright match was found on track 1.',
+        read: false,
+        createdAt: DateTime.now(),
+      );
 
-      // Filter by comments
-      controller.selectedCategory.value = 'comments';
-      expect(controller.filteredNotifications.length, equals(1));
-      expect(controller.filteredNotifications.first.id, equals('c1'));
+      controller.userNotificationController.notifications.assignAll([verifAlert, studioAlert]);
 
-      // Filter by subscribers
-      controller.selectedCategory.value = 'subscribers';
-      expect(controller.filteredNotifications.length, equals(1));
-      expect(controller.filteredNotifications.first.id, equals('s1'));
+      // All tab
+      controller.selectTabById('all');
+      var items = controller.getUnifiedNotificationsForTab();
+      expect(items.length, equals(2));
 
-      // Test video title resolution with raw UUID string
-      const rawUuid = '1f2a001f-c96b-4e12-8822-abcdef123456';
-      // Raw UUID is intercepted and returns friendly fallback 'Video' or cached title
-      final resolved = controller.getVideoTitle(rawUuid, initialTitle: rawUuid);
-      expect(resolved.contains(rawUuid), isFalse);
+      // Verifications tab
+      controller.selectTabById('verifications');
+      items = controller.getUnifiedNotificationsForTab();
+      expect(items.length, equals(1));
+      expect(items.first.alert?.id, equals('verif_001'));
+
+      // Studio Alerts tab
+      controller.selectTabById('studio_alerts');
+      items = controller.getUnifiedNotificationsForTab();
+      expect(items.length, equals(1));
+      expect(items.first.alert?.id, equals('copyright_001'));
+
+      // Verify empty states
+      await tester.pumpWidget(
+        wrapWithMaterial(
+          const CustomScrollView(
+            slivers: [
+              NotificationEmptyVerificationsState(),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('No verification notices'), findsOneWidget);
+
+      await tester.pumpWidget(
+        wrapWithMaterial(
+          const CustomScrollView(
+            slivers: [
+              NotificationEmptyStudioAlertsState(),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('No studio alerts'), findsOneWidget);
+
+      await tester.pumpWidget(
+        wrapWithMaterial(
+          const CustomScrollView(
+            slivers: [
+              NotificationEmptyCommentsState(),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('No comments yet'), findsOneWidget);
     });
   });
 }

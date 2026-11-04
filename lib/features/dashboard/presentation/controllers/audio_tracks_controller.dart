@@ -1,13 +1,25 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:http/http.dart' as http;
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/config/app_config.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/utils/download_helper.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks/audio_tracks_barrel.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/data/models/video_media.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 
@@ -24,6 +36,10 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
   final AudioTracksUploadManager _uploadManager = AudioTracksUploadManager();
   final AudioTracksCommentaryManager _commentaryManager =
       AudioTracksCommentaryManager();
+  late final AudioTracksPlaybackController playbackController =
+      Get.isRegistered<AudioTracksPlaybackController>()
+          ? Get.find<AudioTracksPlaybackController>()
+          : Get.put(AudioTracksPlaybackController());
 
   // Sub-manager accessors for advanced modular usage
   AudioTracksContextManager get contextManager => _contextManager;
@@ -48,6 +64,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
   // Language & Tab delegation
   RxString get activeTab => _languageManager.activeTab;
   RxList<String> get availableLanguages => _languageManager.availableLanguages;
+  RxMap<String, String> get customLanguages => _languageManager.customLanguages;
   RxString get selectedLanguage => _languageManager.selectedLanguage;
   RxList<LanguageRequest> get languageRequests =>
       _languageManager.languageRequests;
@@ -58,6 +75,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
 
   // Editor delegation
   RxList<AudioTrackItem> get currentTracks => _editorManager.currentTracks;
+  final RxList<VideoTrackItem> currentVideoTracks = <VideoTrackItem>[].obs;
   RxList<CommentaryTrackItem> get commentaryTracks =>
       _editorManager.commentaryTracks;
   RxBool get isSaving => _editorManager.isSaving;
@@ -66,6 +84,27 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
 
   List<({String code, String name})> get supportedLanguages =>
       kSupportedLanguages;
+
+  List<({String code, String name})> get chirp3HdSupportedLanguages =>
+      kChirp3HdSupportedLanguages;
+
+  // Active AI dubbing generation tracking & progress state
+  static final Map<String, Set<String>> _globalActiveDubbingJobs = {};
+  static final Map<String, Map<String, AudioDubbingProgressState>>
+      _globalDubbingProgress = {};
+
+  final RxSet<String> generatingDubLanguages = <String>{}.obs;
+  final RxMap<String, AudioDubbingProgressState> dubbingProgress =
+      <String, AudioDubbingProgressState>{}.obs;
+  final Set<String> _notifiedDubLanguages = <String>{};
+
+  StreamSubscription<DocumentSnapshot>? _aiDubbingJobSub;
+  StreamSubscription<DocumentSnapshot>? _videoDocSub;
+  StreamSubscription<DocumentSnapshot>? _locDocSub;
+  Timer? _progressTickerTimer;
+
+  AudioDubbingProgressState? getDubbingProgress(String langCode) =>
+      dubbingProgress[langCode];
 
   @override
   void onInit() {
@@ -81,9 +120,281 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
 
   @override
   void onClose() {
+    _progressTickerTimer?.cancel();
+    _aiDubbingJobSub?.cancel();
+    _videoDocSub?.cancel();
+    _locDocSub?.cancel();
+    playbackController.stop();
     _contextManager.dispose();
     _languageManager.dispose();
     super.onClose();
+  }
+
+  /// Determines if a Firestore video_jobs record is a dead zombie (> 5 minutes old with no completion).
+  bool _isJobZombie(Map<String, dynamic> data, Map<String, dynamic>? stage) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    int? timestamp;
+    if (stage != null && stage['startedAt'] is num) {
+      timestamp = (stage['startedAt'] as num).toInt();
+    } else if (stage != null && stage['updatedAt'] is num) {
+      timestamp = (stage['updatedAt'] as num).toInt();
+    } else if (data['updatedAt'] is num) {
+      timestamp = (data['updatedAt'] as num).toInt();
+    } else if (data['createdAt'] is num) {
+      timestamp = (data['createdAt'] as num).toInt();
+    } else if (data['updatedAt'] is Timestamp) {
+      timestamp = (data['updatedAt'] as Timestamp).millisecondsSinceEpoch;
+    } else if (data['createdAt'] is Timestamp) {
+      timestamp = (data['createdAt'] as Timestamp).millisecondsSinceEpoch;
+    }
+
+    if (timestamp == null) return false;
+    // Max allowable active duration for AI dubbing: 5 minutes (300,000 ms)
+    const maxActiveDurationMs = 5 * 60 * 1000;
+    return (now - timestamp) > maxActiveDurationMs;
+  }
+
+  void _markLanguageDubCompleted(String videoId, String lang, String newUrl) {
+    generatingDubLanguages.remove(lang);
+    dubbingProgress.remove(lang);
+    _globalActiveDubbingJobs[videoId]?.remove(lang);
+    _globalDubbingProgress[videoId]?.remove(lang);
+
+    for (final track in currentTracks) {
+      if (track.languageCode == lang) {
+        track.status = 'Published';
+        if (newUrl.isNotEmpty) {
+          track.audioUrl = newUrl;
+          track.isResolved = true;
+        }
+      }
+    }
+
+    for (final track in currentVideoTracks) {
+      if (track.languageCode == lang) {
+        track.status = 'Published';
+        if (newUrl.isNotEmpty) {
+          track.videoUrl = newUrl;
+          track.isResolved = true;
+        }
+      }
+    }
+    currentVideoTracks.refresh();
+  }
+
+  void _startProgressTicker() {
+    _progressTickerTimer?.cancel();
+    _progressTickerTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+      if (generatingDubLanguages.isEmpty) {
+        _progressTickerTimer?.cancel();
+        _progressTickerTimer = null;
+        return;
+      }
+      final vId = selectedVideo.value?.id;
+      var updated = false;
+      for (final lang in generatingDubLanguages.toList()) {
+        final current = dubbingProgress[lang];
+        if (current != null && current.isGenerating) {
+          final startedAt = current.startedAt ?? DateTime.now();
+          final elapsedSec = DateTime.now().difference(startedAt).inSeconds;
+
+          // 1. Hard Timeout Check: Voice dubbing must never spin beyond 5 minutes (300 seconds)
+          if (elapsedSec > 300) {
+            logger.warning('Dubbing generation timed out for $lang (elapsed: $elapsedSec s)', tag: _tag);
+            var recoveredUrl = '';
+            if (vId != null) {
+              final loc = await VideoMediaService().getLocalization(vId, forceRefresh: true);
+              recoveredUrl = loc.audioTracks[lang] ?? '';
+            }
+            if (recoveredUrl.isNotEmpty) {
+              _markLanguageDubCompleted(vId!, lang, recoveredUrl);
+              currentTracks.refresh();
+              await refreshVideoLocalization(vId);
+              final notifKey = '${vId}_$lang';
+              if (!_notifiedDubLanguages.contains(notifKey)) {
+                _notifiedDubLanguages.add(notifKey);
+                showSuccess('${getLanguageName(lang)} dubbed audio track is ready!');
+              }
+              updated = true;
+            } else {
+              generatingDubLanguages.remove(lang);
+              dubbingProgress.remove(lang);
+              if (vId != null) {
+                _globalActiveDubbingJobs[vId]?.remove(lang);
+                _globalDubbingProgress[vId]?.remove(lang);
+              }
+              for (final track in currentTracks) {
+                if (track.languageCode == lang && track.audioUrl.isEmpty) {
+                  track.status = 'Not added';
+                }
+              }
+              currentTracks.refresh();
+              AppSnackbar.warning(
+                'AI voice dubbing for ${getLanguageName(lang)} timed out in the cloud. You can retry with one tap.',
+                title: 'Generation Timed Out',
+              );
+              updated = true;
+            }
+            continue;
+          }
+
+          if (current.progress < 94) {
+            final nextProgress = current.progress + 1;
+            var step = current.stageStep;
+            var title = current.stageTitle;
+            var eta = current.etaText;
+            if (nextProgress >= 85) {
+              step = 4;
+              title = 'Mastering audio ducking & synchronization';
+              eta = 'Finalizing shortly';
+            } else if (nextProgress >= 55) {
+              step = 3;
+              title = 'Synthesizing AI voice in ${getLanguageName(lang)}';
+              eta = '~10-15 sec';
+            } else if (nextProgress >= 28) {
+              step = 2;
+              title = 'Translating speech to ${getLanguageName(lang)}';
+              eta = '~15-20 sec';
+            }
+            final updatedState = current.copyWith(
+              progress: nextProgress,
+              stageStep: step,
+              stageTitle: title,
+              totalStepsText: 'Step $step of 4',
+              etaText: eta,
+            );
+            dubbingProgress[lang] = updatedState;
+            if (vId != null) {
+              _globalDubbingProgress.putIfAbsent(vId, () => {})[lang] = updatedState;
+            }
+            updated = true;
+          } else if (current.progress >= 94 && vId != null) {
+            // Proactively verify Firestore when at 94% ("Finalizing shortly")
+            // using fresh server reads across localization, videos, and video_jobs
+            var audioUrl = '';
+            var isCloudFailed = false;
+            try {
+              final loc = await VideoMediaService().getLocalization(vId, forceRefresh: true);
+              audioUrl = loc.audioTracks[lang] ?? '';
+
+              if (audioUrl.isEmpty) {
+                final vDoc = await FirebaseFirestore.instance
+                    .collection(FirestoreCollections.videos)
+                    .doc(vId)
+                    .get();
+                if (vDoc.exists && vDoc.data() != null) {
+                  final vData = vDoc.data()!;
+                  final vTracks = (vData['audioTracks'] as Map<String, dynamic>?) ?? {};
+                  audioUrl = (vTracks[lang] as String?) ??
+                      (vData['audioTracks.$lang'] as String?) ??
+                      (vData['media.audioTracks.$lang'] as String?) ??
+                      '';
+                }
+              }
+
+              if (audioUrl.isEmpty) {
+                final jobDoc = await FirebaseFirestore.instance
+                    .collection('video_jobs')
+                    .doc(vId)
+                    .get();
+                if (jobDoc.exists && jobDoc.data() != null) {
+                  final jData = jobDoc.data()!;
+                  final jOutputs = (jData['outputs'] as Map<String, dynamic>?) ?? {};
+                  final jAudios = (jOutputs['audioTracks'] as Map<String, dynamic>?) ?? {};
+                  final jStages = (jData['stages'] as Map<String, dynamic>?) ?? {};
+                  audioUrl = (jAudios[lang] as String?) ??
+                      (jData['outputs.audioTracks.$lang'] as String?) ??
+                      ((jStages['dubbing_$lang'] as Map<String, dynamic>?)?['audioUrl'] as String?) ??
+                      '';
+
+                  final jStatus = (jData['status'] as String?)?.toLowerCase();
+                  final dubStage = jStages['dubbing_$lang'] as Map<String, dynamic>?;
+                  final generalDub = jStages['dubbing'] as Map<String, dynamic>?;
+                  if (jStatus == 'failed' || dubStage?['status'] == 'failed' || generalDub?['status'] == 'failed') {
+                    isCloudFailed = true;
+                  }
+                }
+              }
+            } catch (pollErr) {
+              logger.warning('Active dub polling check error: $pollErr', tag: _tag);
+            }
+
+            if (isCloudFailed && audioUrl.isEmpty) {
+              generatingDubLanguages.remove(lang);
+              dubbingProgress.remove(lang);
+              _globalActiveDubbingJobs[vId]?.remove(lang);
+              _globalDubbingProgress[vId]?.remove(lang);
+              for (final track in currentTracks) {
+                if (track.languageCode == lang && track.audioUrl.isEmpty) {
+                  track.status = 'Not added';
+                }
+              }
+              currentTracks.refresh();
+              AppSnackbar.warning(
+                'AI voice dubbing for ${getLanguageName(lang)} encountered an issue in the cloud. Please tap Retry.',
+                title: 'Generation Failed',
+              );
+              updated = true;
+              continue;
+            }
+
+            if (audioUrl.isNotEmpty) {
+              _markLanguageDubCompleted(vId, lang, audioUrl);
+              currentTracks.refresh();
+              await refreshVideoLocalization(vId);
+              final notifKey = '${vId}_$lang';
+              if (!_notifiedDubLanguages.contains(notifKey)) {
+                _notifiedDubLanguages.add(notifKey);
+                showSuccess('${getLanguageName(lang)} dubbed audio track is ready!');
+              }
+              updated = true;
+            } else {
+              // Still generating/mastering in cloud.
+              // Smoothly advance from 94% to 98% with dynamic status so UI doesn't look frozen!
+              final elapsedSec = current.startedAt != null
+                  ? DateTime.now().difference(current.startedAt!).inSeconds
+                  : 180;
+
+              var nextProgress = current.progress;
+              var stageTitle = current.stageTitle;
+              var eta = current.etaText;
+
+              if (current.progress < 98) {
+                final targetProg = (94 + ((elapsedSec - 160) ~/ 12)).clamp(94, 98);
+                if (targetProg > current.progress) {
+                  nextProgress = targetProg;
+                }
+              }
+
+              if (nextProgress >= 97) {
+                stageTitle = 'Mastering audio ducking & synchronization';
+                eta = 'Almost ready...';
+              } else if (nextProgress >= 95) {
+                stageTitle = 'Mastering audio ducking & synchronization';
+                eta = 'Syncing cloud tracks...';
+              } else {
+                stageTitle = 'Mastering audio ducking & synchronization';
+                eta = 'Finalizing shortly';
+              }
+
+              if (nextProgress != current.progress || eta != current.etaText) {
+                final updatedState = current.copyWith(
+                  progress: nextProgress,
+                  stageTitle: stageTitle,
+                  etaText: eta,
+                );
+                dubbingProgress[lang] = updatedState;
+                _globalDubbingProgress.putIfAbsent(vId, () => {})[lang] = updatedState;
+                updated = true;
+              }
+            }
+          }
+        }
+      }
+      if (updated) {
+        dubbingProgress.refresh();
+      }
+    });
   }
 
   void setActiveTab(String tab) => _languageManager.setActiveTab(tab);
@@ -97,6 +408,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
 
   /// Selects active video and bootstraps localization tracks, commentaries, and request streams.
   Future<void> selectVideo(Video? video) async {
+    await playbackController.stop();
     await _contextManager.selectVideo(
       video,
       onVideoSelected: (v) async {
@@ -104,6 +416,12 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
         if (v == null) {
           _languageManager.clear();
           _editorManager.clear();
+          currentVideoTracks.clear();
+          _aiDubbingJobSub?.cancel();
+          _videoDocSub?.cancel();
+          _locDocSub?.cancel();
+          _progressTickerTimer?.cancel();
+          _notifiedDubLanguages.clear();
           return;
         }
 
@@ -114,7 +432,34 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
 
         _languageManager.listenToLanguageRequests(v.id);
 
-        final localization = await VideoMediaService().getLocalization(v.id);
+        // 1. Restore any active generating dubbing tasks from memory cache immediately
+        // with strict TTL pruning (discard anything older than 5 minutes)
+        final now = DateTime.now();
+        final cachedGenerating = _globalActiveDubbingJobs[v.id] ?? {};
+        final cachedProgress = _globalDubbingProgress[v.id] ?? {};
+
+        final expiredLangs = <String>{};
+        for (final entry in cachedProgress.entries) {
+          final job = entry.value;
+          final started = job.startedAt;
+          if (started == null || now.difference(started).inMinutes >= 5) {
+            expiredLangs.add(entry.key);
+          }
+        }
+        for (final lang in expiredLangs) {
+          cachedGenerating.remove(lang);
+          cachedProgress.remove(lang);
+          _globalActiveDubbingJobs[v.id]?.remove(lang);
+          _globalDubbingProgress[v.id]?.remove(lang);
+        }
+
+        generatingDubLanguages.addAll(cachedGenerating);
+        dubbingProgress.addAll(cachedProgress);
+
+        final localization = await VideoMediaService().getLocalization(
+          v.id,
+          forceRefresh: cachedGenerating.isNotEmpty,
+        );
 
         // Extract commentary items
         final commentaryList = <CommentaryTrackItem>[];
@@ -123,27 +468,78 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
         });
         _editorManager.commentaryTracks.value = commentaryList;
 
-        // Extract audio tracks
-        final audioMap =
-            localization.audioTracks.isNotEmpty
-                ? localization.audioTracks
-                : v.audioTracks;
+        // Extract audio tracks (merge v.audioTracks and localization.audioTracks so no tracks are lost)
+        final audioMap = Map<String, String>.from(v.audioTracks)
+          ..addAll(localization.audioTracks);
         final langs = audioMap.keys.toList();
-        if (!langs.contains('en')) {
-          langs.insert(0, 'en');
+        final baseLang = v.language.isNotEmpty ? v.language : 'en';
+        if (!langs.contains(baseLang)) {
+          langs.insert(0, baseLang);
+        }
+
+        // Keep generating languages in availableLanguages so they remain visible when switching tabs
+        for (final genLang in generatingDubLanguages.toList()) {
+          if (audioMap.containsKey(genLang) &&
+              (audioMap[genLang] ?? '').trim().isNotEmpty) {
+            generatingDubLanguages.remove(genLang);
+            dubbingProgress.remove(genLang);
+            _globalActiveDubbingJobs[v.id]?.remove(genLang);
+            _globalDubbingProgress[v.id]?.remove(genLang);
+          } else if (!langs.contains(genLang)) {
+            langs.add(genLang);
+          }
         }
 
         _languageManager.availableLanguages.value = langs;
         _languageManager.selectedLanguage.value = langs.first;
 
-        await _editorManager.parseAudioTracksForLanguage(
-          langs.first,
-          audioMap,
-          selectedVideoId: v.id,
+        await _editorManager.parseAllAudioTracks(
+          video: v,
+          availableLanguages: langs,
+          entireAudioMap: audioMap,
+          generatingLanguages: generatingDubLanguages,
+          languageNameResolver: getLanguageName,
         );
+        syncCurrentVideoTracks();
         selectedVideo.refresh();
+
+        if (generatingDubLanguages.isNotEmpty) {
+          _startProgressTicker();
+        }
+
+        // 2. Attach real-time Firestore video_jobs listener to stay synced with backend
+        _listenToDubbingJob(v.id);
       },
     );
+  }
+
+  /// Updates the original video language in database and refreshes workspace.
+  Future<void> updateOriginalVideoLanguage(String newLangCode) async {
+    final v = selectedVideo.value;
+    if (v == null || newLangCode.isEmpty) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection(FirestoreCollections.videos)
+          .doc(v.id)
+          .update({'language': newLangCode});
+      final updatedVideo = v.copyWith(language: newLangCode);
+      selectedVideo.value = updatedVideo;
+      if (!availableLanguages.contains(newLangCode)) {
+        availableLanguages.insert(0, newLangCode);
+      }
+      final audioMap = updatedVideo.audioTracks;
+      await _editorManager.parseAllAudioTracks(
+        video: updatedVideo,
+        availableLanguages: availableLanguages,
+        entireAudioMap: audioMap,
+      );
+      syncCurrentVideoTracks();
+      selectedVideo.refresh();
+      showSuccess('Original video language updated to ${getLanguageName(newLangCode)}.');
+    } catch (e) {
+      logger.error('Failed updating original video language', error: e, tag: _tag);
+      showError('Unable to update video language. Please try again.');
+    }
   }
 
   /// Switches active editing language track.
@@ -157,6 +553,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
           code,
           audioMap,
           selectedVideoId: selectedVideo.value?.id,
+          baseLanguage: selectedVideo.value?.language,
         );
       },
     );
@@ -168,16 +565,430 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
       langCode,
       onLanguageAdded: (code) {
         _editorManager.hasUnsavedChanges.value = true;
-        final audioMap = selectedVideo.value?.audioTracks ?? {};
-        _editorManager.parseAudioTracksForLanguage(
-          code,
-          audioMap,
-          selectedVideoId: selectedVideo.value?.id,
-        );
+        _syncCurrentTracks();
       },
       onShowSuccess: showSuccess,
     );
   }
+
+  /// Adds a custom language and activates it as a layer.
+  void addCustomLanguage(String langCode, String langName) {
+    _languageManager.addCustomLanguage(
+      langCode,
+      langName,
+      onLanguageAdded: (code) {
+        _editorManager.hasUnsavedChanges.value = true;
+        _syncCurrentTracks();
+      },
+      onShowSuccess: showSuccess,
+    );
+  }
+
+  /// Permanently deletes an audio track and its cloud references for the active video.
+  Future<void> deleteAudioTrack(String langCode) async {
+    final video = selectedVideo.value;
+    if (video == null) return;
+
+    final cleanCode = langCode.trim().toLowerCase();
+    final baseLang = video.language.isNotEmpty
+        ? video.language.trim().toLowerCase()
+        : 'en';
+
+    if (cleanCode == baseLang) {
+      AppSnackbar.info('Cannot remove primary video audio language.');
+      return;
+    }
+
+    try {
+      // 1. Stop playback if active
+      if (playbackController.activeTrackId.value == '${video.id}_$cleanCode') {
+        await playbackController.stop();
+      }
+
+      // 2. Remove language from active lists
+      availableLanguages.remove(cleanCode);
+      generatingDubLanguages.remove(cleanCode);
+      dubbingProgress.remove(cleanCode);
+      _globalActiveDubbingJobs[video.id]?.remove(cleanCode);
+      _globalDubbingProgress[video.id]?.remove(cleanCode);
+      _notifiedDubLanguages.remove('${video.id}_$cleanCode');
+
+      // 3. Remove from currentTracks immediately
+      currentTracks.removeWhere(
+        (t) => t.languageCode.trim().toLowerCase() == cleanCode,
+      );
+      currentTracks.refresh();
+
+      // 4. Construct updated audioTracks map without this language
+      final cachedLoc = VideoMediaService.localizationCache[video.id];
+      final currentMap = Map<String, String>.from(
+        cachedLoc?.audioTracks ?? video.audioTracks,
+      );
+      final trackUrl = currentMap[cleanCode] ?? currentMap[langCode] ?? '';
+      currentMap.remove(cleanCode);
+      currentMap.remove(langCode);
+      currentMap.removeWhere((k, v) => k.trim().toLowerCase() == cleanCode);
+
+      // 5. Update local model & static cache
+      final updatedVideo = video.copyWith(audioTracks: currentMap);
+      selectedVideo.value = updatedVideo;
+
+      VideoMediaService.localizationCache[video.id] = VideoMediaLocalization(
+        subtitles: cachedLoc?.subtitles ?? video.mediaSubtitles,
+        dubbedVideos: cachedLoc?.dubbedVideos ?? video.dubbedVideos,
+        audioTracks: currentMap,
+        commentaryVideos: cachedLoc?.commentaryVideos ?? const {},
+      );
+
+      // 6. Switch selected language if the deleted language was active
+      if (selectedLanguage.value.trim().toLowerCase() == cleanCode) {
+        _languageManager.selectedLanguage.value = baseLang;
+      }
+
+      _editorManager.hasUnsavedChanges.value = false;
+      selectedVideo.refresh();
+      currentTracks.refresh();
+
+      // 7. Delete from Firestore media/localization document
+      try {
+        final locDocRef = FirebaseFirestore.instance
+            .collection(FirestoreCollections.videos)
+            .doc(video.id)
+            .collection('media')
+            .doc('localization');
+
+        await locDocRef.update({
+          'audioTracks': currentMap,
+          'audioTracks.$cleanCode': FieldValue.delete(),
+          'audioTracks.$langCode': FieldValue.delete(),
+          'media.audioTracks.$cleanCode': FieldValue.delete(),
+          'media.audioTracks.$langCode': FieldValue.delete(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }).catchError((_) async {
+          await locDocRef.set({
+            'audioTracks': currentMap,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        });
+      } catch (e) {
+        logger.warning('Failed updating localization in Firestore: $e', tag: _tag);
+      }
+
+      // 8. Delete from main Firestore video document
+      try {
+        final videoDocRef = FirebaseFirestore.instance
+            .collection(FirestoreCollections.videos)
+            .doc(video.id);
+
+        await videoDocRef.update({
+          'audioTracks': currentMap,
+          'media.audioTracks': currentMap,
+          'audioTracks.$cleanCode': FieldValue.delete(),
+          'audioTracks.$langCode': FieldValue.delete(),
+          'media.audioTracks.$cleanCode': FieldValue.delete(),
+          'media.audioTracks.$langCode': FieldValue.delete(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }).catchError((_) async {
+          await videoDocRef.set({
+            'audioTracks': currentMap,
+            'media': {
+              'audioTracks': currentMap,
+            },
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        });
+      } catch (e) {
+        logger.warning('Failed updating video document in Firestore: $e', tag: _tag);
+      }
+
+      // 9. Clean video_jobs document so pipeline listeners/fallbacks never revive it
+      try {
+        final jobDocRef = FirebaseFirestore.instance
+            .collection('video_jobs')
+            .doc(video.id);
+        final jobSnap = await jobDocRef.get();
+        if (jobSnap.exists) {
+          await jobDocRef.update({
+            'outputs.audioTracks.$cleanCode': FieldValue.delete(),
+            'outputs.audioTracks.$langCode': FieldValue.delete(),
+            'audioTracks.$cleanCode': FieldValue.delete(),
+            'audioTracks.$langCode': FieldValue.delete(),
+            'stages.dubbing_$cleanCode': FieldValue.delete(),
+            'stages.dubbing_$langCode': FieldValue.delete(),
+            'stages.translating_$cleanCode': FieldValue.delete(),
+            'stages.translating_$langCode': FieldValue.delete(),
+          });
+        }
+      } catch (_) {}
+
+      // 10. Best-effort deletion of audio file in Firebase Storage if applicable
+      if (trackUrl.isNotEmpty &&
+          (trackUrl.startsWith('gs://') ||
+              trackUrl.contains('firebasestorage.googleapis.com'))) {
+        try {
+          await FirebaseStorage.instance.refFromURL(trackUrl).delete();
+        } catch (_) {}
+      }
+
+      showSuccess('Removed ${getLanguageName(cleanCode)} audio track');
+    } catch (e, stack) {
+      logger.error('Failed to delete audio track', error: e, stackTrace: stack, tag: _tag);
+      showError('Unable to remove audio track. Please check your connection and try again.');
+    }
+  }
+
+  /// Permanently deletes a dubbed video track and its cloud references for the active video.
+  Future<void> deleteDubbedVideoTrack(String langCode) async {
+    final video = selectedVideo.value;
+    if (video == null) return;
+
+    final cleanCode = langCode.trim().toLowerCase();
+    final baseLang = video.language.isNotEmpty
+        ? video.language.trim().toLowerCase()
+        : 'en';
+
+    if (cleanCode == baseLang) {
+      AppSnackbar.info('Cannot remove primary original video.');
+      return;
+    }
+
+    try {
+      // 1. Remove from in-flight generation states
+      generatingDubLanguages.remove(cleanCode);
+      dubbingProgress.remove(cleanCode);
+      _globalActiveDubbingJobs[video.id]?.remove(cleanCode);
+      _globalDubbingProgress[video.id]?.remove(cleanCode);
+      _notifiedDubLanguages.remove('${video.id}_$cleanCode');
+
+      // 2. Remove from currentVideoTracks immediately
+      currentVideoTracks.removeWhere(
+        (t) => t.languageCode.trim().toLowerCase() == cleanCode,
+      );
+      currentVideoTracks.refresh();
+
+      // 3. Construct updated dubbedVideos map without this language
+      final cachedLoc = VideoMediaService.localizationCache[video.id];
+      final currentMap = Map<String, String>.from(
+        cachedLoc?.dubbedVideos ?? video.dubbedVideos,
+      );
+      final videoUrl = currentMap[cleanCode] ?? currentMap[langCode] ?? '';
+      currentMap.remove(cleanCode);
+      currentMap.remove(langCode);
+      currentMap.removeWhere((k, v) => k.trim().toLowerCase() == cleanCode);
+
+      // 4. Update local model & static cache
+      final updatedVideo = video.copyWith(dubbedVideos: currentMap);
+      selectedVideo.value = updatedVideo;
+
+      VideoMediaService.localizationCache[video.id] = VideoMediaLocalization(
+        subtitles: cachedLoc?.subtitles ?? video.mediaSubtitles,
+        dubbedVideos: currentMap,
+        audioTracks: cachedLoc?.audioTracks ?? video.audioTracks,
+        commentaryVideos: cachedLoc?.commentaryVideos ?? const {},
+      );
+
+      _editorManager.hasUnsavedChanges.value = false;
+      selectedVideo.refresh();
+      currentVideoTracks.refresh();
+
+      // 5. Delete from Firestore media/localization document
+      try {
+        final locDocRef = FirebaseFirestore.instance
+            .collection(FirestoreCollections.videos)
+            .doc(video.id)
+            .collection('media')
+            .doc('localization');
+
+        await locDocRef.update({
+          'dubbedVideos': currentMap,
+          'dubbedVideos.$cleanCode': FieldValue.delete(),
+          'dubbedVideos.$langCode': FieldValue.delete(),
+          'media.dubbedVideos.$cleanCode': FieldValue.delete(),
+          'media.dubbedVideos.$langCode': FieldValue.delete(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }).catchError((_) async {
+          await locDocRef.set({
+            'dubbedVideos': currentMap,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        });
+      } catch (e) {
+        logger.warning('Failed updating localization dubbedVideos in Firestore: $e', tag: _tag);
+      }
+
+      // 6. Delete from main Firestore video document
+      try {
+        final videoDocRef = FirebaseFirestore.instance
+            .collection(FirestoreCollections.videos)
+            .doc(video.id);
+
+        await videoDocRef.update({
+          'dubbedVideos': currentMap,
+          'media.dubbedVideos': currentMap,
+          'dubbedVideos.$cleanCode': FieldValue.delete(),
+          'dubbedVideos.$langCode': FieldValue.delete(),
+          'media.dubbedVideos.$cleanCode': FieldValue.delete(),
+          'media.dubbedVideos.$langCode': FieldValue.delete(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }).catchError((_) async {
+          await videoDocRef.set({
+            'dubbedVideos': currentMap,
+            'media': {
+              'dubbedVideos': currentMap,
+            },
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        });
+      } catch (e) {
+        logger.warning('Failed updating video document dubbedVideos in Firestore: $e', tag: _tag);
+      }
+
+      // 7. Delete physical storage video file if applicable
+      if (videoUrl.isNotEmpty &&
+          (videoUrl.startsWith('gs://') ||
+              videoUrl.contains('firebasestorage.googleapis.com'))) {
+        try {
+          await FirebaseStorage.instance.refFromURL(videoUrl).delete();
+        } catch (_) {}
+      }
+
+      // 8. Delete associated video_jobs
+      try {
+        final jobsSnap = await FirebaseFirestore.instance
+            .collection(FirestoreCollections.videoJobs)
+            .where('videoId', isEqualTo: video.id)
+            .get();
+
+        for (final doc in jobsSnap.docs) {
+          final data = doc.data();
+          final jobTarget = (data['targetLanguage'] ?? '').toString().toLowerCase();
+          if (jobTarget == cleanCode) {
+            await doc.reference.delete().catchError((_) {});
+          }
+        }
+      } catch (_) {}
+
+      showSuccess('Removed ${getLanguageName(cleanCode)} dubbed video');
+    } catch (e, stack) {
+      logger.error('Failed to delete dubbed video track', error: e, stackTrace: stack, tag: _tag);
+      showError('Unable to remove dubbed video. Please check your connection and try again.');
+    }
+  }
+
+  /// Removes a language layer and synchronizes tracks.
+  /// If an audio track exists for this language, it is deleted from database and storage.
+  Future<void> removeLanguageLayer(String langCode) async {
+    final baseLang = selectedVideo.value?.language ?? 'en';
+    if (langCode == baseLang) {
+      AppSnackbar.info('Cannot remove primary video audio language.');
+      return;
+    }
+
+    final v = selectedVideo.value;
+    final cachedLoc = v != null ? VideoMediaService.localizationCache[v.id] : null;
+    final cleanCode = langCode.trim().toLowerCase();
+    final hasAudioTrack = (v?.audioTracks.keys.any((k) => k.toLowerCase() == cleanCode) == true) ||
+        (cachedLoc?.audioTracks.keys.any((k) => k.toLowerCase() == cleanCode) == true) ||
+        currentTracks.any((t) => t.languageCode.toLowerCase() == cleanCode && t.audioUrl.trim().isNotEmpty);
+
+    if (hasAudioTrack) {
+      await deleteAudioTrack(cleanCode);
+      return;
+    }
+
+    _languageManager.removeLanguageLayer(
+      cleanCode,
+      baseLang: baseLang,
+      onLanguageRemoved: (code) {
+        _editorManager.hasUnsavedChanges.value = true;
+        _syncCurrentTracks();
+      },
+      onShowSuccess: showSuccess,
+    );
+  }
+
+  void _syncCurrentTracks() {
+    final v = selectedVideo.value;
+    if (v == null) return;
+    final cachedLoc = VideoMediaService.localizationCache[v.id];
+    final audioMap = Map<String, String>.from(
+      cachedLoc?.audioTracks ?? v.audioTracks,
+    );
+    _editorManager.parseAllAudioTracks(
+      video: v,
+      availableLanguages: availableLanguages,
+      entireAudioMap: audioMap,
+      generatingLanguages: generatingDubLanguages,
+      languageNameResolver: getLanguageName,
+    );
+    syncCurrentVideoTracks();
+    selectedVideo.refresh();
+  }
+
+  /// Synchronizes video tracks (original base video + multi-language dubbed videos) for the active video.
+  void syncCurrentVideoTracks() {
+    final v = selectedVideo.value;
+    if (v == null) {
+      currentVideoTracks.clear();
+      return;
+    }
+    final baseLang = v.language.isNotEmpty ? v.language : 'en';
+    final cachedLoc = VideoMediaService.localizationCache[v.id];
+    final dubbedMap = Map<String, String>.from(v.dubbedVideos)
+      ..addAll(cachedLoc?.dubbedVideos ?? const {});
+
+    final list = <VideoTrackItem>[];
+
+    // 1. Original / Base Video
+    list.add(
+      VideoTrackItem(
+        id: '${v.id}_${baseLang}_video',
+        languageCode: baseLang,
+        languageName:
+            '${getLanguageName(baseLang).replaceAll('(Base)', '').trim()} (Original)',
+        videoUrl: v.videoUrl,
+        thumbnailUrl: v.thumbnailUrl,
+        isBaseTrack: true,
+        isResolved: v.videoUrl.isNotEmpty,
+      ),
+    );
+
+    // 2. Dubbed Videos from dubbedVideos map & any generating languages
+    final allDubLangs = <String>{...dubbedMap.keys, ...generatingDubLanguages};
+    for (final code in allDubLangs) {
+      final cleanCode = code.trim().toLowerCase();
+      if (cleanCode == baseLang.toLowerCase()) continue;
+      final url = dubbedMap[cleanCode] ?? dubbedMap[code] ?? '';
+      final isGenerating = generatingDubLanguages.contains(code) ||
+          generatingDubLanguages.contains(cleanCode);
+
+      final status = url.trim().isNotEmpty
+          ? 'Published'
+          : (isGenerating ? 'Generating...' : 'Not added');
+
+      list.add(
+        VideoTrackItem(
+          id: '${v.id}_${cleanCode}_video',
+          languageCode: cleanCode,
+          languageName: getLanguageName(cleanCode),
+          videoUrl: url,
+          thumbnailUrl: v.thumbnailUrl,
+          isResolved: url.trim().isNotEmpty,
+          status: status,
+          role: 'Dubbed video',
+        ),
+      );
+    }
+
+    currentVideoTracks.value = list;
+  }
+
+  void exportVideoTrackLinkToClipboard(String linkUrl) =>
+      _editorManager.exportTrackLinkToClipboard(
+        linkUrl,
+        onShowSuccess: showSuccess,
+        onShowError: showError,
+      );
 
   void updateTrackUrl(int index, String newStorageLink) =>
       _editorManager.updateTrackUrl(index, newStorageLink);
@@ -210,7 +1021,16 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
         selectedLanguage: selectedLanguage.value,
         onShowSuccess: showSuccess,
         onShowError: handleError,
-        onVideoRefreshed: () => selectedVideo.refresh(),
+        onVideoRefreshed: () {
+          final v = selectedVideo.value;
+          if (v != null) {
+            final cachedLoc = VideoMediaService.localizationCache[v.id];
+            if (cachedLoc != null) {
+              selectedVideo.value = v.copyWith(audioTracks: cachedLoc.audioTracks);
+            }
+          }
+          selectedVideo.refresh();
+        },
       );
 
   Future<bool> uploadTrackFile({
@@ -236,6 +1056,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
           code,
           VideoMediaService.localizationCache[videoId]!.audioTracks,
           selectedVideoId: videoId,
+          baseLanguage: selectedVideo.value?.language,
         );
       }
     },
@@ -263,6 +1084,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
             selectedLanguage.value.isEmpty ? 'en' : selectedLanguage.value,
             audioMap,
             selectedVideoId: selectedVideo.value?.id,
+            baseLanguage: selectedVideo.value?.language,
           );
         },
         onVideoRefreshed: () => selectedVideo.refresh(),
@@ -301,6 +1123,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
         selectedLanguage.value.isEmpty ? 'en' : selectedLanguage.value,
         audioMap,
         selectedVideoId: selectedVideo.value?.id,
+        baseLanguage: selectedVideo.value?.language,
       );
     },
     onVideoRefreshed: () => selectedVideo.refresh(),
@@ -321,6 +1144,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
           selectedLanguage.value.isEmpty ? 'en' : selectedLanguage.value,
           audioMap,
           selectedVideoId: selectedVideo.value?.id,
+          baseLanguage: selectedVideo.value?.language,
         );
       },
       onVideoRefreshed: () => selectedVideo.refresh(),
@@ -328,9 +1152,836 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
   }
 
   Future<void> removeDubForLanguage(String langCode) async {
-    await updateDubUrlForLanguage(langCode, '');
-    showSuccess('${getLanguageName(langCode)} dubbed audio removed.');
+    await deleteAudioTrack(langCode);
   }
 
-  String getLanguageName(String code) => getSupportedLanguageName(code);
+  /// Triggers TruthWorld AI Voice Dubbing pipeline for a target language.
+  Future<bool> triggerAIDubbingForLanguage({
+    required String langCode,
+    String dubbingTier = 'audio_starter',
+    String voiceType = 'standard',
+    bool enableDiarization = false,
+    String priorityMode = 'accuracy',
+    bool enableLipSync = false,
+    bool isCinemaGrade = false,
+    String voiceGender = 'auto',
+  }) async {
+    final video = selectedVideo.value;
+    if (video == null) {
+      showError('No video selected.');
+      return false;
+    }
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      showError('Please sign in to generate AI voice dubbing.');
+      return false;
+    }
+
+    // Resolve channel context
+    final targetChanId = channelId.value.isNotEmpty
+        ? channelId.value
+        : (video.channelId.isNotEmpty ? video.channelId : user.uid);
+    Channel? chan;
+    try {
+      final chanDoc = await FirebaseFirestore.instance
+          .collection(FirestoreCollections.channels)
+          .doc(targetChanId)
+          .get();
+      if (chanDoc.exists && chanDoc.data() != null) {
+        chan = Channel.fromMap(chanDoc.data()!, chanDoc.id);
+      }
+    } catch (e) {
+      logger.warning('Could not resolve channel for dubbing: $e', tag: _tag);
+    }
+
+    final durationSecs = video.durationSeconds > 0
+        ? video.durationSeconds
+        : (video.durationValue.inSeconds > 0 ? video.durationValue.inSeconds : 60);
+    final tierObj = DubbingProductionTier.fromId(dubbingTier);
+    final isEffectiveLipSync = enableLipSync || tierObj.isLipSync;
+    final isEffectiveCinema = isCinemaGrade || tierObj.isCinemaGrade;
+    final isEffectiveVoiceClone = voiceType == 'cloned' || voiceType == 'voice_clone' || tierObj.isVoiceClone;
+
+    final dubbingCost = ChannelWalletService.calculateProductionTierCost(
+      tierId: dubbingTier,
+      languageCount: 1,
+      durationSeconds: durationSecs,
+      channel: chan,
+    );
+
+    final targetLangName = getLanguageName(langCode);
+    WalletTransaction? walletTx;
+    if (dubbingCost > 0) {
+      if (chan == null) {
+        showError('Unable to verify channel wallet. Please ensure you have a valid channel to proceed with AI audio dubbing.');
+        return false;
+      }
+      final walletService = ChannelWalletService();
+      final balance = await walletService.getSpendableBalanceForChannelId(chan.id);
+      if (!balance.canAfford(dubbingCost)) {
+        final rate = ChannelWalletService.getFlatRateForTier(
+          durationSeconds: durationSecs,
+          tierId: dubbingTier,
+        );
+        showError(
+          '${tierObj.name} dubbing is not free. Your channel balance of \$${balance.totalSpendableBalance.toStringAsFixed(2)} is insufficient for the flat cost of \$${dubbingCost.toStringAsFixed(2)} (\$${rate.toStringAsFixed(2)} for ${durationSecs}s video). Please add money to your wallet to proceed.',
+        );
+        return false;
+      }
+
+      final dubLabel = '${tierObj.name} Dubbing';
+      walletTx = await walletService.spendBalance(
+        channel: chan,
+        userId: user.uid,
+        amount: dubbingCost,
+        category: WalletTransactionCategory.aiDubbing,
+        description: '$dubLabel for "${video.title}" ($targetLangName)',
+        metadata: {
+          'videoId': video.id,
+          'targetLanguage': langCode,
+          'durationSeconds': durationSecs,
+          'voiceType': tierObj.ttsEngine,
+          'dubbingTier': dubbingTier,
+          'costUSD': dubbingCost,
+          'isVoiceClone': isEffectiveVoiceClone,
+          'isLipSync': isEffectiveLipSync,
+          'isCinemaGrade': isEffectiveCinema,
+        },
+      );
+
+      if (walletTx == null) {
+        showError('Unable to deduct audio dubbing payment from channel wallet. Please ensure your wallet has sufficient funds.');
+        return false;
+      }
+    }
+
+    generatingDubLanguages.add(langCode);
+    _globalActiveDubbingJobs.putIfAbsent(video.id, () => {}).add(langCode);
+    _notifiedDubLanguages.remove('${video.id}_$langCode');
+
+    // Initialize immediate progress state for high responsiveness
+    final initialProgress = AudioDubbingProgressState(
+      langCode: langCode,
+      startedAt: DateTime.now(),
+    );
+    dubbingProgress[langCode] = initialProgress;
+    _globalDubbingProgress.putIfAbsent(video.id, () => {})[langCode] = initialProgress;
+    _startProgressTicker();
+
+    // Make sure language is in availableLanguages
+    if (!availableLanguages.contains(langCode)) {
+      availableLanguages.add(langCode);
+    }
+
+    // Set status to Generating... in currentTracks
+    var foundTrack = false;
+    for (final track in currentTracks) {
+      if (track.languageCode == langCode) {
+        track.status = 'Generating...';
+        foundTrack = true;
+      }
+    }
+    if (!foundTrack) {
+      currentTracks.add(
+        AudioTrackItem(
+          id: '${video.id}_$langCode',
+          languageCode: langCode,
+          languageName: targetLangName,
+          audioUrl: '',
+          status: 'Generating...',
+        ),
+      );
+    }
+    currentTracks.refresh();
+
+    try {
+      final token = await user.getIdToken();
+      final url = Uri.parse(
+        '${AppConfig.cloudFunctionsBaseUrl}/triggerVideoAIFeatures',
+      );
+
+      var pipelineTriggered = false;
+      try {
+        final response = await http.post(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({
+            'videoId': video.id,
+            'channelId': targetChanId,
+            'isDubbingFree': chan?.isDubbingFree ?? (dubbingCost == 0),
+            'features': [
+              'dubbing',
+              if (enableDiarization || isEffectiveCinema) 'diarization',
+              if (isEffectiveLipSync) 'lipsync',
+            ],
+            'targetLanguages': [langCode],
+            'priorityMode': priorityMode,
+            'voiceGender': voiceGender,
+            'durationSeconds': durationSecs,
+            'autoChapters': false,
+            'dubbingMode': isEffectiveVoiceClone ? 'voice_clone' : 'standard',
+            'dubbingTier': dubbingTier,
+            'enableLipSync': isEffectiveLipSync,
+            'cinemaGrade': isEffectiveCinema,
+            'isCinemaGrade': isEffectiveCinema,
+            'stemIsolation': true,
+            if (walletTx != null) 'walletTransactionId': walletTx.id,
+            if (dubbingCost > 0) 'paidFromWallet': true,
+          }),
+        ).timeout(const Duration(seconds: 15));
+
+        if (response.statusCode == 200) {
+          pipelineTriggered = true;
+          if (walletTx != null) {
+            await FirebaseFirestore.instance.collection('videos').doc(video.id).set({
+              'dubbingPaid': true,
+              'dubbingCostUSD': dubbingCost,
+              'dubbingDurationSeconds': durationSecs,
+              'voiceGender': voiceGender,
+              'dubbingWalletTxId': walletTx.id,
+              'dubbingTier': dubbingTier,
+              'enableLipSync': isEffectiveLipSync,
+              'cinemaGrade': isEffectiveCinema,
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+          }
+          showSuccess(
+            '${tierObj.name} dubbing initiated for $targetLangName. Processing in the background.',
+          );
+          _listenToDubbingJob(video.id, langCode);
+          return true;
+        } else {
+          logger.warning(
+            'triggerVideoAIFeatures returned HTTP ${response.statusCode}: ${response.body}',
+            tag: _tag,
+          );
+        }
+      } catch (httpError) {
+        logger.warning(
+          'triggerVideoAIFeatures HTTP failed, using retry fallback: $httpError',
+          tag: _tag,
+        );
+      }
+
+      if (!pipelineTriggered) {
+        // Retry once with a freshly refreshed auth token
+        try {
+          final freshToken = await user.getIdToken(true);
+          final retryResponse = await http.post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              if (freshToken != null) 'Authorization': 'Bearer $freshToken',
+            },
+            body: jsonEncode({
+              'videoId': video.id,
+              'channelId': targetChanId,
+              'isDubbingFree': chan?.isDubbingFree ?? (dubbingCost == 0),
+              'features': [
+                'dubbing',
+                if (enableDiarization || isEffectiveCinema) 'diarization',
+                if (isEffectiveLipSync) 'lipsync',
+              ],
+              'targetLanguages': [langCode],
+              'priorityMode': priorityMode,
+              'voiceGender': voiceGender,
+              'durationSeconds': durationSecs,
+              'autoChapters': false,
+              'dubbingMode': isEffectiveVoiceClone ? 'voice_clone' : 'standard',
+              'dubbingTier': dubbingTier,
+              'enableLipSync': isEffectiveLipSync,
+              'cinemaGrade': isEffectiveCinema,
+              'isCinemaGrade': isEffectiveCinema,
+              'stemIsolation': isEffectiveCinema,
+              if (walletTx != null) 'walletTransactionId': walletTx.id,
+              if (dubbingCost > 0) 'paidFromWallet': true,
+            }),
+          ).timeout(const Duration(seconds: 15));
+
+          if (retryResponse.statusCode == 200) {
+            pipelineTriggered = true;
+            if (walletTx != null) {
+              await FirebaseFirestore.instance.collection('videos').doc(video.id).set({
+                'dubbingPaid': true,
+                'dubbingCostUSD': dubbingCost,
+                'dubbingDurationSeconds': durationSecs,
+                'voiceGender': voiceGender,
+                'dubbingWalletTxId': walletTx.id,
+                'dubbingTier': dubbingTier,
+                'enableLipSync': isEffectiveLipSync,
+                'cinemaGrade': isEffectiveCinema,
+                'updatedAt': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true));
+            }
+            showSuccess(
+              '${tierObj.name} dubbing initiated for $targetLangName. Processing in the background.',
+            );
+            _listenToDubbingJob(video.id, langCode);
+            return true;
+          }
+        } catch (_) {}
+      }
+
+      if (!pipelineTriggered) {
+        // Clean up speculative generating state so UI never gets stuck
+        generatingDubLanguages.remove(langCode);
+        dubbingProgress.remove(langCode);
+        _globalActiveDubbingJobs[video.id]?.remove(langCode);
+        _globalDubbingProgress[video.id]?.remove(langCode);
+
+        for (final track in currentTracks) {
+          if (track.languageCode == langCode && track.audioUrl.isEmpty) {
+            track.status = 'Not added';
+          }
+        }
+        currentTracks.refresh();
+        showError('Unable to initiate AI dubbing service. Please check your connection and try again.');
+        return false;
+      }
+    } catch (e) {
+      logger.error('Error initiating AI dubbing for $langCode', error: e, tag: _tag);
+      generatingDubLanguages.remove(langCode);
+      dubbingProgress.remove(langCode);
+      _globalActiveDubbingJobs[video.id]?.remove(langCode);
+      _globalDubbingProgress[video.id]?.remove(langCode);
+
+      for (final track in currentTracks) {
+        if (track.languageCode == langCode && track.audioUrl.isEmpty) {
+          track.status = 'Not added';
+        }
+      }
+      currentTracks.refresh();
+      showError('Unable to start AI dubbing. Please try again.');
+      return false;
+    }
+    return true;
+  }
+
+  void _listenToDubbingJob(String videoId, [String? specificLangCode]) {
+    _aiDubbingJobSub?.cancel();
+    _videoDocSub?.cancel();
+    _locDocSub?.cancel();
+
+    void checkAndCompleteTrack(String lang, String? url) {
+      if (url != null && url.isNotEmpty && generatingDubLanguages.contains(lang)) {
+        _markLanguageDubCompleted(videoId, lang, url);
+        currentTracks.refresh();
+        unawaited(refreshVideoLocalization(videoId));
+        final notifKey = '${videoId}_$lang';
+        if (!_notifiedDubLanguages.contains(notifKey)) {
+          _notifiedDubLanguages.add(notifKey);
+          showSuccess('${getLanguageName(lang)} dubbed audio track is ready!');
+        }
+      }
+    }
+
+    // 1. Direct real-time listener on the video document for instant progressive audio delivery
+    _videoDocSub = FirebaseFirestore.instance
+        .collection(FirestoreCollections.videos)
+        .doc(videoId)
+        .snapshots()
+        .listen((videoSnap) async {
+      if (!videoSnap.exists || videoSnap.data() == null) return;
+      final videoData = videoSnap.data()!;
+      final audioTracksMap = (videoData['audioTracks'] as Map<String, dynamic>?) ??
+          ((videoData['media'] as Map<String, dynamic>?)?['audioTracks'] as Map<String, dynamic>?) ??
+          {};
+
+      for (final lang in generatingDubLanguages.toList()) {
+        final url = (audioTracksMap[lang] as String?) ??
+            (videoData['audioTracks.$lang'] as String?) ??
+            (videoData['media.audioTracks.$lang'] as String?);
+        checkAndCompleteTrack(lang, url);
+      }
+    }, onError: (e) {
+      logger.warning('Error listening to video doc audio tracks: $e', tag: _tag);
+    });
+
+    // 1b. Real-time listener on video media/localization subcollection
+    _locDocSub = FirebaseFirestore.instance
+        .collection(FirestoreCollections.videos)
+        .doc(videoId)
+        .collection('media')
+        .doc('localization')
+        .snapshots()
+        .listen((locSnap) {
+      if (!locSnap.exists || locSnap.data() == null) return;
+      final locData = locSnap.data()!;
+      final audioMap = (locData['audioTracks'] as Map<String, dynamic>?) ?? {};
+
+      for (final lang in generatingDubLanguages.toList()) {
+        final url = (audioMap[lang] as String?) ??
+            (locData['audioTracks.$lang'] as String?);
+        checkAndCompleteTrack(lang, url);
+      }
+    }, onError: (e) {
+      logger.warning('Error listening to localization audio tracks: $e', tag: _tag);
+    });
+
+    // 2. Real-time listener on video_jobs pipeline execution state
+    _aiDubbingJobSub = FirebaseFirestore.instance
+        .collection('video_jobs')
+        .doc(videoId)
+        .snapshots()
+        .listen((snap) async {
+      if (!snap.exists || snap.data() == null) return;
+      final data = snap.data()!;
+      final jobStatus = (data['status'] as String?)?.toLowerCase();
+      final stages = (data['stages'] as Map<String, dynamic>?) ?? {};
+      final onDemand = stages['onDemandAI'] as Map<String, dynamic>?;
+      final dubbing = stages['dubbing'] as Map<String, dynamic>?;
+      final outputs = (data['outputs'] as Map<String, dynamic>?) ?? {};
+      final outputAudioTracks =
+          (outputs['audioTracks'] as Map<String, dynamic>?) ?? {};
+
+      final onDemandStatus = (onDemand?['status'] as String?)?.toLowerCase();
+      final dubStatus = (dubbing?['status'] as String?)?.toLowerCase();
+
+      final executionPlan =
+          (data['executionPlan'] as Map<String, dynamic>?) ?? {};
+      final planDubLangs = (executionPlan['dubbingLanguages'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          (executionPlan['languages'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [];
+      final onDemandLangs = (onDemand?['requestedLanguages'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [];
+
+      final allJobLangs = <String>{
+        ...planDubLangs,
+        ...onDemandLangs,
+        ...?specificLangCode == null ? null : [specificLangCode],
+        ...generatingDubLanguages,
+        ...(_globalActiveDubbingJobs[videoId] ?? {}),
+      };
+
+      for (final stageKey in stages.keys) {
+        if (stageKey.startsWith('translating_')) {
+          allJobLangs.add(stageKey.replaceFirst('translating_', ''));
+        } else if (stageKey.startsWith('dubbing_')) {
+          allJobLangs.add(stageKey.replaceFirst('dubbing_', ''));
+        }
+      }
+
+      final currentVideo = selectedVideo.value;
+      final baseLang = currentVideo?.language.toLowerCase().trim() ?? 'en';
+      final newlyCompletedGeneratingLangs = <String>{};
+
+      for (final lang in allJobLangs) {
+        final cleanLang = lang.trim().toLowerCase();
+        if (cleanLang.isEmpty || cleanLang == baseLang) continue;
+
+        final transStage = stages['translating_$lang'] as Map<String, dynamic>?;
+        final dubStage = stages['dubbing_$lang'] as Map<String, dynamic>?;
+
+        final hasAudioUrlInOutput = (outputAudioTracks.containsKey(lang) &&
+                (outputAudioTracks[lang] as String? ?? '').isNotEmpty) ||
+            ((data['outputs.audioTracks.$lang'] as String? ?? '').isNotEmpty) ||
+            ((data['audioTracks.$lang'] as String? ?? '').isNotEmpty) ||
+            ((data['audioTracks'] as Map<String, dynamic>?)?[lang] as String? ?? '')
+                .isNotEmpty ||
+            (((stages['dubbing_$lang'] as Map<String, dynamic>?)?['audioUrl'] as String? ?? '').isNotEmpty);
+        final hasAudioInVideo = ((currentVideo?.audioTracks.containsKey(lang) ?? false) &&
+                (currentVideo?.audioTracks[lang] ?? '').isNotEmpty) ||
+            (VideoMediaService.localizationCache[videoId]?.audioTracks[lang] ?? '')
+                .isNotEmpty;
+
+        final hasAudio = hasAudioUrlInOutput || hasAudioInVideo;
+
+        final isDubStageCompleted = (dubStage?['status'] == 'completed' ||
+            (dubStage?['progress'] as num?) == 100) && hasAudio;
+        final isOverallCompleted = (dubStatus == 'completed' ||
+            onDemandStatus == 'completed' ||
+            jobStatus == 'completed') && hasAudio;
+
+        final isCompleted = isDubStageCompleted ||
+            isOverallCompleted ||
+            hasAudio;
+
+        final isZombie = _isJobZombie(data, dubStage ?? onDemand);
+        final isFailed = dubStage?['status'] == 'failed' ||
+            transStage?['status'] == 'failed' ||
+            (jobStatus == 'failed' && !isCompleted) ||
+            (isZombie && !isCompleted);
+
+        final wasGenerating = generatingDubLanguages.contains(lang) ||
+            (_globalActiveDubbingJobs[videoId]?.contains(lang) ?? false);
+
+        if (isCompleted) {
+          final newUrl = (outputAudioTracks[lang] as String?) ??
+              (data['outputs.audioTracks.$lang'] as String?) ??
+              ((data['audioTracks'] as Map<String, dynamic>?)?[lang] as String?) ??
+              (data['audioTracks.$lang'] as String?) ??
+              ((stages['dubbing_$lang'] as Map<String, dynamic>?)?['audioUrl'] as String?) ??
+              (dubStage?['audioUrl'] as String?) ??
+              currentVideo?.audioTracks[lang] ??
+              VideoMediaService.localizationCache[videoId]?.audioTracks[lang] ??
+              '';
+
+          _markLanguageDubCompleted(videoId, lang, newUrl);
+
+          final notifKey = '${videoId}_$lang';
+          if (wasGenerating && !_notifiedDubLanguages.contains(notifKey)) {
+            _notifiedDubLanguages.add(notifKey);
+            newlyCompletedGeneratingLangs.add(lang);
+          }
+        } else if (isFailed) {
+          generatingDubLanguages.remove(lang);
+          dubbingProgress.remove(lang);
+          _globalActiveDubbingJobs[videoId]?.remove(lang);
+          _globalDubbingProgress[videoId]?.remove(lang);
+
+          for (final track in currentTracks) {
+            if (track.languageCode == lang && track.audioUrl.isEmpty) {
+              track.status = 'Not added';
+            }
+          }
+          currentTracks.refresh();
+          if (!isZombie && wasGenerating) {
+            showError(
+              'AI Voice Dubbing for ${getLanguageName(lang)} encountered an issue. Please try again.',
+            );
+          }
+        } else {
+          // If this stage is a zombie (> 5 mins old), NEVER resurrect it into generating status!
+          if (isZombie) {
+            continue;
+          }
+
+          final transStatus =
+              (transStage?['status'] as String?)?.toLowerCase();
+          final singleDubStatus =
+              (dubStage?['status'] as String?)?.toLowerCase();
+
+          final isActivelyRunning = singleDubStatus == 'running' ||
+              singleDubStatus == 'queued' ||
+              transStatus == 'running' ||
+              transStatus == 'queued' ||
+              wasGenerating;
+
+          if (!isActivelyRunning) {
+            continue;
+          }
+
+          // Actively generating or queued!
+          generatingDubLanguages.add(lang);
+          _globalActiveDubbingJobs.putIfAbsent(videoId, () => {}).add(lang);
+
+          var calculatedProgress = 15;
+          var stageTitle = 'Analyzing audio & transcribing dialogue';
+          var stageStep = 1;
+          var eta = '~1-2 min';
+
+          final onDemandProg = onDemand?['progress'] as num?;
+          final dubProg = dubStage?['progress'] as num?;
+          final transProg = transStage?['progress'] as num?;
+
+          if (singleDubStatus == 'running' ||
+              (transStatus == 'completed' && singleDubStatus != 'failed')) {
+            stageStep = 3;
+            stageTitle = 'Synthesizing AI voice in ${getLanguageName(lang)}';
+            final p = dubProg?.toInt() ?? 25;
+            calculatedProgress = 60 + (p * 0.3).toInt().clamp(0, 30);
+            if (calculatedProgress >= 85) {
+              stageStep = 4;
+              stageTitle = 'Mastering audio ducking & synchronization';
+              eta = 'Finalizing shortly';
+            } else {
+              eta = '~10-15 sec';
+            }
+          } else if (transStatus == 'running' ||
+              (onDemandStatus == 'running' && (onDemandProg ?? 0) >= 30)) {
+            stageStep = 2;
+            stageTitle = 'Translating speech to ${getLanguageName(lang)}';
+            final p = transProg?.toInt() ?? (onDemandProg?.toInt() ?? 25);
+            calculatedProgress = 30 + (p * 0.3).toInt().clamp(0, 30);
+            eta = '~15-20 sec';
+          } else {
+            stageStep = 1;
+            stageTitle = 'Analyzing audio & transcribing dialogue';
+            calculatedProgress = (onDemandProg?.toInt() ?? 15).clamp(10, 30);
+            eta = '~20-30 sec';
+          }
+
+          final existingProgress = dubbingProgress[lang]?.progress ?? 0;
+          if (calculatedProgress < existingProgress) {
+            calculatedProgress = existingProgress;
+          }
+
+          final progressState = AudioDubbingProgressState(
+            langCode: lang,
+            progress: calculatedProgress,
+            stageTitle: stageTitle,
+            stageStep: stageStep,
+            totalStepsText: 'Step $stageStep of 4',
+            etaText: eta,
+          );
+
+          dubbingProgress[lang] = progressState;
+          _globalDubbingProgress
+              .putIfAbsent(videoId, () => {})[lang] = progressState;
+
+          if (!availableLanguages.contains(lang)) {
+            availableLanguages.add(lang);
+          }
+
+          var exists = false;
+          for (final track in currentTracks) {
+            if (track.languageCode == lang) {
+              track.status = 'Generating...';
+              exists = true;
+            }
+          }
+          if (!exists) {
+            currentTracks.add(
+              AudioTrackItem(
+                id: '${videoId}_$lang',
+                languageCode: lang,
+                languageName: getLanguageName(lang),
+                audioUrl: '',
+                status: 'Generating...',
+              ),
+            );
+          }
+          currentTracks.refresh();
+          _startProgressTicker();
+        }
+      }
+
+      if (newlyCompletedGeneratingLangs.isNotEmpty) {
+        currentTracks.refresh();
+        await refreshVideoLocalization(videoId);
+        for (final l in newlyCompletedGeneratingLangs) {
+          showSuccess('${getLanguageName(l)} dubbed audio track is ready!');
+        }
+      }
+    }, onError: (e) {
+      logger.error('Error listening to dubbing job', error: e, tag: _tag);
+    });
+  }
+
+  /// Refreshes video localization data and reloads audio tracks in-place without re-invoking selectVideo.
+  Future<void> refreshVideoLocalization(String videoId) async {
+    VideoMediaService().clearCache(videoId);
+    final doc = await FirebaseFirestore.instance
+        .collection(FirestoreCollections.videos)
+        .doc(videoId)
+        .get();
+    if (!doc.exists || doc.data() == null) return;
+
+    final updatedVideo = Video.fromDocumentSnapshot(doc);
+    final localization = await VideoMediaService().getLocalization(
+      videoId,
+      forceRefresh: true,
+    );
+
+    // Extract commentary items
+    final commentaryList = <CommentaryTrackItem>[];
+    localization.commentaryVideos.forEach((key, map) {
+      commentaryList.add(CommentaryTrackItem.fromMap(key, map));
+    });
+    _editorManager.commentaryTracks.value = commentaryList;
+
+    // Extract and merge audio tracks
+    final audioMap = Map<String, String>.from(updatedVideo.audioTracks)
+      ..addAll(localization.audioTracks);
+    final langs = audioMap.keys.toList();
+    final baseLang = updatedVideo.language.isNotEmpty ? updatedVideo.language : 'en';
+    if (!langs.contains(baseLang)) {
+      langs.insert(0, baseLang);
+    }
+
+    // Keep generating languages in availableLanguages so they remain visible
+    for (final genLang in generatingDubLanguages.toList()) {
+      if (audioMap.containsKey(genLang) &&
+          (audioMap[genLang] ?? '').trim().isNotEmpty) {
+        generatingDubLanguages.remove(genLang);
+        dubbingProgress.remove(genLang);
+        _globalActiveDubbingJobs[videoId]?.remove(genLang);
+        _globalDubbingProgress[videoId]?.remove(genLang);
+      } else if (!langs.contains(genLang)) {
+        langs.add(genLang);
+      }
+    }
+
+    _languageManager.availableLanguages.value = langs;
+    if (!langs.contains(_languageManager.selectedLanguage.value)) {
+      _languageManager.selectedLanguage.value = langs.isNotEmpty ? langs.first : baseLang;
+    }
+
+    selectedVideo.value = updatedVideo.copyWith(audioTracks: audioMap);
+
+    await _editorManager.parseAllAudioTracks(
+      video: selectedVideo.value!,
+      availableLanguages: langs,
+      entireAudioMap: audioMap,
+      generatingLanguages: generatingDubLanguages,
+      languageNameResolver: getLanguageName,
+    );
+    syncCurrentVideoTracks();
+    selectedVideo.refresh();
+    currentTracks.refresh();
+
+    if (generatingDubLanguages.isEmpty) {
+      _progressTickerTimer?.cancel();
+      _progressTickerTimer = null;
+    }
+  }
+
+  /// Downloads original video audio track to serve as reference in external DAW / studio.
+  Future<void> downloadOriginalVideoAudio() async {
+    final video = selectedVideo.value;
+    if (video == null) {
+      showError('No video selected.');
+      return;
+    }
+    final baseLang = video.language.isNotEmpty ? video.language : 'en';
+    final audioMap = video.audioTracks;
+    var downloadUrl = audioMap[baseLang] ?? '';
+    if (downloadUrl.isEmpty) {
+      downloadUrl = video.videoUrl;
+    }
+    if (downloadUrl.isEmpty) {
+      showError('No source audio found for this video.');
+      return;
+    }
+    final safeTitle = video.title
+        .replaceAll(RegExp(r'[^\w\s\-]'), '')
+        .trim()
+        .replaceAll(' ', '_');
+    final ext = downloadUrl.toLowerCase().contains('.mp3') ? 'mp3' : 'mp4';
+    final fileName = '${safeTitle}_original_reference.$ext';
+
+    DownloadHelper.downloadFromUrl(downloadUrl, fileName);
+    showSuccess('Downloading original video audio for studio reference: $fileName');
+  }
+
+  /// Proactively forces a fresh Firestore check across all collections and resolves dubbing state.
+  Future<void> checkDubbingStatus([String? specificLang]) async {
+    final vId = selectedVideo.value?.id;
+    if (vId == null) {
+      showError('Please select a video first.');
+      return;
+    }
+
+    final targetLangs = specificLang != null ? [specificLang] : generatingDubLanguages.toList();
+    if (targetLangs.isEmpty) {
+      AppSnackbar.info('No active generation jobs for this video.');
+      return;
+    }
+
+    var resolvedAny = false;
+    VideoMediaService().clearCache(vId);
+    final loc = await VideoMediaService().getLocalization(vId, forceRefresh: true);
+
+    // Also check direct video document
+    final vDoc = await FirebaseFirestore.instance.collection(FirestoreCollections.videos).doc(vId).get();
+    final vData = vDoc.data() ?? {};
+    final vAudioMap = (vData['audioTracks'] as Map<String, dynamic>?) ?? {};
+
+    // Also check video_jobs
+    final jobDoc = await FirebaseFirestore.instance.collection('video_jobs').doc(vId).get();
+    final jobData = jobDoc.data() ?? {};
+    final jobOutputs = (jobData['outputs'] as Map<String, dynamic>?) ?? {};
+    final jobAudioTracks = (jobOutputs['audioTracks'] as Map<String, dynamic>?) ?? {};
+    final stages = (jobData['stages'] as Map<String, dynamic>?) ?? {};
+
+    for (final lang in targetLangs) {
+      var foundUrl = loc.audioTracks[lang] ?? '';
+      if (foundUrl.isEmpty) {
+        foundUrl = (vAudioMap[lang] as String?) ??
+            (vData['audioTracks.$lang'] as String?) ??
+            (vData['media.audioTracks.$lang'] as String?) ??
+            '';
+      }
+      if (foundUrl.isEmpty) {
+        foundUrl = (jobAudioTracks[lang] as String?) ??
+            (jobData['outputs.audioTracks.$lang'] as String?) ??
+            ((stages['dubbing_$lang'] as Map<String, dynamic>?)?['audioUrl'] as String?) ??
+            '';
+      }
+
+      if (foundUrl.isNotEmpty) {
+        _markLanguageDubCompleted(vId, lang, foundUrl);
+        resolvedAny = true;
+        final notifKey = '${vId}_$lang';
+        if (!_notifiedDubLanguages.contains(notifKey)) {
+          _notifiedDubLanguages.add(notifKey);
+          showSuccess('${getLanguageName(lang)} dubbed audio track is ready!');
+        }
+      } else {
+        final dubStage = stages['dubbing_$lang'] as Map<String, dynamic>?;
+        if (dubStage?['status'] == 'failed' || jobData['status'] == 'failed') {
+          generatingDubLanguages.remove(lang);
+          dubbingProgress.remove(lang);
+          _globalActiveDubbingJobs[vId]?.remove(lang);
+          _globalDubbingProgress[vId]?.remove(lang);
+          for (final track in currentTracks) {
+            if (track.languageCode == lang && track.audioUrl.isEmpty) {
+              track.status = 'Not added';
+            }
+          }
+          currentTracks.refresh();
+          showError('AI Dubbing for ${getLanguageName(lang)} encountered an issue. You can retry.');
+          return;
+        }
+      }
+    }
+
+    if (resolvedAny) {
+      currentTracks.refresh();
+      await refreshVideoLocalization(vId);
+    } else {
+      AppSnackbar.info('Dubbing is actively processing in the cloud. We will notify you once complete.');
+    }
+  }
+
+  /// Cancels generation tracking for a language and resets its track state to 'Not added'.
+  void cancelDubbing(String langCode) {
+    final vId = selectedVideo.value?.id;
+    generatingDubLanguages.remove(langCode);
+    dubbingProgress.remove(langCode);
+    if (vId != null) {
+      _globalActiveDubbingJobs[vId]?.remove(langCode);
+      _globalDubbingProgress[vId]?.remove(langCode);
+    }
+    for (final track in currentTracks) {
+      if (track.languageCode == langCode && track.audioUrl.isEmpty) {
+        track.status = 'Not added';
+      }
+    }
+    for (final track in currentVideoTracks) {
+      if (track.languageCode == langCode && track.videoUrl.isEmpty) {
+        track.status = 'Not added';
+      }
+    }
+    currentTracks.refresh();
+    currentVideoTracks.refresh();
+    AppSnackbar.info('Dubbing generation for ${getLanguageName(langCode)} was canceled.');
+  }
+
+  /// Retries AI Dubbing for a target language.
+  Future<void> retryDubbing(String langCode) async {
+    cancelDubbing(langCode);
+    final vId = selectedVideo.value?.id;
+    if (vId != null) {
+      _notifiedDubLanguages.remove('${vId}_$langCode');
+    }
+    await triggerAIDubbingForLanguage(langCode: langCode);
+  }
+
+  String getLanguageName(String code) {
+    final clean = code.trim().toLowerCase();
+    if (_languageManager.customLanguages.containsKey(clean)) {
+      return _languageManager.customLanguages[clean]!;
+    }
+    return getSupportedLanguageName(code);
+  }
 }

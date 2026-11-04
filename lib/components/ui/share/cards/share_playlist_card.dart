@@ -1,5 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Preview card displaying a playlist with stacked styling, item count badge, and playlist details.
@@ -7,43 +9,67 @@ class SharePlaylistCard extends StatelessWidget {
   const SharePlaylistCard({
     required this.title,
     super.key,
+    this.url,
     this.thumbnailUrl,
     this.subtitle,
     this.videoCount,
     this.channelName,
+    this.onTap,
   });
 
   final String title;
+  final String? url;
   final String? thumbnailUrl;
   final String? subtitle;
   final int? videoCount;
   final String? channelName;
+  final VoidCallback? onTap;
+
+  void _handleNavigate() {
+    if (onTap != null) {
+      onTap!();
+      return;
+    }
+    if (Get.isBottomSheetOpen ?? false) {
+      Get.back<void>();
+    }
+    if (url != null && url!.isNotEmpty) {
+      DeepLinkService.instance.handleDeepLink(url!);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.bgSurfaceHover,
-            AppColors.bgSurfaceHover.withValues(alpha: 0.7),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: (url != null && url!.isNotEmpty) || onTap != null ? _handleNavigate : null,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: AppColors.brand.withValues(alpha: 0.25),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.bgPage.withValues(alpha: 0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+        splashColor: Colors.white.withValues(alpha: 0.08),
+        highlightColor: Colors.white.withValues(alpha: 0.04),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AppColors.bgSurfaceHover,
+                AppColors.bgSurfaceHover.withValues(alpha: 0.7),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: AppColors.brand.withValues(alpha: 0.25),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.bgPage.withValues(alpha: 0.3),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
-      ),
       child: Row(
         children: [
           // Playlist Thumbnail + Overlay Badge
@@ -171,7 +197,8 @@ class SharePlaylistCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  subtitle ?? 'Playlist • ${videoCount ?? 0} videos',
+                  subtitle ??
+                      'Playlist • ${videoCount ?? 0} ${(videoCount ?? 0) == 1 ? "video" : "videos"}',
                   style: const TextStyle(
                     color: AppColors.textTertiary,
                     fontSize: 11,
@@ -184,6 +211,8 @@ class SharePlaylistCard extends StatelessWidget {
           ),
         ],
       ),
+    ),
+    ),
     );
   }
 }

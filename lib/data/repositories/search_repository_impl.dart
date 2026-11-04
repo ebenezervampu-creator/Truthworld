@@ -1,11 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/base/base_repository.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/network/result.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/domain/entities/channel_entity.dart';
 import 'package:truthworld/domain/entities/video_entity.dart';
 import 'package:truthworld/domain/repositories/search_repository.dart';
+import 'package:truthworld/features/search/data/services/engine/typesense_search_engine.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 class SearchRepositoryImpl extends BaseRepository implements SearchRepository {
@@ -77,6 +79,45 @@ class SearchRepositoryImpl extends BaseRepository implements SearchRepository {
     dynamic cursor,
   }) async {
     return safeFetch(() async {
+      final tsEngine = TypesenseSearchEngine();
+      if (tsEngine.isEnabled) {
+        try {
+          final tsResults = await tsEngine.searchVideos(query, limit: limit);
+          if (tsResults.isNotEmpty) {
+            final ids = tsResults
+                .map((r) => r.id)
+                .where((id) => id.isNotEmpty)
+                .toList();
+            final entities = <VideoEntity>[];
+            for (var i = 0; i < ids.length; i += 10) {
+              final chunk = ids.skip(i).take(10).toList();
+              final snap = await _firestore
+                  .collection(FirestoreCollections.videos)
+                  .where(FieldPath.documentId, whereIn: chunk)
+                  .get();
+              final docMap = {for (final d in snap.docs) d.id: d};
+              for (final id in chunk) {
+                final doc = docMap[id];
+                if (doc != null && doc.exists) {
+                  entities.add(
+                    _mapVideoToEntity(Video.fromDocumentSnapshot(doc)),
+                  );
+                }
+              }
+            }
+            if (entities.isNotEmpty) {
+              return entities;
+            }
+          }
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'SearchRepositoryImpl.typesenseSearchVideos',
+          );
+        }
+      }
+
       final queryLower = query.toLowerCase();
       var q = _firestore
           .collection(FirestoreCollections.videos)
@@ -103,6 +144,45 @@ class SearchRepositoryImpl extends BaseRepository implements SearchRepository {
     dynamic cursor,
   }) async {
     return safeFetch(() async {
+      final tsEngine = TypesenseSearchEngine();
+      if (tsEngine.isEnabled) {
+        try {
+          final tsResults = await tsEngine.searchChannels(query, limit: limit);
+          if (tsResults.isNotEmpty) {
+            final ids = tsResults
+                .map((r) => r.id)
+                .where((id) => id.isNotEmpty)
+                .toList();
+            final entities = <ChannelEntity>[];
+            for (var i = 0; i < ids.length; i += 10) {
+              final chunk = ids.skip(i).take(10).toList();
+              final snap = await _firestore
+                  .collection(FirestoreCollections.channels)
+                  .where(FieldPath.documentId, whereIn: chunk)
+                  .get();
+              final docMap = {for (final d in snap.docs) d.id: d};
+              for (final id in chunk) {
+                final doc = docMap[id];
+                if (doc != null && doc.exists) {
+                  entities.add(
+                    _mapChannelToEntity(Channel.fromDocumentSnapshot(doc)),
+                  );
+                }
+              }
+            }
+            if (entities.isNotEmpty) {
+              return entities;
+            }
+          }
+        } catch (e, s) {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'SearchRepositoryImpl.typesenseSearchChannels',
+          );
+        }
+      }
+
       final queryLower = query.toLowerCase();
       var q = _firestore
           .collection(FirestoreCollections.channels)

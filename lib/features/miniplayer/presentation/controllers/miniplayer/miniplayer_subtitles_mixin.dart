@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/network/app_http_client.dart';
+import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/utils/isolate_compute_utils.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/utils/subtitle_parser.dart';
@@ -50,14 +50,17 @@ mixin MiniplayerSubtitlesMixin on MiniplayerStateBase {
       String? content;
       try {
         final resolvedUrl = StorageUtils.getFastDownloadUrl(url);
-        final response = await AppHttpClient.get(Uri.parse(resolvedUrl));
+        final headers = await StorageUtils.getMediaHeaders();
+        final response = await AppHttpClient.get(
+          Uri.parse(resolvedUrl),
+          headers: headers,
+        );
         if (response.statusCode == 200) {
           content = utf8.decode(response.bodyBytes, allowMalformed: true);
         }
-      } catch (e, s) {
-        ErrorHandler.log(
-          e,
-          stackTrace: s,
+      } catch (e) {
+        logger.warning(
+          'Miniplayer fast download HTTP probe for subtitles skipped or failed: $e',
           tag: 'MiniplayerController.fetchSubtitlesHttp',
         );
       }
@@ -65,34 +68,35 @@ mixin MiniplayerSubtitlesMixin on MiniplayerStateBase {
       if (content == null || content.isEmpty) {
         try {
           Uint8List? data;
-          if (url.startsWith('gs://') ||
-              url.startsWith('https://storage.googleapis.com/') ||
-              url.startsWith('https://firebasestorage.googleapis.com/')) {
-            data = await FirebaseStorage.instance.refFromURL(url).getData();
-          } else if (url.startsWith('subtitles/') || url.startsWith('transcripts/')) {
-            data = await FirebaseStorage.instance.ref(url).getData();
+          final ref = StorageUtils.getStorageRef(url);
+          if (ref != null) {
+            data = await StorageUtils.getDataWithTimeout(ref);
           }
           if (data != null && data.isNotEmpty) {
             content = utf8.decode(data, allowMalformed: true);
           }
-        } catch (e, s) {
-          ErrorHandler.log(
-            e,
-            stackTrace: s,
-            tag: 'MiniplayerController.fetchSubtitlesStorage',
-          );
-        }
+        } catch (_) {}
       }
 
       if (content != null && content.isNotEmpty) {
         subtitleSegments.assignAll(await IsolateComputeUtils.parseSubtitlesAsync(content));
       }
     } catch (e, s) {
-      ErrorHandler.log(
-        e,
-        stackTrace: s,
-        tag: 'MiniplayerController.parseSubtitles',
-      );
+      final errStr = e.toString().toLowerCase();
+      if (errStr.contains('unauthorized') ||
+          errStr.contains('permission-denied') ||
+          errStr.contains('object-not-found')) {
+        logger.warning(
+          'Miniplayer subtitle parsing skipped (unavailable or unauthorized): $e',
+          tag: 'MiniplayerController.parseSubtitles',
+        );
+      } else {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'MiniplayerController.parseSubtitles',
+        );
+      }
       subtitleSegments.clear();
     }
   }

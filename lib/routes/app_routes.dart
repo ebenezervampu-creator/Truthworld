@@ -24,7 +24,10 @@ abstract class AppRoutes {
   static const browse = '/browse';
   static const downloads = '/downloads';
   static const videoAnalysis = '/video-analysis';
+  static const videoDescription = '/video-description';
   static const analysis = '/analysis';
+  static const askAi = '/ask-ai';
+  static const aiChat = '/ai-chat';
   static const claimDetail = '/claim-detail';
   static const claim = '/claim';
   static const claimDetailScreen = '/ClaimDetailScreen';
@@ -32,6 +35,7 @@ abstract class AppRoutes {
   // --- Creator Studio ---
   static const studio = '/studio';
   static const dashboard = '/dashboard';
+  static const studioNotifications = '/studio/notifications';
   static const studioChapters = '/studio/chapters';
   static const studioDrafts = '/studio/drafts';
   static const studioCommunity = '/studio/community';
@@ -49,6 +53,7 @@ abstract class AppRoutes {
   static const uploadVideo = '/upload/video';
   static const uploadSubtitles = '/upload/subtitles';
   static const uploadDubbing = '/upload/dubbing';
+  static const uploadSubtitlesAndDubbing = '/upload/subtitles-and-dubbing';
   static const uploadCommunity = '/upload/community';
   static const createPost = '/create-post';
   static const createPlaylist = '/create-playlist';
@@ -63,6 +68,7 @@ abstract class AppRoutes {
   static const channelHandle = '/@:handle';
   static const channelWizard = '/channelscreen';
   static const channelPlanComparison = '/channel-plan-comparison';
+  static const channelDescription = '/channel-description';
   static const subscriptions = '/subscriptions';
   static const discover = '/discover';
   static const myvideos = '/myvideos';
@@ -89,6 +95,7 @@ abstract class AppRoutes {
   static const playlistDetail = '/playlist-detail';
   static const settings = '/settings';
   static const editProfile = '/settings/edit-profile';
+  static const trash = '/trash';
   static const onboarding = '/onboarding';
   static const notifications = '/notifications';
 
@@ -104,8 +111,6 @@ abstract class AppRoutes {
 
   // --- Monetization & Economy ---
   static const premium = '/premium';
-  static const wallet = '/wallet';
-  static const userWallet = '/user-wallet';
   static const checkout = '/checkout';
   static const paymentResult = '/payment-result';
 

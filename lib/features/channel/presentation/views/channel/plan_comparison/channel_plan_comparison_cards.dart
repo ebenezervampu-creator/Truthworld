@@ -365,7 +365,7 @@ class CustomPlanOverviewCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Custom Channel',
+                      'Pro Channel',
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -440,7 +440,7 @@ class CustomPlanOverviewCard extends StatelessWidget {
           const SizedBox(height: 10),
           StandardPlanOverviewCard._buildPillRow(
             icon: Icons.lock_open_rounded,
-            title: '1k Views & 10h Per-Video Cash-Out',
+            title: '1k Views & 30h Per-Video Cash-Out',
             subtitle: 'Withdraw cash directly on eligible videos',
             color: const Color(0xFFF59E0B),
             isDark: isDark,
@@ -460,7 +460,7 @@ class CustomPlanOverviewCard extends StatelessWidget {
                 ),
               ),
               child: Text(
-                isSelected ? 'Custom Selected' : 'Choose Custom Channel',
+                isSelected ? 'Pro Selected' : 'Choose Pro Channel',
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
             ),

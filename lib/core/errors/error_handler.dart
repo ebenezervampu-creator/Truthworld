@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
@@ -7,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/ux/app_toast.dart';
 import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -87,6 +89,7 @@ class ErrorHandler {
     // Exclude informational/warning diagnostics and transient network drops/timeouts to prevent
     // Crashlytics quota exhaustion and false crash metrics.
     final isCrashlyticsSupported = !kIsWeb &&
+        !Platform.environment.containsKey('FLUTTER_TEST') &&
         (defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS ||
             defaultTargetPlatform == TargetPlatform.macOS);
@@ -140,43 +143,10 @@ class ErrorHandler {
       return;
     }
 
-    final isOffline = appException is NetworkException;
-
-    Get.showSnackbar(
-      GetSnackBar(
-        messageText: Text(
-          userMessage,
-          style: AppTextStyles.bodyMedium.copyWith(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        icon: Icon(
-          isOffline ? Icons.wifi_off_rounded : Icons.error_outline_rounded,
-          color: Colors.white, // Rule: Icons must be white
-          size: 22,
-        ),
-        backgroundColor: const Color(0xFF1E242C),
-        borderRadius: 12,
-        margin: const EdgeInsets.all(16),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        duration: const Duration(seconds: 4),
-        mainButton: (onRetry != null || appException.isRetryable)
-            ? TextButton(
-                onPressed: () {
-                  Get.closeCurrentSnackbar();
-                  onRetry?.call();
-                },
-                child: Text(
-                  'RETRY',
-                  style: AppTextStyles.buttonText.copyWith(
-                    color: AppColors.brand,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              )
-            : null,
-      ),
+    AppToast.error(
+      userMessage,
+      onAction: (onRetry != null || appException.isRetryable) ? onRetry : null,
+      actionLabel: (onRetry != null || appException.isRetryable) ? 'Retry' : null,
     );
   }
 

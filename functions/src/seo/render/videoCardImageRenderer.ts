@@ -1,5 +1,6 @@
 import sharp from "sharp";
-import axios from "axios";
+import { safeFetchImageBuffer } from "./safeImageFetcher";
+import { initSeoFontConfig, TW_PREVIEW_FONT_FAMILY } from "./fontConfig";
 
 export interface VideoCardData {
   title: string;
@@ -18,6 +19,18 @@ function escapeXml(unsafe?: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;");
+}
+
+export function formatDurationMs(durationMs?: number): string {
+  if (!durationMs || durationMs <= 0 || !isFinite(durationMs)) return "";
+  const totalSeconds = Math.floor(durationMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+  }
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
 export function wrapTextToLines(text?: string, maxCharsPerLine: number = 58, maxLines: number = 2): string[] {
@@ -88,48 +101,65 @@ function setToCache(key: string, buffer: Buffer): void {
 }
 
 /**
- * Renders a high-fidelity 1024x780 social share preview card matching the Truthworld architecture:
- * - Exact 16:9 uncropped thumbnail at top (1024x576)
- * - Dark #161719 card body below
+ * Renders a high-fidelity 1024x848 social share preview card matching Truthworld architecture:
+ * - Exact 16:9 uncropped thumbnail at top (1024x576) with duration overlay badge
+ * - Dark #161719 card body with rounded corners
+ * - Header row: [VIDEO] pill badge + creator channel name
  * - Bold white Title (up to 2 lines)
- * - Muted grey Description (up to 2 lines, truncated with ...)
- * - "Truthworld" at the bottom
+ * - Muted grey Description (up to 2 lines, default: "Watch family-safe, verified video with epistemic clarity on Truthworld.")
+ * - Truthworld footer with link icon & chevron >
  */
 export async function renderVideoCardImage(data: VideoCardData): Promise<Buffer> {
-  const cacheKey = `${data.videoId || ""}_${data.title}_${(data.thumbnailUrl || "").slice(-25)}`;
+  initSeoFontConfig();
+
+  const cacheKey = `${data.videoId || ""}_${data.title}_${data.channelName || ""}_${data.durationMs || 0}_${(data.thumbnailUrl || "").slice(-25)}`;
   const cached = getFromCache(cacheKey);
   if (cached) return cached;
 
   const width = 1024;
   const thumbnailHeight = 576; // Exact 16:9 aspect ratio: 1024 * (9 / 16) = 576
-  const bottomHeight = 204;
-  const height = thumbnailHeight + bottomHeight; // 780px
+  const height = 848;
 
-  const title = (data.title || "Truthworld Video").trim();
-  const rawDesc = (data.description || "").trim();
-  const titleLines = wrapTextToLines(title, 56, 2);
-  const descLines = wrapTextToLines(
-    rawDesc || "Watch verified, family-safe video with epistemic clarity on Truthworld.",
-    68,
-    2
-  );
+  let rawTitle = (data.title || "Truthworld Video").trim();
+  if (rawTitle.toLowerCase().startsWith("uploading") || rawTitle.toLowerCase() === "untitled video") {
+    rawTitle = "Truthworld Video";
+  }
 
-  // 1. Fetch & process Thumbnail without losing any part (fit: contain / cover with 16:9)
+  let rawDesc = (data.description || "").trim();
+  const isJunkDesc = !rawDesc ||
+    rawDesc.toLowerCase().startsWith("processing") ||
+    rawDesc.toLowerCase().startsWith("uploading") ||
+    rawDesc.toLowerCase() === "description";
+
+  const effectiveDesc = isJunkDesc
+    ? "Watch family-safe, verified video with epistemic clarity on Truthworld."
+    : rawDesc;
+
+  const channelName = (data.channelName || "").trim();
+  const durationStr = formatDurationMs(data.durationMs);
+  const durationBadgeWidth = durationStr ? Math.max(54, durationStr.length * 11 + 16) : 0;
+
+  const titleLines = wrapTextToLines(rawTitle, 56, 2);
+  const descLines = wrapTextToLines(effectiveDesc, 68, 2);
+
+  // 1. Fetch & process Thumbnail safely with SSRF defense (fit: contain / cover with 16:9)
   let thumbnailBuffer: Buffer | null = null;
   if (data.thumbnailUrl) {
     try {
-      const resp = await axios.get(data.thumbnailUrl, {
-        responseType: "arraybuffer",
-        timeout: 4000,
-        headers: { "User-Agent": "Truthworld-Video-Card-Renderer/1.0" },
-      });
-      thumbnailBuffer = await sharp(resp.data)
-        .resize(width, thumbnailHeight, {
-          fit: "contain",
-          background: "#000000",
-        })
-        .png()
-        .toBuffer();
+      const rawThumb = await safeFetchImageBuffer(
+        data.thumbnailUrl,
+        "Truthworld-Video-Card-Renderer/1.0",
+        4000
+      );
+      if (rawThumb) {
+        thumbnailBuffer = await sharp(rawThumb)
+          .resize(width, thumbnailHeight, {
+            fit: "contain",
+            background: "#000000",
+          })
+          .png()
+          .toBuffer();
+      }
     } catch (_) {
       // Fallback to gradient thumbnail
     }
@@ -153,19 +183,20 @@ export async function renderVideoCardImage(data: VideoCardData): Promise<Buffer>
       <circle cx="40" cy="40" r="40" fill="rgba(255,255,255,0.12)"/>
       <polygon points="32,24 58,40 32,56" fill="#ffffff"/>
     </g>
-    <text x="${width / 2}" y="${thumbnailHeight / 2 + 75}" fill="rgba(255,255,255,0.22)" font-size="28" font-weight="bold" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" text-anchor="middle" letter-spacing="3">TRUTHWORLD VIDEO</text>
+    <text x="${width / 2}" y="${thumbnailHeight / 2 + 75}" fill="rgba(255,255,255,0.22)" font-size="28" font-weight="bold" font-family="${TW_PREVIEW_FONT_FAMILY}" text-anchor="middle" letter-spacing="3">TRUTHWORLD VIDEO</text>
   `;
 
-  // Calculate dynamic text baseline positions
-  const titleY1 = 618;
-  const titleY2 = 654;
+  // Dynamic vertical baseline positions
   const hasTwoTitleLines = titleLines.length > 1;
-  const descY1 = hasTwoTitleLines ? 692 : 668;
-  const descY2 = hasTwoTitleLines ? 722 : 698;
-  const footerY = 754;
+  const titleY1 = 654;
+  const titleY2 = 690;
+  const descY1 = hasTwoTitleLines ? 726 : 692;
+  const descY2 = hasTwoTitleLines ? 754 : 720;
+  const dividerY = hasTwoTitleLines ? 784 : 750;
+  const footerY = hasTwoTitleLines ? 816 : 782;
 
   const svgContent = `
-    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
       <defs>
         <clipPath id="videoCardClip">
           <rect x="0" y="0" width="${width}" height="${height}" rx="24" ry="24"/>
@@ -174,32 +205,72 @@ export async function renderVideoCardImage(data: VideoCardData): Promise<Buffer>
 
       <!-- Rounded Card Frame -->
       <g clip-path="url(#videoCardClip)">
-        <!-- Solid Dark Background -->
+        <!-- Solid Dark Background (#161719 matching Truthworld share architecture) -->
         <rect x="0" y="0" width="${width}" height="${height}" fill="#161719"/>
 
-        <!-- Top Thumbnail (Exact 16:9 Widescreen, No Cropping) -->
-        ${thumbBase64 ? `<image href="${thumbBase64}" x="0" y="0" width="${width}" height="${thumbnailHeight}" preserveAspectRatio="xMidYMid meet"/>` : fallbackThumbSvg}
+        <!-- Top Thumbnail (Exact 16:9 Widescreen, Uncropped) -->
+        ${thumbBase64 ? `<image href="${thumbBase64}" xlink:href="${thumbBase64}" x="0" y="0" width="${width}" height="${thumbnailHeight}" preserveAspectRatio="xMidYMid meet"/>` : fallbackThumbSvg}
+
+        <!-- Duration Badge overlay on bottom-right of thumbnail (Image 2) -->
+        ${durationStr ? `
+        <g transform="translate(${width - durationBadgeWidth - 20}, ${thumbnailHeight - 44})">
+          <rect x="0" y="0" width="${durationBadgeWidth}" height="30" rx="5" fill="rgba(0,0,0,0.85)" stroke="rgba(255,255,255,0.18)" stroke-width="0.8"/>
+          <text x="${durationBadgeWidth / 2}" y="21" fill="#ffffff" font-size="16" font-weight="700" font-family="${TW_PREVIEW_FONT_FAMILY}" text-anchor="middle" letter-spacing="0.4">${escapeXml(durationStr)}</text>
+        </g>` : ""}
 
         <!-- Seam line divider between thumbnail and text container -->
         <rect x="0" y="${thumbnailHeight}" width="${width}" height="1" fill="#27272a" opacity="0.6"/>
 
-        <!-- Title Line 1 -->
-        ${titleLines[0] ? `<text x="36" y="${titleY1}" fill="#ffffff" font-size="28" font-weight="700" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">${escapeXml(titleLines[0])}</text>` : ""}
+        <!-- Header Row: [VIDEO] pill badge + Channel Name (Image 2) -->
+        <g transform="translate(36, 600)">
+          <!-- [VIDEO] pill badge -->
+          <rect x="0" y="0" width="64" height="26" rx="4" fill="rgba(255,255,255,0.12)"/>
+          <text x="32" y="18" fill="#ffffff" font-size="12" font-weight="800" font-family="${TW_PREVIEW_FONT_FAMILY}" text-anchor="middle" letter-spacing="0.8">VIDEO</text>
 
-        <!-- Title Line 2 -->
-        ${titleLines[1] ? `<text x="36" y="${titleY2}" fill="#ffffff" font-size="28" font-weight="700" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">${escapeXml(titleLines[1])}</text>` : ""}
+          <!-- Channel Name -->
+          ${channelName ? `<text x="76" y="19" fill="#8e8e93" font-size="19" font-weight="500" font-family="${TW_PREVIEW_FONT_FAMILY}">${escapeXml(channelName)}</text>` : ""}
+        </g>
 
-        <!-- Two lines of description -->
-        ${descLines[0] ? `<text x="36" y="${descY1}" fill="#9ca3af" font-size="20" font-weight="400" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">${escapeXml(descLines[0])}</text>` : ""}
-        ${descLines[1] ? `<text x="36" y="${descY2}" fill="#9ca3af" font-size="20" font-weight="400" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">${escapeXml(descLines[1])}</text>` : ""}
+        <!-- Video Title (Bold, White, up to 2 lines - Image 2) -->
+        ${titleLines[0] ? `<text x="36" y="${titleY1}" fill="#ffffff" font-size="28" font-weight="700" font-family="${TW_PREVIEW_FONT_FAMILY}">${escapeXml(titleLines[0])}</text>` : ""}
+        ${titleLines[1] ? `<text x="36" y="${titleY2}" fill="#ffffff" font-size="28" font-weight="700" font-family="${TW_PREVIEW_FONT_FAMILY}">${escapeXml(titleLines[1])}</text>` : ""}
 
-        <!-- Bottom Line: Truthworld -->
-        <text x="36" y="${footerY}" fill="#e4e6eb" font-size="20" font-weight="600" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" letter-spacing="-0.2">Truthworld</text>
+        <!-- Video Description (Muted grey, up to 2 lines - Image 2) -->
+        ${descLines[0] ? `<text x="36" y="${descY1}" fill="#9ca3af" font-size="20" font-weight="400" font-family="${TW_PREVIEW_FONT_FAMILY}">${escapeXml(descLines[0])}</text>` : ""}
+        ${descLines[1] ? `<text x="36" y="${descY2}" fill="#9ca3af" font-size="20" font-weight="400" font-family="${TW_PREVIEW_FONT_FAMILY}">${escapeXml(descLines[1])}</text>` : ""}
+
+        <!-- Footer Divider Line (Image 2) -->
+        <line x1="36" y1="${dividerY}" x2="${width - 36}" y2="${dividerY}" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+
+        <!-- Footer: Link Icon + Truthworld + Chevron > (Image 2) -->
+        <g transform="translate(36, ${footerY - 18})">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round"/>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round"/>
+        </g>
+        <text x="74" y="${footerY}" fill="#ffffff" font-size="22" font-weight="600" font-family="${TW_PREVIEW_FONT_FAMILY}" letter-spacing="-0.2">Truthworld</text>
+
+        <!-- Chevron > on far right -->
+        <g transform="translate(${width - 56}, ${footerY - 15})">
+          <path d="M2 2 L9 9 L2 16" fill="none" stroke="#ffffff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+
+        <!-- Outer Border Stroke -->
+        <rect x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" rx="24" ry="24" fill="none" stroke="#27272a" stroke-width="1.5"/>
       </g>
     </svg>
   `;
 
-  const finalBuffer = await sharp(Buffer.from(svgContent)).png().toBuffer();
+  let finalBuffer = await sharp(Buffer.from(svgContent))
+    .png({ compressionLevel: 9, effort: 8 })
+    .toBuffer();
+
+  // Social scrapers drop images exceeding 300KB. If needed, apply gentle optimization.
+  if (finalBuffer.length > 290 * 1024) {
+    finalBuffer = await sharp(Buffer.from(svgContent))
+      .png({ compressionLevel: 9, effort: 8, quality: 92 })
+      .toBuffer();
+  }
+
   setToCache(cacheKey, finalBuffer);
   return finalBuffer;
 }

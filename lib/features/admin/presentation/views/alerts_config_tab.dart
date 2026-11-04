@@ -35,7 +35,7 @@ class AlertsConfigTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
@@ -48,7 +48,7 @@ class AlertsConfigTab extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF212121),
+                  color: AppColors.bgSurface,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                 ),
@@ -64,7 +64,7 @@ class AlertsConfigTab extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Direct Approval & AI Bypass Toggles (Google Cloud Vision & Gemini AI)',
+                      'Direct Approval & AI Bypass Switchboard (Google Cloud Vision & Gemini AI)',
                       style: TextStyle(
                         fontFamily: TWTypography.brandFamily,
                         color: AppColors.textPrimary,
@@ -74,7 +74,7 @@ class AlertsConfigTab extends StatelessWidget {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'When a toggle is ON, submissions for that category bypass AI auto-moderation (Gemini AI / Google Cloud Vision) and appear directly in the Admin Portal for manual approval. When OFF, items are automatically filtered and approved/rejected by AI.',
+                      'When a moderation switch is ON, submissions for that category bypass automated AI (Gemini AI / Google Cloud Vision) and appear directly in the Admin Portal queues for manual human decision. When OFF, submissions follow the standard automated AI flow.',
                       style: TextStyle(
                         fontFamily: TWTypography.uiFamily,
                         color: AppColors.textSecondary,
@@ -85,50 +85,178 @@ class AlertsConfigTab extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 16),
-              Obx(() {
-                final allOn = controller.rxBypassChannelBanners.value &&
-                    controller.rxBypassChannelAvatars.value &&
-                    controller.rxBypassVideoThumbnails.value &&
-                    controller.rxBypassCommunityPosts.value &&
-                    controller.rxBypassTopicThumbnails.value &&
-                    controller.rxBypassPlaylistThumbnails.value &&
-                    controller.rxBypassAds.value;
-                return OutlinedButton.icon(
-                  onPressed: () => controller.toggleAllMediaModes(!allOn),
-                  icon: Icon(
-                    allOn ? Icons.toggle_on_rounded : Icons.toggle_off_rounded,
-                    color: Colors.white,
-                    size: 18,
-                  ),
-                  label: Text(
-                    allOn ? 'Turn All Auto AI' : 'Direct Approve All',
-                    style: const TextStyle(
-                      fontFamily: TWTypography.brandFamily,
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: const Color(0xFF212121),
-                    side: BorderSide(
-                      color: allOn
-                          ? const Color(0xFF2BA640).withValues(alpha: 0.6)
-                          : Colors.white.withValues(alpha: 0.12),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                );
-              }),
             ],
           ),
+          const SizedBox(height: 20),
+
+          // ─── MASTER TOGGLE CARD (Route ALL requests to Admin) ───────────────
+          Obx(() {
+            final isMasterBypassed = controller.rxBypassAll.value;
+            return Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: isMasterBypassed
+                    ? AppColors.success.withValues(alpha: 0.08)
+                    : AppColors.bgSurface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: isMasterBypassed
+                      ? AppColors.success.withValues(alpha: 0.4)
+                      : Colors.white.withValues(alpha: 0.12),
+                  width: isMasterBypassed ? 1.5 : 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: isMasterBypassed
+                              ? AppColors.success.withValues(alpha: 0.2)
+                              : AppColors.bgPage,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isMasterBypassed
+                                ? AppColors.success.withValues(alpha: 0.4)
+                                : Colors.white.withValues(alpha: 0.08),
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.admin_panel_settings_rounded,
+                          color: isMasterBypassed
+                              ? AppColors.success
+                              : Colors.white,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Master Switch: Route ALL Moderation Requests to Admin',
+                              style: TextStyle(
+                                fontFamily: TWTypography.brandFamily,
+                                color: AppColors.textPrimary,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              isMasterBypassed
+                                  ? 'ALL content requests (Videos, Thumbnails, Channels, Avatars, Banners, Topics, Playlists, Community, Ads) are currently routed to Admin queues. Automated AI is completely bypassed.'
+                                  : 'Standard automated flow active. Submissions are processed automatically by Gemini AI and Google Cloud Vision unless individual category switches below are enabled.',
+                              style: const TextStyle(
+                                fontFamily: TWTypography.uiFamily,
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
+                                height: 1.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Switch(
+                        value: isMasterBypassed,
+                        onChanged: (val) => controller.toggleModerationMode('all', val),
+                        activeTrackColor: AppColors.success,
+                        activeColor: Colors.white,
+                        inactiveTrackColor: AppColors.bgDivider,
+                        inactiveThumbColor: AppColors.textTertiary,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isMasterBypassed
+                              ? AppColors.success.withValues(alpha: 0.12)
+                              : Colors.white.withValues(alpha: 0.04),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: isMasterBypassed
+                                ? AppColors.success.withValues(alpha: 0.4)
+                                : Colors.white.withValues(alpha: 0.08),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isMasterBypassed
+                                    ? AppColors.success
+                                    : AppColors.textTertiary,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              isMasterBypassed
+                                  ? '🛡️ DIRECT ADMIN APPROVAL ONLY (All AI Bypassed)'
+                                  : '🤖 AUTOMATED AI PIPELINE (Present Flow Active)',
+                              style: TextStyle(
+                                fontFamily: TWTypography.brandFamily,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: isMasterBypassed
+                                    ? AppColors.success
+                                    : AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () => controller.toggleAllMediaModes(!isMasterBypassed),
+                        icon: Icon(
+                          isMasterBypassed ? Icons.toggle_on_rounded : Icons.toggle_off_rounded,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                        label: Text(
+                          isMasterBypassed ? 'Restore Automated AI Flow' : 'Direct Approve All (Route to Admin)',
+                          style: const TextStyle(
+                            fontFamily: TWTypography.brandFamily,
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: AppColors.bgPage,
+                          side: BorderSide(
+                            color: isMasterBypassed
+                                ? AppColors.success.withValues(alpha: 0.6)
+                                : Colors.white.withValues(alpha: 0.12),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }),
           const SizedBox(height: 20),
           Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
           const SizedBox(height: 20),
@@ -143,6 +271,24 @@ class AlertsConfigTab extends StatelessWidget {
                 children: [
                   _buildToggleCard(
                     width: isWide ? (constraints.maxWidth - 16) / 2 : constraints.maxWidth,
+                    title: 'Videos Content',
+                    description: 'Uploaded video media files, audio tracks, and dialogue. When ON, videos bypass Gemini AI automated moderation and route directly to Admin review queue.',
+                    icon: Icons.video_library_outlined,
+                    modeKey: 'videos',
+                    rxValue: controller.rxBypassVideos,
+                    isGemini: true,
+                  ),
+                  _buildToggleCard(
+                    width: isWide ? (constraints.maxWidth - 16) / 2 : constraints.maxWidth,
+                    title: 'Channel Details & Registration',
+                    description: 'Channel display name, handle, description, and tags. When ON, channel registrations bypass Gemini AI and are held for Admin manual review.',
+                    icon: Icons.verified_user_outlined,
+                    modeKey: 'channels',
+                    rxValue: controller.rxBypassChannels,
+                    isGemini: true,
+                  ),
+                  _buildToggleCard(
+                    width: isWide ? (constraints.maxWidth - 16) / 2 : constraints.maxWidth,
                     title: 'Advertiser Campaigns',
                     description: 'Advertiser campaign submissions (Feed, Video, Banner & Sponsor ads). When ON, campaigns bypass Gemini AI auto approve/reject and route to Admin for manual review.',
                     icon: Icons.campaign_outlined,
@@ -152,8 +298,16 @@ class AlertsConfigTab extends StatelessWidget {
                   ),
                   _buildToggleCard(
                     width: isWide ? (constraints.maxWidth - 16) / 2 : constraints.maxWidth,
+                    title: 'Video Thumbnails',
+                    description: 'Custom preview thumbnails uploaded during video publishing. When ON, thumbnails bypass Google Cloud Vision AI and route to Admin.',
+                    icon: Icons.photo_size_select_actual_outlined,
+                    modeKey: 'thumbnails',
+                    rxValue: controller.rxBypassVideoThumbnails,
+                  ),
+                  _buildToggleCard(
+                    width: isWide ? (constraints.maxWidth - 16) / 2 : constraints.maxWidth,
                     title: 'Channel Banners',
-                    description: 'Channel header artwork and banners uploaded by creators.',
+                    description: 'Channel header artwork and banners uploaded by creators. When ON, banners bypass Google Cloud Vision AI and route to Admin.',
                     icon: Icons.panorama_outlined,
                     modeKey: 'banner',
                     rxValue: controller.rxBypassChannelBanners,
@@ -161,39 +315,31 @@ class AlertsConfigTab extends StatelessWidget {
                   _buildToggleCard(
                     width: isWide ? (constraints.maxWidth - 16) / 2 : constraints.maxWidth,
                     title: 'Channel Avatars',
-                    description: 'Profile pictures and avatar images uploaded for channels.',
+                    description: 'Profile pictures and avatar images uploaded for channels. When ON, avatars bypass Google Cloud Vision AI and route to Admin.',
                     icon: Icons.account_circle_outlined,
                     modeKey: 'avatar',
                     rxValue: controller.rxBypassChannelAvatars,
                   ),
                   _buildToggleCard(
                     width: isWide ? (constraints.maxWidth - 16) / 2 : constraints.maxWidth,
-                    title: 'Video Thumbnails',
-                    description: 'Custom preview thumbnails uploaded during video publishing.',
-                    icon: Icons.photo_size_select_actual_outlined,
-                    modeKey: 'thumbnails',
-                    rxValue: controller.rxBypassVideoThumbnails,
-                  ),
-                  _buildToggleCard(
-                    width: isWide ? (constraints.maxWidth - 16) / 2 : constraints.maxWidth,
                     title: 'Community Posts',
-                    description: 'Image attachments and artwork uploaded in community feed posts.',
+                    description: 'Image attachments and artwork uploaded in community feed posts. When ON, post images bypass Google Cloud Vision AI and route to Admin.',
                     icon: Icons.dynamic_feed_outlined,
                     modeKey: 'community',
                     rxValue: controller.rxBypassCommunityPosts,
                   ),
                   _buildToggleCard(
                     width: isWide ? (constraints.maxWidth - 16) / 2 : constraints.maxWidth,
-                    title: 'Topics Custom Thumbnails',
-                    description: 'Custom cover thumbnails uploaded for discussion topics.',
+                    title: 'Topics Custom Thumbnails & Details',
+                    description: 'Custom cover thumbnails and details submitted for discussion topics. When ON, topics bypass automated AI and route to Admin.',
                     icon: Icons.tag_rounded,
                     modeKey: 'topics',
                     rxValue: controller.rxBypassTopicThumbnails,
                   ),
                   _buildToggleCard(
                     width: isWide ? (constraints.maxWidth - 16) / 2 : constraints.maxWidth,
-                    title: 'Playlists Custom Thumbnails',
-                    description: 'Custom cover artwork and thumbnails uploaded for playlists.',
+                    title: 'Playlists Custom Thumbnails & Details',
+                    description: 'Custom cover artwork and metadata submitted for playlists. When ON, playlists bypass automated AI and route to Admin.',
                     icon: Icons.playlist_play_rounded,
                     modeKey: 'playlists',
                     rxValue: controller.rxBypassPlaylistThumbnails,
@@ -220,7 +366,7 @@ class AlertsConfigTab extends StatelessWidget {
       width: width,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFF212121),
+        color: AppColors.bgSurface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
@@ -232,7 +378,7 @@ class AlertsConfigTab extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF181818),
+                  color: AppColors.bgPage,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                 ),
@@ -254,10 +400,10 @@ class AlertsConfigTab extends StatelessWidget {
                 return Switch(
                   value: rxValue.value,
                   onChanged: (val) => controller.toggleModerationMode(modeKey, val),
-                  activeTrackColor: const Color(0xFF2BA640),
+                  activeTrackColor: AppColors.success,
                   activeColor: Colors.white,
-                  inactiveTrackColor: const Color(0xFF333333),
-                  inactiveThumbColor: const Color(0xFF888888),
+                  inactiveTrackColor: AppColors.bgDivider,
+                  inactiveThumbColor: AppColors.textTertiary,
                 );
               }),
             ],
@@ -286,12 +432,12 @@ class AlertsConfigTab extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: isBypassed
-                    ? const Color(0xFF2BA640).withValues(alpha: 0.12)
+                    ? AppColors.success.withValues(alpha: 0.12)
                     : Colors.white.withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
                   color: isBypassed
-                      ? const Color(0xFF2BA640).withValues(alpha: 0.4)
+                      ? AppColors.success.withValues(alpha: 0.4)
                       : Colors.white.withValues(alpha: 0.08),
                 ),
               ),
@@ -304,7 +450,7 @@ class AlertsConfigTab extends StatelessWidget {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: isBypassed
-                          ? const Color(0xFF2BA640)
+                          ? AppColors.success
                           : AppColors.textTertiary,
                     ),
                   ),
@@ -316,7 +462,7 @@ class AlertsConfigTab extends StatelessWidget {
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
                       color: isBypassed
-                          ? const Color(0xFF2BA640)
+                          ? AppColors.success
                           : AppColors.textSecondary,
                     ),
                   ),
@@ -333,7 +479,7 @@ class AlertsConfigTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
@@ -427,7 +573,7 @@ class AlertsConfigTab extends StatelessWidget {
                 }
 
                 return Card(
-                  color: const Color(0xFF212121),
+                  color: AppColors.bgSurface,
                   margin: const EdgeInsets.only(bottom: 8),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -487,7 +633,7 @@ class AlertsConfigTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
@@ -522,7 +668,7 @@ class AlertsConfigTab extends StatelessWidget {
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF242424),
+                  backgroundColor: AppColors.bgSurface,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -705,7 +851,7 @@ class AlertsConfigTab extends StatelessWidget {
                     },
                     selected: channels.contains('push'),
                     selectedColor: AppColors.brand.withValues(alpha: 0.3),
-                    backgroundColor: const Color(0xFF212121),
+                    backgroundColor: AppColors.bgSurface,
                     side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
                   ),
                   FilterChip(
@@ -731,7 +877,7 @@ class AlertsConfigTab extends StatelessWidget {
                     },
                     selected: channels.contains('email'),
                     selectedColor: AppColors.brand.withValues(alpha: 0.3),
-                    backgroundColor: const Color(0xFF212121),
+                    backgroundColor: AppColors.bgSurface,
                     side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
                   ),
                   FilterChip(
@@ -757,7 +903,7 @@ class AlertsConfigTab extends StatelessWidget {
                     },
                     selected: channels.contains('sms'),
                     selectedColor: AppColors.brand.withValues(alpha: 0.3),
-                    backgroundColor: const Color(0xFF212121),
+                    backgroundColor: AppColors.bgSurface,
                     side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
                   ),
                 ],
@@ -770,7 +916,7 @@ class AlertsConfigTab extends StatelessWidget {
                     controller.alertRules.refresh();
                   }
                 },
-                activeColor: const Color(0xFF2BA640),
+                activeColor: AppColors.success,
               ),
             ],
           ),
@@ -783,7 +929,7 @@ class AlertsConfigTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),

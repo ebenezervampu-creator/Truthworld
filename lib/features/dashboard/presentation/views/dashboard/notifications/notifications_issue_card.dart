@@ -29,17 +29,17 @@ class ChannelNotificationsIssueCard extends StatelessWidget {
       iconColor = AppColors.textSecondary;
       statusLabel = 'IN PROGRESS';
     } else if (statusType == 'APPROVED') {
-      iconColor = const Color(0xFF34D399);
+      iconColor = AppColors.success;
       statusLabel = 'VERIFIED';
     } else if (statusType == 'FLAGGED') {
-      iconColor = const Color(0xFFFBBF24);
+      iconColor = AppColors.warning;
       statusLabel = 'NEEDS REVIEW';
     } else if (statusType == 'MANUAL_REVIEW') {
       iconColor = AppColors.textSecondary;
       statusLabel = 'IN REVIEW';
     } else {
       // REJECTED
-      iconColor = const Color(0xFFF87171);
+      iconColor = AppColors.error;
       statusLabel = 'ACTION REQUIRED';
     }
 

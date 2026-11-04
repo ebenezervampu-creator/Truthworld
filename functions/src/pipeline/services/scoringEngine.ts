@@ -216,8 +216,6 @@ export class ScoringEngine {
       language: "en",
       riskDomain: domain,
       domainRiskMultiplier: 1.0,
-      honestyScore: null,
-      rationalityScore: null,
       compositeRating: undefined,
       verificationState: finalState,
       chapters: [],
@@ -319,6 +317,9 @@ export class ScoringEngine {
           bucket: c.nature || 'FACTUAL',
           isLowRiskTrivia: isTrivia,
           reasoning: c.reasoning,
+          start: typeof c.start === 'number' ? c.start : (typeof c.timestampStart === 'number' ? c.timestampStart : (typeof c.startMs === 'number' ? c.startMs / 1000 : undefined)),
+          end: typeof c.end === 'number' ? c.end : (typeof c.timestampEnd === 'number' ? c.timestampEnd : (typeof c.endMs === 'number' ? c.endMs / 1000 : undefined)),
+          thumbnailUrl: c.thumbnailUrl || c.frameUrl || c.imageUrl || undefined,
           sources: c.sources || [],
           richSources: c.richSources || [],
           effectiveSources: (c.richSources || []).map((rs: any) => ({

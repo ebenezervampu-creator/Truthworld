@@ -63,11 +63,11 @@ class AudienceCategoriesSection extends StatelessWidget {
                         showCheckmark: isSelected,
                         checkmarkColor: isSelected ? Colors.black : Colors.white,
                         selectedColor: AppColors.brand,
-                        backgroundColor: const Color(0xFF18181B),
+                        backgroundColor: AppColors.bgPage,
                         side: BorderSide(
                           color: isSelected
                               ? AppColors.brand
-                              : const Color(0xFF27272A),
+                              : AppColors.bgSurface,
                         ),
                         onSelected: (selected) {
                           if (selected) {
@@ -105,17 +105,17 @@ class AudienceCategoriesSection extends StatelessWidget {
                               vertical: 10,
                             ),
                             filled: true,
-                            fillColor: const Color(0xFF18181B),
+                            fillColor: AppColors.bgPage,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                               borderSide: const BorderSide(
-                                color: Color(0xFF27272A),
+                                color: AppColors.bgSurface,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                               borderSide: const BorderSide(
-                                color: Color(0xFF27272A),
+                                color: AppColors.bgSurface,
                               ),
                             ),
                             focusedBorder: OutlineInputBorder(
@@ -178,7 +178,7 @@ class AudienceCategoriesSection extends StatelessWidget {
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF27272A),
+                          backgroundColor: AppColors.bgSurface,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 14,
                             vertical: 10,
@@ -211,7 +211,7 @@ class AudienceCategoriesSection extends StatelessWidget {
                             size: 14,
                           ),
                           onDeleted: () => selectedAudiences.remove(aud),
-                          backgroundColor: const Color(0xFF27272A),
+                          backgroundColor: AppColors.bgSurface,
                           padding: const EdgeInsets.all(4),
                           materialTapTargetSize:
                               MaterialTapTargetSize.shrinkWrap,

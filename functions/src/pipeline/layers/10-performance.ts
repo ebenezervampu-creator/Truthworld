@@ -196,15 +196,18 @@ export class PerformanceLayer {
   // ─── Translation cache ───────────────────────────────────────────────────
 
   /**
-   * Get cached translation.
+   * Get cached translation. Scoped by sourceLanguage and targetLanguage to prevent cross-language collisions.
    */
   async getTranslation(
     text: string,
     sourceLanguage: string,
     targetLanguage: string
   ): Promise<string | null> {
+    const src = (sourceLanguage || "en").toLowerCase().trim();
+    const tgt = (targetLanguage || "en").toLowerCase().trim();
     const textHash = crypto.createHash("md5").update(text).digest("hex");
-    const cacheKey = `translation:${sourceLanguage}:${targetLanguage}:${textHash}`;
+    const docId = crypto.createHash("md5").update(`${src}:${tgt}:${text}`).digest("hex");
+    const cacheKey = `translation:${src}:${tgt}:${textHash}`;
 
     // ── L1: In-memory ────────────────────────────────────────────────────────
     const memCached = getCache(cacheKey);
@@ -216,7 +219,7 @@ export class PerformanceLayer {
     try {
       const doc = await db()
         .collection("translation_cache")
-        .doc(textHash)
+        .doc(docId)
         .get();
 
       if (!doc.exists) {
@@ -224,6 +227,14 @@ export class PerformanceLayer {
       }
 
       const data = doc.data()!;
+      // Strict language guard: verify that cached document matches exact source and target language
+      if (
+        (data.sourceLanguage && data.sourceLanguage.toLowerCase().trim() !== src) ||
+        (data.targetLanguage && data.targetLanguage.toLowerCase().trim() !== tgt)
+      ) {
+        return null;
+      }
+
       if (data.expiresAt && Date.now() > data.expiresAt) {
         await doc.ref.delete().catch(() => { });
         return null;
@@ -233,13 +244,13 @@ export class PerformanceLayer {
       setCache(cacheKey, translation, 3600); // backfill L1
       return translation;
     } catch (err) {
-      logger.error("[Performance] Translation cache read failed", { textHash, err });
+      logger.error("[Performance] Translation cache read failed", { docId, textHash, err });
       return null;
     }
   }
 
   /**
-   * Cache a translation result.
+   * Cache a translation result. Scoped by sourceLanguage and targetLanguage.
    */
   async cacheTranslation(
     text: string,
@@ -247,8 +258,11 @@ export class PerformanceLayer {
     targetLanguage: string,
     translation: string
   ): Promise<void> {
+    const src = (sourceLanguage || "en").toLowerCase().trim();
+    const tgt = (targetLanguage || "en").toLowerCase().trim();
     const textHash = crypto.createHash("md5").update(text).digest("hex");
-    const cacheKey = `translation:${sourceLanguage}:${targetLanguage}:${textHash}`;
+    const docId = crypto.createHash("md5").update(`${src}:${tgt}:${text}`).digest("hex");
+    const cacheKey = `translation:${src}:${tgt}:${textHash}`;
     const ttlSeconds = this.config.cacheTTL.translation;
 
     try {
@@ -258,31 +272,45 @@ export class PerformanceLayer {
       // L2: Firestore
       await db()
         .collection("translation_cache")
-        .doc(textHash)
+        .doc(docId)
         .set({
           text,
-          sourceLanguage,
-          targetLanguage,
+          sourceLanguage: src,
+          targetLanguage: tgt,
           translation,
           expiresAt: Date.now() + ttlSeconds * 1000,
           cachedAt: admin.firestore.FieldValue.serverTimestamp(),
           ttl: Date.now() + ttlSeconds * 1000,
         });
 
-      logger.debug("[Performance] Translation cached", { textHash });
+      logger.debug("[Performance] Translation cached", { docId, src, tgt });
     } catch (err) {
-      logger.error("[Performance] Failed to cache translation", { textHash, err });
+      logger.error("[Performance] Failed to cache translation", { docId, err });
     }
   }
 
   // ─── TTS cache ───────────────────────────────────────────────────────────
 
   /**
-   * Get cached TTS audio URL (stored in GCS, URL in cache).
+   * Get cached TTS audio URL (stored in GCS, URL in cache). Scoped by language, voiceId, tier, and voiceType.
+   * 🛡️ Security Guard: Cross-tier cache isolation & multi-tenant voice clone protection.
    */
-  async getTTSAudioUrl(text: string, language: string, voiceId: string): Promise<string | null> {
+  async getTTSAudioUrl(
+    text: string,
+    language: string,
+    voiceId: string,
+    tier?: string,
+    voiceType?: string,
+    userId?: string
+  ): Promise<string | null> {
+    const lang = (language || "en").toLowerCase().trim();
+    const vId = voiceId || "default";
+    const tierKey = (tier || "audio_starter").toLowerCase().trim();
+    const vType = (voiceType || "standard").toLowerCase().trim();
+    const userScope = (vType === "cloned" && userId) ? `:${userId}` : "";
     const textHash = crypto.createHash("md5").update(text).digest("hex");
-    const cacheKey = `tts:${language}:${voiceId}:${textHash}`;
+    const docId = crypto.createHash("md5").update(`${lang}:${vId}:${tierKey}:${vType}${userScope}:${text}`).digest("hex");
+    const cacheKey = `tts:${lang}:${vId}:${tierKey}:${vType}${userScope}:${textHash}`;
 
     // L1: In-memory
     const memCached = getCache(cacheKey);
@@ -294,7 +322,7 @@ export class PerformanceLayer {
     try {
       const doc = await db()
         .collection("tts_cache")
-        .doc(textHash)
+        .doc(docId)
         .get();
 
       if (!doc.exists) {
@@ -302,6 +330,16 @@ export class PerformanceLayer {
       }
 
       const data = doc.data()!;
+      // Strict language, voice, and tier guard: verify exact match
+      if (
+        (data.language && data.language.toLowerCase().trim() !== lang) ||
+        (vId !== "default" && data.voiceId && data.voiceId !== vId) ||
+        (data.tier && data.tier !== tierKey) ||
+        (data.voiceType && data.voiceType !== vType)
+      ) {
+        return null;
+      }
+
       if (data.expiresAt && Date.now() > data.expiresAt) {
         await doc.ref.delete().catch(() => { });
         return null;
@@ -311,22 +349,31 @@ export class PerformanceLayer {
       setCache(cacheKey, url, 3600);
       return url;
     } catch (err) {
-      logger.error("[Performance] TTS cache read failed", { textHash, err });
+      logger.error("[Performance] TTS cache read failed", { docId, textHash, err });
       return null;
     }
   }
 
   /**
-   * Cache TTS result (audio URL in GCS).
+   * Cache TTS result (audio URL in GCS). Scoped by language, voiceId, tier, and voiceType.
    */
   async cacheTTSAudio(
     text: string,
     language: string,
     voiceId: string,
-    audioUrl: string
+    audioUrl: string,
+    tier?: string,
+    voiceType?: string,
+    userId?: string
   ): Promise<void> {
+    const lang = (language || "en").toLowerCase().trim();
+    const vId = voiceId || "default";
+    const tierKey = (tier || "audio_starter").toLowerCase().trim();
+    const vType = (voiceType || "standard").toLowerCase().trim();
+    const userScope = (vType === "cloned" && userId) ? `:${userId}` : "";
     const textHash = crypto.createHash("md5").update(text).digest("hex");
-    const cacheKey = `tts:${language}:${voiceId}:${textHash}`;
+    const docId = crypto.createHash("md5").update(`${lang}:${vId}:${tierKey}:${vType}${userScope}:${text}`).digest("hex");
+    const cacheKey = `tts:${lang}:${vId}:${tierKey}:${vType}${userScope}:${textHash}`;
     const ttlSeconds = this.config.cacheTTL.tts;
 
     try {
@@ -336,20 +383,23 @@ export class PerformanceLayer {
       // L2: Firestore
       await db()
         .collection("tts_cache")
-        .doc(textHash)
+        .doc(docId)
         .set({
           text,
-          language,
-          voiceId,
+          language: lang,
+          voiceId: vId,
+          tier: tierKey,
+          voiceType: vType,
+          userId: userScope ? userId : null,
           audioUrl,
           expiresAt: Date.now() + ttlSeconds * 1000,
           cachedAt: admin.firestore.FieldValue.serverTimestamp(),
           ttl: Date.now() + ttlSeconds * 1000,
         });
 
-      logger.debug("[Performance] TTS cached", { textHash });
+      logger.debug("[Performance] TTS cached", { docId, lang, vId, tier: tierKey, voiceType: vType });
     } catch (err) {
-      logger.error("[Performance] Failed to cache TTS", { textHash, err });
+      logger.error("[Performance] Failed to cache TTS", { docId, err });
     }
   }
 
@@ -398,16 +448,33 @@ export class PerformanceLayer {
 
   /**
    * Check TTS cache. Used by DubbingEngine.
+   * 🛡️ Scoped by language, voiceId, tier, voiceType, and userId.
    */
-  async checkTTSCache(text: string, language: string, voiceId?: string): Promise<string | null> {
-    return this.getTTSAudioUrl(text, language, voiceId ?? "default");
+  async checkTTSCache(
+    text: string,
+    language: string,
+    voiceId?: string,
+    tier?: string,
+    voiceType?: string,
+    userId?: string
+  ): Promise<string | null> {
+    return this.getTTSAudioUrl(text, language, voiceId ?? "default", tier, voiceType, userId);
   }
 
   /**
    * Cache TTS result. Used by DubbingEngine.
+   * 🛡️ Scoped by language, voiceId, tier, voiceType, and userId.
    */
-  async cacheTTSResult(text: string, language: string, audioUrl: string, voiceId?: string): Promise<void> {
-    await this.cacheTTSAudio(text, language, voiceId ?? "default", audioUrl);
+  async cacheTTSResult(
+    text: string,
+    language: string,
+    audioUrl: string,
+    voiceId?: string,
+    tier?: string,
+    voiceType?: string,
+    userId?: string
+  ): Promise<void> {
+    await this.cacheTTSAudio(text, language, voiceId ?? "default", audioUrl, tier, voiceType, userId);
   }
 
   /**

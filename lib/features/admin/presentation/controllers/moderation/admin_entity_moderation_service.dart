@@ -9,9 +9,11 @@ import 'package:http/http.dart' as http;
 import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
-
+import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/admin/presentation/controllers/moderation/admin_moderation_predicates.dart';
+import 'package:truthworld/features/channel/data/services/channel_memory_cache.dart';
 
 /// Service executing moderation actions for channels, topics, ad campaigns, and bulk operations.
 class AdminEntityModerationService {
@@ -29,19 +31,36 @@ class AdminEntityModerationService {
   }) async {
     isActionSubmitting.value = true;
     try {
-      final status = action == 'approve' ? 'active' : 'verificationRejected';
+      final isApprove = action == 'approve';
+      final isHold = action == 'hold';
+      final status = isHold ? 'onHold' : (isApprove ? 'active' : 'verificationRejected');
 
       // 0ms Optimistic UI update
       final chIdx = channels.indexWhere((c) => c['id'] == channelId);
       if (chIdx != -1) {
         final item = Map<String, dynamic>.from(channels[chIdx]);
         item['status'] = status;
-        if (action == 'approve') {
+        if (isApprove) {
           item.remove('moderationReason');
+          item['isVerified'] = true;
+          item['isMonetized'] = true;
+          item['monetizationTier'] = 'eligible';
+          item['monetizationStatus'] = 'approved';
+        } else if (isHold) {
+          item['moderationReason'] =
+              reason.isNotEmpty ? reason : 'Placed on hold by administrator.';
+          item['isVerified'] = false;
+          item['isMonetized'] = false;
+          item['monetizationTier'] = 'none';
+          item['monetizationStatus'] = 'onHold';
         } else {
           item['moderationReason'] = reason;
+          item['isVerified'] = false;
+          item['isMonetized'] = false;
+          item['monetizationTier'] = 'none';
+          item['monetizationStatus'] = 'rejected';
         }
-        item['geminiApproved'] = action == 'approve';
+        item['geminiApproved'] = isApprove;
         channels[chIdx] = item;
         channels.refresh();
         pendingChannels.value =
@@ -49,32 +68,455 @@ class AdminEntityModerationService {
       }
 
       // Update the channel document in Firestore directly
+      final channelUpdate = <String, dynamic>{
+        'status': status,
+        'moderationReason': isApprove
+            ? FieldValue.delete()
+            : (reason.isNotEmpty
+                ? reason
+                : (isHold
+                    ? 'Channel placed on hold by administrator.'
+                    : 'Rejected by administrator.')),
+        'geminiApproved': isApprove,
+        'isVerified': isApprove,
+        'isMonetized': isApprove,
+        'monetizationTier': isApprove ? 'eligible' : 'none',
+        'monetizationStatus': isHold ? 'onHold' : (isApprove ? 'approved' : 'rejected'),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      if (isApprove) {
+        channelUpdate['monetizationApprovedAt'] = FieldValue.serverTimestamp();
+      } else if (isHold) {
+        channelUpdate['monetizationHoldReason'] =
+            reason.isNotEmpty ? reason : 'Channel placed on hold.';
+      } else {
+        channelUpdate['monetizationRejectedReason'] = reason;
+      }
+
       unawaited(
         FirebaseFirestore.instance
             .collection(FirestoreCollections.channels)
             .doc(channelId)
-            .update({
-              'status': status,
-              'moderationReason': action == 'approve'
-                  ? FieldValue.delete()
-                  : reason,
-              'geminiApproved': action == 'approve',
-              'updatedAt': FieldValue.serverTimestamp(),
-            })
+            .update(channelUpdate)
             .catchError((e) {
               debugPrint('Firestore moderateChannel error: $e');
             }),
       );
 
-      AppSnackbar.success(
-        'Channel successfully ${action}ed.',
+      // Instantly propagate channelStatus to all videos belonging to this channel
+      unawaited(
+        FirebaseFirestore.instance
+            .collection('videos')
+            .where('channelId', isEqualTo: channelId)
+            .get()
+            .then((snap) {
+              if (snap.docs.isNotEmpty) {
+                final batch = FirebaseFirestore.instance.batch();
+                for (final doc in snap.docs) {
+                  batch.update(doc.reference, {
+                    'channelStatus': status,
+                    'updatedAt': FieldValue.serverTimestamp(),
+                  });
+                }
+                return batch.commit();
+              }
+            })
+            .catchError((e) {
+              debugPrint('Firestore propagate channelStatus to videos error: $e');
+            }),
       );
+
+      // Update reactive memory cache
+      final cachedChannel = ChannelMemoryCache.get(channelId);
+      if (cachedChannel != null) {
+        ChannelMemoryCache.set(
+          channelId,
+          cachedChannel.copyWith(
+            status: isHold
+                ? ChannelStatus.onHold
+                : (isApprove
+                    ? ChannelStatus.active
+                    : ChannelStatus.verificationRejected),
+          ),
+        );
+      }
+
+      // Update monetization application and KYC status in Firestore
+      unawaited(
+        FirebaseFirestore.instance
+            .collection('monetization_applications')
+            .doc(channelId)
+            .update(isApprove
+                ? {
+                    'status': 'approved',
+                    'approvedAt': FieldValue.serverTimestamp(),
+                  }
+                : {
+                    'status': 'rejected',
+                    'rejectedReason': reason,
+                    'rejectedAt': FieldValue.serverTimestamp(),
+                  })
+            .catchError((_) {}),
+      );
+
+      unawaited(
+        FirebaseFirestore.instance
+            .collection(FirestoreCollections.channels)
+            .doc(channelId)
+            .collection('kyc')
+            .doc('identity')
+            .update({'status': isApprove ? 'verified' : 'rejected'})
+            .catchError((_) {}),
+      );
+
+      // Call Cloud Function endpoint if administrator is authenticated
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser != null) {
+        unawaited(
+          (() async {
+            try {
+              final idToken = await currentUser.getIdToken();
+              await http.post(
+                Uri.parse('${AppConfig.cloudFunctionsBaseUrl}/moderateChannelManual'),
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': 'Bearer $idToken',
+                },
+                body: jsonEncode({
+                  'channelId': channelId,
+                  'action': action,
+                  'reason': reason.isNotEmpty ? reason : 'Manual $action by administrator.',
+                }),
+              );
+            } catch (err) {
+              debugPrint('Cloud function moderateChannelManual error: $err');
+            }
+          })(),
+        );
+      }
+
+      final successMsg = isHold
+          ? 'Channel successfully placed on hold.'
+          : (isApprove ? 'Channel successfully approved.' : 'Channel successfully rejected.');
+      AppSnackbar.success(successMsg);
       selectedChannel.value = null;
       return true;
     } catch (e) {
       ErrorHandler.log(e);
       AppSnackbar.error(
         'Unable to update channel status. Please try again.',
+      );
+      return false;
+    } finally {
+      isActionSubmitting.value = false;
+    }
+  }
+
+  /// Updates or increases daily video upload quota for a channel manually by admin
+  static Future<bool> updateChannelQuota({
+    required String channelId,
+    required int dailyDurationMinutes,
+    required String reason,
+    required RxList<Map<String, dynamic>> channels,
+    required Rxn<Map<String, dynamic>> selectedChannel,
+    required RxBool isActionSubmitting,
+    int? maxVideoDurationMinutes,
+  }) async {
+    isActionSubmitting.value = true;
+    try {
+      final dailySeconds = dailyDurationMinutes * 60;
+      final maxVideoSeconds = (maxVideoDurationMinutes ?? dailyDurationMinutes) * 60;
+      final hasCustomQuota = dailyDurationMinutes > 10;
+      final adminUser = FirebaseAuth.instance.currentUser;
+      final adminIdentifier = adminUser?.email ?? adminUser?.uid ?? 'Administrator';
+
+      // 0ms Optimistic UI update
+      final chIdx = channels.indexWhere((c) => c['id'] == channelId);
+      if (chIdx != -1) {
+        final item = Map<String, dynamic>.from(channels[chIdx]);
+        item['customDailyVideoDurationSeconds'] = hasCustomQuota ? dailySeconds : null;
+        item['customDailyUploadLimitMinutes'] = hasCustomQuota ? dailyDurationMinutes : null;
+        item['customMaxVideoDurationSeconds'] = hasCustomQuota ? maxVideoSeconds : null;
+        item['maxDailyVideoDurationSeconds'] = dailySeconds;
+        item['maxVideoDurationSeconds'] = maxVideoSeconds;
+        item['hasCustomQuota'] = hasCustomQuota;
+        item['quotaIncreasedBy'] = adminIdentifier;
+        item['quotaIncreasedAt'] = Timestamp.now();
+        item['quotaIncreaseReason'] = reason;
+        channels[chIdx] = item;
+        channels.refresh();
+
+        if (selectedChannel.value?['id'] == channelId) {
+          selectedChannel.value = Map<String, dynamic>.from(item);
+        }
+      }
+
+      // Update the channel document in Firestore directly
+      final updates = <String, dynamic>{
+        'customDailyVideoDurationSeconds': hasCustomQuota ? dailySeconds : FieldValue.delete(),
+        'customDailyUploadLimitMinutes': hasCustomQuota ? dailyDurationMinutes : FieldValue.delete(),
+        'customMaxVideoDurationSeconds': hasCustomQuota ? maxVideoSeconds : FieldValue.delete(),
+        'maxDailyVideoDurationSeconds': dailySeconds,
+        'maxVideoDurationSeconds': maxVideoSeconds,
+        'hasCustomQuota': hasCustomQuota,
+        'quotaIncreasedBy': adminIdentifier,
+        'quotaIncreasedAt': FieldValue.serverTimestamp(),
+        'quotaIncreaseReason': reason,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      unawaited(
+        FirebaseFirestore.instance
+            .collection(FirestoreCollections.channels)
+            .doc(channelId)
+            .update(updates)
+            .catchError((e) {
+              debugPrint('Firestore updateChannelQuota error: $e');
+            }),
+      );
+
+      final quotaLabel = ContentValidationMixin.formatDurationMinutesSeconds(dailySeconds);
+      AppSnackbar.success(
+        'Channel daily upload quota updated to $quotaLabel/day.',
+      );
+      return true;
+    } catch (e) {
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to update channel quota. Please try again.',
+      );
+      return false;
+    } finally {
+      isActionSubmitting.value = false;
+    }
+  }
+
+  /// Updates AI Feature discounts (Dubbing & Subtitles) for a specific channel.
+  /// Strictly restricted to Super Admin only.
+  static Future<bool> updateChannelAiDiscounts({
+    required String channelId,
+    required String dubbingDiscountType, // 'none', '50%', 'free', 'custom'
+    required double dubbingDiscountPercent, // 0.0 - 100.0
+    required String subtitlesDiscountType, // 'none', '50%', 'free', 'custom'
+    required double subtitlesDiscountPercent, // 0.0 - 100.0
+    required RxList<Map<String, dynamic>> channels,
+    required Rxn<Map<String, dynamic>> selectedChannel,
+    required RxBool isActionSubmitting,
+    Future<void> Function({
+      required String action,
+      required String targetType,
+      required String targetId,
+      required String reason,
+      Map<String, dynamic>? metadata,
+    })? logAdminAction,
+  }) async {
+    isActionSubmitting.value = true;
+    try {
+      final adminUser = FirebaseAuth.instance.currentUser;
+      final adminIdentifier = adminUser?.email ?? adminUser?.uid ?? 'Super Admin';
+
+      final dubPercentClamped = dubbingDiscountType == 'free'
+          ? 100.0
+          : (dubbingDiscountType == '50%'
+              ? 50.0
+              : (dubbingDiscountType == 'none'
+                  ? 0.0
+                  : dubbingDiscountPercent.clamp(0.0, 100.0)));
+
+      final subPercentClamped = subtitlesDiscountType == 'free'
+          ? 100.0
+          : (subtitlesDiscountType == '50%'
+              ? 50.0
+              : (subtitlesDiscountType == 'none'
+                  ? 0.0
+                  : subtitlesDiscountPercent.clamp(0.0, 100.0)));
+
+      final aiDiscounts = {
+        'dubbing': {
+          'type': dubbingDiscountType,
+          'percent': dubPercentClamped,
+          'enabled': dubPercentClamped > 0,
+        },
+        'subtitles': {
+          'type': subtitlesDiscountType,
+          'percent': subPercentClamped,
+          'enabled': subPercentClamped > 0,
+        },
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': adminIdentifier,
+      };
+
+      // 0ms Optimistic UI update
+      final chIdx = channels.indexWhere((c) => c['id'] == channelId);
+      if (chIdx != -1) {
+        final item = Map<String, dynamic>.from(channels[chIdx]);
+        item['dubbingDiscountType'] = dubbingDiscountType;
+        item['dubbingDiscountPercent'] = dubPercentClamped;
+        item['subtitlesDiscountType'] = subtitlesDiscountType;
+        item['subtitlesDiscountPercent'] = subPercentClamped;
+        item['aiDiscounts'] = {
+          'dubbing': {
+            'type': dubbingDiscountType,
+            'percent': dubPercentClamped,
+            'enabled': dubPercentClamped > 0,
+          },
+          'subtitles': {
+            'type': subtitlesDiscountType,
+            'percent': subPercentClamped,
+            'enabled': subPercentClamped > 0,
+          },
+          'updatedAt': Timestamp.now(),
+          'updatedBy': adminIdentifier,
+        };
+        channels[chIdx] = item;
+        channels.refresh();
+
+        if (selectedChannel.value?['id'] == channelId) {
+          selectedChannel.value = Map<String, dynamic>.from(item);
+        }
+      }
+
+      // Update Firestore document directly
+      final updates = <String, dynamic>{
+        'dubbingDiscountType': dubbingDiscountType,
+        'dubbingDiscountPercent': dubPercentClamped,
+        'subtitlesDiscountType': subtitlesDiscountType,
+        'subtitlesDiscountPercent': subPercentClamped,
+        'aiDiscounts': aiDiscounts,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      await FirebaseFirestore.instance
+          .collection(FirestoreCollections.channels)
+          .doc(channelId)
+          .update(updates);
+
+      // Audit Log
+      if (logAdminAction != null) {
+        unawaited(
+          logAdminAction(
+            action: 'update_channel_ai_discounts',
+            targetType: 'channel',
+            targetId: channelId,
+            reason: 'Super Admin updated Dubbing ($dubbingDiscountType, $dubPercentClamped%) and Subtitles ($subtitlesDiscountType, $subPercentClamped%) discounts.',
+            metadata: {
+              'channelId': channelId,
+              'dubbingDiscountType': dubbingDiscountType,
+              'dubbingDiscountPercent': dubPercentClamped,
+              'subtitlesDiscountType': subtitlesDiscountType,
+              'subtitlesDiscountPercent': subPercentClamped,
+            },
+          ),
+        );
+      }
+
+      final dubLabel = dubPercentClamped >= 100.0 ? 'Free' : (dubPercentClamped > 0 ? '${dubPercentClamped.toStringAsFixed(0)}% off' : 'Standard');
+      final subLabel = subPercentClamped >= 100.0 ? 'Free' : (subPercentClamped > 0 ? '${subPercentClamped.toStringAsFixed(0)}% off' : 'Standard');
+
+      AppSnackbar.success(
+        'Discounts updated for channel: Dubbing $dubLabel, Subtitles $subLabel.',
+      );
+      return true;
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, tag: 'AdminEntityModerationService.updateChannelAiDiscounts');
+      AppSnackbar.error(
+        'Unable to update channel discounts. Please try again.',
+      );
+      return false;
+    } finally {
+      isActionSubmitting.value = false;
+    }
+  }
+
+  /// Toggles Trusted Channel Moderation Exemption (bypasses all content and image moderation)
+  static Future<bool> toggleChannelTrustedModeration({
+    required String channelId,
+    required bool enabled,
+    required RxList<Map<String, dynamic>> channels,
+    required Rxn<Map<String, dynamic>> selectedChannel,
+    required RxBool isActionSubmitting,
+    String? reason,
+  }) async {
+    isActionSubmitting.value = true;
+    try {
+      final adminUser = FirebaseAuth.instance.currentUser;
+      final adminIdentifier = adminUser?.email ?? adminUser?.uid ?? 'Administrator';
+      final defaultReason = enabled
+          ? 'Exempted from all content and image moderation by administrator (Trusted Channel).'
+          : 'Trusted channel moderation exemption revoked by administrator.';
+      final effectiveReason = reason ?? defaultReason;
+
+      // 0ms Optimistic UI update
+      final chIdx = channels.indexWhere((c) => c['id'] == channelId);
+      if (chIdx != -1) {
+        final item = Map<String, dynamic>.from(channels[chIdx]);
+        item['trustedModerationBypass'] = enabled;
+        item['bypassModeration'] = enabled;
+        item['trustedChannel'] = enabled;
+        item['trustedModerationBypassSetBy'] = adminIdentifier;
+        item['trustedModerationBypassSetAt'] = Timestamp.now();
+        item['trustedModerationBypassReason'] = effectiveReason;
+        if (enabled) {
+          item['status'] = 'active';
+          item['geminiApproved'] = true;
+          item['isVerified'] = true;
+        }
+        channels[chIdx] = item;
+        channels.refresh();
+
+        if (selectedChannel.value?['id'] == channelId) {
+          selectedChannel.value = Map<String, dynamic>.from(item);
+        }
+      }
+
+      final updates = <String, dynamic>{
+        'trustedModerationBypass': enabled,
+        'bypassModeration': enabled,
+        'trustedChannel': enabled,
+        'trustedModerationBypassSetBy': adminIdentifier,
+        'trustedModerationBypassSetAt': FieldValue.serverTimestamp(),
+        'trustedModerationBypassReason': effectiveReason,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      if (enabled) {
+        updates['status'] = 'active';
+        updates['geminiApproved'] = true;
+        updates['isVerified'] = true;
+      }
+
+      unawaited(
+        FirebaseFirestore.instance
+            .collection(FirestoreCollections.channels)
+            .doc(channelId)
+            .update(updates)
+            .catchError((e) {
+              debugPrint('Firestore toggleChannelTrustedModeration error: $e');
+            }),
+      );
+
+      // Audit log
+      unawaited(
+        FirebaseFirestore.instance.collection('admin_actions_log').add({
+          'adminId': adminIdentifier,
+          'action': enabled
+              ? 'enable_trusted_channel_moderation_bypass'
+              : 'disable_trusted_channel_moderation_bypass',
+          'channelId': channelId,
+          'reason': effectiveReason,
+          'timestamp': FieldValue.serverTimestamp(),
+        }),
+      );
+
+      AppSnackbar.success(
+        enabled
+            ? 'Trusted Channel exemption enabled. All content & image moderation is now off for this channel.'
+            : 'Trusted Channel exemption disabled. Standard moderation resumed.',
+      );
+      return true;
+    } catch (e) {
+      ErrorHandler.log(e);
+      AppSnackbar.error(
+        'Unable to update trusted channel moderation setting. Please try again.',
       );
       return false;
     } finally {

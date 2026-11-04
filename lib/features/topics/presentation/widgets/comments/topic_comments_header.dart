@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/topics/presentation/widgets/comments/topic_comment_reply_controller.dart';
 import 'package:truthworld/theme/app_colors.dart';
@@ -66,6 +67,7 @@ class TopicCommentsHeader extends StatelessWidget {
             const SizedBox(width: 10),
             PopupMenuButton<bool>(
               onSelected: (newest) {
+                HapticFeedback.selectionClick();
                 headerController.isSortNewest.value = newest;
               },
               offset: const Offset(0, 36),

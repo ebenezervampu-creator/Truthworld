@@ -1,4 +1,5 @@
 export 'video_analytics_tracking_mixin.dart';
+export 'video_drag_to_miniplayer_mixin.dart';
 export 'video_engagement_actions_mixin.dart';
 export 'video_error_recovery_mixin.dart';
 export 'video_fact_check_mixin.dart';

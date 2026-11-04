@@ -2,24 +2,25 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
-import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
-import 'package:truthworld/theme/app_colors.dart';
+import 'package:truthworld/features/video/presentation/views/widgets/comments/comment_action_handler.dart';
 
 /// Shows standard prompt to sign in with Google when attempting an authenticated action.
 void showTopicSignInPrompt(String action) {
-  AppSnackbar.warning(
-    'Please sign in with your Google account to $action.',
+  AppSnackbar.signInRequired(
+    message: 'Please sign in with your Google account to $action.',
     title: 'Sign In Required',
     duration: const Duration(seconds: 4),
-    actionLabel: 'SIGN IN',
-    onAction: AuthBottomSheet.prompt,
+    onAction: () {
+      if (Get.isRegistered<AuthService>()) {
+        AuthService.to.triggerPlatformSignIn();
+      }
+    },
   );
 }
 
@@ -34,41 +35,8 @@ void copyCommentTextToClipboard(String text) {
 }
 
 /// Navigates to a channel profile route with loading indicator.
-Future<void> navigateToTopicChannel(String? channelId) async {
-  if (channelId == null || channelId.isEmpty) return;
-  try {
-    Get.dialog(
-      const Center(
-        child: CircularProgressIndicator(color: AppColors.textPrimary),
-      ),
-      barrierDismissible: false,
-    );
-    final doc = await FirebaseFirestore.instance
-        .collection(FirestoreCollections.channels)
-        .doc(channelId)
-        .get();
-    if (Get.isDialogOpen ?? false) {
-      Get.back<void>();
-    }
-    if (doc.exists) {
-      final channel = Channel.fromDocumentSnapshot(doc);
-      Get.offAndToNamed(
-        channel.channelRoute,
-        arguments: {'channel': channel},
-      );
-    } else {
-      AppSnackbar.warning('Channel not found');
-    }
-  } catch (e, s) {
-    if (Get.isDialogOpen ?? false) {
-      Get.back<void>();
-    }
-    ErrorHandler.log(
-      e,
-      stackTrace: s,
-      tag: 'TopicCommentsSection.navigateToChannel',
-    );
-  }
+Future<void> navigateToTopicChannel(String? channelId, {String? channelHandle}) async {
+  await CommentActionHandler.navigateToChannel(channelId, channelHandle: channelHandle);
 }
 
 /// Saves or unsaves a topic comment to user's savedComments collection.

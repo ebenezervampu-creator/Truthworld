@@ -94,9 +94,9 @@ class CreativeAssetsTabView extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFF161618),
+        color: AppColors.appBarSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgSurface),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -135,7 +135,7 @@ class CreativeAssetsTabView extends StatelessWidget {
             child: const LinearProgressIndicator(
               value: 0.0017,
               minHeight: 6,
-              backgroundColor: Color(0xFF27272A),
+              backgroundColor: AppColors.bgSurface,
               valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
             ),
           ),
@@ -169,9 +169,9 @@ class CreativeAssetsTabView extends StatelessWidget {
                     ),
                     selected: isSel,
                     selectedColor: AppColors.brand,
-                    backgroundColor: const Color(0xFF1E1E22),
+                    backgroundColor: AppColors.bgSurface,
                     side: BorderSide(
-                      color: isSel ? AppColors.brand : const Color(0xFF323238),
+                      color: isSel ? AppColors.brand : AppColors.bgElevated,
                     ),
                     onSelected: (_) {
                       controller.selectedAssetCategory.value = cat;
@@ -196,11 +196,11 @@ class CreativeAssetsTabView extends StatelessWidget {
               prefixIcon: Icon(Icons.search_rounded, color: Colors.white, size: 18),
               isDense: true,
               filled: true,
-              fillColor: Color(0xFF161618),
+              fillColor: AppColors.appBarSurface,
               contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.all(Radius.circular(8)),
-                borderSide: BorderSide(color: Color(0xFF27272A)),
+                borderSide: BorderSide(color: AppColors.bgSurface),
               ),
             ),
           ),
@@ -243,9 +243,9 @@ class CreativeAssetsTabView extends StatelessWidget {
           return Container(
             width: 280,
             decoration: BoxDecoration(
-              color: const Color(0xFF161618),
+              color: AppColors.appBarSurface,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFF27272A)),
+              border: Border.all(color: AppColors.bgSurface),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -255,7 +255,7 @@ class CreativeAssetsTabView extends StatelessWidget {
                   height: 150,
                   width: double.infinity,
                   decoration: const BoxDecoration(
-                    color: Color(0xFF1E1E22),
+                    color: AppColors.bgSurface,
                     borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
                   ),
                   child: Stack(
@@ -354,7 +354,7 @@ class CreativeAssetsTabView extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      const Divider(color: Color(0xFF27272A), height: 1),
+                      const Divider(color: AppColors.bgSurface, height: 1),
                       const SizedBox(height: 8),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -401,10 +401,10 @@ class CreativeAssetsTabView extends StatelessWidget {
 
     Get.dialog(
       AlertDialog(
-        backgroundColor: const Color(0xFF161618),
+        backgroundColor: AppColors.appBarSurface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFF27272A)),
+          side: const BorderSide(color: AppColors.bgSurface),
         ),
         title: const Text(
           'Upload Creative Asset',
@@ -431,7 +431,7 @@ class CreativeAssetsTabView extends StatelessWidget {
                   labelText: 'Asset Name / Title',
                   labelStyle: TextStyle(color: AppColors.textSecondary),
                   filled: true,
-                  fillColor: Color(0xFF121214),
+                  fillColor: AppColors.bgInput,
                   border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
                 ),
               ),
@@ -439,13 +439,13 @@ class CreativeAssetsTabView extends StatelessWidget {
               Obx(() {
                 return DropdownButtonFormField<String>(
                   value: typeChoice.value,
-                  dropdownColor: const Color(0xFF1C1C1F),
+                  dropdownColor: AppColors.bgSurface,
                   style: const TextStyle(color: Colors.white, fontFamily: TWTypography.uiFamily),
                   decoration: const InputDecoration(
                     labelText: 'Creative Type',
                     labelStyle: TextStyle(color: AppColors.textSecondary),
                     filled: true,
-                    fillColor: Color(0xFF121214),
+                    fillColor: AppColors.bgInput,
                     border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
                   ),
                   items: ['Video', 'Banner', 'Logo'].map((t) {
@@ -482,7 +482,7 @@ class CreativeAssetsTabView extends StatelessWidget {
                         labelText: 'Resolution',
                         labelStyle: TextStyle(color: AppColors.textSecondary),
                         filled: true,
-                        fillColor: Color(0xFF121214),
+                        fillColor: AppColors.bgInput,
                         border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
                       ),
                     ),
@@ -499,7 +499,7 @@ class CreativeAssetsTabView extends StatelessWidget {
                         labelText: 'Duration',
                         labelStyle: TextStyle(color: AppColors.textSecondary),
                         filled: true,
-                        fillColor: Color(0xFF121214),
+                        fillColor: AppColors.bgInput,
                         border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
                       ),
                     ),
@@ -520,7 +520,7 @@ class CreativeAssetsTabView extends StatelessWidget {
                   labelText: 'Asset CDN / Source URL',
                   labelStyle: TextStyle(color: AppColors.textSecondary),
                   filled: true,
-                  fillColor: Color(0xFF121214),
+                  fillColor: AppColors.bgInput,
                   border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
                 ),
               ),

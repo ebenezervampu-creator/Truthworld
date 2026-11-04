@@ -89,7 +89,7 @@ Widget buildWithdrawalThresholdCard(
       AppSnackbar.warning(
         controller.withdrawalHoldReason.value.isNotEmpty
             ? controller.withdrawalHoldReason.value
-            : 'TruthWorld has covered 100% of your viral infrastructure surge costs! Please upgrade your custom channel plan to release revenue withdrawals.',
+            : 'TruthWorld has covered 100% of your viral infrastructure surge costs! Please upgrade your Pro Channel plan to release revenue withdrawals.',
         title: 'Withdrawal On Hold',
       );
     };
@@ -177,6 +177,7 @@ Widget buildWithdrawalThresholdCard(
                 ],
               ),
             ),
+            const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
@@ -219,11 +220,14 @@ Widget buildWithdrawalThresholdCard(
               ),
             ),
             const SizedBox(width: 8),
-            Text(
-              'Threshold: $minFullText',
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 13,
+            Flexible(
+              child: Text(
+                'Threshold: $minFullText',
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -420,7 +424,7 @@ void showThresholdNoticeDialog(
       : '\$${controller.remainingToWithdraw.toStringAsFixed(2)}';
 
   Get.defaultDialog(
-    title: 'Withdrawal Threshold: $minFullText',
+    title: isIndian ? 'Withdrawal Threshold: ₹100' : r'Withdrawal Threshold: $10',
     backgroundColor: const Color(0xFF1E1E1E),
     titleStyle: const TextStyle(
       color: AppColors.textPrimary,

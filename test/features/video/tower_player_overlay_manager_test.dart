@@ -50,10 +50,10 @@ void main() {
       expect(manager.isTruthReportOpen, isFalse);
       expect(manager.hasBlockingOverlay, isTrue);
 
-      // 3. Open Live Chat -> Settings is closed
-      manager.open(TowerPlayerOverlay.liveChat);
-      expect(manager.current, equals(TowerPlayerOverlay.liveChat));
-      expect(manager.isLiveChatOpen, isTrue);
+      // 3. Open Comments -> Settings is closed
+      manager.open(TowerPlayerOverlay.comments);
+      expect(manager.current, equals(TowerPlayerOverlay.comments));
+      expect(manager.isCommentsOpen, isTrue);
       expect(manager.isSettingsOpen, isFalse);
     });
 

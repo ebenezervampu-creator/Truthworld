@@ -27,7 +27,7 @@ class AudiencePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const surfaceColor = Color(0xFF1E1E1E);
+    const surfaceColor = AppColors.bgSurface;
     const backgroundColor = AppColors.bgPage;
     const textColor = AppColors.textPrimary;
     const subtitleColor = AppColors.textSecondary;

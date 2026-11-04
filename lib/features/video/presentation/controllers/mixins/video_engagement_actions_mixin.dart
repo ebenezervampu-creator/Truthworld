@@ -318,6 +318,9 @@ mixin VideoEngagementActionsMixin on GetxController {
       video.id,
       video.likeCount,
       video.dislikeCount,
+      category: video.category,
+      topics: video.topics,
+      channelId: video.channelId.isNotEmpty ? video.channelId : video.ownerId,
     );
   }
 
@@ -326,12 +329,23 @@ mixin VideoEngagementActionsMixin on GetxController {
       video.id,
       video.likeCount,
       video.dislikeCount,
+      category: video.category,
+      topics: video.topics,
+      channelId: video.channelId.isNotEmpty ? video.channelId : video.ownerId,
     );
   }
 
-  void toggleSubscription() {
-    isSubscribed.toggle();
-    // Call channelController.toggleSubscription(...)
+  Future<void> toggleSubscription() async {
+    final effectiveChannelId =
+        video.channelId.isNotEmpty ? video.channelId : video.ownerId;
+    if (effectiveChannelId.isNotEmpty) {
+      await channelController.subController.toggleSubscription(effectiveChannelId);
+      isSubscribed.value = channelController.subController
+          .isSubscribedTo(effectiveChannelId)
+          .value;
+    } else {
+      isSubscribed.toggle();
+    }
   }
 
 }

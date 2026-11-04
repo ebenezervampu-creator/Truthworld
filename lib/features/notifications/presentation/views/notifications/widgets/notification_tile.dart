@@ -30,7 +30,9 @@ class CompactNotificationTile extends StatelessWidget {
     if (item.video != null) {
       thumbnailUrl = item.video!.thumbnailUrl;
     } else if (item.alert != null) {
-      thumbnailUrl = item.alert!.metadata?['thumbnailUrl'] as String? ?? '';
+      thumbnailUrl = item.alert!.thumbnailUrl ??
+          item.alert!.metadata?['thumbnailUrl'] as String? ??
+          '';
     }
 
     return Material(
@@ -45,6 +47,7 @@ class CompactNotificationTile extends StatelessWidget {
           } else if (item.alert != null) {
             if (!item.alert!.read) {
               viewController.userNotificationController.markAsRead(item.alert!.id);
+              viewController.markIssueAsRead(item.alert!.id);
             }
             NotificationNavigationHandler.navigateToAlertNotification(item.alert!);
           }
@@ -143,19 +146,7 @@ class NotificationThumbnail extends StatelessWidget {
         imageUrl: imageUrl,
         fit: BoxFit.cover,
         placeholder: (context, url) => const ColoredBox(
-          color: AppColors.textSecondary,
-          child: Center(
-            child: SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 1.5,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  AppColors.textDisabled,
-                ),
-              ),
-            ),
-          ),
+          color: AppColors.bgSurface,
         ),
         errorWidget: (context, url, error) => const SizedBox.shrink(),
       ),
@@ -289,6 +280,7 @@ class NotificationActionMenu extends StatelessWidget {
         await viewController.feedController.markVideoAsSeen(item.video!.id);
       } else if (item.alert != null) {
         await viewController.userNotificationController.markAsRead(item.alert!.id);
+        viewController.markIssueAsRead(item.alert!.id);
       }
     } else if (action == 'delete') {
       try {
@@ -304,14 +296,8 @@ class NotificationActionMenu extends StatelessWidget {
           );
           viewController.feedController.notifications.refresh();
         } else if (item.alert != null) {
-          await FirebaseFirestore.instance
-              .collection('user_notifications')
-              .doc(item.alert!.id)
-              .delete();
-          viewController.userNotificationController.notifications.removeWhere(
-            (a) => a.id == item.alert!.id,
-          );
-          viewController.userNotificationController.notifications.refresh();
+          viewController.dismissIssue(item.alert!.id);
+          await viewController.userNotificationController.deleteNotification(item.alert!.id);
         }
         AppSnackbar.info(
           'The notification has been deleted',

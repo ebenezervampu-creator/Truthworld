@@ -1,7 +1,13 @@
+import 'dart:io' show Platform;
+import 'dart:typed_data';
+
 import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:truthworld/core/config/app_config.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/firebase_options.dart';
 
 class StorageUtils {
@@ -36,14 +42,17 @@ class StorageUtils {
     }
   }
 
-  /// Generates media playback headers with active Firebase App Check token.
-  /// This ensures ExoPlayer, AVPlayer, and Web media loaders can stream from Cloud Storage
-  /// without triggering HTTP 401 Unauthorized errors when App Check is enforced.
+  /// Generates media playback headers with active Firebase App Check token and Origin protection.
+  /// This ensures ExoPlayer, AVPlayer, and Web media loaders can stream from Cloud Storage / CDN
+  /// with device attestation, blocking external scrapers, hotlinking, and unauthorized downloaders.
   static Future<Map<String, String>> getMediaHeaders({
     bool isHlsOrCmaf = false,
+    String? userAuthToken,
   }) async {
     final headers = <String, String>{
       'Connection': 'keep-alive',
+      'Origin': 'https://truthworld.in',
+      'Referer': 'https://truthworld.in/',
     };
     if (isHlsOrCmaf) {
       headers['Accept'] =
@@ -51,6 +60,22 @@ class StorageUtils {
       headers['Cache-Control'] = 'no-cache';
     } else {
       headers['Accept'] = '*/*';
+    }
+
+    var token = userAuthToken;
+    if (token == null || token.isEmpty) {
+      try {
+        final currentAuthUser = FirebaseAuth.instance.currentUser;
+        if (currentAuthUser != null) {
+          token = await currentAuthUser.getIdToken();
+        }
+      } catch (_) {
+        // Guest user or offline mode
+      }
+    }
+
+    if (token != null && token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
     }
 
     try {
@@ -66,9 +91,14 @@ class StorageUtils {
   }
 
   /// Synchronously generates media playback headers using the in-memory cached AppCheck token.
-  static Map<String, String> getSyncMediaHeaders({bool isHlsOrCmaf = false}) {
+  static Map<String, String> getSyncMediaHeaders({
+    bool isHlsOrCmaf = false,
+    String? userAuthToken,
+  }) {
     final headers = <String, String>{
       'Connection': 'keep-alive',
+      'Origin': 'https://truthworld.in',
+      'Referer': 'https://truthworld.in/',
     };
     if (isHlsOrCmaf) {
       headers['Accept'] =
@@ -77,25 +107,187 @@ class StorageUtils {
     } else {
       headers['Accept'] = '*/*';
     }
+    if (userAuthToken != null && userAuthToken.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $userAuthToken';
+    }
     if (_cachedAppCheckToken != null && _cachedAppCheckToken!.isNotEmpty) {
       headers['X-Firebase-AppCheck'] = _cachedAppCheckToken!;
     }
     return headers;
   }
 
+  /// Identifies whether a storage path or URL points to a public, shareable visual asset
+  /// (e.g. video thumbnails, channel avatars, banners, topic covers, community post images).
+  /// Public assets are served openly via Google Cloud CDN (cdn.truthworld.in) without requiring
+  /// auth tokens, allowing seamless OpenGraph previews on WhatsApp, X, and search engines.
+  static bool isPublicAsset(String pathOrUrl) {
+    if (pathOrUrl.isEmpty) return false;
+    final decoded = pathOrUrl.contains('%')
+        ? (Uri.tryParse(pathOrUrl) != null ? Uri.decodeComponent(pathOrUrl) : pathOrUrl)
+        : pathOrUrl;
+    final lower = decoded.toLowerCase();
+    return lower.contains('thumbnails/') ||
+        lower.contains('thumbnail/') ||
+        lower.contains('covers/') ||
+        lower.contains('avatars/') ||
+        lower.contains('banners/') ||
+        lower.contains('channel_avatars/') ||
+        lower.contains('channel_banners/') ||
+        lower.contains('community_posts/') ||
+        lower.contains('community_images/') ||
+        lower.contains('topic_cards/') ||
+        lower.contains('channel_images/') ||
+        lower.contains('topics/') ||
+        lower.contains('playlists/') ||
+        lower.contains('chapters/') ||
+        lower.contains('storyboards/') ||
+        lower.contains('subtitles/') ||
+        lower.contains('transcripts/');
+  }
+
+  /// Identifies whether a storage path or URL represents streaming video media
+  /// (e.g. original videos, adaptive HLS/DASH resolutions, dubbed audio tracks).
+  /// Video media is strictly gated ("Netflix-style") and requires valid TruthWorld
+  /// session attestation, App Check verification, or signed session tokens.
+  static bool isVideoAsset(String pathOrUrl) {
+    if (pathOrUrl.isEmpty) return false;
+    final decoded = pathOrUrl.contains('%')
+        ? (Uri.tryParse(pathOrUrl) != null ? Uri.decodeComponent(pathOrUrl) : pathOrUrl)
+        : pathOrUrl;
+    final lower = decoded.toLowerCase();
+    return lower.contains('videos/') ||
+        lower.contains('resolutions/') ||
+        lower.contains('audiotracks/') ||
+        lower.contains('audio/') ||
+        lower.contains('dubbing_results/') ||
+        lower.endsWith('.mp4') ||
+        lower.endsWith('.m3u8') ||
+        lower.endsWith('.ts') ||
+        lower.endsWith('.m4s') ||
+        lower.contains('.m3u8?') ||
+        lower.contains('.mp4?');
+  }
+
+  /// Extracts the clean storage object path relative to the bucket root.
+  /// Handles gs://, storage.googleapis.com, firebasestorage, and raw relative paths.
+  static String extractCleanPath(String pathOrUrl) {
+    if (pathOrUrl.isEmpty) return '';
+    var clean = pathOrUrl.trim();
+    final defaultBucket = DefaultFirebaseOptions.currentPlatform.storageBucket;
+
+    // 1. Strip gs://
+    if (clean.startsWith('gs://')) {
+      clean = clean.replaceFirst('gs://$defaultBucket/', '').replaceFirst('gs://', '');
+      return clean.startsWith('/') ? clean.substring(1) : clean;
+    }
+
+    // 2. Strip firebasestorage.googleapis.com (must be checked BEFORE storage.googleapis.com)
+    if (clean.contains('firebasestorage.googleapis.com')) {
+      final uri = Uri.tryParse(clean);
+      if (uri != null) {
+        final segments = uri.pathSegments;
+        final oIndex = segments.indexOf('o');
+        if (oIndex != -1 && oIndex + 1 < segments.length) {
+          final rawEncoded = segments.sublist(oIndex + 1).join('/');
+          final decoded = Uri.decodeComponent(rawEncoded);
+          return decoded.startsWith('/') ? decoded.substring(1) : decoded;
+        }
+      }
+    }
+
+    // 3. Strip storage.googleapis.com (direct GCS URLs)
+    if (clean.contains('storage.googleapis.com')) {
+      final uri = Uri.tryParse(clean);
+      if (uri != null && uri.pathSegments.length >= 2) {
+        return uri.pathSegments.sublist(1).join('/');
+      }
+    }
+
+    // 4. Strip cdn.truthworld.in
+    if (clean.contains('cdn.truthworld.in')) {
+      final uri = Uri.tryParse(clean);
+      if (uri != null) {
+        return uri.path.startsWith('/') ? uri.path.substring(1) : uri.path;
+      }
+    }
+
+    return clean.startsWith('/') ? clean.substring(1) : clean;
+  }
+
+  /// Clears the in-memory fast download URL cache.
+  static void clearFastUrlCache() {
+    _fastUrlCache.clear();
+  }
+
   /// Instantly generates a direct Google Cloud CDN / HTTP download URL from a gs://, storage.googleapis.com,
   /// or standard path, completely bypassing slow network roundtrips and high direct egress rates.
+  ///
+  /// - Public visual assets (thumbnails, avatars, banners) are routed through Google Cloud CDN
+  ///   (`https://cdn.truthworld.in/<path>`) for open sharing, WhatsApp link previews, and global edge caching
+  ///   when [AppConfig.enableCdnThumbnails] or [forceCdn] is enabled.
+  /// - If an asset already contains an authentic download token (e.g. from Firebase Storage), that working token
+  ///   is preserved unless CDN routing is explicitly forced, eliminating 403 Forbidden decoding errors.
+  /// - Video streaming assets (MP4s, HLS playlists, audio tracks) maintain secure gating and require
+  ///   active TruthWorld session / App Check attestation so they only play within TruthWorld ("Netflix-style").
+  ///
   /// Results are cached in RAM for 0ms subsequent lookups.
-  static String getFastDownloadUrl(String pathOrGsUrl) {
+  static String getFastDownloadUrl(
+    String pathOrGsUrl, {
+    bool? forceCdn,
+  }) {
     if (pathOrGsUrl.isEmpty) return '';
     final cached = _fastUrlCache[pathOrGsUrl];
     if (cached != null) return cached;
 
     String result;
+    final bucket = DefaultFirebaseOptions.currentPlatform.storageBucket;
+    final cleanPath = extractCleanPath(pathOrGsUrl);
+    final shouldCdn = forceCdn ?? AppConfig.enableCdnThumbnails;
+
+    // ── Tier 1: Public Visual Media (Thumbnails, Avatars, Covers) ───────────
+    // Open for universal sharing (WhatsApp, X, Facebook, Google Indexer) & 30-day Google Cloud CDN caching.
+    if (isPublicAsset(pathOrGsUrl) || isPublicAsset(cleanPath)) {
+      if (shouldCdn) {
+        final cdnBase = AppConfig.cdnBaseUrl.isNotEmpty
+            ? AppConfig.cdnBaseUrl
+            : 'https://cdn.truthworld.in';
+        result = '$cdnBase/$cleanPath';
+        _fastUrlCache[pathOrGsUrl] = result;
+        return result;
+      }
+      // If CDN is disabled or not provisioned, fallback cleanly to Firebase Storage URL
+      if (pathOrGsUrl.contains('token=')) {
+        result = pathOrGsUrl;
+        _fastUrlCache[pathOrGsUrl] = result;
+        return result;
+      }
+      final encodedPath = Uri.encodeComponent(cleanPath);
+      result =
+          'https://firebasestorage.googleapis.com/v0/b/$bucket/o/$encodedPath?alt=media';
+      _fastUrlCache[pathOrGsUrl] = result;
+      return result;
+    }
+
+    // ── Tier 2: Protected Video Media (Gated / In-App Playback Only) ────────
+    // If it's already an authorized URL with download token or CDN signature, preserve it
+    if (pathOrGsUrl.contains('token=') || pathOrGsUrl.contains('Signature=')) {
+      result = pathOrGsUrl;
+      _fastUrlCache[pathOrGsUrl] = result;
+      return result;
+    }
+
     if (pathOrGsUrl.startsWith('https://storage.googleapis.com/') ||
         pathOrGsUrl.startsWith('http://storage.googleapis.com/')) {
-      // Direct Google Cloud CDN / GCS URL - preserve direct edge caching
-      result = pathOrGsUrl;
+      final uri = Uri.tryParse(pathOrGsUrl);
+      if (uri != null && uri.pathSegments.length >= 2) {
+        final targetBucket = uri.pathSegments.first;
+        final rawPath = uri.pathSegments.sublist(1).join('/');
+        final encodedPath = Uri.encodeComponent(rawPath);
+        result =
+            'https://firebasestorage.googleapis.com/v0/b/$targetBucket/o/$encodedPath?alt=media';
+      } else {
+        result = pathOrGsUrl;
+      }
     } else if (pathOrGsUrl.startsWith('http://') ||
         pathOrGsUrl.startsWith('https://')) {
       if (pathOrGsUrl.contains('firebasestorage.googleapis.com') &&
@@ -107,53 +299,233 @@ class StorageUtils {
         result = pathOrGsUrl;
       }
     } else {
-      final bucket = DefaultFirebaseOptions.currentPlatform.storageBucket;
-      final path = pathOrGsUrl.startsWith('gs://')
-          ? pathOrGsUrl.replaceAll('gs://$bucket/', '').replaceAll('gs://', '')
-          : pathOrGsUrl;
-
-      final cleanPath = path.startsWith('/') ? path.substring(1) : path;
-      // Route via Google Cloud CDN origin for high-speed edge caching and low egress billing ($0.02-$0.08/GB instead of $0.12+/GB)
-      result = '${AppConfig.cdnBaseUrl}/$bucket/$cleanPath';
+      final encodedPath = Uri.encodeComponent(cleanPath);
+      result =
+          'https://firebasestorage.googleapis.com/v0/b/$bucket/o/$encodedPath?alt=media';
     }
 
     _fastUrlCache[pathOrGsUrl] = result;
     return result;
   }
 
-  /// Asynchronously resolves direct Google CDN or Firebase Storage HTTP download URLs.
-  /// Because TruthWorld uses Google CDN for media and video delivery, URLs are resolved
-  /// instantly in 0ms without blocking on slow metadata roundtrips.
-  /// If a raw storage path or gs:// URL is provided, securely resolves a signed token download URL.
-  static Future<String> resolveUrl(String pathOrUrl) async {
+  /// Resolves an authenticated, gated video streaming URL for in-app playback ("Netflix-style").
+  ///
+  /// Binds the active session token, App Check attestation, or CDN signed token to the video stream URL
+  /// ensuring the media can only be streamed inside TruthWorld.
+  static String resolveGatedVideoUrl(
+    String pathOrUrl, {
+    String? sessionToken,
+    String? cdnSignature,
+  }) {
     if (pathOrUrl.isEmpty) return '';
+    final cleanPath = extractCleanPath(pathOrUrl);
 
-    // If it's already an HTTP URL, return fast URL with alt=media handling
-    if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
-      return getFastDownloadUrl(pathOrUrl);
+    // If using Google Cloud CDN with signed token
+    if (cdnSignature != null && cdnSignature.isNotEmpty) {
+      final cdnBase = AppConfig.cdnBaseUrl.isNotEmpty
+          ? AppConfig.cdnBaseUrl
+          : 'https://cdn.truthworld.in';
+      final separator = cdnSignature.startsWith('?') ? '' : '?';
+      return '$cdnBase/$cleanPath$separator$cdnSignature';
     }
 
-    // For storage paths or gs:// URLs, generate token URL via FirebaseStorage
+    // If session token provided, append as session parameter
+    if (sessionToken != null && sessionToken.isNotEmpty) {
+      final base = getFastDownloadUrl(pathOrUrl);
+      final separator = base.contains('?') ? '&' : '?';
+      return '$base${separator}tw_session=$sessionToken';
+    }
+
+    return getFastDownloadUrl(pathOrUrl);
+  }
+
+  /// Extracts a reliable Firebase Storage Reference from any path or URL format
+  /// (gs://, storage.googleapis.com, firebasestorage.googleapis.com, or relative path).
+  static Reference? getStorageRef(String urlOrPath) {
+    final clean = urlOrPath.trim();
+    if (clean.isEmpty) return null;
+    final defaultBucket = DefaultFirebaseOptions.currentPlatform.storageBucket;
+
+    if (clean.startsWith('gs://')) {
+      try {
+        return FirebaseStorage.instance.refFromURL(clean);
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'StorageUtils.getStorageRef.gs');
+      }
+      final stripped = clean
+          .replaceFirst('gs://$defaultBucket/', '')
+          .replaceFirst('gs://', '');
+      final path = stripped.startsWith('/') ? stripped.substring(1) : stripped;
+      return FirebaseStorage.instance.ref(path);
+    }
+
+    if (clean.startsWith('http://') || clean.startsWith('https://')) {
+      try {
+        final uri = Uri.parse(clean);
+        // Case 1: https://storage.googleapis.com/<bucket>/<path>
+        if (uri.host.contains('storage.googleapis.com')) {
+          final segments = uri.pathSegments;
+          if (segments.length >= 2) {
+            final targetBucket = segments.first;
+            final targetPath = segments.sublist(1).join('/');
+            if (targetBucket.isNotEmpty && targetBucket != defaultBucket) {
+              return FirebaseStorage.instanceFor(bucket: targetBucket)
+                  .ref(targetPath);
+            }
+            return FirebaseStorage.instance.ref(targetPath);
+          }
+        }
+        // Case 2: https://firebasestorage.googleapis.com/v0/b/<bucket>/o/<encodedPath>
+        if (uri.host.contains('firebasestorage.googleapis.com')) {
+          try {
+            return FirebaseStorage.instance.refFromURL(clean);
+          } catch (_) {
+            final segments = uri.pathSegments;
+            final bIndex = segments.indexOf('b');
+            final oIndex = segments.indexOf('o');
+            final targetBucket = (bIndex != -1 && bIndex + 1 < segments.length)
+                ? segments[bIndex + 1]
+                : defaultBucket;
+            if (oIndex != -1 && oIndex + 1 < segments.length) {
+              final encodedPath = segments.sublist(oIndex + 1).join('/');
+              final decodedPath = Uri.decodeComponent(encodedPath);
+              if (targetBucket != null && targetBucket.isNotEmpty && targetBucket != defaultBucket) {
+                return FirebaseStorage.instanceFor(bucket: targetBucket)
+                    .ref(decodedPath);
+              }
+              return FirebaseStorage.instance.ref(decodedPath);
+            }
+          }
+        }
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'StorageUtils.getStorageRef.http',
+        );
+      }
+      return null;
+    }
+
+    // Relative storage path: e.g. "videos/.../original.mp4"
+    final cleanPath = clean.startsWith('/') ? clean.substring(1) : clean;
+    return FirebaseStorage.instance.ref(cleanPath);
+  }
+
+  /// Asynchronously resolves direct Google CDN or Firebase Storage HTTP download URLs.
+  /// If a raw storage path, gs://, storage.googleapis.com URL, or firebasestorage URL without
+  /// token is provided, securely resolves a signed token download URL.
+  static Future<String> resolveUrl(String pathOrUrl) async {
+    final clean = pathOrUrl.trim();
+    if (clean.isEmpty) return '';
+
+    final cached = _fastUrlCache[clean];
+    if (cached != null && cached.isNotEmpty) return cached;
+
+    // If it's already an authorized Firebase Storage URL with a download token, use it directly
+    if (clean.contains('firebasestorage.googleapis.com') &&
+        clean.contains('token=')) {
+      final formatted = !clean.contains('alt=media')
+          ? (clean.contains('?') ? '$clean&alt=media' : '$clean?alt=media')
+          : clean;
+      _fastUrlCache[clean] = formatted;
+      return formatted;
+    }
+
+    // If it's an external third-party URL (neither GCS nor Firebase Storage), return as-is
+    if ((clean.startsWith('http://') || clean.startsWith('https://')) &&
+        !clean.contains('storage.googleapis.com') &&
+        !clean.contains('firebasestorage.googleapis.com')) {
+      _fastUrlCache[clean] = clean;
+      return clean;
+    }
+
+    // Resolve token URL via FirebaseStorage Reference
+    final ref = getStorageRef(clean);
+    if (ref != null) {
+      try {
+        final tokenUrl =
+            await ref.getDownloadURL().timeout(const Duration(seconds: 4));
+        _fastUrlCache[clean] = tokenUrl;
+        return tokenUrl;
+      } catch (e, s) {
+        final errStr = e.toString().toLowerCase();
+        if (errStr.contains('object-not-found') ||
+            errStr.contains('not-found') ||
+            errStr.contains('unauthorized') ||
+            errStr.contains('permission-denied') ||
+            errStr.contains('channel-error') ||
+            errStr.contains('canceled') ||
+            errStr.contains('retry-limit-exceeded') ||
+            errStr.contains('retry') ||
+            errStr.contains('timeoutexception') ||
+            errStr.contains('timeout')) {
+          logger.info(
+            'StorageUtils.resolveUrl probe miss or timeout: $clean',
+            tag: 'StorageUtils.resolveUrl',
+          );
+        } else {
+          ErrorHandler.log(
+            e,
+            stackTrace: s,
+            tag: 'StorageUtils.resolveUrl.ref.getDownloadURL',
+          );
+        }
+      }
+    }
+
+    return getFastDownloadUrl(clean);
+  }
+
+  /// Configures reasonable retry timeouts on Firebase Storage to prevent 10-minute retry loops
+  static void configureRetryLimits() {
+    if (!kIsWeb) {
+      try {
+        if (Platform.environment.containsKey('FLUTTER_TEST')) {
+          return;
+        }
+      } catch (_) {}
+    }
     try {
-      final bucket = DefaultFirebaseOptions.currentPlatform.storageBucket;
-      final cleanPath = pathOrUrl
-          .replaceAll('gs://$bucket/', '')
-          .replaceAll('gs://', '');
-      final formattedPath =
-          cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath;
-      final tokenUrl = await FirebaseStorage.instance
-          .ref(formattedPath)
-          .getDownloadURL()
-          .timeout(const Duration(seconds: 3));
-      _fastUrlCache[pathOrUrl] = tokenUrl;
-      return tokenUrl;
-    } catch (e, s) {
-      ErrorHandler.log(
-        e,
-        stackTrace: s,
-        tag: 'StorageUtils.resolveUrl.tokenFallback',
-      );
-      return getFastDownloadUrl(pathOrUrl);
+      FirebaseStorage.instance.setMaxOperationRetryTime(const Duration(seconds: 8));
+      FirebaseStorage.instance.setMaxDownloadRetryTime(const Duration(seconds: 15));
+      FirebaseStorage.instance.setMaxUploadRetryTime(const Duration(seconds: 30));
+    } catch (e) {
+      logger.info('FirebaseStorage retry limits setup notice: $e', tag: 'StorageUtils');
+    }
+  }
+
+  /// Safely downloads bytes from a Firebase Storage reference with an explicit timeout,
+  /// preventing [firebase_storage/retry-limit-exceeded] stalls when probing missing objects.
+  static Future<Uint8List?> getDataWithTimeout(
+    Reference ref, {
+    Duration timeout = const Duration(seconds: 4),
+    int maxSize = 10 * 1024 * 1024,
+  }) async {
+    try {
+      return await ref.getData(maxSize).timeout(timeout);
+    } catch (e) {
+      final errStr = e.toString().toLowerCase();
+      if (errStr.contains('object-not-found') ||
+          errStr.contains('not-found') ||
+          errStr.contains('unauthorized') ||
+          errStr.contains('permission-denied') ||
+          errStr.contains('retry-limit-exceeded') ||
+          errStr.contains('channel-error') ||
+          errStr.contains('timeoutexception') ||
+          errStr.contains('timeout') ||
+          errStr.contains('canceled')) {
+        logger.info(
+          'Storage ref getData probe miss or timeout: ${ref.fullPath}',
+          tag: 'StorageUtils.getData',
+        );
+      } else {
+        logger.warning(
+          'Storage ref getData error: ${ref.fullPath} ($e)',
+          tag: 'StorageUtils.getData',
+        );
+      }
+      return null;
     }
   }
 }

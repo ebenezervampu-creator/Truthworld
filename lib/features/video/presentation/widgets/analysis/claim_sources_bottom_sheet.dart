@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/source_avatar_service.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/widgets/claim_source_submission_dialog.dart';
@@ -53,14 +53,7 @@ class ClaimSourcesBottomSheet extends StatelessWidget {
 
   Future<void> _launchUrl(String? urlStr) async {
     if (urlStr == null || urlStr.trim().isEmpty) return;
-    try {
-      final uri = Uri.parse(urlStr.startsWith('http') ? urlStr : 'https://$urlStr');
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-    } catch (e, s) {
-      ErrorHandler.log(e, stackTrace: s, tag: 'ClaimSourcesBottomSheet._launchUrl');
-    }
+    await ClickableUrlText.launchUrlString(urlStr);
   }
 
   Future<void> _searchWeb(BuildContext context) async {
@@ -78,7 +71,7 @@ class ClaimSourcesBottomSheet extends StatelessWidget {
     return Container(
       height: sheetHeight,
       decoration: const BoxDecoration(
-        color: Color(0xFF14161F),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
@@ -104,7 +97,7 @@ class ClaimSourcesBottomSheet extends StatelessWidget {
               children: [
                 Text(
                   'Sources',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
@@ -119,7 +112,7 @@ class ClaimSourcesBottomSheet extends StatelessWidget {
                   ),
                   child: Text(
                     '${sources.length}',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -149,7 +142,7 @@ class ClaimSourcesBottomSheet extends StatelessWidget {
                       child: Text(
                         'No specific external citations cataloged for this claim.',
                         textAlign: TextAlign.center,
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 13,
                           color: AppColors.textTertiary,
                         ),
@@ -176,7 +169,7 @@ class ClaimSourcesBottomSheet extends StatelessWidget {
           Container(
             padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding > 0 ? bottomPadding : 16),
             decoration: BoxDecoration(
-              color: const Color(0xFF10121A),
+              color: AppColors.bgPage,
               border: Border(
                 top: BorderSide(
                   color: Colors.white.withValues(alpha: 0.08),
@@ -209,7 +202,7 @@ class ClaimSourcesBottomSheet extends StatelessWidget {
                         const SizedBox(width: 8),
                         Text(
                           'Search web',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                             color: Colors.white,
@@ -250,7 +243,7 @@ class ClaimSourcesBottomSheet extends StatelessWidget {
                         const SizedBox(width: 8),
                         Text(
                           'Provide source',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
                             color: Colors.black, // Strictly black on white
@@ -298,7 +291,7 @@ class ClaimSourcesBottomSheet extends StatelessWidget {
                 children: [
                   Text(
                     effectivePublisher,
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w400,
                       color: AppColors.textTertiary,
@@ -309,7 +302,7 @@ class ClaimSourcesBottomSheet extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     s.title,
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
@@ -322,7 +315,7 @@ class ClaimSourcesBottomSheet extends StatelessWidget {
                   if (s.domain != null && s.domain!.isNotEmpty) ...[
                     Text(
                       s.domain!,
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 12,
                         color: const Color(0xFF64B5F6),
                         fontWeight: FontWeight.w500,
@@ -335,7 +328,7 @@ class ClaimSourcesBottomSheet extends StatelessWidget {
                   if (s.publishedAt != null && s.publishedAt!.isNotEmpty)
                     Text(
                       s.publishedAt!,
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 11,
                         color: AppColors.textTertiary,
                       ),

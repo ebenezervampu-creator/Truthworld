@@ -10,6 +10,7 @@ import 'package:truthworld/features/video/presentation/controllers/audio_only_se
 import 'package:truthworld/features/video/presentation/controllers/playback_source.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player/tower_player_preferences.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player/tower_player_registry.dart';
+import 'package:truthworld/features/video/presentation/controllers/tower_player/tower_player_vpc_event_handler.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:video_player/video_player.dart';
 
@@ -20,12 +21,13 @@ mixin TowerPlayerPlaybackControlMixin on GetxController {
   bool get isClosed;
   VideoPlayerController get videoPlayerController;
   VideoPlayerController? get audioTrackController;
+  bool get hasAlternateAudioTrack;
   PlaybackSource get activePlayback;
   RxBool get isShowingAd;
   void togglePlayPauseAd();
   void cancelPendingTap();
   void onInteraction();
-  void syncActiveSubtitle();
+  void syncActiveSubtitle({Duration? overridePos});
   RxString get activePanel;
   TimerBag get timers;
   RxBool get isAudioOnly;
@@ -34,6 +36,7 @@ mixin TowerPlayerPlaybackControlMixin on GetxController {
   set hasEnded(bool val);
   void hideSeekPreview();
   RxDouble get aspectRatio;
+  Duration get effectiveDuration;
 
   // ── State ──
   final RxDouble volume = 1.0.obs;
@@ -286,8 +289,11 @@ mixin TowerPlayerPlaybackControlMixin on GetxController {
           GuestPlaybackLimitService.to.promptGuestSignIn();
           return;
         }
-        if (activePlayback.duration > Duration.zero &&
-            activePlayback.position >= activePlayback.duration) {
+        final totalDur = effectiveDuration > Duration.zero
+            ? effectiveDuration
+            : activePlayback.duration;
+        if (totalDur > Duration.zero &&
+            activePlayback.position >= totalDur) {
           await activePlayback.seek(Duration.zero);
           await audioTrackController?.seekTo(Duration.zero);
         }
@@ -316,13 +322,15 @@ mixin TowerPlayerPlaybackControlMixin on GetxController {
   Future<void> seekTo(Duration pos) async {
     try {
       hasEnded = false;
+      TowerPlayerVpcEventHandler.notifyManualSeekInitiated();
       await activePlayback.seek(pos);
-      syncActiveSubtitle();
+      syncActiveSubtitle(overridePos: pos);
       hideSeekPreview();
       if (audioTrackController != null &&
-          audioTrackController!.value.isInitialized) {
+          audioTrackController!.value.isInitialized &&
+          !audioTrackController!.value.hasError) {
         final audioDur = audioTrackController!.value.duration;
-        if (audioDur > Duration.zero && pos <= audioDur) {
+        if (audioDur == Duration.zero || pos <= audioDur) {
           await audioTrackController!.seekTo(pos);
         } else {
           await audioTrackController!.pause();
@@ -339,7 +347,9 @@ mixin TowerPlayerPlaybackControlMixin on GetxController {
     bool showFeedbackToast = true,
   }) async {
     final current = activePlayback.position;
-    final total = activePlayback.duration;
+    final total = effectiveDuration > Duration.zero
+        ? effectiveDuration
+        : activePlayback.duration;
     final maxSecs = total.inSeconds > 0 ? total.inSeconds : 1;
     final newPos = Duration(
       seconds: (current.inSeconds + seconds).clamp(0, maxSecs),
@@ -354,9 +364,11 @@ mixin TowerPlayerPlaybackControlMixin on GetxController {
     volume.value = vol.clamp(0.0, 1.0);
     isMuted.value = vol == 0;
     try {
-      if (audioTrackController != null) {
-        videoPlayerController.setVolume(0);
-        audioTrackController!.setVolume(isMuted.value ? 0.0 : volume.value);
+      if (hasAlternateAudioTrack &&
+          audioTrackController != null &&
+          !audioTrackController!.value.hasError) {
+        videoPlayerController.setVolume(0.0);
+        audioTrackController?.setVolume(isMuted.value ? 0.0 : volume.value);
       } else {
         videoPlayerController.setVolume(isMuted.value ? 0.0 : volume.value);
       }
@@ -373,9 +385,9 @@ mixin TowerPlayerPlaybackControlMixin on GetxController {
 
   void toggleMute() {
     if (isMuted.value) {
-      setVolume(_volumeBeforeMute);
+      setVolume(_volumeBeforeMute > 0 ? _volumeBeforeMute : 1.0);
     } else {
-      _volumeBeforeMute = volume.value;
+      _volumeBeforeMute = volume.value > 0 ? volume.value : 1.0;
       setVolume(0);
     }
   }

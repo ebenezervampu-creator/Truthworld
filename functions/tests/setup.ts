@@ -85,6 +85,23 @@ export const mockAuth = {
     disabled: false,
     customClaims: mockClaimsStore.get(uid) || {},
   })),
+
+  getUserByEmail: jest.fn(async (email: string) => {
+    const err: any = new Error('User not found');
+    err.code = 'auth/user-not-found';
+    throw err;
+  }),
+
+  createUser: jest.fn(async (props: any) => ({
+    uid: `user_${Date.now()}`,
+    email: props.email,
+    displayName: props.displayName,
+  })),
+
+  updateUser: jest.fn(async (uid: string, props: any) => ({
+    uid,
+    ...props,
+  })),
 };
 
 // Mock Storage bucket

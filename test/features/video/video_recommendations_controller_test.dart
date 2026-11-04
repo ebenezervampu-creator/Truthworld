@@ -63,15 +63,46 @@ void main() {
       expect(controller.videoPlaylistsList, isEmpty);
     });
 
-    test('recommendationFilters generates correct tags and channel tab', () {
+    test('recommendationFilters hides Flip Coin tab and tag tabs when 0 matching videos available', () {
+      expect(controller.hasFlipCoinVideos, isFalse);
+      expect(controller.hasVideosForTag('quantum'), isFalse);
+      expect(controller.hasVideosForTag('atom'), isFalse);
       final filters = controller.recommendationFilters;
       expect(filters, contains('All'));
-      expect(filters, contains('Flip Coin'));
       expect(filters, contains('From Science Daily'));
-      expect(filters, contains('quantum'));
-      expect(filters, contains('atom'));
+      expect(filters, isNot(contains('Flip Coin')), reason: 'Must not show Flip Coin tab when 0 videos available');
+      expect(filters, isNot(contains('quantum')), reason: 'Must not show tag tab when 0 matching videos available');
+      expect(filters, isNot(contains('atom')), reason: 'Must not show tag tab when 0 matching videos available');
       // Navigated from topic is false, so no topics are included yet
       expect(filters.any((f) => f.startsWith('Topic: ')), isFalse);
+    });
+
+    test('recommendationFilters generates correct tags and channel tab before Flip Coin when matching videos exist', () {
+      controller.flipVideos.add(createTestVideo(id: 'v_flip_1', title: 'Opposite Perspective'));
+      controller.recommendedVideos.addAll([
+        createTestVideo(id: 'v_quantum', title: 'Quantum Computing', tags: ['quantum']),
+        createTestVideo(id: 'v_atom', title: 'Atomic Theory', tags: ['atom']),
+      ]);
+      expect(controller.hasFlipCoinVideos, isTrue);
+      expect(controller.hasVideosForTag('quantum'), isTrue);
+      expect(controller.hasVideosForTag('atom'), isTrue);
+
+      final filters = controller.recommendationFilters;
+      expect(filters, contains('All'));
+      expect(filters, contains('From Science Daily'));
+      expect(filters, contains('Flip Coin'));
+      expect(filters, contains('quantum'));
+      expect(filters, contains('atom'));
+      final channelIndex = filters.indexOf('From Science Daily');
+      final flipCoinIndex = filters.indexOf('Flip Coin');
+      final quantumIndex = filters.indexOf('quantum');
+      final atomIndex = filters.indexOf('atom');
+      expect(channelIndex, isNot(equals(-1)));
+      expect(flipCoinIndex, isNot(equals(-1)));
+      expect(quantumIndex, isNot(equals(-1)));
+      expect(atomIndex, isNot(equals(-1)));
+      expect(channelIndex, lessThan(flipCoinIndex));
+      expect(flipCoinIndex, lessThan(quantumIndex));
     });
 
     test('recommendationFilters places topic tab in between All and Flip Coin when navigatedFromTopic is true', () {
@@ -98,12 +129,14 @@ void main() {
         getNavigatedFromTopic: () => true,
         getNavigatedFromPlaylist: () => false,
       );
+      topicController.flipVideos.add(createTestVideo(id: 'v_flip_2', title: 'Counter View'));
 
       final filters = topicController.recommendationFilters;
-      expect(filters.length, greaterThanOrEqualTo(3));
+      expect(filters.length, greaterThanOrEqualTo(4));
       expect(filters[0], equals('All'));
       expect(filters[1], equals('Quantum Computing'));
-      expect(filters[2], equals('Flip Coin'));
+      expect(filters[2], equals('From Science Daily'));
+      expect(filters[3], equals('Flip Coin'));
     });
 
     test('filteredRecommendedVideos returns all videos when filter is All', () {
@@ -162,7 +195,7 @@ void main() {
       expect(items.contains(post), isTrue);
     });
 
-    test('recommendationFilters places playlist tab in between All and Flip Coin', () {
+    test('recommendationFilters places playlist tab in between All and From channel / Flip Coin', () {
       final samplePlaylist = PlaylistModel(
         id: 'watchlater',
         ownerId: 'u1',
@@ -178,12 +211,14 @@ void main() {
         getNavigatedFromTopic: () => false,
         getNavigatedFromPlaylist: () => true,
       );
+      playlistController.flipVideos.add(createTestVideo(id: 'v_flip_3', title: 'Opposite Vid'));
 
       final filters = playlistController.recommendationFilters;
-      expect(filters.length, greaterThanOrEqualTo(3));
+      expect(filters.length, greaterThanOrEqualTo(4));
       expect(filters[0], equals('All'));
       expect(filters[1], equals('Watch Later'));
-      expect(filters[2], equals('Flip Coin'));
+      expect(filters[2], equals('From Science Daily'));
+      expect(filters[3], equals('Flip Coin'));
     });
 
     test('filteredRecommendedVideos returns playlist videos when playlist tab selected', () {
@@ -360,7 +395,7 @@ void main() {
       expect(results.contains(currentVid), isFalse);
     });
 
-    test('recommendationFilters includes category when tags are empty', () {
+    test('recommendationFilters includes category when tags are empty and matching video exists', () {
       final noTagsVideo = createTestVideo(
         id: 'v_notags',
         title: 'No Tags Video',
@@ -375,11 +410,91 @@ void main() {
         getNavigatedFromTopic: () => false,
       );
 
+      // Initially 0 flip videos and 0 documentary videos -> neither tab is shown
+      expect(catController.recommendationFilters, isNot(contains('Flip Coin')));
+      expect(catController.recommendationFilters, isNot(contains('Documentary')));
+
+      // When at least one flip video is available -> Flip Coin is shown
+      catController.flipVideos.add(createTestVideo(id: 'vf', title: 'Flip Vid'));
+      // When at least one Documentary video is available -> Documentary tab is shown
+      catController.recommendedVideos.add(createTestVideo(id: 'v_doc', title: 'Doc Video', category: 'Documentary'));
+
       final filters = catController.recommendationFilters;
       expect(filters, contains('All'));
       expect(filters, contains('Flip Coin'));
       expect(filters, contains('From Truth Channel'));
       expect(filters, contains('Documentary'));
+    });
+
+    test('hasVideosForTag returns true when matching video is in recommendedVideos, tagVideosCache, or candidate pool', () {
+      expect(controller.hasVideosForTag('quantum'), isFalse);
+
+      // Case 1: in recommendedVideos
+      controller.recommendedVideos.add(createTestVideo(id: 'v_rec_q', title: 'Quantum Tech', tags: ['quantum']));
+      expect(controller.hasVideosForTag('quantum'), isTrue);
+
+      // Case 2: in tagVideosCache
+      expect(controller.hasVideosForTag('biology'), isFalse);
+      controller.tagVideosCache['biology'] = [createTestVideo(id: 'v_bio', title: 'Biology Cell', tags: ['biology'])];
+      expect(controller.hasVideosForTag('biology'), isTrue);
+    });
+
+    test('hasVideosForTag excludes current playing video', () {
+      // Current playing video has id 'vid_base' and tag 'quantum'
+      // If only current playing video exists, hasVideosForTag should be false
+      controller.recommendedVideos.clear();
+      controller.recommendedVideos.add(createTestVideo(id: 'vid_base', title: 'Base Video', tags: ['quantum']));
+      expect(controller.hasVideosForTag('quantum'), isFalse);
+    });
+
+    test('recommendationFilters selectively includes only tags that have at least one matching video', () {
+      final multiTagVideo = createTestVideo(
+        id: 'v_multitag',
+        title: 'Multi Tag Video',
+        tags: ['physics', 'chemistry', 'biology'],
+      );
+
+      final multiController = VideoRecommendationsController(
+        getVideo: () => multiTagVideo,
+        getCurrentPlaylist: () => null,
+        getPlaylistVideos: () => <Video>[],
+        getNavigatedFromTopic: () => false,
+      );
+
+      // Only add a video matching 'chemistry'
+      multiController.recommendedVideos.add(
+        createTestVideo(id: 'v_chem', title: 'Chemistry Lab', tags: ['chemistry']),
+      );
+
+      final filters = multiController.recommendationFilters;
+      expect(filters, contains('chemistry'));
+      expect(filters, isNot(contains('physics')), reason: 'Must not show physics tag when 0 videos exist');
+      expect(filters, isNot(contains('biology')), reason: 'Must not show biology tag when 0 videos exist');
+    });
+
+    test('recommendationFilters falls back to category if tags are present but none have videos', () {
+      final tagVideo = createTestVideo(
+        id: 'v_tag_fallback',
+        title: 'Tag Fallback Video',
+        category: 'Education',
+        tags: ['obscure_tag'],
+      );
+
+      final fallbackController = VideoRecommendationsController(
+        getVideo: () => tagVideo,
+        getCurrentPlaylist: () => null,
+        getPlaylistVideos: () => <Video>[],
+        getNavigatedFromTopic: () => false,
+      );
+
+      // Add a video matching category 'Education', but none matching 'obscure_tag'
+      fallbackController.recommendedVideos.add(
+        createTestVideo(id: 'v_edu', title: 'Education Today', category: 'Education'),
+      );
+
+      final filters = fallbackController.recommendationFilters;
+      expect(filters, isNot(contains('obscure_tag')));
+      expect(filters, contains('Education'));
     });
 
     test('ensureFilterVideosLoaded handles channel tab safely without throwing', () async {

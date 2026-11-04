@@ -14,6 +14,8 @@ import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
+import 'package:truthworld/features/search/data/services/engine/typesense_search_engine.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 
 class DiscoverChannelsController extends BaseController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -41,6 +43,100 @@ class DiscoverChannelsController extends BaseController {
   final RxMap<String, int> categoryChannelCounts = <String, int>{}.obs;
   List<Channel> _cachedAllChannels = <Channel>[];
   DateTime? _lastChannelsFetchTime;
+
+  // Scalable Cursor-Based Pagination State
+  DocumentSnapshot? _lastDocument;
+  final RxBool isFetchingMore = false.obs;
+  final RxBool hasMoreChannels = true.obs;
+  static const int kInitialBatchSize = 60;
+  static const int kPageSize = 30;
+
+  // On-Demand Video Preview Caching (Cost-Effective Zero Mock Data)
+  final RxMap<String, List<Video>> channelPreviewVideos = <String, List<Video>>{}.obs;
+  final RxSet<String> expandedPreviewChannelIds = <String>{}.obs;
+  final RxSet<String> loadingPreviewChannelIds = <String>{}.obs;
+
+  bool isChannelPreviewExpanded(String channelId) =>
+      expandedPreviewChannelIds.contains(channelId);
+
+  bool isLoadingPreview(String channelId) =>
+      loadingPreviewChannelIds.contains(channelId);
+
+  List<Video>? getChannelPreviews(String channelId) =>
+      channelPreviewVideos[channelId];
+
+  Future<void> toggleChannelPreview(String channelId) async {
+    if (expandedPreviewChannelIds.contains(channelId)) {
+      expandedPreviewChannelIds.remove(channelId);
+      return;
+    }
+
+    expandedPreviewChannelIds.add(channelId);
+
+    // If already cached in memory, do not hit Firestore again
+    if (channelPreviewVideos.containsKey(channelId) &&
+        channelPreviewVideos[channelId] != null) {
+      return;
+    }
+
+    loadingPreviewChannelIds.add(channelId);
+    try {
+      final snap = await _firestore
+          .collection(FirestoreCollections.videos)
+          .where('channelId', isEqualTo: channelId)
+          .where('visibility', isEqualTo: 'Public')
+          .limit(2)
+          .getCacheFirst();
+
+      final vids = snap.docs.map(Video.fromDocumentSnapshot).toList();
+      channelPreviewVideos[channelId] = vids;
+    } catch (e) {
+      ErrorHandler.log(e, tag: 'DiscoverChannelsController.toggleChannelPreview');
+      channelPreviewVideos[channelId] = <Video>[];
+    } finally {
+      loadingPreviewChannelIds.remove(channelId);
+    }
+  }
+
+  /// Trending creators computed directly from cached channels (0 extra network queries)
+  List<Channel> get trendingCreators {
+    final list = List<Channel>.from(_cachedAllChannels);
+    list.sort((a, b) {
+      final subA = getSubscriberCount(a);
+      final subB = getSubscriberCount(b);
+      if (subA != subB) return subB.compareTo(subA);
+      return b.videoCount.compareTo(a.videoCount);
+    });
+    return list.take(8).toList();
+  }
+
+  /// Top verified and high-truth-rate creators (0 extra network queries)
+  List<Channel> get topVerifiedCreators {
+    final verified = _cachedAllChannels
+        .where((c) => c.isVerified || c.channelTrustScore != null)
+        .toList();
+    verified.sort((a, b) {
+      final rateA = a.channelTrustScore?.verificationRate ?? (a.isVerified ? 1.0 : 0.0);
+      final rateB = b.channelTrustScore?.verificationRate ?? (b.isVerified ? 1.0 : 0.0);
+      return rateB.compareTo(rateA);
+    });
+    return verified.take(8).toList();
+  }
+
+  bool get hasActiveFilters =>
+      selectedCategory.value != 'All' ||
+      selectedLanguage.value != 'All Languages' ||
+      selectedTopic.value != 'All Topics' ||
+      selectedFilter.value != 'Top Channels' ||
+      searchQuery.value.trim().isNotEmpty;
+
+  void resetAllFilters() {
+    selectedCategory.value = 'All';
+    selectedLanguage.value = 'All Languages';
+    selectedTopic.value = 'All Topics';
+    selectedFilter.value = 'Top Channels';
+    clearSearch();
+  }
 
   int getCategoryCount(String categoryName) {
     return categoryChannelCounts[categoryName] ?? 0;
@@ -375,17 +471,28 @@ class DiscoverChannelsController extends BaseController {
       return;
     }
 
+    if (forceRefresh) {
+      _lastDocument = null;
+      hasMoreChannels.value = true;
+    }
+
     rxIsLoading.value = true;
     try {
       final query = _firestore
           .collection(FirestoreCollections.channels);
 
-      final snapshot = await query.limit(300).getCacheFirst();
+      final snapshot = await query.limit(kInitialBatchSize).getCacheFirst();
+      if (snapshot.docs.isNotEmpty) {
+        _lastDocument = snapshot.docs.last;
+      }
+      hasMoreChannels.value = snapshot.docs.length >= kInitialBatchSize;
+
       final loadedChannels = snapshot.docs
           .map(Channel.fromDocumentSnapshot)
           .where((c) =>
               c.status != ChannelStatus.deleted &&
-              c.status != ChannelStatus.suspended)
+              c.status != ChannelStatus.suspended &&
+              c.status != ChannelStatus.onHold)
           .toList();
 
       _cachedAllChannels = loadedChannels;
@@ -407,6 +514,59 @@ class DiscoverChannelsController extends BaseController {
     }
   }
 
+  /// Paginated fetch triggered as the user reaches the end of the channel list.
+  Future<void> loadMoreChannels() async {
+    if (isFetchingMore.value || !hasMoreChannels.value || _lastDocument == null) {
+      return;
+    }
+
+    isFetchingMore.value = true;
+    try {
+      final snapshot = await _firestore
+          .collection(FirestoreCollections.channels)
+          .startAfterDocument(_lastDocument!)
+          .limit(kPageSize)
+          .getCacheFirst();
+
+      if (snapshot.docs.isEmpty) {
+        hasMoreChannels.value = false;
+        return;
+      }
+
+      _lastDocument = snapshot.docs.last;
+      if (snapshot.docs.length < kPageSize) {
+        hasMoreChannels.value = false;
+      }
+
+      final newChannels = snapshot.docs
+          .map(Channel.fromDocumentSnapshot)
+          .where((c) =>
+              c.status != ChannelStatus.deleted &&
+              c.status != ChannelStatus.suspended &&
+              c.status != ChannelStatus.onHold)
+          .toList();
+
+      final existingIds = _cachedAllChannels.map((c) => c.channelId).toSet();
+      for (final ch in newChannels) {
+        if (!existingIds.contains(ch.channelId)) {
+          _cachedAllChannels.add(ch);
+          existingIds.add(ch.channelId);
+        }
+      }
+
+      updateCategoryChannelCounts(_cachedAllChannels);
+      await _applyFiltersAndRanking();
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'DiscoverChannelsController.loadMoreChannels',
+      );
+    } finally {
+      isFetchingMore.value = false;
+    }
+  }
+
   Future<void> _applyFiltersAndRanking() async {
     if (_cachedAllChannels.isEmpty) {
       await loadChannels();
@@ -417,6 +577,55 @@ class DiscoverChannelsController extends BaseController {
     final rawQuery = searchQuery.value.trim();
 
     if (rawQuery.isNotEmpty) {
+      // Step 0: Typesense global channel search (<20ms, typo-tolerant)
+      final tsEngine = TypesenseSearchEngine();
+      if (tsEngine.isEnabled) {
+        final tsResults = await tsEngine.searchChannels(rawQuery);
+        if (tsResults.isNotEmpty) {
+          final cachedMap = {for (final c in _cachedAllChannels) c.channelId: c};
+          final matchedList = <Channel>[];
+          final missingIds = <String>[];
+
+          for (final item in tsResults) {
+            final cached = cachedMap[item.id];
+            if (cached != null) {
+              matchedList.add(cached);
+            } else {
+              missingIds.add(item.id);
+            }
+          }
+
+          if (missingIds.isNotEmpty) {
+            for (var i = 0; i < missingIds.length; i += 10) {
+              final chunk = missingIds.skip(i).take(10).toList();
+              try {
+                final snap = await _firestore
+                    .collection(FirestoreCollections.channels)
+                    .where(FieldPath.documentId, whereIn: chunk)
+                    .getCacheFirst();
+                final fetched = snap.docs.map(Channel.fromDocumentSnapshot).toList();
+                matchedList.addAll(fetched);
+                for (final f in fetched) {
+                  if (!cachedMap.containsKey(f.channelId)) {
+                    _cachedAllChannels.add(f);
+                    cachedMap[f.channelId] = f;
+                  }
+                }
+              } catch (e) {
+                ErrorHandler.log(e, tag: 'DiscoverChannelsController.typesenseHydrate');
+              }
+            }
+          }
+
+          if (matchedList.isNotEmpty) {
+            channels.value = matchedList;
+            isAiSearching.value = false;
+            return;
+          }
+        }
+      }
+
+      // Step 1: AI semantic lookup and in-memory fallback
       isAiSearching.value = true;
       final intent = await AiSearchService.instance.parseQuery(
         rawQuery,

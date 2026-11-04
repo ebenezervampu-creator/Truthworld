@@ -44,12 +44,15 @@ export {
   handleResolution,
   getVideoResolutionStatus,
   getResolutionProfiles,
+  captureChapterThumbnail,
+  generateVideoChapterThumbnails,
   reconcileStuckResolutionJobsScheduled,
   reconcileVideoResolutionManual,
 } from "./resolution/resolution";
 
 // ─── Publish Gate & Fan-Out (Modularized) ─────────────────────────────────────
 export * from "./publishing/videoPublishTrigger";
+export * from "./publishing/videoDeletionTrigger";
 export * from "./publishing/shardSync";
 export { scheduledVideoPublisher } from "./publishing/scheduledPublishing";
 
@@ -58,9 +61,9 @@ export * from "./swr/swrQueues";
 export * from "./maintenance/storageCleanup";
 
 export {
-  onVideoUploadedForModeration,
+  onContentUploadedForModeration,
   moderateVideoManual,
-  scheduledVideoModerationRetry,
+  scheduledContentModerationRetry,
   resubmitVideoForModeration,
 } from "./moderation/contentModeration";
 export {
@@ -97,13 +100,13 @@ export {
   cleanupOldViews,
 } from "./analytics/impressions";
 export { rollupVideoCounterShards, reconcileChannelMetrics } from "./analytics/counterRollup";
-
-// ─── Live Chat & Social Features ──────────────────────────────────────────────
 export {
-  moderateLiveChatUser,
-  processSuperchat,
-  pruneLiveChatBacklogs,
-} from "./livechat/liveChat";
+  BigQueryAnalyticsService,
+  getBigQueryAnalyticsService,
+  setBigQueryAnalyticsService,
+} from "./analytics/bigqueryService";
+
+
 export {
   createChannel,
   getPlatformCapacity,
@@ -117,7 +120,7 @@ export {
   updateChannelNotificationSettings,
   getFollowingFeed,
 } from "./channels/social";
-export { onChannelWritten, onImageVerificationWritten, moderateChannelManual } from "./channels/moderation";
+export { onChannelWritten, onImageVerificationWritten, moderateChannelManual, setChannelModerationBypass, isChannelTrustedModerationBypassed } from "./channels/moderation";
 export { getLeaderboard, getRisingCreators } from "./channels/discovery";
 export { getTrustBadge } from "./channels/embeds";
 export { onTopicWritten, moderateTopicManual } from "./topics/moderation";
@@ -126,16 +129,6 @@ export {
   getAlgorithmRemoteConfig,
   updateAlgorithmRemoteConfig,
 } from "./algorithm/remoteConfig";
-
-// ─── A/B Testing & Experimentation ────────────────────────────────────────
-export {
-  createExperiment,
-  recordExperimentMetric,
-  getActiveExperiments,
-  analyzeExperiments,
-  graduateExperiment,
-  manageExperiment,
-} from "./experiments/engine";
 
 // ─── Notifications & User Signals ─────────────────────────────────────────────
 export {
@@ -148,9 +141,20 @@ export {
 } from "./notifications/notifications";
 export {
   onCommentCreated,
+  onVideoCommentReplyCreated,
   onNewSubscription,
+  onChannelSubscriberWritten,
   onCommunityPostCreated,
   onCommunityPostUpdated,
+  onCommunityCommentCreated,
+  onCommunityCommentReplyCreated,
+  onCommunityCommentUpdated,
+  onCommunityReplyUpdated,
+  onTopicReplyCreated,
+  onTopicCommentLikeCreated,
+  onTopicReplyLikeCreated,
+  onClaimCommentCreated,
+  onClaimCommentUpdated,
   onUserNotificationCreated,
 } from "./notifications/triggers";
 export { trackActivity } from "./users/signals";
@@ -213,11 +217,26 @@ export { onPublicPlaylistWritten, onPrivatePlaylistWritten } from "./moderation/
 // ─── Admin Portal APIs ───────────────────────────────────────────────────────
 export * from "./admin/adminBulkModerate";
 export { moderateUser, consolidateUserAccounts } from "./admin/userManagement";
-export { getUnitEconomicsDashboard, getUnitEconomicsReport } from "./admin/unitEconomics";
+export { getUnitEconomicsDashboard, getUnitEconomicsReport, getChannelSpendingsAndRevenue } from "./admin/unitEconomics";
+export {
+  sendAdminCredentials,
+  verifyAdminUsername,
+  changeAdminPassword,
+  seedDefaultAdmins,
+  updateAdminMember,
+  deleteAdminMember,
+} from "./admin/adminMemberEndpoints";
+export { sendBroadcastPushNotification } from "./admin/broadcastPushNotification";
 
 // ─── Search Assistant & In-House Vector Search ───────────────────────────────
 export { aiSearchAssistant } from "./search/aiSearch";
-export { searchTruthWorld } from "./search/searchBackend";
+export { searchTruthWorld, recordSearchClickthrough } from "./search/searchBackend";
+export {
+  onVideoWrittenTypesenseSync,
+  onChannelWrittenTypesenseSync,
+  onTopicWrittenTypesenseSync,
+} from "./search/typesense/typesenseTriggers";
+export { triggerTypesenseBackfill } from "./search/typesense/backfillTypesense";
 
 // ─── Payments & Creator Economy ───────────────────────────────────────────────
 export {
@@ -255,6 +274,7 @@ export {
 // ─── Edge Feed CDN Server ───────────────────────────────────────────────────
 export { publicFeedServer } from "./feed/publicFeedServer";
 
-// ─── IFCN Fact-Check Appeals Desk ───────────────────────────────────────────
-export { submitClaimAppeal, resolveClaimAppeal, verifyGovernanceAuditChain } from "./pipeline/appealsDeskEndpoints";
+// ─── IFCN Fact-Check Appeals Desk & AI Credibility Assistant ───────────────
+export { submitClaimAppeal, submitFactualDispute, resolveClaimAppeal, verifyGovernanceAuditChain } from "./pipeline/appealsDeskEndpoints";
+export { chatWithCredibilityAi, streamCredibilityAiChat } from "./pipeline/aiCredibilityChat";
 

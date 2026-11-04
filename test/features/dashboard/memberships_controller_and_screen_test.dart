@@ -193,7 +193,7 @@ void main() {
       expect(controller.primaryCurrencySymbol, equals('\u20B9'));
     });
 
-    test('noAdsForMembers applies 70/30 MRR split when enabled and 100/0 when disabled', () {
+    test('noAdsForMembers applies 70/30 MRR split when enabled and hybrid split when disabled', () {
       final tier = ChannelMembershipTier(
         id: 'tier_1',
         name: 'Tier 1',
@@ -204,13 +204,20 @@ void main() {
       controller.members.clear();
       controller.tiers.assignAll([tier]);
 
-      // When false (default)
+      // When false (Standard Channel: 90% creator / 10% platform fee)
+      controller.isCustomChannel.value = false;
       controller.noAdsForMembers.value = false;
       expect(controller.monthlyRecurringRevenue, equals(100.0));
+      expect(controller.creatorMonthlyRecurringRevenue, equals(90.0));
+      expect(controller.platformMonthlyRecurringRevenue, equals(10.0));
+
+      // When Custom Channel: 100% creator / 0% platform fee
+      controller.isCustomChannel.value = true;
       expect(controller.creatorMonthlyRecurringRevenue, equals(100.0));
       expect(controller.platformMonthlyRecurringRevenue, equals(0.0));
 
       // When true (Member Ad-Free active -> 70% creator / 30% platform)
+      controller.isCustomChannel.value = false;
       controller.noAdsForMembers.value = true;
       expect(controller.monthlyRecurringRevenue, equals(100.0));
       expect(controller.creatorMonthlyRecurringRevenue, equals(70.0));
@@ -225,8 +232,10 @@ void main() {
         perks: const ['VIP Discord Access', 'Exclusive Badges'],
       );
       expect(standardTier.includesPremiumBundle, isFalse);
-      expect(standardTier.platformCutPercentage, equals(0.0));
-      expect(standardTier.creatorSharePercentage, equals(1.0));
+      expect(standardTier.platformCutPercentage, equals(0.10));
+      expect(standardTier.creatorSharePercentage, equals(0.90));
+      expect(standardTier.platformCutForChannel(isCustom: true), equals(0.0));
+      expect(standardTier.creatorShareForChannel(isCustom: true), equals(1.0));
 
       final premiumTier = ChannelMembershipTier(
         id: 'tier_premium',
@@ -291,7 +300,7 @@ void main() {
       expect(healthyInrBundleTier.isBelowRecommendedBundlePrice, isFalse);
     });
 
-    test('MRR calculates 70% creator / 30% platform for tiers with Premium Bundle and 100% creator for standard tiers', () {
+    test('MRR calculates 70% creator / 30% platform for tiers with Premium Bundle and hybrid split for standard tiers', () {
       final standardTier = ChannelMembershipTier(
         id: 't_standard',
         name: 'Standard',
@@ -311,11 +320,18 @@ void main() {
       controller.members.clear();
       controller.tiers.assignAll([standardTier, premiumTier]);
 
+      // Standard Channel: 90% creator / 10% platform on standard tier
+      controller.isCustomChannel.value = false;
       // Total gross: 10 + 20 = 30
       expect(controller.monthlyRecurringRevenue, equals(30.0));
-      // Creator net: (10 * 1.0) + (20 * 0.7) = 10 + 14 = 24.0
+      // Creator net: (10 * 0.90) + (20 * 0.70) = 9 + 14 = 23.0
+      expect(controller.creatorMonthlyRecurringRevenue, equals(23.0));
+      // Platform cut: 30 - 23 = 7.0 ($1 on standard tier + $6 on premium tier)
+      expect(controller.platformMonthlyRecurringRevenue, equals(7.0));
+
+      // Custom Channel: 100% creator / 0% platform on standard tier
+      controller.isCustomChannel.value = true;
       expect(controller.creatorMonthlyRecurringRevenue, equals(24.0));
-      // Platform cut: 30 - 24 = 6.0 (30% of $20)
       expect(controller.platformMonthlyRecurringRevenue, equals(6.0));
     });
 
@@ -448,8 +464,8 @@ void main() {
       // Check AppBar title
       expect(find.text('Channel Memberships & Fan Funding'), findsOneWidget);
 
-      // Check 0% Platform Commission Guarantee Banner
-      expect(find.text('0% Platform Commission Guarantee'), findsOneWidget);
+      // Check Hybrid Model Standard Channel Banner
+      expect(find.text('Standard Channel: 90% Creator Revenue (10% Platform Fee)'), findsOneWidget);
 
       // Check KPI Tiles
       expect(find.text('Active Members'), findsOneWidget);
@@ -499,7 +515,7 @@ void main() {
 
       expect(find.text('Fan Funding & Revenue Projections'), findsOneWidget);
       expect(find.text('Creator Payout Terms'), findsOneWidget);
-      expect(find.text('100% TO CREATOR'), findsOneWidget);
+      expect(find.text('90% TO CREATOR (10% FEE)'), findsOneWidget);
     });
 
     testWidgets('Displays 3/3 Tiers (Max) badge and 3/3 Tiers button when channel has 3 tiers', (tester) async {

@@ -51,7 +51,7 @@ class AdvertiserSubtitlesTab extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(width: 300, child: buildSidebar()),
-              const VerticalDivider(color: Color(0xFF27272A), width: 1),
+              const VerticalDivider(color: AppColors.bgSurface, width: 1),
               Expanded(child: editor),
             ],
           );
@@ -66,7 +66,7 @@ class AdvertiserSubtitlesTab extends StatelessWidget {
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                color: const Color(0xFF161618),
+                color: AppColors.appBarSurface,
                 child: Row(
                   children: [
                     IconButton(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/widgets/channel_verified_badge.dart';
 import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -65,24 +66,19 @@ class DashboardHeader extends StatelessWidget {
               children: [
                 if (channel != null)
                   Container(
+                    constraints: BoxConstraints(maxWidth: isMobile ? 180 : 260),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 14,
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1E1E1E),
+                      color: AppColors.bgSurface,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: AppColors.bgDivider),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
-                          Icons.verified_rounded,
-                          color: AppColors.textPrimary,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 8),
                         Flexible(
                           child: Text(
                             channelName,
@@ -96,13 +92,17 @@ class DashboardHeader extends StatelessWidget {
                             ),
                           ),
                         ),
+                        if (channel.showVerifiedBadge) ...[
+                          const SizedBox(width: 6),
+                          const ChannelVerifiedBadge(size: 15),
+                        ],
                       ],
                     ),
                   ),
                 if (onRefresh != null) ...[
                   const SizedBox(width: 8),
                   Material(
-                    color: const Color(0xFF1E1E1E),
+                    color: AppColors.bgSurface,
                     borderRadius: BorderRadius.circular(20),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(20),
@@ -261,7 +261,7 @@ class DashboardChannelViolationsCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: AppColors.bgSurface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: AppColors.error.withValues(alpha: 0.4),

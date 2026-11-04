@@ -106,7 +106,7 @@ class CreateTopicScreen extends StatelessWidget {
 
         await topicManagementCtrl.createTopic(
           channelId: effectiveChannelId,
-          title: createCtrl.titleController.text.trim(),
+          name: createCtrl.nameController.text.trim(),
           handle: createCtrl.handleController.text.trim(),
           description: createCtrl.descriptionController.text.trim(),
           category: createCtrl.categoryController.text.trim().isEmpty

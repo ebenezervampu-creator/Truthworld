@@ -1,6 +1,6 @@
+import 'package:truthworld/theme/app_theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/data/models/playlist_model.dart';
 
@@ -24,7 +24,7 @@ class PlaylistScreenCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF141414),
+          color: AppColors.bgPage,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: const Color(0xFF242424),
@@ -122,7 +122,7 @@ class PlaylistScreenCard extends StatelessWidget {
                                 final count = playlist.effectiveVideoCount;
                                 return '$count ${count == 1 ? "video" : "videos"}';
                               }(),
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
@@ -146,7 +146,7 @@ class PlaylistScreenCard extends StatelessWidget {
                     playlist.playlistName.isNotEmpty
                         ? playlist.playlistName
                         : 'Untitled Playlist',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 14.5,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -174,7 +174,7 @@ class PlaylistScreenCard extends StatelessWidget {
             // Relative Update Time
             Text(
               'Updated ${timeago.format(playlist.updatedAt.toDate())}',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.normal,
                 color: const Color(0xFF8E8E93),
@@ -190,7 +190,7 @@ class PlaylistScreenCard extends StatelessWidget {
 
   Widget _buildPlaceholder() {
     return const ColoredBox(
-      color: Color(0xFF1E1E1E),
+      color: AppColors.bgSurface,
       child: Center(
         child: Icon(
           Icons.playlist_play_rounded,

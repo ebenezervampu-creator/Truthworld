@@ -47,7 +47,7 @@ void main() {
   );
 
   group('Studio ContentScreen Community & Sidebar Allocation Tests', () {
-    testWidgets('ContentScreen has 5 clear tabs with Community tab at index 1',
+    testWidgets('ContentScreen has 7 clear tabs with Community tab at index 1',
         (tester) async {
       tester.view.physicalSize = const Size(1280, 900);
       tester.view.devicePixelRatio = 1.0;
@@ -76,9 +76,11 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
-      // Verify all 5 tab texts exist cleanly in ContentScreen
+      // Verify all 7 tab texts exist cleanly in ContentScreen
       expect(find.text('Videos'), findsOneWidget);
       expect(find.text('Community'), findsOneWidget);
+      expect(find.text('Playlists'), findsOneWidget);
+      expect(find.text('Topics'), findsOneWidget);
       expect(find.text('Drafts'), findsOneWidget);
       expect(find.text('Scheduled'), findsOneWidget);
       expect(find.text('Trash'), findsOneWidget);
@@ -87,11 +89,11 @@ void main() {
       expect(find.byType(TabBar), findsOneWidget);
 
       final tabBars = tester.widgetList<TabBar>(find.byType(TabBar));
-      expect(tabBars.first.tabs.length, equals(5));
+      expect(tabBars.first.tabs.length, equals(7));
       expect(tabBars.first.isScrollable, isTrue);
     });
 
-    testWidgets('Studio DashboardSidebar does NOT contain standalone Community tab',
+    testWidgets('Studio DashboardSidebar does NOT contain standalone Community, Playlists, or Topic Management tab',
         (tester) async {
       tester.view.physicalSize = const Size(1280, 900);
       tester.view.devicePixelRatio = 1.0;
@@ -116,8 +118,10 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(seconds: 3));
 
-      // Standalone Community tab must NOT exist in the Studio sidebar
+      // Standalone Community, Playlists, and Topic Management tabs must NOT exist in the Studio sidebar
       expect(find.widgetWithText(DashboardSidebarItem, 'Community'), findsNothing);
+      expect(find.widgetWithText(DashboardSidebarItem, 'Playlists'), findsNothing);
+      expect(find.widgetWithText(DashboardSidebarItem, 'Topic Management'), findsNothing);
       expect(find.widgetWithText(DashboardSidebarItem, 'Content'), findsOneWidget);
       expect(find.widgetWithText(DashboardSidebarItem, 'Studio Home'), findsOneWidget);
 

@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/utils/download_helper.dart';
+import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks/audio_track_models.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_media.dart';
@@ -25,11 +26,78 @@ class AudioTracksEditorManager {
   final RxBool isLoadingTracks = false.obs;
   final RxBool hasUnsavedChanges = false.obs;
 
+  /// Parses all configured audio tracks for the video into currentTracks.
+  Future<void> parseAllAudioTracks({
+    required Video video,
+    required List<String> availableLanguages,
+    required Map<String, String> entireAudioMap,
+    Set<String> generatingLanguages = const {},
+    String Function(String code)? languageNameResolver,
+  }) async {
+    isLoadingTracks.value = true;
+    final tracksList = <AudioTrackItem>[];
+    final baseLang = video.language.isNotEmpty ? video.language : 'en';
+    final resolveName = languageNameResolver ?? getSupportedLanguageName;
+
+    // 1. Primary / Base Track
+    var baseUrl = entireAudioMap[baseLang] ?? '';
+    if (baseUrl.isEmpty) {
+      baseUrl = video.videoUrl;
+    }
+    tracksList.add(
+      AudioTrackItem(
+        id: '${video.id}_$baseLang',
+        languageCode: baseLang,
+        languageName: '${resolveName(baseLang)} (Original)',
+        audioUrl: baseUrl,
+        isBaseTrack: true,
+        isResolved: baseUrl.isNotEmpty,
+        role: 'Original video audio',
+      ),
+    );
+
+    // 2. Dubbed Tracks
+    // Merge available languages with any actively generating languages so that
+    // in-flight dubbing jobs are never dropped when switching tabs or re-selecting videos.
+    final mergedLanguages = <String>{...availableLanguages, ...generatingLanguages};
+
+    for (final langCode in mergedLanguages) {
+      if (langCode == baseLang) continue;
+      final rawUrl = entireAudioMap[langCode] ?? '';
+      final isGenerating =
+          generatingLanguages.contains(langCode) && rawUrl.trim().isEmpty;
+
+      final String trackStatus;
+      if (rawUrl.trim().isNotEmpty) {
+        trackStatus = 'Published';
+      } else if (isGenerating) {
+        trackStatus = 'Generating...';
+      } else {
+        trackStatus = 'Not added';
+      }
+
+      tracksList.add(
+        AudioTrackItem(
+          id: '${video.id}_$langCode',
+          languageCode: langCode,
+          languageName: resolveName(langCode),
+          audioUrl: rawUrl,
+          isResolved: rawUrl.isNotEmpty,
+          status: trackStatus,
+        ),
+      );
+    }
+
+    currentTracks.value = tracksList;
+    isLoadingTracks.value = false;
+  }
+
   /// Parses and prepares audio tracks for the specified language.
   Future<void> parseAudioTracksForLanguage(
     String langCode,
     Map<String, String> entireAudioMap, {
     required String? selectedVideoId,
+    String? baseLanguage,
   }) async {
     isLoadingTracks.value = true;
     final tracksList = <AudioTrackItem>[];
@@ -37,15 +105,18 @@ class AudioTracksEditorManager {
     var rawUrl = entireAudioMap[langCode] ?? '';
     var resolvedState = false;
 
-    // Resolve gs:// links to direct download URLs
-    if (rawUrl.startsWith('gs://')) {
+    // Resolve gs:// and storage.googleapis.com links to direct download URLs
+    if (rawUrl.startsWith('gs://') ||
+        rawUrl.contains('storage.googleapis.com')) {
       try {
-        rawUrl =
-            await FirebaseStorage.instance.refFromURL(rawUrl).getDownloadURL();
-        resolvedState = true;
+        final resolved = await StorageUtils.resolveUrl(rawUrl);
+        if (resolved.isNotEmpty) {
+          rawUrl = resolved;
+          resolvedState = true;
+        }
       } catch (e) {
         logger.error(
-          'Failed resolving base gs:// reference for audio track link: $rawUrl',
+          'Failed resolving audio track link: $rawUrl',
           error: e,
           tag: _tag,
         );
@@ -56,13 +127,15 @@ class AudioTracksEditorManager {
       resolvedState = false;
     }
 
+    final resolvedBaseLang = baseLanguage?.isNotEmpty == true ? baseLanguage! : 'en';
+
     tracksList.add(
       AudioTrackItem(
         id: '${selectedVideoId}_$langCode',
         languageCode: langCode,
         languageName: getSupportedLanguageName(langCode),
         audioUrl: rawUrl,
-        isBaseTrack: langCode == 'en',
+        isBaseTrack: langCode == resolvedBaseLang,
         isResolved: resolvedState,
       ),
     );
@@ -117,17 +190,17 @@ class AudioTracksEditorManager {
     }
 
     var downloadUrl = url;
-    if (url.startsWith('gs://')) {
-      try {
-        downloadUrl =
-            await FirebaseStorage.instance.refFromURL(url).getDownloadURL();
-      } catch (e) {
-        logger.error(
-          'Failed resolving gs:// audio track reference: $url',
-          error: e,
-          tag: _tag,
-        );
+    try {
+      final resolved = await StorageUtils.resolveUrl(url);
+      if (resolved.isNotEmpty) {
+        downloadUrl = resolved;
       }
+    } catch (e) {
+      logger.error(
+        'Failed resolving audio track download URL: $url',
+        error: e,
+        tag: _tag,
+      );
     }
 
     final rawTitle = video?.title ?? 'audio';
@@ -187,42 +260,99 @@ class AudioTracksEditorManager {
     required VoidCallback onVideoRefreshed,
   }) async {
     final video = selectedVideo;
-    final lang = selectedLanguage;
-    if (video == null || lang.isEmpty || currentTracks.isEmpty) return;
+    if (video == null || currentTracks.isEmpty) return;
 
     isSaving.value = true;
     try {
-      final payloadLink = currentTracks.first.audioUrl;
+      // Build cumulative multi-language mappings from all tracks in workspace
+      final updatedAudioMap = <String, String>{};
+      for (final track in currentTracks) {
+        if (!track.isBaseTrack && track.audioUrl.trim().isNotEmpty) {
+          updatedAudioMap[track.languageCode] = track.audioUrl.trim();
+        }
+      }
 
-      // Construct cumulative multi-language mappings
-      final updatedAudioMap = Map<String, String>.from(video.audioTracks);
-      updatedAudioMap[lang] = payloadLink;
+      final cachedLoc = VideoMediaService.localizationCache[video.id];
+      final previousMap = Map<String, String>.from(
+        cachedLoc?.audioTracks ?? video.audioTracks,
+      );
+
+      // Detect removed languages
+      final removedLangs = previousMap.keys
+          .where((k) => !updatedAudioMap.containsKey(k))
+          .toList();
+
+      final locUpdates = <String, dynamic>{
+        'subtitles': video.mediaSubtitles,
+        'dubbedVideos': video.dubbedVideos,
+        'audioTracks': updatedAudioMap,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      final videoUpdates = <String, dynamic>{
+        'audioTracks': updatedAudioMap,
+        'media.audioTracks': updatedAudioMap,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      for (final rLang in removedLangs) {
+        locUpdates['audioTracks.$rLang'] = FieldValue.delete();
+        locUpdates['media.audioTracks.$rLang'] = FieldValue.delete();
+        videoUpdates['audioTracks.$rLang'] = FieldValue.delete();
+        videoUpdates['media.audioTracks.$rLang'] = FieldValue.delete();
+      }
 
       // Save to media/localization subcollection
-      await _firestore
+      final locRef = _firestore
           .collection(FirestoreCollections.videos)
           .doc(video.id)
           .collection('media')
-          .doc('localization')
-          .set({
-            'subtitles': video.mediaSubtitles,
-            'dubbedVideos': video.dubbedVideos,
-            'audioTracks': updatedAudioMap,
-            'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+          .doc('localization');
+
+      await locRef.update(locUpdates).catchError((_) async {
+        await locRef.set(locUpdates, SetOptions(merge: true));
+      });
+
+      // Save to main video document
+      final videoRef = _firestore
+          .collection(FirestoreCollections.videos)
+          .doc(video.id);
+
+      await videoRef.update(videoUpdates).catchError((_) async {
+        await videoRef.set(videoUpdates, SetOptions(merge: true));
+      });
+
+      // Clean video_jobs for removed tracks so pipeline fallbacks never resurrect them
+      if (removedLangs.isNotEmpty) {
+        try {
+          final jobRef = _firestore.collection('video_jobs').doc(video.id);
+          final jobSnap = await jobRef.get();
+          if (jobSnap.exists) {
+            final jobUpdates = <String, dynamic>{};
+            for (final rLang in removedLangs) {
+              jobUpdates['outputs.audioTracks.$rLang'] = FieldValue.delete();
+              jobUpdates['audioTracks.$rLang'] = FieldValue.delete();
+              jobUpdates['stages.dubbing_$rLang'] = FieldValue.delete();
+              jobUpdates['stages.translating_$rLang'] = FieldValue.delete();
+            }
+            if (jobUpdates.isNotEmpty) {
+              await jobRef.update(jobUpdates);
+            }
+          }
+        } catch (_) {}
+      }
 
       // Update static cache to reflect changes immediately
       VideoMediaService.localizationCache[video.id] = VideoMediaLocalization(
         subtitles: video.mediaSubtitles,
         dubbedVideos: video.dubbedVideos,
         audioTracks: updatedAudioMap,
+        commentaryVideos: cachedLoc?.commentaryVideos ?? const {},
       );
 
-      onVideoRefreshed();
       hasUnsavedChanges.value = false;
-      onShowSuccess(
-        '${getSupportedLanguageName(lang)} Audio Track configuration stored successfully!',
-      );
+      onVideoRefreshed();
+      onShowSuccess('Audio tracks configuration saved successfully!');
     } catch (e, stack) {
       logger.error(
         'Failed executing cloud commit for active audio tracks',

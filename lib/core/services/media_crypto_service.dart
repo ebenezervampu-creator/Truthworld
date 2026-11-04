@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:pointycastle/api.dart';
 import 'package:pointycastle/block/aes.dart';
@@ -35,16 +36,70 @@ class MediaCryptoService {
   static const String _storageKey = 'tw_offline_device_crypto_key';
   Uint8List? _cachedDeviceKey;
 
+  FlutterSecureStorage _secureStorage = const FlutterSecureStorage(
+    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
+  );
+  GetStorage? _legacyStorage;
+
+  @visibleForTesting
+  void setSecureStorageForTesting(FlutterSecureStorage storage, {GetStorage? legacyStorage}) {
+    _secureStorage = storage;
+    _legacyStorage = legacyStorage;
+    _cachedDeviceKey = null;
+  }
+
+  @visibleForTesting
+  void resetCachedKey() {
+    _cachedDeviceKey = null;
+  }
+
   /// Retrieves or generates a 256-bit (32 bytes) encryption key bound to this device.
+  ///
+  /// Device keys are stored in encrypted hardware-backed secure storage via [FlutterSecureStorage].
+  /// Transparently migrates any legacy unencrypted keys from [GetStorage] into [FlutterSecureStorage]
+  /// and purges the legacy record.
   Future<Uint8List> getOrCreateDeviceKey() async {
     if (_cachedDeviceKey != null) return _cachedDeviceKey!;
 
+    // 1. Check hardware-backed secure storage for existing key
     try {
-      final box = GetStorage();
-      final storedKey = box.read<String>(_storageKey);
-      if (storedKey != null && storedKey.isNotEmpty) {
-        final keyBytes = base64Decode(storedKey);
+      final secureKey = await _secureStorage.read(key: _storageKey);
+      if (secureKey != null && secureKey.isNotEmpty) {
+        final keyBytes = base64Decode(secureKey);
         if (keyBytes.length == 32) {
+          _cachedDeviceKey = keyBytes;
+
+          // Clean up legacy GetStorage key if it lingers
+          try {
+            final box = _legacyStorage ?? GetStorage();
+            if (box.hasData(_storageKey)) {
+              await box.remove(_storageKey);
+            }
+          } catch (_) {}
+
+          return _cachedDeviceKey!;
+        }
+      }
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'MediaCryptoService.getOrCreateDeviceKey.secureRead',
+      );
+    }
+
+    // 2. Transparent migration: check if key exists in legacy GetStorage
+    try {
+      final box = _legacyStorage ?? GetStorage();
+      final legacyKey = box.read<String>(_storageKey);
+      if (legacyKey != null && legacyKey.isNotEmpty) {
+        final keyBytes = base64Decode(legacyKey);
+        if (keyBytes.length == 32) {
+          // Save into FlutterSecureStorage
+          await _secureStorage.write(key: _storageKey, value: legacyKey);
+          // Delete from unencrypted GetStorage
+          await box.remove(_storageKey);
+
           _cachedDeviceKey = keyBytes;
           return _cachedDeviceKey!;
         }
@@ -53,27 +108,36 @@ class MediaCryptoService {
       ErrorHandler.log(
         e,
         stackTrace: stackTrace,
-        tag: 'MediaCryptoService.getOrCreateDeviceKey.read',
+        tag: 'MediaCryptoService.getOrCreateDeviceKey.migration',
       );
     }
 
-    // Generate a secure 256-bit random key
+    // 3. Generate a secure 256-bit random key
     final random = Random.secure();
     final newKey = Uint8List(32);
     for (var i = 0; i < 32; i++) {
       newKey[i] = random.nextInt(256);
     }
+    final encodedKey = base64Encode(newKey);
 
+    // 4. Persist newly generated key into FlutterSecureStorage
     try {
-      final box = GetStorage();
-      await box.write(_storageKey, base64Encode(newKey));
+      await _secureStorage.write(key: _storageKey, value: encodedKey);
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,
         stackTrace: stackTrace,
-        tag: 'MediaCryptoService.getOrCreateDeviceKey.write',
+        tag: 'MediaCryptoService.getOrCreateDeviceKey.secureWrite',
       );
     }
+
+    // Ensure legacy GetStorage is wiped clean
+    try {
+      final box = _legacyStorage ?? GetStorage();
+      if (box.hasData(_storageKey)) {
+        await box.remove(_storageKey);
+      }
+    } catch (_) {}
 
     _cachedDeviceKey = newKey;
     return _cachedDeviceKey!;

@@ -69,20 +69,26 @@ class VideoCard extends StatelessWidget {
             ),
             tag: tag,
           );
+    if (onTap != null) {
+      controller.customOnTap = onTap;
+    }
     VideoCardControllerRegistry.recordAccess(tag);
 
-    final cardContent = Obx(() {
-      final hovered = controller.isHovered;
+    final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
 
-      return MouseRegion(
-        onEnter: (_) => controller.handleHoverEnter(),
-        onExit: (_) => controller.handleHoverExit(),
-        child: Semantics(
-          button: true,
-          enabled: true,
-          label: 'Video: ${video.title} by ${video.channelName}',
-          onTap: () => controller.handleTap(context),
-          child: AnimatedScale(
+    final cardContent = MouseRegion(
+      onEnter: (_) => controller.handleHoverEnter(),
+      onExit: (_) => controller.handleHoverExit(),
+      child: Semantics(
+        button: true,
+        enabled: true,
+        label: 'Video: ${video.title} by ${video.channelName}',
+        onTap: () => controller.handleTap(context),
+        child: Obx(() {
+          final hovered = controller.isHovered;
+
+          return AnimatedScale(
             scale: hovered ? 1.02 : 1.0,
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeOutCubic,
@@ -111,21 +117,21 @@ class VideoCard extends StatelessWidget {
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: () => controller.handleTap(context),
-                  borderRadius: isGrid ? BorderRadius.circular(16) : null,
+                  borderRadius: BorderRadius.circular(16),
                   child: isGrid
                       ? _buildGridContent(context, controller)
                       : _buildListContent(context, controller),
                 ),
               ),
             ),
-          ),
-        ),
-      );
-    });
+          );
+        }),
+      ),
+    );
 
     final isolatedCardContent = RepaintBoundary(child: cardContent);
 
-    if (kIsWeb) {
+    if (kIsWeb || !isMobileDevice || disableHoverPreview) {
       return isolatedCardContent;
     }
 

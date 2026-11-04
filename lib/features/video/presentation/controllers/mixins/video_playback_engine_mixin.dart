@@ -53,8 +53,10 @@ mixin VideoPlaybackEngineMixin on GetxController {
   String? get offlineBlobUrl;
   RxList<VideoResolutionV2> get availableResolutions;
   Rx<VideoResolutionV2?> get currentResolution;
+  RxSet<String> get blacklistedStreamUrls;
   Stopwatch get watchStopwatch;
   RxBool get isSubscribed;
+  bool get isChannelMember;
   bool get isRecoveringFromFormatError;
 
   VideoAnalyticsController get analyticsController;
@@ -165,7 +167,9 @@ mixin VideoPlaybackEngineMixin on GetxController {
       rxIsLoading.value = false;
     }
 
-    if (video.isPrivate && !VideoVisibilityPolicy.isOwner(video)) {
+    final isOwner = VideoVisibilityPolicy.isOwner(video);
+
+    if (video.isPrivate && !isOwner) {
       videoError.value = true;
       rxErrorMessage.value =
           'This video is private. Only the channel owner can view this video.';
@@ -174,10 +178,38 @@ mixin VideoPlaybackEngineMixin on GetxController {
       return;
     }
 
+    if (video.isMembersOnly && !isOwner && !isChannelMember) {
+      debugPrint(
+        '[VideoController] 🔒 Members-only video gated: Viewer is not a member of ${video.channelId}',
+      );
+      rxIsLoading.value = false;
+      showThumbnail.value = true;
+      return;
+    }
+
+    if (video.isSubscribersOnly && !isOwner && !isSubscribed.value) {
+      debugPrint(
+        '[VideoController] 🔒 Subscribers-only video gated: Viewer is not subscribed to ${video.channelId}',
+      );
+      rxIsLoading.value = false;
+      showThumbnail.value = true;
+      return;
+    }
+
+    final chStatus = (video.channelStatus ?? '').toLowerCase().replaceAll('_', '').replaceAll(' ', '');
+    if (chStatus == 'onhold' || chStatus == 'hold') {
+      videoError.value = true;
+      rxErrorMessage.value =
+          'This video is temporarily unavailable while the channel is on hold.';
+      rxIsLoading.value = false;
+      return;
+    }
+
     if (video.isRejected ||
         video.status == VideoStatus.rejected ||
         video.visibility == 'rejected' ||
-        video.channelStatus == 'rejected') {
+        video.channelStatus == 'rejected' ||
+        chStatus == 'suspended') {
       videoError.value = true;
       rxErrorMessage.value =
           'This video has been removed for violating community guidelines.';
@@ -202,7 +234,8 @@ mixin VideoPlaybackEngineMixin on GetxController {
         await newVpc.setLooping(
           false,
         ); // Disable looping which was enabled for hover previews
-        await newVpc.setVolume(1); // Reset volume to unmute on watch screen
+        final hasAltAudio = TowerPlayerController.getForTagOrActive(video.id)?.hasAlternateAudioTrack ?? false;
+        await newVpc.setVolume(hasAltAudio ? 0.0 : 1.0); // Reset volume to unmute on watch screen unless alternate audio is active
         if (newVpc.value.isInitialized) {
           rxIsLoading.value = false;
           showThumbnail.value = false;
@@ -254,24 +287,27 @@ mixin VideoPlaybackEngineMixin on GetxController {
       HoverPreviewCoordinator.globalMute.value = true;
 
       if (!newVpc.value.isInitialized) {
-        final handoffFuture =
-            VideoPlaybackHandoff.getInitializationFuture(video.id);
-        if (handoffFuture != null) {
-          try {
-            await handoffFuture.timeout(
-              const Duration(seconds: 30),
-              onTimeout: () => throw Exception('Video initialization timeout'),
-            );
-          } catch (e) {
-            debugPrint(
-              '[VideoController] Pre-warm handoff error ($e), checking player status',
-            );
-            if (!newVpc.value.isInitialized) {
-              await newVpc.initialize().timeout(
+        if (wasHandoff) {
+          final handoffFuture =
+              VideoPlaybackHandoff.consumeInitializationFuture(video.id) ??
+              VideoPlaybackHandoff.getInitializationFuture(video.id);
+          if (handoffFuture != null) {
+            try {
+              await handoffFuture.timeout(
                 const Duration(seconds: 30),
                 onTimeout: () => throw Exception('Video initialization timeout'),
               );
+            } catch (e) {
+              debugPrint(
+                '[VideoController] Pre-warm handoff error ($e), checking player status',
+              );
             }
+          }
+          if (!newVpc.value.isInitialized) {
+            await newVpc.initialize().timeout(
+              const Duration(seconds: 30),
+              onTimeout: () => throw Exception('Video initialization timeout'),
+            );
           }
         } else {
           await newVpc.initialize().timeout(
@@ -286,6 +322,55 @@ mixin VideoPlaybackEngineMixin on GetxController {
         return;
       }
 
+      if (!newVpc.value.isInitialized) {
+        throw Exception('Video controller failed to initialize');
+      }
+
+      // Guard against fragmented or truncated resolution streams:
+      // If the stream reports a truncated duration (e.g. <= 5s) when the video model duration is known to be longer (> 10s),
+      // seamlessly blacklist the bad URL and fall back to the original source URL which contains the full media stream.
+      final expectedDurationSec = video.durationSeconds > 0
+          ? video.durationSeconds
+          : video.durationValue.inSeconds;
+      final streamDurationSec = newVpc.value.duration.inSeconds;
+      final isTruncatedResolution = newVpc.value.isInitialized &&
+          expectedDurationSec > 10 &&
+          streamDurationSec > 0 &&
+          streamDurationSec <= 5 &&
+          overrideUrl != video.originalUrl &&
+          overrideUrl != video.videoUrl &&
+          (video.originalUrl.isNotEmpty || video.videoUrl.isNotEmpty);
+
+      if (isTruncatedResolution) {
+        debugPrint(
+          '[VideoController] ⚠️ Truncated resolution stream detected ($streamDurationSec s vs expected $expectedDurationSec s). Blacklisting stream and falling back to original source URL.',
+        );
+
+        // 1. Permanently blacklist the truncated URL for this session
+        final badUrl = newVpc.dataSource;
+        if (badUrl.isNotEmpty) {
+          blacklistedStreamUrls.add(badUrl);
+        }
+        if (overrideUrl != null && overrideUrl.isNotEmpty) {
+          blacklistedStreamUrls.add(overrideUrl);
+        }
+        if (video.hlsUrl.isNotEmpty && (badUrl == video.hlsUrl || overrideUrl == video.hlsUrl)) {
+          blacklistedStreamUrls.add(video.hlsUrl);
+        }
+
+        // 2. Evict blacklisted variants from reactive collections so ABR/selectors never revert to them
+        availableResolutions.removeWhere((r) => blacklistedStreamUrls.contains(r.url));
+        if (currentResolution.value != null && blacklistedStreamUrls.contains(currentResolution.value!.url)) {
+          currentResolution.value = null;
+        }
+
+        _safeDisposeVpc(newVpc);
+        final fallbackSource = video.originalUrl.isNotEmpty
+            ? video.originalUrl
+            : video.videoUrl;
+        return initializeVideoPlayer(overrideUrl: fallbackSource);
+      }
+
       // ── YouTube-Grade Seamless Auto Mode Resolution Swap ──────
       // If an existing controller is already active and we are in Auto mode (ABR),
       // seamlessly pre-seek and pre-roll the new player in the background
@@ -295,7 +380,9 @@ mixin VideoPlaybackEngineMixin on GetxController {
           isAuto;
 
       if (isWarmSwap) {
-        final livePos = oldVpc.value.position;
+        final livePos = oldVpc.value.position > Duration.zero
+            ? oldVpc.value.position
+            : (initialSeekPosition ?? Duration.zero);
         final wasPlaying = oldVpc.value.isPlaying;
         final currentSpeed = oldVpc.value.playbackSpeed;
         final currentVol = oldVpc.value.volume;
@@ -303,6 +390,7 @@ mixin VideoPlaybackEngineMixin on GetxController {
         // Pre-seek new player to the exact live frame before attaching to UI
         if (livePos > Duration.zero) {
           await newVpc.seekTo(livePos);
+          initialSeekPosition = null;
         }
         if (currentSpeed != 1.0) {
           await newVpc.setPlaybackSpeed(currentSpeed);
@@ -315,11 +403,15 @@ mixin VideoPlaybackEngineMixin on GetxController {
             await newVpc.play();
           } catch (_) {}
           // Unmute to match live volume
+          final hasAltAudio = TowerPlayerController.getForTagOrActive(video.id)?.hasAlternateAudioTrack ?? false;
+          final targetVol = hasAltAudio ? 0.0 : (currentVol > 0 ? currentVol : 1.0);
           try {
-            await newVpc.setVolume(currentVol > 0 ? currentVol : 1.0);
+            await newVpc.setVolume(targetVol);
           } catch (_) {}
         } else {
-          await newVpc.setVolume(currentVol > 0 ? currentVol : 1.0);
+          final hasAltAudio = TowerPlayerController.getForTagOrActive(video.id)?.hasAlternateAudioTrack ?? false;
+          final targetVol = hasAltAudio ? 0.0 : (currentVol > 0 ? currentVol : 1.0);
+          await newVpc.setVolume(targetVol);
         }
 
         if (isClosed || _playerInitEpoch != currentEpoch) {
@@ -380,7 +472,9 @@ mixin VideoPlaybackEngineMixin on GetxController {
           !isAuto;
 
       if (isManualSwitch) {
-        final resumePos = oldVpc.value.position;
+        final resumePos = oldVpc.value.position > Duration.zero
+            ? oldVpc.value.position
+            : (initialSeekPosition ?? Duration.zero);
         final wasPlaying = oldVpc.value.isPlaying;
         final currentSpeed = oldVpc.value.playbackSpeed;
         final currentVol = oldVpc.value.volume;
@@ -397,11 +491,14 @@ mixin VideoPlaybackEngineMixin on GetxController {
         // Pre-seek new player to the exact resume position
         if (resumePos > Duration.zero) {
           await newVpc.seekTo(resumePos);
+          initialSeekPosition = null;
         }
         if (currentSpeed != 1.0) {
           await newVpc.setPlaybackSpeed(currentSpeed);
         }
-        await newVpc.setVolume(currentVol > 0 ? currentVol : 1.0);
+        final hasAltAudio = TowerPlayerController.getForTagOrActive(video.id)?.hasAlternateAudioTrack ?? false;
+        final targetVol = hasAltAudio ? 0.0 : (currentVol > 0 ? currentVol : 1.0);
+        await newVpc.setVolume(targetVol);
 
         if (isClosed || _playerInitEpoch != currentEpoch) {
           _safeDisposeVpc(newVpc);
@@ -502,9 +599,17 @@ mixin VideoPlaybackEngineMixin on GetxController {
         } catch (_) {}
       }
 
-      // Ensure volume is set to full unmuted playback on watch screen
+      // Ensure volume is configured properly: on Web start muted for YouTube-style instant autoplay
       try {
-        await newVpc.setVolume(1.0);
+        final hasAltAudio = TowerPlayerController.getForTagOrActive(video.id)?.hasAlternateAudioTrack ?? false;
+        if (kIsWeb) {
+          // On Web, browsers strictly block unmuted autoplay without prior user interaction.
+          // Setting volume to 0 (muted) guarantees immediate playback exactly like YouTube.
+          // Volume will be restored to unmuted upon user interaction.
+          await newVpc.setVolume(0.0);
+        } else {
+          await newVpc.setVolume(hasAltAudio ? 0.0 : 1.0);
+        }
       } catch (e) {
         debugPrint('[VideoController] setVolume error: $e');
       }
@@ -536,12 +641,22 @@ mixin VideoPlaybackEngineMixin on GetxController {
       }
 
       if (wasHandoff) {
-        // Handed off controller is already at the live playing frame!
-        // Do NOT seek backwards to WatchHistoryService or initial position.
-        debugPrint(
-          '[VideoController] ⏩ Handed off controller already at ${newVpc.value.position.inSeconds}s. Continuing seamlessly.',
-        );
-        initialSeekPosition = null;
+        if (newVpc.value.position <= const Duration(seconds: 1) &&
+            initialSeekPosition != null &&
+            initialSeekPosition! > Duration.zero) {
+          debugPrint(
+            '[VideoController] ⏩ Pre-warmed handoff seeking to resume position: ${initialSeekPosition!.inSeconds}s',
+          );
+          await newVpc.seekTo(initialSeekPosition!);
+          initialSeekPosition = null;
+        } else {
+          // Handed off controller is already at the live playing frame!
+          // Do NOT seek backwards to WatchHistoryService or initial position.
+          debugPrint(
+            '[VideoController] ⏩ Handed off controller already at ${newVpc.value.position.inSeconds}s. Continuing seamlessly.',
+          );
+          initialSeekPosition = null;
+        }
         if (!newVpc.value.isPlaying) {
           try {
             await newVpc.play();

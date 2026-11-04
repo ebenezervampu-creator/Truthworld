@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
@@ -367,7 +366,7 @@ class ClipController extends BaseController {
         title: 'Sign In Required',
         duration: const Duration(seconds: 4),
         actionLabel: 'SIGN IN',
-        onAction: AuthBottomSheet.prompt,
+        onAction: () => AuthService.to.triggerPlatformSignIn(),
       );
       return;
     }

@@ -6,8 +6,9 @@ import 'package:truthworld/theme/app_theme.dart';
 
 export 'audio_tracks/audio_tracks_widgets.dart';
 
-/// Clean, high-contrast Audio Tracks & Dubbing Studio Page
-/// Styled exactly matching Channel Creation Page theme, fonts, and layout.
+/// Redesigned Audio Tracks & Dubbing Studio Page.
+/// 100% responsive across all device sizes (mobile, tablet, desktop).
+/// Uses exact theme and architecture, and exact typography from Watch History.
 class AudioTracksPage extends GetView<AudioTracksController> {
   AudioTracksPage({
     required this.channelId,
@@ -27,11 +28,11 @@ class AudioTracksPage extends GetView<AudioTracksController> {
 
   @override
   Widget build(BuildContext context) {
-    const bgColor = Color(0xFF0F0F0F);
-    const surfaceColor = Color(0xFF161618);
+    const bgColor = AppColors.bgPage;
+    const surfaceColor = AppColors.appBarSurface;
     const textColor = Colors.white;
     const textSecondaryColor = AppColors.textSecondary;
-    const borderColor = Color(0xFF27272A);
+    const borderColor = AppColors.bgSurface;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -41,12 +42,23 @@ class AudioTracksPage extends GetView<AudioTracksController> {
             final isDesktop = constraints.maxWidth >= 900;
 
             return Obx(() {
-              if (controller.isLoading) {
+              if (controller.isLoading && controller.filteredVideos.isEmpty) {
                 return const AudioTracksSkeleton();
               }
 
-              if (controller.isEmpty) {
+              if (controller.isEmpty && controller.filteredVideos.isEmpty) {
                 return _buildEmptyChannelState();
+              }
+
+              // Auto-select first video if none is selected
+              if (controller.selectedVideo.value == null &&
+                  controller.filteredVideos.isNotEmpty) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (controller.selectedVideo.value == null &&
+                      controller.filteredVideos.isNotEmpty) {
+                    controller.selectVideo(controller.filteredVideos.first);
+                  }
+                });
               }
 
               return Column(
@@ -79,7 +91,7 @@ class AudioTracksPage extends GetView<AudioTracksController> {
   }
 
   // ---------------------------------------------------------------------------
-  // TOP HEADER BAR (Matching Channel Wizard Top Header)
+  // TOP HEADER BAR (Exact fonts from Watch History Page)
   // ---------------------------------------------------------------------------
   Widget _buildTopHeader(BuildContext context, bool isDesktop) {
     final canPop = Navigator.of(context).canPop();
@@ -90,8 +102,8 @@ class AudioTracksPage extends GetView<AudioTracksController> {
         vertical: 14,
       ),
       decoration: const BoxDecoration(
-        color: Color(0xFF0F0F0F),
-        border: Border(bottom: BorderSide(color: Color(0xFF27272A))),
+        color: AppColors.bgPage,
+        border: Border(bottom: BorderSide(color: AppColors.bgSurface)),
       ),
       child: Row(
         children: [
@@ -105,26 +117,35 @@ class AudioTracksPage extends GetView<AudioTracksController> {
             ),
             const SizedBox(width: 12),
           ],
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+          Expanded(
+            child: Row(
               children: [
-                Text(
-                  'Audio Tracks & Dubbing',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                IconButton(
+                  icon: const Icon(
+                    Icons.video_library_outlined,
                     color: Colors.white,
-                    letterSpacing: -0.5,
+                    size: 22,
+                  ),
+                  tooltip: 'Select video',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => AudioTracksDialogs.showVideoPickerModal(
+                    context: context,
+                    controller: controller,
+                    isDarkMode: isDarkMode,
                   ),
                 ),
-                SizedBox(height: 2),
-                Text(
-                  'Configure multi-language audio dubbing, voiceovers, and commentary.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
+                const SizedBox(width: 8),
+                const Flexible(
+                  child: Text(
+                    'AudioTracks & VideoTracks',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -178,7 +199,7 @@ class AudioTracksPage extends GetView<AudioTracksController> {
   }
 
   // ---------------------------------------------------------------------------
-  // EMPTY STATE (Clean Channel Creation style)
+  // EMPTY STATE (Fonts matching Watch History)
   // ---------------------------------------------------------------------------
   Widget _buildEmptyChannelState() {
     return Center(
@@ -187,9 +208,9 @@ class AudioTracksPage extends GetView<AudioTracksController> {
         child: Container(
           padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
-            color: const Color(0xFF161618),
+            color: AppColors.appBarSurface,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF27272A)),
+            border: Border.all(color: AppColors.bgSurface),
           ),
           child: const Column(
             mainAxisSize: MainAxisSize.min,
@@ -203,8 +224,6 @@ class AudioTracksPage extends GetView<AudioTracksController> {
               Text(
                 'No Videos Available for Audio Workspace',
                 style: TextStyle(
-                  fontFamily: TWTypography.brandFamily,
-                  fontFamilyFallback: TWTypography.fallbackFamilies,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
@@ -238,7 +257,7 @@ class AudioTracksPage extends GetView<AudioTracksController> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          width: 320,
+          width: 300,
           child: AudioTracksVideoSidebar(
             controller: controller,
             searchController: controller.searchController,
@@ -284,7 +303,7 @@ class AudioTracksPage extends GetView<AudioTracksController> {
   }
 
   // ---------------------------------------------------------------------------
-  // MAIN WORKSPACE EDITOR
+  // MAIN WORKSPACE EDITOR (Exact UI from Mockup + 100% Responsive)
   // ---------------------------------------------------------------------------
   Widget _buildMainWorkspaceContent({
     required BuildContext context,
@@ -302,9 +321,9 @@ class AudioTracksPage extends GetView<AudioTracksController> {
             margin: const EdgeInsets.all(24),
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
-              color: const Color(0xFF161618),
+              color: AppColors.appBarSurface,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF27272A)),
+              border: Border.all(color: AppColors.bgSurface),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -316,11 +335,9 @@ class AudioTracksPage extends GetView<AudioTracksController> {
                 ),
                 const SizedBox(height: 14),
                 const Text(
-                  'Select a Video to Manage Audio Tracks',
+                  'Select a Video to Manage AudioTracks & VideoTracks',
                   style: TextStyle(
-                    fontFamily: TWTypography.brandFamily,
-                    fontFamilyFallback: TWTypography.fallbackFamilies,
-                    fontSize: 17,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
@@ -332,41 +349,34 @@ class AudioTracksPage extends GetView<AudioTracksController> {
                   style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
                   textAlign: TextAlign.center,
                 ),
-                if (isMobile) ...[
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: () =>
-                        AudioTracksDialogs.showMobileVideoPickerSheet(
-                      context: context,
-                      controller: controller,
-                      searchController: controller.searchController,
-                      surfaceColor: surfaceColor,
-                      textColor: textColor,
-                      textSecondaryColor: textSecondaryColor,
-                      borderColor: borderColor,
-                      isDarkMode: isDarkMode,
-                    ),
-                    icon: const Icon(
-                      Icons.video_library_rounded,
-                      size: 16,
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: () => AudioTracksDialogs.showVideoPickerModal(
+                    context: context,
+                    controller: controller,
+                    isDarkMode: isDarkMode,
+                  ),
+                  icon: const Icon(
+                    Icons.video_library_rounded,
+                    size: 16,
+                    color: Colors.black,
+                  ),
+                  label: const Text(
+                    'Browse Videos',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
                       color: Colors.black,
-                    ),
-                    label: const Text(
-                      'Browse Videos',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                      fontSize: 13,
                     ),
                   ),
-                ],
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -384,63 +394,10 @@ class AudioTracksPage extends GetView<AudioTracksController> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Active Video Banner & Action Bar
-            AudioTracksWorkspaceHeader(
-              video: video,
-              controller: controller,
-              showPreviewPlayer: _showPreviewPlayer,
-              surfaceColor: surfaceColor,
-              textColor: textColor,
-              textSecondaryColor: textSecondaryColor,
-              borderColor: borderColor,
-              isDarkMode: isDarkMode,
-              onChangeVideo: isMobile
-                  ? () => AudioTracksDialogs.showMobileVideoPickerSheet(
-                        context: context,
-                        controller: controller,
-                        searchController: controller.searchController,
-                        surfaceColor: surfaceColor,
-                        textColor: textColor,
-                        textSecondaryColor: textSecondaryColor,
-                        borderColor: borderColor,
-                        isDarkMode: isDarkMode,
-                      )
-                  : null,
-              onUploadTrack: () => AudioTracksDialogs.showUploadTrackDialog(
-                context: context,
-                controller: controller,
-                isDarkMode: isDarkMode,
-              ),
-            ),
+            // Underline Tab Bar (Audio | Video)
+            AudioTracksUnderlineTabBar(controller: controller),
 
-            // Video Preview Player (when activated)
-            Obx(() {
-              if (!_showPreviewPlayer.value) return const SizedBox.shrink();
-              return AudioTracksPreviewPlayer(
-                video: video,
-                showPreviewPlayer: _showPreviewPlayer,
-                surfaceColor: surfaceColor,
-                borderColor: borderColor,
-                textColor: textColor,
-                textSecondaryColor: textSecondaryColor,
-              );
-            }),
-
-            // Workspace Navigation Tab Bar & Quick Language Filter
-            AudioTracksTabBar(
-              controller: controller,
-              surfaceColor: surfaceColor,
-              textColor: textColor,
-              textSecondaryColor: textSecondaryColor,
-              borderColor: borderColor,
-              isDarkMode: isDarkMode,
-              isMobile: isMobile,
-              onAddLanguage: () => AudioTracksDialogs.showAddLanguageModal(
-                context: context,
-                controller: controller,
-                isDarkMode: isDarkMode,
-              ),
-            ),
+            const SizedBox(height: 8),
 
             // Tab Content
             Expanded(
@@ -460,18 +417,20 @@ class AudioTracksPage extends GetView<AudioTracksController> {
                       ),
                     )
                   : (activeTab == 'languages'
-                      ? AudioTracksLanguagesManager(
+                      ? VideoTracksListSection(
+                          video: video,
                           controller: controller,
                           textColor: textColor,
                           textSecondaryColor: textSecondaryColor,
                           surfaceColor: surfaceColor,
                           borderColor: borderColor,
                           isDarkMode: isDarkMode,
-                          onAddLanguage: () =>
-                              AudioTracksDialogs.showAddLanguageModal(
+                          onAddVideoTrack: () =>
+                              AudioTracksDialogs.showAddVideoTrackWithOptionsModal(
                             context: context,
                             controller: controller,
                             isDarkMode: isDarkMode,
+                            initialTier: 'video_pro',
                           ),
                         )
                       : AudioTracksListSection(
@@ -483,10 +442,12 @@ class AudioTracksPage extends GetView<AudioTracksController> {
                           borderColor: borderColor,
                           isDarkMode: isDarkMode,
                           onAddDubTrack: () =>
-                              AudioTracksDialogs.showUploadTrackDialog(
+                              AudioTracksDialogs.showAddAudioTrackWithOptionsModal(
                             context: context,
                             controller: controller,
                             isDarkMode: isDarkMode,
+                            initialTier: 'audio_starter',
+                            initialMediaType: 'audio',
                           ),
                           onAddCommentary: () =>
                               AudioTracksDialogs.showUploadTrackDialog(
@@ -495,11 +456,14 @@ class AudioTracksPage extends GetView<AudioTracksController> {
                             isDarkMode: isDarkMode,
                             defaultRole: 'Director Commentary',
                           ),
-                          onPickAndUploadSingleDub: (langCode) =>
-                              AudioTracksDialogs.pickAndUploadSingleDub(
-                            controller: controller,
-                            langCode: langCode,
-                          ),
+                          onPickAndUploadSingleDub: (langCode) async {
+                            AudioTracksDialogs.showAudioTrackDubbingOptionsModal(
+                              context: context,
+                              controller: controller,
+                              langCode: langCode,
+                              isDarkMode: isDarkMode,
+                            );
+                          },
                         )),
             ),
           ],

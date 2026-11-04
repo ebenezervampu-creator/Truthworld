@@ -1116,4 +1116,404 @@ void main() {
       );
     });
   });
+
+  group('Notification Navigation YouTube-Like Deep Linking & Channel Route Guard Tests', () {
+    test('Resolves videoId from actionUrl without leading slash (e.g. watch?v=...)', () {
+      final payload = {
+        'actionUrl': 'watch?v=1f2a001f-c96b-4313-8737-003d1b999999',
+        'type': 'comment',
+      };
+      final videoId = NotificationNavigationHandler.extractVideoId(payload, actionUrl: payload['actionUrl']);
+      expect(videoId, equals('1f2a001f-c96b-4313-8737-003d1b999999'));
+
+      final target = NotificationNavigationHandler.resolveTarget(payload);
+      expect(target.route, equals('/watch?v=1f2a001f-c96b-4313-8737-003d1b999999'));
+      expect(target.parameters?['v'], equals('1f2a001f-c96b-4313-8737-003d1b999999'));
+    });
+
+    test('Extracts commentId and replyId from actionUrl query params', () {
+      final payload = {
+        'actionUrl': '/watch?v=vid_yt_123&commentId=c_456&replyId=r_789',
+        'type': 'new_comment',
+      };
+      final target = NotificationNavigationHandler.resolveTarget(payload);
+      expect(target.parameters?['v'], equals('vid_yt_123'));
+      expect(target.parameters?['commentId'], equals('c_456'));
+      expect(target.parameters?['replyId'], equals('r_789'));
+      expect(target.arguments?['commentId'], equals('c_456'));
+      expect(target.arguments?['replyId'], equals('r_789'));
+    });
+
+    test('HandleRouteGuardMiddleware redirects watch?v=... to /watch?v=...', () {
+      final middleware = HandleRouteGuardMiddleware();
+      Get.parameters = {'handle': 'watch?v=1f2a001f-c96b-4313-8737-003d1b999999'};
+      final routeSettings = middleware.redirect('/:handle');
+      expect(routeSettings, isNotNull);
+      expect(routeSettings!.name, equals('/watch?v=1f2a001f-c96b-4313-8737-003d1b999999'));
+    });
+
+    test('HandleRouteGuardMiddleware redirects reserved system routes to root or route path', () {
+      final middleware = HandleRouteGuardMiddleware();
+      Get.parameters = {'handle': 'watch'};
+      expect(middleware.redirect('/:handle')?.name, equals('/watch'));
+
+      Get.parameters = {'handle': 'videoscreen'};
+      expect(middleware.redirect('/:handle')?.name, equals('/videoscreen'));
+
+      Get.parameters = {'handle': 'shorts'};
+      expect(middleware.redirect('/:handle')?.name, equals('/shorts'));
+
+      Get.parameters = {'handle': 'watch?invalid'};
+      expect(middleware.redirect('/:handle')?.name, equals('/'));
+    });
+
+    test('UserNotification preserves top-level videoId, commentId, topicId, postId in getters and toJson', () {
+      final doc = {
+        'id': 'notif_100',
+        'type': 'comment',
+        'videoId': 'vid_test_100',
+        'commentId': 'comm_test_200',
+        'replyId': 'rep_test_300',
+        'topicId': 'topic_test_400',
+        'postId': 'post_test_500',
+        'channelId': 'chan_test_600',
+      };
+      final notif = UserNotification.fromJson('notif_100', doc);
+      expect(notif.videoId, equals('vid_test_100'));
+      expect(notif.commentId, equals('comm_test_200'));
+      expect(notif.replyId, equals('rep_test_300'));
+      expect(notif.topicId, equals('topic_test_400'));
+      expect(notif.postId, equals('post_test_500'));
+      expect(notif.channelId, equals('chan_test_600'));
+
+      final json = notif.toJson();
+      expect(json['videoId'], equals('vid_test_100'));
+      expect(json['commentId'], equals('comm_test_200'));
+      expect(json['replyId'], equals('rep_test_300'));
+      expect(json['topicId'], equals('topic_test_400'));
+      expect(json['postId'], equals('post_test_500'));
+      expect(json['channelId'], equals('chan_test_600'));
+    });
+
+    test('All Consumer Notification Types: reliably resolve exact cause and deep-link paths', () {
+      // 1. new_video_followed
+      final targetFollowed = NotificationNavigationHandler.resolveTarget({
+        'type': 'new_video_followed',
+        'videoId': 'v_followed_1',
+      });
+      expect(targetFollowed.parameters?['v'], equals('v_followed_1'));
+      expect(targetFollowed.parameters?['autoplay'], equals('true'));
+
+      // 2. new_video_topic
+      final targetTopicVideo = NotificationNavigationHandler.resolveTarget({
+        'type': 'new_video_topic',
+        'videoId': 'v_topic_1',
+        'topicId': 'ai_news',
+      });
+      expect(targetTopicVideo.parameters?['v'], equals('v_topic_1'));
+      expect(targetTopicVideo.arguments?['fromTopic'], isTrue);
+      expect(targetTopicVideo.parameters?['autoplay'], equals('true'));
+
+      // 3. comment
+      final targetComment = NotificationNavigationHandler.resolveTarget({
+        'type': 'comment',
+        'videoId': 'v_comm_1',
+        'commentId': 'c_123',
+      });
+      expect(targetComment.parameters?['v'], equals('v_comm_1'));
+      expect(targetComment.parameters?['commentId'], equals('c_123'));
+      expect(targetComment.parameters?['autoplay'], equals('true'));
+
+      // 4. comment_like
+      final targetCommentLike = NotificationNavigationHandler.resolveTarget({
+        'type': 'comment_like',
+        'videoId': 'v_comm_2',
+        'commentId': 'c_456',
+      });
+      expect(targetCommentLike.parameters?['v'], equals('v_comm_2'));
+      expect(targetCommentLike.parameters?['commentId'], equals('c_456'));
+
+      // 5. comment_reply
+      final targetCommentReply = NotificationNavigationHandler.resolveTarget({
+        'type': 'comment_reply',
+        'videoId': 'v_comm_3',
+        'commentId': 'c_789',
+        'replyId': 'r_101',
+      });
+      expect(targetCommentReply.parameters?['v'], equals('v_comm_3'));
+      expect(targetCommentReply.parameters?['commentId'], equals('c_789'));
+      expect(targetCommentReply.parameters?['replyId'], equals('r_101'));
+
+      // 6. mention
+      final targetMention = NotificationNavigationHandler.resolveTarget({
+        'type': 'mention',
+        'videoId': 'v_mention_1',
+        'commentId': 'c_mention_2',
+      });
+      expect(targetMention.parameters?['v'], equals('v_mention_1'));
+      expect(targetMention.parameters?['commentId'], equals('c_mention_2'));
+
+      // 7. perspective_flip
+      final targetFlip = NotificationNavigationHandler.resolveTarget({
+        'type': 'perspective_flip',
+        'videoId': 'v_flip_1',
+      });
+      expect(targetFlip.isPerspectiveFlip, isTrue);
+      expect(targetFlip.parameters?['v'], equals('v_flip_1'));
+      expect(targetFlip.parameters?['isFlipped'], equals('true'));
+
+      // 8. new_community_post
+      final targetPost = NotificationNavigationHandler.resolveTarget({
+        'type': 'new_community_post',
+        'postId': 'post_888',
+      });
+      expect(targetPost.route, equals('/post/post_888'));
+
+      // 9. topic updates
+      final targetTopic = NotificationNavigationHandler.resolveTarget({
+        'type': 'topic_update',
+        'topicId': 'quantum_computing',
+      });
+      expect(targetTopic.route, equals('/topic/quantum_computing'));
+
+      // 10. channel updates
+      final targetChannel = NotificationNavigationHandler.resolveTarget({
+        'type': 'channel_update',
+        'channelId': 'channel_999',
+      });
+      expect(targetChannel.route, equals('/channel/channel_999'));
+
+      // 11. system announcement fallback
+      final targetSys = NotificationNavigationHandler.resolveTarget({
+        'type': 'system_announcement',
+      });
+      expect(targetSys.route, equals('/notifications'));
+    });
+
+    test('Creator Studio Notifications: reliably resolve exact tab numbers and videoId targeting', () {
+      // 1. Truth Verification
+      final targetFactCheck = NotificationNavigationHandler.resolveTarget({
+        'type': 'fact_check_ready',
+        'videoId': 'vid_studio_fact_1',
+      });
+      expect(targetFactCheck.targetApp.name, equals('studio'));
+      expect(targetFactCheck.arguments?['tab'], equals(15));
+      expect(targetFactCheck.arguments?['videoId'], equals('vid_studio_fact_1'));
+
+      // 2. Copyright
+      final targetCopyright = NotificationNavigationHandler.resolveTarget({
+        'type': 'copyright_claim',
+        'videoId': 'vid_studio_copy_2',
+      });
+      expect(targetCopyright.targetApp.name, equals('studio'));
+      expect(targetCopyright.arguments?['tab'], equals(9));
+      expect(targetCopyright.arguments?['videoId'], equals('vid_studio_copy_2'));
+
+      // 3. Audience / Subscribers
+      final targetAudience = NotificationNavigationHandler.resolveTarget({
+        'type': 'subscribers_milestone',
+        'channelId': 'ch_studio_3',
+      });
+      expect(targetAudience.targetApp.name, equals('studio'));
+      expect(targetAudience.arguments?['tab'], equals(12));
+
+      // 4. Monetization & Wallet
+      final targetMonetization = NotificationNavigationHandler.resolveTarget({
+        'type': 'monetization_payout',
+      });
+      expect(targetMonetization.targetApp.name, equals('studio'));
+      expect(targetMonetization.arguments?['tab'], equals(5));
+
+      // 5. Analytics
+      final targetAnalytics = NotificationNavigationHandler.resolveTarget({
+        'type': 'analytics_alert',
+      });
+      expect(targetAnalytics.targetApp.name, equals('studio'));
+      expect(targetAnalytics.arguments?['tab'], equals(3));
+
+      // 6. Channel Notifications & AI Coach
+      final targetCoach = NotificationNavigationHandler.resolveTarget({
+        'type': 'creator_coach_insight',
+      });
+      expect(targetCoach.targetApp.name, equals('studio'));
+      expect(targetCoach.arguments?['tab'], equals(16));
+
+      // 7. Chapters, Drafts, Trash
+      final targetChapters = NotificationNavigationHandler.resolveTarget({
+        'type': 'chapters',
+      });
+      expect(targetChapters.route, equals('/studio/chapters'));
+      expect(targetChapters.arguments?['tab'], equals(11));
+
+      final targetDrafts = NotificationNavigationHandler.resolveTarget({
+        'type': 'drafts',
+        'actionUrl': '/studio/drafts',
+      });
+      expect(targetDrafts.route, equals('/studio/drafts'));
+      expect(targetDrafts.arguments?['tab'], equals(2));
+
+      final targetTrash = NotificationNavigationHandler.resolveTarget({
+        'type': 'trash',
+        'actionUrl': '/studio/trash',
+      });
+      expect(targetTrash.route, equals('/studio/trash'));
+      expect(targetTrash.arguments?['tab'], equals(2));
+    });
+
+    test('Admin & Moderation Notifications: reliably resolve queues and target IDs', () {
+      // 1. Videos queue
+      final targetVideo = NotificationNavigationHandler.resolveTarget({
+        'type': 'moderation_escalation',
+        'videoId': 'v_mod_1',
+      });
+      expect(targetVideo.targetApp.name, equals('admin'));
+      expect(targetVideo.route, equals('/admin/dashboard'));
+      expect(targetVideo.arguments?['tab'], equals('videos'));
+      expect(targetVideo.arguments?['videoId'], equals('v_mod_1'));
+
+      // 2. Reports queue
+      final targetReport = NotificationNavigationHandler.resolveTarget({
+        'type': 'report_escalation',
+        'reportId': 'rep_mod_2',
+      });
+      expect(targetReport.targetApp.name, equals('admin'));
+      expect(targetReport.arguments?['tab'], equals('reports'));
+      expect(targetReport.arguments?['reportId'], equals('rep_mod_2'));
+
+      // 3. Channels queue
+      final targetChannel = NotificationNavigationHandler.resolveTarget({
+        'type': 'kyc_submitted',
+        'channelId': 'ch_mod_3',
+      });
+      expect(targetChannel.targetApp.name, equals('admin'));
+      expect(targetChannel.arguments?['tab'], equals('channels'));
+
+      // 4. Appeals queue
+      final targetAppeal = NotificationNavigationHandler.resolveTarget({
+        'type': 'appeal_submitted',
+      });
+      expect(targetAppeal.targetApp.name, equals('admin'));
+      expect(targetAppeal.arguments?['tab'], equals('appeals'));
+
+      // 5. Users queue
+      final targetUser = NotificationNavigationHandler.resolveTarget({
+        'type': 'user_flagged',
+      });
+      expect(targetUser.targetApp.name, equals('admin'));
+      expect(targetUser.arguments?['tab'], equals('users'));
+
+      // 6. Ads queue
+      final targetAd = NotificationNavigationHandler.resolveTarget({
+        'type': 'ad_flagged',
+      });
+      expect(targetAd.targetApp.name, equals('admin'));
+      expect(targetAd.arguments?['tab'], equals('ads'));
+
+      // 7. Images queue
+      for (final type in ['image_flagged', 'thumbnail_flagged']) {
+        final target = NotificationNavigationHandler.resolveTarget({'type': type});
+        expect(target.targetApp.name, equals('admin'), reason: '$type targetApp');
+        expect(target.arguments?['tab'], equals('images'), reason: '$type tab');
+      }
+
+      // 8. Topics queue
+      for (final type in ['topic_flagged', 'topic_escalation']) {
+        final target = NotificationNavigationHandler.resolveTarget({'type': type, 'topicId': 't_test_1'});
+        expect(target.targetApp.name, equals('admin'), reason: '$type targetApp');
+        expect(target.arguments?['tab'], equals('topics'), reason: '$type tab');
+        expect(target.arguments?['topicId'], equals('t_test_1'), reason: '$type topicId');
+      }
+
+      // 9. Ad reports queue
+      for (final type in ['ad_reports', 'ad_reported']) {
+        final target = NotificationNavigationHandler.resolveTarget({'type': type});
+        expect(target.targetApp.name, equals('admin'), reason: '$type targetApp');
+        expect(target.arguments?['tab'], equals('ad_reports'), reason: '$type tab');
+      }
+
+      // 10. Security & Alerts queue
+      for (final type in ['security_alert', 'system_alert']) {
+        final target = NotificationNavigationHandler.resolveTarget({'type': type});
+        expect(target.targetApp.name, equals('admin'), reason: '$type targetApp');
+        expect(target.arguments?['tab'], equals('alerts'), reason: '$type tab');
+      }
+
+      // 11. Team queue
+      for (final type in ['admin_invite', 'team_member_added']) {
+        final target = NotificationNavigationHandler.resolveTarget({'type': type});
+        expect(target.targetApp.name, equals('admin'), reason: '$type targetApp');
+        expect(target.arguments?['tab'], equals('team'), reason: '$type tab');
+      }
+
+      // 12. Feedbacks queue
+      for (final type in ['user_feedback', 'feedback_request']) {
+        final target = NotificationNavigationHandler.resolveTarget({'type': type});
+        expect(target.targetApp.name, equals('admin'), reason: '$type targetApp');
+        expect(target.arguments?['tab'], equals('feedbacks'), reason: '$type tab');
+      }
+
+      // 13. Audit logs queue
+      for (final type in ['audit_log', 'audit_logs']) {
+        final target = NotificationNavigationHandler.resolveTarget({'type': type});
+        expect(target.targetApp.name, equals('admin'), reason: '$type targetApp');
+        expect(target.arguments?['tab'], equals('logs'), reason: '$type tab');
+      }
+    });
+
+    test('Advertiser Portal Notifications: reliably resolve tabs across campaigns, billing, and assets', () {
+      // 1. Campaigns (Tab 1)
+      for (final type in ['campaign_approved', 'campaign_rejected', 'campaign_status', 'campaign_budget_low']) {
+        final target = NotificationNavigationHandler.resolveTarget({
+          'type': type,
+          'campaignId': 'camp_100',
+        });
+        expect(target.targetApp.name, equals('advertiser'), reason: '$type targetApp');
+        expect(target.route, equals('/advertiser'), reason: '$type route');
+        expect(target.arguments?['tab'], equals(1), reason: '$type tab');
+        expect(target.arguments?['campaignId'], equals('camp_100'), reason: '$type campaignId');
+      }
+
+      // 2. Performance Reports & Analytics (Tab 2)
+      for (final type in ['ad_performance', 'campaign_performance', 'ad_report']) {
+        final target = NotificationNavigationHandler.resolveTarget({'type': type});
+        expect(target.targetApp.name, equals('advertiser'), reason: '$type targetApp');
+        expect(target.arguments?['tab'], equals(2), reason: '$type tab');
+      }
+
+      // 3. Billing, Invoices & Balance (Tab 5)
+      for (final type in ['billing_invoice', 'billing_low_balance', 'payment_success', 'payment_failed']) {
+        final target = NotificationNavigationHandler.resolveTarget({'type': type});
+        expect(target.targetApp.name, equals('advertiser'), reason: '$type targetApp');
+        expect(target.arguments?['tab'], equals(5), reason: '$type tab');
+      }
+
+      // 4. Audience & Targeting (Tab 6)
+      for (final type in ['ad_targeting', 'audience_insight']) {
+        final target = NotificationNavigationHandler.resolveTarget({'type': type});
+        expect(target.targetApp.name, equals('advertiser'), reason: '$type targetApp');
+        expect(target.arguments?['tab'], equals(6), reason: '$type tab');
+      }
+
+      // 5. Creator Sponsorships (Tab 7)
+      for (final type in ['ad_sponsorship', 'sponsorship_request']) {
+        final target = NotificationNavigationHandler.resolveTarget({'type': type});
+        expect(target.targetApp.name, equals('advertiser'), reason: '$type targetApp');
+        expect(target.arguments?['tab'], equals(7), reason: '$type tab');
+      }
+
+      // 6. Creative Assets (Tab 8)
+      for (final type in ['ad_creative', 'asset_approved', 'creative_asset_approved']) {
+        final target = NotificationNavigationHandler.resolveTarget({'type': type});
+        expect(target.targetApp.name, equals('advertiser'), reason: '$type targetApp');
+        expect(target.arguments?['tab'], equals(8), reason: '$type tab');
+      }
+
+      // 7. Brand Settings (Tab 9)
+      for (final type in ['brand_settings', 'brand_settings_updated']) {
+        final target = NotificationNavigationHandler.resolveTarget({'type': type});
+        expect(target.targetApp.name, equals('advertiser'), reason: '$type targetApp');
+        expect(target.arguments?['tab'], equals(9), reason: '$type tab');
+      }
+    });
+  });
 }

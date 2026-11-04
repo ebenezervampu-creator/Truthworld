@@ -12,6 +12,7 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/image_cropper_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart';
@@ -33,12 +34,37 @@ class CustomLinkItem {
 class CustomizationController extends BaseController
     with ContentValidationMixin, GetSingleTickerProviderStateMixin {
   CustomizationController({
-    required this.channelId,
-    required this.ownerId,
+    required String channelId,
+    required String ownerId,
     this.initialTabIndex = 0,
-  });
-  final String channelId;
-  final String ownerId;
+  })  : _channelId = channelId,
+        _ownerId = ownerId;
+
+  final String _channelId;
+  final String _ownerId;
+
+  String get channelId {
+    if (_channelId.isNotEmpty) return _channelId;
+    if (Get.isRegistered<DashboardController>()) {
+      final id = Get.find<DashboardController>().channelId;
+      if (id.isNotEmpty) return id;
+    }
+    if (Get.isRegistered<AuthService>()) {
+      final ch = AuthService.to.userChannel ?? AuthService.to.rxUserChannel.value;
+      if (ch != null && ch.id.isNotEmpty) return ch.id;
+    }
+    return FirebaseAuth.instance.currentUser?.uid ?? '';
+  }
+
+  String get ownerId {
+    if (_ownerId.isNotEmpty) return _ownerId;
+    if (Get.isRegistered<AuthService>()) {
+      final uid = AuthService.to.uid;
+      if (uid.isNotEmpty) return uid;
+    }
+    return FirebaseAuth.instance.currentUser?.uid ?? '';
+  }
+
   final int initialTabIndex;
 
   late final TabController tabController = TabController(
@@ -50,6 +76,7 @@ class CustomizationController extends BaseController
 
   @override
   void onClose() {
+    _channelSubscription?.cancel();
     tabController.dispose();
     for (final item in customLinks) {
       item.dispose();
@@ -62,6 +89,7 @@ class CustomizationController extends BaseController
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _channelSubscription;
 
   final RxString status = 'active'.obs;
   final RxBool geminiApproved = false.obs;
@@ -146,11 +174,74 @@ class CustomizationController extends BaseController
   final Rx<Uint8List?> newBannerBytes = Rx<Uint8List?>(null);
   final Rx<String?> newAvatarName = Rx<String?>(null);
   final Rx<String?> newBannerName = Rx<String?>(null);
+  final RxBool hasRemovedAvatar = false.obs;
+  final RxBool hasRemovedBanner = false.obs;
 
   @override
   void onInit() {
     super.onInit();
     loadChannelData();
+    _startRealtimeChannelListener();
+  }
+
+  void _startRealtimeChannelListener() {
+    _channelSubscription?.cancel();
+    _channelSubscription = _firestore
+        .collection(FirestoreCollections.channels)
+        .doc(channelId)
+        .snapshots()
+        .listen(
+      (doc) {
+        if (!doc.exists || doc.data() == null) return;
+        final data = doc.data()!;
+        final newAvatarStatus = (data['avatarStatus'] as String?) ?? 'APPROVED';
+        final newBannerStatus = (data['bannerStatus'] as String?) ?? 'APPROVED';
+        final newAvatarReason = (data['avatarStatusReason'] as String?) ?? '';
+        final newBannerReason = (data['bannerStatusReason'] as String?) ?? '';
+        final newAvatarFileId = (data['avatarFileId'] as String?) ?? '';
+        final newBannerFileId = (data['bannerFileId'] as String?) ?? '';
+
+        if (avatarStatus.value != newAvatarStatus) {
+          avatarStatus.value = newAvatarStatus;
+        }
+        if (bannerStatus.value != newBannerStatus) {
+          bannerStatus.value = newBannerStatus;
+        }
+        if (avatarStatusReason.value != newAvatarReason) {
+          avatarStatusReason.value = newAvatarReason;
+        }
+        if (bannerStatusReason.value != newBannerReason) {
+          bannerStatusReason.value = newBannerReason;
+        }
+        if (avatarFileId.value != newAvatarFileId) {
+          avatarFileId.value = newAvatarFileId;
+        }
+        if (bannerFileId.value != newBannerFileId) {
+          bannerFileId.value = newBannerFileId;
+        }
+
+        if (newAvatarBytes.value == null && !hasRemovedAvatar.value) {
+          final serverAvatar = (data['avatarUrl'] as String?) ??
+              (data['photoUrl'] as String?) ??
+              '';
+          if (serverAvatar.isNotEmpty && avatarUrl.value != serverAvatar) {
+            avatarUrl.value = serverAvatar;
+          }
+        }
+        if (newBannerBytes.value == null && !hasRemovedBanner.value) {
+          final serverBanner = (data['bannerImageUrl'] as String?) ??
+              (data['bannerUrl'] as String?) ??
+              (data['banner'] as String?) ??
+              '';
+          if (serverBanner.isNotEmpty && bannerUrl.value != serverBanner) {
+            bannerUrl.value = serverBanner;
+          }
+        }
+      },
+      onError: (err) {
+        ErrorHandler.log(err, tag: 'CustomizationController.realtimeListener');
+      },
+    );
   }
 
   Future<void> loadChannelData() async {
@@ -192,6 +283,20 @@ class CustomizationController extends BaseController
             (data['bannerStatusReason'] as String?) ?? '';
         avatarFileId.value = (data['avatarFileId'] as String?) ?? '';
         bannerFileId.value = (data['bannerFileId'] as String?) ?? '';
+
+        // Auto-reconcile PENDING image verifications if already approved in image_verification collection
+        if (avatarStatus.value == 'PENDING' && avatarFileId.value.isNotEmpty) {
+          unawaited(_reconcileImageVerification(
+            fileId: avatarFileId.value,
+            isBanner: false,
+          ));
+        }
+        if (bannerStatus.value == 'PENDING' && bannerFileId.value.isNotEmpty) {
+          unawaited(_reconcileImageVerification(
+            fileId: bannerFileId.value,
+            isBanner: true,
+          ));
+        }
         final rawVis = (data['visibility'] as String?)?.trim();
         if (rawVis != null && rawVis.isNotEmpty) {
           if (rawVis.toLowerCase() == 'public') {
@@ -288,23 +393,84 @@ class CustomizationController extends BaseController
     }
   }
 
+  Future<void> _reconcileImageVerification({
+    required String fileId,
+    required bool isBanner,
+  }) async {
+    try {
+      final doc = await _firestore.collection('image_verification').doc(fileId).get();
+      if (doc.exists) {
+        final data = doc.data();
+        final ivStatus = (data?['status'] as String?)?.toUpperCase();
+        final ivReason = (data?['reason'] as String?) ?? '';
+        if (ivStatus == 'APPROVED') {
+          if (isBanner) {
+            bannerStatus.value = 'APPROVED';
+            bannerStatusReason.value = ivReason;
+          } else {
+            avatarStatus.value = 'APPROVED';
+            avatarStatusReason.value = ivReason;
+          }
+          await _firestore.collection(FirestoreCollections.channels).doc(channelId).update({
+            isBanner ? 'bannerStatus' : 'avatarStatus': 'APPROVED',
+            isBanner ? 'bannerStatusReason' : 'avatarStatusReason': ivReason,
+            'updatedAt': DateTime.now().millisecondsSinceEpoch,
+          });
+        } else if (ivStatus == 'REJECTED' || ivStatus == 'FLAGGED') {
+          final targetStatus = ivStatus!;
+          if (isBanner) {
+            bannerStatus.value = targetStatus;
+            bannerStatusReason.value = ivReason;
+          } else {
+            avatarStatus.value = targetStatus;
+            avatarStatusReason.value = ivReason;
+          }
+          await _firestore.collection(FirestoreCollections.channels).doc(channelId).update({
+            isBanner ? 'bannerStatus' : 'avatarStatus': targetStatus,
+            isBanner ? 'bannerStatusReason' : 'avatarStatusReason': ivReason,
+            'updatedAt': DateTime.now().millisecondsSinceEpoch,
+          });
+        }
+      }
+    } catch (e) {
+      ErrorHandler.log(e, tag: 'CustomizationController._reconcileImageVerification');
+    }
+  }
+
   Future<void> bypassVerification(bool isBanner) async {
     try {
-      final fileId = isBanner ? bannerFileId.value : avatarFileId.value;
+      final fileId = isBanner
+          ? (bannerFileId.value.isNotEmpty ? bannerFileId.value : (newBannerName.value ?? ''))
+          : (avatarFileId.value.isNotEmpty ? avatarFileId.value : (newAvatarName.value ?? ''));
       final statusField = isBanner ? 'bannerStatus' : 'avatarStatus';
       final reasonField = isBanner
           ? 'bannerStatusReason'
           : 'avatarStatusReason';
 
+      // 1. Immediately update reactive controller state so the UI reflects instantly
+      if (isBanner) {
+        bannerStatus.value = 'APPROVED';
+        bannerStatusReason.value = 'Bypassed in local/debug environment.';
+      } else {
+        avatarStatus.value = 'APPROVED';
+        avatarStatusReason.value = 'Bypassed in local/debug environment.';
+      }
+
+      // 2. Persist to Firestore channel doc
+      final channelUpdates = <String, dynamic>{
+        statusField: 'APPROVED',
+        reasonField: 'Bypassed in local/debug environment.',
+        'updatedAt': DateTime.now().millisecondsSinceEpoch,
+      };
+      if (fileId.isNotEmpty) {
+        channelUpdates[isBanner ? 'bannerFileId' : 'avatarFileId'] = fileId;
+      }
       await _firestore
           .collection(FirestoreCollections.channels)
           .doc(channelId)
-          .update({
-            statusField: 'APPROVED',
-            reasonField: 'Bypassed in local/debug environment.',
-            'updatedAt': DateTime.now().millisecondsSinceEpoch,
-          });
+          .update(channelUpdates);
 
+      // 3. Persist to image_verification doc
       if (fileId.isNotEmpty) {
         await _firestore.collection('image_verification').doc(fileId).set({
           'status': 'APPROVED',
@@ -312,6 +478,29 @@ class CustomizationController extends BaseController
           'category': isBanner ? 'banner' : 'avatar',
           'processedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
+      }
+
+      // 4. If avatar, also update users collection
+      if (!isBanner && ownerId.isNotEmpty) {
+        await _firestore.collection('users').doc(ownerId).set({
+          'avatarStatus': 'APPROVED',
+          'avatarStatusReason': 'Bypassed in local/debug environment.',
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
+      // 5. Update cached AuthService state
+      if (Get.isRegistered<AuthService>()) {
+        final auth = AuthService.to;
+        if (auth.userChannel != null) {
+          auth.setUserChannel(
+            auth.userChannel!.copyWith(
+              avatarStatus: !isBanner ? 'APPROVED' : auth.userChannel!.avatarStatus,
+              bannerStatus: isBanner ? 'APPROVED' : auth.userChannel!.bannerStatus,
+            ),
+            auth.user?.uid,
+          );
+        }
       }
 
       AppSnackbar.success(
@@ -395,10 +584,12 @@ class CustomizationController extends BaseController
 
         final imageBytes = await croppedFile.readAsBytes();
         if (isAvatar) {
+          hasRemovedAvatar.value = false;
           newAvatarBytes.value = imageBytes;
           newAvatarName.value =
               'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
         } else {
+          hasRemovedBanner.value = false;
           newBannerBytes.value = imageBytes;
           newBannerName.value =
               'banner_${DateTime.now().millisecondsSinceEpoch}.jpg';
@@ -412,6 +603,26 @@ class CustomizationController extends BaseController
     }
   }
 
+  void removeAvatar() {
+    hasRemovedAvatar.value = true;
+    newAvatarBytes.value = null;
+    newAvatarName.value = null;
+    avatarUrl.value = '';
+    avatarFileId.value = '';
+    avatarStatus.value = '';
+    avatarStatusReason.value = '';
+  }
+
+  void removeBanner() {
+    hasRemovedBanner.value = true;
+    newBannerBytes.value = null;
+    newBannerName.value = null;
+    bannerUrl.value = '';
+    bannerFileId.value = '';
+    bannerStatus.value = '';
+    bannerStatusReason.value = '';
+  }
+
   Future<String?> _uploadImage(Uint8List bytes, String path) async {
     try {
       final ref = _storage.ref().child(path);
@@ -420,6 +631,9 @@ class CustomizationController extends BaseController
         contentType: 'image/jpeg',
         customMetadata: {
           'uploaderId': ?currentUid,
+          'userId': ?currentUid,
+          'channelId': channelId,
+          'ownerId': ownerId,
           'uploaded': DateTime.now().toString(),
         },
       );
@@ -690,16 +904,52 @@ class CustomizationController extends BaseController
         'approvalBannerDismissed': false,
       };
 
-      if (uploadedAvatarFileName != null) {
-        updateData['avatarFileId'] = uploadedAvatarFileName;
-        updateData['avatarStatus'] = 'PENDING';
+      if (hasRemovedAvatar.value) {
+        updateData['avatarFileId'] = FieldValue.delete();
+        updateData['avatarStatus'] = 'APPROVED';
         updateData['avatarStatusReason'] = FieldValue.delete();
+      } else if (uploadedAvatarFileName != null) {
+        updateData['avatarFileId'] = uploadedAvatarFileName;
+        try {
+          final ivDoc = await _firestore.collection('image_verification').doc(uploadedAvatarFileName).get();
+          if (ivDoc.exists && ivDoc.data()?['status'] == 'APPROVED') {
+            updateData['avatarStatus'] = 'APPROVED';
+            updateData['avatarStatusReason'] = (ivDoc.data()?['reason'] as String?) ?? 'Vision AI verified';
+            avatarStatus.value = 'APPROVED';
+          } else {
+            updateData['avatarStatus'] = 'PENDING';
+            updateData['avatarStatusReason'] = FieldValue.delete();
+            avatarStatus.value = 'PENDING';
+          }
+        } catch (_) {
+          updateData['avatarStatus'] = 'PENDING';
+          updateData['avatarStatusReason'] = FieldValue.delete();
+          avatarStatus.value = 'PENDING';
+        }
       }
 
-      if (uploadedBannerFileName != null) {
-        updateData['bannerFileId'] = uploadedBannerFileName;
-        updateData['bannerStatus'] = 'PENDING';
+      if (hasRemovedBanner.value) {
+        updateData['bannerFileId'] = FieldValue.delete();
+        updateData['bannerStatus'] = 'APPROVED';
         updateData['bannerStatusReason'] = FieldValue.delete();
+      } else if (uploadedBannerFileName != null) {
+        updateData['bannerFileId'] = uploadedBannerFileName;
+        try {
+          final ivDoc = await _firestore.collection('image_verification').doc(uploadedBannerFileName).get();
+          if (ivDoc.exists && ivDoc.data()?['status'] == 'APPROVED') {
+            updateData['bannerStatus'] = 'APPROVED';
+            updateData['bannerStatusReason'] = (ivDoc.data()?['reason'] as String?) ?? 'Vision AI verified';
+            bannerStatus.value = 'APPROVED';
+          } else {
+            updateData['bannerStatus'] = 'PENDING';
+            updateData['bannerStatusReason'] = FieldValue.delete();
+            bannerStatus.value = 'PENDING';
+          }
+        } catch (_) {
+          updateData['bannerStatus'] = 'PENDING';
+          updateData['bannerStatusReason'] = FieldValue.delete();
+          bannerStatus.value = 'PENDING';
+        }
       }
 
       GetStorage().remove('approval_shown_$channelId');
@@ -709,8 +959,39 @@ class CustomizationController extends BaseController
           .doc(channelId)
           .update(updateData);
 
-      if (updatedAvatarUrl != null) avatarUrl.value = updatedAvatarUrl;
-      if (updatedBannerUrl != null) bannerUrl.value = updatedBannerUrl;
+      hasRemovedAvatar.value = false;
+      hasRemovedBanner.value = false;
+
+      if (updatedAvatarUrl != null) {
+        avatarUrl.value = updatedAvatarUrl;
+        if (Get.isRegistered<AuthService>()) {
+          final auth = AuthService.to;
+          if (auth.userChannel != null) {
+            auth.setUserChannel(
+              auth.userChannel!.copyWith(
+                avatarUrl: updatedAvatarUrl,
+                avatarFileId: uploadedAvatarFileName,
+              ),
+              auth.user?.uid,
+            );
+          }
+        }
+      }
+      if (updatedBannerUrl != null) {
+        bannerUrl.value = updatedBannerUrl;
+        if (Get.isRegistered<AuthService>()) {
+          final auth = AuthService.to;
+          if (auth.userChannel != null) {
+            auth.setUserChannel(
+              auth.userChannel!.copyWith(
+                bannerUrl: updatedBannerUrl,
+                bannerFileId: uploadedBannerFileName,
+              ),
+              auth.user?.uid,
+            );
+          }
+        }
+      }
       newAvatarBytes.value = null;
       newBannerBytes.value = null;
 

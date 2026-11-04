@@ -7,8 +7,10 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
 
 /// Represents a channel video that has an active moderation, language policy, review, or processing notice.
@@ -36,11 +38,35 @@ class ChannelVideoStatusItem {
 
 class ChannelNotificationsController extends BaseController {
   ChannelNotificationsController({
-    required this.channelId,
-    required this.creatorId,
-  });
-  final String channelId;
-  final String creatorId;
+    required String channelId,
+    required String creatorId,
+  })  : _channelId = channelId,
+        _creatorId = creatorId;
+
+  final String _channelId;
+  final String _creatorId;
+
+  String get channelId {
+    if (_channelId.isNotEmpty) return _channelId;
+    if (Get.isRegistered<DashboardController>()) {
+      final id = Get.find<DashboardController>().channelId;
+      if (id.isNotEmpty) return id;
+    }
+    if (Get.isRegistered<AuthService>()) {
+      final ch = AuthService.to.userChannel ?? AuthService.to.rxUserChannel.value;
+      if (ch != null && ch.id.isNotEmpty) return ch.id;
+    }
+    return FirebaseAuth.instance.currentUser?.uid ?? '';
+  }
+
+  String get creatorId {
+    if (_creatorId.isNotEmpty) return _creatorId;
+    if (Get.isRegistered<AuthService>()) {
+      final uid = AuthService.to.uid;
+      if (uid.isNotEmpty) return uid;
+    }
+    return FirebaseAuth.instance.currentUser?.uid ?? '';
+  }
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -726,6 +752,16 @@ class ChannelNotificationsController extends BaseController {
                 n.metadata?['itemType'] == 'video' ||
                 (n.metadata?['videoId'] != null &&
                     (n.metadata?['videoId'] as String).isNotEmpty))
+            .toList();
+      } else if (cat == 'topics' || cat == 'topic') {
+        result = result
+            .where((n) =>
+                n.category == 'topic' ||
+                n.type.contains('topic') ||
+                n.metadata?['itemType'] == 'topic' ||
+                (n.metadata?['topicId'] != null &&
+                    (n.metadata?['topicId'] as String).isNotEmpty) ||
+                n.title.toLowerCase().contains('topic'))
             .toList();
       } else if (cat == 'verification') {
         result = result

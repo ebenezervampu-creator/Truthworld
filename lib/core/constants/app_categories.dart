@@ -106,6 +106,15 @@ class AppCategories {
     'nature',
     'nature & wildlife',
     'spirituality',
+    'spiritual',
+    'faith',
+    'religion',
+    'religious',
+    'devotional',
+    'theology',
+    'theological',
+    'prayer',
+    'worship',
     'kids & family',
     'movies',
     'movie',
@@ -187,14 +196,59 @@ class AppCategories {
       case 'blog':
         return 'Vlogs';
       case 'movie':
+      case 'film':
+      case 'cinema':
+      case 'films':
         return 'Movies';
       case 'tv show':
+      case 'series':
+      case 'tv':
+      case 'shows':
         return 'TV Shows';
       case 'short films':
       case 'shortfilms':
       case 'short film':
       case 'gaming':
         return 'Short Films';
+      case 'songs':
+      case 'song':
+      case 'tracks':
+      case 'track':
+      case 'music video':
+      case 'music videos':
+        return 'Music';
+      case 'fitness & health':
+      case 'gym':
+      case 'workout':
+      case 'workouts':
+      case 'exercise':
+        return 'Fitness';
+      case 'science & tech':
+        return 'Science';
+      case 'finance & investment':
+      case 'crypto':
+      case 'investing':
+      case 'stocks':
+        return 'Finance';
+      case 'humor':
+      case 'comedy & humor':
+      case 'jokes':
+        return 'Comedy';
+      case 'wildlife':
+        return 'Nature';
+      case 'crafts':
+      case 'how-to':
+      case 'howto':
+        return 'DIY & How-to';
+      case 'cars':
+      case 'auto':
+      case 'automobiles':
+      case 'vehicles':
+        return 'Automotive';
+      case 'cartoons':
+      case 'cartoon':
+      case 'anime':
+        return 'Animation';
       case 'general':
         return 'Other';
       default:

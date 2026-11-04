@@ -70,9 +70,9 @@ class BrandSettingsTabView extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF161618),
+        color: AppColors.appBarSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgSurface),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -133,7 +133,7 @@ class BrandSettingsTabView extends StatelessWidget {
                     labelText: 'Brand / Organization Name',
                     labelStyle: TextStyle(color: AppColors.textSecondary),
                     filled: true,
-                    fillColor: Color(0xFF121214),
+                    fillColor: AppColors.bgInput,
                     border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
                   ),
                 ),
@@ -150,7 +150,7 @@ class BrandSettingsTabView extends StatelessWidget {
                     labelText: 'Industry Category',
                     labelStyle: TextStyle(color: AppColors.textSecondary),
                     filled: true,
-                    fillColor: Color(0xFF121214),
+                    fillColor: AppColors.bgInput,
                     border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
                   ),
                 ),
@@ -168,7 +168,7 @@ class BrandSettingsTabView extends StatelessWidget {
               labelText: 'Brand Motto / Tagline',
               labelStyle: TextStyle(color: AppColors.textSecondary),
               filled: true,
-              fillColor: Color(0xFF121214),
+              fillColor: AppColors.bgInput,
               border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
             ),
           ),
@@ -189,7 +189,7 @@ class BrandSettingsTabView extends StatelessWidget {
                     labelText: 'Official Website URL',
                     labelStyle: TextStyle(color: AppColors.textSecondary),
                     filled: true,
-                    fillColor: Color(0xFF121214),
+                    fillColor: AppColors.bgInput,
                     border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
                   ),
                 ),
@@ -209,7 +209,7 @@ class BrandSettingsTabView extends StatelessWidget {
                     labelText: 'Studio Support Contact Email',
                     labelStyle: TextStyle(color: AppColors.textSecondary),
                     filled: true,
-                    fillColor: Color(0xFF121214),
+                    fillColor: AppColors.bgInput,
                     border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
                   ),
                 ),
@@ -282,9 +282,9 @@ class BrandSettingsTabView extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF161618),
+        color: AppColors.appBarSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgSurface),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -320,7 +320,7 @@ class BrandSettingsTabView extends StatelessWidget {
                   ),
                 ),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFF3F3F46)),
+                  side: const BorderSide(color: AppColors.bgElevated),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
@@ -337,15 +337,15 @@ class BrandSettingsTabView extends StatelessWidget {
                   margin: const EdgeInsets.only(bottom: 10),
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF121214),
+                    color: AppColors.bgInput,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFF27272A)),
+                    border: Border.all(color: AppColors.bgSurface),
                   ),
                   child: Row(
                     children: [
                       CircleAvatar(
                         radius: 18,
-                        backgroundColor: const Color(0xFF27272A),
+                        backgroundColor: AppColors.bgSurface,
                         child: Text(
                           (member['name'] as String).substring(0, 1).toUpperCase(),
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
@@ -379,9 +379,9 @@ class BrandSettingsTabView extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1E1E22),
+                          color: AppColors.bgSurface,
                           borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: const Color(0xFF323238)),
+                          border: Border.all(color: AppColors.bgElevated),
                         ),
                         child: Text(
                           member['role'] as String,
@@ -419,9 +419,9 @@ class BrandSettingsTabView extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF161618),
+        color: AppColors.appBarSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgSurface),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -448,21 +448,21 @@ class BrandSettingsTabView extends StatelessWidget {
                 value: controller.lowBudgetAlert.value,
                 onChanged: (val) => controller.lowBudgetAlert.value = val,
               )),
-          const Divider(color: Color(0xFF27272A), height: 16),
+          const Divider(color: AppColors.bgSurface, height: 16),
           Obx(() => _buildToggleTile(
                 title: 'Daily Performance Digest',
                 subtitle: 'Receive aggregated morning summary of impressions, spend, CTR, and conversions.',
                 value: controller.dailyPerformanceDigest.value,
                 onChanged: (val) => controller.dailyPerformanceDigest.value = val,
               )),
-          const Divider(color: Color(0xFF27272A), height: 16),
+          const Divider(color: AppColors.bgSurface, height: 16),
           Obx(() => _buildToggleTile(
                 title: 'Campaign Status Changes',
                 subtitle: 'Instant alerts when campaigns are approved by moderation or conclude delivery.',
                 value: controller.campaignStatusNotifications.value,
                 onChanged: (val) => controller.campaignStatusNotifications.value = val,
               )),
-          const Divider(color: Color(0xFF27272A), height: 16),
+          const Divider(color: AppColors.bgSurface, height: 16),
           Obx(() => _buildToggleTile(
                 title: 'Creator Sponsorship Responses',
                 subtitle: 'Notify immediately when a creator accepts or delivers on a sponsorship proposal.',
@@ -520,9 +520,9 @@ class BrandSettingsTabView extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF161618),
+        color: AppColors.appBarSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgSurface),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -558,7 +558,7 @@ class BrandSettingsTabView extends StatelessWidget {
                   ),
                 ),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFF3F3F46)),
+                  side: const BorderSide(color: AppColors.bgElevated),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
@@ -580,9 +580,9 @@ class BrandSettingsTabView extends StatelessWidget {
             return Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF121214),
+                color: AppColors.bgInput,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFF27272A)),
+                border: Border.all(color: AppColors.bgSurface),
               ),
               child: Row(
                 children: [
@@ -627,10 +627,10 @@ class BrandSettingsTabView extends StatelessWidget {
 
     Get.dialog(
       AlertDialog(
-        backgroundColor: const Color(0xFF161618),
+        backgroundColor: AppColors.appBarSurface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFF27272A)),
+          side: const BorderSide(color: AppColors.bgSurface),
         ),
         title: const Text(
           'Invite Studio Team Member',
@@ -656,7 +656,7 @@ class BrandSettingsTabView extends StatelessWidget {
                   labelText: 'Full Name',
                   labelStyle: TextStyle(color: AppColors.textSecondary),
                   filled: true,
-                  fillColor: Color(0xFF121214),
+                  fillColor: AppColors.bgInput,
                   border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
                 ),
               ),
@@ -674,7 +674,7 @@ class BrandSettingsTabView extends StatelessWidget {
                   labelText: 'Email Address',
                   labelStyle: TextStyle(color: AppColors.textSecondary),
                   filled: true,
-                  fillColor: Color(0xFF121214),
+                  fillColor: AppColors.bgInput,
                   border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
                 ),
               ),
@@ -682,13 +682,13 @@ class BrandSettingsTabView extends StatelessWidget {
               Obx(() {
                 return DropdownButtonFormField<String>(
                   value: roleChoice.value,
-                  dropdownColor: const Color(0xFF1C1C1F),
+                  dropdownColor: AppColors.bgSurface,
                   style: const TextStyle(color: Colors.white, fontFamily: TWTypography.uiFamily),
                   decoration: const InputDecoration(
                     labelText: 'Assigned Role',
                     labelStyle: TextStyle(color: AppColors.textSecondary),
                     filled: true,
-                    fillColor: Color(0xFF121214),
+                    fillColor: AppColors.bgInput,
                     border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
                   ),
                   items: [

@@ -524,18 +524,24 @@ class EndScreenOverlay extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: AspectRatio(
-                          aspectRatio: 16 / 9,
-                          child: CachedNetworkImage(
-                            imageUrl: video.thumbnailUrl.replaceAll(' ', '%20'),
-                            fit: BoxFit.cover,
-                            placeholder: (_, _) =>
-                                Container(color: Colors.black26),
-                            errorWidget: (_, _, _) => const Icon(
-                              Icons.video_library_outlined,
-                              color: AppColors.textDisabled,
+                      SizedBox(
+                        width: 100,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: AspectRatio(
+                            aspectRatio: 16 / 9,
+                            child: CachedNetworkImage(
+                              imageUrl: video.thumbnailUrl.replaceAll(
+                                ' ',
+                                '%20',
+                              ),
+                              fit: BoxFit.cover,
+                              placeholder: (_, _) =>
+                                  Container(color: Colors.black26),
+                              errorWidget: (_, _, _) => const Icon(
+                                Icons.video_library_outlined,
+                                color: AppColors.textDisabled,
+                              ),
                             ),
                           ),
                         ),
@@ -584,73 +590,76 @@ class EndScreenOverlay extends StatelessWidget {
     return Align(
       alignment: Alignment.bottomCenter,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 24),
+        margin: const EdgeInsets.only(left: 16, right: 16, bottom: 24),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: AppColors.bgPage.withValues(alpha: 0.85),
           borderRadius: BorderRadius.circular(30),
           border: Border.all(color: AppColors.bgDivider),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Up Next: ',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Up Next: ',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 200),
-              child: Text(
-                nextVideo.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 160),
+                child: Text(
+                  nextVideo.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'in ${ctrl.autoplayCountdown.value}s',
                 style: const TextStyle(
-                  color: AppColors.textPrimary,
+                  color: AppColors.brand,
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'in ${ctrl.autoplayCountdown.value}s',
-              style: const TextStyle(
-                color: AppColors.brand,
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(width: 12),
-            GestureDetector(
-              onTap: ctrl.cancelAutoplayCountdown,
-              child: const Text(
-                'CANCEL',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
+              const SizedBox(width: 12),
+              GestureDetector(
+                onTap: ctrl.cancelAutoplayCountdown,
+                child: const Text(
+                  'CANCEL',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
-            GestureDetector(
-              onTap: ctrl.playNextImmediately,
-              child: const Text(
-                'PLAY NOW',
-                style: TextStyle(
-                  color: AppColors.brand,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
+              const SizedBox(width: 12),
+              GestureDetector(
+                onTap: ctrl.playNextImmediately,
+                child: const Text(
+                  'PLAY NOW',
+                  style: TextStyle(
+                    color: AppColors.brand,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

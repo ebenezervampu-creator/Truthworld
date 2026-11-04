@@ -170,6 +170,8 @@ export interface TTSRequest {
   provider?: "google-cloud-tts" | "elevenlabs" | "auto";
   preferVoiceCloning?: boolean;
   voiceCloneId?: string;
+  ttsTier?: "audio_starter" | "audio_pro" | "audio_ultra" | "video_pro" | "video_ultra";
+  voiceType?: "standard" | "fast_api" | "cloned" | "voice_clone";
   gender?: "MALE" | "FEMALE" | "NEUTRAL";
   speakingRate?: number;
   pitch?: number;
@@ -313,6 +315,7 @@ export interface ExtractedClaim {
   claimStrength?: ClaimStrength;
   honestyWashingRisk?: boolean; // v8.1
   isFramingViolation?: boolean; // NEW: Belief/Opinion presented as Fact
+  framingViolationDetail?: FramingViolationDetail;
   start?: number;
   end?: number;
   chunkIndex: number;
@@ -353,6 +356,9 @@ export interface RichSource {
   lastVerified?: string;
   retrievalMethod?: string;
   retrievalProvider?: string;
+  whatItSupports?: string;
+  whatItDoesNotEstablish?: string;
+  sourceRole?: 'primary_scripture' | 'independent_corroboration' | 'scholarly_reference' | 'scientific_reference' | 'news_reporting';
 }
 
 export type ClaimType = string;
@@ -398,6 +404,18 @@ export type ClaimStatus =
   | "novel_hypothesis"
   | "developing_story";
 
+export interface EvidenceAssessment {
+  scripturalSupport?: 'DOCUMENTED' | 'STRONG' | 'PARTIAL' | 'NOT_ESTABLISHED' | 'NOT_APPLICABLE';
+  independentHistoricalCorroboration?: 'DOCUMENTED' | 'STRONG' | 'PARTIAL' | 'NOT_ESTABLISHED' | 'NOT_APPLICABLE';
+  empiricalVerification?: 'ESTABLISHED' | 'CONSISTENT' | 'NOT_ESTABLISHED' | 'CONTRADICTED' | 'NOT_APPLICABLE';
+}
+
+export interface FramingViolationDetail {
+  violationType?: 'UNSUPPORTED_PROOF_ASSERTION' | 'BELIEF_AS_EMPIRICAL_FACT' | 'OPINION_AS_FACT' | 'NONE';
+  assertedEvidenceQuality?: string;
+  explanation?: string;
+}
+
 export interface VerifiedClaim extends FilteredClaim {
   status: ClaimStatus; // Pipeline state
   lineage?: EvidenceLineage;
@@ -422,7 +440,7 @@ export interface VerifiedClaim extends FilteredClaim {
   claimType?: ClaimType;
   assertiveness?: ClaimAssertiveness;
   claimStrength?: ClaimStrength;
-  rating?: number;
+  rating?: number | null;
   freshness?: string;
   verificationSummary?: string;
   verifiedFacts?: string[];
@@ -445,16 +463,442 @@ export interface VerifiedClaim extends FilteredClaim {
   classificationConfidence?: number;
   historicalEvidenceConfidence?: number;
   evidenceDetails?: {
-    scriptural: string;
-    historical: string;
-    scientific: string;
+    scriptural?: string;
+    historical?: string;
+    scientific?: string;
   };
   consensusDetails?: {
-    theology: string;
-    historical: string;
-    scientific: string;
+    theology?: string;
+    historical?: string;
+    scientific?: string;
   };
+  evidenceAssessment?: EvidenceAssessment;
+  beliefAssessment?: string;
+  misinformationVerdict?: 'NOT_MISINFORMATION' | 'MISINFORMATION' | 'NOT_ESTABLISHED' | 'NOT_ESTABLISHED_AS_MISINFORMATION' | 'NOT_APPLICABLE';
+  framingViolationDetail?: FramingViolationDetail;
+  confidenceMeaning?: string;
+  framingAssessment?: string;
+  epistemicLimitations?: string[];
   multiModelConsensus?: MultiModelConsensusMetadata;
+  evidenceTraceability?: EvidenceToClaimTraceability;
+  calibratedConfidence?: CalibratedConfidenceBreakdown;
+  assessmentV2?: CredibilityAssessmentV2;
+}
+
+export type ComponentVerificationStatus =
+  | 'VERIFIED_OBSERVATION'
+  | 'CONTRADICTED_OBSERVATION'
+  | 'INVALID_INFERENCE'
+  | 'VALID_INFERENCE'
+  | 'UNSUPPORTED'
+  | 'UNVERIFIED_CITATION'
+  | 'INSUFFICIENT_EVIDENCE';
+
+export type EvidenceRelationship = 'SUPPORTS' | 'CONTRADICTS' | 'IRRELEVANT' | 'EXPLAINS_OBSERVATION';
+
+export type CorroborationType =
+  | 'independent_primary_observation'
+  | 'independent_analysis_of_primary_data'
+  | 'subject_self_reporting'
+  | 'dependent_repetition';
+
+export interface SourceIndependenceMatrix {
+  publisherIndependentOfSubject: boolean;
+  underlyingDataIndependentOfSubject: boolean;
+  analysisIndependentlyConducted: boolean;
+  corroborationType: CorroborationType;
+}
+
+export interface AutomatedPassageVerification {
+  urlResolved: boolean;
+  passageLocated: boolean;
+  passageMatchesSource: boolean;
+  supportsClaimComponent: boolean;
+  verificationMethod: 'retrieved_text_and_passage_match' | 'offline_corpus_match' | 'live_http_retrieval' | 'unverified_citation';
+  lastVerifiedAt: string;
+  locatedContextSnippet?: string;
+  omittedContextDetected?: boolean;
+  omittedContextExplanation?: string;
+}
+
+export interface CalibratedConfidenceBreakdown {
+  claimDecomposition?: number | null;
+  premiseAssessment?: number | null;
+  sourceVerification?: number | null;
+  inferenceAssessment?: number | null;
+  overallVerdict?: number | null;
+}
+
+export interface EvidenceProvenance {
+  originAgencyOrAuthor: string;
+  isIndependentOfSubject: boolean;
+  independenceValidation: string;
+}
+
+export interface EvidenceTraceItem {
+  evidenceId: string;
+  componentId: string;
+  sourceTitle: string;
+  sourceUrl: string;
+  retrievalTimestamp: number;
+  sourceType: string;
+  provenance: EvidenceProvenance;
+  sourceIndependence?: SourceIndependenceMatrix;
+  automatedVerification?: AutomatedPassageVerification;
+  exactPassage: string;
+  claimComponentAddressed: string;
+  relationship: EvidenceRelationship;
+  verificationStatus: ComponentVerificationStatus;
+  knownLimitations: string[];
+}
+
+export interface ClaimComponent {
+  componentId: string;
+  statement: string;
+  type: 'PREMISE_OBSERVATION' | 'INFERENTIAL_CONCLUSION' | 'CONTEXTUAL_ASSERTION';
+  factualAccuracy: 'ACCURATE_OBSERVATION' | 'INACCURATE_OBSERVATION' | 'UNVERIFIABLE';
+  inferentialValidity?: 'VALID' | 'INVALID_NON_SEQUITUR' | 'NOT_APPLICABLE';
+  explanation: string;
+  detectedFallacy?: 'NON_SEQUITUR' | 'APPEAL_TO_IGNORANCE' | 'CHERRY_PICKING' | 'POST_HOC' | 'FALSE_DILEMMA' | 'NONE';
+  evidenceIds: string[];
+}
+
+export interface EvidenceToClaimTraceability {
+  isCompoundClaim: boolean;
+  components: ClaimComponent[];
+  evidenceTraces: EvidenceTraceItem[];
+  inferentialBridgeSummary: string;
+  overallSynthesis: {
+    premisesVerdict: 'ALL_PREMISES_OBSERVABLE' | 'MIXED_PREMISES' | 'FALSE_PREMISES';
+    conclusionVerdict: 'CONCLUSION_UNSUPPORTED_BY_PREMISES' | 'CONCLUSION_SUBSTANTIATED';
+    finalAdjudication: string;
+  };
+}
+
+// ============================================================================
+// TRUTHWORLD V2 CREDIBILITY SPECIFICATION: 3-AXIS ORTHOGONAL CLASSIFICATION
+// AND CLOSED-WORLD DETERMINISTIC EVIDENCE REGISTRY (schemaVersion: "2.0.0")
+// ============================================================================
+
+export type PropositionType =
+  | 'EMPIRICAL_OBSERVATION'
+  | 'CAUSAL_CLAIM'
+  | 'CAUSAL_INFERENCE'
+  | 'CLINICAL_OUTCOME'
+  | 'INTENT_CLAIM'
+  | 'HISTORICAL_ACCOUNT'
+  | 'HISTORICAL_DOCUMENTARY_CLAIM'
+  | 'DESCRIPTIVE_RELIGIOUS_TEACHING'
+  | 'THEOLOGICAL_DOCTRINE'
+  | 'EXTRAORDINARY_EMPIRICAL_ASSERTION'
+  | 'NORMATIVE_OPINION'
+  | 'FUTURE_PREDICTION';
+
+export type EvidenceStatus =
+  | 'SUPPORTED'
+  | 'CONTRADICTED'
+  | 'MIXED_SUPPORT'
+  | 'INSUFFICIENT_EVIDENCE'
+  | 'CONFLICTING_EVIDENCE'
+  | 'NOT_EMPIRICALLY_TESTABLE';
+
+export type ReasoningValidity =
+  | 'SOUND_INFERENCE'
+  | 'NON_SEQUITUR'
+  | 'CHERRY_PICKED_PREMISES'
+  | 'CONTEXT_DISTORTION'
+  | 'NOT_APPLICABLE';
+
+export type DisplayBadge =
+  | 'VERIFIED_FACT'
+  | 'EMPIRICALLY_VERIFIED'
+  | 'MISLEADING_INFERENCE'
+  | 'FACTUAL_CONTRADICTION'
+  | 'UNSUPPORTED_CONJECTURE'
+  | 'FAITH_DOCTRINE'
+  | 'NORMATIVE_VALUE_JUDGMENT'
+  | 'UNVERIFIED_PREDICTION'
+  | 'CONFLICTING_EVIDENCE'
+  | 'INSUFFICIENT_EVIDENCE'
+  | 'CORROBORATION_NOT_ESTABLISHED'
+  | 'PARTIALLY_SUPPORTED'
+  | 'MISLEADING_EVIDENCE_PRESENTATION';
+
+export type SpeakerStance =
+  | 'SPEAKER_ASSERTS'
+  | 'SPEAKER_QUOTES_OTHER'
+  | 'SPEAKER_QUESTIONS'
+  | 'SPEAKER_HYPOTHESIZES'
+  | 'SATIRICAL_FRAME';
+
+export type EvaluatedModality =
+  | 'AUDIO_TRANSCRIPT'
+  | 'KEYFRAME_OCR'
+  | 'VISUAL_INSPECTION'
+  | 'TELEMETRY'
+  | 'DOCUMENT_TEXT';
+
+export interface AssessmentVideoContext {
+  videoId: string;
+  startTimeMs: number;
+  endTimeMs: number;
+  asrMinTokenConfidence: number;
+  speakerStance: SpeakerStance;
+  modalityEvaluated: EvaluatedModality[];
+}
+
+export interface OrthogonalClassification {
+  propositionType: PropositionType;
+  evidenceStatus: EvidenceStatus;
+  reasoningValidity: ReasoningValidity;
+  displayBadge: DisplayBadge;
+}
+
+export interface ClaimDecompositionProposition {
+  propositionId: string;
+  role: 'PREMISE' | 'CONCLUSION' | 'CONTEXT';
+  text: string;
+  propositionType: PropositionType;
+  assessment: EvidenceStatus;
+  supportingEvidenceIds: string[];
+  contradictingEvidenceIds: string[];
+  independentPrimarySourceCount: number;
+}
+
+export interface SourceIdentity {
+  publisher: string;
+  url: string;
+  publicationDate?: string;
+  sourceClassification?: 'PRIMARY' | 'SECONDARY' | 'REGULATORY_RECORD';
+  primaryArtifactId?: string | null;
+}
+
+export interface DeterministicVerification {
+  fetchStatus: 'HTTP_200_OK' | 'ARCHIVE_LOCAL' | 'API_RESOLVED' | 'FETCH_FAILED' | 'UNVERIFIED';
+  snapshotSha256: string;
+  retrievedAtUtc: string;
+  verifiedPassage: string;
+  charStart: number;
+  charEnd: number;
+  exactMatchScore: number; // 0.0 - 1.0 (>= 0.95 required for deterministic verification)
+  contextDistortionDetected: boolean;
+}
+
+export type LineageType =
+  | 'PRIMARY_TECHNICAL_RECORD'
+  | 'PEER_REVIEWED_RESEARCH'
+  | 'PRIMARY_DATASET'
+  | 'HISTORICAL_ARCHIVE'
+  | 'LEGAL_DOCKET'
+  | 'SECONDARY_SCHOLARLY'
+  | 'SYNDICATED_DERIVATIVE'
+  | 'SUBJECT_SELF_REPORT';
+
+export interface SourceIndependenceProfile {
+  lineageType: LineageType;
+  upstreamSourceId?: string | null;
+  independenceWeight: number; // 0.0 - 1.0 (syndicated = 0.0, primary = 1.0)
+}
+
+export interface EpidemiologicalParameters {
+  populationStudied?: string;
+  ageGroup?: string;
+  sex?: string;
+  vaccineProduct?: string;
+  doseNumber?: string;
+  absoluteRisk?: string;
+  relativeRisk?: string;
+  outcomeDefinition?: string;
+  followUpDuration?: string;
+  confoundingLimitations?: string;
+}
+
+export interface EpistemicScope {
+  establishes: string;
+  doesNotEstablish: string;
+  limitations: string;
+  epidemiologicalParameters?: EpidemiologicalParameters;
+}
+
+export type EvidenceDomain =
+  | 'IN_VITRO_LABORATORY'
+  | 'ANIMAL_MODEL'
+  | 'OBSERVATIONAL_COHORT'
+  | 'RANDOMIZED_CONTROLLED_TRIAL'
+  | 'SYSTEMATIC_REVIEW_META_ANALYSIS'
+  | 'REGULATORY_DOCKET'
+  | 'HISTORICAL_DOCUMENT'
+  | 'EXPERT_CONSENSUS';
+
+export interface EvidenceRegistryItem {
+  sourceIdentity: SourceIdentity;
+  deterministicVerification: DeterministicVerification;
+  independence: SourceIndependenceProfile;
+  epistemicScope: EpistemicScope;
+  epidemiologicalParameters?: EpidemiologicalParameters;
+  evidenceDomain?: EvidenceDomain;
+}
+
+export type InferenceType =
+  | 'MECHANISTIC_TO_CLINICAL'
+  | 'ANIMAL_TO_HUMAN'
+  | 'CORRELATION_TO_CAUSATION'
+  | 'SUBGROUP_TO_GENERAL'
+  | 'EVIDENCE_OF_ABSENCE_INFERENCE'
+  | 'INTENT_IMPUTATION'
+  | 'DIRECT_DEDUCTION';
+
+export type InferenceFallacyType =
+  | 'EVIDENCE_DOMAIN_TRANSFER'
+  | 'POST_HOC_ERGO_PROPTER_HOC'
+  | 'BASE_RATE_NEGLECT'
+  | 'NON_SEQUITUR'
+  | 'CHERRY_PICKING'
+  | 'INTENT_IMPUTATION'
+  | 'UNWARRANTED_EXTRAPOLATION';
+
+export interface InferenceStepAudit {
+  inferenceId: string;
+  sourcePropositionIds: string[];
+  targetPropositionId: string;
+  inferenceType: InferenceType;
+  validity: 'VALID_DEDUCTIVE' | 'VALID_INDUCTIVE' | 'INVALID_WITHOUT_ADDITIONAL_EVIDENCE' | 'INVALID_FALLACIOUS';
+  detectedFallacy?: InferenceFallacyType;
+  missingEvidence: string[];
+  contradictingEvidenceIds: string[];
+  explanation: string;
+}
+
+export interface EvaluatedAlternativeExplanation {
+  explanation: string;
+  supportingEvidenceIds: string[];
+}
+
+export interface ReasoningAssessment {
+  premisesVerifiedAccurate: string[];
+  conclusionFollowsDeductively: boolean;
+  conclusionFollowsInductively: boolean;
+  evaluatedAlternativeExplanations: EvaluatedAlternativeExplanation[];
+  inferenceAudits?: InferenceStepAudit[];
+}
+
+export interface BackendAuditFlags {
+  allReferencedCitationsDeterministicallyVerified: boolean;
+  unverifiedEvidencePresent: boolean;
+  closedWorldCitationCheckPassed: boolean;
+  semanticGroundingVerified?: boolean;
+  zeroOverclaimingViolations?: boolean;
+}
+
+export type SemanticEvidenceRelationship =
+  | 'SUPPORTS'
+  | 'CONTRADICTS'
+  | 'PARTIALLY_SUPPORTS'
+  | 'CONTEXTUALLY_LIMITS'
+  | 'IRRELEVANT'
+  | 'AMBIGUOUS';
+
+export type HypothesisVsFindingDistinction =
+  | 'EMPIRICAL_FINDING'
+  | 'STUDY_HYPOTHESIS_DISCUSSED'
+  | 'LITERATURE_REVIEW_CITATION'
+  | 'METHODOLOGICAL_CAVEAT';
+
+export type ScopeOfSupport =
+  | 'FULL_PROPOSITION'
+  | 'PARTIAL_PREMISE_ONLY'
+  | 'CONTEXTUAL_BACKGROUND'
+  | 'CONTRADICTING_EVIDENCE'
+  | 'NO_SUPPORT';
+
+export interface SemanticEvidenceLink {
+  evidenceId: string;
+  targetPropositionId: string;
+  semanticRelationship: SemanticEvidenceRelationship;
+  rationale: string;
+  disclosedCaveats?: string[];
+  hypothesisVsFindingDistinction?: HypothesisVsFindingDistinction;
+  scopeOfSupport: ScopeOfSupport;
+  quantifierMatch?: boolean;
+}
+
+export type OverclaimingViolationType =
+  | 'AUTHENTIC_BUT_IRRELEVANT'
+  | 'PARTIAL_SUPPORT_TREATED_AS_FULL'
+  | 'QUALIFICATION_OMISSION'
+  | 'HYPOTHESIS_TREATED_AS_FINDING'
+  | 'CONCLUSION_CONTRADICTS_ABSTRACT_INTERPRETATION'
+  | 'DUPLICATE_DATASET_DOUBLE_COUNTING';
+
+export interface OverclaimingAudit {
+  overclaimingDetected: boolean;
+  violationTypes: OverclaimingViolationType[];
+  details: string[];
+}
+
+export interface ProvenanceEntityNode {
+  nodeId: string;
+  type: 'PUBLICATION' | 'ORGANIZATION' | 'AUTHOR' | 'PRIMARY_DATASET' | 'WITNESS' | 'PHYSICAL_ARTIFACT';
+  label: string;
+  canonicalId?: string;
+}
+
+export interface ProvenanceEdge {
+  fromNodeId: string;
+  toNodeId: string;
+  relation: 'DERIVED_FROM' | 'AUTHORED_BY' | 'ANALYZES_DATASET' | 'SYNDICATES' | 'CITES_WITNESS';
+}
+
+export interface EvidentiaryProvenanceGraph {
+  nodes: ProvenanceEntityNode[];
+  edges: ProvenanceEdge[];
+  effectiveIndependentSourcesCount: number;
+  underlyingDatasetCount: number;
+  distinctInvestigatorCount: number;
+}
+
+export interface SemanticEvidenceValidationResult {
+  links: SemanticEvidenceLink[];
+  overclaimingAudit: OverclaimingAudit;
+  provenanceGraph?: EvidentiaryProvenanceGraph;
+  semanticEvidenceLevel: 'ROBUST_SUPPORT' | 'PARTIAL_CONCORDANCE' | 'MIXED_EVIDENCE' | 'CONTRADICTED' | 'IRRELEVANT_EVIDENCE' | 'INSUFFICIENT_GROUNDING';
+  semanticEvidenceScope?: 'INDIVIDUAL_EVIDENCE_LINKS' | 'OVERALL_CLAIM';
+  sourceCountScope?: 'ENTIRE_ASSESSMENT' | 'PER_PROPOSITION';
+  effectiveIndependentSourcesCount?: number;
+}
+
+export type QualitativeTier =
+  | 'HIGH_EVIDENCE_CONCORDANCE'
+  | 'MODERATE_EVIDENCE_CONCORDANCE'
+  | 'PRELIMINARY_EVIDENCE'
+  | 'CONTRADICTED_BY_EVIDENCE'
+  | 'NOT_EMPIRICALLY_TESTABLE'
+  | 'INSUFFICIENT_EVIDENCE';
+
+export interface EpistemicUncertainty {
+  numericalConfidenceAvailable: boolean; // strictly false until calibration model version is set
+  calibrationModelVersion?: string | null;
+  qualitativeTier: QualitativeTier;
+  conformalPredictionSet: DisplayBadge[];
+  disclosedGaps: string[];
+}
+
+export interface CredibilityAssessmentV2 {
+  assessmentId: string;
+  schemaVersion: '2.0.0';
+  assessmentVersion?: number;
+  supersededBy?: string | null;
+  correctionReason?: string | null;
+  videoContext?: AssessmentVideoContext;
+  claimText: string;
+  classification: OrthogonalClassification;
+  claimDecomposition: ClaimDecompositionProposition[];
+  evidenceRegistry: Record<string, EvidenceRegistryItem>;
+  reasoningAssessment: ReasoningAssessment;
+  backendAuditFlags: BackendAuditFlags;
+  uncertainty: EpistemicUncertainty;
+  semanticValidation?: SemanticEvidenceValidationResult;
+  inferenceAudits?: InferenceStepAudit[];
 }
 
 export interface MultiModelConsensusMetadata {
@@ -962,21 +1406,23 @@ export interface FactCheckDocument {
 
 import { z } from 'zod';
 
+export const GeminiSingleExtractionSchema = z.object({
+  text: z.string(),
+  nature: z.string().optional().default("FACTUAL"), // FACTUAL | OPINION | PREDICTION | THEORY | BELIEF | SATIRE
+  framing: z.string().optional().default("ASSERTIVE"), // HEDGED | BALANCED | ASSERTIVE | ABSOLUTE | MANIPULATIVE
+  confidence: z.coerce.number().default(0.7),
+  importance: z.coerce.number().optional().default(0.5),
+  isVerifiableEvent: z.boolean().optional().default(true),
+  honestyWashingRisk: z.boolean().optional().default(false),
+  assertiveness: z.string().optional().default("moderate"),
+  claimStrength: z.string().optional().default("moderate"),
+  start: z.coerce.number().optional(),
+  end: z.coerce.number().optional(),
+  speaker: z.string().optional(),
+});
+
 export const GeminiExtractionSchema = z.object({
-  claims: z.array(z.object({
-    text: z.string(),
-    nature: z.string(), // FACTUAL | OPINION | PREDICTION | THEORY | BELIEF | SATIRE
-    framing: z.string(), // HEDGED | BALANCED | ASSERTIVE | ABSOLUTE | MANIPULATIVE
-    confidence: z.number(),
-    importance: z.number().optional().default(0.5),
-    isVerifiableEvent: z.boolean().optional().default(true),
-    honestyWashingRisk: z.boolean().optional().default(false),
-    assertiveness: z.string().optional().default('moderate'),
-    claimStrength: z.string().optional().default('moderate'),
-    start: z.number().optional(),
-    end: z.number().optional(),
-    speaker: z.string().optional(),
-  })),
+  claims: z.array(GeminiSingleExtractionSchema),
   summary: z.string().optional().default(""),
   detectedLanguage: z.string().optional(),
   domain: z.string().optional(),
@@ -1015,54 +1461,185 @@ export const GeminiIntelligenceSchema = z.object({
   })).optional()
 });
 
-export const GeminiVerificationSchema = z.object({
-  verifications: z.array(z.object({
-    claimId: z.string(),
-    claim: z.string(),
-    claimType: z.string(), // Relaxed: Gemini may return values outside the predefined enum
-    nature: z.string().optional(),
-    label: z.string(),
-    evidenceLevel: z.string(), // STRONG | MODERATE | WEAK | NONE | CONTRADICTED
-    rating: z.number(),
-    confidence: z.number(),
-    freshness: z.string(),
-    summary: z.string(),
-    verifiedFacts: z.array(z.string()),
-    missingEvidence: z.array(z.string()),
-    sourceConsensus: z.string(),
-    riskLevel: z.string(),
-    publicNote: z.string(),
-    recommendedAction: z.string(),
-    reasonCategory: z.string().optional().default('insufficient_evidence'),
-    sources: z.array(z.object({
-      title: z.string().optional().default('Reference Source'),
-      url: z.string().optional().default(''),
-      snippet: z.string().optional().default(''),
+export const GeminiSingleVerificationSchema = z.object({
+  claimId: z.string(),
+  claim: z.string().optional().default(""),
+  claimType: z.string().optional().default("factual"), // Relaxed: Gemini may return values outside the predefined enum
+  nature: z.string().optional(),
+  label: z.string(),
+  evidenceLevel: z.string().optional().default("MODERATE"), // STRONG | MODERATE | WEAK | NONE | CONTRADICTED
+  rating: z.coerce.number().nullable().optional(),
+  confidence: z.coerce.number().default(0.7),
+  freshness: z.string().optional().default("current"),
+  summary: z.string().optional().default(""),
+  verifiedFacts: z.preprocess((val) => {
+    if (Array.isArray(val)) return val;
+    if (typeof val === "string") return val.split(/\n|;/).map((s) => s.trim()).filter(Boolean);
+    return [];
+  }, z.array(z.string())).default([]),
+  missingEvidence: z.preprocess((val) => {
+    if (Array.isArray(val)) return val;
+    if (typeof val === "string") return val.split(/\n|;/).map((s) => s.trim()).filter(Boolean);
+    return [];
+  }, z.array(z.string())).default([]),
+  sourceConsensus: z.string().optional().default("CONSENSUS"),
+  riskLevel: z.string().optional().default("low"),
+  publicNote: z.string().optional().default(""),
+  recommendedAction: z.string().optional().default(""),
+  reasonCategory: z.string().optional().default("insufficient_evidence"),
+  sources: z.array(z.object({
+    title: z.string().optional().default("Reference Source"),
+    url: z.string().optional().default(""),
+    snippet: z.string().optional().default(""),
+    sourceType: z.string().optional(),
+    whatItSupports: z.string().optional(),
+    whatItDoesNotEstablish: z.string().optional(),
+    sourceRole: z.string().optional(),
+  })).optional().default([]),
+  classificationConfidence: z.coerce.number().optional(),
+  historicalEvidenceConfidence: z.coerce.number().optional(),
+  evidenceDetails: z.object({
+    scriptural: z.string().optional(),
+    historical: z.string().optional(),
+    scientific: z.string().optional(),
+  }).optional(),
+  consensusDetails: z.object({
+    theology: z.string().optional(),
+    historical: z.string().optional(),
+    scientific: z.string().optional(),
+  }).optional(),
+  evidenceAssessment: z.object({
+    scripturalSupport: z.string().optional(),
+    independentHistoricalCorroboration: z.string().optional(),
+    empiricalVerification: z.string().optional(),
+  }).optional(),
+  beliefAssessment: z.string().optional(),
+  misinformationVerdict: z.string().optional(),
+  confidenceMeaning: z.string().optional(),
+  framingAssessment: z.string().optional(),
+  epistemicLimitations: z.preprocess((val) => {
+    if (Array.isArray(val)) return val;
+    if (typeof val === "string") return [val];
+    return [];
+  }, z.array(z.string())).optional().default([]),
+  framingViolationDetail: z.object({
+    violationType: z.string().optional(),
+    assertedEvidenceQuality: z.string().optional(),
+    explanation: z.string().optional(),
+  }).optional(),
+  claimDomain: z.string().optional(),
+  claimNature: z.string().optional(),
+  verdictBasis: z.preprocess((val) => {
+    if (Array.isArray(val)) return val;
+    if (typeof val === "string") return [val];
+    return [];
+  }, z.array(z.string())).optional().default([]),
+  evidence: z.array(z.object({
+    type: z.string(),
+    strength: z.string(),
+  })).optional(),
+  consensus: z.array(z.object({
+    domain: z.string(),
+    level: z.string(),
+  })).optional(),
+  evidenceTraceability: z.object({
+    isCompoundClaim: z.boolean().optional().default(false),
+    components: z.array(z.object({
+      componentId: z.string(),
+      statement: z.string(),
+      type: z.enum(['PREMISE_OBSERVATION', 'INFERENTIAL_CONCLUSION', 'CONTEXTUAL_ASSERTION']).or(z.string()),
+      factualAccuracy: z.enum(['ACCURATE_OBSERVATION', 'INACCURATE_OBSERVATION', 'UNVERIFIABLE']).or(z.string()),
+      inferentialValidity: z.string().optional(),
+      explanation: z.string(),
+      detectedFallacy: z.string().optional(),
+      evidenceIds: z.array(z.string()).optional().default([]),
     })).optional().default([]),
-    classificationConfidence: z.number().optional(),
-    historicalEvidenceConfidence: z.number().optional(),
-    evidenceDetails: z.object({
-      scriptural: z.string(),
-      historical: z.string(),
-      scientific: z.string()
+    evidenceTraces: z.array(z.object({
+      evidenceId: z.string(),
+      componentId: z.string(),
+      sourceTitle: z.string(),
+      sourceUrl: z.string(),
+      retrievalTimestamp: z.number().optional().default(Date.now()),
+      sourceType: z.string(),
+      provenance: z.object({
+        originAgencyOrAuthor: z.string(),
+        isIndependentOfSubject: z.boolean(),
+        independenceValidation: z.string(),
+      }),
+      sourceIndependence: z.object({
+        publisherIndependentOfSubject: z.boolean(),
+        underlyingDataIndependentOfSubject: z.boolean(),
+        analysisIndependentlyConducted: z.boolean(),
+        corroborationType: z.string(),
+      }).optional(),
+      automatedVerification: z.object({
+        urlResolved: z.boolean(),
+        passageLocated: z.boolean(),
+        passageMatchesSource: z.boolean(),
+        supportsClaimComponent: z.boolean(),
+        verificationMethod: z.string(),
+        lastVerifiedAt: z.string(),
+        locatedContextSnippet: z.string().optional(),
+        omittedContextDetected: z.boolean().optional(),
+        omittedContextExplanation: z.string().optional(),
+      }).optional(),
+      exactPassage: z.string(),
+      claimComponentAddressed: z.string(),
+      relationship: z.string(),
+      verificationStatus: z.string(),
+      knownLimitations: z.array(z.string()).optional().default([]),
+    })).optional().default([]),
+    inferentialBridgeSummary: z.string().optional().default(""),
+    overallSynthesis: z.object({
+      premisesVerdict: z.string().optional(),
+      conclusionVerdict: z.string().optional(),
+      finalAdjudication: z.string().optional(),
     }).optional(),
-    consensusDetails: z.object({
-      theology: z.string(),
-      historical: z.string(),
-      scientific: z.string()
-    }).optional(),
-    claimDomain: z.string().optional(),
-    claimNature: z.string().optional(),
-    verdictBasis: z.array(z.string()).optional(),
-    evidence: z.array(z.object({
-      type: z.string(),
-      strength: z.string()
-    })).optional(),
-    consensus: z.array(z.object({
-      domain: z.string(),
-      level: z.string()
-    })).optional(),
-  }))
+  }).optional(),
+  calibratedConfidence: z.object({
+    claimDecomposition: z.number().nullable().optional(),
+    premiseAssessment: z.number().nullable().optional(),
+    sourceVerification: z.number().nullable().optional(),
+    inferenceAssessment: z.number().nullable().optional(),
+    overallVerdict: z.number().nullable().optional(),
+  }).optional(),
+  classification: z.object({
+    propositionType: z.string().optional(),
+    evidenceStatus: z.string().optional(),
+    reasoningValidity: z.string().optional(),
+    displayBadge: z.string().optional(),
+  }).optional(),
+  claimDecomposition: z.array(z.object({
+    propositionId: z.string(),
+    role: z.string(),
+    text: z.string(),
+    propositionType: z.string(),
+    assessment: z.string(),
+    supportingEvidenceIds: z.array(z.string()).optional().default([]),
+    contradictingEvidenceIds: z.array(z.string()).optional().default([]),
+    independentPrimarySourceCount: z.number().optional().default(0),
+  })).optional(),
+  evidenceRegistry: z.record(z.string(), z.any()).optional(),
+  reasoningAssessment: z.object({
+    premisesVerifiedAccurate: z.array(z.string()).optional().default([]),
+    conclusionFollowsDeductively: z.boolean().optional().default(false),
+    conclusionFollowsInductively: z.boolean().optional().default(false),
+    evaluatedAlternativeExplanations: z.array(z.object({
+      explanation: z.string(),
+      supportingEvidenceIds: z.array(z.string()).optional().default([]),
+    })).optional().default([]),
+  }).optional(),
+  uncertainty: z.object({
+    numericalConfidenceAvailable: z.boolean().optional().default(false),
+    calibrationModelVersion: z.string().nullable().optional(),
+    qualitativeTier: z.string().optional(),
+    conformalPredictionSet: z.array(z.string()).optional().default([]),
+    disclosedGaps: z.array(z.string()).optional().default([]),
+  }).optional(),
+});
+
+export const GeminiVerificationSchema = z.object({
+  verifications: z.array(GeminiSingleVerificationSchema),
 });
 
 export interface FactCheckConfig {
@@ -1184,13 +1761,24 @@ export interface ExecutionPlan {
   autoChapters?: boolean;
   enableDiarization?: boolean;
   diarization?: boolean;
+  enableLipSync?: boolean;
+  lipSyncMode?: 'latentsync' | 'musetalk' | 'standard';
   dubbingLanguages?: string[];
+  dubbingTier?: 'audio_starter' | 'audio_pro' | 'audio_ultra' | 'video_pro' | 'video_ultra';
+  uncannyMitigation?: 'none' | 'cadence_lock' | 'smart_cutaway' | 'selective_lipsync';
+  isometryMode?: 'natural' | 'strict_syllable' | 'viseme_locked';
+  cinemaGrade?: boolean;
+  stemIsolation?: boolean;
   subtitleLanguages?: string[];
+  subtitleTier?: 'starter' | 'pro';
+  voiceGender?: 'auto' | 'male' | 'female';
+  durationSeconds?: number;
 
   duration?: number;
   maxClaims: number;
   priority: 'low' | 'normal' | 'high';
   skipCache: boolean;
+  disputedClaimIndex?: number;
 }
 
 export interface CreatorDNA {
@@ -1276,6 +1864,12 @@ export interface AutoChapterInfo {
   summary: string;
 }
 
+export interface ExtractedEntityInfo {
+  name: string;
+  category: "PERSON" | "ORGANIZATION" | "LOCATION" | "LAW_POLICY" | "EVENT" | "CONCEPT" | string;
+  context?: string;
+}
+
 export interface VideoGatewayDecision {
   status: GatewayDecisionStatus;
   confidence: number;
@@ -1286,6 +1880,7 @@ export interface VideoGatewayDecision {
   category?: string;
   tags?: string[];
   autoChapters?: AutoChapterInfo[];
+  entities?: ExtractedEntityInfo[];
   
   // Available when status === 'REJECTED'
   rejectionReason?: string;
@@ -1340,6 +1935,13 @@ export interface DubbingCompleteData {
   subtitlePaths: Record<string, string>;
   dubbedVideoPaths: Record<string, string>;
   audioPaths: Record<string, string>;
+  mneStemPath?: string;
+  stems?: {
+    mne?: string;
+    dialogue?: Record<string, string>;
+    master?: Record<string, string>;
+    vocals?: string;
+  };
 }
 
 export interface EnhancedTranscriptionResult {
@@ -1359,6 +1961,12 @@ export interface EnhancedTranscriptionResult {
     summary: string;
   }>;
   duration: number;
+  model?: string;
+  provider?: string;
+  spokenLanguages?: string[];
+  isMultilingual?: boolean;
+  isCodeMixed?: boolean;
+  entities?: ExtractedEntityInfo[];
 }
 
 export interface WordTimestamp {
@@ -1377,6 +1985,7 @@ export interface TimedSegment {
   duration: number;
   speaker?: string;
   isHook?: boolean;
+  language?: string;
   words: WordTimestamp[];
 }
 
@@ -1529,6 +2138,7 @@ export interface CredibilityResult {
   harmCapApplied?: boolean;
   harmCapReason?: string;
   rawScoreBeforeCap?: number;
+  honestyBreakdown?: any;
   penaltyApplied?: number;
   
   // v8.1 Hardened Trust (Stable)
@@ -1658,6 +2268,14 @@ export interface DubbingResult {
   translationUrl?: string;
   segments: number;
   processingTime: number;
+  stems?: {
+    mne?: string | null;
+    dialogue?: string;
+    master?: string;
+    vocals?: string | null;
+  };
+  lipSyncUrl?: string;
+  lipSyncStatus?: 'completed' | 'skipped' | 'fallback_remux' | 'no_face_detected' | 'failed';
   meta?: {
     voice?: string;
     durationSec: number;

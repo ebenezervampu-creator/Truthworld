@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
@@ -23,7 +22,7 @@ class ChannelNotificationOptionsSheet {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: AppColors.bgSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -51,7 +50,7 @@ class ChannelNotificationOptionsSheet {
                 Center(
                   child: Text(
                     'Options',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
@@ -80,7 +79,7 @@ class ChannelNotificationOptionsSheet {
                         ),
                         title: Text(
                           'All',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             color: Colors.white,
                             fontSize: 15,
                             fontWeight:
@@ -89,7 +88,7 @@ class ChannelNotificationOptionsSheet {
                         ),
                         subtitle: Text(
                           "You'll get all notifications",
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 12,
                             color: AppColors.textSecondary,
                           ),
@@ -119,7 +118,7 @@ class ChannelNotificationOptionsSheet {
                         ),
                         title: Text(
                           'Personalized',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             color: Colors.white,
                             fontSize: 15,
                             fontWeight: isPersonalized
@@ -129,7 +128,7 @@ class ChannelNotificationOptionsSheet {
                         ),
                         subtitle: Text(
                           "You'll get personalized notifications",
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 12,
                             color: AppColors.textSecondary,
                           ),
@@ -159,7 +158,7 @@ class ChannelNotificationOptionsSheet {
                         ),
                         title: Text(
                           'None',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             color: Colors.white,
                             fontSize: 15,
                             fontWeight:
@@ -168,7 +167,7 @@ class ChannelNotificationOptionsSheet {
                         ),
                         subtitle: Text(
                           'Turn off all notifications',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 12,
                             color: AppColors.textSecondary,
                           ),
@@ -204,7 +203,7 @@ class ChannelNotificationOptionsSheet {
                         ),
                         title: Text(
                           'Unsubscribe',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             color: Colors.white,
                             fontSize: 15,
                             fontWeight: FontWeight.w400,
@@ -244,7 +243,7 @@ class ChannelNotificationOptionsSheet {
     showDialog(
       context: context,
       builder: (dialogCtx) => Dialog(
-        backgroundColor: const Color(0xFF212121),
+        backgroundColor: AppColors.bgSurface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
@@ -256,7 +255,7 @@ class ChannelNotificationOptionsSheet {
             children: [
               Text(
                 'Unsubscribe from $displayName?',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
                   color: Colors.white,
@@ -265,7 +264,7 @@ class ChannelNotificationOptionsSheet {
               const SizedBox(height: 12),
               Text(
                 "You will no longer see this channel's content in your subscription feed.",
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textSecondary,
                   height: 1.4,
@@ -279,7 +278,7 @@ class ChannelNotificationOptionsSheet {
                     onPressed: () => Navigator.pop(dialogCtx),
                     child: Text(
                       'Cancel',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         color: Colors.white70,
                         fontWeight: FontWeight.w500,
                       ),
@@ -305,7 +304,7 @@ class ChannelNotificationOptionsSheet {
                     ),
                     child: Text(
                       'Unsubscribe',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         color: Colors.black,
                         fontWeight: FontWeight.w600,
                       ),

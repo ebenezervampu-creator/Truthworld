@@ -49,7 +49,7 @@ class ChannelNotificationsCriticalSection extends StatelessWidget {
                 ),
                 child: const Icon(
                   Icons.warning_rounded,
-                  color: Color(0xFFF87171),
+                  color: AppColors.error,
                   size: 16,
                 ),
               ),
@@ -62,7 +62,7 @@ class ChannelNotificationsCriticalSection extends StatelessWidget {
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.1,
-                  color: Color(0xFFF87171),
+                  color: AppColors.error,
                 ),
               ),
             ],

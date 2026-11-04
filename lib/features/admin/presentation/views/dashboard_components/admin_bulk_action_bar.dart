@@ -23,7 +23,7 @@ class AdminBulkActionBar extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
+          color: AppColors.bgSurface,
           border: Border(
             top: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
           ),
@@ -72,7 +72,7 @@ class AdminBulkActionBar extends StatelessWidget {
               // Reject Button
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFCF6679),
+                  backgroundColor: AppColors.error,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
@@ -99,7 +99,7 @@ class AdminBulkActionBar extends StatelessWidget {
               // Approve Button
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2BA640),
+                  backgroundColor: AppColors.success,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,

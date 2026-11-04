@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/features/community/data/models/saved_comment_model.dart';
 import 'package:truthworld/features/community/presentation/controllers/saved_comments_controller.dart';
 import 'package:truthworld/features/notifications/presentation/views/notifications/widgets/notification_navigation_handler.dart';
@@ -100,8 +101,8 @@ class CompactSavedCommentTile extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      comment.text,
+                    ClickableUrlText(
+                      text: comment.text,
                       maxLines: 4,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(

@@ -60,7 +60,7 @@ class TopicCommentsSection extends StatelessWidget {
             ),
             const SizedBox(height: 18),
 
-            // 2. Add Comment Input Bar matching screenshot (User Avatar + Rounded Box with Image Icon)
+            // 2. Add Comment Input Bar (User Avatar + Rounded Box)
             _TopicCommentInputBar(
               topicId: topic.id,
               onSubmit: (text) async {
@@ -165,8 +165,8 @@ class _TopicCommentInputBarController extends GetxController {
   }
 }
 
-/// Redesigned Comment Input Bar matching the screenshot:
-/// [User Avatar (EV)]  [ Add a comment...                   (Image Icon) ]
+/// Redesigned Comment Input Bar:
+/// [User Avatar]  [ Add a comment...                   (Send Icon) ]
 class _TopicCommentInputBar extends StatelessWidget {
   const _TopicCommentInputBar({
     required this.topicId,
@@ -206,6 +206,7 @@ class _TopicCommentInputBar extends StatelessWidget {
 
         final text = inputCtrl.textController.text.trim();
         if (text.isEmpty || inputCtrl.isSubmitting.value) return;
+        HapticFeedback.lightImpact();
 
         final validation = ContentValidator.validate(
           text,
@@ -280,22 +281,6 @@ class _TopicCommentInputBar extends StatelessWidget {
                         isDense: true,
                       ),
                     ),
-                  ),
-
-                  // Image attachment icon
-                  IconButton(
-                    icon: const Icon(
-                      Icons.image_outlined,
-                      color: Color(0xFFAAAAAA),
-                      size: 20,
-                    ),
-                    tooltip: 'Attach image',
-                    onPressed: () {
-                      HapticFeedback.lightImpact();
-                      AppSnackbar.info(
-                        'Image attachments for comments will be supported in an upcoming update.',
-                      );
-                    },
                   ),
 
                   // Send button (if text has been entered)

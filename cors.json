@@ -1,8 +1,23 @@
 [
   {
-    "origin": ["*"],
+    "origin": [
+      "https://truthworld.in",
+      "https://www.truthworld.in",
+      "https://truthworld.app",
+      "https://cdn.truthworld.in",
+      "http://localhost:51625",
+      "http://localhost:3000",
+      "http://localhost:8080",
+      "http://127.0.0.1:51625"
+    ],
     "method": ["GET", "HEAD", "OPTIONS"],
-    "responseHeader": ["*"],
+    "responseHeader": [
+      "Content-Type",
+      "Range",
+      "X-Firebase-AppCheck",
+      "Authorization",
+      "Accept-Encoding"
+    ],
     "maxAgeSeconds": 3600
   }
 ]

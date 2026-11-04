@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/utils/subtitle_parser.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 
@@ -81,9 +82,11 @@ class SubtitleOverlay extends StatelessWidget {
         child: Align(
           alignment: Alignment.bottomCenter,
           child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 150),
+            duration: const Duration(milliseconds: 40),
             switchInCurve: Curves.easeOut,
             switchOutCurve: Curves.easeIn,
+            layoutBuilder: (currentChild, previousChildren) =>
+                currentChild ?? const SizedBox.shrink(),
             transitionBuilder: (child, animation) {
               return FadeTransition(opacity: animation, child: child);
             },
@@ -104,6 +107,9 @@ class SubtitleOverlay extends StatelessWidget {
               child: Text(
                 text,
                 textAlign: TextAlign.center,
+                textDirection: SubtitleParser.isRtlText(text)
+                    ? TextDirection.rtl
+                    : TextDirection.ltr,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 softWrap: true,

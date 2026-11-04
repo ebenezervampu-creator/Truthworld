@@ -71,7 +71,7 @@ export const PLATFORM_LIMITS = {
   /** Maximum standard creator channels allowed in active phase (supports env override) */
   MAX_STANDARD_CHANNELS: Number(process.env.MAX_STANDARD_CHANNELS) || activeConfig.maxStandardChannels,
 
-  /** Custom channels have custom dedicated infrastructure and zero limits */
+  /** Pro channels have custom dedicated infrastructure and zero limits */
   IS_CUSTOM_CHANNEL_UNLIMITED: activeConfig.isCustomChannelUnlimited,
 
   DESCRIPTION: activeConfig.description,

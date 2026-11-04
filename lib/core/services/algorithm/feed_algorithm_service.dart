@@ -120,11 +120,13 @@ class FeedAlgorithmService extends GetxService {
             sanitized = VideoSanitizer.sanitizeForFeed(videos);
           }
 
+          final seenCandidatePool = <String>{};
           final candidatePool = sanitized.isNotEmpty
-              ? sanitized
+              ? sanitized.where((v) => v.id.isNotEmpty && seenCandidatePool.add(v.id)).toList()
               : videos
                   .where((v) =>
                       v.id.isNotEmpty &&
+                      seenCandidatePool.add(v.id) &&
                       !v.isDraft &&
                       v.status != VideoStatus.deleted &&
                       v.status != VideoStatus.rejected &&
@@ -144,9 +146,8 @@ class FeedAlgorithmService extends GetxService {
                 limit: remainingNeeded + existingIds.length,
               );
               for (final v in backfillVideos) {
-                if (!existingIds.contains(v.id)) {
+                if (v.id.isNotEmpty && existingIds.add(v.id)) {
                   candidatePool.add(v);
-                  existingIds.add(v.id);
                   if (candidatePool.length >= limit) break;
                 }
               }
@@ -180,24 +181,8 @@ class FeedAlgorithmService extends GetxService {
       limit: limit,
     );
 
-    // If category has some videos but fewer than limit, first prefer category videos,
-    // then backfill remaining slots from unconstrained TruthWorld catalog so feed never faces low count.
-    if (categoryVideos.length < limit &&
-        category != null &&
-        category.isNotEmpty &&
-        category != 'All') {
-      final existingIds = categoryVideos.map((v) => v.id).toSet();
-      final remainingNeeded = limit - categoryVideos.length;
-      final unconstrainedVideos = await _fallbackChronologicalFeed(
-        limit: remainingNeeded + existingIds.length,
-      );
-      for (final v in unconstrainedVideos) {
-        if (!existingIds.contains(v.id)) {
-          categoryVideos.add(v);
-          existingIds.add(v.id);
-          if (categoryVideos.length >= limit) break;
-        }
-      }
+    if (category != null && category.isNotEmpty && category != 'All') {
+      return categoryVideos;
     }
 
     if (categoryVideos.isNotEmpty) {
@@ -400,7 +385,8 @@ class FeedAlgorithmService extends GetxService {
         }
       }
 
-      if (snapshot.docs.isEmpty) {
+      if (snapshot.docs.isEmpty &&
+          (category == null || category.isEmpty || category == 'All')) {
         try {
           snapshot = await _firestore
               .collection(FirestoreCollections.videos)
@@ -417,9 +403,11 @@ class FeedAlgorithmService extends GetxService {
 
       final sanitized = VideoSanitizer.sanitizeForFeed(videos);
       if (sanitized.isNotEmpty) return sanitized;
+      final seenFallback = <String>{};
       return videos
           .where((v) =>
               v.id.isNotEmpty &&
+              seenFallback.add(v.id) &&
               !v.isDraft &&
               v.status != VideoStatus.deleted &&
               v.status != VideoStatus.rejected &&

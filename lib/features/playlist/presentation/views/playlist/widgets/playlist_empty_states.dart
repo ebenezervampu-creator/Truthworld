@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Friendly empty state illustration and message for playlist tabs.
@@ -44,7 +43,7 @@ class PlaylistEmptyStateWidget extends StatelessWidget {
               const SizedBox(height: 24),
               Text(
                 isPublic ? 'No public playlists' : 'No playlists yet',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
@@ -56,7 +55,7 @@ class PlaylistEmptyStateWidget extends StatelessWidget {
                     ? 'Discover playlists shared by other creators'
                     : 'Create your first playlist to organize your favorite videos',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 15,
                   color: Colors.white.withValues(alpha: 0.6),
                   height: 1.5,
@@ -101,7 +100,7 @@ class PlaylistNoResultsWidget extends StatelessWidget {
               const SizedBox(height: 24),
               Text(
                 'No playlists found',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
@@ -110,7 +109,7 @@ class PlaylistNoResultsWidget extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 'Try adjusting your search terms',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 14,
                   color: Colors.white.withValues(alpha: 0.6),
                 ),

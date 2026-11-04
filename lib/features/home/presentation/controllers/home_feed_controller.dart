@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/user_languages_service.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/core/widgets/truthworld_splash_screen.dart';
 import 'package:truthworld/domain/repositories/home_repository.dart';
@@ -63,6 +64,13 @@ class HomeFeedController extends HomeFeedControllerBase
       addWorker(
         ever(UserInterestProfileService.to.profile, (_) {
           rerankActiveFeedOnProfileUpdate();
+        }),
+      );
+    }
+    if (Get.isRegistered<UserLanguagesService>()) {
+      addWorker(
+        ever(UserLanguagesService.to.primaryLanguage, (_) {
+          refreshFeed(forceNetwork: true);
         }),
       );
     }

@@ -5,6 +5,7 @@ import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/video_sanitizer.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
@@ -74,11 +75,14 @@ class DownloadsPage extends GetView<DownloadsController> {
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,
-      body: RefreshIndicator(
-        onRefresh: controller.loadVideos,
-        color: AppColors.brand,
-        backgroundColor: AppColors.bgSurface,
-        child: _buildMainContent(context),
+      body: SafeArea(
+        bottom: false,
+        child: RefreshIndicator(
+          onRefresh: controller.loadVideos,
+          color: AppColors.brand,
+          backgroundColor: AppColors.bgSurface,
+          child: _buildMainContent(context),
+        ),
       ),
     );
   }
@@ -89,7 +93,7 @@ class DownloadsPage extends GetView<DownloadsController> {
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: EdgeInsets.fromLTRB(16, isDashboard ? 16 : 48, 16, 16),
+            padding: EdgeInsets.fromLTRB(16, isDashboard ? 16 : 12, 16, 16),
             child: Row(
               children: [
                 Expanded(
@@ -164,8 +168,10 @@ class DownloadsPage extends GetView<DownloadsController> {
                                             .sideNavSelectedIndex
                                             .value =
                                         HomeController.indexLibrary;
+                                  } else if (Navigator.of(context).canPop()) {
+                                    Navigator.of(context).pop();
                                   } else {
-                                    Get.back();
+                                    RouteStackObserver.navigateToHome();
                                   }
                                 },
                               ),
@@ -434,23 +440,13 @@ class DownloadsPage extends GetView<DownloadsController> {
         children: [
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.auto_awesome_rounded,
-                  color: AppColors.textPrimary,
-                  size: 22,
-                ),
-                SizedBox(width: 8),
-                Text(
-                  'Recommended Downloads',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ],
+            child: Text(
+              'Recommended Downloads',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
             ),
           ),
           const Padding(

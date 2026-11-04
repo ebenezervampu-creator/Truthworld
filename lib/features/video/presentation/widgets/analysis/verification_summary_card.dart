@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// 🛡️ VerificationSummaryCard
@@ -39,19 +38,11 @@ class VerificationSummaryCard extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    // Authenticity score percentage calculation
-    final effectiveScore = (trustScore != null && trustScore! > 0)
-        ? trustScore!.clamp(0.0, 100.0)
-        : (totalClaims > 0 ? ((verifiedCount / totalClaims) * 100).clamp(0.0, 100.0) : 100.0);
-
-    final scorePercent = effectiveScore.round();
-    final progressValue = (effectiveScore / 100.0).clamp(0.0, 1.0);
-
     if (isSidebar) {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFF14161F),
+          color: AppColors.bgPage,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: Colors.white.withValues(alpha: 0.08),
@@ -67,17 +58,17 @@ class VerificationSummaryCard extends StatelessWidget {
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF10B981).withValues(alpha: 0.18),
+                    color: AppColors.success.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                      color: AppColors.success.withValues(alpha: 0.4),
                       width: 0.8,
                     ),
                   ),
                   child: const Center(
                     child: Icon(
                       Icons.check_rounded,
-                      color: Color(0xFF10B981),
+                      color: AppColors.success,
                       size: 20,
                     ),
                   ),
@@ -89,7 +80,7 @@ class VerificationSummaryCard extends StatelessWidget {
                     children: [
                       Text(
                         'Verification Summary',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
@@ -98,7 +89,7 @@ class VerificationSummaryCard extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         'Empirical Multi-Source Evaluation',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 11,
                           color: AppColors.textSecondary,
                         ),
@@ -123,8 +114,8 @@ class VerificationSummaryCard extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            'Authenticity Index',
-                            style: GoogleFonts.roboto(
+                            'Verifiable Claim Ledger',
+                            style: TextStyle(
                               fontSize: 11.5,
                               fontWeight: FontWeight.w500,
                               color: AppColors.textSecondary,
@@ -151,7 +142,7 @@ class VerificationSummaryCard extends StatelessWidget {
                         const SizedBox(width: 4),
                         Text(
                           'Review Mode: $reviewMode',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 10.5,
                             color: AppColors.textTertiary,
                           ),
@@ -161,30 +152,15 @@ class VerificationSummaryCard extends StatelessWidget {
                   ],
                 ),
                 Text(
-                  '$scorePercent%',
-                  style: GoogleFonts.roboto(
-                    fontSize: 26,
+                  '$totalClaims Claims',
+                  style: TextStyle(
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                     height: 1.0,
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              height: 5,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(3),
-                child: LinearProgressIndicator(
-                  value: progressValue,
-                  backgroundColor: Colors.white.withValues(alpha: 0.12),
-                  valueColor: const AlwaysStoppedAnimation<Color>(
-                    Color(0xFF10B981),
-                  ),
-                ),
-              ),
             ),
             const SizedBox(height: 16),
             Row(
@@ -193,7 +169,7 @@ class VerificationSummaryCard extends StatelessWidget {
                   child: _buildStatBox(
                     valueWidget: Text(
                       '$totalClaims',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
@@ -211,7 +187,7 @@ class VerificationSummaryCard extends StatelessWidget {
                         const Icon(
                           Icons.check_circle_rounded,
                           size: 15,
-                          color: Color(0xFF10B981),
+                          color: AppColors.success,
                         ),
                         const SizedBox(width: 4),
                         Flexible(
@@ -219,7 +195,7 @@ class VerificationSummaryCard extends StatelessWidget {
                             '$verifiedCount',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
@@ -244,7 +220,7 @@ class VerificationSummaryCard extends StatelessWidget {
                         const Icon(
                           Icons.warning_rounded,
                           size: 15,
-                          color: Color(0xFFF59E0B),
+                          color: AppColors.warning,
                         ),
                         const SizedBox(width: 4),
                         Flexible(
@@ -252,7 +228,7 @@ class VerificationSummaryCard extends StatelessWidget {
                             '$cautionCount',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
@@ -273,7 +249,7 @@ class VerificationSummaryCard extends StatelessWidget {
                         const Icon(
                           Icons.cancel_rounded,
                           size: 15,
-                          color: Color(0xFFEF4444),
+                          color: AppColors.error,
                         ),
                         const SizedBox(width: 4),
                         Flexible(
@@ -281,7 +257,7 @@ class VerificationSummaryCard extends StatelessWidget {
                             '$falseCount',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
@@ -303,7 +279,7 @@ class VerificationSummaryCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF14161F),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: Colors.white.withValues(alpha: 0.08),
@@ -322,17 +298,17 @@ class VerificationSummaryCard extends StatelessWidget {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withValues(alpha: 0.18),
+                  color: AppColors.success.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                    color: AppColors.success.withValues(alpha: 0.4),
                     width: 0.8,
                   ),
                 ),
                 child: const Center(
                   child: Icon(
                     Icons.check_rounded,
-                    color: Color(0xFF10B981),
+                    color: AppColors.success,
                     size: 22,
                   ),
                 ),
@@ -346,7 +322,7 @@ class VerificationSummaryCard extends StatelessWidget {
                   children: [
                     Text(
                       'Verification Summary',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
@@ -355,7 +331,7 @@ class VerificationSummaryCard extends StatelessWidget {
                     const SizedBox(height: 3),
                     Text(
                       'Analysis verified across multiple authoritative sources and truth intelligence protocols.',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 12,
                         color: AppColors.textSecondary,
                         height: 1.3,
@@ -377,8 +353,8 @@ class VerificationSummaryCard extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'Authenticity Index',
-                          style: GoogleFonts.roboto(
+                          'Verifiable Claim Ledger',
+                          style: TextStyle(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w500,
                             color: AppColors.textSecondary,
@@ -395,31 +371,14 @@ class VerificationSummaryCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
 
-                  // Large Percentage text
+                  // Claim Count
                   Text(
-                    '$scorePercent%',
-                    style: GoogleFonts.roboto(
-                      fontSize: 24,
+                    '$totalClaims Claims',
+                    style: TextStyle(
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                       height: 1.15,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-
-                  // Horizontal emerald progress bar
-                  SizedBox(
-                    width: 125,
-                    height: 4.5,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(3),
-                      child: LinearProgressIndicator(
-                        value: progressValue,
-                        backgroundColor: Colors.white.withValues(alpha: 0.12),
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                          Color(0xFF10B981),
-                        ),
-                      ),
                     ),
                   ),
                   const SizedBox(height: 5),
@@ -436,7 +395,7 @@ class VerificationSummaryCard extends StatelessWidget {
                       const SizedBox(width: 4),
                       Text(
                         'Review Mode: $reviewMode',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 10.5,
                           color: AppColors.textTertiary,
                         ),
@@ -457,7 +416,7 @@ class VerificationSummaryCard extends StatelessWidget {
                 child: _buildStatBox(
                   valueWidget: Text(
                     '$totalClaims',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -477,7 +436,7 @@ class VerificationSummaryCard extends StatelessWidget {
                       const Icon(
                         Icons.check_circle_rounded,
                         size: 15,
-                        color: Color(0xFF10B981),
+                        color: AppColors.success,
                       ),
                       const SizedBox(width: 4),
                       Flexible(
@@ -485,7 +444,7 @@ class VerificationSummaryCard extends StatelessWidget {
                           '$verifiedCount',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
@@ -508,7 +467,7 @@ class VerificationSummaryCard extends StatelessWidget {
                       const Icon(
                         Icons.warning_rounded,
                         size: 15,
-                        color: Color(0xFFF59E0B),
+                        color: AppColors.warning,
                       ),
                       const SizedBox(width: 4),
                       Flexible(
@@ -516,7 +475,7 @@ class VerificationSummaryCard extends StatelessWidget {
                           '$cautionCount',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
@@ -539,7 +498,7 @@ class VerificationSummaryCard extends StatelessWidget {
                       const Icon(
                         Icons.cancel_rounded,
                         size: 15,
-                        color: Color(0xFFEF4444),
+                        color: AppColors.error,
                       ),
                       const SizedBox(width: 4),
                       Flexible(
@@ -547,7 +506,7 @@ class VerificationSummaryCard extends StatelessWidget {
                           '$falseCount',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
@@ -589,7 +548,7 @@ class VerificationSummaryCard extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w400,
               color: AppColors.textTertiary,

@@ -303,6 +303,8 @@ void main() {
       expect(find.byType(CreatorAnalyticsDashboard), findsOneWidget);
       expect(find.text('Channel Analytics'), findsOneWidget);
       expect(find.byType(CreatorSummaryCardsGrid), findsOneWidget);
+      expect(find.byType(CreatorLiveSubscribersBanner), findsNothing);
+      expect(find.text('Live Subscribers of channel'), findsNothing);
 
       await tester.pump(const Duration(milliseconds: 200));
       await tester.pumpWidget(const SizedBox.shrink());

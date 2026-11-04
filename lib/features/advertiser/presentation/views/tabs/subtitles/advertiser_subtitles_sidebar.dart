@@ -18,7 +18,7 @@ class AdvertiserSubtitlesSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: const Color(0xFF0F0F0F),
+      color: AppColors.bgPage,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -77,7 +77,7 @@ class AdvertiserSubtitlesSidebar extends StatelessWidget {
                     ),
                   ),
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFF3F3F46)),
+                    side: const BorderSide(color: AppColors.bgElevated),
                     padding: const EdgeInsets.symmetric(
                       vertical: 10,
                       horizontal: 12,
@@ -91,7 +91,7 @@ class AdvertiserSubtitlesSidebar extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          const Divider(color: Color(0xFF27272A), height: 1),
+          const Divider(color: AppColors.bgSurface, height: 1),
           Expanded(
             child: campaigns.isEmpty
                 ? const Center(
@@ -160,7 +160,7 @@ class AdvertiserSubtitlesCampaignItem extends StatelessWidget {
             : Colors.transparent,
         border: const Border(
           bottom: BorderSide(
-            color: Color(0xFF27272A),
+            color: AppColors.bgSurface,
           ),
         ),
       ),

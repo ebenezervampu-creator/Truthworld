@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
+import 'package:truthworld/core/widgets/channel_verified_badge.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
+import 'package:truthworld/features/video/presentation/views/widgets/comments/comment_action_handler.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Header for Community Post Card
@@ -18,8 +20,10 @@ class CommunityPostHeader extends StatelessWidget {
   final VoidCallback onOpenOptions;
 
   void _navigateToChannel() {
-    if (post.channelId.isEmpty) return;
-    Get.toNamed<dynamic>('/channel/${post.channelId}');
+    CommentActionHandler.navigateToChannel(
+      post.channelId,
+      channelHandle: post.channelName,
+    );
   }
 
   String _formatTimestamp() {
@@ -47,30 +51,52 @@ class CommunityPostHeader extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: InkWell(
-              onTap: _navigateToChannel,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    post.channelName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: AppColors.textPrimary,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _navigateToChannel,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            post.channelName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                        if (post.showVerifiedBadge ||
+                            (DeepLinkService.instance
+                                    .getChannelFromCache(post.channelId)
+                                    ?.showVerifiedBadge ??
+                                false) ||
+                            (DeepLinkService.instance
+                                    .getChannelFromCache(post.channelName)
+                                    ?.showVerifiedBadge ??
+                                false)) ...[
+                          const SizedBox(width: 4),
+                          const ChannelVerifiedBadge(),
+                        ],
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _formatTimestamp(),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
+                    const SizedBox(height: 2),
+                    Text(
+                      _formatTimestamp(),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

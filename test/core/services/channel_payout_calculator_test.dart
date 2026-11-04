@@ -23,7 +23,7 @@ Channel createTestChannel({
 void main() {
   group('ChannelPayoutCalculator Tests', () {
     group('Standard Channel Payouts', () {
-      test('calculates 70/30 split on ads and subs, 100% on tips and memberships', () {
+      test('calculates 70/30 split on ads and subs, 90/10 on tips and memberships (Hybrid Model)', () {
         final breakdown = ChannelPayoutCalculator.calculateStandardChannelPayout(
           adRevenue: 100.0,
           premiumSubRevenue: 50.0,
@@ -32,10 +32,10 @@ void main() {
         );
 
         expect(breakdown.grossRevenue, equals(210.0));
-        // Creator: 70 (ads) + 35 (subs) + 20 (tips) + 40 (memberships) = 165.0
-        expect(breakdown.creatorPayout, closeTo(165.0, 0.001));
-        // Platform: 30 (ads) + 15 (subs) = 45.0
-        expect(breakdown.platformShare, closeTo(45.0, 0.001));
+        // Creator: 70 (ads) + 35 (subs) + 18 (90% tips) + 36 (90% memberships) = 159.0
+        expect(breakdown.creatorPayout, closeTo(159.0, 0.001));
+        // Platform: 30 (ads) + 15 (subs) + 2 (10% tips) + 4 (10% memberships) = 51.0
+        expect(breakdown.platformShare, closeTo(51.0, 0.001));
         expect(breakdown.infraCostDeducted, equals(0.0));
         expect(breakdown.flatServiceFeeDeducted, equals(0.0));
         expect(breakdown.isZeroDebtProtected, isFalse);
@@ -65,10 +65,10 @@ void main() {
         );
 
         expect(breakdown.grossRevenue, equals(270.0));
-        // Creator: 70 (ads) + 35 (subs) + 20 (tips) + 70 (70% of memberships) = 195.0
-        expect(breakdown.creatorPayout, closeTo(195.0, 0.001));
-        // Platform: 30 (ads) + 15 (subs) + 30 (30% of memberships) = 75.0
-        expect(breakdown.platformShare, closeTo(75.0, 0.001));
+        // Creator: 70 (ads) + 35 (subs) + 18 (90% tips) + 70 (70% of memberships) = 193.0
+        expect(breakdown.creatorPayout, closeTo(193.0, 0.001));
+        // Platform: 30 (ads) + 15 (subs) + 2 (10% tips) + 30 (30% of memberships) = 77.0
+        expect(breakdown.platformShare, closeTo(77.0, 0.001));
         expect(breakdown.isMemberAdFreeEnabled, isTrue);
         expect(breakdown.membershipPlatformCut, closeTo(30.0, 0.001));
       });
@@ -127,7 +127,7 @@ void main() {
         );
 
         expect(breakdown.grossRevenue, equals(150.0));
-        expect(breakdown.creatorPayout, closeTo(120.0, 0.001)); // 70 + 50
+        expect(breakdown.creatorPayout, closeTo(115.0, 0.001)); // 70 + 45 (90% tips)
         expect(breakdown.infraCostDeducted, equals(0.0));
       });
 
@@ -171,40 +171,40 @@ void main() {
       });
     });
 
-    group('Video Withdrawal Eligibility Rules (1k Views & 10h Watch Time)', () {
-      test('Custom channel requires both 10 hours watch time and 1,000 views', () {
+    group('Video Withdrawal Eligibility Rules (1k Views & 30h Watch Time)', () {
+      test('Custom channel requires both 30 hours watch time and 1,000 views', () {
         final channel = createTestChannel(channelType: ChannelType.custom);
 
-        // 1. Below watch time threshold (599 minutes), 1000 views: Locked
+        // 1. Below watch time threshold (1799 minutes), 1000 views: Locked
         final lockedByTime = ChannelPayoutCalculator.calculateVideoWithdrawalEligibility(
           channel: channel,
           videoId: 'vid-custom-1',
           videoRevenue: 150.0,
-          videoWatchTimeMinutes: 599,
+          videoWatchTimeMinutes: 1799,
           videoViews: 1000,
         );
         expect(lockedByTime.isUnlockedForWithdrawal, isFalse);
         expect(lockedByTime.withdrawableAmount, equals(0.0));
         expect(lockedByTime.pendingLockedAmount, equals(150.0));
 
-        // 2. Met watch time (600 minutes), but below views threshold (999 views): Locked
+        // 2. Met watch time (1800 minutes), but below views threshold (999 views): Locked
         final lockedByViews = ChannelPayoutCalculator.calculateVideoWithdrawalEligibility(
           channel: channel,
           videoId: 'vid-custom-1',
           videoRevenue: 150.0,
-          videoWatchTimeMinutes: 600,
+          videoWatchTimeMinutes: 1800,
           videoViews: 999,
         );
         expect(lockedByViews.isUnlockedForWithdrawal, isFalse);
         expect(lockedByViews.withdrawableAmount, equals(0.0));
         expect(lockedByViews.pendingLockedAmount, equals(150.0));
 
-        // 3. Exactly at both thresholds (600 minutes, 1,000 views): Unlocked
+        // 3. Exactly at both thresholds (1800 minutes, 1,000 views): Unlocked
         final exact = ChannelPayoutCalculator.calculateVideoWithdrawalEligibility(
           channel: channel,
           videoId: 'vid-custom-1',
           videoRevenue: 150.0,
-          videoWatchTimeMinutes: 600,
+          videoWatchTimeMinutes: 1800,
           videoViews: 1000,
         );
         expect(exact.isUnlockedForWithdrawal, isTrue);
@@ -212,51 +212,51 @@ void main() {
         expect(exact.pendingLockedAmount, equals(0.0));
       });
 
-      test('Standard channel requires both 10 hours watch time and 1,000 views', () {
+      test('Standard channel requires both 30 hours watch time and 1,000 views', () {
         final channel = createTestChannel();
 
-        // 1. Below watch time (599 mins), 1,000 views: Locked
+        // 1. Below watch time (1799 mins), 1,000 views: Locked
         final locked = ChannelPayoutCalculator.calculateVideoWithdrawalEligibility(
           channel: channel,
           videoId: 'vid-std-1',
           videoRevenue: 85.0,
-          videoWatchTimeMinutes: 599,
+          videoWatchTimeMinutes: 1799,
           videoViews: 1000,
         );
         expect(locked.isUnlockedForWithdrawal, isFalse);
         expect(locked.withdrawableAmount, equals(0.0));
         expect(locked.pendingLockedAmount, equals(85.0));
 
-        // 2. Below views (999 views), 600 mins: Locked
+        // 2. Below views (999 views), 1800 mins: Locked
         final lockedViews = ChannelPayoutCalculator.calculateVideoWithdrawalEligibility(
           channel: channel,
           videoId: 'vid-std-1',
           videoRevenue: 85.0,
-          videoWatchTimeMinutes: 600,
+          videoWatchTimeMinutes: 1800,
           videoViews: 999,
         );
         expect(lockedViews.isUnlockedForWithdrawal, isFalse);
         expect(lockedViews.withdrawableAmount, equals(0.0));
         expect(lockedViews.pendingLockedAmount, equals(85.0));
 
-        // 3. Exactly at thresholds (600 mins, 1000 views): Unlocked
+        // 3. Exactly at thresholds (1800 mins, 1000 views): Unlocked
         final exact = ChannelPayoutCalculator.calculateVideoWithdrawalEligibility(
           channel: channel,
           videoId: 'vid-std-1',
           videoRevenue: 85.0,
-          videoWatchTimeMinutes: 600,
+          videoWatchTimeMinutes: 1800,
           videoViews: 1000,
         );
         expect(exact.isUnlockedForWithdrawal, isTrue);
         expect(exact.withdrawableAmount, equals(85.0));
         expect(exact.pendingLockedAmount, equals(0.0));
 
-        // 4. Above thresholds (1200 mins, 5000 views): Unlocked
+        // 4. Above thresholds (2400 mins, 5000 views): Unlocked
         final above = ChannelPayoutCalculator.calculateVideoWithdrawalEligibility(
           channel: channel,
           videoId: 'vid-std-1',
           videoRevenue: 200.0,
-          videoWatchTimeMinutes: 1200,
+          videoWatchTimeMinutes: 2400,
           videoViews: 5000,
         );
         expect(above.isUnlockedForWithdrawal, isTrue);
@@ -265,10 +265,10 @@ void main() {
       });
     });
 
-    group('Channel Monetization Gate (Any Video >= 1k views & 10h + KYC completed)', () {
+    group('Channel Monetization Gate (Any Video >= 1k views & 30h + KYC completed)', () {
       test('constants match exact qualification rules', () {
         expect(ChannelPayoutCalculator.channelMonetizationViewsThreshold, equals(1000));
-        expect(ChannelPayoutCalculator.channelMonetizationWatchTimeMinutesThreshold, equals(600));
+        expect(ChannelPayoutCalculator.channelMonetizationWatchTimeMinutesThreshold, equals(1800));
       });
 
       test('monetization turns ON only when both qualified video and KYC completed', () {
@@ -281,7 +281,7 @@ void main() {
           isFalse,
         );
 
-        // Video threshold met (>=1k views & 10h), but KYC not verified: false
+        // Video threshold met (>=1k views & 30h), but KYC not verified: false
         expect(
           ChannelPayoutCalculator.isChannelMonetizationEligible(
             hasQualifiedVideo: true,

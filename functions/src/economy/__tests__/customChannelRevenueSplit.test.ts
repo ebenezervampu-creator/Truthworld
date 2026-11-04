@@ -16,7 +16,7 @@ function assert(condition: boolean, testName: string, errorDetails?: any) {
 }
 
 console.log("===============================================================================");
-console.log("🧪 CUSTOM CHANNEL 100% REVENUE SPLIT TEST SUITE");
+console.log("🧪 PRO CHANNEL 100% REVENUE SPLIT TEST SUITE");
 console.log("===============================================================================");
 
 // ----------------------------------------------------------------------
@@ -31,11 +31,11 @@ function testRevenueShareMatrix() {
   assert(TYPE_REVENUE_SHARE.custom.superchats === 1.00, "Custom channels receive 100% of superchats (rate = 1.00)");
   assert(TYPE_REVENUE_SHARE.custom.members === 1.00, "Custom channels receive 100% of channel memberships (rate = 1.00)");
 
-  // Standard channels receive 70% ads/subs and 100% superchats/members
+  // Standard channels receive 70% ads/subs and 90% superchats/members (10% platform fee)
   assert(TYPE_REVENUE_SHARE.standard.ads === 0.70, "Standard channels receive 70% of ads revenue (rate = 0.70)");
   assert(TYPE_REVENUE_SHARE.standard.premiumSubs === 0.70, "Standard channels receive 70% of premium subs revenue (rate = 0.70)");
-  assert(TYPE_REVENUE_SHARE.standard.superchats === 1.00, "Standard channels receive 100% of superchats (rate = 1.00)");
-  assert(TYPE_REVENUE_SHARE.standard.members === 1.00, "Standard channels receive 100% of memberships (rate = 1.00)");
+  assert(TYPE_REVENUE_SHARE.standard.superchats === 0.90, "Standard channels receive 90% of superchats (rate = 0.90, 10% platform fee)");
+  assert(TYPE_REVENUE_SHARE.standard.members === 0.90, "Standard channels receive 90% of memberships (rate = 0.90, 10% platform fee)");
 }
 
 // ----------------------------------------------------------------------
@@ -46,7 +46,7 @@ function testCalculateShareUtility() {
 
   const grossGross = 1000;
 
-  // Custom channel evaluations
+  // Custom & Pro channel evaluations
   const customAds = calculateShare(grossGross, "ads", "custom");
   const customSubs = calculateShare(grossGross, "premiumSubs", "custom");
   const customSuper = calculateShare(grossGross, "superchats", "custom");
@@ -57,6 +57,16 @@ function testCalculateShareUtility() {
   assert(customSuper === 1000, `Custom channel calculateShare(1000, "superchats") returns 100% gross (1000, got ${customSuper})`);
   assert(customMemb === 1000, `Custom channel calculateShare(1000, "members") returns 100% gross (1000, got ${customMemb})`);
 
+  const proAds = calculateShare(grossGross, "ads", "pro" as any);
+  const proSubs = calculateShare(grossGross, "premiumSubs", "pro" as any);
+  const proSuper = calculateShare(grossGross, "superchats", "pro" as any);
+  const proMemb = calculateShare(grossGross, "members", "pro" as any);
+
+  assert(proAds === 1000, `Pro channel calculateShare(1000, "ads") returns 100% gross (1000, got ${proAds})`);
+  assert(proSubs === 1000, `Pro channel calculateShare(1000, "premiumSubs") returns 100% gross (1000, got ${proSubs})`);
+  assert(proSuper === 1000, `Pro channel calculateShare(1000, "superchats") returns 100% gross (1000, got ${proSuper})`);
+  assert(proMemb === 1000, `Pro channel calculateShare(1000, "members") returns 100% gross (1000, got ${proMemb})`);
+
   // Standard channel evaluations
   const stdAds = calculateShare(grossGross, "ads", "standard");
   const stdSubs = calculateShare(grossGross, "premiumSubs", "standard");
@@ -65,8 +75,8 @@ function testCalculateShareUtility() {
 
   assert(stdAds === 700, `Standard channel calculateShare(1000, "ads") returns 70% (700, got ${stdAds})`);
   assert(stdSubs === 700, `Standard channel calculateShare(1000, "premiumSubs") returns 70% (700, got ${stdSubs})`);
-  assert(stdSuper === 1000, `Standard channel calculateShare(1000, "superchats") returns 100% (1000, got ${stdSuper})`);
-  assert(stdMemb === 1000, `Standard channel calculateShare(1000, "members") returns 100% (1000, got ${stdMemb})`);
+  assert(stdSuper === 900, `Standard channel calculateShare(1000, "superchats") returns 90% (900, got ${stdSuper})`);
+  assert(stdMemb === 900, `Standard channel calculateShare(1000, "members") returns 90% (900, got ${stdMemb})`);
 }
 
 // ----------------------------------------------------------------------
@@ -208,13 +218,16 @@ function testMonthlyStatementSync() {
     } else {
       creatorShare = Math.round((
         channel.adsRevenueTotal +
-        channel.superchatRevenueTotal +
-        channel.membershipRevenueTotal +
+        (channel.superchatRevenueTotal * 0.90) +
+        (channel.membershipRevenueTotal * 0.90) +
         channel.premiumSubsRevenueTotal
       ) * 100) / 100;
       const grossAds = channel.adsRevenueTotal > 0 ? channel.adsRevenueTotal / 0.70 : 0;
       const grossPremium = channel.premiumSubsRevenueTotal > 0 ? channel.premiumSubsRevenueTotal / 0.70 : 0;
-      platformFee = Math.round(((grossAds + grossPremium) * 0.30) * 100) / 100;
+      platformFee = Math.round((
+        ((grossAds + grossPremium) * 0.30) +
+        ((channel.superchatRevenueTotal + channel.membershipRevenueTotal) * 0.10)
+      ) * 100) / 100;
     }
 
     return { channelType, grossRevenue, creatorShare, platformFee };
@@ -244,7 +257,8 @@ function testMonthlyStatementSync() {
   });
 
   assert(stdStmt.channelType === "standard", "Channel resolved to standard");
-  assert(stdStmt.platformFee > 0, `Standard channel has platform fee > 0 (got ₹${stdStmt.platformFee})`);
+  assert(stdStmt.creatorShare === 2245.35, `Standard channel creator share is ₹2245.35 under hybrid 90/10 split on fans (got ₹${stdStmt.creatorShare})`);
+  assert(stdStmt.platformFee === 705.15, `Standard channel platform fee is ₹705.15 including 10% fan fee (got ₹${stdStmt.platformFee})`);
 }
 
 // Execute all test suites
@@ -261,5 +275,5 @@ console.log("===================================================================
 if (failed > 0) {
   process.exit(1);
 } else {
-  console.log("🎉 All Custom Channel 100% Revenue Split tests passed with flying colors!");
+  console.log("🎉 All Pro Channel 100% Revenue Split tests passed with flying colors!");
 }

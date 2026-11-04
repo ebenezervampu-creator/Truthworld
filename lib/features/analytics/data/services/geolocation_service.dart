@@ -225,8 +225,27 @@ class GeolocationService extends GetxService {
   }
 
   // ---------------------------------------------------------------------------
-  // Static data
+  // Static data & Validation Helpers
   // ---------------------------------------------------------------------------
+
+  /// Checks if a given state name or 2-letter state code belongs to India.
+  static bool isIndianState(String stateOrCode) {
+    final clean = stateOrCode.trim().toLowerCase();
+    if (clean.isEmpty || clean == 'unknown' || clean == 'other') return false;
+    for (final entry in _indianStates.entries) {
+      if (entry.key.toLowerCase() == clean || entry.value.toLowerCase() == clean) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Checks if a given city name is an Indian city.
+  static bool isIndianCity(String city) {
+    final clean = city.trim().toLowerCase();
+    if (clean.isEmpty || clean == 'unknown') return false;
+    return _urbanCities.contains(clean);
+  }
 
   /// Indian states mapping
   static const Map<String, String> _indianStates = {

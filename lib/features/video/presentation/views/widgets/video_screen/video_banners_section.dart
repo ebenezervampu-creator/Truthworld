@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_detail_screen.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
@@ -101,7 +100,7 @@ class VideoPlaylistBanner extends StatelessWidget {
                             Expanded(
                               child: Text(
                                 playlist.playlistName,
-                                style: GoogleFonts.roboto(
+                                style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 15,
                                   fontWeight: FontWeight.bold,
@@ -123,7 +122,7 @@ class VideoPlaylistBanner extends StatelessWidget {
                             const SizedBox(width: 6),
                             Text(
                               'Playing video ${currentIndex + 1} of $totalVideos',
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 color: Colors.white70,
                                 fontSize: 12,
                               ),
@@ -191,7 +190,7 @@ class VideoTopicBanner extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              const Color(0xFF3B82F6).withValues(alpha: 0.25),
+              AppColors.info.withValues(alpha: 0.25),
               AppColors.bgSurface,
             ],
             begin: Alignment.topLeft,
@@ -199,7 +198,7 @@ class VideoTopicBanner extends StatelessWidget {
           ),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: const Color(0xFF3B82F6).withValues(alpha: 0.4),
+            color: AppColors.info.withValues(alpha: 0.4),
             width: 1.5,
           ),
           boxShadow: [
@@ -236,7 +235,7 @@ class VideoTopicBanner extends StatelessWidget {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF3B82F6),
+                                color: AppColors.info,
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: const Text(
@@ -252,8 +251,8 @@ class VideoTopicBanner extends StatelessWidget {
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                topic.title,
-                                style: GoogleFonts.roboto(
+                                topic.name,
+                                style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 15,
                                   fontWeight: FontWeight.bold,
@@ -271,12 +270,12 @@ class VideoTopicBanner extends StatelessWidget {
                               isPlaying: isPlaying,
                               height: 12,
                               barWidth: 2,
-                              color: const Color(0xFF3B82F6),
+                              color: AppColors.info,
                             ),
                             const SizedBox(width: 6),
                             Text(
                               '${topic.videoCount > 0 ? '${topic.videoCount} videos' : 'Topic Hub'} • Tap to view topic videos',
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 color: Colors.white70,
                                 fontSize: 12,
                               ),

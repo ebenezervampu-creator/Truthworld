@@ -29,6 +29,7 @@ class StudioLoadingIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDarkMode ? AppColors.bgPage : Colors.white;
     final spinnerColor = isDarkMode ? Colors.white : Colors.black87;
 
     final content = Center(
@@ -66,7 +67,7 @@ class StudioLoadingIndicator extends StatelessWidget {
 
     if (isFullScreen) {
       return ColoredBox(
-        color: AppColors.bgPage,
+        color: backgroundColor,
         child: content,
       );
     }

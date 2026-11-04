@@ -22,7 +22,7 @@ class WhyChoosePlanCard extends StatelessWidget {
       final isStandard = planVal == 'standard';
 
       final planTitle = isCustom
-          ? 'Why Choose Custom Channel?'
+          ? 'Why Choose Pro Channel?'
           : isStandard
               ? 'Why Choose Standard Channel?'
               : 'Why Choose TruthWorld Channel Plans?';
@@ -105,21 +105,21 @@ class WhyChoosePlanCard extends StatelessWidget {
         r'100% Forever Free: $0/month — Zero subscription fee',
         'TruthWorld Covers Hosting: Free video transcoding & storage',
         '70% Revenue Share: Earn 70% from ads & subscriptions',
-        '100% Direct Fan Revenue: Keep 100% Memberships & Superchats',
+        '90% Direct Fan Revenue: Keep 90% Memberships & Superchats (10% Fee)',
         'Up to 4K Ultra HD Uploads: High quality video playback',
         '10 Min/Day Upload Limit: Ideal for starting out creators',
         r'At-Cost Pass-Through Dubbing: From $0.10/language with zero platform markup',
-        'Easy Upgrade Anytime: Switch to Custom plan whenever you grow',
+        'Easy Upgrade Anytime: Switch to Pro plan whenever you grow',
       ];
 
       final overviewBullets = [
-        'Select between 100% Free Standard Channel or Scalable Custom Channel',
+        'Select between 100% Free Standard Channel or Scalable Pro Channel',
         'Earn 70% to 100% Revenue Share on Ads & Premium Subscriptions',
-        'Keep 100% Direct Fan Revenue: 0% Platform Commission on Memberships & Superchats',
+        'Keep Up to 100% Direct Fan Revenue: 90% on Standard (10% Fee) & 100% on Pro',
         'Standard Plan: 100% Free with 10 min/day uploads in up to 4K Ultra HD',
-        'Custom Plan: Unlimited uploads, 4K Ultra HD & Cloud Storage up to 800 GB',
+        'Pro Plan: Unlimited uploads, 4K Ultra HD & Cloud Storage up to 800 GB',
         r'AI Dubbing: 100% At-Cost Pass-Through (From $0.10/lang) with 0% platform markup for all channels',
-        '100% Creator Retention: Zero platform commissions on custom channels',
+        '100% Creator Retention: Zero platform commissions on Pro channels',
         'Easy Upgrade: Switch or upgrade your plan anytime from Channel Settings',
       ];
 

@@ -43,7 +43,7 @@ class DashboardRecentPerformanceSection extends StatelessWidget {
                 vertical: 6,
               ),
               decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
+                color: AppColors.bgSurface,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                   color: AppColors.bgDivider,
@@ -77,7 +77,7 @@ class DashboardRecentPerformanceSection extends StatelessWidget {
           height: 300,
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: const Color(0xFF1E1E1E),
+            color: AppColors.bgSurface,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: AppColors.bgDivider,
@@ -159,10 +159,16 @@ class DashboardPerformanceChart extends StatelessWidget {
           dashArray: [5, 5],
         ),
       ),
-      tooltipBehavior: TooltipBehavior(enable: true),
+      tooltipBehavior: TooltipBehavior(
+        enable: true,
+        animationDuration: 200,
+        canShowMarker: true,
+      ),
       series: <CartesianSeries<AnalyticsData, DateTime>>[
         SplineAreaSeries<AnalyticsData, DateTime>(
           dataSource: analyticsData,
+          animationDuration: 1000,
+          animationDelay: 150,
           xValueMapper: (data, _) => data.date,
           yValueMapper: (data, _) => data.views,
           gradient: LinearGradient(

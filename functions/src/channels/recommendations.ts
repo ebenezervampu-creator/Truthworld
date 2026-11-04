@@ -4,14 +4,91 @@ import { logger } from "../pipeline/utils/logger";
 import { verifyAuth } from "../utils/auth";
 import { applySecurityHeaders } from "../utils/securityHeaders";
 import { sanitizePublicChannel, isPublicActive } from "../economy/leaderboards";
-import { getUserExperiment } from "../experiments/engine";
-import { AlgorithmWeights, DEFAULT_WEIGHTS } from "../experiments/types";
+
+export interface AlgorithmWeights {
+  engagement: number;
+  freshness: number;
+  channelAffinity: number;
+  topicAffinity: number;
+  twoTowerAffinity: number;
+  trending: number;
+  credibility: number;
+  watchCompletion: number;
+}
+
+export const DEFAULT_WEIGHTS: AlgorithmWeights = {
+  engagement: 0.20,
+  freshness: 0.15,
+  channelAffinity: 0.15,
+  topicAffinity: 0.15,
+  twoTowerAffinity: 0.10,
+  trending: 0.10,
+  credibility: 0.10,
+  watchCompletion: 0.05,
+};
+
+import { getCache, setCache } from "../shared/memory-cache";
 
 const db = () => admin.firestore();
+
+/**
+ * High-performance candidate pool caching helper.
+ * Eliminates redundant Firestore reads across concurrent user requests (scales to millions).
+ */
+async function fetchCachedPool(
+  cacheKey: string,
+  ttlSeconds: number,
+  queryFn: () => Promise<admin.firestore.QuerySnapshot>
+): Promise<admin.firestore.DocumentSnapshot[]> {
+  const cached = getCache<admin.firestore.DocumentSnapshot[]>(cacheKey);
+  if (cached && Array.isArray(cached) && cached.length > 0) {
+    return cached;
+  }
+  try {
+    const snap = await queryFn();
+    if (snap && snap.docs && snap.docs.length > 0) {
+      setCache(cacheKey, snap.docs, ttlSeconds);
+      return snap.docs;
+    }
+  } catch (err) {
+    logger.warn(`[fetchCachedPool] Query failed for ${cacheKey}:`, err);
+  }
+  return [];
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TRUTHWORLD ALGORITHM — Server-Side Scoring Engine
 // ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * 10 Fact-Checking & High-Credibility Categories in TruthWorld:
+ * Business, History, News, Education, Science, Technology, Finance, Health, Documentary, Fitness.
+ */
+const FACT_CHECKING_CATEGORIES = new Set([
+  "business",
+  "history",
+  "news",
+  "education",
+  "science",
+  "technology",
+  "finance",
+  "health",
+  "documentary",
+  "fitness",
+]);
+
+function isFactCheckRelevantCategory(category?: string): boolean {
+  if (!category) return false;
+  const clean = category.toLowerCase().trim();
+  if (FACT_CHECKING_CATEGORIES.has(clean)) return true;
+  if (clean.includes("news") || clean.includes("politics")) return true;
+  if (clean.includes("tech") || clean.includes("science")) return true;
+  if (clean.includes("business") || clean.includes("finance") || clean.includes("economic")) return true;
+  if (clean.includes("health") || clean.includes("fitness")) return true;
+  if (clean.includes("history") || clean.includes("documentary")) return true;
+  if (clean.includes("education")) return true;
+  return false;
+}
 
 /**
  * ⚖️ CALCULATE DISCOVERY SCORE (Additive + Tier Boost + Topic Affinity)
@@ -23,10 +100,13 @@ const db = () => admin.firestore();
  * - Creator exposure tracking
  * - Session continuation awareness via recent watches
  * - Novelty penalty for repeated sub-topics
+ * - Fact-Checking Priority Boost for the 10 High-Credibility Categories
  *
  * Normalized to 0-10 scale + Tier Baseline.
  */
 function calculateDiscoveryScore(params: {
+  category?: string;
+  isFactChecked?: boolean;
   isCredibilityVerified: boolean;
   trustScore?: number;
   isFlagged?: boolean;
@@ -99,6 +179,17 @@ function calculateDiscoveryScore(params: {
     tierBoost *= 0.5;
   }
 
+  // ── Fact-Checking Priority Boost (10 High-Credibility Categories) ───────
+  let factCheckCategoryBoost = 0;
+  if (isFactCheckRelevantCategory(params.category)) {
+    if (params.isFactChecked || params.isCredibilityVerified || (params.trustScore !== undefined && params.trustScore >= 3.5)) {
+      factCheckCategoryBoost += 3.5;
+      if (params.trustScore !== undefined && params.trustScore >= 4.0) {
+        factCheckCategoryBoost += 1.5;
+      }
+    }
+  }
+
   // ── Penalties ─────────────────────────────────────────────────────────
   let penalty = 0;
 
@@ -110,7 +201,7 @@ function calculateDiscoveryScore(params: {
   // Novelty penalty → exponential for same sub-topic spam
   penalty += params.noveltyPenalty;
 
-  const rawScore = baseScore + tierBoost - penalty;
+  const rawScore = baseScore + tierBoost + factCheckCategoryBoost - penalty;
   // If credibility gate passed and not marked "not interested", ensure a minimal positive baseline (0.1)
   // so valid videos are ranked lower rather than discarded entirely to prevent 0-video starvation.
   return Math.max(0.1, rawScore);
@@ -154,118 +245,147 @@ export const getHomeFeed = onRequest(
       let userEmbedding: number[] | null = null;
 
       if (userId) {
-        try {
-          const [userSnap, savedTopicsSnap, watchHistorySnap] = await Promise.all([
-            db().collection("users").doc(userId).get(),
-            db().collection("users").doc(userId).collection("savedTopics").limit(20).get(),
-            db().collection("users").doc(userId).collection("watch_history")
-              .orderBy("watchedAt", "desc")
-              .limit(100)
-              .get()
-          ]);
+        const userCtxCacheKey = `user_feed_ctx_${userId}`;
+        const cachedCtx = getCache<{
+          following: string[];
+          userInterests: Record<string, number>;
+          followedTopicSlugs: string[];
+          watchedVideoIds: string[];
+          notInterestedVideoIds: string[];
+          userEmbedding: number[] | null;
+        }>(userCtxCacheKey);
 
-          if (userSnap.exists) {
-            const userData = userSnap.data() as any;
-            following = userData?.following || [];
-            userInterests = userData?.interests || {};
-            notInterestedVideoIds = new Set(userData?.notInterestedVideoIds || []);
-            userEmbedding = userData?.userEmbedding || userData?.embedding || null;
+        if (cachedCtx) {
+          following = cachedCtx.following;
+          userInterests = cachedCtx.userInterests;
+          followedTopicSlugs = cachedCtx.followedTopicSlugs;
+          watchedVideoIds = new Set(cachedCtx.watchedVideoIds);
+          notInterestedVideoIds = new Set(cachedCtx.notInterestedVideoIds);
+          userEmbedding = cachedCtx.userEmbedding;
+        } else {
+          try {
+            const [userSnap, savedTopicsSnap, watchHistorySnap] = await Promise.all([
+              db().collection("users").doc(userId).get(),
+              db().collection("users").doc(userId).collection("savedTopics").limit(20).get(),
+              db().collection("users").doc(userId).collection("watch_history")
+                .orderBy("watchedAt", "desc")
+                .limit(40)
+                .get()
+            ]);
+
+            if (userSnap.exists) {
+              const userData = userSnap.data() as any;
+              following = userData?.following || [];
+              userInterests = userData?.interests || {};
+              notInterestedVideoIds = new Set(userData?.notInterestedVideoIds || []);
+              userEmbedding = userData?.userEmbedding || userData?.embedding || null;
+            }
+
+            followedTopicSlugs = savedTopicsSnap.docs.map(d => d.id);
+            watchedVideoIds = new Set(watchHistorySnap.docs.map(d => d.id));
+
+            setCache(userCtxCacheKey, {
+              following,
+              userInterests,
+              followedTopicSlugs,
+              watchedVideoIds: Array.from(watchedVideoIds),
+              notInterestedVideoIds: Array.from(notInterestedVideoIds),
+              userEmbedding,
+            }, 45); // 45s TTL for active browsing sessions
+          } catch (err) {
+            logger.warn("[getHomeFeed] Failed to fetch user data:", err);
           }
-
-          followedTopicSlugs = savedTopicsSnap.docs.map(d => d.id);
-
-          watchedVideoIds = new Set(watchHistorySnap.docs.map(d => d.id));
-        } catch (err) {
-          logger.warn("[getHomeFeed] Failed to fetch user data:", err);
         }
       }
-      // ══════════════════════════════════════════════════════════════════════
-      // 1b. Resolve A/B Test Experiment Variant (if active on homeFeed surface)
-      // ══════════════════════════════════════════════════════════════════════
-      let experimentWeights: AlgorithmWeights | undefined;
-      let experimentVariantId: string | undefined;
-      let experimentId: string | undefined;
+      const poolPromises: Promise<admin.firestore.DocumentSnapshot[]>[] = [];
+      const cleanCat = (category && category.toLowerCase() !== "all" && category.trim().length > 0) ? category.trim() : null;
+      const catKey = cleanCat ? cleanCat.toLowerCase() : "all";
 
-      if (userId) {
-        try {
-          const assignment = await getUserExperiment(userId, "homeFeed");
-          if (assignment) {
-            experimentWeights = assignment.weights;
-            experimentVariantId = assignment.variantId;
-            experimentId = assignment.experimentId;
-            logger.info(`[getHomeFeed] User ${userId} in experiment ${assignment.experimentId} variant ${assignment.variantId}`);
+      // Pool A: Trust Pool (Verified videos, cached 60s for scale to millions)
+      poolPromises.push(
+        fetchCachedPool(`pool_trust_${catKey}`, 60, () => {
+          let q: admin.firestore.Query = db().collection("videos")
+            .where("credibilityVerified", "==", true);
+          if (cleanCat) {
+            q = q.where("category", "==", cleanCat);
           }
-        } catch (err) {
-          logger.warn("[getHomeFeed] Experiment resolution failed, using defaults:", err);
-        }
-      }
-
-      const poolPromises: Promise<admin.firestore.QuerySnapshot>[] = [];
-
-      // Pool A: Trust Pool (Verified videos)
-      poolPromises.push(
-        db().collection("videos")
-          .where("credibilityVerified", "==", true)
-          .orderBy("createdAt", "desc")
-          .limit(40)
-          .get()
+          return q.orderBy("createdAt", "desc").limit(40).get();
+        })
       );
 
-      // Pool B: Recency Pool (Latest videos)
+      // Pool B: Recency Pool (Latest videos, cached 60s)
       poolPromises.push(
-        db().collection("videos")
-          .orderBy("createdAt", "desc")
-          .limit(40)
-          .get()
+        fetchCachedPool(`pool_recency_${catKey}`, 60, () => {
+          let q: admin.firestore.Query = db().collection("videos");
+          if (cleanCat) {
+            q = q.where("category", "==", cleanCat);
+          }
+          return q.orderBy("createdAt", "desc").limit(40).get();
+        })
       );
 
-      // Pool B2: Recency Pool by uploadedAt (Fallback if createdAt missing)
+      // Pool B2: Recency Pool by uploadedAt (Fallback if createdAt missing, cached 60s)
       poolPromises.push(
-        db().collection("videos")
-          .orderBy("uploadedAt", "desc")
-          .limit(40)
-          .get()
+        fetchCachedPool(`pool_uploaded_${catKey}`, 60, () => {
+          let q: admin.firestore.Query = db().collection("videos");
+          if (cleanCat) {
+            q = q.where("category", "==", cleanCat);
+          }
+          return q.orderBy("uploadedAt", "desc").limit(40).get();
+        })
       );
 
-      // Pool C: Newcomer Pool (Verified, Low Views)
+      // Pool C: Newcomer Pool (Verified, Low Views, cached 60s)
       poolPromises.push(
-        db().collection("videos")
-          .where("credibilityVerified", "==", true)
-          .where("viewCount", "<=", 1000)
-          .orderBy("viewCount", "asc")
-          .limit(10)
-          .get()
+        fetchCachedPool(`pool_newcomer_${catKey}`, 60, () => {
+          let q: admin.firestore.Query = db().collection("videos")
+            .where("credibilityVerified", "==", true)
+            .where("viewCount", "<=", 1000);
+          if (cleanCat) {
+            q = q.where("category", "==", cleanCat);
+          }
+          return q.orderBy("viewCount", "asc").limit(10).get();
+        })
       );
 
-      // Pool D: Following Pool (If user logged in)
+      // Pool D: Following Pool (If user logged in, cached 45s)
       if (userId && following.length > 0) {
         poolPromises.push(
-          db().collection("videos")
-            .where("channelId", "in", following.slice(0, 10))
-            .orderBy("createdAt", "desc")
-            .limit(20)
-            .get()
+          fetchCachedPool(`pool_following_${userId}_${catKey}`, 45, () => {
+            let q: admin.firestore.Query = db().collection("videos")
+              .where("channelId", "in", following.slice(0, 10));
+            if (cleanCat) {
+              q = q.where("category", "==", cleanCat);
+            }
+            return q.orderBy("createdAt", "desc").limit(20).get();
+          })
         );
       }
 
-      // Pool E: Topic Pool (Videos matching user's followed topics) — NEW
+      // Pool E: Topic Pool (Videos matching user's followed topics, cached 45s)
       if (followedTopicSlugs.length > 0) {
         poolPromises.push(
-          db().collection("videos")
-            .where("topics", "array-contains-any", followedTopicSlugs.slice(0, 10))
-            .orderBy("createdAt", "desc")
-            .limit(20)
-            .get()
+          fetchCachedPool(`pool_topic_${userId}_${catKey}`, 45, () => {
+            let q: admin.firestore.Query = db().collection("videos")
+              .where("topics", "array-contains-any", followedTopicSlugs.slice(0, 10));
+            if (cleanCat) {
+              q = q.where("category", "==", cleanCat);
+            }
+            return q.orderBy("createdAt", "desc").limit(20).get();
+          })
         );
       }
 
-      // Pool F: Long-tail Creators (< 500 views, quality content) — NEW
+      // Pool F: Long-tail Creators (< 500 views, quality content, cached 60s)
       poolPromises.push(
-        db().collection("videos")
-          .where("viewCount", "<=", 500)
-          .orderBy("viewCount", "asc")
-          .limit(10)
-          .get()
+        fetchCachedPool(`pool_longtail_${catKey}`, 60, () => {
+          let q: admin.firestore.Query = db().collection("videos")
+            .where("viewCount", "<=", 500);
+          if (cleanCat) {
+            q = q.where("category", "==", cleanCat);
+          }
+          return q.orderBy("viewCount", "asc").limit(10).get();
+        })
       );
 
       // Pool H: Neural Two-Tower Vector Retrieval Pool (Firestore Vector Search / Vertex AI)
@@ -279,7 +399,9 @@ export const getHomeFeed = onRequest(
             limit: 30,
             distanceMeasure: "COSINE",
           });
-          poolPromises.push(vectorQuery.get());
+          poolPromises.push(
+            vectorQuery.get().then((snap: any) => snap.docs as admin.firestore.DocumentSnapshot[])
+          );
         } catch (vectorErr) {
           logger.warn("[getHomeFeed] Pool H (Two-Tower Vector Search) query failed:", vectorErr);
         }
@@ -288,63 +410,88 @@ export const getHomeFeed = onRequest(
       // Pool G: Exploding Creators (via channel trend) — handled in scoring phase
 
       const poolResults = await Promise.allSettled(poolPromises);
-      const successfulSnaps: admin.firestore.QuerySnapshot[] = [];
+      const uniqueCandidateDocs = new Map<string, admin.firestore.DocumentSnapshot>();
       poolResults.forEach((result, idx) => {
-        if (result.status === "fulfilled") {
-          successfulSnaps.push(result.value);
-        } else {
+        if (result.status === "fulfilled" && Array.isArray(result.value)) {
+          result.value.forEach(doc => {
+            if (doc && doc.id && !uniqueCandidateDocs.has(doc.id)) {
+              uniqueCandidateDocs.set(doc.id, doc);
+            }
+          });
+        } else if (result.status === "rejected") {
           logger.warn(`[getHomeFeed] Candidate pool ${idx} failed to load:`, result.reason);
         }
       });
 
       // ══════════════════════════════════════════════════════════════════════
-      // 3. Apply Category Filter In-Memory (if needed)
+      // 3. Category Validation & Resilient Fallback
       // ══════════════════════════════════════════════════════════════════════
-      const filterByCategory = (docs: admin.firestore.DocumentSnapshot[]): admin.firestore.DocumentSnapshot[] => {
-        if (!category) return docs;
-        return docs.filter(d => d.data()?.category === category);
-      };
+      let allCandidateDocs = Array.from(uniqueCandidateDocs.values());
+      if (cleanCat) {
+        const filtered = allCandidateDocs.filter(d => {
+          const c = (d.data()?.category || "").toString().trim().toLowerCase();
+          return c === cleanCat.toLowerCase();
+        });
+        if (filtered.length >= 10) {
+          allCandidateDocs = filtered;
+        }
+      }
 
-      let allCandidateDocs = successfulSnaps.flatMap(snap => filterByCategory(snap.docs));
       if (allCandidateDocs.length === 0) {
         try {
-          const fallbackSnap = await db().collection("videos").limit(40).get();
-          const filtered = filterByCategory(fallbackSnap.docs);
-          if (filtered.length > 0) {
-            allCandidateDocs = filtered;
-          } else {
-            // Category has no matching videos: return any other available videos
-            allCandidateDocs = fallbackSnap.docs;
+          let fallbackQuery: admin.firestore.Query = db().collection("videos").limit(40);
+          if (cleanCat) {
+            fallbackQuery = fallbackQuery.where("category", "==", cleanCat);
           }
+          const fallbackSnap = await fallbackQuery.get();
+          allCandidateDocs = fallbackSnap.docs.length > 0
+            ? fallbackSnap.docs
+            : (await db().collection("videos").limit(40).get()).docs;
         } catch (_) {}
       }
 
       // ══════════════════════════════════════════════════════════════════════
-      // 4. Batch Fetch Channel Metadata (Tier, Trend, Inactivity)
+      // 4. Batch Fetch Channel Metadata (Tier, Trend, Inactivity) with L1 Cache
       // ══════════════════════════════════════════════════════════════════════
       const channelIds = [...new Set(allCandidateDocs.map(d => d.data()?.channelId).filter((id): id is string => !!id))];
       const channelsMap: Record<string, any> = {};
 
       if (channelIds.length > 0) {
-        const chunks = [];
-        for (let i = 0; i < channelIds.length; i += 10) {
-          chunks.push(channelIds.slice(i, i + 10));
+        const uncachedChannelIds: string[] = [];
+        for (const cid of channelIds) {
+          const cached = getCache<any>(`channel_meta_${cid}`);
+          if (cached) {
+            channelsMap[cid] = cached;
+          } else {
+            uncachedChannelIds.push(cid);
+          }
         }
 
-        try {
-          const channelSnaps = await Promise.all(
-            chunks.map(chunk =>
-              db().collection("channels")
-                .where(admin.firestore.FieldPath.documentId(), "in", chunk)
-                .get()
-            )
-          );
+        if (uncachedChannelIds.length > 0) {
+          const chunks = [];
+          for (let i = 0; i < uncachedChannelIds.length; i += 10) {
+            chunks.push(uncachedChannelIds.slice(i, i + 10));
+          }
 
-          channelSnaps.forEach(snap => {
-            snap.docs.forEach(d => { channelsMap[d.id] = d.data(); });
-          });
-        } catch (err) {
-          logger.warn("[getHomeFeed] Failed to fetch channels:", err);
+          try {
+            const channelSnaps = await Promise.all(
+              chunks.map(chunk =>
+                db().collection("channels")
+                  .where(admin.firestore.FieldPath.documentId(), "in", chunk)
+                  .get()
+              )
+            );
+
+            channelSnaps.forEach(snap => {
+              snap.docs.forEach(d => {
+                const data = d.data();
+                channelsMap[d.id] = data;
+                setCache(`channel_meta_${d.id}`, data, 300); // 5-minute memory cache
+              });
+            });
+          } catch (err) {
+            logger.warn("[getHomeFeed] Failed to fetch channels:", err);
+          }
         }
       }
 
@@ -441,6 +588,8 @@ export const getHomeFeed = onRequest(
         // ── Calculate Discovery Score ───────────────────────────────
         const now = Date.now();
         const discoveryScore = calculateDiscoveryScore({
+          category: data.category,
+          isFactChecked: data.isFactChecked ?? data.credibilityVerified ?? false,
           isCredibilityVerified: data.credibilityVerified ?? false,
           trustScore: data.trustScore,
           isFlagged: data.isFlagged ?? false,
@@ -456,7 +605,6 @@ export const getHomeFeed = onRequest(
           watchCompletion: data.avgWatchCompletion,
           noveltyPenalty,
           twoTowerAffinity,
-          weights: experimentWeights,
         });
 
         // Skip if gated out (score = 0)
@@ -473,7 +621,10 @@ export const getHomeFeed = onRequest(
         let recommendationReason = "For You";
         let recommendationExplanation = "Recommended based on your interests";
 
-        if (isSubscribed) {
+        if (isFactCheckRelevantCategory(data.category) && (data.isFactChecked || data.credibilityVerified || (data.trustScore && data.trustScore >= 3.5))) {
+          recommendationReason = "Fact-Checked";
+          recommendationExplanation = `Fact-checked for verified accuracy in ${data.category || videoCat || "this topic"}`;
+        } else if (isSubscribed) {
           recommendationReason = "Following";
           recommendationExplanation = `From a creator you follow`;
         } else if (hasFollowedTopic) {
@@ -602,6 +753,7 @@ export const getHomeFeed = onRequest(
           channelId: v.channelId,
           channelAvatarUrl: v.channelAvatarUrl,
           credibilityVerified: v.credibilityVerified ?? false,
+          isFactChecked: v.isFactChecked ?? v.credibilityVerified ?? false,
           thumbnailUrl: v.thumbnailUrl || v.media?.thumbnailUrl || "",
           videoUrl: v.videoUrl || v.originalUrl || v.media?.videoUrl || v.media?.originalUrl || "",
           originalUrl: v.originalUrl || v.videoUrl || v.media?.originalUrl || v.media?.videoUrl || "",
@@ -637,10 +789,6 @@ export const getHomeFeed = onRequest(
         videos: response,
         hasMore: feed.length > limit,
         nextStartAfter: response.length > 0 ? response[response.length - 1].createdAt : null,
-        experiment: experimentId ? {
-          experimentId,
-          variantId: experimentVariantId,
-        } : null,
       });
     } catch (err) {
       logger.error("[getHomeFeed] Error:", err);

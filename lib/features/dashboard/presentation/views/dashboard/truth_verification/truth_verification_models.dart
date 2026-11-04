@@ -29,6 +29,9 @@ class RealExtractedClaim {
     this.recommendedAction = '',
     this.creatorActionNote,
     this.transcriptSnippet = '',
+    this.nature = 'FACT',
+    this.sourceUrl,
+    this.speaker,
   });
 
   final String id;
@@ -46,11 +49,48 @@ class RealExtractedClaim {
   final String recommendedAction;
   String? creatorActionNote;
   final String transcriptSnippet;
+  final String nature;
+  final String? sourceUrl;
+  final String? speaker;
 
   bool get isVerified => tier == ClaimEvidenceTier.verified;
   bool get isHighConcern => tier == ClaimEvidenceTier.highConcern;
   bool get isNeedsSource => tier == ClaimEvidenceTier.needsSource;
   bool get isDisputed => tier == ClaimEvidenceTier.disputed;
+
+  bool get isOpinionOrBelief {
+    final n = nature.toUpperCase();
+    if (n == 'OPINION' || n == 'BELIEF' || n == 'SATIRE' || n == 'PREDICTION') return true;
+    final v = verdict.toLowerCase();
+    return v.contains('opinion') ||
+        v.contains('belief') ||
+        v.contains('faith') ||
+        v.contains('satire') ||
+        v.contains('hyperbole') ||
+        category.toLowerCase().contains('opinion');
+  }
+}
+
+class AuthoritativeSourceItem {
+  final String title;
+  final String url;
+  final String domain;
+  final String publisher;
+  final String videoId;
+  final String videoTitle;
+  final String trustTier;
+  final int count;
+
+  const AuthoritativeSourceItem({
+    required this.title,
+    required this.url,
+    required this.domain,
+    required this.publisher,
+    required this.videoId,
+    required this.videoTitle,
+    this.trustTier = 'Institutional',
+    this.count = 1,
+  });
 }
 
 class VideoFactCheckItem {
@@ -58,7 +98,6 @@ class VideoFactCheckItem {
     required this.id,
     required this.title,
     required this.thumbnailUrl,
-    required this.truthScore,
     required this.factCheckReviewMode,
     required this.isFactCheckApproved,
     required this.claims,
@@ -71,12 +110,18 @@ class VideoFactCheckItem {
     this.reverificationNotes,
     this.reverificationSources,
     this.video,
+    this.truthScore = 0.0,
+    this.sources = const [],
+    this.factors = const {},
+    this.confidence = 0.85,
+    this.viewerNote = '',
+    this.isProvisional = false,
   });
 
   final String id;
   final String title;
   final String thumbnailUrl;
-  final double truthScore; // 0.0 to 1.0
+  final double truthScore; // Deprecated: Truthworld never calculates or displays a monolithic truth score
   final String factCheckReviewMode; // 'open_to_users' | 'first_to_creator'
   final bool isFactCheckApproved;
   final List<RealExtractedClaim> claims;
@@ -89,6 +134,11 @@ class VideoFactCheckItem {
   final String? reverificationNotes;
   final List<dynamic>? reverificationSources;
   final Video? video;
+  final List<dynamic> sources;
+  final Map<String, dynamic> factors;
+  final double confidence;
+  final String viewerNote;
+  final bool isProvisional;
 
   bool get isReviewFirst => factCheckReviewMode == 'first_to_creator';
   bool get isPendingApproval => isReviewFirst && !isFactCheckApproved;
@@ -105,17 +155,6 @@ class VideoFactCheckItem {
       claims.where((c) => c.isDisputed).toList();
 
   bool get hasConcerns => highConcernClaims.isNotEmpty;
-
-  /// Projected score if concerns and missing sources are resolved
-  double get projectedTruthScore {
-    if (claims.isEmpty) return truthScore;
-    final bonus = (highConcernClaims.length * 0.16) +
-        (needsSourceClaims.length * 0.06);
-    return (truthScore + bonus).clamp(0.0, 1.0);
-  }
-
-  int get boostPercentage =>
-      ((projectedTruthScore - truthScore) * 100).toInt().clamp(0, 100);
 
   bool get hasClaims => claims.isNotEmpty;
 
@@ -245,7 +284,6 @@ class TruthVerificationParser {
             data['rating'] ??
             0.0) as num)
         .toDouble();
-    final normalizedScore = score > 1.0 ? score / 100.0 : score;
 
     final parsedFactCheck = FactCheckDataParser.parse(
       data,
@@ -299,6 +337,24 @@ class TruthVerificationParser {
                 '')
             .toString()
             .trim();
+        final nature = (c['nature'] ?? 'FACT').toString();
+        final speaker = c['speaker']?.toString();
+        var sourceUrl = c['url']?.toString() ?? c['sourceUrl']?.toString();
+        if (sourceUrl == null &&
+            c['effectiveSources'] is List &&
+            (c['effectiveSources'] as List).isNotEmpty) {
+          final first = (c['effectiveSources'] as List).first;
+          if (first is Map) {
+            sourceUrl = first['url']?.toString() ?? first['link']?.toString();
+          }
+        } else if (sourceUrl == null &&
+            c['sources'] is List &&
+            (c['sources'] as List).isNotEmpty) {
+          final first = (c['sources'] as List).first;
+          if (first is Map) {
+            sourceUrl = first['url']?.toString() ?? first['link']?.toString();
+          }
+        }
 
         videoClaims.add(
           RealExtractedClaim(
@@ -314,6 +370,9 @@ class TruthVerificationParser {
             tier: tier,
             verdict: verdict,
             aiExplanation: aiExplanation,
+            nature: nature,
+            sourceUrl: sourceUrl,
+            speaker: speaker,
           ),
         );
       }
@@ -415,7 +474,6 @@ class TruthVerificationParser {
       id: videoId,
       title: videoTitle,
       thumbnailUrl: thumbnailUrl,
-      truthScore: normalizedScore,
       factCheckReviewMode: reviewMode,
       isFactCheckApproved: isApproved,
       claims: videoClaims,
@@ -428,6 +486,15 @@ class TruthVerificationParser {
       reverificationNotes: reverificationNotes,
       reverificationSources: reverificationSources,
       video: video,
+      sources: parsedFactCheck.sources.isNotEmpty
+          ? parsedFactCheck.sources
+          : parsedFactCheck.parsedSources,
+      factors: parsedFactCheck.factors,
+      confidence: parsedFactCheck.confidenceVal > 0
+          ? parsedFactCheck.confidenceVal
+          : 0.88,
+      viewerNote: parsedFactCheck.viewerNote,
+      isProvisional: parsedFactCheck.isProvisional,
     );
   }
 }

@@ -119,75 +119,67 @@ export const onKycDocumentCreatedOrUpdated = onDocumentWritten(
 
     logger.info(`[KYC] Name comparison for channel ${channelId}: Score: ${nameScore.toFixed(2)}, Matched: ${isMatched}`);
 
-    // 3. Automated Decision:
-    // If PAN format is valid, documents are attached, and name matches bank account: Auto-Approve!
-    if (panDocUrl && idDocUrl && isMatched) {
-      logger.info(`[KYC] Channel ${channelId} passed all automated checks. Marking verified.`);
+    // 3. Automated Compliance Pre-Screening:
+    // 🛡️ Security Invariant: Client-submitted name strings MUST NEVER auto-approve KYC (TW-ECON-02).
+    // All documents are queued with computed pre-screening scores for authorized compliance officer review.
+    const hasDocuments = Boolean(panDocUrl && idDocUrl);
+    const auditNote = !hasDocuments
+      ? "Document image verification pending. PAN and Government ID document uploads required."
+      : !isMatched
+      ? `Name discrepancy between Bank Account and PAN legal name (similarity: ${(nameScore * 100).toFixed(0)}%, threshold 90%). Queued for compliance officer review.`
+      : "Automated format and similarity pre-checks passed. Queued for compliance officer sign-off.";
 
-      const batch = db().batch();
+    logger.info(`[KYC] Channel ${channelId} pre-screened. Documents: ${hasDocuments}, NameMatch: ${isMatched}. Queued for compliance officer approval.`);
 
-      // Update creator_kyc
-      batch.update(after.ref, {
-        kycStatus: "verified",
-        isNameMatched: true,
-        nameMatchScore: Number(nameScore.toFixed(2)),
-        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
-        reviewedBy: "system_auto",
+    const batch = db().batch();
+
+    // Update creator_kyc document with audit scores
+    batch.update(after.ref, {
+      kycStatus: "pending",
+      isNameMatched: isMatched,
+      nameMatchScore: Number(nameScore.toFixed(2)),
+      auditNote,
+      reviewedAt: null,
+      reviewedBy: null,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Ensure channel status reflects pending verification
+    const channelRef = db().collection("channels").doc(channelId);
+    batch.set(
+      channelRef,
+      {
+        kycStatus: "pending",
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      },
+      { merge: true }
+    );
 
-      // Update channels doc
-      const channelRef = db().collection("channels").doc(channelId);
-      batch.set(
-        channelRef,
-        {
-          kycStatus: "verified",
-          kycTier: "verified",
-          kycVerifiedAt: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      // Update channel subcollection kyc/verification
-      const subKycRef = channelRef.collection("kyc").doc("verification");
-      batch.set(
-        subKycRef,
-        {
-          kycStatus: "verified",
-          isNameMatched: true,
-          nameMatchScore: Number(nameScore.toFixed(2)),
-          reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
-          reviewedBy: "system_auto",
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      await batch.commit();
-
-      // Dispatch congratulatory in-app notification
-      if (userId) {
-        await db().collection("notifications").add({
-          userId,
-          title: "KYC Verification Approved",
-          body: "Your identity and PAN documents have been successfully verified. Direct bank cash withdrawals are now fully unlocked!",
-          type: "monetization_kyc",
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          isRead: false,
-          data: { channelId, status: "verified" },
-        });
-      }
-    } else {
-      // If name match failed or documents missing, leave in pending with audit note for manual review
-      logger.warn(`[KYC] Channel ${channelId} flagged for manual review (Name match score: ${nameScore.toFixed(2)}).`);
-      await after.ref.update({
+    // Update channel subcollection kyc/verification
+    const subKycRef = channelRef.collection("kyc").doc("verification");
+    batch.set(
+      subKycRef,
+      {
         kycStatus: "pending",
         isNameMatched: isMatched,
         nameMatchScore: Number(nameScore.toFixed(2)),
-        auditNote: !isMatched
-          ? `Name discrepancy between Bank Account and PAN legal name (similarity: ${(nameScore * 100).toFixed(0)}%, threshold 90%). Flagged for compliance review.`
-          : "Document image verification pending compliance officer sign-off.",
+        auditNote,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    await batch.commit();
+
+    if (userId) {
+      await db().collection("notifications").add({
+        userId,
+        title: "KYC Documents Under Review",
+        body: "Your identity and PAN verification documents have been received and queued for compliance officer review.",
+        type: "monetization_kyc",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        isRead: false,
+        data: { channelId, status: "pending" },
       });
     }
   }

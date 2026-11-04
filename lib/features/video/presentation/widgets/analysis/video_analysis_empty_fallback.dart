@@ -16,6 +16,7 @@ class VideoAnalysisEmptyFallback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNonCred = video?.isNonCredibilityCategory ?? false;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -33,7 +34,7 @@ class VideoAnalysisEmptyFallback extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             Text(
-              'Not Fact-Checked Yet',
+              isNonCred ? 'Fact-Checking Not Applicable' : 'Not Fact-Checked Yet',
               style: context.twTypography.headline.copyWith(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -42,7 +43,9 @@ class VideoAnalysisEmptyFallback extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              'Artificial intelligence and epistemic fact-checking engines are deployed for verified videos. Subscribers to TruthWorld Premium + Fact-Checked can trigger instant analysis.',
+              isNonCred
+                  ? 'Theological claims, scriptural interpretations, and spiritual or creative content are categorized as personal convictions and are not subjected to empirical fact-checking.'
+                  : 'Artificial intelligence and epistemic fact-checking engines are deployed for verified videos. Subscribers to TruthWorld Premium + Fact-Checked can trigger instant analysis.',
               textAlign: TextAlign.center,
               style: context.twTypography.body.copyWith(
                 color: AppColors.textSecondary,
@@ -50,8 +53,9 @@ class VideoAnalysisEmptyFallback extends StatelessWidget {
                 height: 1.5,
               ),
             ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
+            if (!isNonCred) ...[
+              const SizedBox(height: 32),
+              ElevatedButton.icon(
               onPressed: () async {
                 final auth = Get.isRegistered<AuthService>() ? AuthService.to : null;
                 if (auth == null || !auth.isAuthenticated.value) {
@@ -214,6 +218,7 @@ class VideoAnalysisEmptyFallback extends StatelessWidget {
               ),
             ),
           ],
+        ],
         ),
       ),
     );

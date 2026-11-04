@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/channel/data/models/channel_trust_score.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
@@ -43,7 +42,7 @@ class ChannelTrustBadge extends StatelessWidget {
                 children: [
                   Text(
                     'Trust Score',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -63,7 +62,7 @@ class ChannelTrustBadge extends StatelessWidget {
                       const SizedBox(width: 8),
                       Text(
                         'Track Record: $label',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 15,
                           fontWeight: FontWeight.w500,
@@ -74,7 +73,7 @@ class ChannelTrustBadge extends StatelessWidget {
                   const SizedBox(height: 12),
                   Text(
                     'Verification Rate: ${(score!.verificationRate * 100).toStringAsFixed(1)}%',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       color: AppColors.textPrimary70,
                       fontSize: 14,
                     ),
@@ -82,7 +81,7 @@ class ChannelTrustBadge extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     'Based on ${score!.totalVideosAnalyzed} videos analyzed.',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       color: AppColors.textPrimary70,
                       fontSize: 14,
                     ),
@@ -115,7 +114,7 @@ class ChannelTrustBadge extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               label,
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 color: AppColors.brand,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,

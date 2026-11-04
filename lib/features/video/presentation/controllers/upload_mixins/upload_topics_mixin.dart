@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:collection/collection.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
@@ -7,6 +8,7 @@ import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/topics/data/repositories/topic_repository.dart';
 import 'package:truthworld/features/video/data/models/topic_relevance_result.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_mixins/upload_controller_base.dart';
 
@@ -22,6 +24,39 @@ mixin UploadTopicsMixin on UploadControllerBase {
               t.handle.toLowerCase().contains(query),
         )
         .toList();
+  }
+
+  /// Typo-tolerant global topic lookup via Typesense (with silent Firestore fallback)
+  Future<void> searchTopicsRemote(String query) async {
+    final clean = query.trim();
+    if (clean.isEmpty) return;
+
+    try {
+      final repo = TopicRepository();
+      final remoteTopics = await repo.searchTopics(clean, limit: 15);
+      if (remoteTopics.isNotEmpty) {
+        final existingKeys =
+            availableTopics.map((t) => t.canonicalKey).toSet();
+        final newlyFound = <Topic>[];
+        for (final t in remoteTopics) {
+          if (!existingKeys.contains(t.canonicalKey) &&
+              t.status != 'deleted' &&
+              t.status != 'archived') {
+            existingKeys.add(t.canonicalKey);
+            newlyFound.add(t);
+          }
+        }
+        if (newlyFound.isNotEmpty) {
+          availableTopics.addAll(newlyFound);
+        }
+      }
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'UploadTopicsMixin.searchTopicsRemote',
+      );
+    }
   }
 
   Future<void> fetchAvailableTopics() async {
@@ -147,7 +182,7 @@ mixin UploadTopicsMixin on UploadControllerBase {
         reasons.add('Category match (${topic.category})');
       }
 
-      final topicTitleTokens = tokenizeText('${topic.title} ${topic.handle}');
+      final topicTitleTokens = tokenizeText('${topic.name} ${topic.handle}');
       var titleMatches = 0;
       for (final token in titleTokens) {
         if (topicTitleTokens.contains(token)) {
@@ -258,7 +293,146 @@ mixin UploadTopicsMixin on UploadControllerBase {
   }
 
   void selectTopic(String id) {
+    if (id.isEmpty) {
+      clearAllSelectedTopics();
+      return;
+    }
+    if (!selectedTopicIds.contains(id)) {
+      if (selectedTopicIds.length >= 3) {
+        selectedTopicIds.removeLast();
+      }
+      selectedTopicIds.add(id);
+    }
     selectedTopicId.value = id;
+  }
+
+  /// Whether a specific topic belongs to the current user or active channel
+  bool isOwnTopic(Topic topic) {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid ??
+        AuthService.to.currentUser.value?.uid ??
+        '';
+    final currentChannelId = selectedChannel.value?.id ?? '';
+    return (currentUserId.isNotEmpty && topic.creatorId == currentUserId) ||
+        (currentChannelId.isNotEmpty && topic.channelId == currentChannelId) ||
+        topic.visibilityType == TopicVisibilityType.channelOnly;
+  }
+
+  /// Whether an inline draft topic is active
+  bool get hasDraftTopic =>
+      newTopicData.isNotEmpty ||
+      selectedTopicIds.contains('new_topic_draft') ||
+      selectedTopicId.value == 'new_topic_draft';
+
+  /// Total count of topics currently selected (including inline draft if active)
+  int get totalSelectedTopicsCount {
+    final regularCount =
+        selectedTopicIds.where((id) => id != 'new_topic_draft').length;
+    return hasDraftTopic ? regularCount + 1 : regularCount;
+  }
+
+  /// Count of own/channel topics selected
+  int get selectedOwnTopicsCount {
+    var count = 0;
+    if (hasDraftTopic) count++;
+    for (final id in selectedTopicIds) {
+      if (id == 'new_topic_draft') continue;
+      final topic = availableTopics
+          .firstWhereOrNull((t) => t.slug == id || t.id == id);
+      if (topic != null && isOwnTopic(topic)) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /// Count of public topics selected
+  int get selectedPublicTopicsCount {
+    var count = 0;
+    for (final id in selectedTopicIds) {
+      if (id == 'new_topic_draft') continue;
+      final topic = availableTopics
+          .firstWhereOrNull((t) => t.slug == id || t.id == id);
+      if (topic != null && !isOwnTopic(topic)) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /// Checks if a topic is currently selected
+  bool isTopicSelected(String idOrSlug) {
+    if (idOrSlug.isEmpty) return false;
+    if (idOrSlug == 'new_topic_draft') return hasDraftTopic;
+    return selectedTopicIds.contains(idOrSlug) ||
+        selectedTopicId.value == idOrSlug;
+  }
+
+  /// Validates whether a topic can be added under Option 1 (Max 3 total, max 1 own topic)
+  bool canSelectTopic(Topic topic, {bool showToast = false}) {
+    final key = topic.slug.isNotEmpty ? topic.slug : topic.id;
+    if (isTopicSelected(key)) {
+      return true; // Already selected, can toggle off
+    }
+
+    if (totalSelectedTopicsCount >= 3) {
+      if (showToast) {
+        AppSnackbar.warning('You can select up to 3 topics per video.');
+      }
+      return false;
+    }
+
+    final isOwn = isOwnTopic(topic);
+    if (isOwn && selectedOwnTopicsCount >= 1) {
+      if (showToast) {
+        AppSnackbar.warning(
+          'You can only link 1 own channel topic per video. You can add up to 2 public topics.',
+        );
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  /// Toggles selection of a topic with Option 1 validation
+  void toggleTopicSelection(Topic topic) {
+    final key = topic.slug.isNotEmpty ? topic.slug : topic.id;
+    if (isTopicSelected(key)) {
+      selectedTopicIds.remove(key);
+      if (selectedTopicId.value == key) {
+        selectedTopicId.value =
+            selectedTopicIds.isNotEmpty ? selectedTopicIds.first : '';
+      }
+      AppSnackbar.info('Removed topic: ${topic.name}');
+    } else {
+      if (!canSelectTopic(topic, showToast: true)) {
+        return;
+      }
+      selectedTopicIds.add(key);
+      selectedTopicId.value = selectedTopicIds.first;
+      AppSnackbar.success(
+        'Added topic: ${topic.name} ($totalSelectedTopicsCount/3)',
+      );
+    }
+  }
+
+  /// Removes an individual topic selection by id or slug
+  void removeTopicById(String idOrSlug) {
+    selectedTopicIds.remove(idOrSlug);
+    if (idOrSlug == 'new_topic_draft') {
+      newTopicData.clear();
+    }
+    if (selectedTopicId.value == idOrSlug) {
+      selectedTopicId.value =
+          selectedTopicIds.isNotEmpty ? selectedTopicIds.first : '';
+    }
+  }
+
+  /// Clears all topic selections and draft data
+  void clearAllSelectedTopics() {
+    selectedTopicIds.clear();
+    selectedTopicId.value = '';
+    newTopicData.clear();
   }
 
   Future<bool> unlockPrivateTopic(String slug, String passcode) async {
@@ -293,7 +467,7 @@ mixin UploadTopicsMixin on UploadControllerBase {
         availableTopics.add(topic);
       }
       selectedTopicId.value = topic.slug;
-      AppSnackbar.success('Successfully unlocked private topic: ${topic.title}');
+      AppSnackbar.success('Successfully unlocked private topic: ${topic.name}');
       return true;
     } catch (e) {
       ErrorHandler.log(e, context: 'UploadController.unlockTopic');
@@ -312,10 +486,12 @@ mixin UploadTopicsMixin on UploadControllerBase {
         'thumbnails/topics/$fileName',
       );
       final currentUid = FirebaseAuth.instance.currentUser?.uid;
+      final chId = selectedChannel.value?.id ?? '';
       final metadata = SettableMetadata(
         contentType: 'image/jpeg',
         customMetadata: {
-          'uploaderId': ?currentUid,
+          'uploaderId': currentUid ?? '',
+          'channelId': chId,
           'uploaded': DateTime.now().toString(),
         },
       );

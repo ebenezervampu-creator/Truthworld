@@ -239,7 +239,6 @@ void main() {
 
       ctrl.superchatRevenue.value = 0.0;
       ctrl.adsRevenue.value = 0.0;
-      ctrl.watchTimeRevenue.value = 0.0;
       ctrl.originalUsdMemberships.value = usdPrice;
       ctrl.membershipsRevenueINR.value = inrValue;
       ctrl.membershipsRevenueUSD.value = usdPrice;
@@ -280,7 +279,6 @@ void main() {
           ctrl.channelName.value = 'Truth Channel';
           ctrl.superchatRevenue.value = 0.0;
           ctrl.adsRevenue.value = 0.0;
-          ctrl.watchTimeRevenue.value = 0.0;
           ctrl.originalUsdMemberships.value = 0.10;
           ctrl.membershipsRevenueINR.value = 8.50;
           ctrl.membershipsRevenueUSD.value = 0.10;

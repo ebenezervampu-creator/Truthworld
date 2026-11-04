@@ -20,6 +20,9 @@ class SearchResult {
     this.language,
     this.category,
     this.visibility = 'public',
+    this.isFactChecked = false,
+    this.trustScore = 0.0,
+    this.isTrusted = false,
   });
 
   /// Convert Firestore document to SearchResult
@@ -68,6 +71,11 @@ class SearchResult {
           data['customUrl'],
         ]);
 
+        final isTrusted = (data['trustedModerationBypass'] as bool?) ??
+            (data['bypassModeration'] as bool?) ??
+            (data['trustedChannel'] as bool?) ??
+            false;
+
         return SearchResult(
           id: doc.id,
           title: finalTitle,
@@ -81,6 +89,8 @@ class SearchResult {
           type: ResultType.channel,
           language: data['language'] as String?,
           category: data['category'] as String?,
+          visibility: (data['status'] as String?) ?? 'active',
+          isTrusted: isTrusted,
         );
       case ResultType.playlist:
         final playlistTitle = firstNonEmpty([
@@ -113,6 +123,7 @@ class SearchResult {
           createdAt: TimestampUtils.parse(data['createdAt']),
           type: ResultType.playlist,
           category: data['category'] as String?,
+          visibility: (data['visibility'] as String?) ?? 'public',
         );
       case ResultType.topic:
         final slugVal = (data['slug'] as String?)?.trim() ?? '';
@@ -199,7 +210,26 @@ class SearchResult {
                   : null),
           language: data['language'] as String?,
           category: data['category'] as String?,
-          visibility: (data['visibility'] as String?) ?? 'public',
+          visibility: () {
+            final chSt = (data['channelStatus'] as String?)?.toLowerCase().replaceAll('_', '').replaceAll(' ', '');
+            if (chSt == 'onhold' || chSt == 'hold') return 'onHold';
+            if (chSt == 'suspended') return 'suspended';
+            return (data['visibility'] as String?) ?? 'public';
+          }(),
+          isFactChecked: data['isFactChecked'] == true ||
+              data['credibilityVerified'] == true ||
+              (data['credibilityReport'] is Map &&
+                  ((data['credibilityReport'] as Map)['status'] == 'approved' ||
+                      (data['credibilityReport'] as Map)['isApproved'] == true)) ||
+              (data['factCheckUrl'] is String &&
+                  (data['factCheckUrl'] as String).trim().isNotEmpty),
+          trustScore: (data['trustScore'] as num?)?.toDouble() ??
+              (data['truthScore'] as num?)?.toDouble() ??
+              0.0,
+          isTrusted: (data['channelTrustedModerationBypass'] as bool?) ??
+              (data['isChannelTrusted'] as bool?) ??
+              (data['trustedModerationBypass'] as bool?) ??
+              false,
         );
     }
   }
@@ -226,6 +256,12 @@ class SearchResult {
       language: map['language'] as String?,
       category: map['category'] as String?,
       visibility: map['visibility'] as String? ?? 'public',
+      isFactChecked: map['isFactChecked'] as bool? ?? false,
+      trustScore: (map['trustScore'] as num?)?.toDouble() ?? 0.0,
+      isTrusted: (map['isTrusted'] as bool?) ??
+          (map['trustedModerationBypass'] as bool?) ??
+          (map['trustedChannel'] as bool?) ??
+          false,
       relevanceScore:
           (map['relevanceScore'] as num?)?.toDouble() ?? 0.0,
     );
@@ -242,7 +278,13 @@ class SearchResult {
   final String? language;
   final String? category;
   final String visibility;
+  final bool isFactChecked;
+  final double trustScore;
+  final bool isTrusted;
   double relevanceScore;
+
+  /// Blue Checkmark badges are completely discontinued platform-wide for channels.
+  bool get showVerifiedBadge => false;
 
   // Getters for compatibility with EnhancedSearchController
   int get viewCount => views;
@@ -256,12 +298,31 @@ class SearchResult {
       visibility.trim().toLowerCase() == 'private' ||
       visibility.trim().toLowerCase() == 'private_draft';
 
+  bool get isUnlisted =>
+      visibility.trim().toLowerCase() == 'unlisted';
+
+  bool get isMembersOnly {
+    final vis = visibility.trim().toLowerCase();
+    return vis == 'members_only' || vis == 'members' || vis == 'members only';
+  }
+
+  bool get isSubscribersOnly {
+    final vis = visibility.trim().toLowerCase();
+    return vis == 'subscribers_only' || vis == 'subscribers' || vis == 'subscribers only';
+  }
+
   bool get isValid {
     final t = title.trim().toLowerCase();
     if (t.isEmpty) return false;
     if (type == ResultType.video) {
       final vis = visibility.trim().toLowerCase();
-      if (vis == 'private' || vis == 'private_draft' || vis == 'draft') {
+      if (vis == 'private' ||
+          vis == 'private_draft' ||
+          vis == 'draft' ||
+          vis == 'unlisted' ||
+          vis == 'onhold' ||
+          vis == 'hold' ||
+          vis == 'suspended') {
         return false;
       }
       if (t == 'untitled' ||
@@ -273,6 +334,10 @@ class SearchResult {
         return false;
       }
     } else if (type == ResultType.playlist) {
+      final vis = visibility.trim().toLowerCase();
+      if (vis == 'private' || vis == 'unlisted') {
+        return false;
+      }
       if (t == 'playlist' ||
           t == 'untitled' ||
           t == 'untitled playlist' ||
@@ -297,6 +362,14 @@ class SearchResult {
         return false;
       }
     } else if (type == ResultType.channel) {
+      final vis = visibility.trim().toLowerCase().replaceAll('_', '').replaceAll(' ', '');
+      if (vis == 'onhold' ||
+          vis == 'hold' ||
+          vis == 'suspended' ||
+          vis == 'deleted' ||
+          vis == 'verificationrejected') {
+        return false;
+      }
       if (t == 'channel' ||
           t == 'untitled' ||
           t == 'untitled channel' ||
@@ -321,6 +394,9 @@ class SearchResult {
     'language': language,
     'category': category,
     'visibility': visibility,
+    'isFactChecked': isFactChecked,
+    'trustScore': trustScore,
+    'isTrusted': isTrusted,
   };
 
   @override

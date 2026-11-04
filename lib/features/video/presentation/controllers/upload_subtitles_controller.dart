@@ -101,7 +101,9 @@ class UploadSubtitlesController extends GetxController {
   ChannelType get channelType =>
       (channel?.channelType == ChannelType.custom) ? ChannelType.custom : ChannelType.standard;
   bool get isCustomChannel => channelType == ChannelType.custom;
-  double get walletBalance => channel?.walletBalanceUSD ?? 0.0;
+  double get walletBalance => channel != null
+      ? ChannelWalletService().getSpendableBalance(channel: channel!).totalSpendableBalance
+      : 0.0;
 
   SubtitleDurationTier get subtitleTier =>
       ChannelWalletService.getSubtitleDurationTier(durationSeconds);
@@ -151,10 +153,11 @@ class UploadSubtitlesController extends GetxController {
         languageCount: billableLanguages.length,
         durationSeconds: durationSeconds,
         channelType: channelType,
+        channel: channel,
       );
 
   bool get isInsufficientBalance =>
-      selectedLanguages.isNotEmpty && walletBalance < calculatedCost;
+      selectedLanguages.isNotEmpty && calculatedCost > 0 && walletBalance < calculatedCost;
 
   /// Filtered list of supported languages
   List<TranslationLanguage> get filteredLanguages {
@@ -310,6 +313,13 @@ class UploadSubtitlesController extends GetxController {
   }
 
   void applyAndSave() {
+    if (isInsufficientBalance && selectedLanguages.isNotEmpty && isSubtitlesEnabled.value) {
+      AppSnackbar.warning(
+        'Insufficient channel wallet balance (\$${walletBalance.toStringAsFixed(2)} available vs \$${calculatedCost.toStringAsFixed(2)} required). Please add money to your wallet to proceed with AI Subtitles for these languages.',
+      );
+      return;
+    }
+
     uploadController.aiTranslationLanguages.assignAll(selectedLanguages.toList());
     uploadController.aiGenerateSubtitles.value =
         selectedLanguages.isNotEmpty && isSubtitlesEnabled.value;

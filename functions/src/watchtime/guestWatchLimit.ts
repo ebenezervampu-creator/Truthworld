@@ -43,10 +43,29 @@ export function isInternalOrPrivateIp(ip: string): boolean {
 }
 
 /**
+ * Checks whether an IP belongs to internal infrastructure or reverse proxy hops (e.g. Google Front End, CGNAT).
+ */
+export function isInfrastructureProxyIp(ip: string): boolean {
+  if (!ip) return true;
+  const clean = ip.replace(/^::ffff:/, "").trim();
+  if (isInternalOrPrivateIp(clean)) return true;
+  // Carrier-grade NAT (RFC 6598: 100.64.0.0/10)
+  if (clean.startsWith("100.")) {
+    const octet = parseInt(clean.split(".")[1], 10);
+    if (!Number.isNaN(octet) && octet >= 64 && octet <= 127) return true;
+  }
+  // Google Cloud infrastructure / Load Balancer reverse proxy ranges
+  if (clean.startsWith("35.191.") || clean.startsWith("130.211.") || clean.startsWith("35.190.")) return true;
+  if (clean.startsWith("34.96.") || clean.startsWith("34.127.") || clean.startsWith("34.118.")) return true;
+  return false;
+}
+
+/**
  * Robust, spoof-resistant client IP extractor.
  * Behind GCP / Cloud Run reverse proxies, untrusted client-supplied headers
- * appear at the beginning of X-Forwarded-For, while trusted infrastructure proxies
- * append the true remote IP on the right.
+ * (like cf-connecting-ip or fastly-client-ip) are ignored to prevent header spoofing.
+ * Standard verified GCP proxy IP resolution searches X-Forwarded-For from right to left,
+ * skipping internal, private, and GCP infrastructure proxy IPs to find the authentic client IP.
  */
 export function getClientIp(req: any): string {
   const forwarded = req.headers?.["x-forwarded-for"];
@@ -55,14 +74,15 @@ export function getClientIp(req: any): string {
     if (parts.length === 1) {
       return parts[0];
     }
-    // Search from right to left for the rightmost non-internal IP
+    // Search from right to left, skipping internal, private, and GCP infrastructure proxy IPs
     for (let i = parts.length - 1; i >= 0; i--) {
       const part = parts[i];
-      if (!isInternalOrPrivateIp(part)) {
+      if (!isInfrastructureProxyIp(part)) {
         return part;
       }
     }
-    return parts[parts.length - 1] || parts[0];
+    // If all on the right were infrastructure proxies, return the client IP on the left
+    return parts[0];
   }
   if (typeof req.ip === "string" && req.ip.length > 0) {
     return req.ip;

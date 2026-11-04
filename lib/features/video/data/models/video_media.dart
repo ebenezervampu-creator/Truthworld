@@ -30,10 +30,36 @@ class VideoMediaLocalization {
   });
 
   factory VideoMediaLocalization.fromMap(Map<String, dynamic> data) {
+    final subs = _castStringMap(data['subtitles'] ?? (data['media'] is Map ? data['media']['subtitles'] : null));
+    final dubbed = _castStringMap(data['dubbedVideos'] ?? (data['media'] is Map ? data['media']['dubbedVideos'] : null));
+    final audio = _castStringMap(data['audioTracks'] ?? (data['media'] is Map ? data['media']['audioTracks'] : null));
+
+    // Support flat dotted keys from previous writes (e.g. 'audioTracks.es', 'subtitles.es', 'media.audioTracks.es')
+    data.forEach((key, val) {
+      if (val is String && val.isNotEmpty) {
+        if (key.startsWith('audioTracks.')) {
+          final code = key.substring('audioTracks.'.length);
+          if (code.isNotEmpty) audio[code] = val;
+        } else if (key.startsWith('media.audioTracks.')) {
+          final code = key.substring('media.audioTracks.'.length);
+          if (code.isNotEmpty) audio[code] = val;
+        } else if (key.startsWith('subtitles.')) {
+          final code = key.substring('subtitles.'.length);
+          if (code.isNotEmpty) subs[code] = val;
+        } else if (key.startsWith('media.subtitles.')) {
+          final code = key.substring('media.subtitles.'.length);
+          if (code.isNotEmpty) subs[code] = val;
+        } else if (key.startsWith('dubbedVideos.')) {
+          final code = key.substring('dubbedVideos.'.length);
+          if (code.isNotEmpty) dubbed[code] = val;
+        }
+      }
+    });
+
     return VideoMediaLocalization(
-      subtitles: _castStringMap(data['subtitles']),
-      dubbedVideos: _castStringMap(data['dubbedVideos']),
-      audioTracks: _castStringMap(data['audioTracks']),
+      subtitles: subs,
+      dubbedVideos: dubbed,
+      audioTracks: audio,
       commentaryVideos: _castCommentaryMap(data['commentaryVideos']),
       updatedAt: data['updatedAt'] as Timestamp?,
     );

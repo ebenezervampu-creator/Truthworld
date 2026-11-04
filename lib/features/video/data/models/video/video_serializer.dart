@@ -46,6 +46,7 @@ class VideoSerializer {
       'isShort': video.isShort,
       'isKidFriendly': video.isKidFriendly,
       'enableComments': video.enableComments,
+      'allowComments': video.enableComments,
       'allowClipping': video.allowClipping,
       'isMonetized': video.isMonetized,
       'allowRatings': video.allowRatings,
@@ -71,6 +72,17 @@ class VideoSerializer {
       'moderationSummary': video.moderationSummary,
       'resubmitCount': video.resubmitCount,
       if (video.embedding != null) 'embedding': video.embedding,
+      if (video.isProvisional) 'isProvisional': video.isProvisional,
+      if (video.provisionalScore != null)
+        'provisionalScore': video.provisionalScore,
+      if (video.provisionalLabel != null)
+        'provisionalLabel': video.provisionalLabel,
+      if (video.provisionalViewerNote != null)
+        'provisionalViewerNote': video.provisionalViewerNote,
+      if (video.provisionalClaims.isNotEmpty)
+        'provisionalClaims': video.provisionalClaims,
+      if (video.credibilityStatus != null)
+        'credibilityStatus': video.credibilityStatus,
     };
   }
 

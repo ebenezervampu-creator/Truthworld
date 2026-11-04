@@ -1,6 +1,7 @@
 import * as admin from "firebase-admin";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { logger } from "firebase-functions/v2";
+import { getBigQueryAnalyticsService } from "./bigqueryService";
 
 const REGION = "asia-south1";
 const MAX_BATCH_SIZE = 300; // Process up to 300 videos per run
@@ -103,6 +104,20 @@ export const aggregateVideoImpressions = onSchedule(
       }
     });
     await Promise.allSettled(cleanupPromises);
+    try {
+      const bq = getBigQueryAnalyticsService();
+      const nowIso = new Date().toISOString();
+      for (const { videoId, delta } of committedVideos) {
+        bq.enqueueImpression({
+          impression_id: `imp_${videoId}_${Date.now()}`,
+          timestamp: nowIso,
+          video_id: videoId,
+          position_index: delta,
+        });
+      }
+    } catch (bqErr) {
+      logger.warn("[Impressions] BigQuery impression enqueue warning", { err: String(bqErr) });
+    }
 
     logger.info(`aggregateVideoImpressions: successfully aggregated impressions for ${committedVideos.length} videos.`);
   }

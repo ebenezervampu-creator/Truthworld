@@ -101,7 +101,7 @@ class CustomTierBreakdownTable extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 const Text(
-                  'Custom Tiers Breakdown & Storage Comparison',
+                  'Pro Tiers Breakdown & Storage Comparison',
                   style: TextStyle(
                     fontFamily: TWTypography.brandFamily,
                     fontSize: 14,

@@ -5,17 +5,25 @@ import 'package:truthworld/theme/app_theme.dart';
 class StudioShortcutsModal extends StatelessWidget {
   const StudioShortcutsModal({super.key});
 
-  static Future<void> show(BuildContext context) {
-    return showDialog<void>(
-      context: context,
-      builder: (_) => const StudioShortcutsModal(),
-    );
+  static bool _isShowing = false;
+
+  static Future<void> show(BuildContext context) async {
+    if (_isShowing) return;
+    _isShowing = true;
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (_) => const StudioShortcutsModal(),
+      );
+    } finally {
+      _isShowing = false;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: AppColors.bgSurface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: const BorderSide(color: AppColors.bgDivider),

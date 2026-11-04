@@ -6,7 +6,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
@@ -33,7 +32,15 @@ class DashboardViewController extends BaseController
   bool _isDisposed = false;
 
   TextEditingController get searchController {
-    if (_isSearchControllerDisposed) {
+    bool isCtrlDisposed = _isSearchControllerDisposed;
+    if (!isCtrlDisposed) {
+      try {
+        final _ = _searchController.hasListeners;
+      } catch (_) {
+        isCtrlDisposed = true;
+      }
+    }
+    if (isCtrlDisposed) {
       _searchController = TextEditingController();
       _isSearchControllerDisposed = false;
     }
@@ -41,7 +48,15 @@ class DashboardViewController extends BaseController
   }
 
   FocusNode get searchFocusNode {
-    if (_isSearchFocusNodeDisposed) {
+    bool isNodeDisposed = _isSearchFocusNodeDisposed;
+    if (!isNodeDisposed) {
+      try {
+        final _ = _searchFocusNode.hasListeners;
+      } catch (_) {
+        isNodeDisposed = true;
+      }
+    }
+    if (isNodeDisposed) {
       _searchFocusNode = FocusNode();
       _isSearchFocusNodeDisposed = false;
     }
@@ -85,6 +100,10 @@ class DashboardViewController extends BaseController
   }
 
   dynamic get channel {
+    final auth = Get.isRegistered<AuthService>() ? AuthService.to : null;
+    if (auth == null || !auth.isAuthenticated.value) {
+      return null;
+    }
     final currentUser = FirebaseAuth.instance.currentUser;
     final args = Get.arguments;
     if (args is Map && args['channel'] != null) {
@@ -105,8 +124,8 @@ class DashboardViewController extends BaseController
         }
       }
     }
-    if (Get.isRegistered<AuthService>() && AuthService.to.userChannel != null) {
-      final authCh = AuthService.to.userChannel!;
+    if (auth.userChannel != null) {
+      final authCh = auth.userChannel!;
       if (currentUser == null ||
           authCh.ownerId == currentUser.uid) {
         return authCh;
@@ -166,12 +185,7 @@ class DashboardViewController extends BaseController
 
     _authWorker = ever(AuthService.to.isAuthenticated, (isAuth) {
       if (!isAuth) {
-        channelPendingDeletion.value = null;
-        isChannelInDeletionGracePeriod.value = false;
-        isSelectingDefault.value = false;
-        if (Get.isRegistered<DashboardController>()) {
-          Get.find<DashboardController>().clearData();
-        }
+        clearChannelSession();
       } else {
         if (Get.isRegistered<DashboardController>()) {
           Get.find<DashboardController>().clearData();
@@ -218,22 +232,22 @@ class DashboardViewController extends BaseController
     fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(
         parent: staggeredAnimationController,
-        curve: const Interval(0, 0.6, curve: Curves.easeOutCubic),
+        curve: const Interval(0, 0.7, curve: Curves.easeOutCubic),
       ),
     );
 
     slideAnimation =
-        Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
+        Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero).animate(
       CurvedAnimation(
         parent: staggeredAnimationController,
-        curve: const Interval(0.2, 0.8, curve: Curves.easeOutBack),
+        curve: const Interval(0.1, 0.85, curve: Curves.easeOutCubic),
       ),
     );
 
-    scaleAnimation = Tween<double>(begin: 0.8, end: 1).animate(
+    scaleAnimation = Tween<double>(begin: 0.98, end: 1).animate(
       CurvedAnimation(
         parent: staggeredAnimationController,
-        curve: const Interval(0.4, 1, curve: Curves.elasticOut),
+        curve: const Interval(0.1, 0.9, curve: Curves.easeOutCubic),
       ),
     );
 
@@ -507,12 +521,7 @@ class DashboardViewController extends BaseController
 
   Future<void> handleGoogleSignIn() async {
     try {
-      final ctx = Get.context;
-      if (ctx != null) {
-        await AuthBottomSheet.show(ctx);
-      } else {
-        await AuthService.to.signInWithGoogle();
-      }
+      await AuthService.to.triggerPlatformSignIn();
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         AppSnackbar.success('Signed in as ${user.email}');
@@ -535,12 +544,43 @@ class DashboardViewController extends BaseController
     }
   }
 
+  /// Safely wipes channel session state without disposing active animation controllers.
+  void clearChannelSession() {
+    channelPendingDeletion.value = null;
+    isChannelInDeletionGracePeriod.value = false;
+    isSelectingDefault.value = false;
+    isRestoringChannel.value = false;
+    if (staggeredAnimationController.isAnimating) {
+      staggeredAnimationController.stop();
+    }
+    if (drawerAnimationController.isAnimating) {
+      drawerAnimationController.stop();
+    }
+    if (statsAnimationController.isAnimating) {
+      statsAnimationController.stop();
+    }
+    if (chartAnimationController.isAnimating) {
+      chartAnimationController.stop();
+    }
+    if (!_isSearchControllerDisposed) {
+      _searchController.clear();
+    }
+    if (Get.isRegistered<DashboardController>()) {
+      final ctrl = Get.find<DashboardController>();
+      ctrl.setSelectedIndex(1);
+      ctrl.clearData();
+    }
+    update();
+  }
+
   Future<void> handleSignOut() async {
     try {
-      if (Get.isRegistered<DashboardController>()) {
-        Get.find<DashboardController>().clearData();
+      clearChannelSession();
+      if (Get.isRegistered<AuthService>()) {
+        await AuthService.to.signOut();
+      } else {
+        await FirebaseAuth.instance.signOut();
       }
-      await AuthService.to.signOut();
       AppSnackbar.success('You have been successfully signed out.');
       final isStudioContext = AppFlavor.isStudio ||
           Get.currentRoute.toLowerCase().startsWith('/studio') ||
@@ -552,8 +592,12 @@ class DashboardViewController extends BaseController
       } else {
         Get.offAllNamed('/');
       }
-    } catch (e) {
-      ErrorHandler.log(e);
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'DashboardViewController.handleSignOut',
+      );
       AppSnackbar.error('Unable to sign out. Please try again.');
     }
   }
@@ -584,7 +628,7 @@ class DashboardViewController extends BaseController
 
         await topicCtrl.createTopic(
           channelId: currentChannelId,
-          title: createCtrl.titleController.text,
+          name: createCtrl.nameController.text,
           handle: createCtrl.handleController.text,
           description: createCtrl.descriptionController.text,
           category: createCtrl.categoryController.text.isEmpty
@@ -743,6 +787,23 @@ class DashboardViewController extends BaseController
     }
   }
 
+  /// Stops all in-flight animations to prevent "AnimationController used after
+  /// dispose" errors during sign-out or route tear-down.
+  void stopAllAnimations() {
+    if (staggeredAnimationController.isAnimating) {
+      staggeredAnimationController.stop();
+    }
+    if (drawerAnimationController.isAnimating) {
+      drawerAnimationController.stop();
+    }
+    if (statsAnimationController.isAnimating) {
+      statsAnimationController.stop();
+    }
+    if (chartAnimationController.isAnimating) {
+      chartAnimationController.stop();
+    }
+  }
+
   @override
   void onClose() {
     _isDisposed = true;
@@ -750,11 +811,15 @@ class DashboardViewController extends BaseController
     _authWorker?.dispose();
     _channelWorker?.dispose();
     if (!_isSearchControllerDisposed) {
-      _searchController.dispose();
+      try {
+        _searchController.dispose();
+      } catch (_) {}
       _isSearchControllerDisposed = true;
     }
     if (!_isSearchFocusNodeDisposed) {
-      _searchFocusNode.dispose();
+      try {
+        _searchFocusNode.dispose();
+      } catch (_) {}
       _isSearchFocusNodeDisposed = true;
     }
     if (staggeredAnimationController.isAnimating) {

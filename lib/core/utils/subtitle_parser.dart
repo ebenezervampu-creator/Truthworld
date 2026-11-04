@@ -93,7 +93,11 @@ class SubtitleParser {
       for (final item in list) {
         final seg = _segmentFromMap(item, isSecondsOverride: isSeconds);
         if (seg != null) {
-          segs.addAll(_splitUtteranceIntoPhraseCues(seg.text, seg.start, seg.end));
+          if (_isDiscreteCompactCue(seg.text, seg.end - seg.start)) {
+            segs.add(seg);
+          } else {
+            segs.addAll(_splitUtteranceIntoPhraseCues(seg.text, seg.start, seg.end));
+          }
         }
       }
       return segs;
@@ -130,7 +134,11 @@ class SubtitleParser {
         for (final u in utteranceList) {
           final uSeg = _segmentFromMap(u, isSecondsOverride: isSeconds);
           if (uSeg != null) {
-            segs.addAll(_splitUtteranceIntoPhraseCues(uSeg.text, uSeg.start, uSeg.end));
+            if (_isDiscreteCompactCue(uSeg.text, uSeg.end - uSeg.start)) {
+              segs.add(uSeg);
+            } else {
+              segs.addAll(_splitUtteranceIntoPhraseCues(uSeg.text, uSeg.start, uSeg.end));
+            }
           }
         }
         if (segs.isNotEmpty) return segs;
@@ -157,7 +165,11 @@ class SubtitleParser {
         for (final item in segList) {
           final seg = _segmentFromMap(item, isSecondsOverride: isSeconds);
           if (seg != null) {
-            segs.addAll(_splitUtteranceIntoPhraseCues(seg.text, seg.start, seg.end));
+            if (_isDiscreteCompactCue(seg.text, seg.end - seg.start)) {
+              segs.add(seg);
+            } else {
+              segs.addAll(_splitUtteranceIntoPhraseCues(seg.text, seg.start, seg.end));
+            }
           }
         }
         if (segs.isNotEmpty) return segs;
@@ -171,7 +183,11 @@ class SubtitleParser {
         for (final item in pList) {
           final seg = _segmentFromMap(item, isSecondsOverride: isSeconds);
           if (seg != null) {
-            segs.addAll(_splitUtteranceIntoPhraseCues(seg.text, seg.start, seg.end));
+            if (_isDiscreteCompactCue(seg.text, seg.end - seg.start)) {
+              segs.add(seg);
+            } else {
+              segs.addAll(_splitUtteranceIntoPhraseCues(seg.text, seg.start, seg.end));
+            }
           }
         }
         if (segs.isNotEmpty) return segs;
@@ -185,6 +201,25 @@ class SubtitleParser {
     }
 
     return segs;
+  }
+
+  static final RegExp _sentencePunctuation = RegExp(r'[.?!;:।॥؟۔。！？；：]$');
+  static final RegExp _clausePunctuation = RegExp(r'[,—–\-،、，]$');
+
+  /// Determines whether a string contains RTL (Arabic, Hebrew, Persian, Urdu) characters.
+  static bool isRtlText(String text) {
+    if (text.isEmpty) return false;
+    for (final char in text.runes) {
+      if ((char >= 0x0590 && char <= 0x05FF) ||
+          (char >= 0x0600 && char <= 0x06FF) ||
+          (char >= 0x0750 && char <= 0x077F) ||
+          (char >= 0x08A0 && char <= 0x08FF) ||
+          (char >= 0xFB50 && char <= 0xFDFF) ||
+          (char >= 0xFE70 && char <= 0xFEFF)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /// Groups word-level timestamp objects into natural, rhythmic phrase captions.
@@ -227,18 +262,12 @@ class SubtitleParser {
         }
       }
 
-      // Punctuation triggers
+      // Punctuation triggers (Universal: Latin, Indic, Arabic, CJK)
       final endsWithSentencePunctuation =
-          wordText.endsWith('.') ||
-          wordText.endsWith('?') ||
-          wordText.endsWith('!') ||
-          wordText.endsWith(';') ||
-          wordText.endsWith(':');
+          _sentencePunctuation.hasMatch(wordText);
 
       final endsWithClausePunctuation =
-          (wordText.endsWith(',') ||
-              wordText.endsWith('—') ||
-              wordText.endsWith('-')) &&
+          _clausePunctuation.hasMatch(wordText) &&
           currentChunk.length >= 3;
 
       final isLengthExceeded = currentChunk.length >= 5 || currentChars >= 32;
@@ -267,8 +296,8 @@ class SubtitleParser {
         if (finalEndMs <= startMs) {
           finalEndMs = startMs + (currentChunk.length * 320);
         } else if (nextWord != null && nextStartMs > finalEndMs) {
-          // Hold caption for up to 200ms into silence for smooth reading
-          final holdMs = (nextStartMs - finalEndMs).clamp(0, 200);
+          // Hold caption for up to 80ms into silence for smooth reading without lingering into next phrase
+          final holdMs = (nextStartMs - finalEndMs).clamp(0, 80);
           finalEndMs += holdMs;
         }
 
@@ -295,6 +324,13 @@ class SubtitleParser {
     return segs;
   }
 
+  static bool _isDiscreteCompactCue(String text, Duration duration) {
+    final words = text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    final isLongUnspaced = words.length <= 2 && text.length > 25;
+    if (isLongUnspaced) return false;
+    return duration <= const Duration(seconds: 8) || (words.length <= 10 && text.length <= 48);
+  }
+
   /// Splits an utterance or cue into compact phrase cues strictly bounded within
   /// the utterance's own [start] and [end] time interval, preserving inter-utterance pauses.
   static List<SubtitleSegment> _splitUtteranceIntoPhraseCues(
@@ -305,11 +341,34 @@ class SubtitleParser {
     final cleaned = cleanSubtitleText(text);
     if (cleaned.isEmpty) return [];
 
-    final words = cleaned.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    var words = cleaned.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
     if (words.isEmpty) return [];
 
-    // If utterance is already compact (<= 7 words, <= 36 chars), return exact cue
-    if (words.length <= 7 && cleaned.length <= 36) {
+    // CJK script support: if text has no spaces, split on CJK punctuation or ~16 characters
+    if (words.length == 1 && cleaned.length > 20) {
+      final cjkTokens = <String>[];
+      final buf = StringBuffer();
+      for (final char in cleaned.runes) {
+        final ch = String.fromCharCode(char);
+        buf.write(ch);
+        if (_sentencePunctuation.hasMatch(ch) ||
+            (_clausePunctuation.hasMatch(ch) && buf.length >= 8) ||
+            buf.length >= 16) {
+          cjkTokens.add(buf.toString().trim());
+          buf.clear();
+        }
+      }
+      if (buf.isNotEmpty) {
+        cjkTokens.add(buf.toString().trim());
+      }
+      if (cjkTokens.length > 1) {
+        words = cjkTokens;
+      }
+    }
+
+    // If utterance is already compact (<= 7 words, <= 48 chars, and not long unspaced CJK)
+    final isLongUnspaced = words.length <= 1 && cleaned.length > 20;
+    if (!isLongUnspaced && words.length <= 7 && cleaned.length <= 48) {
       return [SubtitleSegment(start: start, end: end, text: cleaned)];
     }
 
@@ -323,14 +382,9 @@ class SubtitleParser {
       charCount += w.length + 1;
 
       final isLast = i == words.length - 1;
-      final isPunct = w.endsWith('.') ||
-          w.endsWith('?') ||
-          w.endsWith('!') ||
-          w.endsWith(';') ||
-          w.endsWith(':');
-      final isComma = (w.endsWith(',') || w.endsWith('—') || w.endsWith('-')) &&
-          current.length >= 3;
-      final isLen = current.length >= 5 || charCount >= 32;
+      final isPunct = _sentencePunctuation.hasMatch(w);
+      final isComma = _clausePunctuation.hasMatch(w) && current.length >= 3;
+      final isLen = current.length >= 6 || (current.length >= 4 && charCount >= 40);
 
       if (isPunct || isComma || isLen || isLast) {
         chunkList.add(current.join(' ').trim());
@@ -426,7 +480,11 @@ class SubtitleParser {
       final cleanedText = cleanSubtitleText(rawText);
 
       if (cleanedText.isNotEmpty && end > start) {
-        segs.addAll(_splitUtteranceIntoPhraseCues(cleanedText, start, end));
+        if (_isDiscreteCompactCue(cleanedText, end - start)) {
+          segs.add(SubtitleSegment(start: start, end: end, text: cleanedText));
+        } else {
+          segs.addAll(_splitUtteranceIntoPhraseCues(cleanedText, start, end));
+        }
       }
     }
 
@@ -463,7 +521,7 @@ class SubtitleParser {
   static SubtitleSegment? findActiveSubtitle(
     List<SubtitleSegment> segments,
     Duration position, {
-    Duration gapTolerance = const Duration(milliseconds: 150),
+    Duration gapTolerance = const Duration(milliseconds: 100),
   }) {
     if (segments.isEmpty) return null;
 

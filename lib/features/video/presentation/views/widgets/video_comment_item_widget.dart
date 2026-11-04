@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
@@ -103,9 +104,16 @@ class CommentItemWidget extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 GestureDetector(
-                  onTap: () => CommentActionHandler.navigateToChannel(comment.channelId),
+                  onTap: comment.isChannelAuthor
+                      ? () => CommentActionHandler.navigateToChannel(
+                            comment.channelId,
+                            channelHandle: comment.displayName,
+                          )
+                      : null,
                   child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
+                    cursor: comment.isChannelAuthor
+                        ? SystemMouseCursors.click
+                        : SystemMouseCursors.basic,
                     child: UserAvatar(
                       photoUrl: comment.avatarUrl,
                       displayName: comment.displayName,
@@ -160,8 +168,8 @@ class CommentItemWidget extends StatelessWidget {
                         ),
                       ],
                       const SizedBox(height: 4),
-                      Text(
-                        comment.text,
+                      ClickableUrlText(
+                        text: comment.text,
                         style: const TextStyle(
                           fontSize: 14,
                           height: 1.3,
@@ -172,6 +180,7 @@ class CommentItemWidget extends StatelessWidget {
                       Row(
                         children: [
                           InkWell(
+                            borderRadius: BorderRadius.circular(16),
                             onTap: () => commentsController.toggleCommentLike(
                               commentId: commentId,
                               likeAsChannel: false,
@@ -203,6 +212,7 @@ class CommentItemWidget extends StatelessWidget {
                           ),
                           const SizedBox(width: 16),
                           InkWell(
+                            borderRadius: BorderRadius.circular(16),
                             onTap: () => commentsController.toggleCommentDislike(
                               commentId: commentId,
                               dislikeAsChannel: false,

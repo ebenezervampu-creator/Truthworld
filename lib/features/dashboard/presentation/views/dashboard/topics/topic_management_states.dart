@@ -35,7 +35,7 @@ class TopicEmptyState extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
+          color: AppColors.bgSurface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.bgDivider),
         ),
@@ -101,7 +101,7 @@ class TopicSearchEmptyState extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
+          color: AppColors.bgSurface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.bgDivider),
         ),
@@ -197,7 +197,7 @@ class TopicErrorState extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 480),
           padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
-            color: const Color(0xFF1E1E1E),
+            color: AppColors.bgSurface,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: AppColors.bgDivider),
           ),

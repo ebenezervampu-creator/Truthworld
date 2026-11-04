@@ -4,7 +4,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
@@ -170,7 +169,7 @@ class _ModernizedPlaylistDialogView extends StatelessWidget {
               children: [
                 Text(
                   'Save to playlist',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: isTablet ? 18 : 16,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
@@ -179,7 +178,7 @@ class _ModernizedPlaylistDialogView extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   'Select playlists or create a new one',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
                   ),
@@ -304,7 +303,7 @@ class _ModernizedPlaylistDialogView extends StatelessWidget {
                   const SizedBox(width: 12),
                   Text(
                     'Create new playlist',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary,
@@ -344,7 +343,7 @@ class _ModernizedPlaylistDialogView extends StatelessWidget {
               children: [
                 Text(
                   'New playlist',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
@@ -414,7 +413,7 @@ class _ModernizedPlaylistDialogView extends StatelessWidget {
               children: [
                 Text(
                   'Privacy:',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 13,
                     color: AppColors.textSecondary,
                     fontWeight: FontWeight.w500,
@@ -501,7 +500,7 @@ class _ModernizedPlaylistDialogView extends StatelessWidget {
                         )
                       : Text(
                           'Create',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
                             color: Colors.black,
@@ -608,7 +607,7 @@ class _ModernizedPlaylistDialogView extends StatelessWidget {
                     children: [
                       Text(
                         playlist.playlistName,
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: AppColors.textPrimary,
@@ -629,7 +628,7 @@ class _ModernizedPlaylistDialogView extends StatelessWidget {
                           const SizedBox(width: 4),
                           Text(
                             '$visibilityText • $videoCountText',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               fontSize: 12,
                               color: AppColors.textSecondary,
                             ),
@@ -706,7 +705,7 @@ class _ModernizedPlaylistDialogView extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             'No playlists found',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,
               color: AppColors.textPrimary,
@@ -716,7 +715,7 @@ class _ModernizedPlaylistDialogView extends StatelessWidget {
           Text(
             'Create a new playlist above to organize your videos.',
             textAlign: TextAlign.center,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 12,
               color: AppColors.textSecondary,
             ),
@@ -755,7 +754,7 @@ class _ModernizedPlaylistDialogView extends StatelessWidget {
             ),
             child: Text(
               'Done',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
                 color: Colors.black,

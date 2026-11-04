@@ -16,6 +16,8 @@ class ShareDispatcher {
     String? channelName,
     String? handle,
     String? videoTitle,
+    String? claimText,
+    String? verdictLabel,
     double? clipStartTime,
     double? clipEndTime,
     int? durationMs,
@@ -31,6 +33,16 @@ class ShareDispatcher {
         endSeconds: end,
         clipUrl: shareUrl,
       );
+    } else if (contentType == 'claim') {
+      final verdict = (verdictLabel != null && verdictLabel.isNotEmpty)
+          ? ' [$verdictLabel]'
+          : '';
+      final context = (videoTitle != null && videoTitle.isNotEmpty)
+          ? ' from "$videoTitle"'
+          : '';
+      final text =
+          (claimText != null && claimText.isNotEmpty) ? claimText : title;
+      return 'Fact Check$verdict$context on TruthWorld:\n"$text"\n\n$shareUrl';
     } else if (contentType == 'channel') {
       final cleanHandle = (handle ?? '').replaceAll(RegExp('^@'), '').trim();
       final handleStr = cleanHandle.isNotEmpty ? ' (@$cleanHandle)' : '';
@@ -178,6 +190,8 @@ class ShareDispatcher {
     String? channelName,
     String? handle,
     String? videoTitle,
+    String? claimText,
+    String? verdictLabel,
     double? clipStartTime,
     double? clipEndTime,
     int? durationMs,
@@ -194,6 +208,8 @@ class ShareDispatcher {
       channelName: channelName,
       handle: handle,
       videoTitle: videoTitle,
+      claimText: claimText,
+      verdictLabel: verdictLabel,
       clipStartTime: clipStartTime,
       clipEndTime: clipEndTime,
       durationMs: durationMs,
@@ -215,6 +231,8 @@ class ShareDispatcher {
     String? channelName,
     String? handle,
     String? videoTitle,
+    String? claimText,
+    String? verdictLabel,
     double? clipStartTime,
     double? clipEndTime,
     int? durationMs,
@@ -233,6 +251,8 @@ class ShareDispatcher {
           channelName: channelName,
           handle: handle,
           videoTitle: videoTitle,
+          claimText: claimText,
+          verdictLabel: verdictLabel,
           clipStartTime: clipStartTime,
           clipEndTime: clipEndTime,
           durationMs: durationMs,

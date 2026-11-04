@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
@@ -109,7 +108,7 @@ class ChannelSubscriptionController extends BaseController {
       'Please sign in to subscribe to channels.',
       title: 'Sign In Required',
       actionLabel: 'SIGN IN',
-      onAction: AuthBottomSheet.prompt,
+      onAction: () => AuthService.to.triggerPlatformSignIn(),
     );
   }
 
@@ -602,6 +601,8 @@ class ChannelSubscriptionController extends BaseController {
     try {
       final now = FieldValue.serverTimestamp();
       final updates = {
+        'channelId': channelId,
+        'userId': user.uid,
         'notificationsEnabled': notifsEnabled,
         'notificationOption': option,
         'notificationPreference': option,
@@ -622,6 +623,17 @@ class ChannelSubscriptionController extends BaseController {
             .doc(user.uid)
             .set(updates, SetOptions(merge: true)),
       ]);
+
+      // Synchronize device FCM broadcast topic subscription with preference
+      try {
+        if (Get.isRegistered<PushNotificationService>()) {
+          if (notifsEnabled) {
+            await PushNotificationService.to.subscribeToChannelTopic(channelId);
+          } else {
+            await PushNotificationService.to.unsubscribeFromChannelTopic(channelId);
+          }
+        }
+      } catch (_) {}
 
       if (option == 'all') {
         _showSuccessSnackbar("You'll get all notifications");
@@ -671,10 +683,10 @@ class ChannelSubscriptionController extends BaseController {
             } catch (_) {}
           }
 
-          // Only perform an aggregation count fallback if the document count is 0 or missing.
+          // Perform an aggregation count fallback if document count is 0 or drifted below subcollection.
           // For scaled channels (e.g. 100M subscribers), performing an unbounded collection
           // aggregation query on snapshot listener fires incurs massive read latency and billing costs.
-          if (count == 0) {
+          if (count < 1000) {
             try {
               final subColSnap = await _firestore
                   .collection(FirestoreCollections.channelSubscribers(channelId))

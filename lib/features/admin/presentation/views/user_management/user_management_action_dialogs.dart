@@ -18,7 +18,7 @@ void showUserActionDialog({
   showDialog(
     context: context,
     builder: (context) => AlertDialog(
-      backgroundColor: const Color(0xFF181818),
+      backgroundColor: AppColors.bgPage,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
@@ -89,7 +89,7 @@ void showUserActionDialog({
           style: ElevatedButton.styleFrom(
             backgroundColor: actionCode.contains('ban') || actionCode == 'delete'
                 ? AppColors.error
-                : (actionCode == 'unban' ? Colors.green : const Color(0xFF252525)),
+                : (actionCode == 'unban' ? Colors.green : AppColors.bgSurface),
             foregroundColor: Colors.white,
           ),
           onPressed: () {
@@ -131,7 +131,7 @@ void showConfirmConsolidationDialog({
 }) {
   Get.dialog(
     AlertDialog(
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: AppColors.bgSurface,
       title: const Row(
         children: [
           Icon(Icons.merge_type, color: Colors.white, size: 22),
@@ -162,7 +162,7 @@ void showConfirmConsolidationDialog({
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF2BA640),
+            backgroundColor: AppColors.success,
             foregroundColor: Colors.white,
           ),
           onPressed: () {

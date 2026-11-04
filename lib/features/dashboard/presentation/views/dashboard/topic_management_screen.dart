@@ -275,7 +275,7 @@ class TopicManagementScreen extends StatelessWidget {
                     final filtered = query.isEmpty
                         ? baseTopics
                         : baseTopics.where((topic) {
-                            return topic.title.toLowerCase().contains(query) ||
+                            return topic.name.toLowerCase().contains(query) ||
                                 topic.handle.toLowerCase().contains(query) ||
                                 topic.description.toLowerCase().contains(query) ||
                                 topic.category.toLowerCase().contains(query);
@@ -323,7 +323,7 @@ class TopicManagementScreen extends StatelessWidget {
 
         await controller.createTopic(
           channelId: channelId,
-          title: createCtrl.titleController.text,
+          name: createCtrl.nameController.text,
           handle: createCtrl.handleController.text,
           description: createCtrl.descriptionController.text,
           category: createCtrl.categoryController.text.isEmpty

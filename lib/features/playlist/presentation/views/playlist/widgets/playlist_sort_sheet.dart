@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -40,7 +39,7 @@ void showPlaylistSortBottomSheet({
                 children: [
                   Text(
                     'Sort Playlists',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -154,7 +153,7 @@ class PlaylistSortOptionTile extends StatelessWidget {
               const SizedBox(width: 16),
               Text(
                 label,
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   color: isSelected ? AppColors.brand : Colors.white,
                   fontWeight: FontWeight.w500,
                   fontSize: 16,

@@ -221,6 +221,8 @@ mixin UploadPipelineMixin on UploadControllerBase {
         'description': 'Processing...',
         'videoUrl': '',
         'thumbnailUrl': '',
+        'language': effectiveVideoLanguage,
+        'sourceLanguage': effectiveVideoLanguage,
         'likes': 0,
         'likeCount': 0,
         'dislikes': 0,
@@ -377,7 +379,10 @@ mixin UploadPipelineMixin on UploadControllerBase {
               statusListener?.cancel();
             } else if (status == 'failed') {
               final error = data['error'] ?? 'Unknown processing error';
-              debugPrint('❌ Processing failed: $error');
+              ErrorHandler.log(
+                error,
+                tag: 'UploadPipelineMixin.statusListener.failed',
+              );
               isUploading.value = false;
               videoUploadProgress.value = 0.0;
               uploadProgress.value = 0.0;
@@ -412,6 +417,7 @@ mixin UploadPipelineMixin on UploadControllerBase {
         contentType: 'video/mp4',
         customMetadata: {
           'uploaderId': userId,
+          'channelId': selectedChannel.value?.id ?? '',
           'duration': '$preExtractDurationSecs',
           'durationMs': '$preExtractDurationMs',
         },
@@ -506,8 +512,12 @@ mixin UploadPipelineMixin on UploadControllerBase {
               'videoUrl': downloadUrl,
               'status': targetStatus == 'draft'
                   ? 'draft'
-                  : (targetStatus == 'published' ? 'processing' : 'uploading'),
-              'visibility': ?targetVisibility,
+                  : (targetStatus == 'scheduled'
+                      ? 'scheduled'
+                      : (targetStatus == 'published' ? 'processing' : 'uploading')),
+              'visibility': (targetStatus == 'scheduled' || targetStatus == 'draft')
+                  ? 'private'
+                  : (targetVisibility ?? 'public'),
             });
       } catch (e, stackTrace) {
         ErrorHandler.log(
@@ -644,10 +654,14 @@ mixin UploadPipelineMixin on UploadControllerBase {
       }
 
       final currentUid = FirebaseAuth.instance.currentUser?.uid;
+      final chId = selectedChannel.value?.id ?? '';
+      final isTrustedChannel =
+          selectedChannel.value?.trustedModerationBypass == true;
       final metadata = SettableMetadata(
         contentType: 'image/$extension',
         customMetadata: {
           'uploaderId': currentUid ?? '',
+          'channelId': chId,
         },
       );
       final UploadTask uploadTask;
@@ -695,6 +709,20 @@ mixin UploadPipelineMixin on UploadControllerBase {
 
       final docId = uniqueFileName;
       uploadedDocIds.add(docId);
+
+      if (isTrustedChannel) {
+        if (forCommunity) {
+          communityImageStatus.value = 'APPROVED';
+          communityImageStatusReason.value = 'Trusted channel exemption';
+        } else {
+          finalstatus.value = 'APPROVED';
+          finalstatusReason.value = 'Trusted channel exemption';
+        }
+        debugPrint(
+          '🛡️ [TRUSTED CHANNEL] Bypassing image verification polling for $docId',
+        );
+        return;
+      }
 
       startImageVerification(docId, forCommunity: forCommunity);
     } catch (e) {

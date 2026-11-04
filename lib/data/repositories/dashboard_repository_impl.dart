@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart' hide Result;
 import 'package:truthworld/core/base/base_repository.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/network/result.dart';
 import 'package:truthworld/domain/repositories/dashboard_repository.dart';
 
@@ -219,9 +221,55 @@ class DashboardRepositoryImpl extends BaseRepository implements DashboardReposit
 
   @override
   Future<Result<void>> permanentlyDeleteVideo(String videoId) async {
-    return safeDelete(
-      _firestore.collection(FirestoreCollections.videos).doc(videoId),
-    );
+    return safeFetch(() async {
+      try {
+        final callable = FirebaseFunctions.instanceFor(region: 'asia-south1')
+            .httpsCallable('permanentlyDeleteVideo');
+        await callable.call({'videoId': videoId});
+      } catch (fnErr) {
+        ErrorHandler.log(fnErr, tag: 'DashboardRepo.permanentlyDeleteVideo');
+        final subcollections = [
+          'comments',
+          'media',
+          'subtitles',
+          'chapters',
+          'audio_tracks',
+          'transcripts',
+          'shards',
+          'comment_shards',
+          'views',
+          'likes',
+          'dislikes',
+        ];
+        for (final sub in subcollections) {
+          try {
+            final snap = await _firestore
+                .collection(FirestoreCollections.videos)
+                .doc(videoId)
+                .collection(sub)
+                .get();
+            for (final doc in snap.docs) {
+              if (sub == 'comments') {
+                try {
+                  final repliesSnap = await doc.reference.collection('replies').get();
+                  for (final r in repliesSnap.docs) {
+                    await r.reference.delete().catchError((_) {});
+                  }
+                } catch (_) {}
+              }
+              await doc.reference.delete().catchError((_) {});
+            }
+          } catch (_) {}
+        }
+        await _firestore.collection(FirestoreCollections.videos).doc(videoId).update({
+          'status': 'deleted',
+          'isDeleted': true,
+          'deletedAt': FieldValue.serverTimestamp(),
+          'visibility': 'private',
+        }).catchError((_) {});
+        await _firestore.collection(FirestoreCollections.videos).doc(videoId).delete().catchError((_) {});
+      }
+    });
   }
 
   @override

@@ -170,14 +170,14 @@ class _TruthworldSplashScreenState extends State<TruthworldSplashScreen>
       return widget.child;
     }
 
-    return Obx(() {
-      if (_done.value) return widget.child;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        widget.child,
+        Obx(() {
+          if (_done.value) return const SizedBox.shrink();
 
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          TickerMode(enabled: true, child: widget.child),
-          AnimatedBuilder(
+          return AnimatedBuilder(
             animation: controller,
             builder: (context, _) {
               final exitFadeVal = _exitFade?.value ?? 1.0;
@@ -275,10 +275,10 @@ class _TruthworldSplashScreenState extends State<TruthworldSplashScreen>
                 ),
               );
             },
-          ),
-        ],
-      );
-    });
+          );
+        }),
+      ],
+    );
   }
 }
 

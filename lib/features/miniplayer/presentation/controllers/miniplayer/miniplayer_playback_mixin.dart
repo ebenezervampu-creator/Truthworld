@@ -5,12 +5,14 @@ import 'package:get/get.dart';
 import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/pip_service.dart';
+import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer/miniplayer_state_base.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer/miniplayer_subtitles_mixin.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
 import 'package:truthworld/features/video/presentation/services/video_playback_queue_service.dart';
 import 'package:video_player/video_player.dart';
 
@@ -521,6 +523,9 @@ mixin MiniplayerPlaybackMixin on MiniplayerStateBase, MiniplayerSubtitlesMixin {
   // TIMERS & RESOURCE LIFECYCLE
   // ═══════════════════════════════════════════════════════════════════════════
 
+  /// Tracks last periodic watch position (seconds) saved to WatchHistoryService.
+  int _lastPeriodicWatchSec = 0;
+
   /// Periodic position sampler running at ~4 Hz.
   /// Much cheaper than a per-frame listener on the VideoPlayerController.
   void startPositionTimer() {
@@ -569,6 +574,25 @@ mixin MiniplayerPlaybackMixin on MiniplayerStateBase, MiniplayerSubtitlesMixin {
           if (val.duration > Duration.zero) {
             totalDuration.value = val.duration;
           }
+
+          // Periodic local watch progress persistence (every ~3 seconds of active playback)
+          final posSec = val.position.inSeconds;
+          if (val.isPlaying &&
+              posSec > 0 &&
+              (posSec - _lastPeriodicWatchSec).abs() >= 3) {
+            _lastPeriodicWatchSec = posSec;
+            final vid = currentVideo.value;
+            final totalSec = totalDuration.value.inSeconds > 0
+                ? totalDuration.value.inSeconds
+                : val.duration.inSeconds;
+            if (vid != null &&
+                totalSec > 0 &&
+                Get.isRegistered<WatchHistoryService>()) {
+              final pct = ((posSec / totalSec) * 100.0).clamp(0.0, 100.0);
+              WatchHistoryService.to.saveLocalPosition(vid.id, posSec, pct);
+              VideoPlaybackHandoff.registerResumePosition(vid.id, val.position);
+            }
+          }
         }
 
         // Subtitle lookup
@@ -598,6 +622,7 @@ mixin MiniplayerPlaybackMixin on MiniplayerStateBase, MiniplayerSubtitlesMixin {
   void stopPositionTimer() {
     positionTimer?.cancel();
     positionTimer = null;
+    _lastPeriodicWatchSec = 0;
   }
 
   void disposeVideoControllers() {

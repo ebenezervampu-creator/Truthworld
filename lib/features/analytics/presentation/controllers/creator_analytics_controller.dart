@@ -525,6 +525,8 @@ class CreatorAnalyticsController extends BaseController
           dash.syncMetricsFromAnalytics(
             views: finalAnalytics.totalVideoWatches,
             watchTimeSeconds: finalAnalytics.totalWatchTimeSeconds,
+            subscribers: finalAnalytics.subscribersGained,
+            dailyViews: finalAnalytics.dailyViews,
           );
         }
       }
@@ -705,6 +707,8 @@ class CreatorAnalyticsController extends BaseController
                   dash.syncMetricsFromAnalytics(
                     views: effectiveWatches,
                     watchTimeSeconds: effectiveWatchSec,
+                    subscribers: updated.subscribersGained,
+                    dailyViews: updated.dailyViews,
                   );
                 }
               }

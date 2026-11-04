@@ -174,6 +174,10 @@ abstract class ChannelControllerBase extends BaseController
   set lastAutoSlug(String val);
   void applyHandleSuggestion(String handle);
   void disposeAvailabilityTimers();
+  void checkCustomUrlAvailability(String rawCustomUrl, {bool forceRefresh = false});
+  Future<AvailabilityStatus> verifyCustomUrlAvailabilityDirect(String rawCustomUrl);
+  void checkChannelNameAvailability(String rawName, {bool forceRefresh = false});
+  Future<AvailabilityStatus> verifyChannelNameAvailabilityDirect(String rawName);
 
   // Details state
   Rx<Channel?> get activeChannel;

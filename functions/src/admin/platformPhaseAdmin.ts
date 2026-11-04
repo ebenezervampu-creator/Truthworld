@@ -11,6 +11,7 @@
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
+import { isSessionRecent } from "../utils/securityHeaders";
 import {
   PHASE_CONFIGS,
   PhaseConfig,
@@ -21,19 +22,26 @@ import {
 const db = () => admin.firestore();
 
 /**
- * Helper to verify that the caller is the Director (hello@truthworld.in)
- * or holds administrative privileges.
+ * Helper to verify that the caller is an authenticated Director
+ * or holds administrative privileges with a verified email.
  */
 async function assertAdminCaller(authContext: any): Promise<{ uid: string; email: string }> {
   if (!authContext || !authContext.uid) {
     throw new HttpsError("unauthenticated", "Authentication required to manage platform phases.");
   }
 
-  const email = (authContext.token?.email || "").toLowerCase();
+  const token = authContext.token || {};
+  const isEmailVerified = token.email_verified === true;
+  if (!isEmailVerified) {
+    throw new HttpsError("permission-denied", "Verified email address required for administrative operations.");
+  }
+
+  const email = (token.email || "").toLowerCase();
   const isAdmin =
-    email === "hello@truthworld.in" ||
-    authContext.token?.admin === true ||
-    authContext.token?.role === "admin";
+    token.admin === true ||
+    token.role === "admin" ||
+    token.isDirector === true ||
+    token.isSuperAdmin === true;
 
   if (!isAdmin) {
     // Check admin_members collection as fallback
@@ -62,6 +70,11 @@ export const setPlatformPhase = onCall(
   },
   async (request) => {
     const caller = await assertAdminCaller(request.auth);
+    const authTime = request.auth?.token?.auth_time as number | undefined;
+    if (!isSessionRecent(authTime, 3600)) {
+      throw new HttpsError("permission-denied", "Recent authentication required to update platform phase.");
+    }
+
     const data = request.data || {};
     const targetPhaseNumber = Number(data.phase);
 

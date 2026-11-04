@@ -15,75 +15,63 @@ import 'package:truthworld/theme/app_theme.dart';
 /// Ultra-wide and desktop sticky-header sortable data table for Studio Content.
 /// Replicates YouTube Studio Desktop Web tabular experience with customizable columns,
 /// inline hover quick actions, and real-time column sorting.
-class DesktopContentDataTable extends StatefulWidget {
-  const DesktopContentDataTable({
-    required this.videos,
-    required this.controller,
-    required this.isDarkMode,
-    super.key,
-  });
-
-  final List<Video> videos;
-  final VideoManagementController controller;
-  final bool isDarkMode;
-
-  @override
-  State<DesktopContentDataTable> createState() => _DesktopContentDataTableState();
-}
-
-enum VideoSortColumn { title, date, views, comments, likes }
-
-class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
-  VideoSortColumn _sortColumn = VideoSortColumn.date;
-  bool _sortAscending = false;
+/// GetX controller managing sort, bulk selection, column visibility, and hover state.
+class DesktopContentTableController extends GetxController {
+  final Rx<VideoSortColumn> sortColumn = VideoSortColumn.date.obs;
+  final RxBool sortAscending = false.obs;
 
   // Bulk Multi-Row Selection State
-  final Set<String> _selectedVideoIds = <String>{};
+  final RxSet<String> selectedVideoIds = <String>{}.obs;
 
-  bool get _allSelected =>
-      widget.videos.isNotEmpty && _selectedVideoIds.length == widget.videos.length;
+  bool isAllSelected(int totalCount) =>
+      totalCount > 0 && selectedVideoIds.length == totalCount;
 
-  bool get _isIndeterminate =>
-      _selectedVideoIds.isNotEmpty && !_allSelected;
+  bool isIndeterminate(int totalCount) =>
+      selectedVideoIds.isNotEmpty && !isAllSelected(totalCount);
 
-  void _toggleSelectAll(bool? select) {
-    setState(() {
-      if (_allSelected) {
-        _selectedVideoIds.clear();
-      } else {
-        _selectedVideoIds.addAll(widget.videos.map((v) => v.id));
-      }
-    });
+  void toggleSelectAll(List<Video> videos) {
+    if (isAllSelected(videos.length)) {
+      selectedVideoIds.clear();
+    } else {
+      selectedVideoIds.addAll(videos.map((v) => v.id));
+    }
   }
 
-  void _toggleSelectVideo(String videoId, bool? select) {
-    setState(() {
-      if (select == true) {
-        _selectedVideoIds.add(videoId);
-      } else {
-        _selectedVideoIds.remove(videoId);
-      }
-    });
+  void toggleSelectVideo(String videoId, bool? select) {
+    if (select == true) {
+      selectedVideoIds.add(videoId);
+    } else {
+      selectedVideoIds.remove(videoId);
+    }
   }
 
-  void _clearSelection() {
-    setState(_selectedVideoIds.clear);
+  void clearSelection() {
+    selectedVideoIds.clear();
   }
 
-  // Customizable column visibility
-  bool _showRestrictions = true;
-  bool _showDate = true;
-  bool _showViews = true;
-  bool _showComments = true;
-  bool _showLikes = true;
+  // Column visibility
+  final RxBool showRestrictions = true.obs;
+  final RxBool showDate = true.obs;
+  final RxBool showViews = true.obs;
+  final RxBool showComments = true.obs;
+  final RxBool showLikes = true.obs;
 
-  String? _hoveredVideoId;
+  final RxnString hoveredVideoId = RxnString();
 
-  List<Video> get _sortedVideos {
-    final list = List<Video>.from(widget.videos);
+  void onSort(VideoSortColumn column) {
+    if (sortColumn.value == column) {
+      sortAscending.value = !sortAscending.value;
+    } else {
+      sortColumn.value = column;
+      sortAscending.value = false;
+    }
+  }
+
+  List<Video> sortVideos(List<Video> source) {
+    final list = List<Video>.from(source);
     list.sort((a, b) {
       var cmp = 0;
-      switch (_sortColumn) {
+      switch (sortColumn.value) {
         case VideoSortColumn.title:
           cmp = a.title.toLowerCase().compareTo(b.title.toLowerCase());
         case VideoSortColumn.date:
@@ -97,25 +85,36 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
         case VideoSortColumn.likes:
           cmp = a.likeCount.compareTo(b.likeCount);
       }
-      return _sortAscending ? cmp : -cmp;
+      return sortAscending.value ? cmp : -cmp;
     });
     return list;
   }
+}
 
-  void _onSort(VideoSortColumn column) {
-    setState(() {
-      if (_sortColumn == column) {
-        _sortAscending = !_sortAscending;
-      } else {
-        _sortColumn = column;
-        _sortAscending = false;
-      }
-    });
-  }
+enum VideoSortColumn { title, date, views, comments, likes }
 
+/// Ultra-wide and desktop sticky-header sortable data table for Studio Content.
+/// Replicates YouTube Studio Desktop Web tabular experience with customizable columns,
+/// inline hover quick actions, and real-time column sorting.
+class DesktopContentDataTable extends StatelessWidget {
+  const DesktopContentDataTable({
+    required this.videos,
+    required this.controller,
+    required this.isDarkMode,
+    super.key,
+  });
+
+  final List<Video> videos;
+  final VideoManagementController controller;
+  final bool isDarkMode;
   @override
   Widget build(BuildContext context) {
-    final videos = _sortedVideos;
+    final tableCtrl = Get.isRegistered<DesktopContentTableController>()
+        ? Get.find<DesktopContentTableController>()
+        : Get.put(DesktopContentTableController());
+
+    return Obx(() {
+      final sortedVideos = tableCtrl.sortVideos(videos);
 
     return Container(
       decoration: BoxDecoration(
@@ -129,24 +128,24 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Sticky Table Header
-          _buildTableHeader(context),
+          _buildTableHeader(context, tableCtrl),
 
           // Scrollable Table Body
           Expanded(
             child: ListView.separated(
-              itemCount: videos.length,
+              itemCount: sortedVideos.length,
               separatorBuilder: (context, index) => const Divider(
                 height: 1,
                 color: AppColors.bgDivider,
               ),
               itemBuilder: (context, index) {
-                final video = videos[index];
-                final isHovered = _hoveredVideoId == video.id;
-                final isSelected = _selectedVideoIds.contains(video.id);
+                final video = sortedVideos[index];
+                final isHovered = tableCtrl.hoveredVideoId.value == video.id;
+                final isSelected = tableCtrl.selectedVideoIds.contains(video.id);
 
                 return MouseRegion(
-                  onEnter: (_) => setState(() => _hoveredVideoId = video.id),
-                  onExit: (_) => setState(() => _hoveredVideoId = null),
+                  onEnter: (_) => tableCtrl.hoveredVideoId.value = video.id,
+                  onExit: (_) => tableCtrl.hoveredVideoId.value = null,
                   child: Container(
                     color: isSelected
                         ? AppColors.brand.withValues(alpha: 0.1)
@@ -154,7 +153,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
                             ? AppColors.bgSurfaceHover
                             : (index.isEven
                                 ? AppColors.bgSurface
-                                : const Color(0xFF1E1E1E))),
+                                : AppColors.bgSurface)),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 10,
@@ -170,7 +169,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
                               value: isSelected,
                               activeColor: AppColors.brand,
                               checkColor: Colors.black,
-                              onChanged: (val) => _toggleSelectVideo(video.id, val),
+                              onChanged: (val) => tableCtrl.toggleSelectVideo(video.id, val),
                             ),
                           ),
                         ),
@@ -178,7 +177,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
                         // Video Info Column (Flex 5)
                         Expanded(
                           flex: 5,
-                          child: _buildVideoCell(video, isHovered),
+                          child: _buildVideoCell(context, video, isHovered),
                         ),
 
                         // Visibility Column (Flex 2)
@@ -188,21 +187,21 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
                         ),
 
                         // Restrictions Column (Flex 2)
-                        if (_showRestrictions)
+                        if (tableCtrl.showRestrictions.value)
                           Expanded(
                             flex: 2,
-                            child: _buildRestrictionsCell(video),
+                            child: _buildRestrictionsCell(context, video),
                           ),
 
                         // Date Column (Flex 2)
-                        if (_showDate)
+                        if (tableCtrl.showDate.value)
                           Expanded(
                             flex: 2,
                             child: _buildDateCell(video),
                           ),
 
                         // Views Column (Flex 2)
-                        if (_showViews)
+                        if (tableCtrl.showViews.value)
                           Expanded(
                             flex: 2,
                             child: _buildMetricCell(
@@ -212,7 +211,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
                           ),
 
                         // Comments Column (Flex 2)
-                        if (_showComments)
+                        if (tableCtrl.showComments.value)
                           Expanded(
                             flex: 2,
                             child: _buildMetricCell(
@@ -221,7 +220,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
                           ),
 
                         // Likes Column (Flex 2)
-                        if (_showLikes)
+                        if (tableCtrl.showLikes.value)
                           Expanded(
                             flex: 2,
                             child: _buildLikesCell(video),
@@ -235,18 +234,19 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
           ),
 
           // Sticky Batch Action Bar
-          if (_selectedVideoIds.isNotEmpty)
-            _buildBatchActionBar(context, videos),
+          if (tableCtrl.selectedVideoIds.isNotEmpty)
+            _buildBatchActionBar(context, tableCtrl, sortedVideos),
         ],
       ),
     );
+    });
   }
 
-  Widget _buildTableHeader(BuildContext context) {
+  Widget _buildTableHeader(BuildContext context, DesktopContentTableController tableCtrl) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: const BoxDecoration(
-        color: Color(0xFF161618),
+        color: AppColors.appBarSurface,
         border: Border(bottom: BorderSide(color: AppColors.bgDivider)),
       ),
       child: Row(
@@ -257,11 +257,11 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
             child: Semantics(
               label: 'Select all videos',
               child: Checkbox(
-                value: _allSelected ? true : (_isIndeterminate ? null : false),
+                value: tableCtrl.isAllSelected(videos.length) ? true : (tableCtrl.isIndeterminate(videos.length) ? null : false),
                 tristate: true,
                 activeColor: AppColors.brand,
                 checkColor: Colors.black,
-                onChanged: _toggleSelectAll,
+                onChanged: (_) => tableCtrl.toggleSelectAll(videos),
               ),
             ),
           ),
@@ -272,6 +272,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
             child: _buildSortableHeaderItem(
               'Video',
               VideoSortColumn.title,
+              tableCtrl,
             ),
           ),
 
@@ -290,7 +291,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
           ),
 
           // Restrictions Column Header
-          if (_showRestrictions)
+          if (tableCtrl.showRestrictions.value)
             const Expanded(
               flex: 2,
               child: Text(
@@ -305,37 +306,40 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
             ),
 
           // Date Column Header
-          if (_showDate)
+          if (tableCtrl.showDate.value)
             Expanded(
               flex: 2,
               child: _buildSortableHeaderItem(
                 'Date',
                 VideoSortColumn.date,
+                tableCtrl,
               ),
             ),
 
           // Views Column Header
-          if (_showViews)
+          if (tableCtrl.showViews.value)
             Expanded(
               flex: 2,
               child: _buildSortableHeaderItem(
                 'Views',
                 VideoSortColumn.views,
+                tableCtrl,
               ),
             ),
 
           // Comments Column Header
-          if (_showComments)
+          if (tableCtrl.showComments.value)
             Expanded(
               flex: 2,
               child: _buildSortableHeaderItem(
                 'Comments',
                 VideoSortColumn.comments,
+                tableCtrl,
               ),
             ),
 
           // Likes Column Header
-          if (_showLikes)
+          if (tableCtrl.showLikes.value)
             Expanded(
               flex: 2,
               child: Row(
@@ -344,9 +348,10 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
                     child: _buildSortableHeaderItem(
                       'Likes (%)',
                       VideoSortColumn.likes,
+                      tableCtrl,
                     ),
                   ),
-                  _buildColumnToggleMenu(),
+                  _buildColumnToggleMenu(tableCtrl),
                 ],
               ),
             ),
@@ -355,16 +360,16 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
     );
   }
 
-  Widget _buildSortableHeaderItem(String label, VideoSortColumn column) {
-    final isSelected = _sortColumn == column;
-    final sortDirection = isSelected ? (_sortAscending ? 'ascending' : 'descending') : 'not sorted';
+  Widget _buildSortableHeaderItem(String label, VideoSortColumn column, DesktopContentTableController tableCtrl) {
+    final isSelected = tableCtrl.sortColumn.value == column;
+    final sortDirection = isSelected ? (tableCtrl.sortAscending.value ? 'ascending' : 'descending') : 'not sorted';
     return Semantics(
       button: true,
       label: 'Sort by $label, currently $sortDirection',
       child: Tooltip(
         message: 'Sort by $label',
         child: InkWell(
-          onTap: () => _onSort(column),
+          onTap: () => tableCtrl.onSort(column),
           borderRadius: BorderRadius.circular(4),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -384,7 +389,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
               const SizedBox(width: 4),
               Icon(
                 isSelected
-                    ? (_sortAscending
+                    ? (tableCtrl.sortAscending.value
                         ? Icons.arrow_upward_rounded
                         : Icons.arrow_downward_rounded)
                     : Icons.unfold_more_rounded,
@@ -398,7 +403,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
     );
   }
 
-  Widget _buildColumnToggleMenu() {
+  Widget _buildColumnToggleMenu(DesktopContentTableController tableCtrl) {
     return PopupMenuButton<String>(
       tooltip: 'Customize columns',
       icon: const Icon(
@@ -406,58 +411,56 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
         size: 16,
         color: AppColors.textSecondary,
       ),
-      color: const Color(0xFF1E1E1E),
+      color: AppColors.bgSurface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
         side: const BorderSide(color: AppColors.bgDivider),
       ),
       itemBuilder: (context) => [
         CheckedPopupMenuItem(
-          checked: _showRestrictions,
+          checked: tableCtrl.showRestrictions.value,
           value: 'restrictions',
           child: const Text('Restrictions', style: TextStyle(color: Colors.white)),
         ),
         CheckedPopupMenuItem(
-          checked: _showDate,
+          checked: tableCtrl.showDate.value,
           value: 'date',
           child: const Text('Date', style: TextStyle(color: Colors.white)),
         ),
         CheckedPopupMenuItem(
-          checked: _showViews,
+          checked: tableCtrl.showViews.value,
           value: 'views',
           child: const Text('Views', style: TextStyle(color: Colors.white)),
         ),
         CheckedPopupMenuItem(
-          checked: _showComments,
+          checked: tableCtrl.showComments.value,
           value: 'comments',
           child: const Text('Comments', style: TextStyle(color: Colors.white)),
         ),
         CheckedPopupMenuItem(
-          checked: _showLikes,
+          checked: tableCtrl.showLikes.value,
           value: 'likes',
           child: const Text('Likes', style: TextStyle(color: Colors.white)),
         ),
       ],
       onSelected: (value) {
-        setState(() {
-          switch (value) {
-            case 'restrictions':
-              _showRestrictions = !_showRestrictions;
-            case 'date':
-              _showDate = !_showDate;
-            case 'views':
-              _showViews = !_showViews;
-            case 'comments':
-              _showComments = !_showComments;
-            case 'likes':
-              _showLikes = !_showLikes;
-          }
-        });
+        switch (value) {
+          case 'restrictions':
+            tableCtrl.showRestrictions.toggle();
+          case 'date':
+            tableCtrl.showDate.toggle();
+          case 'views':
+            tableCtrl.showViews.toggle();
+          case 'comments':
+            tableCtrl.showComments.toggle();
+          case 'likes':
+            tableCtrl.showLikes.toggle();
+        }
       },
     );
   }
 
-  Widget _buildVideoCell(Video video, bool isHovered) {
+  Widget _buildVideoCell(BuildContext context, Video video, bool isHovered) {
     return Row(
       children: [
         // Thumbnail preview with Hero flight transition
@@ -466,7 +469,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
             Get.to<dynamic>(
               () => VideoContentDetailsScreen(
                 video: video,
-                isDarkMode: widget.isDarkMode,
+                isDarkMode: isDarkMode,
               ),
             );
           },
@@ -524,7 +527,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
                   Get.to<dynamic>(
                     () => VideoContentDetailsScreen(
                       video: video,
-                      isDarkMode: widget.isDarkMode,
+                      isDarkMode: isDarkMode,
                     ),
                   );
                 },
@@ -542,7 +545,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
               ),
               const SizedBox(height: 2),
               if (isHovered)
-                _buildHoverActionButtons(video)
+                _buildHoverActionButtons(context, video)
               else
                 Text(
                   video.description.isEmpty ? 'Add description' : video.description,
@@ -561,7 +564,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
     );
   }
 
-  Widget _buildHoverActionButtons(Video video) {
+  Widget _buildHoverActionButtons(BuildContext context, Video video) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -575,7 +578,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
               showResubmitModerationDialog(
                 context,
                 video,
-                widget.controller,
+                controller,
               );
             },
           ),
@@ -623,7 +626,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
             showGenerateAIFeaturesDialog(
               context,
               video,
-              widget.controller,
+              controller,
             );
           },
         ),
@@ -635,8 +638,8 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
             showVideoActionOptionsModal(
               context,
               video,
-              isDarkMode: widget.isDarkMode,
-              controller: widget.controller,
+              isDarkMode: isDarkMode,
+              controller: controller,
             );
           },
         ),
@@ -712,7 +715,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
     );
   }
 
-  Widget _buildRestrictionsCell(Video video) {
+  Widget _buildRestrictionsCell(BuildContext context, Video video) {
     final isClean = !video.isRejected && video.status != VideoStatus.rejected;
     if (isClean) {
       return const Row(
@@ -744,7 +747,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
         : 'Rejected (${video.resubmitCount}/2)';
 
     return InkWell(
-      onTap: () => showResubmitModerationDialog(context, video, widget.controller),
+      onTap: () => showResubmitModerationDialog(context, video, controller),
       borderRadius: BorderRadius.circular(4),
       child: Tooltip(
         message: video.resubmitCount < 2
@@ -883,15 +886,15 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
   // Bulk Multi-Row Operations & Sticky Batch Action Bar
   // ---------------------------------------------------------------------------
 
-  Widget _buildBatchActionBar(BuildContext context, List<Video> allVideos) {
+  Widget _buildBatchActionBar(BuildContext context, DesktopContentTableController tableCtrl, List<Video> allVideos) {
     final selectedVideos =
-        allVideos.where((v) => _selectedVideoIds.contains(v.id)).toList();
+        allVideos.where((v) => tableCtrl.selectedVideoIds.contains(v.id)).toList();
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF161618),
+        color: AppColors.appBarSurface,
         border: const Border(top: BorderSide(color: AppColors.bgDivider)),
         boxShadow: [
           BoxShadow(
@@ -905,7 +908,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
         children: [
           // Checkbox & Selection Counter
           Semantics(
-            label: '${_selectedVideoIds.length} videos selected',
+            label: '${tableCtrl.selectedVideoIds.length} videos selected',
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -913,11 +916,11 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
                   value: true,
                   activeColor: AppColors.brand,
                   checkColor: Colors.black,
-                  onChanged: (_) => _clearSelection(),
+                  onChanged: (_) => tableCtrl.clearSelection(),
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  '${_selectedVideoIds.length} selected',
+                  '${tableCtrl.selectedVideoIds.length} selected',
                   style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontWeight: FontWeight.bold,
@@ -928,13 +931,11 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
               ],
             ),
           ),
-          if (_selectedVideoIds.length < allVideos.length) ...[
+          if (tableCtrl.selectedVideoIds.length < allVideos.length) ...[
             const SizedBox(width: 8),
             TextButton(
               onPressed: () {
-                setState(() {
-                  _selectedVideoIds.addAll(allVideos.map((v) => v.id));
-                });
+                tableCtrl.selectedVideoIds.addAll(allVideos.map((v) => v.id));
               },
               child: Text(
                 'Select all (${allVideos.length})',
@@ -949,7 +950,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
           const Spacer(),
 
           // Batch Action 1: Bulk Edit Visibility
-          _buildBulkVisibilityMenu(context),
+          _buildBulkVisibilityMenu(context, tableCtrl),
           const SizedBox(width: 10),
 
           // Batch Action 2: Batch AI Pipeline
@@ -958,7 +959,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
               showBatchGenerateAIFeaturesDialog(
                 context,
                 selectedVideos,
-                widget.controller,
+                controller,
               );
             },
             icon: const Icon(Icons.auto_awesome_rounded, size: 16, color: Colors.black),
@@ -980,13 +981,13 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
 
           // Batch Action 3: Bulk Delete
           OutlinedButton.icon(
-            onPressed: () => _confirmBulkDelete(context, selectedVideos),
+            onPressed: () => _confirmBulkDelete(context, selectedVideos, tableCtrl),
             icon: const Icon(
               Icons.delete_outline_rounded,
               size: 16,
               color: AppColors.error,
             ),
-            label: Text('Delete (${_selectedVideoIds.length})'),
+            label: Text('Delete (${tableCtrl.selectedVideoIds.length})'),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.error,
               side: const BorderSide(color: AppColors.error),
@@ -1014,7 +1015,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
                   size: 18,
                   color: AppColors.textSecondary,
                 ),
-                onPressed: _clearSelection,
+                onPressed: tableCtrl.clearSelection,
               ),
             ),
           ),
@@ -1023,10 +1024,10 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
     );
   }
 
-  Widget _buildBulkVisibilityMenu(BuildContext context) {
+  Widget _buildBulkVisibilityMenu(BuildContext context, DesktopContentTableController tableCtrl) {
     return PopupMenuButton<String>(
       tooltip: 'Change visibility for selected videos',
-      color: const Color(0xFF1E1E1E),
+      color: AppColors.bgSurface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
         side: const BorderSide(color: AppColors.bgDivider),
@@ -1057,20 +1058,38 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
         ),
       ),
       onSelected: (visibility) async {
-        final ids = _selectedVideoIds.toList();
-        await widget.controller.batchChangeVideoVisibility(ids, visibility);
-        if (mounted) {
-          _clearSelection();
-        }
+        final ids = tableCtrl.selectedVideoIds.toList();
+        await controller.batchChangeVideoVisibility(ids, visibility);
+        tableCtrl.clearSelection();
       },
       itemBuilder: (context) => [
         const PopupMenuItem(
           value: 'public',
           child: Row(
             children: [
-              Icon(Icons.public_rounded, size: 16, color: AppColors.success),
+              Icon(Icons.public_rounded, size: 16, color: Colors.white),
               SizedBox(width: 10),
               Text('Public', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'members_only',
+          child: Row(
+            children: [
+              Icon(Icons.card_membership_rounded, size: 16, color: Colors.white),
+              SizedBox(width: 10),
+              Text('Members Only', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'subscribers_only',
+          child: Row(
+            children: [
+              Icon(Icons.subscriptions_rounded, size: 16, color: Colors.white),
+              SizedBox(width: 10),
+              Text('Subscribers Only', style: TextStyle(color: Colors.white)),
             ],
           ),
         ),
@@ -1078,7 +1097,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
           value: 'unlisted',
           child: Row(
             children: [
-              Icon(Icons.link_rounded, size: 16, color: AppColors.warning),
+              Icon(Icons.link_rounded, size: 16, color: Colors.white),
               SizedBox(width: 10),
               Text('Unlisted', style: TextStyle(color: Colors.white)),
             ],
@@ -1088,7 +1107,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
           value: 'private',
           child: Row(
             children: [
-              Icon(Icons.lock_outline_rounded, size: 16, color: AppColors.textSecondary),
+              Icon(Icons.lock_outline_rounded, size: 16, color: Colors.white),
               SizedBox(width: 10),
               Text('Private', style: TextStyle(color: Colors.white)),
             ],
@@ -1098,7 +1117,7 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
     );
   }
 
-  void _confirmBulkDelete(BuildContext context, List<Video> selectedVideos) {
+  void _confirmBulkDelete(BuildContext context, List<Video> selectedVideos, DesktopContentTableController tableCtrl) {
     Get.dialog<void>(
       Dialog(
         backgroundColor: AppColors.bgSurface,
@@ -1151,10 +1170,8 @@ class _DesktopContentDataTableState extends State<DesktopContentDataTable> {
                     ),
                     onPressed: () async {
                       Get.back<void>();
-                      await widget.controller.batchDeleteVideos(selectedVideos);
-                      if (mounted) {
-                        _clearSelection();
-                      }
+                      await controller.batchDeleteVideos(selectedVideos);
+                      tableCtrl.clearSelection();
                     },
                     child: Text('Move to Trash (${selectedVideos.length})'),
                   ),

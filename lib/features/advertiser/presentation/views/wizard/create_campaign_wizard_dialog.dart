@@ -205,11 +205,11 @@ void showCreateCampaignWizard(
   const availableTopics = AppCategories.allCategories;
 
   final gradientOptions = <List<Color>>[
-    [const Color(0xFF8B5CF6), const Color(0xFFEC4899)],
-    [const Color(0xFFEF4444), const Color(0xFFF59E0B)],
-    [const Color(0xFF10B981), const Color(0xFF059669)],
-    [const Color(0xFF3B82F6), const Color(0xFF1D4ED8)],
-    [const Color(0xFFEC4899), const Color(0xFFF43F5E)],
+    [AppColors.info, AppColors.textLink],
+    [AppColors.error, AppColors.warning],
+    [AppColors.success, AppColors.success],
+    [AppColors.info, AppColors.info],
+    [AppColors.warning, AppColors.error],
   ];
 
   final currentStep = 1.obs;
@@ -226,9 +226,9 @@ void showCreateCampaignWizard(
           width: 860,
           height: MediaQuery.of(context).size.height * 0.86,
           decoration: BoxDecoration(
-            color: const Color(0xFF161618),
+            color: AppColors.appBarSurface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF27272A)),
+            border: Border.all(color: AppColors.bgSurface),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.6),
@@ -243,13 +243,13 @@ void showCreateCampaignWizard(
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: const BoxDecoration(
-                  color: Color(0xFF18181B),
+                  color: AppColors.bgPage,
                   borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(16),
                     topRight: Radius.circular(16),
                   ),
                   border: Border(
-                    bottom: BorderSide(color: Color(0xFF27272A)),
+                    bottom: BorderSide(color: AppColors.bgSurface),
                   ),
                 ),
                 child: Column(
@@ -257,48 +257,58 @@ void showCreateCampaignWizard(
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: AppColors.brand.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(
-                                Icons.campaign_rounded,
-                                color: Colors.white,
-                                size: 22,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  existingCampaign != null
-                                      ? 'Edit Ad Campaign Studio'
-                                      : 'Ad Campaign Creation Studio',
-                                  style: const TextStyle(
-                                    fontFamily: TWTypography.brandFamily,
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.brand.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
-                                const SizedBox(height: 2),
-                                const Text(
-                                  'Industry Standard Campaign Manager & Delivery Setup',
-                                  style: TextStyle(
-                                    fontFamily: TWTypography.uiFamily,
-                                    color: AppColors.textSecondary,
-                                    fontSize: 12,
-                                  ),
+                                child: const Icon(
+                                  Icons.campaign_rounded,
+                                  color: Colors.white,
+                                  size: 22,
                                 ),
-                              ],
-                            ),
-                          ],
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      existingCampaign != null
+                                          ? 'Edit Ad Campaign Studio'
+                                          : 'Ad Campaign Creation Studio',
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                      style: const TextStyle(
+                                        fontFamily: TWTypography.brandFamily,
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    const Text(
+                                      'Industry Standard Campaign Manager & Delivery Setup',
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                      style: TextStyle(
+                                        fontFamily: TWTypography.uiFamily,
+                                        color: AppColors.textSecondary,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
+                        const SizedBox(width: 8),
                         IconButton(
                           onPressed: Get.back,
                           icon: const Icon(
@@ -475,55 +485,61 @@ void showCreateCampaignWizard(
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: const BoxDecoration(
-                  color: Color(0xFF18181B),
+                  color: AppColors.bgPage,
                   borderRadius: BorderRadius.only(
                     bottomLeft: Radius.circular(16),
                     bottomRight: Radius.circular(16),
                   ),
                   border: Border(
-                    top: BorderSide(color: Color(0xFF27272A)),
+                    top: BorderSide(color: AppColors.bgSurface),
                   ),
                 ),
                 child: Obx(() {
                   return Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          if (currentStep.value > 1) {
-                            currentStep.value--;
-                          } else {
-                            Get.back();
-                          }
-                        },
-                        icon: const Icon(
-                          Icons.arrow_back_rounded,
-                          color: Colors.white,
-                          size: 16,
-                        ),
-                        label: Text(
-                          currentStep.value > 1 ? 'Back' : 'Cancel',
-                          style: const TextStyle(
-                            fontFamily: TWTypography.uiFamily,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
+                      Flexible(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            if (currentStep.value > 1) {
+                              currentStep.value--;
+                            } else {
+                              Get.back();
+                            }
+                          },
+                          icon: const Icon(
+                            Icons.arrow_back_rounded,
+                            color: Colors.white,
+                            size: 16,
                           ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF27272A),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 14,
+                          label: Text(
+                            currentStep.value > 1 ? 'Back' : 'Cancel',
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                            style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
                           ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.bgSurface,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            elevation: 0,
                           ),
-                          elevation: 0,
                         ),
                       ),
+                      const SizedBox(width: 8),
                       if (currentStep.value < 4)
-                        ElevatedButton.icon(
+                        Flexible(
+                          child: ElevatedButton.icon(
                           onPressed: () {
                             if (currentStep.value == 2) {
                               if (advertiserController.text.trim().isEmpty ||
@@ -588,6 +604,8 @@ void showCreateCampaignWizard(
                           ),
                           label: const Text(
                             'Next Step',
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
                             style: TextStyle(
                               fontFamily: TWTypography.uiFamily,
                               fontWeight: FontWeight.bold,
@@ -599,7 +617,7 @@ void showCreateCampaignWizard(
                             backgroundColor: Colors.white,
                             foregroundColor: Colors.black,
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
+                              horizontal: 16,
                               vertical: 14,
                             ),
                             shape: RoundedRectangleBorder(
@@ -607,9 +625,11 @@ void showCreateCampaignWizard(
                             ),
                             elevation: 0,
                           ),
-                        )
+                        ),
+                      )
                       else
-                        ElevatedButton.icon(
+                        Flexible(
+                          child: ElevatedButton.icon(
                           onPressed: () {
                             final brand = advertiserController.text.trim();
                             final title = titleController.text.trim();
@@ -750,6 +770,8 @@ void showCreateCampaignWizard(
                           ),
                           label: const Text(
                             'Proceed to Checkout',
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
                             style: TextStyle(
                               fontFamily: TWTypography.uiFamily,
                               fontWeight: FontWeight.bold,
@@ -761,7 +783,7 @@ void showCreateCampaignWizard(
                             backgroundColor: Colors.white,
                             foregroundColor: Colors.black,
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
+                              horizontal: 16,
                               vertical: 14,
                             ),
                             shape: RoundedRectangleBorder(
@@ -770,6 +792,7 @@ void showCreateCampaignWizard(
                             elevation: 0,
                           ),
                         ),
+                      ),
                     ],
                   );
                 }),

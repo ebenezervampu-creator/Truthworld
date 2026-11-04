@@ -13,14 +13,19 @@ import 'package:truthworld/theme/app_theme.dart';
 class FollowButton extends StatelessWidget {
   const FollowButton({
     required this.topicId,
-    required this.topicTitle,
+    String? topicName,
+    String? topicTitle,
     this.videoCount = 0,
     super.key,
-  });
+  }) : topicName = (topicName != null && topicName != '')
+            ? topicName
+            : (topicTitle ?? '');
 
   final String topicId;
-  final String topicTitle;
+  final String topicName;
+  String get topicTitle => topicName;
   final int videoCount;
+  static final Set<String> _pendingTopicIds = <String>{};
 
   @override
   Widget build(BuildContext context) {
@@ -32,82 +37,97 @@ class FollowButton extends StatelessWidget {
 
     return Obx(() {
       final isFollowing = followingController.isTopicFollowed(topicId);
-      return InkWell(
-        onTap: () async {
-          final user = FirebaseAuth.instance.currentUser;
-          if (user == null) {
-            AppSnackbar.warning(
-              'Please sign in to follow topics.',
-              title: 'Sign In Required',
-            );
-            return;
-          }
+      return Material(
+        color: isFollowing
+            ? colors.textPrimary.withValues(alpha: 0.1)
+            : colors.brand,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          onTap: () async {
+            if (_pendingTopicIds.contains(topicId)) return;
 
-          var finalCount = videoCount;
-          if (finalCount <= 0 && !isFollowing) {
+            final user = FirebaseAuth.instance.currentUser;
+            if (user == null) {
+              AppSnackbar.warning(
+                'Please sign in to follow topics.',
+              );
+              return;
+            }
+
+            _pendingTopicIds.add(topicId);
             try {
-              final doc = await FirebaseFirestore.instance
-                  .collection(FirestoreCollections.topics)
-                  .doc(topicId)
-                  .get();
-              if (doc.exists) {
-                final data = doc.data();
-                finalCount = (data?['videoCount'] as num?)?.toInt() ??
-                    (data?['featuredVideoIds'] as List?)?.length ??
-                    0;
+              var finalCount = videoCount;
+              if (finalCount <= 0 && !isFollowing) {
+                try {
+                  final doc = await FirebaseFirestore.instance
+                      .collection(FirestoreCollections.topics)
+                      .doc(topicId)
+                      .get();
+                  if (doc.exists) {
+                    final data = doc.data();
+                    finalCount = (data?['videoCount'] as num?)?.toInt() ??
+                        (data?['featuredVideoIds'] as List?)?.length ??
+                        0;
+                  }
+                } catch (e, s) {
+                  ErrorHandler.log(
+                    e,
+                    stackTrace: s,
+                    tag: 'TopicCard.fetchTopicCount',
+                  );
+                }
               }
+
+              if (finalCount <= 0 && !isFollowing) {
+                AppSnackbar.info(
+                  'This topic has no videos.',
+                );
+                return;
+              }
+
+              final slug = topicName.toLowerCase().replaceAll(' ', '-');
+              final topic = Topic(
+                id: topicId,
+                name: topicName,
+                title: topicName,
+                slug: slug,
+                handle: slug,
+                handleLowercase: slug.toLowerCase(),
+                description: '',
+                category: 'General',
+                videoCount: finalCount > 0 ? finalCount : 1,
+                createdAt: DateTime.now(),
+                updatedAt: DateTime.now(),
+              );
+              await followingController.toggleFollowTopic(topic);
             } catch (e, s) {
               ErrorHandler.log(
                 e,
                 stackTrace: s,
-                tag: 'TopicCard.fetchTopicCount',
+                tag: 'FollowButton.onTap',
               );
+            } finally {
+              _pendingTopicIds.remove(topicId);
             }
-          }
-
-          if (finalCount <= 0 && !isFollowing) {
-            AppSnackbar.info(
-              'This topic has no videos.',
-              title: 'Unavailable',
-            );
-            return;
-          }
-
-          final slug = topicTitle.toLowerCase().replaceAll(' ', '-');
-          final topic = Topic(
-            id: topicId,
-            title: topicTitle,
-            slug: slug,
-            handle: slug,
-            handleLowercase: slug.toLowerCase(),
-            description: '',
-            category: 'General',
-            videoCount: finalCount > 0 ? finalCount : 1,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-          );
-          await followingController.toggleFollowTopic(topic);
-        },
-        borderRadius: BorderRadius.circular(18),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: isFollowing
-                ? colors.textPrimary.withValues(alpha: 0.1)
-                : colors.brand,
-            borderRadius: BorderRadius.circular(18),
-            border: isFollowing
-                ? Border.all(
-                    color: colors.textPrimary.withValues(alpha: 0.2),
-                    width: 0.8,
-                  )
-                : null,
-          ),
-          child: Text(
-            isFollowing ? 'Following' : 'Follow',
-            style: typography.label.copyWith(
-              color: isFollowing ? colors.textPrimary : Colors.black,
-              fontWeight: FontWeight.bold,
+          },
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: isFollowing
+                  ? Border.all(
+                      color: colors.textPrimary.withValues(alpha: 0.2),
+                      width: 0.8,
+                    )
+                  : null,
+            ),
+            child: Text(
+              isFollowing ? 'Following' : 'Follow',
+              style: typography.label.copyWith(
+                color: isFollowing ? colors.textPrimary : Colors.black,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ),

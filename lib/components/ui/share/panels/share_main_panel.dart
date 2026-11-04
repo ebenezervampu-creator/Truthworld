@@ -33,6 +33,14 @@ class ShareMainPanel extends StatelessWidget {
     this.clipStartTime,
     this.clipEndTime,
     this.videoTitle,
+    this.claimText,
+    this.verdictLabel,
+    this.verdictColor,
+    this.verdictIcon,
+    this.summaryTakeaway,
+    this.confidenceText,
+    this.sourceDomain,
+    this.onShareImage,
   });
 
   final String title;
@@ -57,6 +65,14 @@ class ShareMainPanel extends StatelessWidget {
   final double? clipStartTime;
   final double? clipEndTime;
   final String? videoTitle;
+  final String? claimText;
+  final String? verdictLabel;
+  final Color? verdictColor;
+  final IconData? verdictIcon;
+  final String? summaryTakeaway;
+  final String? confidenceText;
+  final String? sourceDomain;
+  final VoidCallback? onShareImage;
 
   @override
   Widget build(BuildContext context) {
@@ -124,6 +140,14 @@ class ShareMainPanel extends StatelessWidget {
             clipFile: clipFile,
             clipStatus: clipStatus,
             isPreparingClip: isPreparingClip,
+            videoTitle: videoTitle,
+            claimText: claimText,
+            verdictLabel: verdictLabel,
+            verdictColor: verdictColor,
+            verdictIcon: verdictIcon,
+            summaryTakeaway: summaryTakeaway,
+            confidenceText: confidenceText,
+            sourceDomain: sourceDomain,
           ),
         ),
 
@@ -191,6 +215,8 @@ class ShareMainPanel extends StatelessWidget {
                   channelName: channelName,
                   handle: handle,
                   videoTitle: videoTitle,
+                  claimText: claimText,
+                  verdictLabel: verdictLabel,
                   clipStartTime: clipStartTime,
                   clipEndTime: clipEndTime,
                   durationMs: durationMs,
@@ -209,6 +235,8 @@ class ShareMainPanel extends StatelessWidget {
                   channelName: channelName,
                   handle: handle,
                   videoTitle: videoTitle,
+                  claimText: claimText,
+                  verdictLabel: verdictLabel,
                   clipStartTime: clipStartTime,
                   clipEndTime: clipEndTime,
                   durationMs: durationMs,
@@ -227,6 +255,8 @@ class ShareMainPanel extends StatelessWidget {
                   channelName: channelName,
                   handle: handle,
                   videoTitle: videoTitle,
+                  claimText: claimText,
+                  verdictLabel: verdictLabel,
                   clipStartTime: clipStartTime,
                   clipEndTime: clipEndTime,
                   durationMs: durationMs,
@@ -245,6 +275,8 @@ class ShareMainPanel extends StatelessWidget {
                   channelName: channelName,
                   handle: handle,
                   videoTitle: videoTitle,
+                  claimText: claimText,
+                  verdictLabel: verdictLabel,
                   clipStartTime: clipStartTime,
                   clipEndTime: clipEndTime,
                   durationMs: durationMs,
@@ -263,6 +295,8 @@ class ShareMainPanel extends StatelessWidget {
                   channelName: channelName,
                   handle: handle,
                   videoTitle: videoTitle,
+                  claimText: claimText,
+                  verdictLabel: verdictLabel,
                   clipStartTime: clipStartTime,
                   clipEndTime: clipEndTime,
                   durationMs: durationMs,
@@ -273,6 +307,12 @@ class ShareMainPanel extends StatelessWidget {
                   icon: Icons.code_rounded,
                   label: 'Embed',
                   onTap: () => showEmbedPanel.value = true,
+                ),
+              if (contentType == 'claim' && onShareImage != null)
+                ShareSocialIcon(
+                  icon: Icons.image_outlined,
+                  label: 'Image Card',
+                  onTap: onShareImage!,
                 ),
               ShareSocialIcon(
                 icon: Icons.more_horiz_rounded,
@@ -286,6 +326,8 @@ class ShareMainPanel extends StatelessWidget {
                   channelName: channelName,
                   handle: handle,
                   videoTitle: videoTitle,
+                  claimText: claimText,
+                  verdictLabel: verdictLabel,
                   clipStartTime: clipStartTime,
                   clipEndTime: clipEndTime,
                   durationMs: durationMs,

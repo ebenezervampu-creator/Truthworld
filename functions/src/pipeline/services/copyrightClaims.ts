@@ -24,6 +24,7 @@ import {
   ChannelStrike,
 } from "./copyrightTypes";
 import { copyrightDetectionService } from "./copyrightDetection";
+import { getBigQueryAnalyticsService } from "../../analytics/bigqueryService";
 import { v4 as uuidv4 } from "uuid";
 import { PIPELINE_CONFIG } from "../config";
 import { extractCandidateText } from "../utils/ai-utils";
@@ -222,6 +223,46 @@ export class CopyrightClaimsService {
       });
 
       await batch.commit();
+      // ── Stream Claim to BigQuery (Non-blocking) ──
+      try {
+        const bq = getBigQueryAnalyticsService();
+        bq.enqueueCopyrightClaim({
+          claim_id: claimId,
+          timestamp: new Date().toISOString(),
+          match_id: match.matchId,
+          asset_id: match.assetId,
+          original_video_id: match.assetId,
+          infringing_video_id: match.matchedVideoId,
+          claimant_id: claimantChannelName,
+          infringing_creator_id: match.matchedOwnerId || null,
+          claim_status: status,
+          claim_policy: claimPolicy,
+          claim_impact: impact,
+          fair_use_score: fairUse.score,
+          fair_use_category: fairUse.category,
+          resolved_at: null,
+          resolution_reason: null,
+        });
+
+        if (claimPolicy === "monetize_shared") {
+          bq.enqueueMonetizationDeduction({
+            deduction_id: `deduct_${claimId}`,
+            timestamp: new Date().toISOString(),
+            video_id: match.matchedVideoId,
+            source_channel_id: channelId || match.matchedChannelId || "unknown",
+            beneficiary_channel_id: assetData.channelId || "unknown",
+            claim_id: claimId,
+            deduction_type: "copyright_split",
+            split_ratio: 0.50, // Standard 50/50 shared copyright monetization split
+            gross_revenue_inr: 0,
+            diverted_amount_inr: 0,
+            currency: "INR",
+          });
+        }
+      } catch (bqErr) {
+        logger.warn("[CopyrightClaims] BigQuery claim streaming warning", { err: String(bqErr) });
+      }
+
       logger.info("[CopyrightClaims] Claim successfully created", {
         claimId,
         matchId: match.matchId,
@@ -292,6 +333,25 @@ export class CopyrightClaimsService {
       });
 
       await batch.commit();
+
+      // ── Stream Appeal to BigQuery (Non-blocking) ──
+      try {
+        const bq = getBigQueryAnalyticsService();
+        bq.enqueueCopyrightAppeal({
+          appeal_id: appealId,
+          timestamp: new Date().toISOString(),
+          claim_id: claimId,
+          video_id: claimData.videoId,
+          appellant_id: userId,
+          claimant_id: claimData.ownerId || claimData.claimant || null,
+          appeal_status: "pending",
+          appellant_reason: reason,
+          ai_fair_use_score: null,
+          resolved_at: null,
+        });
+      } catch (bqErr) {
+        logger.warn("[CopyrightClaims] BigQuery appeal streaming warning", { err: String(bqErr) });
+      }
 
       // Trigger async AI analysis of the appeal
       this.runAIAppealReview(appealId).catch((err) => {
@@ -439,6 +499,25 @@ Return JSON:
       }
 
       await batch.commit();
+      // ── Stream Appeal Resolution to BigQuery (Non-blocking) ──
+      try {
+        const bq = getBigQueryAnalyticsService();
+        bq.enqueueCopyrightAppeal({
+          appeal_id: appealId,
+          timestamp: new Date().toISOString(),
+          claim_id: claimId,
+          video_id: appealData.videoId || "",
+          appellant_id: appealData.uploaderId || "",
+          claimant_id: null,
+          appeal_status: resolution === "approved" ? "accepted" : "rejected",
+          appellant_reason: appealData.reason || null,
+          ai_fair_use_score: appealData.aiFairUseScore ?? null,
+          resolved_at: new Date().toISOString(),
+        });
+      } catch (bqErr) {
+        logger.warn("[CopyrightClaims] BigQuery appeal resolution streaming warning", { err: String(bqErr) });
+      }
+
       logger.info("[CopyrightClaims] Appeal resolved", { appealId, resolution });
       return true;
     } catch (error) {

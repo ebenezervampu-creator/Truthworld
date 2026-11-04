@@ -41,11 +41,16 @@ class UserSessionResetManager {
       // 1. Studio Dashboard Core Controllers
       if (Get.isRegistered<DashboardController>()) {
         try {
-          Get.find<DashboardController>().clearData();
+          final ctrl = Get.find<DashboardController>();
+          ctrl.setSelectedIndex(1);
+          ctrl.clearData();
         } catch (_) {}
         Get.delete<DashboardController>(force: true);
       }
       if (Get.isRegistered<DashboardViewController>()) {
+        try {
+          Get.find<DashboardViewController>().clearChannelSession();
+        } catch (_) {}
         Get.delete<DashboardViewController>(force: true);
       }
 

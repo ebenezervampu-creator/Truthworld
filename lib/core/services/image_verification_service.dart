@@ -172,7 +172,7 @@ enum ImageCategory {
 
   /// Maximum allowed file size in bytes
   int get maxSize => switch (this) {
-    ImageCategory.thumbnail => 5 * 1024 * 1024, // 5MB
+    ImageCategory.thumbnail => 2 * 1024 * 1024, // 2MB (matches YouTube thumbnail limit)
     ImageCategory.avatar => 2 * 1024 * 1024, // 2MB
     ImageCategory.banner => 5 * 1024 * 1024, // 5MB
     ImageCategory.community => 10 * 1024 * 1024, // 10MB

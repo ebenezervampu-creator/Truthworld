@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/widgets/channel_verified_badge.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
 import 'package:truthworld/features/topics/presentation/pages/following/following_topics_barrel.dart';
@@ -49,6 +50,7 @@ void main() {
     tags: ['space', 'science'],
     category: 'science',
     isFactChecked: true,
+    isChannelTrusted: true,
   );
 
   group('FollowingTopicsHeader', () {
@@ -71,7 +73,40 @@ void main() {
       expect(find.byType(TextField), findsOneWidget);
       expect(find.byIcon(Icons.arrow_back), findsOneWidget);
       expect(find.byIcon(Icons.search_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.mic_rounded), findsOneWidget);
       expect(find.text('Search followed topics...'), findsOneWidget);
+    });
+
+    testWidgets('typing shows clear button and tapping it clears search query', (tester) async {
+      Get.testMode = true;
+      final controller = FollowingTopicsController();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: FollowingTopicsHeader(
+              controller: controller,
+              isMobile: false,
+              isDashboard: false,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byIcon(Icons.close_rounded), findsNothing);
+
+      await tester.enterText(find.byType(TextField), 'science');
+      await tester.pumpAndSettle();
+
+      expect(controller.searchQuery.value, 'science');
+      expect(find.byIcon(Icons.close_rounded), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.close_rounded));
+      await tester.pumpAndSettle();
+
+      expect(controller.searchQuery.value, '');
+      expect(controller.searchController.text, '');
+      expect(find.byIcon(Icons.close_rounded), findsNothing);
     });
   });
 
@@ -112,7 +147,8 @@ void main() {
       expect(find.text('James Webb Telescope Discoveries'), findsOneWidget);
       expect(find.text('NASA Space Science'), findsOneWidget);
       expect(find.text('Space & Astronomy'), findsOneWidget);
-      expect(find.byIcon(Icons.verified_rounded), findsOneWidget);
+      // Channel blue verified badges are discontinued platform-wide
+      expect(find.byType(ChannelVerifiedBadge), findsNothing);
       expect(find.text('12:34'), findsOneWidget);
       expect(find.byIcon(Icons.more_vert), findsOneWidget);
     });

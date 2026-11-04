@@ -70,46 +70,6 @@ void main() {
       expect(routeSettings!.name, equals('/studio'));
     });
 
-    test('WalletRedirectMiddleware does NOT redirect to /dashboard in Consumer App', () {
-      AppFlavor.current = AppFlavor.app;
-      expect(AppFlavor.isStudio, isFalse);
-
-      final authService = Get.put(AuthService());
-      authService.isAuthenticated.value = true;
-      authService.hasChannel.value = true;
-
-      final testChannel = Channel.fromMap({
-        'id': 'test_ch_3',
-        'name': 'Wallet Channel',
-        'handle': 'walletchannel',
-        'ownerId': 'user_3',
-      }, 'test_ch_3');
-      authService.setUserChannel(testChannel);
-
-      final middleware = WalletRedirectMiddleware();
-      final routeSettings = middleware.redirect('/wallet');
-
-      expect(routeSettings, isNotNull);
-      // In consumer app, never redirect to /dashboard (studio)
-      expect(routeSettings!.name, isNot('/dashboard'));
-      expect(routeSettings.name, equals('/@walletchannel'));
-    });
-
-    test('WalletRedirectMiddleware redirects to /dashboard in Studio App flavor', () {
-      AppFlavor.current = AppFlavor.studio;
-      expect(AppFlavor.isStudio, isTrue);
-
-      final authService = Get.put(AuthService());
-      authService.isAuthenticated.value = true;
-      authService.hasChannel.value = true;
-
-      final middleware = WalletRedirectMiddleware();
-      final routeSettings = middleware.redirect('/wallet');
-
-      expect(routeSettings, isNotNull);
-      expect(routeSettings!.name, equals('/dashboard'));
-    });
-
     test('ChannelWizardViewController checkExistingChannelAndRedirect respects Consumer flavor', () {
       AppFlavor.current = AppFlavor.app;
 

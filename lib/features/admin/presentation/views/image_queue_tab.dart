@@ -36,7 +36,7 @@ class ImageQueueTab extends StatelessWidget {
 
       final filterBar = Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -208,7 +208,7 @@ class ImageQueueTab extends StatelessWidget {
               },
               child: Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFF181818),
+                  color: AppColors.bgPage,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.08),
@@ -259,7 +259,7 @@ class ImageQueueTab extends StatelessWidget {
                             left: 4,
                             child: Checkbox(
                               value: controller.selectedItemIds.contains(img['id']),
-                              activeColor: const Color(0xFF2BA640),
+                              activeColor: AppColors.success,
                               checkColor: Colors.white,
                               side: const BorderSide(color: Colors.white70),
                               onChanged: (_) => controller.toggleItemSelection((img['id'] ?? '').toString()),
@@ -294,7 +294,7 @@ class ImageQueueTab extends StatelessWidget {
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF212121),
+                                  color: AppColors.bgSurface,
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
@@ -384,7 +384,7 @@ class ImageQueueTab extends StatelessWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
-                  color: const Color(0xFF181818),
+                  color: AppColors.bgPage,
                   constraints: const BoxConstraints(maxHeight: 280),
                   width: double.infinity,
                   child: displayUrl.isNotEmpty

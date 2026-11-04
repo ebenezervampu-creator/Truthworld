@@ -21,7 +21,13 @@ class VolumeControl extends StatelessWidget {
         onExit: (_) => ctrl.volumeSliderVis.value = false,
         child: Row(
           children: [
-            IconBtn(icon: ctrl.volumeIcon, onTap: ctrl.toggleMute),
+            IconBtn(
+              icon: ctrl.volumeIcon,
+              tooltip: ctrl.isMuted.value || ctrl.volume.value == 0
+                  ? 'Unmute (m)'
+                  : 'Mute (m)',
+              onTap: ctrl.toggleMute,
+            ),
             AnimatedSize(
               duration: const Duration(milliseconds: 200),
               child: ctrl.volumeSliderVis.value
@@ -126,7 +132,7 @@ class TimeDisplay extends StatelessWidget {
         final currentChapter = ctrl.currentChapter.value;
         final hasChapters = ctrl.chapters.isNotEmpty;
         final chapterTitle = showChapters
-            ? (currentChapter?.title ?? (hasChapters ? 'Chapters' : null))
+            ? (currentChapter?.localizedTitle() ?? (hasChapters ? 'Chapters' : null))
             : null;
 
         return Material(
@@ -138,7 +144,7 @@ class TimeDisplay extends StatelessWidget {
               TextSpan(
                 children: [
                   TextSpan(
-                    text: '${_fmt(ctrl.vv.position)} / ${_fmt(ctrl.vv.duration)}',
+                    text: '${_fmt(ctrl.vv.position)} / ${_fmt(ctrl.effectiveDuration)}',
                     style: TS.time,
                   ),
                   if (chapterTitle != null) ...[

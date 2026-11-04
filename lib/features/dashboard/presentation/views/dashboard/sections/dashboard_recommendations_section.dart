@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/studio_interactive_card.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -122,9 +123,9 @@ class DashboardRecommendationsSection extends StatelessWidget {
       }
     }
 
-    // 5. Monetization readiness
+    // 5. Monetization readiness (Only shown for monetized channels)
     final subscriberCount = ch?.subscriberCount ?? 0;
-    if (subscriberCount >= 50 && ch != null) {
+    if (subscriberCount >= 50 && ch != null && controller.isChannelMonetizationActive) {
       recs.add({
         'title': 'Explore Channel Memberships',
         'description':
@@ -207,11 +208,12 @@ class DashboardRecommendationsSection extends StatelessWidget {
           itemBuilder: (context, index) {
             final rec = recommendations[index];
             return TweenAnimationBuilder<double>(
-              duration: Duration(milliseconds: 400 + (index * 150)),
+              duration: Duration(milliseconds: 320 + (index * 70)),
+              curve: Curves.easeOutCubic,
               tween: Tween(begin: 0, end: 1),
               builder: (context, value, child) {
                 return Transform.translate(
-                  offset: Offset(0, 30 * (1 - value)),
+                  offset: Offset(0, 16 * (1 - value)),
                   child: Opacity(
                     opacity: value,
                     child: DashboardRecommendationCard(
@@ -241,100 +243,85 @@ class DashboardRecommendationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.bgDivider,
-        ),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () {
-            final onTap = recommendation['onTap'];
-            if (onTap is VoidCallback) {
-              onTap();
-            }
-            HapticFeedback.lightImpact();
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: AppColors.bgSurfaceHover,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    recommendation['icon'] as IconData,
-                    color: AppColors.textPrimary,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  recommendation['title'] as String,
-                  style: const TextStyle(
-                    fontFamily: TWTypography.brandFamily,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Expanded(
-                  child: Text(
-                    recommendation['description'] as String,
-                    style: const TextStyle(
-                      fontFamily: TWTypography.uiFamily,
-                      color: AppColors.textSecondary,
-                      fontSize: 13,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      final onTap = recommendation['onTap'];
-                      if (onTap is VoidCallback) {
-                        onTap();
-                      }
-                      HapticFeedback.lightImpact();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.brand,
-                      foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      elevation: 0,
-                    ),
-                    child: Text(
-                      recommendation['action'] as String,
-                      style: const TextStyle(
-                        fontFamily: TWTypography.uiFamily,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+    return StudioInteractiveCard(
+      onTap: () {
+        final onTap = recommendation['onTap'];
+        if (onTap is VoidCallback) {
+          onTap();
+        }
+        HapticFeedback.lightImpact();
+      },
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.bgSurfaceHover,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              recommendation['icon'] as IconData,
+              color: AppColors.textPrimary,
+              size: 22,
             ),
           ),
-        ),
+          const SizedBox(height: 14),
+          Text(
+            recommendation['title'] as String,
+            style: const TextStyle(
+              fontFamily: TWTypography.brandFamily,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Expanded(
+            child: Text(
+              recommendation['description'] as String,
+              style: const TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.textSecondary,
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                final onTap = recommendation['onTap'];
+                if (onTap is VoidCallback) {
+                  onTap();
+                }
+                HapticFeedback.lightImpact();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.brand,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                elevation: 0,
+              ),
+              child: Text(
+                recommendation['action'] as String,
+                style: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: Colors.black,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

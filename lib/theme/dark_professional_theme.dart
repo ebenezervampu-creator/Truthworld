@@ -42,6 +42,10 @@ ThemeData darkProfessionalTheme = ThemeData(
   scaffoldBackgroundColor: darkBackground,
   cardColor: darkSurface,
   dividerColor: darkSurfaceVariant.withValues(alpha: 0.3),
+  splashColor: Colors.white.withValues(alpha: 0.08),
+  highlightColor: Colors.transparent,
+  hoverColor: AppColors.hoverOverlay,
+  focusColor: Colors.transparent,
   // ── Material Design 3 Type Scale — Roboto ──
   textTheme: const TextTheme(
     displayLarge: TextStyle(

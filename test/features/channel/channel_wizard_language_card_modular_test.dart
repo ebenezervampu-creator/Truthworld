@@ -38,7 +38,6 @@ void main() {
 
       expect(find.text('8. Language'), findsOneWidget);
       expect(find.text('English'), findsOneWidget);
-      expect(find.text('Accepted'), findsOneWidget);
       expect(find.byIcon(Icons.keyboard_arrow_down), findsOneWidget);
     });
 
@@ -59,7 +58,37 @@ void main() {
 
       expect(find.text('8. Language'), findsNothing);
       expect(find.text('English'), findsOneWidget);
-      expect(find.text('Accepted'), findsOneWidget);
+    });
+
+    testWidgets('ChannelLanguageContent can be tapped to select any language directly like YouTube', (tester) async {
+      final controller = Get.put(ChannelController());
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: Scaffold(
+            body: ChannelLanguageContent(
+              controller: controller,
+              isDarkMode: true,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('English'), findsOneWidget);
+      final pickerTrigger = find.byIcon(Icons.keyboard_arrow_down);
+      await tester.tap(pickerTrigger);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Channel Language'), findsOneWidget);
+      expect(find.text('Mandarin Chinese'), findsOneWidget);
+      expect(find.text('Invite Only'), findsNothing);
+
+      // Select Hindi
+      await tester.tap(find.text('Hindi'));
+      await tester.pumpAndSettle();
+
+      expect(controller.language.value, 'hi');
+      expect(find.text('Hindi (हिन्दी)'), findsOneWidget);
     });
 
     testWidgets('ChannelLanguageContent can be tapped to open language picker and view languages', (tester) async {

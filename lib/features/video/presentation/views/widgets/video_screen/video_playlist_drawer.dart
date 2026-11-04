@@ -1,7 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_detail_screen.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
@@ -61,7 +60,7 @@ class VideoPlaylistDrawer extends StatelessWidget {
                       children: [
                         Text(
                           controller.currentPlaylist.value!.playlistName,
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             color: Colors.white,
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -72,7 +71,7 @@ class VideoPlaylistDrawer extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           "${controller.video.channelName.isNotEmpty ? '${controller.video.channelName} - ' : ''}${controller.currentPlaylistIndex.value + 1} / ${controller.playlistVideos.length}",
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.7),
                             fontSize: 13,
                           ),
@@ -177,7 +176,7 @@ class VideoPlaylistDrawer extends StatelessWidget {
                                   )
                                 : Text(
                                     '${index + 1}',
-                                    style: GoogleFonts.roboto(
+                                    style: TextStyle(
                                       color: Colors.white.withValues(
                                         alpha: 0.7,
                                       ),
@@ -211,7 +210,7 @@ class VideoPlaylistDrawer extends StatelessWidget {
                                 video.title,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.roboto(
+                                style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 14,
                                   fontWeight: isActive
@@ -224,7 +223,7 @@ class VideoPlaylistDrawer extends StatelessWidget {
                                 video.channelName,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.roboto(
+                                style: TextStyle(
                                   color: Colors.white.withValues(alpha: 0.6),
                                   fontSize: 12,
                                 ),

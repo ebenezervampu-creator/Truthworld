@@ -27,6 +27,7 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import { PIPELINE_CONFIG } from "../config";
 import { extractCandidateText } from "../utils/ai-utils";
+import { getBigQueryAnalyticsService } from "../../analytics/bigqueryService";
 
 const db = () => admin.firestore();
 
@@ -686,6 +687,33 @@ Return JSON:
         );
       }
       await batch.commit();
+
+      // ── Stream to BigQuery Copyright Audit Trail (Non-blocking) ──
+      try {
+        const bq = getBigQueryAnalyticsService();
+        const nowIso = new Date().toISOString();
+        for (const match of matches) {
+          bq.enqueueCopyrightMatch({
+            match_id: match.matchId,
+            timestamp: match.detectedAt ? new Date(match.detectedAt).toISOString() : nowIso,
+            matched_video_id: match.matchedVideoId,
+            original_video_id: match.assetId,
+            asset_id: match.assetId,
+            claimant_channel_id: null,
+            infringing_channel_id: match.matchedChannelId || null,
+            match_type: match.matchType,
+            composite_score: match.finalConfidence ?? match.score ?? 0,
+            md5_score: match.confidenceBreakdown?.md5Score ?? null,
+            embedding_score: match.confidenceBreakdown?.embeddingScore ?? null,
+            transcript_score: match.confidenceBreakdown?.transcriptScore ?? null,
+            semantic_score: match.confidenceBreakdown?.semanticScore ?? null,
+            segments_count: match.matchedSegments ? match.matchedSegments.length : 0,
+            status: match.status || "detected",
+          });
+        }
+      } catch (bqErr) {
+        logger.warn("[CopyrightDetection] BigQuery match streaming warning", { err: String(bqErr) });
+      }
     } catch (err) {
       logger.error("[CopyrightDetection] Failed to persist matches", {
         matchCount: matches.length,

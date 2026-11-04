@@ -21,16 +21,18 @@ mixin UploadMediaPickerMixin on UploadControllerBase {
       if (result != null && result.files.isNotEmpty) {
         final pickedFile = result.files.first;
         final extension = pickedFile.extension?.toLowerCase();
-        const allowedExtensions = {'jpg', 'jpeg', 'png', 'gif'};
+        const allowedExtensions = {'jpg', 'jpeg', 'png', 'gif', 'webp'};
         if (extension == null || !allowedExtensions.contains(extension)) {
           AppSnackbar.warning(
-            'Unsupported image format. Allowed formats: JPG, JPEG, PNG, GIF.',
+            'Unsupported image format. Allowed formats: JPG, JPEG, PNG, GIF, WEBP.',
           );
           return;
         }
 
-        // Validate size (2MB limit for video thumbnails, 10MB limit for community posts)
-        final maxSize = forCommunity ? 10 * 1024 * 1024 : 2 * 1024 * 1024;
+        // Validate size (2MB limit for video thumbnails matching YouTube, 10MB limit for community posts)
+        final maxSize = forCommunity
+            ? UploadControllerBase.maxCommunityImageSizeBytes
+            : UploadControllerBase.maxThumbnailSizeBytes;
         if (pickedFile.size > maxSize) {
           final sizeLimitMB = forCommunity ? '10MB' : '2MB';
           AppSnackbar.warning(
@@ -89,10 +91,16 @@ mixin UploadMediaPickerMixin on UploadControllerBase {
           'prores',
           'cineform',
           'hevc',
+          'mp3',
+          'wav',
+          'm4a',
+          'aac',
+          'ogg',
+          'flac',
         };
         if (extension == null || !allowedExtensions.contains(extension)) {
           AppSnackbar.warning(
-            'Unsupported video format. Allowed formats: MP4, MOV, AVI, WMV, WEBM, FLV, MKV.',
+            'Unsupported media format. Allowed formats: MP4, MOV, AVI, WMV, WEBM, MKV, MP3, WAV, M4A, AAC.',
           );
           return;
         }
@@ -100,8 +108,22 @@ mixin UploadMediaPickerMixin on UploadControllerBase {
         const maxDurationSeconds = 60 * 60; // 60 minutes
 
         int duration;
+        final isAudio = const {'mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac'}.contains(extension);
+        final mimeType = isAudio
+            ? (extension == 'mp3'
+                ? 'audio/mpeg'
+                : extension == 'wav'
+                    ? 'audio/wav'
+                    : extension == 'ogg'
+                        ? 'audio/ogg'
+                        : 'audio/mp4')
+            : 'video/mp4';
+
         if (kIsWeb) {
-          final dur = await WebPlatformUtils.getVideoDurationFromBytes(pickedFile.bytes!);
+          final dur = await WebPlatformUtils.getVideoDurationFromBytes(
+            pickedFile.bytes!,
+            mimeType,
+          );
           duration = dur?.inSeconds ?? 0;
         } else {
           final file = io.File(pickedFile.path!);
@@ -135,10 +157,8 @@ mixin UploadMediaPickerMixin on UploadControllerBase {
             return;
           }
         } else {
-          if (duration < 120) {
-            AppSnackbar.warning(
-              'Truthworld requires videos to be at least 2 minutes (120 seconds). Videos shorter than 2 minutes are not accepted.',
-            );
+          if (duration < 0) {
+            AppSnackbar.warning('Media duration cannot be negative.');
             return;
           }
           if (duration > maxDurationSeconds) {
@@ -196,16 +216,15 @@ mixin UploadMediaPickerMixin on UploadControllerBase {
         await videoPlayerController!.initialize();
         videoPlayerController!.setLooping(true);
 
-        final size = videoPlayerController!.value.size;
         final duration = videoPlayerController!.value.duration;
         if (duration.inMilliseconds > 0) {
           videoDuration.value = duration;
           videoDurationSeconds.value = duration.inSeconds;
         }
-        // Auto-detect if video is a Short (duration <= 60 seconds and vertical aspect ratio)
-        isShort.value = size.height > size.width && duration.inSeconds <= 60;
+        // Truthworld does not have a YouTube Shorts feature: all media (short or long, even 7s) are standard Truthworld videos
+        isShort.value = false;
         debugPrint(
-          '🎥 Auto-detected isShort: ${isShort.value} (size: $size, duration: ${duration.inSeconds}s)',
+          '🎥 Media loaded: duration ${duration.inSeconds}s (Truthworld standard player, no Shorts mode)',
         );
       }
     } catch (e, stackTrace) {

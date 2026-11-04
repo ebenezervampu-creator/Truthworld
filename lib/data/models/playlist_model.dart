@@ -129,6 +129,10 @@ class PlaylistModel {
   String get playlistName => name;
   bool get isPublic => visibility == PlaylistVisibility.public;
   int get effectiveVideoCount => videoCount > 0 ? videoCount : videoIds.length;
+  bool get isWatchLater =>
+      id == 'watchlater' ||
+      name.toLowerCase().trim() == 'watch later' ||
+      playlistName.toLowerCase().trim() == 'watch later';
 
   PlaylistModel copyWith({
     String? id,

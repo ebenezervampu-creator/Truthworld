@@ -4,6 +4,7 @@ import 'package:truthworld/core/utils/route_guards.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/widgets/deferred_widget.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/channel/presentation/views/channel/channel_description_screen.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/channel_details_screen.dart'
     deferred as channel_details;
 import 'package:truthworld/features/channel/presentation/views/channel/channel_screen_wizard.dart';
@@ -17,6 +18,7 @@ import 'package:truthworld/features/subscriptions/presentation/bindings/subscrip
 import 'package:truthworld/features/subscriptions/presentation/views/subscriptions/subscriptions.dart'
     deferred as subscriptions;
 import 'package:truthworld/routes/app_routes.dart';
+import 'package:truthworld/routes/app_transitions.dart';
 
 /// Channel profiles, creator onboarding wizard, handles, and subscriptions routes.
 class ChannelRoutes {
@@ -26,12 +28,26 @@ class ChannelRoutes {
     GetPage(
       name: AppRoutes.channelWizard,
       page: ChannelScreen.new,
+      transition: AppTransitions.modal,
+      transitionDuration: AppTransitions.modalDuration,
+      curve: AppTransitions.modalCurve,
       middlewares: [ChannelCreationGuard()],
       binding: ChannelBinding(),
     ),
     GetPage(
       name: AppRoutes.channelPlanComparison,
       page: ChannelPlanComparisonScreen.new,
+      transition: AppTransitions.modal,
+      transitionDuration: AppTransitions.modalDuration,
+      curve: AppTransitions.modalCurve,
+      binding: ChannelBinding(),
+    ),
+    GetPage(
+      name: AppRoutes.channelDescription,
+      page: ChannelDescriptionScreen.new,
+      transition: AppTransitions.hierarchical,
+      transitionDuration: AppTransitions.hierarchicalDuration,
+      curve: AppTransitions.hierarchicalCurve,
       binding: ChannelBinding(),
     ),
     GetPage(
@@ -40,6 +56,9 @@ class ChannelRoutes {
         loader: channel_details.loadLibrary,
         builder: () => channel_details.ChannelDetailsPage(),
       ),
+      transition: AppTransitions.hierarchical,
+      transitionDuration: AppTransitions.hierarchicalDuration,
+      curve: AppTransitions.hierarchicalCurve,
       middlewares: [ConsumerRouteGuard(), ChannelDetailsRedirectMiddleware()],
       binding: ChannelBinding(),
     ),
@@ -54,6 +73,9 @@ class ChannelRoutes {
           ),
         );
       },
+      transition: AppTransitions.hierarchical,
+      transitionDuration: AppTransitions.hierarchicalDuration,
+      curve: AppTransitions.hierarchicalCurve,
       binding: ChannelBinding(),
     ),
     GetPage(
@@ -67,6 +89,9 @@ class ChannelRoutes {
           ),
         );
       },
+      transition: AppTransitions.hierarchical,
+      transitionDuration: AppTransitions.hierarchicalDuration,
+      curve: AppTransitions.hierarchicalCurve,
       binding: ChannelBinding(),
     ),
     GetPage(
@@ -75,6 +100,9 @@ class ChannelRoutes {
         loader: subscriptions.loadLibrary,
         builder: () => subscriptions.SubscriptionsPage(),
       ),
+      transition: AppTransitions.peer,
+      transitionDuration: AppTransitions.peerDuration,
+      curve: AppTransitions.peerCurve,
       middlewares: [ConsumerRouteGuard(), AuthGuard()],
       binding: SubscriptionsBinding(),
     ),
@@ -84,6 +112,9 @@ class ChannelRoutes {
         loader: discover.loadLibrary,
         builder: () => discover.DiscoverChannelsPage(),
       ),
+      transition: AppTransitions.peer,
+      transitionDuration: AppTransitions.peerDuration,
+      curve: AppTransitions.peerCurve,
       middlewares: [ConsumerRouteGuard()],
     ),
     GetPage(
@@ -92,6 +123,9 @@ class ChannelRoutes {
         loader: my_videos.loadLibrary,
         builder: () => my_videos.MyVideos(),
       ),
+      transition: AppTransitions.hierarchical,
+      transitionDuration: AppTransitions.hierarchicalDuration,
+      curve: AppTransitions.hierarchicalCurve,
       middlewares: [ConsumerRouteGuard(), AuthGuard()],
       binding: MyVideosBinding(),
     ),
@@ -111,6 +145,10 @@ class ChannelRoutes {
         ),
       );
     },
+    transition: AppTransitions.hierarchical,
+    transitionDuration: AppTransitions.hierarchicalDuration,
+    curve: AppTransitions.hierarchicalCurve,
+    middlewares: [HandleRouteGuardMiddleware()],
     binding: ChannelBinding(),
   );
 }

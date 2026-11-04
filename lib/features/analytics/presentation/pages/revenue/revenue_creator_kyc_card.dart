@@ -41,9 +41,11 @@ Widget buildCreatorKycCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isCompact = constraints.maxWidth < 360;
+
+              final iconWidget = Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: AppColors.bgSurfaceHover,
@@ -55,31 +57,35 @@ Widget buildCreatorKycCard(
                   color: Colors.white,
                   size: 20,
                 ),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Creator Identity Verification (KYC)',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
+              );
+
+              const textContent = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Creator Identity Verification (KYC)',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
                     ),
-                    Text(
-                      'PAN & Government ID verification for bank payouts',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11.5,
-                      ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'PAN & Government ID verification for bank payouts',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11.5,
                     ),
-                  ],
-                ),
-              ),
-              Container(
+                  ),
+                ],
+              );
+
+              final badgeWidget = Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: AppColors.bgSurfaceHover,
@@ -96,8 +102,35 @@ Widget buildCreatorKycCard(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
-            ],
+              );
+
+              if (isCompact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        iconWidget,
+                        const SizedBox(width: 10),
+                        const Expanded(child: textContent),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    badgeWidget,
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  iconWidget,
+                  const SizedBox(width: 12),
+                  const Expanded(child: textContent),
+                  const SizedBox(width: 8),
+                  badgeWidget,
+                ],
+              );
+            },
           ),
           const SizedBox(height: 14),
           if (isVerified && kyc != null) ...[

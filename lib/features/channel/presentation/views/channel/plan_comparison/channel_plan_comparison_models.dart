@@ -52,7 +52,7 @@ class ChannelPlanComparisonData {
           standardValue: '70% Creator / 30% Platform',
           customValue: '100% Creator (0% Platform Cut)',
           details:
-              'Custom channels keep 100% of gross advertising revenue with zero platform commission.',
+              'Pro channels keep 100% of gross advertising revenue with zero platform commission.',
           customWins: true,
           icon: Icons.attach_money_rounded,
         ),
@@ -67,27 +67,27 @@ class ChannelPlanComparisonData {
         ),
         PlanComparisonFeature(
           title: 'Fan Memberships & Superchats',
-          standardValue: '100% Creator (0% Platform Fee)',
-          customValue: '100% Creator (0% Platform Fee)',
+          standardValue: '90% Creator (10% Fee)',
+          customValue: '100% Creator (0% Fee)',
           details:
-              'Direct fan support is never taxed by TruthWorld on either plan.',
+              'Standard channels retain 90% of fan support (10% platform fee); Pro channels retain 100% (0% fee).',
           icon: Icons.volunteer_activism_rounded,
         ),
         PlanComparisonFeature(
           title: 'Platform Take Rate',
-          standardValue: '30% on ads & premium views',
+          standardValue: '30% ads/subs • 10% fans',
           customValue: '0% on all creator revenue',
           details:
-              'Standard pays via revenue split; Custom operates on flat infrastructure fees.',
+              'Standard pays via revenue split; Pro operates on flat infrastructure fees.',
           customWins: true,
           icon: Icons.pie_chart_outline_rounded,
         ),
         PlanComparisonFeature(
           title: 'Cash-Out / Payout Rule',
-          standardValue: r'1,000 Views & 10h Watch Time (Min ₹100 / $10)',
-          customValue: r'1,000 Views & 10h Watch Time (Min ₹100 / $10)',
+          standardValue: r'1,000 Views & 30h Watch Time (Min ₹100 / $10)',
+          customValue: r'1,000 Views & 30h Watch Time (Min ₹100 / $10)',
           details:
-              r'Payout rule is identical for Custom and Standard channels: earnings unlock per video once 1,000 views and 10 hours watch time are met. Minimum withdrawal is ₹100 for Indian channels and $10 for other countries in their currencies.',
+              r'Payout rule is identical for Pro and Standard channels: earnings unlock per video once 1,000 views and 30 hours watch time are met. Minimum withdrawal is ₹100 for Indian channels and $10 for other countries in their currencies.',
           icon: Icons.account_balance_wallet_outlined,
         ),
       ],
@@ -112,7 +112,7 @@ class ChannelPlanComparisonData {
           standardValue: 'Up to 10 Minutes',
           customValue: 'Up to 24 Hours per video',
           details:
-              'Custom channels can host long-form podcasts, live stream archives, courses, and films.',
+              'Pro channels can host long-form podcasts, live stream archives, courses, and films.',
           customWins: true,
           icon: Icons.timer_outlined,
         ),
@@ -146,7 +146,7 @@ class ChannelPlanComparisonData {
           standardValue: r'$0 / Month (100% Free Forever)',
           customValue: r'From $15 / Month ($15 - $200+)',
           details:
-              'Standard has zero upfront or recurring fees. Custom plans choose a tiered infrastructure package.',
+              'Standard has zero upfront or recurring fees. Pro plans choose a tiered infrastructure package.',
           standardWins: true,
           icon: Icons.payments_outlined,
         ),
@@ -196,7 +196,7 @@ class ChannelPlanComparisonData {
           standardValue: r'At-Cost Pass-Through (from $0.10/lang)',
           customValue: 'At-Cost + Vocal Identity Cloning',
           details:
-              'Zero platform markup on multilingual dubbing; Custom adds studio voice cloning.',
+              'Zero platform markup on multilingual dubbing; Pro adds studio voice cloning.',
           customWins: true,
           icon: Icons.translate_rounded,
         ),
@@ -205,13 +205,13 @@ class ChannelPlanComparisonData {
           standardValue: 'Standard Community & Help Desk',
           customValue: 'Priority to 24/7 Dedicated Manager',
           details:
-              'Higher custom tiers receive dedicated VIP account managers and expedited transcoding queues.',
+              'Higher Pro tiers receive dedicated VIP account managers and expedited transcoding queues.',
           customWins: true,
           icon: Icons.support_agent_rounded,
         ),
         PlanComparisonFeature(
           title: 'Upgrades & Downgrades',
-          standardValue: 'Upgrade to Custom anytime',
+          standardValue: 'Upgrade to Pro anytime',
           customValue: 'Change or adjust tier anytime',
           details:
               'Creators can switch plans flexibly in Channel Settings without losing content.',

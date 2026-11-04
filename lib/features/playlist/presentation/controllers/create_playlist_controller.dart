@@ -89,6 +89,10 @@ class CreatePlaylistController extends BaseController {
 
       if (result != null && result.files.isNotEmpty) {
         final file = result.files.first;
+        if (file.size > 2 * 1024 * 1024) {
+          AppSnackbar.warning('Selected image exceeds the 2MB limit.');
+          return;
+        }
         customImageBytes.value = file.bytes ?? await file.xFile.readAsBytes();
         customImageName.value = file.name;
         useCustomThumbnail.value = true;

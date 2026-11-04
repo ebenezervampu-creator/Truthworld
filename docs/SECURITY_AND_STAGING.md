@@ -79,7 +79,7 @@ TruthWorld maintains two isolated Firebase & GCP projects:
 ## 4. Video Player Telemetry & Quality of Service (QoS)
 
 To ensure smooth video playback without buffering spikes:
-* Client-side playback QoS is tracked via [`PlayerTelemetryService`](file:///c:/company/truthworld/lib/core/services/player_telemetry_service.dart).
+* Client-side playback QoS is tracked via [`AdaptiveBitrateController`](file:///c:/company/truthworld/lib/features/video/presentation/controllers/adaptive_bitrate_controller.dart).
 * Tracks:
   * **Time to First Frame (TTFF)**
   * **Stall count & buffer duration (ms)**

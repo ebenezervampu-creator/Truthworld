@@ -38,7 +38,7 @@ abstract class RevenueAnalyticsStateBase extends BaseController {
   // Currency View Selection (INR vs USD)
   final RxString displayCurrency = 'INR'.obs;
 
-  // Active Sub-Tab on Unified Earnings Page (0: All, 1: Revenue & Payouts, 2: Ways You Earn, 3: Video Eligibility, 4: Tier & Rules)
+  // Active Sub-Tab on Unified Earnings Page (0: Revenue & Payouts, 1: Ways You Earn, 2: Video Eligibility, 3: Tier & Rules)
   final RxInt selectedEarningsTab = 0.obs;
 
   // Earnings Breakdown
@@ -56,7 +56,6 @@ abstract class RevenueAnalyticsStateBase extends BaseController {
   final RxDouble originalInrMemberships = 0.0.obs;
   final RxDouble superchatRevenue = 0.0.obs;
   final RxDouble adsRevenue = 0.0.obs;
-  final RxDouble watchTimeRevenue = 0.0.obs;
   // Premium subscription revenue share earned from the monthly distribution
   final RxDouble premiumSubsRevenue = 0.0.obs;
   final RxDouble premiumSubsRevenueUSD = 0.0.obs;
@@ -234,7 +233,6 @@ abstract class RevenueAnalyticsStateBase extends BaseController {
   final RxInt activeMembersCount = 0.obs;
   final RxInt activeTiersCount = 0.obs;
   final RxInt totalViews = 0.obs;
-  final RxInt totalWatchMinutes = 0.obs;
   final RxString revenueChange = '+₹0.00'.obs;
 
   /// Recalculates total revenue sum across revenue streams.

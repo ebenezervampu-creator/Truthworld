@@ -28,19 +28,24 @@ class VideoMediaService {
 
   /// Fetch localization data (subtitles, dubbing, audio tracks)
   /// Called when player starts or when user switches language
-  Future<VideoMediaLocalization> getLocalization(String videoId) async {
-    if (localizationCache.containsKey(videoId) &&
+  Future<VideoMediaLocalization> getLocalization(
+    String videoId, {
+    bool forceRefresh = false,
+  }) async {
+    if (!forceRefresh &&
+        localizationCache.containsKey(videoId) &&
         !localizationCache[videoId]!.isEmpty) {
       return localizationCache[videoId]!;
     }
 
     try {
-      final doc = await _firestore
+      final locDocRef = _firestore
           .collection(FirestoreCollections.videos)
           .doc(videoId)
           .collection('media')
-          .doc('localization')
-          .getCacheFirst();
+          .doc('localization');
+
+      final doc = forceRefresh ? await locDocRef.get() : await locDocRef.getCacheFirst();
 
       if (doc.exists && doc.data() != null) {
         final result = VideoMediaLocalization.fromMap(doc.data()!);
@@ -217,6 +222,62 @@ class VideoMediaService {
       final audioTracks = _extractStringMap(
         media['audioTracks'] ?? data['audioTracks'] ?? media['audio'] ?? data['audio'],
       );
+
+      // Support flat dotted keys (e.g. 'audioTracks.es', 'dubbedVideos.es')
+      data.forEach((key, val) {
+        if (val is String && val.isNotEmpty) {
+          if (key.startsWith('audioTracks.')) {
+            final code = key.substring('audioTracks.'.length);
+            if (code.isNotEmpty) audioTracks[code] = val;
+          } else if (key.startsWith('media.audioTracks.')) {
+            final code = key.substring('media.audioTracks.'.length);
+            if (code.isNotEmpty) audioTracks[code] = val;
+          } else if (key.startsWith('dubbedVideos.')) {
+            final code = key.substring('dubbedVideos.'.length);
+            if (code.isNotEmpty) dubbedVideos[code] = val;
+          } else if (key.startsWith('media.dubbedVideos.')) {
+            final code = key.substring('media.dubbedVideos.'.length);
+            if (code.isNotEmpty) dubbedVideos[code] = val;
+          } else if (key.startsWith('subtitles.')) {
+            final code = key.substring('subtitles.'.length);
+            if (code.isNotEmpty) subtitles[code] = val;
+          } else if (key.startsWith('media.subtitles.')) {
+            final code = key.substring('media.subtitles.'.length);
+            if (code.isNotEmpty) subtitles[code] = val;
+          }
+        }
+      });
+
+      // Also check video_jobs outputs if audioTracks or dubbedVideos is still empty
+      if (audioTracks.isEmpty || dubbedVideos.isEmpty) {
+        try {
+          final jobDoc = await _firestore.collection('video_jobs').doc(videoId).get();
+          if (jobDoc.exists && jobDoc.data() != null) {
+            final jobData = jobDoc.data()!;
+            final jobOutputs = jobData['outputs'] as Map<String, dynamic>?;
+            final jobAudios = _extractStringMap(jobOutputs?['audioTracks']);
+            final jobVideos = _extractStringMap(jobOutputs?['dubbedVideos']);
+            final stages = jobData['stages'] as Map<String, dynamic>?;
+            stages?.forEach((sKey, sVal) {
+              if (sKey.startsWith('dubbing_') && sVal is Map) {
+                final lang = sKey.replaceFirst('dubbing_', '');
+                if (sVal['audioUrl'] is String && (sVal['audioUrl'] as String).isNotEmpty) {
+                  jobAudios[lang] = sVal['audioUrl'] as String;
+                }
+                if (sVal['videoUrl'] is String && (sVal['videoUrl'] as String).isNotEmpty) {
+                  jobVideos[lang] = sVal['videoUrl'] as String;
+                }
+              }
+            });
+            if (audioTracks.isEmpty && jobAudios.isNotEmpty) {
+              audioTracks.addAll(jobAudios);
+            }
+            if (dubbedVideos.isEmpty && jobVideos.isNotEmpty) {
+              dubbedVideos.addAll(jobVideos);
+            }
+          }
+        } catch (_) {}
+      }
 
       final result = VideoMediaLocalization(
         subtitles: subtitles,

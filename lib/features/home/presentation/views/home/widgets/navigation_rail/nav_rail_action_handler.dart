@@ -37,7 +37,6 @@ class NavRailActionHandler {
         index == HomeController.indexHistory ||
         index == HomeController.indexYourVideos ||
         index == HomeController.indexLikedVideos ||
-        index == HomeController.indexDownloads ||
         index == HomeController.indexWatchLater ||
         index == HomeController.indexPlaylists ||
         index == HomeController.indexFollowingTopics ||
@@ -48,7 +47,8 @@ class NavRailActionHandler {
         index == HomeController.indexTerms ||
         index == HomeController.indexAbout ||
         index == HomeController.indexSettings ||
-        index == HomeController.indexFeedback;
+        index == HomeController.indexFeedback ||
+        index == HomeController.indexDownloads;
 
     if (isDashboardPage) {
       onSelectItem(index);

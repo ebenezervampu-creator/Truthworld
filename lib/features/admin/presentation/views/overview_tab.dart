@@ -105,7 +105,7 @@ class OverviewTab extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: const Color(0xFF181818),
+              color: AppColors.bgPage,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
@@ -189,7 +189,7 @@ class OverviewTab extends StatelessWidget {
                       if (isVideo) {
                         titleText = item['title'] ?? 'Untitled Video';
                       } else if (isTopic) {
-                        titleText = '#${item['title'] ?? item['name'] ?? 'Untitled Topic'}';
+                        titleText = '#${item['name'] ?? item['title'] ?? 'Untitled Topic'}';
                       } else if (isChannel) {
                         titleText =
                             item['channelName'] ??
@@ -244,7 +244,7 @@ class OverviewTab extends StatelessWidget {
                               width: 38,
                               height: 38,
                               decoration: BoxDecoration(
-                                color: const Color(0xFF212121),
+                                color: AppColors.bgSurface,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Icon(
@@ -306,7 +306,7 @@ class OverviewTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),

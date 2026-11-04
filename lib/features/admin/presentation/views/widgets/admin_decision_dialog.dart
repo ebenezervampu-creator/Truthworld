@@ -23,7 +23,7 @@ void showAdminDecisionDialog(
   unawaited(
     Get.dialog(
       AlertDialog(
-        backgroundColor: const Color(0xFF181818),
+        backgroundColor: AppColors.bgPage,
         title: Text(
           'Confirm Manual ${action.capitalizeFirst}',
           style: const TextStyle(
@@ -38,7 +38,7 @@ void showAdminDecisionDialog(
           children: [
             Text(
               'Are you sure you want to manually $action this resource? '
-              '${action == 'reject' ? 'This action logs an audit/moderation record.' : ''}',
+              '${action == 'reject' ? 'This action logs an audit/moderation record.' : (action == 'hold' ? 'Holding a channel immediately pauses and hides all of its content across all Truthworld apps until review.' : '')}',
               style: const TextStyle(
                 fontFamily: TWTypography.uiFamily,
                 color: AppColors.textSecondary,
@@ -113,7 +113,7 @@ void showAdminDecisionDialog(
             style: ElevatedButton.styleFrom(
               backgroundColor: (action == 'approve' || action == 'dismiss')
                   ? AppColors.success
-                  : AppColors.error,
+                  : (action == 'hold' ? AppColors.warning : AppColors.error),
               foregroundColor: Colors.white,
             ),
             child: Text(

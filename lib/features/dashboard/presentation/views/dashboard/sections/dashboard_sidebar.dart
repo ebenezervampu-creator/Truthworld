@@ -10,48 +10,46 @@ class DashboardDesktopSidebar extends StatelessWidget {
   final DashboardController controller;
   final bool isDarkMode;
   final Animation<double> drawerAnimation;
-  final VoidCallback onSignOut;
+  final VoidCallback? onSignOut;
 
   const DashboardDesktopSidebar({
     required this.controller,
     required this.isDarkMode,
     required this.drawerAnimation,
-    required this.onSignOut,
+    this.onSignOut,
     super.key,
   });
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: drawerAnimation,
-      builder: (context, child) {
-        return Container(
-          width: controller.isDrawerExpanded.value ? 280 : 80,
-          decoration: const BoxDecoration(
-            color: AppColors.bgPage,
-            border: Border(
-              right: BorderSide(
-                color: AppColors.bgDivider,
-              ),
+    return Obx(
+      () => AnimatedContainer(
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+        width: controller.isDrawerExpanded.value ? 280 : 80,
+        decoration: const BoxDecoration(
+          color: AppColors.bgPage,
+          border: Border(
+            right: BorderSide(
+              color: AppColors.bgDivider,
             ),
           ),
-          child: child,
-        );
-      },
-      child: Column(
-        children: [
-          DashboardSidebarHeader(
-            controller: controller,
-            isDarkMode: isDarkMode,
-          ),
-          Expanded(
-            child: DashboardSidebarMenu(
+        ),
+        child: Column(
+          children: [
+            DashboardSidebarHeader(
               controller: controller,
               isDarkMode: isDarkMode,
-              onSignOut: onSignOut,
             ),
-          ),
-        ],
+            Expanded(
+              child: DashboardSidebarMenu(
+                controller: controller,
+                isDarkMode: isDarkMode,
+                onSignOut: onSignOut,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -133,130 +131,120 @@ class DashboardSidebarHeader extends StatelessWidget {
 class DashboardSidebarMenu extends StatelessWidget {
   final DashboardController controller;
   final bool isDarkMode;
-  final VoidCallback onSignOut;
+  final VoidCallback? onSignOut;
 
   const DashboardSidebarMenu({
     required this.controller,
     required this.isDarkMode,
-    required this.onSignOut,
+    this.onSignOut,
     super.key,
   });
 
   @override
   Widget build(BuildContext context) {
-    final menuItems = [
-      // Core Studio Features
-      {
-        'icon': Icons.grid_view_rounded,
-        'label': 'Studio Home',
-        'action': 'select',
-        'target': 1,
-      },
-      {
-        'icon': Icons.video_library_rounded,
-        'label': 'Content',
-        'action': 'select',
-        'target': 2,
-      },
-      {
-        'icon': Icons.upload_rounded,
-        'label': 'Upload',
-        'action': 'route',
-        'route': '/upload',
-      },
-
-      // Analytics & Engagement
-      {
-        'icon': Icons.insights_rounded,
-        'label': 'Analytics',
-        'action': 'select',
-        'target': 3,
-      },
-      {
-        'icon': Icons.forum_rounded,
-        'label': 'Comments',
-        'action': 'select',
-        'target': 4,
-      },
-      {
-        'icon': Icons.people_rounded,
-        'label': 'Audience',
-        'action': 'select',
-        'target': 12,
-      },
-
-      // Monetization & Growth
-      {
-        'icon': Icons.attach_money_rounded,
-        'label': 'Earnings',
-        'action': 'select',
-        'target': 5,
-      },
-      {
-        'icon': Icons.stars_rounded,
-        'label': 'Memberships',
-        'action': 'select',
-        'target': 18,
-      },
-      {
-        'icon': Icons.copyright_rounded,
-        'label': 'Copyright & Matches',
-        'action': 'select',
-        'target': 9,
-      },
-
-      // Creative Tools
-      {
-        'icon': Icons.playlist_play_rounded,
-        'label': 'Playlists',
-        'action': 'select',
-        'target': 17,
-      },
-      {
-        'icon': Icons.spatial_audio_rounded,
-        'label': 'Audio Tracks & Dubs',
-        'action': 'select',
-        'target': 7,
-      },
-      {
-        'icon': Icons.view_timeline_rounded,
-        'label': 'Chapters',
-        'action': 'select',
-        'target': 11,
-      },
-      {
-        'icon': Icons.color_lens_rounded,
-        'label': 'Customization',
-        'action': 'select',
-        'target': 6,
-      },
-      {
-        'icon': Icons.edit_note_rounded,
-        'label': 'Subtitles',
-        'action': 'select',
-        'target': 10,
-      },
-      {
-        'icon': Icons.topic_rounded,
-        'label': 'Topic Management',
-        'action': 'select',
-        'target': 14,
-      },
-      {
-        'icon': Icons.verified_rounded,
-        'label': 'Fact-Checks & Verification',
-        'action': 'select',
-        'target': 15,
-      },
-    ];
-
     return Obx(() {
       final selectedIdx = controller.selectedIndex.value;
       final isDrawerExpanded = controller.isDrawerExpanded.value;
+      final isMonetized = controller.isChannelMonetizationActive;
+
+      final menuItems = [
+        // Core Studio Features
+        {
+          'icon': Icons.grid_view_rounded,
+          'label': 'Studio Home',
+          'action': 'select',
+          'target': 1,
+        },
+        {
+          'icon': Icons.video_library_rounded,
+          'label': 'Content',
+          'action': 'select',
+          'target': 2,
+        },
+        {
+          'icon': Icons.upload_rounded,
+          'label': 'Upload',
+          'action': 'route',
+          'route': '/upload',
+        },
+
+        // Analytics & Engagement
+        {
+          'icon': Icons.insights_rounded,
+          'label': 'Analytics',
+          'action': 'select',
+          'target': 3,
+        },
+        {
+          'icon': Icons.forum_rounded,
+          'label': 'Comments',
+          'action': 'select',
+          'target': 4,
+        },
+        {
+          'icon': Icons.people_rounded,
+          'label': 'Audience',
+          'action': 'select',
+          'target': 12,
+        },
+
+        // Monetization & Growth
+        {
+          'icon': Icons.attach_money_rounded,
+          'label': 'Earnings',
+          'action': 'select',
+          'target': 5,
+        },
+        if (isMonetized)
+          {
+            'icon': Icons.stars_rounded,
+            'label': 'Memberships',
+            'action': 'select',
+            'target': 18,
+          },
+        {
+          'icon': Icons.copyright_rounded,
+          'label': 'Copyright & Matches',
+          'action': 'select',
+          'target': 9,
+        },
+
+        // Creative Tools
+        {
+          'icon': Icons.spatial_audio_rounded,
+          'label': 'AudioTracks & VideoTracks',
+          'action': 'select',
+          'target': 7,
+        },
+        {
+          'icon': Icons.view_timeline_rounded,
+          'label': 'Chapters',
+          'action': 'select',
+          'target': 11,
+        },
+        {
+          'icon': Icons.color_lens_rounded,
+          'label': 'Customization',
+          'action': 'select',
+          'target': 6,
+        },
+        {
+          'icon': Icons.edit_note_rounded,
+          'label': 'Subtitles',
+          'action': 'select',
+          'target': 10,
+        },
+        {
+          'icon': Icons.verified_rounded,
+          'label': 'Fact-Checks & Verification',
+          'action': 'select',
+          'target': 15,
+        },
+      ];
 
       return ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        itemCount: menuItems.length + 3,
+        itemCount: menuItems.length + 2,
         itemBuilder: (context, index) {
           if (index == menuItems.length) {
             return const Padding(
@@ -275,21 +263,6 @@ class DashboardSidebarMenu extends StatelessWidget {
               label: 'Settings',
               isSelected: selectedIdx == 8,
               onTap: () => controller.setSelectedIndex(8),
-              isDarkMode: isDarkMode,
-              isDrawerExpanded: isDrawerExpanded,
-            );
-          }
-
-          if (index == menuItems.length + 2) {
-            return DashboardSidebarItem(
-              icon: Icons.logout_rounded,
-              label: 'Sign Out',
-              isDestructive: true,
-              isSelected: false,
-              onTap: () {
-                HapticFeedback.lightImpact();
-                onSignOut();
-              },
               isDarkMode: isDarkMode,
               isDrawerExpanded: isDrawerExpanded,
             );
@@ -367,7 +340,7 @@ class DashboardSidebarItem extends StatelessWidget {
         : (isSelected ? AppColors.textPrimary : AppColors.textSecondary);
 
     final bgColor = isSelected
-        ? const Color(0xFF1E1E1E)
+        ? AppColors.bgSurface
         : Colors.transparent;
 
     final itemWidget = Container(
@@ -380,7 +353,9 @@ class DashboardSidebarItem extends StatelessWidget {
             onTap();
             HapticFeedback.lightImpact();
           },
-          child: Container(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
             padding: EdgeInsets.symmetric(
               horizontal: 12,
               vertical: isDrawerExpanded ? 10 : 14,
@@ -446,12 +421,12 @@ class DashboardSidebarItem extends StatelessWidget {
 class DashboardMobileDrawer extends StatelessWidget {
   final DashboardController controller;
   final bool isDarkMode;
-  final VoidCallback onSignOut;
+  final VoidCallback? onSignOut;
 
   const DashboardMobileDrawer({
     required this.controller,
     required this.isDarkMode,
-    required this.onSignOut,
+    this.onSignOut,
     super.key,
   });
 

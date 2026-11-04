@@ -15,7 +15,7 @@ const db = () => admin.firestore();
 
 const PROCESSED_EVENTS_TTL_MS = 86400000; // 24 hours
 
-export type IdempotencyStatus = "NEW" | "PROCESSING" | "COMPLETED";
+export type IdempotencyStatus = "NEW" | "PROCESSING" | "COMPLETED" | "FAILED";
 
 /**
  * 🔴 THE CRITICAL IDEMPOTENCY CHECK
@@ -25,7 +25,7 @@ export type IdempotencyStatus = "NEW" | "PROCESSING" | "COMPLETED";
 export async function checkAndMarkEventId(
   eventId: string,
   jobId: string,
-  maxProcessingTimeMs = 600000 // 10 minutes (stale threshold)
+  maxProcessingTimeMs = 540000 // 9 minutes (matches Cloud Functions timeout)
 ): Promise<IdempotencyStatus> {
   if (!eventId || !jobId) {
     throw new Error("Missing eventId or jobId for idempotency check");
@@ -50,6 +50,23 @@ export async function checkAndMarkEventId(
         const data = existingDoc.data();
         const currentStatus = data?.status as IdempotencyStatus | undefined;
         const processedAt = data?.processedAt || 0;
+
+        // If FAILED, allow retake if within retry limit (up to 3 retries)
+        if (currentStatus === "FAILED") {
+          const retryCount = (data?.retryCount || 0) + 1;
+          const maxRetries = 3;
+          if (retryCount <= maxRetries) {
+            logger.info("[Idempotency] Previously failed event being retried", { eventId, jobId, retryCount });
+            transaction.update(docRef, {
+              status: "PROCESSING",
+              jobId,
+              processedAt: Date.now(),
+              retryCount,
+            });
+            return "NEW" as const;
+          }
+          return "FAILED" as const;
+        }
 
         // If PROCESSING but too old, consider it stale/crashed and allow retake
         if (currentStatus === "PROCESSING" && Date.now() - processedAt > maxProcessingTimeMs) {
@@ -113,6 +130,23 @@ export async function markEventCompleted(eventId: string): Promise<void> {
     setCache(`event:${eventId}`, "COMPLETED", 3600); // Cache completion for 1 hour
   } catch (err) {
     logger.warn("[Idempotency] Failed to mark as completed (non-fatal)", { eventId, err });
+  }
+}
+
+/**
+ * Mark an event as failed so retries or DLQ can inspect or safely retry it.
+ */
+export async function markEventFailed(eventId: string, error?: string): Promise<void> {
+  try {
+    const docRef = db().collection("processed_events").doc(eventId);
+    await docRef.set({
+      status: "FAILED",
+      failedAt: Date.now(),
+      error: error || "Unknown pipeline error",
+    }, { merge: true });
+    deleteCache(`event:${eventId}`);
+  } catch (err) {
+    logger.warn("[Idempotency] Failed to mark as failed (non-fatal)", { eventId, err });
   }
 }
 

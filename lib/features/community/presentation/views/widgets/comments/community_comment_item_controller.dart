@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
@@ -97,7 +96,7 @@ class CommunityCommentItemController extends BaseController
     AppSnackbar.warning(
       'Please sign in to $action.',
       actionLabel: 'SIGN IN',
-      onAction: AuthBottomSheet.prompt,
+      onAction: () => AuthService.to.triggerPlatformSignIn(),
     );
   }
 
@@ -108,34 +107,47 @@ class CommunityCommentItemController extends BaseController
       return;
     }
 
-    if (isLiked.value) {
-      isLiked.value = false;
-      likeCount.value = (likeCount.value - 1).clamp(0, 999999);
-      await commentDoc.update({
-        'likeCount': FieldValue.increment(-1),
-        'likes': FieldValue.increment(-1),
-        'likedBy': FieldValue.arrayRemove([uid]),
-        'likedby': FieldValue.arrayRemove([uid]),
-      });
-    } else {
-      if (isDisliked.value) {
-        isDisliked.value = false;
-        dislikeCount.value = (dislikeCount.value - 1).clamp(0, 999999);
+    final prevLiked = isLiked.value;
+    final prevDisliked = isDisliked.value;
+    final prevLikes = likeCount.value;
+    final prevDislikes = dislikeCount.value;
+
+    try {
+      if (isLiked.value) {
+        isLiked.value = false;
+        likeCount.value = (likeCount.value - 1).clamp(0, 999999);
         await commentDoc.update({
-          'dislikeCount': FieldValue.increment(-1),
-          'dislikes': FieldValue.increment(-1),
-          'dislikedBy': FieldValue.arrayRemove([uid]),
-          'dislikedby': FieldValue.arrayRemove([uid]),
+          'likeCount': FieldValue.increment(-1),
+          'likes': FieldValue.increment(-1),
+          'likedBy': FieldValue.arrayRemove([uid]),
+          'likedby': FieldValue.arrayRemove([uid]),
+        });
+      } else {
+        if (isDisliked.value) {
+          isDisliked.value = false;
+          dislikeCount.value = (dislikeCount.value - 1).clamp(0, 999999);
+          await commentDoc.update({
+            'dislikeCount': FieldValue.increment(-1),
+            'dislikes': FieldValue.increment(-1),
+            'dislikedBy': FieldValue.arrayRemove([uid]),
+            'dislikedby': FieldValue.arrayRemove([uid]),
+          });
+        }
+        isLiked.value = true;
+        likeCount.value += 1;
+        await commentDoc.update({
+          'likeCount': FieldValue.increment(1),
+          'likes': FieldValue.increment(1),
+          'likedBy': FieldValue.arrayUnion([uid]),
+          'likedby': FieldValue.arrayUnion([uid]),
         });
       }
-      isLiked.value = true;
-      likeCount.value += 1;
-      await commentDoc.update({
-        'likeCount': FieldValue.increment(1),
-        'likes': FieldValue.increment(1),
-        'likedBy': FieldValue.arrayUnion([uid]),
-        'likedby': FieldValue.arrayUnion([uid]),
-      });
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'CommunityCommentItemController.toggleCommentLike');
+      isLiked.value = prevLiked;
+      isDisliked.value = prevDisliked;
+      likeCount.value = prevLikes;
+      dislikeCount.value = prevDislikes;
     }
   }
 
@@ -146,34 +158,47 @@ class CommunityCommentItemController extends BaseController
       return;
     }
 
-    if (isDisliked.value) {
-      isDisliked.value = false;
-      dislikeCount.value = (dislikeCount.value - 1).clamp(0, 999999);
-      await commentDoc.update({
-        'dislikeCount': FieldValue.increment(-1),
-        'dislikes': FieldValue.increment(-1),
-        'dislikedBy': FieldValue.arrayRemove([uid]),
-        'dislikedby': FieldValue.arrayRemove([uid]),
-      });
-    } else {
-      if (isLiked.value) {
-        isLiked.value = false;
-        likeCount.value = (likeCount.value - 1).clamp(0, 999999);
+    final prevLiked = isLiked.value;
+    final prevDisliked = isDisliked.value;
+    final prevLikes = likeCount.value;
+    final prevDislikes = dislikeCount.value;
+
+    try {
+      if (isDisliked.value) {
+        isDisliked.value = false;
+        dislikeCount.value = (dislikeCount.value - 1).clamp(0, 999999);
         await commentDoc.update({
-          'likeCount': FieldValue.increment(-1),
-          'likes': FieldValue.increment(-1),
-          'likedBy': FieldValue.arrayRemove([uid]),
-          'likedby': FieldValue.arrayRemove([uid]),
+          'dislikeCount': FieldValue.increment(-1),
+          'dislikes': FieldValue.increment(-1),
+          'dislikedBy': FieldValue.arrayRemove([uid]),
+          'dislikedby': FieldValue.arrayRemove([uid]),
+        });
+      } else {
+        if (isLiked.value) {
+          isLiked.value = false;
+          likeCount.value = (likeCount.value - 1).clamp(0, 999999);
+          await commentDoc.update({
+            'likeCount': FieldValue.increment(-1),
+            'likes': FieldValue.increment(-1),
+            'likedBy': FieldValue.arrayRemove([uid]),
+            'likedby': FieldValue.arrayRemove([uid]),
+          });
+        }
+        isDisliked.value = true;
+        dislikeCount.value += 1;
+        await commentDoc.update({
+          'dislikeCount': FieldValue.increment(1),
+          'dislikes': FieldValue.increment(1),
+          'dislikedBy': FieldValue.arrayUnion([uid]),
+          'dislikedby': FieldValue.arrayUnion([uid]),
         });
       }
-      isDisliked.value = true;
-      dislikeCount.value += 1;
-      await commentDoc.update({
-        'dislikeCount': FieldValue.increment(1),
-        'dislikes': FieldValue.increment(1),
-        'dislikedBy': FieldValue.arrayUnion([uid]),
-        'dislikedby': FieldValue.arrayUnion([uid]),
-      });
+    } catch (e, s) {
+      ErrorHandler.log(e, stackTrace: s, tag: 'CommunityCommentItemController.toggleCommentDislike');
+      isLiked.value = prevLiked;
+      isDisliked.value = prevDisliked;
+      likeCount.value = prevLikes;
+      dislikeCount.value = prevDislikes;
     }
   }
 
@@ -203,10 +228,18 @@ class CommunityCommentItemController extends BaseController
 
     try {
       final authService = AuthService.to;
-      final userAvatar = authService.activePhotoUrl;
-      final rawName = authService.activeDisplayName;
+      final hasChannel =
+          authService.hasChannel.value && authService.userChannel != null;
+      final userChannel = hasChannel ? authService.userChannel : null;
+
+      final rawName = authService.userDisplayName.value ??
+          authService.user?.displayName ??
+          'User';
       final userName =
           rawName.startsWith('@') ? rawName.substring(1) : rawName;
+      final userAvatar = authService.userPhotoUrl.value ??
+          authService.user?.photoURL ??
+          '';
 
       await commentDoc.collection('replies').add({
         'text': ContentValidator.cleanProfanity(text),
@@ -214,6 +247,11 @@ class CommunityCommentItemController extends BaseController
         'userName': userName,
         'userImage': userAvatar,
         'userProfilePicUrl': userAvatar,
+        'isChannel': hasChannel,
+        'channelId': hasChannel ? userChannel!.id : '',
+        'channelHandle': userChannel?.handle,
+        'channelName': userChannel?.name,
+        'channelProfilePicUrl': userChannel?.avatarUrl,
         'createdAt': FieldValue.serverTimestamp(),
         'timestamp': FieldValue.serverTimestamp(),
         'likeCount': 0,

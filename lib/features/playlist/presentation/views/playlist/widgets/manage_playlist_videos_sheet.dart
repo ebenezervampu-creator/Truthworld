@@ -1,6 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
@@ -44,7 +43,7 @@ void showManagePlaylistVideosSheet({
                 ),
                 Text(
                   'Manage Videos',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
@@ -53,7 +52,11 @@ void showManagePlaylistVideosSheet({
                 const SizedBox(height: 16),
                 Expanded(
                   child: FutureBuilder<List<Video>>(
-                    future: playlistController.fetchVideos(playlist.videoIds),
+                    future: playlistController.fetchVideos(
+                      playlist.isWatchLater
+                          ? playlistController.watchLaterVideoIds
+                          : playlist.videoIds,
+                    ),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(
@@ -66,7 +69,7 @@ void showManagePlaylistVideosSheet({
                         return Center(
                           child: Text(
                             'Unable to load videos. Please try again.',
-                            style: GoogleFonts.roboto(color: Colors.white),
+                            style: TextStyle(color: Colors.white),
                           ),
                         );
                       }
@@ -75,7 +78,7 @@ void showManagePlaylistVideosSheet({
                         return Center(
                           child: Text(
                             'No videos in this playlist',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.7),
                             ),
                           ),
@@ -115,7 +118,7 @@ void showManagePlaylistVideosSheet({
                               video.title,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 14,
                               ),

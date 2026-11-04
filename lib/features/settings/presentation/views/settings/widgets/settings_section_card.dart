@@ -30,10 +30,10 @@ class SettingsSectionCard extends StatelessWidget {
               padding: EdgeInsets.all(context.layoutSpacing),
               child: Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+                  color: context.colors.textPrimary,
                 ),
               ),
             ),

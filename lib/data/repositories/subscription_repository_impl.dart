@@ -33,17 +33,28 @@ class SubscriptionRepositoryImpl extends BaseRepository implements SubscriptionR
       final subRef = _firestore
           .collection(FirestoreCollections.userSubscriptions(userId))
           .doc(channelId);
+      final channelSubRef = _firestore
+          .collection(FirestoreCollections.channelSubscribers(channelId))
+          .doc(userId);
+      final legacySubRef = _firestore
+          .collection(FirestoreCollections.subscriptions)
+          .doc('${channelId}_$userId');
       final channelRef = _firestore
           .collection(FirestoreCollections.channels)
           .doc(channelId);
 
-      tx.set(subRef, {
+      final payload = {
+        'userId': userId,
         'channelId': channelId,
         'notificationPreference': 'personalized',
         'notificationOption': 'personalized',
         'notificationsEnabled': true,
         'subscribedAt': FieldValue.serverTimestamp(),
-      });
+      };
+
+      tx.set(subRef, payload);
+      tx.set(channelSubRef, payload);
+      tx.set(legacySubRef, payload);
 
       tx.update(channelRef, {
         'subscriberCount': FieldValue.increment(1),
@@ -57,11 +68,19 @@ class SubscriptionRepositoryImpl extends BaseRepository implements SubscriptionR
       final subRef = _firestore
           .collection(FirestoreCollections.userSubscriptions(userId))
           .doc(channelId);
+      final channelSubRef = _firestore
+          .collection(FirestoreCollections.channelSubscribers(channelId))
+          .doc(userId);
+      final legacySubRef = _firestore
+          .collection(FirestoreCollections.subscriptions)
+          .doc('${channelId}_$userId');
       final channelRef = _firestore
           .collection(FirestoreCollections.channels)
           .doc(channelId);
 
       tx.delete(subRef);
+      tx.delete(channelSubRef);
+      tx.delete(legacySubRef);
       tx.update(channelRef, {
         'subscriberCount': FieldValue.increment(-1),
       });
@@ -116,11 +135,32 @@ class SubscriptionRepositoryImpl extends BaseRepository implements SubscriptionR
     String channelId, {
     required String preference,
   }) async {
-    return safeUpdate(
-      _firestore
-          .collection(FirestoreCollections.userSubscriptions(userId))
-          .doc(channelId),
-      {'notificationPreference': preference, 'updatedAt': FieldValue.serverTimestamp()},
-    );
+    return safeFetch(() async {
+      final notifsEnabled = preference.toLowerCase() != 'none';
+      final now = FieldValue.serverTimestamp();
+      final updates = {
+        'userId': userId,
+        'channelId': channelId,
+        'notificationPreference': preference,
+        'notificationOption': preference,
+        'notificationsEnabled': notifsEnabled,
+        'updatedAt': now,
+      };
+
+      await Future.wait([
+        _firestore
+            .collection(FirestoreCollections.userSubscriptions(userId))
+            .doc(channelId)
+            .set(updates, SetOptions(merge: true)),
+        _firestore
+            .collection(FirestoreCollections.channelSubscribers(channelId))
+            .doc(userId)
+            .set(updates, SetOptions(merge: true)),
+        _firestore
+            .collection(FirestoreCollections.subscriptions)
+            .doc('${channelId}_$userId')
+            .set(updates, SetOptions(merge: true)),
+      ]);
+    });
   }
 }

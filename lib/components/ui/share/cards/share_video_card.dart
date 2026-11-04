@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/widgets/channel_verified_badge.dart';
 
 /// High-fidelity preview card displaying a video according to TruthWorld social preview architecture:
 /// - Exact 16:9 uncropped thumbnail at top without losing any part
@@ -22,6 +23,7 @@ class ShareVideoCard extends StatelessWidget {
     this.durationMs,
     this.channelName,
     this.onTap,
+    this.isChannelTrusted = false,
   });
 
   final String title;
@@ -31,6 +33,7 @@ class ShareVideoCard extends StatelessWidget {
   final int? durationMs;
   final String? channelName;
   final VoidCallback? onTap;
+  final bool isChannelTrusted;
 
   void _handleNavigate() {
     if (onTap != null) {
@@ -185,15 +188,30 @@ class ShareVideoCard extends StatelessWidget {
                         if (channelName != null && channelName!.isNotEmpty) ...[
                           const SizedBox(width: 8),
                           Expanded(
-                            child: Text(
-                              channelName!,
-                              style: const TextStyle(
-                                color: Color(0xFF8E8E93),
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    channelName!,
+                                    style: const TextStyle(
+                                      color: Color(0xFF8E8E93),
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                if (isChannelTrusted ||
+                                    (DeepLinkService.instance
+                                            .getChannelFromCache(channelName!)
+                                            ?.showVerifiedBadge ??
+                                        false)) ...[
+                                  const SizedBox(width: 4),
+                                  const ChannelVerifiedBadge(size: 12.5),
+                                ],
+                              ],
                             ),
                           ),
                         ],

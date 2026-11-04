@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/share/share_components.dart';
 import 'package:truthworld/core/base/base_controller.dart';
@@ -26,6 +27,14 @@ class ShareBottomSheetController extends BaseController {
     this.videoUrl,
     this.videoId,
     this.videoTitle,
+    this.claimText,
+    this.verdictLabel,
+    this.verdictColor,
+    this.verdictIcon,
+    this.summaryTakeaway,
+    this.confidenceText,
+    this.sourceDomain,
+    this.onShareImage,
   });
 
   final String title;
@@ -47,6 +56,14 @@ class ShareBottomSheetController extends BaseController {
   final String? videoUrl;
   final String? videoId;
   final String? videoTitle;
+  final String? claimText;
+  final String? verdictLabel;
+  final Color? verdictColor;
+  final IconData? verdictIcon;
+  final String? summaryTakeaway;
+  final String? confidenceText;
+  final String? sourceDomain;
+  final VoidCallback? onShareImage;
 
   final RxBool startAtChecked = false.obs;
   final RxBool showEmbedPanel = false.obs;

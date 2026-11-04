@@ -23,7 +23,19 @@ export const onVideoSeoWritten = onDocumentWritten(
     const videoId = event.params.videoId;
     const beforeData = event.data?.before?.data();
     const afterData = event.data?.after?.data();
-    if (!afterData) return;
+    if (!afterData) {
+      const db = admin.firestore();
+      await db.collection("video_search").doc(videoId).delete().catch(() => {});
+      return;
+    }
+
+    const currentStatus = (afterData.status || "").toLowerCase();
+    const currentVis = (afterData.visibility || "").toLowerCase();
+    if (currentStatus === "deletion_pending" || currentStatus === "deleted" || currentVis === "private") {
+      const db = admin.firestore();
+      await db.collection("video_search").doc(videoId).delete().catch(() => {});
+      return;
+    }
 
     // Cost-effective delta guard: compare indexing-relevant fields
     const textOrMetaChanged = !beforeData ||
@@ -83,13 +95,24 @@ export const onVideoSeoWritten = onDocumentWritten(
         ? Math.floor(afterData.durationMs / 1000) 
         : (typeof afterData.duration === "number" ? afterData.duration : 0);
 
+      const rawDesc = (afterData.description || "").trim();
+      const isJunkDesc = !rawDesc ||
+        rawDesc.toLowerCase().startsWith("processing") ||
+        rawDesc.toLowerCase().startsWith("uploading") ||
+        rawDesc.toLowerCase() === "description";
+      const cleanDesc = isJunkDesc
+        ? "Watch family-safe, verified video with epistemic clarity on Truthworld."
+        : rawDesc;
+
+      const cardImageUrl = `${DOMAIN}/api/og/video/${videoId}.png`;
+
       const html = buildSemanticSsrHtml({
-        title: `${afterData.title} - Truthworld`,
-        description: afterData.description || `Watch ${afterData.title} by ${channelName} on Truthworld.`,
+        title: `${afterData.title} - ${channelName} | Truthworld`,
+        description: cleanDesc,
         url: watchUrl,
-        image: afterData.thumbnailUrl || afterData.thumbnail,
-        imageWidth: 1280,
-        imageHeight: 720,
+        image: cardImageUrl,
+        imageWidth: 1024,
+        imageHeight: 848,
         type: "video.other",
         videoUrl: afterData.hlsUrl || afterData.originalUrl || afterData.videoUrl,
         embedUrl: `${DOMAIN}/embed/${videoId}`,
@@ -104,6 +127,8 @@ export const onVideoSeoWritten = onDocumentWritten(
         transcriptExcerpt: afterData.transcript || afterData.captionsText
       });
 
+      await saveSnapshot(`watch_v4_${videoId}`, html);
+      await saveSnapshot(`watch_v3_${videoId}`, html);
       await saveSnapshot(`watch_v2_${videoId}`, html);
       await submitIndexNow([watchUrl]);
 
@@ -114,6 +139,8 @@ export const onVideoSeoWritten = onDocumentWritten(
       });
     } else {
       // Video is no longer public/ready — invalidate cached snapshot
+      await saveSnapshot(`watch_v4_${videoId}`, '');
+      await saveSnapshot(`watch_v3_${videoId}`, '');
       await saveSnapshot(`watch_v2_${videoId}`, '');
       logSeoEvent({
         eventType: "ssr_render",
@@ -170,20 +197,24 @@ export const onChannelSeoWritten = onDocumentWritten(
       });
 
       const handle = afterData.handle || "";
+      const cleanHandle = (handle || channelId).toLowerCase().replace(/^@/, "");
       const channelUrl = handle 
         ? `${DOMAIN}/${handle.startsWith("@") ? handle : `@${handle}`}`
         : `${DOMAIN}/channel/${channelId}`;
+      const cardImageUrl = `${DOMAIN}/api/og/channel/${cleanHandle}.png`;
 
-      const channelSchema = generateChannelSchema(afterData as any, channelUrl);
+      const channelSchema = generateChannelSchema(afterData as any, channelUrl, cardImageUrl);
       const breadcrumbs = generateBreadcrumbData([
         { name: afterData.displayName || afterData.name || "Channel", url: channelUrl }
       ]);
 
       const html = buildSemanticSsrHtml({
         title: `${afterData.displayName || afterData.name} - Truthworld`,
-        description: afterData.about || afterData.description || `Watch videos from ${afterData.displayName || afterData.name} on Truthworld.`,
+        description: afterData.about || afterData.description || `Watch videos from ${afterData.displayName || afterData.name} on Truthworld. Epistemic clarity and high quality content.`,
         url: channelUrl,
-        image: afterData.profile?.photoUrl || afterData.avatarUrl,
+        image: cardImageUrl,
+        imageWidth: 1024,
+        imageHeight: 848,
         type: "profile",
         robots: "index, follow",
         jsonLd: [channelSchema, breadcrumbs.jsonLd],
@@ -193,8 +224,8 @@ export const onChannelSeoWritten = onDocumentWritten(
         authorUrl: channelUrl
       });
 
-      const cacheKey = `channel_v2_${(handle || channelId).toLowerCase().replace(/^@/, "")}`;
-      await saveSnapshot(cacheKey, html);
+      await saveSnapshot(`channel_v3_${cleanHandle}`, html);
+      await saveSnapshot(`channel_v2_${cleanHandle}`, html);
 
       await submitIndexNow([channelUrl]);
 
@@ -360,6 +391,7 @@ export const onPlaylistSeoWritten = onDocumentWritten(
       });
 
       const playlistUrl = `${DOMAIN}/playlist?list=${playlistId}`;
+      const cardImageUrl = `${DOMAIN}/api/og/playlist/${playlistId}.png`;
       const playlistSchema = generatePlaylistSchema({ id: playlistId, ...afterData }, playlistUrl);
       const breadcrumbs = generateBreadcrumbData([
         { name: name, url: playlistUrl }
@@ -367,9 +399,11 @@ export const onPlaylistSeoWritten = onDocumentWritten(
 
       const html = buildSemanticSsrHtml({
         title: `${name} - Playlist | Truthworld`,
-        description: afterData.description || `Watch ${name} playlist on Truthworld.`,
+        description: afterData.description || `Watch ${name} playlist on Truthworld. Verified videos with epistemic clarity.`,
         url: playlistUrl,
-        image: afterData.thumbnailUrl || afterData.thumbnail,
+        image: cardImageUrl,
+        imageWidth: 1024,
+        imageHeight: 848,
         type: "website",
         robots: "index, follow",
         jsonLd: [playlistSchema, breadcrumbs.jsonLd],
@@ -377,8 +411,8 @@ export const onPlaylistSeoWritten = onDocumentWritten(
         contentHeading: `${name} Playlist`
       });
 
-      const cacheKey = `playlist_v3_${playlistId}`;
-      await saveSnapshot(cacheKey, html);
+      await saveSnapshot(`playlist_v4_${playlistId}`, html);
+      await saveSnapshot(`playlist_v3_${playlistId}`, html);
       await submitIndexNow([playlistUrl]);
 
       logSeoEvent({

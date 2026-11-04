@@ -122,11 +122,23 @@ class ChannelMembershipTier {
             s.contains('up to 2k');
       });
 
-  /// Platform cut rate: 30% if tier includes Channel Premium bundle, 0% commission otherwise.
-  double get platformCutPercentage => includesPremiumBundle ? 0.30 : 0.0;
+  /// Platform cut rate: 30% if tier includes Channel Premium bundle, 10% fee on Standard channels, 0% on Custom.
+  double get platformCutPercentage => includesPremiumBundle ? 0.30 : 0.10;
 
-  /// Creator take-home percentage: 70% if tier includes Channel Premium bundle, 100% otherwise.
-  double get creatorSharePercentage => includesPremiumBundle ? 0.70 : 1.0;
+  /// Creator take-home percentage: 70% if tier includes Channel Premium bundle, 90% on Standard channels, 100% on Custom.
+  double get creatorSharePercentage => includesPremiumBundle ? 0.70 : 0.90;
+
+  /// Platform cut rate evaluated with explicit channel tier context.
+  double platformCutForChannel({bool isCustom = false}) {
+    if (includesPremiumBundle) return 0.30;
+    return isCustom ? 0.0 : 0.10;
+  }
+
+  /// Creator take-home percentage evaluated with explicit channel tier context.
+  double creatorShareForChannel({bool isCustom = false}) {
+    if (includesPremiumBundle) return 0.70;
+    return isCustom ? 1.00 : 0.90;
+  }
 
   /// Recommended price for this tier ($5 USD or ₹150 INR if bundle is included).
   double get recommendedPrice => includesPremiumBundle
@@ -392,6 +404,8 @@ class MembershipsController extends BaseController with ContentValidationMixin {
   final RxString memberSearchQuery = ''.obs;
   final RxString selectedTierFilter = 'all'.obs;
   final RxBool noAdsForMembers = false.obs;
+  final RxBool isCustomChannel = false.obs;
+  final RxBool isChannelMonetized = false.obs;
   final RxBool isUpdatingSettings = false.obs;
 
   // Stream Subscriptions
@@ -516,11 +530,16 @@ class MembershipsController extends BaseController with ContentValidationMixin {
         tiers.value = list;
         isLoadingTiers.value = false;
       },
-      onError: (err) {
+      onError: (err, stackTrace) {
         isLoadingTiers.value = false;
-        debugPrint('[MembershipsController] Error listening to tiers: $err');
+        ErrorHandler.log(
+          err,
+          stackTrace: stackTrace is StackTrace ? stackTrace : null,
+          tag: 'MembershipsController._subscribeToData.tiers',
+        );
       },
     );
+    trackSubscription(_tiersSub!);
 
     // 2. Members Stream
     _membersSub?.cancel();
@@ -538,11 +557,16 @@ class MembershipsController extends BaseController with ContentValidationMixin {
         members.value = list;
         isLoadingMembers.value = false;
       },
-      onError: (err) {
+      onError: (err, stackTrace) {
         isLoadingMembers.value = false;
-        debugPrint('[MembershipsController] Error listening to members: $err');
+        ErrorHandler.log(
+          err,
+          stackTrace: stackTrace is StackTrace ? stackTrace : null,
+          tag: 'MembershipsController._subscribeToData.members',
+        );
       },
     );
+    trackSubscription(_membersSub!);
 
     // 3. Channel Settings Stream (noAdsForMembers)
     _channelSub?.cancel();
@@ -554,6 +578,15 @@ class MembershipsController extends BaseController with ContentValidationMixin {
       (snapshot) {
         if (snapshot.exists && snapshot.data() != null) {
           final data = snapshot.data()!;
+          final isMonetized = (data['isMonetized'] as bool?) ??
+              (data['monetizationSettings'] is Map &&
+                  data['monetizationSettings']['isMonetized'] == true);
+          final tierStr = (data['monetizationTier'] as String?)?.toLowerCase();
+          final isTierActive = tierStr != null && tierStr != 'none';
+          final channelTypeStr = (data['channelType'] ?? data['type']) as String?;
+          isCustomChannel.value = channelTypeStr == 'custom';
+          isChannelMonetized.value = isMonetized || isTierActive || isCustomChannel.value;
+
           final noAds = (data['noAdsForMembers'] as bool?) ??
               (data['monetizationSettings'] is Map
                   ? ((data['monetizationSettings']['noAdsForMembers'] as bool?) ??
@@ -563,10 +596,15 @@ class MembershipsController extends BaseController with ContentValidationMixin {
           noAdsForMembers.value = noAds;
         }
       },
-      onError: (err) {
-        debugPrint('[MembershipsController] Error listening to channel settings: $err');
+      onError: (err, stackTrace) {
+        ErrorHandler.log(
+          err,
+          stackTrace: stackTrace is StackTrace ? stackTrace : null,
+          tag: 'MembershipsController._subscribeToData.channelSettings',
+        );
       },
     );
+    trackSubscription(_channelSub!);
   }
 
   // --- Computed Metrics ---
@@ -628,12 +666,13 @@ class MembershipsController extends BaseController with ContentValidationMixin {
     return total;
   }
 
-  /// Net monthly recurring revenue for creator (accounts for 30% platform cut on tiers with Channel Premium bundle).
+  /// Net monthly recurring revenue for creator (Hybrid Model: 90% Standard, 100% Custom, 70% with Channel Premium).
   double get creatorMonthlyRecurringRevenue {
     if (noAdsForMembers.value) {
       return monthlyRecurringRevenue * 0.70;
     }
 
+    final baseShare = isCustomChannel.value ? 1.00 : 0.90;
     var netTotal = 0.0;
     final isUsd = primaryCurrencySymbol == r'$';
     final rate = Get.isRegistered<CurrencyLocalizationService>()
@@ -644,7 +683,7 @@ class MembershipsController extends BaseController with ContentValidationMixin {
       for (final m in members.where((m) => m.status.toLowerCase() == 'active')) {
         final tier = tiers.firstWhereOrNull((t) => t.id == m.tierId);
         final hasBundle = tier?.includesPremiumBundle ?? false;
-        final share = hasBundle ? 0.70 : 1.0;
+        final share = hasBundle ? 0.70 : baseShare;
 
         final memberIsUsd = m.currency.toUpperCase() == 'USD';
         final double memberPrice;
@@ -660,7 +699,7 @@ class MembershipsController extends BaseController with ContentValidationMixin {
     } else {
       for (final t in tiers.where((t) => t.isEnabled)) {
         final hasBundle = t.includesPremiumBundle;
-        final share = hasBundle ? 0.70 : 1.0;
+        final share = hasBundle ? 0.70 : baseShare;
 
         final tierIsUsd = t.currency.toUpperCase() == 'USD';
         final rawTierTotal = t.price * t.memberCount;
@@ -770,6 +809,13 @@ class MembershipsController extends BaseController with ContentValidationMixin {
     final activeId = _channelId.value;
     if (activeId.isEmpty) {
       AppSnackbar.warning('Unable to resolve channel ID. Please refresh.');
+      return false;
+    }
+
+    if (!isChannelMonetized.value) {
+      AppSnackbar.warning(
+        'Channel Memberships are only available for monetized channels. Please apply for monetization in the Monetization tab first.',
+      );
       return false;
     }
 
@@ -1042,7 +1088,7 @@ class MembershipsController extends BaseController with ContentValidationMixin {
           badgeIcon: 'shield',
           description: 'Join the channel family and stand out in the comments.',
           perks: [
-            'Loyalty badge beside your name in comments & live chat',
+            'Loyalty badge beside your name in comments',
             'Exclusive member-only community posts & updates',
             'Custom channel emojis in comments',
           ],
@@ -1093,7 +1139,7 @@ class MembershipsController extends BaseController with ContentValidationMixin {
           perks: [
             'Channel Premium: Ad-free & 4K Ultra HD streaming',
             'Exclusive loyalty badge beside channel comments',
-            'Custom emojis in live chat',
+            'Custom emojis in comments & community posts',
             'Early access to all new videos',
             'Members-only community posts & polls',
           ],
@@ -1200,7 +1246,7 @@ class MembershipsController extends BaseController with ContentValidationMixin {
     '4K Ultra HD (2160p) video streaming',
     'Channel Premium: Ad-free & 4K streaming',
     'Loyalty badge beside channel comments',
-    'Custom emojis in live chat & comments',
+    'Custom emojis in comments & community posts',
     'Early access to new videos (24-48 hrs)',
     'Members-only community posts & polls',
     'Exclusive monthly live stream Q&A',

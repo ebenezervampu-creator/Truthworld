@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/download_notification_service.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -13,7 +14,7 @@ import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/features/video/data/datasources/local/database_helpers.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloads/download_controller_barrel.dart';
-import 'package:truthworld/theme/app_theme.dart';
+import 'package:truthworld/features/video/presentation/widgets/download_feedback_helper.dart';
 
 export 'package:truthworld/features/video/presentation/controllers/downloads/download_controller_barrel.dart';
 
@@ -25,14 +26,32 @@ class ActiveDownloadTask {
     this.quality = 'Standard',
     double initialProgress = 0.0,
     String initialStatus = 'Preparing download...',
+    int initialReceivedBytes = 0,
+    int initialTotalBytes = 0,
   })  : progress = initialProgress.obs,
-        status = initialStatus.obs;
+        status = initialStatus.obs,
+        receivedBytes = initialReceivedBytes.obs,
+        totalBytes = initialTotalBytes.obs;
 
   final Video video;
   final bool isAudioOnly;
   final String quality;
   final RxDouble progress;
   final RxString status;
+  final RxInt receivedBytes;
+  final RxInt totalBytes;
+
+  /// Returns standard formatted string matching Image 2 (e.g. "15 MB / 290 MB").
+  String get byteProgressText {
+    final received = receivedBytes.value;
+    final total = totalBytes.value;
+    if (total > 0) {
+      return '${FormatUtils.formatBytes(received)} / ${FormatUtils.formatBytes(total)}';
+    } else if (received > 0) {
+      return FormatUtils.formatBytes(received);
+    }
+    return '';
+  }
 }
 
 /// Central coordinator controller for managing offline video downloads, storage, and filtering.
@@ -233,6 +252,7 @@ class DownloadsController extends BaseController {
   void cancelDownload(String videoId) {
     activeDownloads.remove(videoId);
     downloadProgressMap.remove(videoId);
+    DownloadNotificationService.to.cancelDownloadNotification(videoId);
     AppSnackbar.info('Download cancelled.');
   }
 
@@ -307,27 +327,47 @@ class DownloadsController extends BaseController {
     downloadProgressMap[video.id] = 0.0;
     onProgress?.call(0.0);
 
-    void handleProgress(double prog) {
+    void handleProgress(double prog, {int? receivedBytes, int? totalBytes}) {
       downloadProgressMap[video.id] = prog;
       task.progress.value = prog;
+      if (receivedBytes != null) task.receivedBytes.value = receivedBytes;
+      if (totalBytes != null) task.totalBytes.value = totalBytes;
+
       final percent = (prog * 100).toInt();
-      task.status.value = percent > 0 ? 'Downloading $percent%' : 'Downloading...';
+      task.status.value =
+          percent > 0 ? 'Downloading $percent%' : 'Downloading...';
       onProgress?.call(prog);
+
+      // Update native push/local notification & in-app push notification
+      DownloadNotificationService.to.updateProgress(
+        video: video,
+        progress: prog,
+        receivedBytes: task.receivedBytes.value,
+        totalBytes: task.totalBytes.value,
+        isAudioOnly: isAudioOnly,
+      );
     }
 
-    // Provide immediate user feedback that download is starting
-    AppSnackbar.show(
-      'Downloading',
-      isAudioOnly
-          ? "Downloading '${video.title}' for offline listening..."
-          : "Downloading '${video.title}' offline...",
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: const Color(0xFF1E1E1E),
-      colorText: AppColors.textPrimary,
-      margin: const EdgeInsets.all(16),
-      borderRadius: 16,
-      duration: const Duration(seconds: 3),
+    // 1. Show the bottom snackbar matching Image 1:
+    // Exactly same text ("Downloading..."), fonts, theme, video thumbnail, and resolution text + "View"
+    DownloadFeedbackHelper.showDownloadStartedSnackbar(
+      video: video,
+      resolutionText: qualityLabel,
+      isAudioOnly: isAudioOnly,
     );
+
+    // 2. Start system push notification matching Image 2:
+    // TruthWorld logo, video title, live progress bar, details ("15 MB / 290 MB"), and video thumbnail
+    DownloadNotificationService.to.showDownloadStartedNotification(
+      video: video,
+      quality: qualityLabel,
+      isAudioOnly: isAudioOnly,
+    );
+
+    // 3. For web / mobile web or foreground in-app tracking, also show in-app push notification card
+    if (kIsWeb) {
+      DownloadFeedbackHelper.showInAppPushNotification(task: task);
+    }
 
     try {
       task.status.value = 'Connecting to stream...';
@@ -383,14 +423,17 @@ class DownloadsController extends BaseController {
       task.status.value = 'Encrypting & saving...';
       await loadVideos();
 
-      AppSnackbar.show(
-        isAudioOnly ? 'Audio Saved Offline' : 'Video Download Complete',
-        "'${video.title}' is ready for offline ${isAudioOnly ? 'listening' : 'viewing'}.",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.success.withValues(alpha: 0.85),
-        colorText: AppColors.textPrimary,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 16,
+      // Show completed push notification (TruthWorld logo, video title, thumbnail, tap to play/view)
+      await DownloadNotificationService.to.showDownloadCompleteNotification(
+        video: video,
+        isAudioOnly: isAudioOnly,
+      );
+
+      // Show "Downloaded" bottom snackbar with thumbnail, resolution, and "Options" action
+      DownloadFeedbackHelper.showDownloadedSnackbar(
+        video: video,
+        resolutionText: qualityLabel,
+        isAudioOnly: isAudioOnly,
       );
       return true;
     } catch (e, s) {
@@ -399,6 +442,7 @@ class DownloadsController extends BaseController {
         stackTrace: s,
         tag: 'DownloadsController.downloadVideoOffline',
       );
+      await DownloadNotificationService.to.cancelDownloadNotification(video.id);
       AppSnackbar.error(
         'Unable to download video. Please check your connection and try again.',
       );

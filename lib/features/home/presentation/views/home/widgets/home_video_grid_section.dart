@@ -43,9 +43,24 @@ class HomeVideoGridSection extends StatelessWidget {
     if (isLoading) {
       return _buildLoadingGrid(context);
     }
-    final displayVideos = (isDesktop && !isPosts)
+    final rawDisplayVideos = (isDesktop && !isPosts)
         ? videos.where((item) => item is! CommunityPostModel).toList()
         : videos;
+    if (rawDisplayVideos.isEmpty) {
+      return _buildEmptyGrid(context);
+    }
+    // Deduplicate videos by ID to guarantee unique Hero tags and distinct widget keys in the feed
+    final seenVideoIds = <String>{};
+    final displayVideos = <dynamic>[];
+    for (final item in rawDisplayVideos) {
+      if (item is Video) {
+        if (item.id.isNotEmpty && seenVideoIds.add(item.id)) {
+          displayVideos.add(item);
+        }
+      } else {
+        displayVideos.add(item);
+      }
+    }
     if (displayVideos.isEmpty) {
       return _buildEmptyGrid(context);
     }

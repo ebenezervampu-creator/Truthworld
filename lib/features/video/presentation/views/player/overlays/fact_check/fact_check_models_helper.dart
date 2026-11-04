@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/user_languages_service.dart';
 import 'package:truthworld/core/utils/source_url_sanitizer.dart';
 import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
@@ -210,11 +211,37 @@ Future<void> openSourceUrl(String? url, {String? title, String? domain}) async {
     int index,
     List<dynamic> allSources,
   ) {
+    final langCode = UserLanguagesService.isRegistered
+        ? UserLanguagesService.to.primaryLanguageCode
+        : 'en';
+
     var rawText = (claim['claim'] ??
             claim['text'] ??
             claim['statement'] ??
             'Claim #${index + 1}')
         .toString();
+
+    // Inspect cached localized claim texts
+    final rawLocMap = claim['localizedTexts'] ?? claim['translations'] ?? claim['localizations'];
+    if (rawLocMap is Map) {
+      final locText = rawLocMap[langCode] ??
+          rawLocMap['text_$langCode'] ??
+          rawLocMap['claim_$langCode'];
+      if (locText is String && locText.trim().isNotEmpty) {
+        rawText = locText.trim();
+      } else if (locText is Map) {
+        final nested = locText['text'] ?? locText['claim'] ?? locText['statement'];
+        if (nested is String && nested.trim().isNotEmpty) {
+          rawText = nested.trim();
+        }
+      }
+    } else {
+      final directKey = claim['text_$langCode'] ?? claim['claim_$langCode'];
+      if (directKey is String && directKey.trim().isNotEmpty) {
+        rawText = directKey.trim();
+      }
+    }
+
     rawText = ClaimVerdictHelper.cleanClaimText(rawText, index);
 
     var rawResponse = (claim['response'] ??
@@ -229,6 +256,29 @@ Future<void> openSourceUrl(String? url, {String? title, String? domain}) async {
             claim['note'] ??
             '')
         .toString();
+
+    // Inspect cached localized response / reasoning
+    if (rawLocMap is Map) {
+      final locEntry = rawLocMap[langCode];
+      if (locEntry is Map) {
+        final locResp = locEntry['response'] ??
+            locEntry['reasoning'] ??
+            locEntry['explanation'] ??
+            locEntry['summaryTakeaway'];
+        if (locResp is String && locResp.trim().isNotEmpty) {
+          rawResponse = locResp.trim();
+        }
+      } else if (locEntry is String && locEntry.trim().isNotEmpty && rawText != locEntry.trim()) {
+        rawResponse = locEntry.trim();
+      }
+    }
+    final directResp = claim['response_$langCode'] ??
+        claim['reasoning_$langCode'] ??
+        claim['explanation_$langCode'];
+    if (directResp is String && directResp.trim().isNotEmpty) {
+      rawResponse = directResp.trim();
+    }
+
     rawResponse = ClaimVerdictHelper.cleanResponseText(rawResponse, claimText: rawText);
 
     final lowerClaim = rawText.toLowerCase();
@@ -255,7 +305,7 @@ Future<void> openSourceUrl(String? url, {String? title, String? domain}) async {
         if (verdictInfo.isOpinion) {
           rawResponse = ClaimVerdictHelper.formatOpinionExplanation(rawText);
         } else {
-          rawResponse = verdictInfo.summaryTakeaway;
+          rawResponse = verdictInfo.localizedTakeaway(langCode);
         }
       }
     }

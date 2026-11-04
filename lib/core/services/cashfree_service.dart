@@ -71,6 +71,13 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
     super.onInit();
     WidgetsBinding.instance.addObserver(this);
     _initGatewayCallbacks();
+
+    // Proactively pre-warm security & payment endpoint validation in background
+    if (!kIsWeb) {
+      unawaited(SslPinningManager.instance.validatePaymentEndpoints());
+      unawaited(RaspSecurityService.to.isEnvironmentSecure());
+      unawaited(AndroidInstallerDetector.getInstallerSource());
+    }
   }
 
   @override
@@ -181,25 +188,26 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
     String? status,
     String? subscriptionId,
   }) async {
+    // TW-SEC-04: Verify orderId matches the currently active transaction before processing
+    final cleanOrderId = orderId.trim();
+    if (cleanOrderId.isEmpty || cleanOrderId != activeOrderId.value) {
+      if (kDebugMode) {
+        debugPrint(
+          '[CashfreePaymentService] Rejected payment result deep link: orderId mismatch or no active order ($cleanOrderId != ${activeOrderId.value})',
+        );
+      }
+      return;
+    }
+
     if (kDebugMode) {
       debugPrint(
-        '[CashfreePaymentService] handlePaymentResult: orderId=$orderId, status=$status, subId=$subscriptionId',
+        '[CashfreePaymentService] handlePaymentResult: orderId=$cleanOrderId, status=$status, subId=$subscriptionId',
       );
     }
 
     _safeCloseDialog();
 
     final normalizedStatus = status?.trim().toUpperCase();
-    if (normalizedStatus == 'CANCELLED' || normalizedStatus == 'FAILED') {
-      _resolveActivePayment(
-        CashfreePaymentResult(
-          success: false,
-          orderId: orderId,
-          errorMessage: 'Payment was not completed. Please try again.',
-        ),
-      );
-      return;
-    }
 
     if (subscriptionId != null && subscriptionId.isNotEmpty) {
       final subRes = await verifySubscriptionOnServer(subscriptionId);
@@ -210,15 +218,26 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
       }
     }
 
-    final res = await verifyOrderOnServer(orderId);
+    // TW-SEC-04: Do not abort on status=CANCELLED/FAILED without authoritative server check
+    final res = await verifyOrderOnServer(cleanOrderId);
     if (res.success) {
       AppSnackbar.success('Payment verified successfully!');
       _resolveActivePayment(res);
     } else {
-      AppSnackbar.warning(
-        'Payment is pending or not yet confirmed by gateway. Please check your bank statement.',
-      );
-      _resolveActivePayment(res);
+      if (normalizedStatus == 'CANCELLED' || normalizedStatus == 'FAILED') {
+        _resolveActivePayment(
+          CashfreePaymentResult(
+            success: false,
+            orderId: cleanOrderId,
+            errorMessage: 'Payment was not completed. Please try again.',
+          ),
+        );
+      } else {
+        AppSnackbar.warning(
+          'Payment is pending or not yet confirmed by gateway. Please check your bank statement.',
+        );
+        _resolveActivePayment(res);
+      }
     }
   }
 
@@ -302,14 +321,21 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
     }
 
     // If native checkout fails due to Android debug/sideload integrity checks (installer_package_not_approved)
-    // or missing native component, gracefully fallback to TruthWorld's secure hosted checkout link.
+    // or gateway package/domain approval restrictions, gracefully fallback to TruthWorld's secure hosted checkout link.
     final lowerMsg = rawMsg.toLowerCase();
     final isInstallerOrIntegrityError = lowerMsg.contains('installer_package_not_approved') ||
         lowerMsg.contains('installer') ||
         lowerMsg.contains('package_not_approved') ||
         lowerMsg.contains('not approved') ||
+        lowerMsg.contains('not enabled') ||
+        lowerMsg.contains('whitelist') ||
+        lowerMsg.contains('whitelisting') ||
+        lowerMsg.contains('domain') ||
+        lowerMsg.contains('package') ||
         lowerMsg.contains('verification failed') ||
-        lowerMsg.contains('activity not found');
+        lowerMsg.contains('activity not found') ||
+        lowerMsg.contains('security violation') ||
+        lowerMsg.contains('integrity');
 
     final fallbackUrl = (_activePaymentLink != null && _activePaymentLink!.isNotEmpty)
         ? _activePaymentLink!
@@ -320,7 +346,7 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
     if (isInstallerOrIntegrityError) {
       if (kDebugMode) {
         debugPrint(
-          '[CashfreePaymentService] Native SDK rejected installer in debug/sideloaded build ($rawMsg). '
+          '[CashfreePaymentService] Native SDK rejected installer/package check ($rawMsg). '
           'Gracefully launching hosted checkout fallback: $fallbackUrl',
         );
       }
@@ -378,6 +404,20 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
     String? customerPhone,
     Map<String, dynamic>? metadata,
   }) async {
+    if (isProcessing.value) {
+      if (kDebugMode) {
+        debugPrint(
+          '[CashfreePaymentService] Payment already in progress (orderId=${activeOrderId.value}). '
+          'Ignoring duplicate startPayment request.',
+        );
+      }
+      return CashfreePaymentResult(
+        success: false,
+        orderId: activeOrderId.value,
+        errorMessage: 'A payment is currently being processed. Please wait.',
+      );
+    }
+
     final auth = AuthService.to;
     if (!auth.isAuthenticated.value) {
       AppSnackbar.warning(
@@ -428,11 +468,23 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
 
     final sanitizedAmount = double.parse(amount.toStringAsFixed(2));
 
-    // Verify runtime integrity (RASP) & SSL certificate pinning
+    // Immediately mark as processing to provide instantaneous UI feedback and prevent double taps
+    isProcessing.value = true;
+    unawaited(ScreenSecurityService.to.enableSecureMode());
+
+    // Verify runtime integrity (RASP) & SSL certificate pinning concurrently
     if (!kIsWeb) {
       try {
-        final isSecure = await RaspSecurityService.to.isEnvironmentSecure();
+        final secResults = await Future.wait([
+          RaspSecurityService.to.isEnvironmentSecure(),
+          SslPinningManager.instance.validatePaymentEndpoints(),
+        ]);
+        final isSecure = secResults[0];
+        final isSslSecure = secResults[1];
+
         if (!isSecure && kReleaseMode) {
+          isProcessing.value = false;
+          unawaited(ScreenSecurityService.to.disableSecureMode());
           await RaspSecurityService.to.enforceAppIntegrity();
           AppSnackbar.warning(
             'Unable to process transaction due to security integrity violation.',
@@ -444,9 +496,9 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
           );
         }
 
-        final isSslSecure =
-            await SslPinningManager.instance.validatePaymentEndpoints();
         if (!isSslSecure && kReleaseMode) {
+          isProcessing.value = false;
+          unawaited(ScreenSecurityService.to.disableSecureMode());
           AppSnackbar.warning(
             'Secure connection could not be verified. Please check your network and try again.',
           );
@@ -466,9 +518,6 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
     }
 
     try {
-      isProcessing.value = true;
-      unawaited(ScreenSecurityService.to.enableSecureMode());
-
       // 1. Authoritatively create order on server
       final createCallable = _functions.httpsCallable('createCashfreeOrder');
       final createResponse = await createCallable.call({
@@ -492,14 +541,15 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
       final subscriptionId = data['subscriptionId'] as String?;
       final authLink = data['authLink'] as String?;
       final envString = (data['environment'] as String? ?? 'SANDBOX').toUpperCase();
+      final envParam = envString.toLowerCase();
 
       activeOrderId.value = orderId;
       _activePaymentSessionId = paymentSessionId;
       _activeEnv = envString;
-      _activePaymentLink = paymentLink ??
-          (paymentSessionId != null
-              ? 'https://www.truthworld.in/checkout?session_id=${Uri.encodeComponent(paymentSessionId)}&order_id=${Uri.encodeComponent(orderId)}&env=${envString.toLowerCase()}'
-              : null);
+      final hostedCheckoutUrl = (paymentSessionId != null && paymentSessionId.isNotEmpty)
+          ? 'https://www.truthworld.in/checkout?session_id=${Uri.encodeComponent(paymentSessionId)}&order_id=${Uri.encodeComponent(orderId)}&env=$envParam'
+          : null;
+      _activePaymentLink = paymentLink ?? hostedCheckoutUrl;
       _activeSubscriptionId = isSubscription ? (subscriptionId ?? orderId) : null;
       _activeCompleter = Completer<CashfreePaymentResult>();
 
@@ -525,9 +575,7 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
         try {
           final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
           if (launched) {
-            if (!_isMobile) {
-              _showSubscriptionVerificationPrompt(subscriptionId ?? orderId, orderId);
-            }
+            _showSubscriptionVerificationPrompt(subscriptionId ?? orderId, orderId);
           } else {
             _resolveActivePayment(
               CashfreePaymentResult(
@@ -551,51 +599,32 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
           enableNativeGateway &&
           paymentSessionId != null &&
           paymentSessionId.isNotEmpty) {
-        // Proactively inspect installer origin on Android to handle sideloaded builds
-        final isSideloadedAndroid = !kIsWeb &&
-            defaultTargetPlatform == TargetPlatform.android &&
-            await AndroidInstallerDetector.isSideloaded();
-
-        if (isSideloadedAndroid) {
-          if (kDebugMode) {
-            debugPrint(
-              '[CashfreePaymentService] Sideloaded Android APK detected. '
-              'Directing to secure hosted checkout to prevent native installer rejection.',
-            );
-          }
+        // Attempt native Cashfree PG SDK for smooth, low-latency in-app checkout.
+        // If native SDK fails due to installer checks or missing components,
+        // _onPaymentError automatically falls back to hosted checkout.
+        try {
+          _initGatewayCallbacks();
+          _cfGateway.doPayment(
+            orderId: orderId,
+            paymentSessionId: paymentSessionId,
+            isProduction: envString == 'PRODUCTION',
+          );
+        } catch (nativeErr, stackTrace) {
+          ErrorHandler.log(
+            nativeErr,
+            stackTrace: stackTrace,
+            tag: 'CashfreePaymentService.nativePayment',
+          );
           final fallbackLink = _activePaymentLink ??
-              'https://www.truthworld.in/checkout?session_id=${Uri.encodeComponent(paymentSessionId)}&order_id=${Uri.encodeComponent(orderId)}&env=${envString.toLowerCase()}';
+              hostedCheckoutUrl ??
+              'https://www.truthworld.in/checkout?order_id=${Uri.encodeComponent(orderId)}';
           await _launchExternalCheckout(fallbackLink, orderId);
-        } else {
-          // Store installs (Play Store, Galaxy Store, Amazon Appstore) and iOS: invoke native Cashfree PG SDK
-          try {
-            _initGatewayCallbacks();
-            _cfGateway.doPayment(
-              orderId: orderId,
-              paymentSessionId: paymentSessionId,
-              isProduction: envString == 'PRODUCTION',
-            );
-          } catch (nativeErr, stackTrace) {
-            ErrorHandler.log(
-              nativeErr,
-              stackTrace: stackTrace,
-              tag: 'CashfreePaymentService.nativePayment',
-            );
-            final fallbackLink = _activePaymentLink ??
-                'https://www.truthworld.in/checkout?session_id=${Uri.encodeComponent(paymentSessionId)}&order_id=${Uri.encodeComponent(orderId)}&env=${envString.toLowerCase()}';
-            await _launchExternalCheckout(fallbackLink, orderId);
-          }
         }
-      } else if (paymentLink != null && paymentLink.isNotEmpty) {
-        // Authoritative TruthWorld Hosted Checkout flow (works seamlessly on Android, iOS, Web, and Desktop)
-        // Loads Cashfree JS SDK v3 checkout container with full UPI app intent support
-        await _launchExternalCheckout(paymentLink, orderId);
-      } else if (paymentSessionId != null && paymentSessionId.isNotEmpty) {
-        // Fallback checkout link construction
-        final envParam = envString.toLowerCase();
-        final fallbackLink =
-            'https://www.truthworld.in/checkout?session_id=${Uri.encodeComponent(paymentSessionId)}&order_id=${Uri.encodeComponent(orderId)}&env=$envParam';
-        await _launchExternalCheckout(fallbackLink, orderId);
+      } else if (_activePaymentLink != null && _activePaymentLink!.isNotEmpty) {
+        // TruthWorld hosted payment gateway (universal, responsive, multi-platform)
+        await _launchExternalCheckout(_activePaymentLink!, orderId);
+      } else if (hostedCheckoutUrl != null && hostedCheckoutUrl.isNotEmpty) {
+        await _launchExternalCheckout(hostedCheckoutUrl, orderId);
       } else {
         _resolveActivePayment(
           CashfreePaymentResult(
@@ -754,11 +783,19 @@ class CashfreePaymentService extends GetxService with WidgetsBindingObserver {
     }
 
     try {
-      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (launched) {
-        if (!_isMobile) {
-          _showExternalVerificationPrompt(orderId);
+      var launched = false;
+      if (_isMobile) {
+        try {
+          launched = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+        } catch (_) {
+          launched = false;
         }
+      }
+      if (!launched) {
+        launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+      if (launched) {
+        _showExternalVerificationPrompt(orderId);
       } else {
         _resolveActivePayment(
           CashfreePaymentResult(

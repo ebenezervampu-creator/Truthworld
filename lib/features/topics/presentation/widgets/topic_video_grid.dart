@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:shimmer/shimmer.dart';
@@ -46,25 +45,29 @@ class TopicVideoGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (videos.isEmpty && !isLoadingMore) {
+    final seen = <String>{};
+    final effectiveVideos =
+        videos.where((v) => v.id.isNotEmpty && seen.add(v.id)).toList();
+
+    if (effectiveVideos.isEmpty && !isLoadingMore) {
       return _buildEmptyState();
     }
 
     return Column(
       children: [
         // Video Grid or List
-        if (isGrid) _buildGrid(context) else _buildList(),
+        if (isGrid)
+          _buildGrid(context, effectiveVideos)
+        else
+          _buildList(effectiveVideos),
 
         // Loading more indicator
         if (isLoadingMore) _buildLoadingMore(),
-
-        // End of list indicator
-        if (!hasMore && videos.isNotEmpty) _buildEndOfList(),
       ],
     );
   }
 
-  void _onVideoTap(Video video) {
+  void _onVideoTap(Video video, List<Video> currentVideos) {
     MiniplayerNavigationHelper.navigateToVideoScreen(
       video: video,
       routeArguments: {
@@ -72,26 +75,31 @@ class TopicVideoGrid extends StatelessWidget {
         'heroTag': '${heroPrefix}_${video.id}',
         'fromTopic': true,
         if (topic != null) 'topic': topic,
-        'topicVideos': videos,
+        'topicVideos': currentVideos,
       },
     );
   }
 
-  Widget _buildList() {
+  Widget _buildList(List<Video> displayVideos) {
     return ListView.separated(
+      key: ValueKey('topic_list_view_$heroPrefix'),
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: videos.length,
+      addAutomaticKeepAlives: false,
+      addRepaintBoundaries: false,
+      itemCount: displayVideos.length,
       separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
-        final video = videos[index];
+        final video = displayVideos[index];
 
         return RepaintBoundary(
+          key: ValueKey('list_${heroPrefix}_${video.id}'),
           child: VideoCard(
+            key: ValueKey('card_list_${heroPrefix}_${video.id}'),
             video: video,
             isGrid: true,
             heroPrefix: heroPrefix,
-            onTap: () => _onVideoTap(video),
+            onTap: () => _onVideoTap(video, displayVideos),
           ),
         );
       },
@@ -104,30 +112,17 @@ class TopicVideoGrid extends StatelessWidget {
     bool isDesktop = false,
     bool isTablet = false,
   }) {
-    final isMobileDevice = defaultTargetPlatform == TargetPlatform.android ||
-        defaultTargetPlatform == TargetPlatform.iOS;
-    if (isMobileDevice || (!isDesktop && screenWidth < 1000)) {
-      if (screenWidth < 480) {
-        return (crossAxisCount: 1, childAspectRatio: 1.05);
-      } else if (screenWidth >= 1600) {
-        return (crossAxisCount: 5, childAspectRatio: 0.95);
-      } else if (screenWidth >= 1024) {
-        return (crossAxisCount: 4, childAspectRatio: 0.95);
-      } else if (screenWidth >= 768 || isTablet) {
-        return (crossAxisCount: 3, childAspectRatio: 0.95);
-      } else {
-        return (crossAxisCount: 2, childAspectRatio: 0.9);
-      }
-    }
-    // Desktop layout with larger video cards
-    if (screenWidth >= 2800) {
-      return (crossAxisCount: 5, childAspectRatio: 1.25);
-    } else if (screenWidth >= 2100) {
-      return (crossAxisCount: 4, childAspectRatio: 1.25);
+    if (screenWidth < 480) {
+      return (crossAxisCount: 1, childAspectRatio: 1.05);
+    } else if (screenWidth < 768 && !isTablet) {
+      return (crossAxisCount: 2, childAspectRatio: 0.9);
+    } else if (screenWidth < 1024 || isTablet) {
+      return (crossAxisCount: 3, childAspectRatio: 0.95);
     } else if (screenWidth >= 1600) {
-      return (crossAxisCount: 3, childAspectRatio: 1.25);
+      return (crossAxisCount: 5, childAspectRatio: 0.95);
     } else {
-      return (crossAxisCount: 2, childAspectRatio: 1.25);
+      // Standard desktop layout (1024px to 1599px) with optimized 4-column cards
+      return (crossAxisCount: 4, childAspectRatio: 0.95);
     }
   }
 
@@ -144,25 +139,30 @@ class TopicVideoGrid extends StatelessWidget {
     );
   }
 
-  Widget _buildGrid(BuildContext context) {
+  Widget _buildGrid(BuildContext context, List<Video> displayVideos) {
     final screenWidth = MediaQuery.sizeOf(context).width;
     final isMobile = screenWidth < 600 || (!isDesktop && !isTablet && screenWidth < 768);
 
     if (isMobile) {
       return ListView.separated(
+        key: ValueKey('topic_list_$heroPrefix'),
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        itemCount: videos.length,
+        addAutomaticKeepAlives: false,
+        addRepaintBoundaries: false,
+        itemCount: displayVideos.length,
         separatorBuilder: (context, index) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
-          final video = videos[index];
+          final video = displayVideos[index];
 
           return RepaintBoundary(
+            key: ValueKey('${heroPrefix}_${video.id}'),
             child: VideoCard(
+              key: ValueKey('card_${heroPrefix}_${video.id}'),
               video: video,
               isGrid: true,
               heroPrefix: heroPrefix,
-              onTap: () => _onVideoTap(video),
+              onTap: () => _onVideoTap(video, displayVideos),
             ),
           );
         },
@@ -176,22 +176,26 @@ class TopicVideoGrid extends StatelessWidget {
     );
 
     return MasonryGridView.count(
+      key: ValueKey('topic_grid_${heroPrefix}_${config.crossAxisCount}'),
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       crossAxisCount: config.crossAxisCount,
       crossAxisSpacing: 16,
       mainAxisSpacing: 16,
-      itemCount: videos.length,
+      itemCount: displayVideos.length,
+      addAutomaticKeepAlives: false,
+      addRepaintBoundaries: false,
       itemBuilder: (context, index) {
-        final video = videos[index];
+        final video = displayVideos[index];
 
-        // RepaintBoundary for performance
         return RepaintBoundary(
+          key: ValueKey('${heroPrefix}_${video.id}'),
           child: VideoCard(
+            key: ValueKey('card_${heroPrefix}_${video.id}'),
             video: video,
             isGrid: true,
             heroPrefix: heroPrefix,
-            onTap: () => _onVideoTap(video),
+            onTap: () => _onVideoTap(video, displayVideos),
           ),
         );
       },
@@ -241,56 +245,6 @@ class TopicVideoGrid extends StatelessWidget {
             color: AppColors.brand,
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildEndOfList() {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.symmetric(vertical: 24),
-      padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 24),
-      decoration: const BoxDecoration(
-        color: Color(0xFF161618),
-        borderRadius: BorderRadius.all(Radius.circular(16)),
-        border: Border.fromBorderSide(
-          BorderSide(
-            color: Color(0xFF28282C),
-          ),
-        ),
-      ),
-      child: const Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.play_circle_outline_rounded,
-                color: Colors.white,
-                size: 20,
-              ),
-              SizedBox(width: 8),
-              Text(
-                'No more videos',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 6),
-          Text(
-            'Check back later for more videos in this topic.',
-            style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.normal,
-              color: Color(0xFFAAAAAA),
-            ),
-          ),
-        ],
       ),
     );
   }

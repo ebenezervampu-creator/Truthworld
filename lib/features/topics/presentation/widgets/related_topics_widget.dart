@@ -87,6 +87,7 @@ class RelatedTopicsWidget extends StatelessWidget {
     final width = isDesktop ? 280.0 : (isTablet ? 240.0 : 200.0);
 
     return InkWell(
+      borderRadius: BorderRadius.circular(AppTokens.radius.lg),
       onTap: () => Get.to(
         () => const TopicPage(),
         arguments: {'slug': topic.slug},
@@ -143,9 +144,9 @@ class RelatedTopicsWidget extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Title
+                      // Topic Name
                       Text(
-                        topic.title,
+                        topic.name,
                         style: TextStyle(
                           fontSize: isDesktop ? 16 : 14,
                           fontWeight: FontWeight.w500,
@@ -261,7 +262,7 @@ class RelatedTopicsChips extends StatelessWidget {
         color: AppColors.bgSurfaceContainerHighest,
       ),
       label: Text(
-        topic.title,
+        topic.name,
         style: const TextStyle(
           fontSize: 14,
           color: AppColors.textPrimary,

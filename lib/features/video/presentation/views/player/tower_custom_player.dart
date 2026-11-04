@@ -11,7 +11,6 @@ import 'package:truthworld/features/video/presentation/views/player/models/playe
 import 'package:truthworld/features/video/presentation/views/player/overlays/ad_overlay.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/end_screen_overlay.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/fullscreen_more_videos_overlay.dart';
-import 'package:truthworld/features/video/presentation/views/player/overlays/live_chat_overlay.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/player_comments_overlay.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/player_fact_check_overlay.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/player_state_overlays.dart';
@@ -203,6 +202,28 @@ class TowerCustomPlayer extends StatelessWidget {
                               ),
                             ),
 
+                            // ── Layer 0.08: Audio-only Visual Stage with 250ms Crossfade ──
+                            // Placed beneath Layer 0.1 gestures so full viewport tap/drag/seek
+                            // interactions continue functioning seamlessly in audio-only mode.
+                            Obx(
+                              () => AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 250),
+                                transitionBuilder: (child, animation) =>
+                                    FadeTransition(
+                                      opacity: animation,
+                                      child: child,
+                                    ),
+                                child: c.isAudioOnly.value
+                                    ? RepaintBoundary(
+                                        key: const ValueKey('audio_overlay'),
+                                        child: AudioOnlyOverlay(ctrl: c),
+                                      )
+                                    : const SizedBox.shrink(
+                                        key: ValueKey('video_viewport'),
+                                      ),
+                              ),
+                            ),
+
                             // ── Layer 0.1: Video Viewport Gestures (Background tap/seek/drag) ──
                             Positioned.fill(
                               child: MouseRegion(
@@ -221,9 +242,20 @@ class TowerCustomPlayer extends StatelessWidget {
                                     if (pointerSignal is PointerScrollEvent &&
                                         c.isFullScreen.value &&
                                         !c.isShowingAd.value) {
-                                      // Upward mouse wheel/trackpad scroll in fullscreen opens More Videos
-                                      if (pointerSignal.scrollDelta.dy < -15) {
+                                      final viewportSize =
+                                          Size(playerWidth, playerHeight);
+                                      // Exactly like Jio Hotstar: upward mouse wheel/trackpad scroll
+                                      // only opens More Videos when cursor is in the middle of the player
+                                      // down of the pause/play and next/previous icons.
+                                      if (pointerSignal.scrollDelta.dy < -15 &&
+                                          c.isInMoreVideosZone(
+                                            pointerSignal.localPosition,
+                                            viewportSize,
+                                          )) {
                                         c.openMoreVideos();
+                                      } else if (pointerSignal.scrollDelta.dy > 15 &&
+                                          c.showMoreVideos.value) {
+                                        c.closeMoreVideos();
                                       }
                                     }
                                   },
@@ -429,26 +461,6 @@ class TowerCustomPlayer extends StatelessWidget {
                             ),
                           ),
                         ),
-
-                            // ── Layer 0.5: Audio-only UI with 250ms Crossfade ───────────────
-                            Obx(
-                              () => AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 250),
-                                transitionBuilder: (child, animation) =>
-                                    FadeTransition(
-                                      opacity: animation,
-                                      child: child,
-                                    ),
-                                child: c.isAudioOnly.value
-                                    ? RepaintBoundary(
-                                        key: const ValueKey('audio_overlay'),
-                                        child: AudioOnlyOverlay(ctrl: c),
-                                      )
-                                    : const SizedBox.shrink(
-                                        key: ValueKey('video_viewport'),
-                                      ),
-                              ),
-                            ),
 
                             // ── Layer 0.7: Brightness overlay ──────────────────────
                             Obx(() {
@@ -657,11 +669,10 @@ class TowerCustomPlayer extends StatelessWidget {
                                   !c.showFactOverlay.value) {
                                 return const SizedBox.shrink();
                               }
-                              // Do not obstruct if full fact-check, comments, transcript, or live chat panel is open
+                              // Do not obstruct if full fact-check, comments, or transcript panel is open
                               if (c.showFactCheckPopup.value ||
                                   c.showCommentsPopup.value ||
-                                  c.showTranscriptPopup.value ||
-                                  c.showLiveChat.value) {
+                                  c.showTranscriptPopup.value) {
                                 return const SizedBox.shrink();
                               }
                               final activeClaim = c.activeClaim.value;
@@ -669,27 +680,31 @@ class TowerCustomPlayer extends StatelessWidget {
                                 return const SizedBox.shrink();
                               }
 
+                              final isExpanded = c.isFactOverlayExpanded.value;
                               return AnimatedPositioned(
                                 duration: const Duration(milliseconds: 250),
                                 top: playerHeight < 500
-                                    ? 16.0
-                                    : (c.controlsVisible.value ? 76.0 : 24.0),
-                                right: 20,
+                                    ? 14.0
+                                    : (c.controlsVisible.value ? 72.0 : 20.0),
+                                right: 16,
                                 width: (playerWidth < 460)
-                                    ? (playerWidth - 40).clamp(280.0, 390.0)
-                                    : 380.0,
+                                    ? (playerWidth - 32).clamp(260.0, 420.0)
+                                    : (isExpanded ? 400.0 : 440.0),
                                 child: RealTimeFactOverlayWidget(
                                   claim: activeClaim,
-                                  onClose: () {
-                                    c.showFactOverlay.value = false;
-                                  },
+                                  isExpanded: isExpanded,
+                                  onToggleExpand: c.toggleFactOverlayExpanded,
+                                  onClose: c.dismissActiveClaim,
                                   onTap: () {
+                                    final vid = c.videoController?.video;
+                                    if (vid != null && (vid.isNonCredibilityCategory || !vid.hasAiCredibility)) {
+                                      return;
+                                    }
                                     c.overlayManager.toggle(TowerPlayerOverlay.factCheck);
                                     c.showFactCheckPopup.value =
                                         c.overlayManager.isFactCheckOpen;
                                     c.showCommentsPopup.value = false;
                                     c.showTranscriptPopup.value = false;
-                                    c.showLiveChat.value = false;
                                   },
                                 ),
                               );
@@ -700,7 +715,8 @@ class TowerCustomPlayer extends StatelessWidget {
                               c.isShowingAd.value;
                               c.isPiP.value;
                               c.controlsVisible.value;
-                              if (c.isShowingAd.value || c.isPiP.value) {
+                              final isDragging = (c.videoController?.dragDownOffset.value ?? 0.0) > 0.0;
+                              if (c.isShowingAd.value || c.isPiP.value || isDragging) {
                                 return const SizedBox.shrink();
                               }
                               return Positioned.fill(
@@ -794,34 +810,19 @@ class TowerCustomPlayer extends StatelessWidget {
                                                 : 390,
                                             child: Obx(() {
                                               c.showFactCheckPopup.value;
-                                              if (!c
-                                                  .showFactCheckPopup
-                                                  .value) {
+                                              if (!c.showFactCheckPopup.value) {
+                                                return const SizedBox.shrink();
+                                              }
+                                              final vc = c.videoController;
+                                              final vid = vc?.video;
+                                              final hasCredibility = vid != null &&
+                                                  !vid.isNonCredibilityCategory &&
+                                                  (vid.hasAiCredibility ||
+                                                      vc?.factCheckData.isNotEmpty == true);
+                                              if (!hasCredibility) {
                                                 return const SizedBox.shrink();
                                               }
                                               return FactCheckOverlay(ctrl: c);
-                                            }),
-                                          ),
-
-                                          // Real-Time Live Chat & Superchats Overlay
-                                          Positioned(
-                                            top: playerHeight < 500 ? 16.0 : 80.0,
-                                            bottom: playerHeight < 500 ? 16.0 : 80.0,
-                                            right: 20,
-                                            width: (playerWidth < 460)
-                                                ? (playerWidth - 40)
-                                                    .clamp(280.0, 390.0)
-                                                : 390,
-                                            child: Obx(() {
-                                              if (!c.showLiveChat.value) {
-                                                return const SizedBox.shrink();
-                                              }
-                                              final vidId = c.videoController?.video.id ?? c.tag ?? '';
-                                              return LiveChatOverlay(
-                                                videoId: vidId,
-                                                video: c.videoController?.video,
-                                                onClose: () => c.showLiveChat.value = false,
-                                              );
                                             }),
                                           ),
 
@@ -891,19 +892,36 @@ class TowerCustomPlayer extends StatelessWidget {
                             }),
 
                             // ── Layer 8.7: Fullscreen More Videos Overlay ─────────────
-                            Obx(() {
-                              c.showMoreVideos.value;
-                              c.isFullScreen.value;
-                              c.isPiP.value;
-                              if (c.showMoreVideos.value &&
-                                  c.isFullScreen.value &&
-                                  !c.isPiP.value) {
-                                return Positioned.fill(
-                                  child: FullscreenMoreVideosOverlay(ctrl: c),
+                            Positioned.fill(
+                              child: Obx(() {
+                                final isOpen = c.showMoreVideos.value &&
+                                    c.isFullScreen.value &&
+                                    !c.isPiP.value;
+                                return AnimatedSlide(
+                                  offset: isOpen
+                                      ? Offset.zero
+                                      : const Offset(0.0, 0.3),
+                                  duration:
+                                      const Duration(milliseconds: 280),
+                                  curve: Curves.easeOutCubic,
+                                  child: AnimatedOpacity(
+                                    opacity: isOpen ? 1.0 : 0.0,
+                                    duration:
+                                        const Duration(milliseconds: 220),
+                                    curve: Curves.easeOut,
+                                    child: IgnorePointer(
+                                      ignoring: !isOpen,
+                                      child: c.isFullScreen.value &&
+                                              !c.isPiP.value
+                                          ? FullscreenMoreVideosOverlay(
+                                              ctrl: c,
+                                            )
+                                          : const SizedBox.shrink(),
+                                    ),
+                                  ),
                                 );
-                              }
-                              return const SizedBox.shrink();
-                            }),
+                              }),
+                            ),
 
                             // ── Layer 8.8: Guest 10-Minute Playback Limit Barrier ──
                             const GuestPlaybackBarrierOverlay(),

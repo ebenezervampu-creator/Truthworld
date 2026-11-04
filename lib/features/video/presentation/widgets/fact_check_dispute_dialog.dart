@@ -1,12 +1,13 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/source_url_sanitizer.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/data/services/credibility_governance_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Controller managing fact-check dispute form state, validation, and submission.
@@ -15,6 +16,17 @@ class FactCheckDisputeController extends GetxController {
   final sourceController = TextEditingController();
   final RxList<String> additionalSources = <String>[].obs;
   final RxBool isSubmitting = false.obs;
+  final RxString selectedPreset = ''.obs;
+
+  void selectPreset(String label, String explanation) {
+    if (selectedPreset.value == label) {
+      selectedPreset.value = '';
+      reasonController.clear();
+    } else {
+      selectedPreset.value = label;
+      reasonController.text = explanation;
+    }
+  }
 
   void addSource() {
     final text = sourceController.text.trim();
@@ -44,6 +56,13 @@ class FactCheckDisputeController extends GetxController {
   }
 
   Future<void> submitDispute(BuildContext context, Video video) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null || currentUser.isAnonymous) {
+      AppSnackbar.warning('Please sign in to submit a factual dispute.');
+      await AuthService.prompt(context);
+      return;
+    }
+
     final reason = reasonController.text.trim();
     final validation = ContentValidator.validate(
       reason,
@@ -56,36 +75,22 @@ class FactCheckDisputeController extends GetxController {
       return;
     }
 
-    if (additionalSources.isEmpty) {
-      AppSnackbar.warning(
-        'Please provide at least one supporting source link for the Credibility System to review.',
-      );
-      return;
-    }
+    // Sources are encouraged to accelerate evaluation, but optional (e.g. for context/hyperbole claims)
 
     isSubmitting.value = true;
 
     try {
-      final firestore = FirebaseFirestore.instance;
-      await firestore.collection(FirestoreCollections.videos).doc(video.id).set(
-        {
-          'factCheckDispute': {
-            'status': 'pending_review',
-            'reason': reason,
-            'additionalSources': additionalSources.toList(),
-            'submittedAt': FieldValue.serverTimestamp(),
-            'consensusStatus': 'pending_cross_perspective',
-          },
-          'credibilityStatus': 'disputed',
-        },
-        SetOptions(merge: true),
+      final res = await CredibilityGovernanceService.submitFactualDispute(
+        videoId: video.id,
+        reason: reason,
+        additionalSources: additionalSources.toList(),
       );
 
       if (context.mounted) {
         Navigator.of(context).pop();
-        AppSnackbar.success(
-          'Your dispute and sources have been sent to the Credibility System for cross-perspective re-evaluation.',
-        );
+        final message = res['message']?.toString() ??
+            'Your dispute and sources have been sent to the Credibility System for cross-perspective re-evaluation.';
+        AppSnackbar.success(message);
       }
     } catch (e) {
       ErrorHandler.log(e);
@@ -115,6 +120,17 @@ class FactCheckDisputeDialog extends StatelessWidget {
   final Video video;
 
   static Future<void> show(BuildContext context, Video video) async {
+    final authService = Get.isRegistered<AuthService>() ? AuthService.to : null;
+    final isSignedIn = authService?.isUserSignedIn ??
+        (FirebaseAuth.instance.currentUser != null &&
+            !FirebaseAuth.instance.currentUser!.isAnonymous);
+
+    if (!isSignedIn) {
+      AppSnackbar.info('Please sign in to submit a factual dispute.');
+      await AuthService.prompt(context);
+      return;
+    }
+
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -221,6 +237,48 @@ class FactCheckDisputeDialog extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
+            // Quick preset reasons (1-tap effortless filing)
+            Text(
+              'Quick Reason (1-Tap Selection)',
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Obx(() => Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _buildPresetChip(
+                  ctrl,
+                  label: '🎭 Sarcasm / Hyperbole',
+                  explanation: 'This statement was humorous hyperbole, figurative slang, or sarcasm, not an empirical assertion.',
+                ),
+                _buildPresetChip(
+                  ctrl,
+                  label: '📅 Outdated Data',
+                  explanation: 'The verification cites outdated sources and contradicts recent real-world developments or official releases.',
+                ),
+                _buildPresetChip(
+                  ctrl,
+                  label: '🔍 Missing Context',
+                  explanation: 'The claim is truthful within its stated scope; critical contextual parameters were omitted by the AI.',
+                ),
+                _buildPresetChip(
+                  ctrl,
+                  label: '🎙️ Audio / OCR Error',
+                  explanation: 'Automated transcription or OCR misheard or mistranscribed the creator\'s actual spoken statement.',
+                ),
+                _buildPresetChip(
+                  ctrl,
+                  label: '⚖️ Conflicting Evidence',
+                  explanation: 'Authoritative academic or primary sources contradict this automated conclusion.',
+                ),
+              ],
+            )),
+            const SizedBox(height: 16),
+
             // Reason input
             Text(
               'Why is this Fact-Checking result incorrect?',
@@ -260,7 +318,7 @@ class FactCheckDisputeDialog extends StatelessWidget {
 
             // Source input
             Text(
-              'Provide Supporting Sources / References',
+              'Provide Supporting Sources / References (Optional)',
               style: AppTextStyles.bodyMedium.copyWith(
                 fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary,
@@ -438,6 +496,42 @@ class FactCheckDisputeDialog extends StatelessWidget {
               );
             }),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPresetChip(
+    FactCheckDisputeController ctrl, {
+    required String label,
+    required String explanation,
+  }) {
+    final isSelected = ctrl.selectedPreset.value == label;
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () => ctrl.selectPreset(label, explanation),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Colors.white.withValues(alpha: 0.18)
+              : Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? Colors.white.withValues(alpha: 0.8)
+                : AppColors.bgDivider.withValues(alpha: 0.6),
+            width: isSelected ? 1.2 : 0.8,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.white : AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
         ),
       ),
     );

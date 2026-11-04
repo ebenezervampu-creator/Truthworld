@@ -144,9 +144,9 @@ class AudienceTabView extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF161618),
+        color: AppColors.appBarSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgSurface),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -166,7 +166,7 @@ class AudienceTabView extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF27272A),
+                  color: AppColors.bgSurface,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(icon, color: Colors.white, size: 16),
@@ -217,9 +217,9 @@ class AudienceTabView extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: const Color(0xFF161618),
+          color: AppColors.appBarSurface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF27272A)),
+          border: Border.all(color: AppColors.bgSurface),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -314,7 +314,7 @@ class AudienceTabView extends StatelessWidget {
                           child: LinearProgressIndicator(
                             value: share,
                             minHeight: 8,
-                            backgroundColor: const Color(0xFF27272A),
+                            backgroundColor: AppColors.bgSurface,
                             valueColor: const AlwaysStoppedAnimation<Color>(AppColors.brand),
                           ),
                         ),
@@ -333,9 +333,9 @@ class AudienceTabView extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF161618),
+        color: AppColors.appBarSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgSurface),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -374,9 +374,9 @@ class AudienceTabView extends StatelessWidget {
                   margin: const EdgeInsets.only(bottom: 16),
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF121214),
+                    color: AppColors.bgInput,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF27272A)),
+                    border: Border.all(color: AppColors.bgSurface),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -389,7 +389,7 @@ class AudienceTabView extends StatelessWidget {
                               Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF27272A),
+                                  color: AppColors.bgSurface,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: const Icon(
@@ -460,9 +460,9 @@ class AudienceTabView extends StatelessWidget {
                                 return Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF1E1E22),
+                                    color: AppColors.bgSurface,
                                     borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: const Color(0xFF323238)),
+                                    border: Border.all(color: AppColors.bgElevated),
                                   ),
                                   child: Text(
                                     loc,
@@ -495,9 +495,9 @@ class AudienceTabView extends StatelessWidget {
                                 return Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF1E1E22),
+                                    color: AppColors.bgSurface,
                                     borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: const Color(0xFF323238)),
+                                    border: Border.all(color: AppColors.bgElevated),
                                   ),
                                   child: Text(
                                     '#$tag',
@@ -514,7 +514,7 @@ class AudienceTabView extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      const Divider(color: Color(0xFF27272A), height: 1),
+                      const Divider(color: AppColors.bgSurface, height: 1),
                       const SizedBox(height: 12),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
@@ -577,10 +577,10 @@ class AudienceTabView extends StatelessWidget {
 
     Get.dialog(
       AlertDialog(
-        backgroundColor: const Color(0xFF161618),
+        backgroundColor: AppColors.appBarSurface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFF27272A)),
+          side: const BorderSide(color: AppColors.bgSurface),
         ),
         title: const Text(
           'Create Audience Preset',
@@ -606,7 +606,7 @@ class AudienceTabView extends StatelessWidget {
                   labelText: 'Preset Name (e.g. AI & Tech Founders)',
                   labelStyle: TextStyle(color: AppColors.textSecondary),
                   filled: true,
-                  fillColor: Color(0xFF121214),
+                  fillColor: AppColors.bgInput,
                   border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
                 ),
               ),
@@ -628,7 +628,7 @@ class AudienceTabView extends StatelessWidget {
                         labelText: 'Min Age',
                         labelStyle: TextStyle(color: AppColors.textSecondary),
                         filled: true,
-                        fillColor: Color(0xFF121214),
+                        fillColor: AppColors.bgInput,
                         border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
                       ),
                     ),
@@ -649,7 +649,7 @@ class AudienceTabView extends StatelessWidget {
                         labelText: 'Max Age',
                         labelStyle: TextStyle(color: AppColors.textSecondary),
                         filled: true,
-                        fillColor: Color(0xFF121214),
+                        fillColor: AppColors.bgInput,
                         border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
                       ),
                     ),
@@ -667,7 +667,7 @@ class AudienceTabView extends StatelessWidget {
                   labelText: 'Target Locations (comma separated)',
                   labelStyle: TextStyle(color: AppColors.textSecondary),
                   filled: true,
-                  fillColor: Color(0xFF121214),
+                  fillColor: AppColors.bgInput,
                   border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
                 ),
               ),
@@ -682,7 +682,7 @@ class AudienceTabView extends StatelessWidget {
                   labelText: 'Target Interests / Topics (comma separated)',
                   labelStyle: TextStyle(color: AppColors.textSecondary),
                   filled: true,
-                  fillColor: Color(0xFF121214),
+                  fillColor: AppColors.bgInput,
                   border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
                 ),
               ),

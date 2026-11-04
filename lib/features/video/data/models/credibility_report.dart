@@ -4,7 +4,9 @@
 /// Used for the "Credibility Nutrition Label" UI.
 library;
 
+import 'package:truthworld/core/services/user_languages_service.dart';
 import 'package:truthworld/core/utils/source_url_sanitizer.dart';
+import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
 
 class ScoringFactors {
   ScoringFactors({
@@ -606,6 +608,7 @@ class ClaimResult {
     this.evidenceTraceability,
     this.calibratedConfidence,
     this.assessmentV2,
+    this.localizedTexts,
   });
 
   factory ClaimResult.fromMap(Map<String, dynamic> map) {
@@ -704,6 +707,19 @@ class ClaimResult {
             map['imageUrl'])
         ?.toString();
 
+    final rawLocalized =
+        map['localizedTexts'] ?? map['translations'] ?? map['localizations'];
+    Map<String, String>? localizedMap;
+    if (rawLocalized is Map) {
+      localizedMap = {};
+      for (final entry in rawLocalized.entries) {
+        if (entry.key != null && entry.value != null) {
+          localizedMap[UserLanguagesService.normalizeCode(entry.key.toString())] =
+              entry.value.toString();
+        }
+      }
+    }
+
     return ClaimResult(
       text: rawText,
       verdict: rawVerdict,
@@ -770,6 +786,7 @@ class ClaimResult {
               Map<String, dynamic>.from(map['assessmentV2']),
             )
           : null,
+      localizedTexts: localizedMap,
     );
   }
   final String text;
@@ -789,6 +806,31 @@ class ClaimResult {
   final EvidenceToClaimTraceability? evidenceTraceability;
   final CalibratedConfidenceBreakdown? calibratedConfidence;
   final CredibilityAssessmentV2? assessmentV2;
+  final Map<String, String>? localizedTexts;
+
+  /// Returns the claim text translated into the requested [langCode] or the user's
+  /// active primary language. Seamlessly falls back to the default canonical [text].
+  String localizedText([String? langCode]) {
+    final code = (langCode != null && langCode.trim().isNotEmpty)
+        ? UserLanguagesService.normalizeCode(langCode)
+        : (UserLanguagesService.isRegistered
+            ? UserLanguagesService.to.primaryLanguageCode
+            : 'en');
+
+    if (localizedTexts != null && localizedTexts!.containsKey(code)) {
+      final loc = localizedTexts![code];
+      if (loc != null && loc.trim().isNotEmpty) return loc;
+    }
+    return text;
+  }
+
+  /// Returns the verdict label localized in the user's primary language.
+  String localizedVerdictLabel([String? langCode]) {
+    return ClaimVerdictHelper.resolveVerdictString(
+      verdict,
+      confidence: classificationConfidence,
+    ).localizedLabel(langCode);
+  }
 
   Duration get startDuration =>
       Duration(milliseconds: ((start ?? 0) * 1000).round());
@@ -847,6 +889,8 @@ class ClaimResult {
     'evidenceTraceability': evidenceTraceability?.toMap(),
     'calibratedConfidence': calibratedConfidence?.toMap(),
     'assessmentV2': assessmentV2?.toMap(),
+    if (localizedTexts != null && localizedTexts!.isNotEmpty)
+      'localizedTexts': localizedTexts,
   };
 }
 

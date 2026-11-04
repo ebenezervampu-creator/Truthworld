@@ -21,7 +21,7 @@ class CopyrightDialogs {
           'contains our copyrighted content. Please remove it immediately to avoid formal copyright strikes.',
     );
 
-    final dialogBg = isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
+    final dialogBg = isDarkMode ? AppColors.bgSurface : Colors.white;
     final primaryTextColor = isDarkMode ? AppColors.textPrimary : Colors.black87;
     final secondaryTextColor =
         isDarkMode ? AppColors.textSecondary : Colors.black54;
@@ -156,7 +156,7 @@ class CopyrightDialogs {
   }) {
     var is7DayScheduled = false;
 
-    final dialogBg = isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
+    final dialogBg = isDarkMode ? AppColors.bgSurface : Colors.white;
     final primaryTextColor = isDarkMode ? AppColors.textPrimary : Colors.black87;
     final secondaryTextColor =
         isDarkMode ? AppColors.textSecondary : Colors.black54;
@@ -305,7 +305,7 @@ class CopyrightDialogs {
     final explanationController = TextEditingController();
     var hasConfirmed = false;
 
-    final dialogBg = isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
+    final dialogBg = isDarkMode ? AppColors.bgSurface : Colors.white;
     final primaryTextColor = isDarkMode ? AppColors.textPrimary : Colors.black87;
     final secondaryTextColor =
         isDarkMode ? AppColors.textSecondary : Colors.black54;
@@ -514,7 +514,7 @@ class CopyrightDialogs {
     required BuildContext context,
     required bool isDarkMode,
   }) {
-    final dialogBg = isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
+    final dialogBg = isDarkMode ? AppColors.bgSurface : Colors.white;
     final primaryTextColor = isDarkMode ? AppColors.textPrimary : Colors.black87;
     final secondaryTextColor =
         isDarkMode ? AppColors.textSecondary : Colors.black54;

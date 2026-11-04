@@ -34,9 +34,11 @@ class VideoTechnicalDetailsCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.bgDivider),
       ),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
+      child: Material(
+        color: Colors.transparent,
+        child: Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
           tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           iconColor: Colors.white,
           collapsedIconColor: Colors.white70,
@@ -138,6 +140,7 @@ class VideoTechnicalDetailsCard extends StatelessWidget {
                   _buildMetaRow(
                     label: 'Community Comments',
                     value: video.enableComments ? 'Enabled (Open Discussion)' : 'Disabled',
+                    badgeColor: video.enableComments ? AppColors.success : AppColors.warning,
                   ),
                   _buildMetaRow(
                     label: 'Video Clipping / Remixing',
@@ -192,7 +195,8 @@ class VideoTechnicalDetailsCard extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildSectionHeader(String title, IconData icon) {

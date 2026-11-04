@@ -34,9 +34,9 @@ class AdvertiserCampaignCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF161618),
+        color: AppColors.appBarSurface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgSurface),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -92,9 +92,9 @@ class AdvertiserCampaignCard extends StatelessWidget {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF18181B),
+                            color: AppColors.bgPage,
                             borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: const Color(0xFF27272A)),
+                            border: Border.all(color: AppColors.bgSurface),
                           ),
                           child: Text(
                             campaign.adType == 'video_sponsor'
@@ -161,9 +161,9 @@ class AdvertiserCampaignCard extends StatelessWidget {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF18181B),
+                          color: AppColors.bgPage,
                           borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: const Color(0xFF27272A)),
+                          border: Border.all(color: AppColors.bgSurface),
                         ),
                         child: Text(
                           budgetStr,
@@ -204,8 +204,8 @@ class AdvertiserCampaignCard extends StatelessWidget {
                         style: TextStyle(
                           fontFamily: TWTypography.uiFamily,
                           color: isBudgetExhausted
-                              ? const Color(0xFFEF4444)
-                              : const Color(0xFF10B981),
+                              ? AppColors.error
+                              : AppColors.success,
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
                         ),
@@ -222,14 +222,14 @@ class AdvertiserCampaignCard extends StatelessWidget {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: isBudgetExhausted
-                              ? const Color(0xFFEF4444)
+                              ? AppColors.error
                               : campaign.status == 'paused'
                               ? AppColors.textSecondary
                               : campaign.status == 'underReview'
-                              ? const Color(0xFFF59E0B)
+                              ? AppColors.warning
                               : campaign.status == 'verification_rejected'
-                              ? const Color(0xFFEF4444)
-                              : const Color(0xFF10B981),
+                              ? AppColors.error
+                              : AppColors.success,
                         ),
                       ),
                       const SizedBox(width: 4),
@@ -248,14 +248,14 @@ class AdvertiserCampaignCard extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                           fontSize: 11,
                           color: isBudgetExhausted
-                              ? const Color(0xFFEF4444)
+                              ? AppColors.error
                               : campaign.status == 'paused'
                               ? AppColors.textSecondary
                               : campaign.status == 'underReview'
-                              ? const Color(0xFFF59E0B)
+                              ? AppColors.warning
                               : campaign.status == 'verification_rejected'
-                              ? const Color(0xFFEF4444)
-                              : const Color(0xFF10B981),
+                              ? AppColors.error
+                              : AppColors.success,
                         ),
                       ),
                     ],
@@ -277,7 +277,7 @@ class AdvertiserCampaignCard extends StatelessWidget {
                             fontFamily: TWTypography.uiFamily,
                             color: AppColors.textSecondary,
                           ),
-                          backgroundColor: const Color(0xFF161618),
+                          backgroundColor: AppColors.appBarSurface,
                           textConfirm: 'OK',
                           confirmTextColor: Colors.black,
                           buttonColor: Colors.white,
@@ -297,7 +297,7 @@ class AdvertiserCampaignCard extends StatelessWidget {
                             'Why?',
                             style: TextStyle(
                               fontFamily: TWTypography.uiFamily,
-                              color: Color(0xFFEF4444),
+                              color: AppColors.error,
                               fontSize: 11,
                               decoration: TextDecoration.underline,
                             ),
@@ -325,10 +325,10 @@ class AdvertiserCampaignCard extends StatelessWidget {
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF450A0A),
+                          color: AppColors.errorContainer,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: const Color(0xFFEF4444).withValues(alpha: 0.3),
+                            color: AppColors.error.withValues(alpha: 0.3),
                           ),
                         ),
                         child: Row(
@@ -344,7 +344,7 @@ class AdvertiserCampaignCard extends StatelessWidget {
                                 '${reports.length} User Report(s): "$reason"',
                                 style: const TextStyle(
                                   fontFamily: TWTypography.uiFamily,
-                                  color: Color(0xFFF87171),
+                                  color: AppColors.error,
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -368,9 +368,9 @@ class AdvertiserCampaignCard extends StatelessWidget {
                             vertical: 6,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF18181B),
+                            color: AppColors.bgPage,
                             borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: const Color(0xFF27272A)),
+                            border: Border.all(color: AppColors.bgSurface),
                           ),
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
@@ -401,9 +401,9 @@ class AdvertiserCampaignCard extends StatelessWidget {
                         child: Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF18181B),
+                            color: AppColors.bgPage,
                             borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: const Color(0xFF27272A)),
+                            border: Border.all(color: AppColors.bgSurface),
                           ),
                           child: Icon(
                             (campaign.status == 'underReview' ||
@@ -428,9 +428,9 @@ class AdvertiserCampaignCard extends StatelessWidget {
                         child: Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF18181B),
+                            color: AppColors.bgPage,
                             borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: const Color(0xFF27272A)),
+                            border: Border.all(color: AppColors.bgSurface),
                           ),
                           child: const Icon(
                             Icons.edit_rounded,
@@ -455,12 +455,12 @@ class AdvertiserCampaignCard extends StatelessWidget {
                               fontFamily: TWTypography.uiFamily,
                               color: AppColors.textSecondary,
                             ),
-                            backgroundColor: const Color(0xFF161618),
+                            backgroundColor: AppColors.appBarSurface,
                             textConfirm: 'Delete',
                             textCancel: 'Cancel',
                             confirmTextColor: Colors.white,
                             cancelTextColor: AppColors.textSecondary,
-                            buttonColor: const Color(0xFFEF4444),
+                            buttonColor: AppColors.error,
                             onConfirm: () {
                               AdService.to.deleteCampaign(campaign.id);
                               Get.back();
@@ -471,9 +471,9 @@ class AdvertiserCampaignCard extends StatelessWidget {
                         child: Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF18181B),
+                            color: AppColors.bgPage,
                             borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: const Color(0xFF27272A)),
+                            border: Border.all(color: AppColors.bgSurface),
                           ),
                           child: const Icon(
                             Icons.delete_outline_rounded,
@@ -492,9 +492,9 @@ class AdvertiserCampaignCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: const Color(0xFF111113),
+              color: AppColors.bgPage,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFF222225)),
+              border: Border.all(color: AppColors.bgSurface),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -537,11 +537,11 @@ class AdvertiserCampaignCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(2),
                   child: LinearProgressIndicator(
                     value: progress,
-                    backgroundColor: const Color(0xFF27272A),
+                    backgroundColor: AppColors.bgSurface,
                     valueColor: AlwaysStoppedAnimation<Color>(
                       isBudgetExhausted
-                          ? const Color(0xFFEF4444)
-                          : const Color(0xFF10B981),
+                          ? AppColors.error
+                          : AppColors.success,
                     ),
                     minHeight: 4,
                   ),
@@ -557,18 +557,18 @@ class AdvertiserCampaignCard extends StatelessWidget {
                         valueColor: Colors.white,
                       ),
                     ),
-                    Container(width: 1, height: 24, color: const Color(0xFF27272A)),
+                    Container(width: 1, height: 24, color: AppColors.bgSurface),
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.only(left: 12),
                         child: _buildFinancialMetric(
                           label: 'Spent',
                           value: '₹${spent.toStringAsFixed(2)}',
-                          valueColor: const Color(0xFFF59E0B),
+                          valueColor: AppColors.warning,
                         ),
                       ),
                     ),
-                    Container(width: 1, height: 24, color: const Color(0xFF27272A)),
+                    Container(width: 1, height: 24, color: AppColors.bgSurface),
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.only(left: 12),
@@ -576,8 +576,8 @@ class AdvertiserCampaignCard extends StatelessWidget {
                           label: 'Remaining',
                           value: '₹${remaining.toStringAsFixed(2)}',
                           valueColor: isBudgetExhausted
-                              ? const Color(0xFFEF4444)
-                              : const Color(0xFF10B981),
+                              ? AppColors.error
+                              : AppColors.success,
                         ),
                       ),
                     ),
@@ -601,8 +601,8 @@ class AdvertiserCampaignCard extends StatelessWidget {
                       ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white,
-                        side: const BorderSide(color: Color(0xFF3F3F46)),
-                        backgroundColor: const Color(0xFF1F1F23),
+                        side: const BorderSide(color: AppColors.bgElevated),
+                        backgroundColor: AppColors.bgSurface,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 10,
                           vertical: 6,
@@ -624,10 +624,10 @@ class AdvertiserCampaignCard extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xFF450A0A),
+                color: AppColors.errorContainer,
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
-                  color: const Color(0xFFEF4444).withValues(alpha: 0.35),
+                  color: AppColors.error.withValues(alpha: 0.35),
                 ),
               ),
               child: Row(
@@ -643,7 +643,7 @@ class AdvertiserCampaignCard extends StatelessWidget {
                       'Budget exhausted! Add more money to keep this campaign active and reaching viewers.',
                       style: TextStyle(
                         fontFamily: TWTypography.uiFamily,
-                        color: Color(0xFFFCA5A5),
+                        color: AppColors.textPrimary,
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                       ),
@@ -674,10 +674,10 @@ class AdvertiserCampaignCard extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xFF450A0A),
+                color: AppColors.errorContainer,
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
-                  color: const Color(0xFFEF4444).withValues(alpha: 0.35),
+                  color: AppColors.error.withValues(alpha: 0.35),
                 ),
               ),
               child: Row(
@@ -696,7 +696,7 @@ class AdvertiserCampaignCard extends StatelessWidget {
                             text: 'Rejection Error: ',
                             style: TextStyle(
                               fontFamily: TWTypography.uiFamily,
-                              color: Color(0xFFF87171),
+                              color: AppColors.error,
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
                             ),

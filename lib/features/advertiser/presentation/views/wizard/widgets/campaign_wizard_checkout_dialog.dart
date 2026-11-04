@@ -84,9 +84,9 @@ void showCampaignCheckoutDialog(
           width: 420,
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: const Color(0xFF161618),
+            color: AppColors.appBarSurface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF27272A)),
+            border: Border.all(color: AppColors.bgSurface),
           ),
           child: Obx(() {
             if (progressStep.value > 0) {
@@ -112,7 +112,7 @@ void showCampaignCheckoutDialog(
                   ] else ...[
                     const Icon(
                       Icons.check_circle_rounded,
-                      color: Color(0xFF10B981),
+                      color: AppColors.success,
                       size: 64,
                     ),
                     const SizedBox(height: 20),
@@ -185,7 +185,7 @@ void showCampaignCheckoutDialog(
                     ),
                   ],
                 ),
-                const Divider(color: Color(0xFF27272A), height: 20),
+                const Divider(color: AppColors.bgSurface, height: 20),
                 const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -217,9 +217,9 @@ void showCampaignCheckoutDialog(
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF18181B),
+                    color: AppColors.bgPage,
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFF27272A)),
+                    border: Border.all(color: AppColors.bgSurface),
                   ),
                   child: Row(
                     children: [
@@ -263,16 +263,16 @@ void showCampaignCheckoutDialog(
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1F1F23),
+                    color: AppColors.bgSurface,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFF2E2E33)),
+                    border: Border.all(color: AppColors.bgSurfaceHover),
                   ),
                   child: Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF2A2A30),
+                          color: AppColors.bgSurface,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Icon(
@@ -407,8 +407,8 @@ void showCampaignCheckoutDialog(
                               gradientColors:
                                   gradient ??
                                   [
-                                    const Color(0xFFEF4444),
-                                    const Color(0xFFF59E0B),
+                                    AppColors.error,
+                                    AppColors.warning,
                                   ],
                               isSkippableAd: isSkippable,
                               videoUrl: videoUrl,

@@ -75,7 +75,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Select the monetization plan that aligns with your goals.\nYou can choose standard revenue sharing or our unique Custom plan.',
+                  'Select the monetization plan that aligns with your goals.\nYou can choose standard revenue sharing or our unique Pro plan.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 16,
@@ -108,7 +108,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                     color: Color(0xFF818CF8),
                   ),
                   label: const Text(
-                    'Compare Standard vs Custom Benefits',
+                    'Compare Standard vs Pro Benefits',
                     style: TextStyle(
                       color: Color(0xFF818CF8),
                       fontWeight: FontWeight.bold,

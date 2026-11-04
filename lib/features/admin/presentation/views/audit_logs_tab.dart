@@ -34,7 +34,7 @@ class AuditLogsTab extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF181818),
+            color: AppColors.bgPage,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
@@ -121,15 +121,15 @@ class AuditLogsTab extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: isAction
-                              ? const Color(0xFF42A5F5).withValues(alpha: 0.15)
-                              : const Color(0xFFCF6679).withValues(alpha: 0.15),
+                              ? AppColors.info.withValues(alpha: 0.15)
+                              : AppColors.error.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           displayType.toString(),
                           style: TextStyle(
                             fontFamily: TWTypography.brandFamily,
-                            color: isAction ? const Color(0xFF42A5F5) : const Color(0xFFCF6679),
+                            color: isAction ? AppColors.info : AppColors.error,
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
                           ),

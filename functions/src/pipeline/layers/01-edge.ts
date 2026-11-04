@@ -120,6 +120,7 @@ export class EdgeLayer {
         validation: { status: "completed", progress: 100, startedAt: now, completedAt: now },
         queue: { status: "running", progress: 50, startedAt: now },
         transcription: this.stagePending(),
+        copyright: this.stagePending(),
         credibility: plan.enablePath1 ? this.stagePending() : this.stageSkipped(),
         dubbing: plan.generateDubbing ? this.stagePending() : this.stageSkipped(),
       };

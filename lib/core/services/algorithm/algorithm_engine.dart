@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:truthworld/core/constants/app_categories.dart';
 import 'package:truthworld/core/services/algorithm/diversity_config.dart';
 import 'package:truthworld/core/services/algorithm/exploration_budget.dart';
 import 'package:truthworld/core/services/algorithm/scored_video.dart';
@@ -7,6 +8,7 @@ import 'package:truthworld/core/services/algorithm/session_interest_tracker.dart
 import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile.dart';
 import 'package:truthworld/core/services/algorithm/vector_math_util.dart';
+import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Task payload for background isolate ranking execution.
@@ -18,6 +20,9 @@ class AlgorithmRankingTask {
   final List<SessionEvent> sessionEvents;
   final Map<String, int> sessionCreatorExposure;
   final DiversityConfig? diversityConfig;
+  final String? userPrimaryLanguage;
+  final List<String>? secondaryLanguages;
+  final List<String>? knownLanguages;
 
   const AlgorithmRankingTask({
     required this.candidates,
@@ -27,6 +32,9 @@ class AlgorithmRankingTask {
     required this.sessionCreatorExposure,
     this.profile,
     this.diversityConfig,
+    this.userPrimaryLanguage,
+    this.secondaryLanguages,
+    this.knownLanguages,
   });
 }
 
@@ -69,8 +77,10 @@ List<ScoredVideo> rankVideosWorker(AlgorithmRankingTask task) {
   }
 
   final scored = <ScoredVideo>[];
+  final seenInputIds = <String>{};
 
   for (final video in task.candidates) {
+    if (video.id.isEmpty || !seenInputIds.add(video.id)) continue;
     final scoredVideo = AlgorithmEngine.scoreSingleVideo(
       video: video,
       surface: task.surface,
@@ -80,6 +90,9 @@ List<ScoredVideo> rankVideosWorker(AlgorithmRankingTask task) {
       explorationBudget: explorationBudget,
       sessionCreatorExposure: task.sessionCreatorExposure,
       diversityConfig: task.diversityConfig,
+      userPrimaryLanguage: task.userPrimaryLanguage,
+      secondaryLanguages: task.secondaryLanguages,
+      knownLanguages: task.knownLanguages,
     );
     if (scoredVideo != null) {
       scored.add(scoredVideo);
@@ -89,7 +102,9 @@ List<ScoredVideo> rankVideosWorker(AlgorithmRankingTask task) {
   // Prevent catalog starvation: if all candidates were gated out by strict penalties or zero floors,
   // provide baseline scored entries so the feed never drops to 0 videos.
   if (scored.isEmpty && task.candidates.isNotEmpty) {
+    final seenFallbackIds = <String>{};
     for (final video in task.candidates) {
+      if (video.id.isEmpty || !seenFallbackIds.add(video.id)) continue;
       final credibilityMultiplier =
           AlgorithmEngine.computeCredibilityGate(video);
       if (credibilityMultiplier > 0.0) {
@@ -102,7 +117,9 @@ List<ScoredVideo> rankVideosWorker(AlgorithmRankingTask task) {
       }
     }
     if (scored.isEmpty) {
+      final seenBaseIds = <String>{};
       for (final video in task.candidates) {
+        if (video.id.isEmpty || !seenBaseIds.add(video.id)) continue;
         scored.add(ScoredVideo(
           video: video,
           score: 0.5,
@@ -129,6 +146,86 @@ List<ScoredVideo> rankVideosWorker(AlgorithmRankingTask task) {
 /// Pure, isolate-safe mathematical scoring and diversity engine.
 /// Decoupled from GetX and runtime singletons for safe background execution.
 class AlgorithmEngine {
+  /// Computes language affinity (0.0 to 1.0) between a video and user language preferences.
+  /// Prioritizes original language match, dubbed audio tracks, dubbed video, and subtitles.
+  static double computeLanguageAffinity(
+    Video video,
+    String? userPrimaryLanguage, {
+    List<String> secondaryLanguages = const [],
+    List<String> knownLanguages = const [],
+  }) {
+    if (userPrimaryLanguage == null || userPrimaryLanguage.trim().isEmpty) {
+      return 0.5; // Neutral baseline when user preference is unspecified
+    }
+
+    final targetCode = normalizeLanguageCode(userPrimaryLanguage);
+
+    // 1. Direct native video audio language match
+    final videoLangCode = normalizeLanguageCode(video.language);
+    if (videoLangCode == targetCode) {
+      return 1.0;
+    }
+
+    // 2. Direct audio track match (dubbed audio in user's primary language)
+    if (video.audioTracks.isNotEmpty) {
+      for (final key in video.audioTracks.keys) {
+        if (normalizeLanguageCode(key) == targetCode) {
+          return 0.95;
+        }
+      }
+    }
+
+    // 3. Dubbed video match
+    if (video.dubbedVideos.isNotEmpty) {
+      for (final key in video.dubbedVideos.keys) {
+        if (normalizeLanguageCode(key) == targetCode) {
+          return 0.95;
+        }
+      }
+    }
+
+    // 4. Subtitles match in user's primary language
+    if (video.mediaSubtitles.isNotEmpty) {
+      for (final key in video.mediaSubtitles.keys) {
+        if (normalizeLanguageCode(key) == targetCode) {
+          return 0.75;
+        }
+      }
+    }
+
+    // 5. Explicit languages list contains target code
+    for (final lang in video.languages) {
+      if (normalizeLanguageCode(lang) == targetCode) {
+        return 0.85;
+      }
+    }
+
+    // 6. Secondary / Known Languages Match
+    final secondaryCodes =
+        secondaryLanguages.map(normalizeLanguageCode).toSet();
+    final knownCodes = knownLanguages.map(normalizeLanguageCode).toSet();
+    final userCodes = {...secondaryCodes, ...knownCodes};
+
+    if (userCodes.contains(videoLangCode)) {
+      return 0.60;
+    }
+
+    for (final key in video.audioTracks.keys) {
+      if (userCodes.contains(normalizeLanguageCode(key))) {
+        return 0.55;
+      }
+    }
+
+    for (final key in video.mediaSubtitles.keys) {
+      if (userCodes.contains(normalizeLanguageCode(key))) {
+        return 0.45;
+      }
+    }
+
+    // Foreign content with no language overlap with the user
+    return 0.10;
+  }
+
   static ScoredVideo? scoreSingleVideo({
     required Video video,
     required RecommendationSurface surface,
@@ -138,6 +235,9 @@ class AlgorithmEngine {
     required Map<String, int> sessionCreatorExposure,
     UserInterestProfile? profile,
     DiversityConfig? diversityConfig,
+    String? userPrimaryLanguage,
+    List<String>? secondaryLanguages,
+    List<String>? knownLanguages,
   }) {
     final credibilityMultiplier = computeCredibilityGate(video);
     if (credibilityMultiplier == 0.0) {
@@ -161,6 +261,66 @@ class AlgorithmEngine {
         ? computeCreatorFairness(video, diversityConfig, sessionCreatorExposure)
         : 0.0;
 
+    // Language Affinity & Primary Language Surface Boost
+    final effectivePrimary =
+        (userPrimaryLanguage != null && userPrimaryLanguage.trim().isNotEmpty)
+            ? userPrimaryLanguage.trim()
+            : profile?.primaryLanguage;
+    final effectiveSecondaries =
+        secondaryLanguages ?? profile?.secondaryLanguages ?? const [];
+    final effectiveKnown =
+        knownLanguages ?? profile?.knownLanguages ?? const [];
+
+    final languageAffinity = computeLanguageAffinity(
+      video,
+      effectivePrimary,
+      secondaryLanguages: effectiveSecondaries,
+      knownLanguages: effectiveKnown,
+    );
+
+    final langWeight = weights['languageAffinity'] ?? 0.15;
+    final languageContribution = languageAffinity * langWeight;
+
+    // Primary language surface priority boost (Home Feed, Video Related, Autoplay, Search, Shorts)
+    var primaryLanguageBoost = 0.0;
+    final isLanguageSurface =
+        surface == RecommendationSurface.homeFeedAll ||
+        surface == RecommendationSurface.homeFeedCategory ||
+        surface == RecommendationSurface.unexplored ||
+        surface == RecommendationSurface.videoRelated ||
+        surface == RecommendationSurface.autoplayNext ||
+        surface == RecommendationSurface.searchResults ||
+        surface == RecommendationSurface.shortsFeed;
+
+    if (isLanguageSurface && effectivePrimary != null && effectivePrimary.isNotEmpty) {
+      if (languageAffinity >= 0.85) {
+        primaryLanguageBoost += 2.5; // Major boost for content in user's primary language
+      } else if (languageAffinity <= 0.15) {
+        primaryLanguageBoost -= 1.0; // Demote unfamiliar language without dubs/subs
+      }
+    }
+
+    // Fact-Checking Priority Boost for the 10 High-Credibility Categories:
+    // ['Business', 'History', 'News', 'Education', 'Science', 'Technology', 'Finance', 'Health', 'Documentary', 'Fitness']
+    // Pushes fact-checked videos ahead of normal/unverified videos across Home feeds,
+    // Video feeds in video screen, and Search feeds.
+    var factCheckCategoryBoost = 0.0;
+    final isTargetSurface = surface == RecommendationSurface.homeFeedAll ||
+        surface == RecommendationSurface.homeFeedCategory ||
+        surface == RecommendationSurface.unexplored ||
+        surface == RecommendationSurface.videoRelated ||
+        surface == RecommendationSurface.autoplayNext ||
+        surface == RecommendationSurface.searchResults;
+
+    if (isTargetSurface && AppCategories.isFactCheckRelevant(video.category)) {
+      if (video.isFactChecked || video.hasPublicAiCredibility) {
+        factCheckCategoryBoost += 3.5;
+        if (video.trustScore >= 3.5) {
+          factCheckCategoryBoost += 1.5;
+        }
+      }
+    }
+
     final rawScore =
         (topicAffinity * (weights['topicAffinity'] ?? 0.0)) +
         (channelAffinity * (weights['channelAffinity'] ?? 0.0)) +
@@ -170,8 +330,11 @@ class AlgorithmEngine {
         (watchCompletion * (weights['watchCompletion'] ?? 0.0)) +
         (knowledgeQuality * (weights['knowledgeQuality'] ?? 0.0)) +
         (twoTowerAffinity * (weights['twoTowerAffinity'] ?? 0.0)) +
+        languageContribution +
+        primaryLanguageBoost +
         loveBoost +
-        creatorFairness;
+        creatorFairness +
+        factCheckCategoryBoost;
 
     // Apply session boost and penalties
     var finalScore =
@@ -194,19 +357,30 @@ class AlgorithmEngine {
           knowledgeQuality * (weights['knowledgeQuality'] ?? 0.0),
       'twoTowerAffinity':
           twoTowerAffinity * (weights['twoTowerAffinity'] ?? 0.0),
+      'languageAffinity': languageContribution + primaryLanguageBoost,
       'loveAffinity': loveBoost,
       'sessionBoost': sessionBoost * (weights['sessionBoost'] ?? 0.0),
       'penalty': penalty * (weights['penalty'] ?? 0.0),
       'creatorFairness': creatorFairness,
+      'factCheckCategoryBoost': factCheckCategoryBoost,
     };
 
+    final hasFactCheckBonus = factCheckCategoryBoost > 0.0;
     return ScoredVideo(
       video: video,
       score: finalScore,
       signalBreakdown: breakdown,
       surface: surface,
+      recommendationReason: hasFactCheckBonus
+          ? RecommendationReasons.factChecked
+          : RecommendationReasons.forYou,
+      recommendationExplanation: hasFactCheckBonus
+          ? 'Fact-checked for verified accuracy in ${video.category}'
+          : 'Recommended based on your interests',
       explanation: RecommendationExplanation(
-        reason: 'Recommended for you',
+        reason: hasFactCheckBonus
+            ? RecommendationReasons.factChecked
+            : 'Recommended for you',
         confidence: min(1.0, finalScore / 10.0),
         signalBreakdown: breakdown,
       ),
@@ -505,11 +679,16 @@ class AlgorithmEngine {
 
     final finalFeed = <ScoredVideo>[];
     final deferred = <ScoredVideo>[];
+    final seenIds = <String>{};
     final creatorCounts = <String, int>{};
     String? lastChannelId;
     var consecutiveChannelCount = 0;
 
     for (final item in ranked) {
+      if (item.video.id.isEmpty || !seenIds.add(item.video.id)) {
+        continue;
+      }
+
       final channelId = item.video.channelId;
 
       if (channelId == lastChannelId) {

@@ -96,8 +96,8 @@ class UserVisionStatusBadge extends StatelessWidget {
     final upper = status.toUpperCase();
 
     if (upper == 'APPROVED') {
-      bg = const Color(0xFF2BA640).withValues(alpha: 0.15);
-      fg = const Color(0xFF2BA640);
+      bg = AppColors.success.withValues(alpha: 0.15);
+      fg = AppColors.success;
       text = 'APPROVED BY VISION AI';
     } else if (upper == 'REJECTED') {
       bg = AppColors.error.withValues(alpha: 0.15);

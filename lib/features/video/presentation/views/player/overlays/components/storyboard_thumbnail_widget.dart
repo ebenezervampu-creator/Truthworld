@@ -183,6 +183,8 @@ class StoryboardThumbnailWidget extends StatelessWidget {
         width: width,
         height: height,
         fit: BoxFit.cover,
+        memCacheWidth: (width * 2).round(),
+        memCacheHeight: (height * 2).round(),
         placeholder: (context, _) => Container(
           width: width,
           height: height,
@@ -226,7 +228,7 @@ class _CroppedSpritePainter extends CustomPainter {
     final destRect = Rect.fromLTWH(0, 0, size.width, size.height);
     final paint = Paint()
       ..isAntiAlias = true
-      ..filterQuality = FilterQuality.medium;
+      ..filterQuality = FilterQuality.high;
 
     canvas.drawImageRect(image, cropRect, destRect, paint);
   }

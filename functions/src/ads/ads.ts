@@ -1,3 +1,4 @@
+import { applySecurityHeaders } from "../utils/securityHeaders";
 import * as admin from "firebase-admin";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { onRequest } from "firebase-functions/v2/https";
@@ -260,9 +261,11 @@ export const triggerAdAIFeatures = onRequest(
       "ASSEMBLYAI_KEY",
       "ELEVENLABS_API_KEY",
       "GOOGLE_TRANSLATION_API_KEY",
+      "SARVAM_API_KEY",
     ],
   },
   async (req, res) => {
+    applySecurityHeaders(res);
     try {
       const authUser = await requireAuth(req, res);
       if (!authUser) return;
@@ -315,7 +318,7 @@ export const triggerAdAIFeatures = onRequest(
     } catch (error) {
       console.error("[triggerAdAIFeatures] Error:", error);
       res.status(500).json({
-        error: error instanceof Error ? error.message : "Internal server error",
+        error: "Unable to process ad AI features. Please try again.",
       });
     }
   }
@@ -340,9 +343,11 @@ export const generateAllVideoAdsAIFeatures = onRequest(
       "ASSEMBLYAI_KEY",
       "ELEVENLABS_API_KEY",
       "GOOGLE_TRANSLATION_API_KEY",
+      "SARVAM_API_KEY",
     ],
   },
   async (req, res) => {
+    applySecurityHeaders(res);
     try {
       const adminUser = await requireRecentAdmin(req, res, 3600);
       if (!adminUser) return;
@@ -376,7 +381,7 @@ export const generateAllVideoAdsAIFeatures = onRequest(
     } catch (error) {
       console.error("[generateAllVideoAdsAIFeatures] Error:", error);
       res.status(500).json({
-        error: error instanceof Error ? error.message : "Internal server error",
+        error: "Unable to complete batch AI features job. Please try again.",
       });
     }
   }

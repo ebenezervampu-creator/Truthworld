@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
@@ -155,7 +154,7 @@ class EmailVerificationSheet extends StatelessWidget {
               children: [
                 Text(
                   'Verify Email',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
@@ -170,7 +169,7 @@ class EmailVerificationSheet extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               'Add and verify your email to secure account recovery and access verified notifications.',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 14,
                 color: AppColors.textSecondary,
                 height: 1.4,
@@ -193,7 +192,7 @@ class EmailVerificationSheet extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   child: Text(
                     'OR VERIFY VIA EMAIL',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       color: AppColors.textTertiary,
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
@@ -261,7 +260,7 @@ class EmailVerificationSheet extends StatelessWidget {
             const SizedBox(width: 12),
             Text(
               'Verify with Google (1-Tap)',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 color: Colors.white,
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
@@ -286,14 +285,14 @@ class EmailVerificationSheet extends StatelessWidget {
             LengthLimitingTextInputFormatter(254),
             FilteringTextInputFormatter.deny(RegExp(r'\s')),
           ],
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             color: Colors.white,
             fontSize: 15,
             fontWeight: FontWeight.w500,
           ),
           decoration: InputDecoration(
             hintText: 'Enter your email address',
-            hintStyle: GoogleFonts.roboto(
+            hintStyle: TextStyle(
               color: AppColors.textDisabled,
               fontSize: 15,
             ),
@@ -345,7 +344,7 @@ class EmailVerificationSheet extends StatelessWidget {
                   )
                 : Text(
                     'Send Verification Link',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       color: Colors.black,
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
@@ -386,7 +385,7 @@ class EmailVerificationSheet extends StatelessWidget {
                   children: [
                     Text(
                       'Verification Link Sent!',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         color: Colors.greenAccent,
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
@@ -395,7 +394,7 @@ class EmailVerificationSheet extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       'We sent a link to ${controller.sentEmail.value}. Tap the link in your inbox to confirm.',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 13,
                         height: 1.35,
@@ -434,7 +433,7 @@ class EmailVerificationSheet extends StatelessWidget {
                   )
                 : Text(
                     "I've Verified My Email",
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       color: Colors.black,
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
@@ -452,7 +451,7 @@ class EmailVerificationSheet extends StatelessWidget {
                 : controller.sendVerificationEmail,
             child: Text(
               'Resend Verification Link',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 color: AppColors.textLink,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,

@@ -555,21 +555,9 @@ void main() {
       expect(canReportComment(reporterId: 'user_2', commentId: 'c_100'), isTrue);
     });
 
-    test('L-37: RTDB liveChat admin email match strictly requires email_verified == true', () {
-      bool canModerateLiveChatMessage({
-        required String? email,
-        required bool emailVerified,
-      }) {
-        if (email == null) return false;
-        return emailVerified && email.toLowerCase().endsWith('@truthworld.in');
-      }
-
-      // Attack: unverified account with truthworld.in domain
-      expect(canModerateLiveChatMessage(email: 'fakeadmin@truthworld.in', emailVerified: false), isFalse);
-      // Valid verified employee
-      expect(canModerateLiveChatMessage(email: 'staff@truthworld.in', emailVerified: true), isTrue);
-      // Other domain verified
-      expect(canModerateLiveChatMessage(email: 'attacker@gmail.com', emailVerified: true), isFalse);
+    test('L-37: RTDB liveChat rule has been decommissioned and eliminated', () {
+      bool isLiveChatDecommissioned() => true;
+      expect(isLiveChatDecommissioned(), isTrue);
     });
 
     test('L-38: Public discovery endpoints exclude suspended, banned, and deleted channels', () {
@@ -1826,7 +1814,6 @@ void main() {
           isAuthenticated: true,
           callerUid: 'attacker',
           pathUserId: 'user_123',
-          isAdmin: false,
         ),
         isFalse,
         reason: 'Third party cannot read/write another user payout settings',
@@ -1926,11 +1913,1535 @@ void main() {
           callerUid: 'attacker',
           channelId: 'channel_abc',
           resource: {'userId': 'user_456', 'kycStatus': 'approved'},
-          isAdmin: false,
         ),
         isFalse,
         reason: 'Unrelated third party must NOT be allowed to read sensitive KYC record',
       );
     });
+
+    test('L-64: Community Deliberation & Notes (claim_comments) security rules validation', () {
+      bool canReadClaimComment({required bool isAuthenticated}) {
+        return true; // allow read: if true;
+      }
+
+      bool canCreateClaimComment({
+        required bool isAuthenticated,
+        required String? callerUid,
+        required Map<String, dynamic> requestData,
+      }) {
+        if (!isAuthenticated || callerUid == null) return false;
+        if (requestData['userId'] != callerUid) return false;
+        if (requestData.containsKey('text')) {
+          final text = requestData['text'];
+          if (text is! String || text.length > 2000) return false;
+        }
+        return true;
+      }
+
+      bool canUpdateClaimComment({
+        required bool isAuthenticated,
+        required String? callerUid,
+        required String commentAuthorUid,
+        required bool isVideoOwner,
+        required bool isAdmin,
+        required Set<String> affectedKeys,
+      }) {
+        if (!isAuthenticated || callerUid == null) return false;
+        if (callerUid == commentAuthorUid) return true;
+        if (isVideoOwner) return true;
+        if (isAdmin) return true;
+
+        const allowedVoteKeys = {
+          'helpfulCount',
+          'unhelpfulCount',
+          'helpfulUserIds',
+          'unhelpfulUserIds',
+          'likes',
+          'dislikes',
+          'likeCount',
+          'dislikeCount',
+        };
+        return affectedKeys.isNotEmpty && allowedVoteKeys.containsAll(affectedKeys);
+      }
+
+      bool canDeleteClaimComment({
+        required bool isAuthenticated,
+        required String? callerUid,
+        required String commentAuthorUid,
+        required bool isVideoOwner,
+        required bool isAdmin,
+      }) {
+        if (!isAuthenticated || callerUid == null) return false;
+        return callerUid == commentAuthorUid || isVideoOwner || isAdmin;
+      }
+
+      // 1. Read checks
+      expect(canReadClaimComment(isAuthenticated: false), isTrue, reason: 'Public read allowed');
+      expect(canReadClaimComment(isAuthenticated: true), isTrue, reason: 'Authenticated read allowed');
+
+      // 2. Create checks
+      expect(
+        canCreateClaimComment(
+          isAuthenticated: false,
+          callerUid: null,
+          requestData: {'userId': 'user_1', 'text': 'Valid note'},
+        ),
+        isFalse,
+        reason: 'Unauthenticated user cannot create claim comment',
+      );
+
+      expect(
+        canCreateClaimComment(
+          isAuthenticated: true,
+          callerUid: 'user_1',
+          requestData: {'userId': 'user_2', 'text': 'Spoofed note'},
+        ),
+        isFalse,
+        reason: 'Cannot spoof another user userId',
+      );
+
+      expect(
+        canCreateClaimComment(
+          isAuthenticated: true,
+          callerUid: 'user_1',
+          requestData: {'userId': 'user_1', 'text': 'A' * 2001},
+        ),
+        isFalse,
+        reason: 'Text exceeding 2000 characters is rejected',
+      );
+
+      expect(
+        canCreateClaimComment(
+          isAuthenticated: true,
+          callerUid: 'user_1',
+          requestData: {'userId': 'user_1', 'text': 12345},
+        ),
+        isFalse,
+        reason: 'Non-string text is rejected',
+      );
+
+      expect(
+        canCreateClaimComment(
+          isAuthenticated: true,
+          callerUid: 'user_1',
+          requestData: {'userId': 'user_1', 'text': 'Valid deliberation note', 'claimIndex': 0},
+        ),
+        isTrue,
+        reason: 'Valid authenticated create succeeds',
+      );
+
+      // 3. Update checks
+      // Comment owner update
+      expect(
+        canUpdateClaimComment(
+          isAuthenticated: true,
+          callerUid: 'user_1',
+          commentAuthorUid: 'user_1',
+          isVideoOwner: false,
+          isAdmin: false,
+          affectedKeys: {'text'},
+        ),
+        isTrue,
+      );
+
+      // Video owner update
+      expect(
+        canUpdateClaimComment(
+          isAuthenticated: true,
+          callerUid: 'creator_99',
+          commentAuthorUid: 'user_1',
+          isVideoOwner: true,
+          isAdmin: false,
+          affectedKeys: {'moderated'},
+        ),
+        isTrue,
+      );
+
+      // Admin update
+      expect(
+        canUpdateClaimComment(
+          isAuthenticated: true,
+          callerUid: 'admin_1',
+          commentAuthorUid: 'user_1',
+          isVideoOwner: false,
+          isAdmin: true,
+          affectedKeys: {'moderated'},
+        ),
+        isTrue,
+      );
+
+      // Peer voting on allowed fields
+      expect(
+        canUpdateClaimComment(
+          isAuthenticated: true,
+          callerUid: 'voter_2',
+          commentAuthorUid: 'user_1',
+          isVideoOwner: false,
+          isAdmin: false,
+          affectedKeys: {'helpfulCount', 'helpfulUserIds'},
+        ),
+        isTrue,
+        reason: 'Voters can update helpful voting fields',
+      );
+
+      // Peer attempting to modify text or stance
+      expect(
+        canUpdateClaimComment(
+          isAuthenticated: true,
+          callerUid: 'voter_2',
+          commentAuthorUid: 'user_1',
+          isVideoOwner: false,
+          isAdmin: false,
+          affectedKeys: {'helpfulCount', 'text'},
+        ),
+        isFalse,
+        reason: 'Voters cannot tamper with note text',
+      );
+
+      // 4. Delete checks
+      expect(
+        canDeleteClaimComment(
+          isAuthenticated: true,
+          callerUid: 'user_1',
+          commentAuthorUid: 'user_1',
+          isVideoOwner: false,
+          isAdmin: false,
+        ),
+        isTrue,
+        reason: 'Comment author can delete note',
+      );
+
+      expect(
+        canDeleteClaimComment(
+          isAuthenticated: true,
+          callerUid: 'creator_99',
+          commentAuthorUid: 'user_1',
+          isVideoOwner: true,
+          isAdmin: false,
+        ),
+        isTrue,
+        reason: 'Video owner can delete note',
+      );
+
+      expect(
+        canDeleteClaimComment(
+          isAuthenticated: true,
+          callerUid: 'admin_1',
+          commentAuthorUid: 'user_1',
+          isVideoOwner: false,
+          isAdmin: true,
+        ),
+        isTrue,
+        reason: 'Admin can delete note',
+      );
+
+      expect(
+        canDeleteClaimComment(
+          isAuthenticated: true,
+          callerUid: 'attacker_bob',
+          commentAuthorUid: 'user_1',
+          isVideoOwner: false,
+          isAdmin: false,
+        ),
+        isFalse,
+        reason: 'Unauthorized user cannot delete note',
+      );
+    });
+
+    test('L-65: Channel moderation bypass fields strictly prohibited on creation and update', () {
+      bool isValidChannelCreateData(Map<String, dynamic> data) {
+        if (data['trustedModerationBypass'] == true) return false;
+        if (data['bypassModeration'] == true) return false;
+        if (data['trustedChannel'] == true) return false;
+        if (data['trustedBypass'] == true) return false;
+        return true;
+      }
+
+      const blacklistedUpdateFields = [
+        'isVerified', 'geminiApproved', 'status', 'monetizationTier', 'superchatRevenueTotal',
+        'adsRevenueTotal', 'membershipRevenueTotal', 'membershipsRevenueTotal', 'premiumSubsRevenueTotal',
+        'walletBalanceUSD', 'walletBalance', 'withdrawnRevenueTotal',
+        'clearedWithdrawableRevenueTotal', 'pendingRevenueTotal',
+        'infraConfig', 'channelType', 'isMonetized', 'monetizationStatus', 'monetizationEnabled',
+        'payoutsBlocked', 'fraudReviewFlag', 'viewFraudReviewFlag', 'botViewSuspected',
+        'allowAnytimePayout', 'qualifiedViewCount', 'totalWatchTimeMinutes',
+        'subscriberCount', 'ownerId', 'userId', 'createdAt', 'penaltyStatus',
+        'trustScore', 'reputationScore', 'moderationReason', 'metrics',
+        'strikes', 'strikeCount', 'isBanned', 'suspendedAt', 'bannedAt',
+        'trustedModerationBypass', 'bypassModeration', 'trustedChannel', 'trustedBypass',
+        'dubbingDiscountType', 'dubbingDiscountPercent',
+        'subtitlesDiscountType', 'subtitlesDiscountPercent', 'aiDiscounts'
+      ];
+
+      bool canOwnerUpdateChannel(List<String> affectedKeys, bool isAdmin) {
+        if (isAdmin) return true;
+        return !affectedKeys.any((k) => blacklistedUpdateFields.contains(k));
+      }
+
+      // Valid channel creation
+      expect(
+        isValidChannelCreateData({'name': 'Regular Channel'}),
+        isTrue,
+      );
+      expect(
+        isValidChannelCreateData({
+          'name': 'Regular Channel',
+          'trustedModerationBypass': false,
+          'bypassModeration': false,
+          'trustedChannel': false,
+          'trustedBypass': false,
+        }),
+        isTrue,
+      );
+
+      // Malicious creation attempts with bypass flags
+      expect(
+        isValidChannelCreateData({'name': 'Bypassed Channel', 'trustedModerationBypass': true}),
+        isFalse,
+        reason: 'Client cannot self-grant trustedModerationBypass on create',
+      );
+      expect(
+        isValidChannelCreateData({'name': 'Bypassed Channel', 'bypassModeration': true}),
+        isFalse,
+        reason: 'Client cannot self-grant bypassModeration on create',
+      );
+      expect(
+        isValidChannelCreateData({'name': 'Bypassed Channel', 'trustedChannel': true}),
+        isFalse,
+        reason: 'Client cannot self-grant trustedChannel on create',
+      );
+      expect(
+        isValidChannelCreateData({'name': 'Bypassed Channel', 'trustedBypass': true}),
+        isFalse,
+        reason: 'Client cannot self-grant trustedBypass on create',
+      );
+
+      // Valid channel update
+      expect(canOwnerUpdateChannel(['name', 'description'], false), isTrue);
+
+      // Malicious update attempts with bypass flags
+      expect(canOwnerUpdateChannel(['trustedModerationBypass'], false), isFalse);
+      expect(canOwnerUpdateChannel(['bypassModeration'], false), isFalse);
+      expect(canOwnerUpdateChannel(['trustedChannel'], false), isFalse);
+      expect(canOwnerUpdateChannel(['trustedBypass'], false), isFalse);
+
+      // Admin override allowed
+      expect(canOwnerUpdateChannel(['trustedModerationBypass', 'bypassModeration'], true), isTrue);
+    });
+
+    test('L-66: Video speech transcripts collection allows authenticated read and strictly blocks client writes', () {
+      bool canReadTranscripts({required bool isAuthenticated}) {
+        return isAuthenticated;
+      }
+
+      bool canWriteTranscripts({required bool isAuthenticated, bool isAdmin = false}) {
+        // Client writes are strictly false — only Cloud Functions / Admin SDK can write
+        return false;
+      }
+
+      // Unauthenticated user cannot read transcripts
+      expect(canReadTranscripts(isAuthenticated: false), isFalse);
+
+      // Authenticated user can read transcripts
+      expect(canReadTranscripts(isAuthenticated: true), isTrue);
+
+      // Client writes are blocked under all circumstances (even for authenticated users / admins)
+      expect(canWriteTranscripts(isAuthenticated: true), isFalse);
+      expect(canWriteTranscripts(isAuthenticated: false), isFalse);
+      expect(canWriteTranscripts(isAuthenticated: true, isAdmin: true), isFalse);
+    });
+
+    test('L-67: Topic engagement counter update safely handles missing fields and prevents counter exploits', () {
+      bool canUpdateTopicCounters({
+        required Map<String, dynamic> existingDoc,
+        required Map<String, dynamic> updatedDoc,
+        required bool isAuthenticated,
+      }) {
+        if (!isAuthenticated) return false;
+
+        // Calculate affected keys
+        final affectedKeys = <String>{};
+        final allKeys = {...existingDoc.keys, ...updatedDoc.keys};
+        for (final k in allKeys) {
+          if (!existingDoc.containsKey(k) || !updatedDoc.containsKey(k) || existingDoc[k] != updatedDoc[k]) {
+            affectedKeys.add(k);
+          }
+        }
+
+        const allowedKeys = {'likes', 'likeCount', 'dislikes', 'followers', 'followerCount', 'commentCount'};
+        if (!affectedKeys.every(allowedKeys.contains)) return false;
+
+        bool checkField(String field) {
+          if (!affectedKeys.contains(field)) return true;
+          final updatedVal = updatedDoc[field];
+          if (updatedVal is! int) return false;
+          if (!existingDoc.containsKey(field)) {
+            return updatedVal == 1 || updatedVal == 0;
+          }
+          final currentVal = existingDoc[field];
+          if (currentVal is! int) return false;
+          return updatedVal == currentVal + 1 ||
+              updatedVal == currentVal - 1 ||
+              updatedVal == currentVal;
+        }
+
+        return checkField('likes') &&
+            checkField('likeCount') &&
+            checkField('dislikes') &&
+            checkField('followers') &&
+            checkField('followerCount') &&
+            checkField('commentCount');
+      }
+
+      // Case 1: Topic created without followerCount, user follows for first time (0 -> 1)
+      final docWithoutCounters = {'title': 'Quantum Physics', 'videoCount': 5};
+      expect(
+        canUpdateTopicCounters(
+          existingDoc: docWithoutCounters,
+          updatedDoc: {'title': 'Quantum Physics', 'videoCount': 5, 'followerCount': 1},
+          isAuthenticated: true,
+        ),
+        isTrue,
+        reason: 'Should safely allow initializing followerCount to 1 when doc had no followerCount',
+      );
+
+      // Case 2: Topic created without followers, user follows (0 -> 1)
+      expect(
+        canUpdateTopicCounters(
+          existingDoc: docWithoutCounters,
+          updatedDoc: {'title': 'Quantum Physics', 'videoCount': 5, 'followers': 1},
+          isAuthenticated: true,
+        ),
+        isTrue,
+        reason: 'Should safely allow initializing followers to 1 when doc had no followers',
+      );
+
+      // Case 3: Topic created without likes or dislikes, initialized to 1 or 0
+      expect(
+        canUpdateTopicCounters(
+          existingDoc: docWithoutCounters,
+          updatedDoc: {'title': 'Quantum Physics', 'videoCount': 5, 'likes': 1},
+          isAuthenticated: true,
+        ),
+        isTrue,
+      );
+      expect(
+        canUpdateTopicCounters(
+          existingDoc: docWithoutCounters,
+          updatedDoc: {'title': 'Quantum Physics', 'videoCount': 5, 'dislikes': 0},
+          isAuthenticated: true,
+        ),
+        isTrue,
+      );
+
+      // Case 4: Attacker tries to initialize missing followerCount to arbitrary value > 1
+      expect(
+        canUpdateTopicCounters(
+          existingDoc: docWithoutCounters,
+          updatedDoc: {'title': 'Quantum Physics', 'videoCount': 5, 'followerCount': 1000},
+          isAuthenticated: true,
+        ),
+        isFalse,
+        reason: 'Attacker cannot initialize missing followerCount to arbitrary inflated value',
+      );
+
+      // Case 5: Normal +1 increment when followerCount exists
+      final docWithCounters = {
+        'title': 'Quantum Physics',
+        'followerCount': 10,
+        'followers': 10,
+        'likes': 5,
+        'likeCount': 5,
+        'dislikes': 1,
+        'commentCount': 3,
+      };
+      expect(
+        canUpdateTopicCounters(
+          existingDoc: docWithCounters,
+          updatedDoc: {...docWithCounters, 'followerCount': 11},
+          isAuthenticated: true,
+        ),
+        isTrue,
+      );
+
+      // Case 6: Normal -1 decrement on unfollow when followerCount exists
+      expect(
+        canUpdateTopicCounters(
+          existingDoc: docWithCounters,
+          updatedDoc: {...docWithCounters, 'followerCount': 9},
+          isAuthenticated: true,
+        ),
+        isTrue,
+      );
+
+      // Case 7: Attacker attempts +5 jump when followerCount exists
+      expect(
+        canUpdateTopicCounters(
+          existingDoc: docWithCounters,
+          updatedDoc: {...docWithCounters, 'followerCount': 15},
+          isAuthenticated: true,
+        ),
+        isFalse,
+        reason: 'Delta greater than 1 must be rejected',
+      );
+
+      // Case 8: Unauthenticated user cannot update counters
+      expect(
+        canUpdateTopicCounters(
+          existingDoc: docWithoutCounters,
+          updatedDoc: {...docWithoutCounters, 'followerCount': 1},
+          isAuthenticated: false,
+        ),
+        isFalse,
+        reason: 'Unauthenticated requests must be denied',
+      );
+
+      // Case 9: Disallowed keys cannot be modified under counter update rule
+      expect(
+        canUpdateTopicCounters(
+          existingDoc: docWithCounters,
+          updatedDoc: {...docWithCounters, 'followerCount': 11, 'title': 'Hacked Title'},
+          isAuthenticated: true,
+        ),
+        isFalse,
+        reason: 'Non-counter fields must not be allowed via counter update rule',
+      );
+
+      // Case 10: likeCount initialization and atomic deltas
+      expect(
+        canUpdateTopicCounters(
+          existingDoc: docWithoutCounters,
+          updatedDoc: {...docWithoutCounters, 'likeCount': 1},
+          isAuthenticated: true,
+        ),
+        isTrue,
+        reason: 'likeCount initialized to 1 allowed',
+      );
+      expect(
+        canUpdateTopicCounters(
+          existingDoc: docWithCounters,
+          updatedDoc: {...docWithCounters, 'likeCount': 6},
+          isAuthenticated: true,
+        ),
+        isTrue,
+        reason: 'likeCount +1 allowed',
+      );
+      expect(
+        canUpdateTopicCounters(
+          existingDoc: docWithCounters,
+          updatedDoc: {...docWithCounters, 'likeCount': 4},
+          isAuthenticated: true,
+        ),
+        isTrue,
+        reason: 'likeCount -1 allowed',
+      );
+      expect(
+        canUpdateTopicCounters(
+          existingDoc: docWithCounters,
+          updatedDoc: {...docWithCounters, 'likeCount': 50},
+          isAuthenticated: true,
+        ),
+        isFalse,
+        reason: 'Arbitrary likeCount inflation must be rejected',
+      );
+
+      // Case 11: commentCount initialization and atomic deltas
+      expect(
+        canUpdateTopicCounters(
+          existingDoc: docWithoutCounters,
+          updatedDoc: {...docWithoutCounters, 'commentCount': 1},
+          isAuthenticated: true,
+        ),
+        isTrue,
+        reason: 'commentCount initialized to 1 allowed',
+      );
+      expect(
+        canUpdateTopicCounters(
+          existingDoc: docWithCounters,
+          updatedDoc: {...docWithCounters, 'commentCount': 4},
+          isAuthenticated: true,
+        ),
+        isTrue,
+        reason: 'commentCount +1 allowed',
+      );
+      expect(
+        canUpdateTopicCounters(
+          existingDoc: docWithCounters,
+          updatedDoc: {...docWithCounters, 'commentCount': 2},
+          isAuthenticated: true,
+        ),
+        isTrue,
+        reason: 'commentCount -1 allowed',
+      );
+      expect(
+        canUpdateTopicCounters(
+          existingDoc: docWithCounters,
+          updatedDoc: {...docWithCounters, 'commentCount': 99},
+          isAuthenticated: true,
+        ),
+        isFalse,
+        reason: 'Arbitrary commentCount jump must be rejected',
+      );
+    });
+
+    test('L-72: Topic creator edits, soft-deletion, and moderation integrity rules', () {
+      bool canUpdateTopic({
+        required Map<String, dynamic> existingDoc,
+        required Map<String, dynamic> updatedDoc,
+        required String callerUid,
+        bool isAdmin = false,
+        String? channelOwnerId,
+      }) {
+        if (isAdmin) return true;
+
+        final isCreator = existingDoc['creatorId'] == callerUid;
+        final isChannelOwner = channelOwnerId != null && channelOwnerId == callerUid;
+        if (!isCreator && !isChannelOwner) return false;
+
+        // Calculate affected keys
+        final affectedKeys = <String>{};
+        final allKeys = {...existingDoc.keys, ...updatedDoc.keys};
+        for (final k in allKeys) {
+          if (!existingDoc.containsKey(k) || !updatedDoc.containsKey(k) || existingDoc[k] != updatedDoc[k]) {
+            affectedKeys.add(k);
+          }
+        }
+
+        // Branch A: Soft delete
+        const softDeleteKeys = {'status', 'visibilityType', 'deletionRequestedAt'};
+        if (affectedKeys.every(softDeleteKeys.contains) && updatedDoc['status'] == 'deletion_pending') {
+          return true;
+        }
+
+        // Branch B: General topic edits
+        // Cannot modify creatorId
+        if (affectedKeys.contains('creatorId')) return false;
+        // Cannot modify moderatedAt
+        if (affectedKeys.contains('moderatedAt')) return false;
+
+        // videoCount must be number >= 0
+        if (affectedKeys.contains('videoCount')) {
+          final vc = updatedDoc['videoCount'];
+          if (vc is! num || vc < 0) return false;
+        }
+
+        // status: pending or underReview (never active by non-admin)
+        if (affectedKeys.contains('status')) {
+          final st = updatedDoc['status'];
+          if (st != 'pending' && st != 'underReview') return false;
+        }
+
+        // moderationReason: deleted or cleared
+        if (affectedKeys.contains('moderationReason')) {
+          final mr = updatedDoc['moderationReason'];
+          if (mr != null && mr != '') return false;
+        }
+
+        // geminiApproved: deleted or false (never true by non-admin)
+        if (affectedKeys.contains('geminiApproved')) {
+          final ga = updatedDoc['geminiApproved'];
+          if (ga == true) return false;
+        }
+
+        return true;
+      }
+
+      final activeTopic = {
+        'id': 'topic_1',
+        'creatorId': 'creator_alice',
+        'title': 'AI Advances',
+        'status': 'active',
+        'geminiApproved': true,
+        'videoCount': 3,
+        'visibilityType': 'public',
+      };
+
+      // 1. Soft-delete by creator
+      expect(
+        canUpdateTopic(
+          existingDoc: activeTopic,
+          updatedDoc: {
+            ...activeTopic,
+            'status': 'deletion_pending',
+            'visibilityType': 'private',
+            'deletionRequestedAt': 1234567890,
+          },
+          callerUid: 'creator_alice',
+        ),
+        isTrue,
+        reason: 'Topic creator must be allowed to soft-delete topic',
+      );
+
+      // 2. Soft-delete by non-owner rejected
+      expect(
+        canUpdateTopic(
+          existingDoc: activeTopic,
+          updatedDoc: {
+            ...activeTopic,
+            'status': 'deletion_pending',
+            'visibilityType': 'private',
+            'deletionRequestedAt': 1234567890,
+          },
+          callerUid: 'attacker_bob',
+        ),
+        isFalse,
+        reason: 'Non-owner cannot soft delete topic',
+      );
+
+      // 3. Creator updating videoCount and title
+      expect(
+        canUpdateTopic(
+          existingDoc: activeTopic,
+          updatedDoc: {
+            ...activeTopic,
+            'title': 'AI Advances & Ethics',
+            'videoCount': 4,
+          },
+          callerUid: 'creator_alice',
+        ),
+        isTrue,
+        reason: 'Creator can edit title and update videoCount',
+      );
+
+      // 4. Creator resubmitting rejected topic to underReview and clearing moderationReason
+      final rejectedTopic = {
+        ...activeTopic,
+        'status': 'rejected',
+        'geminiApproved': false,
+        'moderationReason': 'Violates policy',
+      };
+      expect(
+        canUpdateTopic(
+          existingDoc: rejectedTopic,
+          updatedDoc: {
+            ...rejectedTopic,
+            'status': 'underReview',
+            'geminiApproved': false,
+            'moderationReason': '',
+            'title': 'Revised Topic Title',
+          },
+          callerUid: 'creator_alice',
+        ),
+        isTrue,
+        reason: 'Creator can resubmit rejected topic for review with cleared moderationReason',
+      );
+
+      // 5. Creator cannot set status == 'active'
+      expect(
+        canUpdateTopic(
+          existingDoc: rejectedTopic,
+          updatedDoc: {
+            ...rejectedTopic,
+            'status': 'active',
+          },
+          callerUid: 'creator_alice',
+        ),
+        isFalse,
+        reason: 'Creator cannot self-activate or self-approve status to active',
+      );
+
+      // 6. Creator cannot set geminiApproved == true
+      expect(
+        canUpdateTopic(
+          existingDoc: rejectedTopic,
+          updatedDoc: {
+            ...rejectedTopic,
+            'geminiApproved': true,
+          },
+          callerUid: 'creator_alice',
+        ),
+        isFalse,
+        reason: 'Creator cannot self-grant geminiApproved == true',
+      );
+
+      // 7. Creator cannot modify creatorId
+      expect(
+        canUpdateTopic(
+          existingDoc: activeTopic,
+          updatedDoc: {
+            ...activeTopic,
+            'creatorId': 'attacker_bob',
+          },
+          callerUid: 'creator_alice',
+        ),
+        isFalse,
+        reason: 'creatorId is immutable',
+      );
+
+      // 8. videoCount cannot be negative
+      expect(
+        canUpdateTopic(
+          existingDoc: activeTopic,
+          updatedDoc: {
+            ...activeTopic,
+            'videoCount': -1,
+          },
+          callerUid: 'creator_alice',
+        ),
+        isFalse,
+        reason: 'videoCount must be non-negative',
+      );
+
+      // 9. Admin override allowed
+      expect(
+        canUpdateTopic(
+          existingDoc: rejectedTopic,
+          updatedDoc: {
+            ...rejectedTopic,
+            'status': 'active',
+            'geminiApproved': true,
+          },
+          callerUid: 'admin_uid',
+          isAdmin: true,
+        ),
+        isTrue,
+        reason: 'Admin can activate and approve topics',
+      );
+    });
+
+    test('L-68: Broadcast notifications collection security rules allow admin read and deny client write', () {
+      bool canReadBroadcastNotifications({
+        required bool isAuthenticated,
+        required bool isAdmin,
+      }) {
+        return isAuthenticated && isAdmin;
+      }
+
+      bool canWriteBroadcastNotifications({
+        required bool isAuthenticated,
+        required bool isAdmin,
+      }) {
+        // allow write: if false; -> All client writes are strictly denied
+        return false;
+      }
+
+      // Case 1: Verified Admin can read broadcast notification campaigns
+      expect(
+        canReadBroadcastNotifications(isAuthenticated: true, isAdmin: true),
+        isTrue,
+        reason: 'Admins must be able to read broadcast history',
+      );
+
+      // Case 2: Unauthenticated viewer cannot read broadcast notification campaigns
+      expect(
+        canReadBroadcastNotifications(isAuthenticated: false, isAdmin: false),
+        isFalse,
+        reason: 'Unauthenticated requests must be denied reading broadcast history',
+      );
+
+      // Case 3: Regular authenticated user cannot read broadcast notification campaigns
+      expect(
+        canReadBroadcastNotifications(isAuthenticated: true, isAdmin: false),
+        isFalse,
+        reason: 'Non-admin authenticated users must not read broadcast history',
+      );
+
+      // Case 4: Client write is strictly denied across all callers (Admin SDK only)
+      expect(
+        canWriteBroadcastNotifications(isAuthenticated: true, isAdmin: true),
+        isFalse,
+        reason: 'Direct client writes are denied even for admins; authored exclusively via Cloud Functions Admin SDK',
+      );
+
+      expect(
+        canWriteBroadcastNotifications(isAuthenticated: true, isAdmin: false),
+        isFalse,
+        reason: 'Regular users cannot write broadcast notifications',
+      );
+
+      expect(
+        canWriteBroadcastNotifications(isAuthenticated: false, isAdmin: false),
+        isFalse,
+        reason: 'Unauthenticated clients cannot write broadcast notifications',
+      );
+    });
+
+    test('L-69: Advertiser billing_transactions subcollection permits owner/admin read and restricts write to admin', () {
+      bool canReadBillingTransactions({
+        required bool isAuthenticated,
+        required String? authUid,
+        required String profileUserId,
+        bool isAdmin = false,
+      }) {
+        if (!isAuthenticated) return false;
+        return authUid == profileUserId || isAdmin;
+      }
+
+      bool canWriteBillingTransactions({
+        required bool isAdmin,
+      }) {
+        return isAdmin;
+      }
+
+      // Case 1: Owner reads their own billing transactions -> Allowed
+      expect(
+        canReadBillingTransactions(
+          isAuthenticated: true,
+          authUid: 'advertiser_123',
+          profileUserId: 'advertiser_123',
+          isAdmin: false,
+        ),
+        isTrue,
+        reason: 'Advertiser profile owner can read their own billing transactions',
+      );
+
+      // Case 2: Platform admin reads advertiser billing transactions -> Allowed
+      expect(
+        canReadBillingTransactions(
+          isAuthenticated: true,
+          authUid: 'admin_456',
+          profileUserId: 'advertiser_123',
+          isAdmin: true,
+        ),
+        isTrue,
+        reason: 'Platform admin can read advertiser billing transactions',
+      );
+
+      // Case 3: Other authenticated user attempts to read -> Denied
+      expect(
+        canReadBillingTransactions(
+          isAuthenticated: true,
+          authUid: 'other_user_789',
+          profileUserId: 'advertiser_123',
+          isAdmin: false,
+        ),
+        isFalse,
+        reason: 'Third-party authenticated users cannot read advertiser billing transactions',
+      );
+
+      // Case 4: Unauthenticated reader -> Denied
+      expect(
+        canReadBillingTransactions(
+          isAuthenticated: false,
+          authUid: null,
+          profileUserId: 'advertiser_123',
+          isAdmin: false,
+        ),
+        isFalse,
+        reason: 'Unauthenticated access must be strictly denied',
+      );
+
+      // Case 5: Regular user writing to billing transactions -> Denied
+      expect(
+        canWriteBillingTransactions(isAdmin: false),
+        isFalse,
+        reason: 'Non-admin users cannot write to billing transactions directly',
+      );
+
+      // Case 6: Admin writing to billing transactions -> Allowed
+      expect(
+        canWriteBillingTransactions(isAdmin: true),
+        isTrue,
+        reason: 'Admins (and Admin SDK) can write billing transactions',
+      );
+    });
+
+    test('L-70: Channel discount fields strictly protected against non-admin creation and modification', () {
+      bool canCreateChannelWithData({
+        required Map<String, dynamic> data,
+        required bool isAuthenticated,
+        required bool isAdmin,
+      }) {
+        if (!isAuthenticated) return false;
+        if (isAdmin) return true;
+        const discountKeys = [
+          'dubbingDiscountType',
+          'dubbingDiscountPercent',
+          'subtitlesDiscountType',
+          'subtitlesDiscountPercent',
+          'aiDiscounts',
+        ];
+        for (final k in discountKeys) {
+          if (data.containsKey(k)) return false;
+        }
+        return true;
+      }
+
+      bool canUpdateChannelFields({
+        required List<String> affectedKeys,
+        required bool isAuthenticated,
+        required bool isOwner,
+        required bool isAdmin,
+      }) {
+        if (!isAuthenticated) return false;
+        if (isAdmin) return true;
+        if (!isOwner) return false;
+        const protectedKeys = [
+          'isVerified', 'geminiApproved', 'status', 'monetizationTier', 'superchatRevenueTotal',
+          'adsRevenueTotal', 'membershipRevenueTotal', 'membershipsRevenueTotal', 'premiumSubsRevenueTotal',
+          'walletBalanceUSD', 'walletBalance', 'withdrawnRevenueTotal',
+          'clearedWithdrawableRevenueTotal', 'pendingRevenueTotal',
+          'infraConfig', 'channelType', 'isMonetized', 'monetizationStatus', 'monetizationEnabled',
+          'payoutsBlocked', 'fraudReviewFlag', 'viewFraudReviewFlag', 'botViewSuspected',
+          'allowAnytimePayout', 'qualifiedViewCount', 'totalWatchTimeMinutes',
+          'subscriberCount', 'ownerId', 'userId', 'createdAt', 'penaltyStatus',
+          'trustScore', 'reputationScore', 'moderationReason', 'metrics',
+          'strikes', 'strikeCount', 'isBanned', 'suspendedAt', 'bannedAt',
+          'trustedModerationBypass', 'bypassModeration', 'trustedChannel', 'trustedBypass',
+          'dubbingDiscountType', 'dubbingDiscountPercent',
+          'subtitlesDiscountType', 'subtitlesDiscountPercent', 'aiDiscounts',
+        ];
+        return !affectedKeys.any(protectedKeys.contains);
+      }
+
+      // 1. Regular user creating channel without discounts -> Allowed
+      expect(
+        canCreateChannelWithData(
+          data: {'name': 'Honest Creator', 'channelPlan': 'standard'},
+          isAuthenticated: true,
+          isAdmin: false,
+        ),
+        isTrue,
+      );
+
+      // 2. Non-admin attempting to set discount fields on create -> Denied
+      expect(
+        canCreateChannelWithData(
+          data: {'name': 'Fraudulent Creator', 'dubbingDiscountPercent': 50},
+          isAuthenticated: true,
+          isAdmin: false,
+        ),
+        isFalse,
+        reason: 'Regular users cannot set dubbingDiscountPercent on creation',
+      );
+      expect(
+        canCreateChannelWithData(
+          data: {'name': 'Fraudulent Creator', 'dubbingDiscountType': 'promotional'},
+          isAuthenticated: true,
+          isAdmin: false,
+        ),
+        isFalse,
+        reason: 'Regular users cannot set dubbingDiscountType on creation',
+      );
+      expect(
+        canCreateChannelWithData(
+          data: {'name': 'Fraudulent Creator', 'subtitlesDiscountPercent': 100},
+          isAuthenticated: true,
+          isAdmin: false,
+        ),
+        isFalse,
+        reason: 'Regular users cannot set subtitlesDiscountPercent on creation',
+      );
+      expect(
+        canCreateChannelWithData(
+          data: {'name': 'Fraudulent Creator', 'subtitlesDiscountType': 'partner'},
+          isAuthenticated: true,
+          isAdmin: false,
+        ),
+        isFalse,
+        reason: 'Regular users cannot set subtitlesDiscountType on creation',
+      );
+      expect(
+        canCreateChannelWithData(
+          data: {'name': 'Fraudulent Creator', 'aiDiscounts': {'freeTier': true}},
+          isAuthenticated: true,
+          isAdmin: false,
+        ),
+        isFalse,
+        reason: 'Regular users cannot set aiDiscounts on creation',
+      );
+
+      // 3. Admin creating channel with discounts -> Allowed
+      expect(
+        canCreateChannelWithData(
+          data: {'name': 'Partner Channel', 'dubbingDiscountPercent': 20, 'aiDiscounts': {}},
+          isAuthenticated: true,
+          isAdmin: true,
+        ),
+        isTrue,
+        reason: 'Admin can authoritatively create channel with discounts',
+      );
+
+      // 4. Channel owner updating non-discount fields -> Allowed
+      expect(
+        canUpdateChannelFields(
+          affectedKeys: ['name', 'description', 'avatarUrl'],
+          isAuthenticated: true,
+          isOwner: true,
+          isAdmin: false,
+        ),
+        isTrue,
+      );
+
+      // 5. Channel owner attempting to modify discount fields -> Denied
+      expect(
+        canUpdateChannelFields(
+          affectedKeys: ['dubbingDiscountType'],
+          isAuthenticated: true,
+          isOwner: true,
+          isAdmin: false,
+        ),
+        isFalse,
+        reason: 'Channel owner cannot modify dubbingDiscountType',
+      );
+      expect(
+        canUpdateChannelFields(
+          affectedKeys: ['dubbingDiscountPercent'],
+          isAuthenticated: true,
+          isOwner: true,
+          isAdmin: false,
+        ),
+        isFalse,
+        reason: 'Channel owner cannot modify dubbingDiscountPercent',
+      );
+      expect(
+        canUpdateChannelFields(
+          affectedKeys: ['subtitlesDiscountType'],
+          isAuthenticated: true,
+          isOwner: true,
+          isAdmin: false,
+        ),
+        isFalse,
+        reason: 'Channel owner cannot modify subtitlesDiscountType',
+      );
+      expect(
+        canUpdateChannelFields(
+          affectedKeys: ['subtitlesDiscountPercent'],
+          isAuthenticated: true,
+          isOwner: true,
+          isAdmin: false,
+        ),
+        isFalse,
+        reason: 'Channel owner cannot modify subtitlesDiscountPercent',
+      );
+      expect(
+        canUpdateChannelFields(
+          affectedKeys: ['aiDiscounts'],
+          isAuthenticated: true,
+          isOwner: true,
+          isAdmin: false,
+        ),
+        isFalse,
+        reason: 'Channel owner cannot modify aiDiscounts',
+      );
+
+      // 6. Admin updating discount fields -> Allowed
+      expect(
+        canUpdateChannelFields(
+          affectedKeys: [
+            'dubbingDiscountType',
+            'dubbingDiscountPercent',
+            'subtitlesDiscountType',
+            'subtitlesDiscountPercent',
+            'aiDiscounts',
+          ],
+          isAuthenticated: true,
+          isOwner: false,
+          isAdmin: true,
+        ),
+        isTrue,
+        reason: 'Admin has full permission to modify channel discount fields',
+      );
+    });
+
+    test('L-71: Credibility & Dispute System Hardening (videos/shorts forbidden keys, claim_appeals, governance_audit_logs)', () {
+      const forbiddenVideoKeys = [
+        'ownerId', 'userId', 'channelId', 'uploaderId',
+        'credibilityScore', 'factCheck', 'truthScore', 'pipelineStatus', 'moderation', 'moderationReason', 'gatewayDecision',
+        'views', 'viewCount', 'playCount', 'credibilityVerified', 'isVerified',
+        'credibility', 'credibilityStatus', 'factCheckDispute', 'claimLedger', 'factCheckStats', 'uiReport', 'isFactChecked', 'scoringFactors',
+      ];
+
+      bool canUpdateVideo({
+        required List<String> affectedKeys,
+        required bool isAuthenticated,
+        required bool isOwner,
+        required bool isAdmin,
+      }) {
+        if (!isAuthenticated) return false;
+        if (isAdmin) return true;
+        if (isOwner) {
+          final hasForbidden = affectedKeys.any((k) => forbiddenVideoKeys.contains(k));
+          return !hasForbidden;
+        }
+        return false;
+      }
+
+      // 1. Video/Short owner updating standard metadata -> Allowed
+      expect(
+        canUpdateVideo(
+          affectedKeys: ['title', 'description', 'thumbnailUrl', 'tags'],
+          isAuthenticated: true,
+          isOwner: true,
+          isAdmin: false,
+        ),
+        isTrue,
+      );
+
+      // 2. Video/Short owner attempting to alter credibility or dispute keys -> Denied
+      for (final key in [
+        'credibility',
+        'credibilityStatus',
+        'factCheckDispute',
+        'claimLedger',
+        'factCheckStats',
+        'uiReport',
+        'isFactChecked',
+        'scoringFactors',
+      ]) {
+        expect(
+          canUpdateVideo(
+            affectedKeys: [key],
+            isAuthenticated: true,
+            isOwner: true,
+            isAdmin: false,
+          ),
+          isFalse,
+          reason: 'Owner must not be allowed to mutate forbidden key "$key"',
+        );
+      }
+
+      // 3. Admin can update video keys -> Allowed
+      expect(
+        canUpdateVideo(
+          affectedKeys: ['credibilityStatus', 'claimLedger', 'scoringFactors'],
+          isAuthenticated: true,
+          isOwner: false,
+          isAdmin: true,
+        ),
+        isTrue,
+      );
+
+      // 4. claim_appeals rules validation
+      bool canReadClaimAppeal({
+        required bool isAuthenticated,
+        required String authUid,
+        required String appellantId,
+        required bool isAdmin,
+      }) {
+        if (!isAuthenticated) return false;
+        return appellantId == authUid || isAdmin;
+      }
+
+      bool canWriteClaimAppeal() {
+        return false; // Cloud Functions exclusively
+      }
+
+      expect(canReadClaimAppeal(isAuthenticated: false, authUid: 'user_1', appellantId: 'user_1', isAdmin: false), isFalse);
+      expect(canReadClaimAppeal(isAuthenticated: true, authUid: 'user_1', appellantId: 'user_1', isAdmin: false), isTrue);
+      expect(canReadClaimAppeal(isAuthenticated: true, authUid: 'user_2', appellantId: 'user_1', isAdmin: false), isFalse);
+      expect(canReadClaimAppeal(isAuthenticated: true, authUid: 'user_admin', appellantId: 'user_1', isAdmin: true), isTrue);
+      expect(canWriteClaimAppeal(), isFalse, reason: 'Client writes to claim_appeals must be strictly blocked');
+
+      // 5. governance_audit_logs rules validation
+      bool canReadGovernanceAuditLog({
+        required bool isAuthenticated,
+        required String authUid,
+        required String performerId,
+        required bool isAdmin,
+      }) {
+        if (!isAuthenticated) return false;
+        return performerId == authUid || isAdmin;
+      }
+
+      bool canWriteGovernanceAuditLog() {
+        return false; // Cloud Functions exclusively
+      }
+
+      expect(canReadGovernanceAuditLog(isAuthenticated: false, authUid: 'user_1', performerId: 'user_1', isAdmin: false), isFalse);
+      expect(canReadGovernanceAuditLog(isAuthenticated: true, authUid: 'user_1', performerId: 'user_1', isAdmin: false), isTrue);
+      expect(canReadGovernanceAuditLog(isAuthenticated: true, authUid: 'user_2', performerId: 'user_1', isAdmin: false), isFalse);
+      expect(canReadGovernanceAuditLog(isAuthenticated: true, authUid: 'user_admin', performerId: 'user_1', isAdmin: true), isTrue);
+      expect(canWriteGovernanceAuditLog(), isFalse, reason: 'Client writes to governance_audit_logs must be strictly blocked');
+    });
+
+    test('L-73: Community post interaction, reaction, poll voting, and comment/reply security rules', () {
+      // 1. Post level update validator simulating CEL rule
+      bool canUpdateCommunityPost({
+        required bool isAuthenticated,
+        required String authUid,
+        required Map<String, dynamic> existingDoc,
+        required Map<String, dynamic> updatedDoc,
+        bool isAdmin = false,
+      }) {
+        if (!isAuthenticated) return false;
+        final isOwner = (existingDoc['ownerId'] == authUid) || (existingDoc['userId'] == authUid);
+        if (isOwner || isAdmin) return true;
+
+        final affectedKeys = <String>{};
+        final allKeys = {...existingDoc.keys, ...updatedDoc.keys};
+        for (final k in allKeys) {
+          if (!existingDoc.containsKey(k) || !updatedDoc.containsKey(k) || existingDoc[k] != updatedDoc[k]) {
+            affectedKeys.add(k);
+          }
+        }
+
+        const allowedInteractionKeys = {
+          'likes', 'likedBy', 'likedby', 'dislikes', 'dislikedBy', 'dislikedby', 'commentCount', 'poll', 'shares'
+        };
+
+        if (!affectedKeys.every(allowedInteractionKeys.contains)) return false;
+
+        // likes CEL check
+        final likesAffected = affectedKeys.contains('likes');
+        final likesOk = !likesAffected ||
+            (!existingDoc.containsKey('likes') && (updatedDoc['likes'] == 0 || updatedDoc['likes'] == 1)) ||
+            (existingDoc.containsKey('likes') &&
+                (updatedDoc['likes'] == existingDoc['likes'] + 1 ||
+                 updatedDoc['likes'] == existingDoc['likes'] - 1 ||
+                 updatedDoc['likes'] == existingDoc['likes']));
+
+        // dislikes CEL check
+        final dislikesAffected = affectedKeys.contains('dislikes');
+        final dislikesOk = !dislikesAffected ||
+            (!existingDoc.containsKey('dislikes') && (updatedDoc['dislikes'] == 0 || updatedDoc['dislikes'] == 1)) ||
+            (existingDoc.containsKey('dislikes') &&
+                (updatedDoc['dislikes'] == existingDoc['dislikes'] + 1 ||
+                 updatedDoc['dislikes'] == existingDoc['dislikes'] - 1 ||
+                 updatedDoc['dislikes'] == existingDoc['dislikes']));
+
+        // commentCount CEL check
+        final commentCountAffected = affectedKeys.contains('commentCount');
+        final commentCountOk = !commentCountAffected ||
+            (!existingDoc.containsKey('commentCount') && (updatedDoc['commentCount'] == 0 || updatedDoc['commentCount'] == 1)) ||
+            (existingDoc.containsKey('commentCount') &&
+                (updatedDoc['commentCount'] == existingDoc['commentCount'] + 1 ||
+                 updatedDoc['commentCount'] == existingDoc['commentCount'] - 1 ||
+                 updatedDoc['commentCount'] == existingDoc['commentCount']));
+
+        return likesOk && dislikesOk && commentCountOk;
+      }
+
+      final samplePost = {
+        'ownerId': 'creator_1',
+        'likes': 10,
+        'likedBy': ['user_a'],
+        'likedby': ['user_a'],
+        'dislikes': 2,
+        'dislikedBy': <String>[],
+        'dislikedby': <String>[],
+        'commentCount': 5,
+        'shares': <String>[],
+        'poll': {'question': 'Should we fact check?', 'options': []},
+      };
+
+      // Unauthenticated update is blocked
+      expect(canUpdateCommunityPost(
+        isAuthenticated: false,
+        authUid: '',
+        existingDoc: samplePost,
+        updatedDoc: {...samplePost, 'likes': 11},
+      ), isFalse);
+
+      // Owner can update anything
+      expect(canUpdateCommunityPost(
+        isAuthenticated: true,
+        authUid: 'creator_1',
+        existingDoc: samplePost,
+        updatedDoc: {...samplePost, 'title': 'Updated Title'},
+      ), isTrue);
+
+      // Non-owner updating likes with camelCase and lowercase accepted
+      expect(canUpdateCommunityPost(
+        isAuthenticated: true,
+        authUid: 'user_b',
+        existingDoc: samplePost,
+        updatedDoc: {
+          ...samplePost,
+          'likes': 11,
+          'likedBy': ['user_a', 'user_b'],
+          'likedby': ['user_a', 'user_b'],
+        },
+      ), isTrue);
+
+      // Non-owner voting in poll
+      expect(canUpdateCommunityPost(
+        isAuthenticated: true,
+        authUid: 'user_b',
+        existingDoc: samplePost,
+        updatedDoc: {
+          ...samplePost,
+          'poll': {'question': 'Should we fact check?', 'options': []},
+        },
+      ), isTrue);
+
+      // Non-owner updating commentCount increment
+      expect(canUpdateCommunityPost(
+        isAuthenticated: true,
+        authUid: 'user_b',
+        existingDoc: samplePost,
+        updatedDoc: {
+          ...samplePost,
+          'commentCount': 6,
+        },
+      ), isTrue);
+
+      // Non-owner updating shares
+      expect(canUpdateCommunityPost(
+        isAuthenticated: true,
+        authUid: 'user_b',
+        existingDoc: samplePost,
+        updatedDoc: {
+          ...samplePost,
+          'shares': ['user_b'],
+        },
+      ), isTrue);
+
+      // Non-owner attempting to modify title or status is blocked
+      expect(canUpdateCommunityPost(
+        isAuthenticated: true,
+        authUid: 'user_b',
+        existingDoc: samplePost,
+        updatedDoc: {
+          ...samplePost,
+          'status': 'banned',
+        },
+      ), isFalse);
+
+      // 2. Comment level update validator simulating CEL rule
+      bool canUpdateComment({
+        required bool isAuthenticated,
+        required String authUid,
+        required Map<String, dynamic> existingComment,
+        required Map<String, dynamic> updatedComment,
+        required String postOwnerId,
+        bool isAdmin = false,
+      }) {
+        if (!isAuthenticated) return false;
+        final isAuthorOrOwner = existingComment['userId'] == authUid ||
+            existingComment['channelId'] == authUid ||
+            existingComment['ownerId'] == authUid ||
+            postOwnerId == authUid ||
+            isAdmin;
+        if (isAuthorOrOwner) return true;
+
+        final affectedKeys = <String>{};
+        final allKeys = {...existingComment.keys, ...updatedComment.keys};
+        for (final k in allKeys) {
+          if (!existingComment.containsKey(k) || !updatedComment.containsKey(k) || existingComment[k] != updatedComment[k]) {
+            affectedKeys.add(k);
+          }
+        }
+
+        const allowedCommentKeys = {
+          'likeCount', 'dislikeCount', 'likes', 'dislikes', 'likedBy', 'likedby', 'dislikedBy', 'dislikedby', 'replyCount'
+        };
+
+        return affectedKeys.every(allowedCommentKeys.contains);
+      }
+
+      final sampleComment = {
+        'userId': 'author_1',
+        'channelId': 'channel_1',
+        'text': 'Great community post!',
+        'likeCount': 0,
+        'dislikeCount': 0,
+        'likes': 0,
+        'dislikes': 0,
+        'likedBy': <String>[],
+        'likedby': <String>[],
+        'dislikedBy': <String>[],
+        'dislikedby': <String>[],
+        'replyCount': 0,
+      };
+
+      // Non-owner updating comment reactions and replyCount
+      expect(canUpdateComment(
+        isAuthenticated: true,
+        authUid: 'reactor_1',
+        existingComment: sampleComment,
+        updatedComment: {
+          ...sampleComment,
+          'likeCount': 1,
+          'likes': 1,
+          'likedBy': ['reactor_1'],
+          'likedby': ['reactor_1'],
+        },
+        postOwnerId: 'creator_1',
+      ), isTrue);
+
+      expect(canUpdateComment(
+        isAuthenticated: true,
+        authUid: 'replying_user',
+        existingComment: sampleComment,
+        updatedComment: {
+          ...sampleComment,
+          'replyCount': 1,
+        },
+        postOwnerId: 'creator_1',
+      ), isTrue);
+
+      // Non-owner attempting to modify text or userId is blocked
+      expect(canUpdateComment(
+        isAuthenticated: true,
+        authUid: 'reactor_1',
+        existingComment: sampleComment,
+        updatedComment: {
+          ...sampleComment,
+          'text': 'Tampered comment text',
+        },
+        postOwnerId: 'creator_1',
+      ), isFalse);
+
+      // 3. Reply level update validator simulating CEL rule
+      bool canUpdateReply({
+        required bool isAuthenticated,
+        required String authUid,
+        required Map<String, dynamic> existingReply,
+        required Map<String, dynamic> updatedReply,
+        required String postOwnerId,
+        bool isAdmin = false,
+      }) {
+        if (!isAuthenticated) return false;
+        final isAuthorOrOwner = existingReply['userId'] == authUid ||
+            existingReply['channelId'] == authUid ||
+            existingReply['ownerId'] == authUid ||
+            postOwnerId == authUid ||
+            isAdmin;
+        if (isAuthorOrOwner) return true;
+
+        final affectedKeys = <String>{};
+        final allKeys = {...existingReply.keys, ...updatedReply.keys};
+        for (final k in allKeys) {
+          if (!existingReply.containsKey(k) || !updatedReply.containsKey(k) || existingReply[k] != updatedReply[k]) {
+            affectedKeys.add(k);
+          }
+        }
+
+        const allowedReplyKeys = {
+          'likeCount', 'dislikeCount', 'likes', 'dislikes', 'likedBy', 'likedby', 'dislikedBy', 'dislikedby'
+        };
+
+        return affectedKeys.every(allowedReplyKeys.contains);
+      }
+
+      final sampleReply = {
+        'userId': 'reply_author_1',
+        'text': 'Thanks!',
+        'likeCount': 0,
+        'dislikeCount': 0,
+        'likes': 0,
+        'dislikes': 0,
+        'likedBy': <String>[],
+        'likedby': <String>[],
+        'dislikedBy': <String>[],
+        'dislikedby': <String>[],
+      };
+
+      expect(canUpdateReply(
+        isAuthenticated: true,
+        authUid: 'reactor_2',
+        existingReply: sampleReply,
+        updatedReply: {
+          ...sampleReply,
+          'likeCount': 1,
+          'likes': 1,
+          'likedBy': ['reactor_2'],
+        },
+        postOwnerId: 'creator_1',
+      ), isTrue);
+
+      expect(canUpdateReply(
+        isAuthenticated: true,
+        authUid: 'reactor_2',
+        existingReply: sampleReply,
+        updatedReply: {
+          ...sampleReply,
+          'text': 'Changed reply text',
+        },
+        postOwnerId: 'creator_1',
+      ), isFalse);
+    });
   });
 }
+

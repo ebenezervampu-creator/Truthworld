@@ -91,17 +91,17 @@ class AdvertiserDashboardTabView extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF1E1B4B), Color(0xFF311042)],
+          colors: [AppColors.bgSurface, AppColors.bgSurfaceHigh],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: const Color(0xFF27272A),
+          color: AppColors.bgSurface,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF1E1B4B).withValues(alpha: 0.4),
+            color: Colors.black.withValues(alpha: 0.4),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -270,10 +270,10 @@ class AdvertiserDashboardTabView extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected
               ? AppColors.brand.withValues(alpha: 0.12)
-              : const Color(0xFF161618),
+              : AppColors.appBarSurface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? AppColors.brand : const Color(0xFF27272A),
+            color: isSelected ? AppColors.brand : AppColors.bgSurface,
             width: isSelected ? 1.5 : 1.0,
           ),
         ),
@@ -322,15 +322,15 @@ class AdvertiserDashboardTabView extends StatelessWidget {
       var metricColor = AppColors.brand;
       if (controller.selectedMetric.value == 'impressions') {
         metricTitle = 'Impressions Trend';
-        metricColor = const Color(0xFF38BDF8);
+        metricColor = AppColors.textLink;
       }
       if (controller.selectedMetric.value == 'clicks') {
         metricTitle = 'Clicks Trend';
-        metricColor = const Color(0xFFF59E0B);
+        metricColor = AppColors.warning;
       }
       if (controller.selectedMetric.value == 'ctr') {
         metricTitle = 'Click-Through Rate (CTR) Trend';
-        metricColor = const Color(0xFFEC4899);
+        metricColor = AppColors.success;
       }
 
       final myCampaigns = AdService.to.customCampaigns
@@ -374,9 +374,9 @@ class AdvertiserDashboardTabView extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: const Color(0xFF161618),
+          color: AppColors.appBarSurface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF27272A)),
+          border: Border.all(color: AppColors.bgSurface),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -406,7 +406,7 @@ class AdvertiserDashboardTabView extends StatelessWidget {
                 primaryYAxis: const NumericAxis(
                   axisLine: AxisLine(width: 0),
                   majorTickLines: MajorTickLines(size: 0),
-                  majorGridLines: MajorGridLines(color: Color(0xFF27272A)),
+                  majorGridLines: MajorGridLines(color: AppColors.bgSurface),
                   labelStyle: TextStyle(
                     fontFamily: TWTypography.uiFamily,
                     color: AppColors.textSecondary,
@@ -471,9 +471,9 @@ class AdvertiserDashboardTabView extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 40),
       decoration: BoxDecoration(
-        color: const Color(0xFF161618),
+        color: AppColors.appBarSurface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgSurface),
       ),
       child: const Column(
         children: [

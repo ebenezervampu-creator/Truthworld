@@ -8,6 +8,7 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/source_url_sanitizer.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/data/services/credibility_governance_service.dart';
 
 /// Controller managing evidence source submission for fact-checking claims.
 class ClaimSourceSubmissionController extends BaseController
@@ -138,6 +139,12 @@ class ClaimSourceSubmissionController extends BaseController
 
     try {
       final user = Get.isRegistered<AuthService>() ? AuthService.to.user : null;
+      if (user == null) {
+        AppSnackbar.warning('Please sign in to submit supporting evidence.');
+        isSubmitting.value = false;
+        return;
+      }
+
       final firestore = FirebaseFirestore.instance;
 
       final sourceData = <String, dynamic>{
@@ -146,14 +153,26 @@ class ClaimSourceSubmissionController extends BaseController
         'url': normalizedUrl,
         'title': titleController.text.trim(),
         'note': noteController.text.trim(),
-        'submittedBy': user?.uid,
-        'submittedByEmail': user?.email,
-        'submittedByName': user?.displayName ?? 'Anonymous User',
+        'submittedBy': user.uid,
+        'submittedByEmail': user.email,
+        'submittedByName': user.displayName ?? 'Anonymous User',
         'submittedAt': FieldValue.serverTimestamp(),
         'status': 'pending_review',
       };
 
       await firestore.collection('claim_sources').add(sourceData);
+
+      // Submit to authoritative credibility governance engine for cross-perspective re-evaluation
+      final reasonText = note.isNotEmpty
+          ? note
+          : (title.isNotEmpty
+              ? title
+              : 'Community supporting source: $normalizedUrl');
+      await CredibilityGovernanceService.submitFactualDispute(
+        videoId: video.id,
+        reason: reasonText,
+        additionalSources: [normalizedUrl],
+      );
 
       if (context.mounted) {
         Navigator.of(context).pop();
@@ -207,29 +226,15 @@ class ClaimSourceSubmissionController extends BaseController
       final claimText = selectedTarget.value;
       final originalVerdict = (initialClaim?['verdict'] ?? initialClaim?['status'] ?? 'disputed').toString();
 
-      final appealData = <String, dynamic>{
-        'videoId': video.id,
-        'claimId': claimId,
-        'appellantId': user.uid,
-        'channelId': video.channelId,
-        'claimText': claimText,
-        'originalVerdict': originalVerdict,
-        'creatorRationale': note,
-        'evidenceUrls': normalizedUrl != null ? [normalizedUrl] : <String>[],
-        'status': 'submitted',
-        'submittedAt': FieldValue.serverTimestamp(),
-      };
-
-      final appealDoc = await FirebaseFirestore.instance.collection('claim_appeals').add(appealData);
-
-      // Update video document state to under_appeal
-      await FirebaseFirestore.instance.collection('videos').doc(video.id).update({
-        'credibility.isAppealed': true,
-        'credibility.appealStatus': 'pending',
-        'factCheckDispute.activeAppealId': appealDoc.id,
-        'factCheckDispute.status': 'under_appeal',
-        'factCheckDispute.lastAppealedAt': FieldValue.serverTimestamp(),
-      });
+      final evidenceUrls = normalizedUrl != null ? [normalizedUrl] : <String>[];
+      await CredibilityGovernanceService.submitClaimAppeal(
+        videoId: video.id,
+        claimId: claimId,
+        claimText: claimText,
+        originalVerdict: originalVerdict,
+        creatorRationale: note,
+        evidenceUrls: evidenceUrls,
+      );
 
       if (context.mounted) {
         Navigator.of(context).pop();

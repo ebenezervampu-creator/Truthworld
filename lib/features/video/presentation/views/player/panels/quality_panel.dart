@@ -54,24 +54,14 @@ class QualityPanel extends StatelessWidget {
       var avail = <VideoResolutionV2>[];
       var none = false;
       try {
-        if (Get.isRegistered<VideoController>(tag: ctrl.tag)) {
-          final vc = Get.find<VideoController>(tag: ctrl.tag);
-          avail = vc.availableResolutions;
-          if (avail.isNotEmpty) {
-            final baseMediaUrl = vc.video.videoUrl.isNotEmpty
-                ? vc.video.videoUrl
-                : vc.video.originalUrl;
-            final complete = VideoResolutionV2.ensureCompleteLadder(
-              avail,
-              fallbackUrl: baseMediaUrl,
-            );
-            if (complete.length != avail.length) {
-              vc.availableResolutions.assignAll(complete);
-            }
-            avail = vc.availableResolutions;
+        final vc = ctrl.videoController;
+        if (vc != null) {
+          if (vc.availableResolutions.isEmpty) {
+            vc.fetchAvailableResolutions();
           }
-          none = avail.isEmpty;
+          avail = vc.availableResolutions.toList();
         }
+        none = avail.isEmpty;
       } catch (e, s) {
         ErrorHandler.log(
           e,
@@ -93,7 +83,11 @@ class QualityPanel extends StatelessWidget {
               padding: EdgeInsets.all(24),
               child: Column(
                 children: [
-                  Icon(Icons.videocam_off_rounded, size: 48, color: AppColors.textPrimary),
+                  Icon(
+                    Icons.videocam_off_rounded,
+                    size: 48,
+                    color: AppColors.textPrimary,
+                  ),
                   SizedBox(height: 16),
                   Text('Video Not Available', style: TS.title),
                   SizedBox(height: 8),
@@ -182,13 +176,37 @@ class QualityPanel extends StatelessWidget {
       final isPremium = _isPremiumUser();
 
       // Build list from only the resolutions actually available for this video.
-      // Map each available resolution to its corresponding ABR ladder index
-      // so selectQuality(idx) works correctly.
+      // Strictly exclude synthetic or unverified tiers above the authentic ceiling.
       final ladder = ctrl.abr.resolutionLadder;
 
-      // Collect available entries paired with their ABR ladder index.
-      // We sort descending by height then fps to match download page order.
-      final availSorted = [...avail]
+      // Filter out synthetic items
+      var realResolutions = avail.where((r) => !r.isSynthetic).toList();
+      if (realResolutions.isEmpty && avail.isNotEmpty) {
+        realResolutions = avail.toList();
+      }
+
+      // Check player's initialized native decoded height
+      final decodedHeight = ctrl.videoPlayerController.value.isInitialized
+          ? ctrl.videoPlayerController.value.size.height.toInt()
+          : 0;
+
+      // Real highest resolution among authentic available variants
+      final maxAvailableHeight = realResolutions
+          .map((r) => r.height)
+          .fold(0, (a, b) => a > b ? a : b);
+
+      final effectiveCeiling = maxAvailableHeight > 0
+          ? maxAvailableHeight
+          : (decodedHeight > 0 ? decodedHeight : 0);
+
+      if (effectiveCeiling > 0) {
+        realResolutions = realResolutions
+            .where((r) => r.height <= effectiveCeiling)
+            .toList();
+      }
+
+      // Sort descending by height then fps to match download page order
+      final availSorted = [...realResolutions]
         ..sort((a, b) {
           final cmp = b.height.compareTo(a.height);
           if (cmp != 0) return cmp;
@@ -214,11 +232,13 @@ class QualityPanel extends StatelessWidget {
                   SelectTile(
                     label: 'Auto',
                     sublabel: 'Adapts to network speed',
-                    selected: ctrl.abr.isAutoMode.value && !ctrl.isAudioOnly.value,
-                    badge: (ctrl.abr.isAutoMode.value && !ctrl.isAudioOnly.value)
+                    selected:
+                        ctrl.abr.isAutoMode.value && !ctrl.isAudioOnly.value,
+                    badge:
+                        (ctrl.abr.isAutoMode.value && !ctrl.isAudioOnly.value)
                         ? (ctrl.abr.currentTier.height > 0
-                            ? ctrl.abr.currentTier.label
-                            : 'Auto')
+                              ? ctrl.abr.currentTier.label
+                              : 'Auto')
                         : null,
                     onTap: ctrl.selectAutoQuality,
                   ),
@@ -228,18 +248,22 @@ class QualityPanel extends StatelessWidget {
                     final isPremiumRes = res.height > 1040;
 
                     // Friendly badge matching download page style (Full HD, HD, SD…)
-                    final badgeText = DownloadResolutionManager.getResolutionBadge(
-                      res.label,
-                      res.height,
-                      fps: res.fps,
-                    );
+                    final badgeText =
+                        DownloadResolutionManager.getResolutionBadge(
+                          res.label,
+                          res.height,
+                          fps: res.fps,
+                        );
 
                     // Find matching index in ABR ladder for selectQuality()
                     int ladderIdx = ladder.indexWhere(
                       (t) =>
                           t.height == res.height &&
                           (t.fps == res.fps ||
-                              ladder.where((x) => x.height == res.height).length == 1),
+                              ladder
+                                      .where((x) => x.height == res.height)
+                                      .length ==
+                                  1),
                     );
                     // Fallback: match by label
                     if (ladderIdx < 0) {
@@ -249,10 +273,13 @@ class QualityPanel extends StatelessWidget {
                     }
                     // Fallback: match by height only
                     if (ladderIdx < 0) {
-                      ladderIdx = ladder.indexWhere((t) => t.height == res.height);
+                      ladderIdx = ladder.indexWhere(
+                        (t) => t.height == res.height,
+                      );
                     }
 
-                    final isSelected = !ctrl.isAudioOnly.value &&
+                    final isSelected =
+                        !ctrl.isAudioOnly.value &&
                         !ctrl.abr.isAutoMode.value &&
                         (ctrl.abr.currentTier.label == res.label ||
                             (ctrl.abr.currentTier.height == res.height &&
@@ -275,6 +302,12 @@ class QualityPanel extends StatelessWidget {
                           _showPremiumDialog(context);
                         } else if (ladderIdx >= 0) {
                           ctrl.selectQuality(ladderIdx);
+                        } else {
+                          final vc = ctrl.videoController;
+                          if (vc != null) {
+                            vc.setResolution(res);
+                            ctrl.activePanel.value = '';
+                          }
                         }
                       },
                     );

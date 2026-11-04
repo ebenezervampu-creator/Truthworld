@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/multi_audio_player_controller.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_colors.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -12,6 +13,7 @@ import 'package:truthworld/theme/app_theme.dart';
 /// ```dart
 /// VideoPlayerWithAudioTracks(
 ///   videoUrl: video.videoUrl,
+///   video: video,
 ///   tracks: [
 ///     AudioTrackOption(code: 'en', label: 'English', isEmbedded: true),
 ///     AudioTrackOption(code: 'hi', label: 'Hindi', audioUrl: video.audioTracks['hi']),
@@ -24,12 +26,14 @@ class VideoPlayerWithAudioTracks extends StatefulWidget {
     required this.videoUrl,
     required this.tracks,
     super.key,
+    this.video,
     this.preferredTrackCode,
     this.autoPlay = true,
     this.aspectRatio = 16 / 9,
   });
   final String videoUrl;
   final List<AudioTrackOption> tracks;
+  final Video? video;
   final String? preferredTrackCode;
   final bool autoPlay;
   final double aspectRatio;
@@ -56,6 +60,7 @@ class _VideoPlayerWithAudioTracksState
       widget.videoUrl,
       tracks: widget.tracks,
       preferredTrackCode: widget.preferredTrackCode,
+      video: widget.video,
     );
   }
 
@@ -134,7 +139,7 @@ class _VideoPlayerWithAudioTracksState
         return AspectRatio(
           aspectRatio: widget.aspectRatio,
           child: const ColoredBox(
-            color: Color(0xFF1E1E1E),
+            color: AppColors.bgSurface,
             child: Center(
               child: SizedBox(
                 width: 28,
@@ -560,7 +565,7 @@ class _AudioTrackSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final bg = isDark ? AppColors.bgSurface : Colors.white;
     final textColor = isDark ? AppColors.textPrimary : Colors.black87;
 
     return Container(
@@ -777,7 +782,7 @@ class _SpeedSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final bg = isDark ? AppColors.bgSurface : Colors.white;
     final textColor = isDark ? AppColors.textPrimary : Colors.black87;
 
     return Container(

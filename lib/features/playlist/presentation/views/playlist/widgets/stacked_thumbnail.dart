@@ -1,6 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Layered stacked thumbnail representation for playlists and podcasts.
@@ -128,7 +127,7 @@ class StackedThumbnail extends StatelessWidget {
                             const SizedBox(width: 4),
                             Text(
                               "$videoCount ${isPodcast ? 'episodes' : 'videos'}",
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,

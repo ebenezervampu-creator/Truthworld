@@ -16,6 +16,7 @@ export const RATE_CARDS = {
   assemblyai: { perMinute: 0.00383 }, // Universal-3.5 Pro ($0.21/hr) + Speaker Diarization ($0.02/hr) = $0.23/hr ($0.00383/min)
   "google-translate-v3": { perCharacter: 0.000020 },
   elevenlabs: { perCharacter: 0.000200 }, // ElevenLabs Creator/Pro tier ($0.20 / 1K chars)
+  "elevenlabs-turbo": { perCharacter: 0.000040 }, // ElevenLabs v4 Turbo ($0.04 / 1K chars = $40 / 1M)
   "google-tts-chirp3-hd": { perCharacter: 0.000030 },
   "google-tts-neural2": { perCharacter: 0.000016 },
   "google-tts-standard": { perCharacter: 0.000004 },
@@ -620,7 +621,7 @@ export class CostEngine {
     jobId: string,
     userId: string,
     chars: number,
-    provider: "elevenlabs" | "google-tts-chirp3-hd" | "google-tts-neural2" | "google-tts-standard" = "google-tts-chirp3-hd"
+    provider: "elevenlabs" | "elevenlabs-turbo" | "google-tts-chirp3-hd" | "google-tts-neural2" | "google-tts-standard" = "google-tts-chirp3-hd"
   ): Promise<void> {
     const rateCard = (RATE_CARDS as any)[provider] ?? RATE_CARDS["google-tts-neural2"];
     const cost = chars * rateCard.perCharacter;

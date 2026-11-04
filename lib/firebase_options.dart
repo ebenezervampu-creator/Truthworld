@@ -19,14 +19,14 @@ class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform => forFlavor(AppFlavor.active);
 
   /// Canonical Truthworld authentication domain for OAuth redirects and popups.
-  /// Uses verified truthworld-1.firebaseapp.com to ensure cross-origin compatibility
-  /// and reliable OAuth handler routing across localhost and production domains.
-  static const String defaultAuthDomain = 'truthworld-1.firebaseapp.com';
+  /// Uses custom domain www.truthworld.in to ensure Truthworld branding
+  /// and avoid third-party firebaseapp.com auth handlers.
+  static const String defaultAuthDomain = 'www.truthworld.in';
 
   /// Resolves the active Truthworld auth domain dynamically on Web.
-  /// Uses canonical 'truthworld-1.firebaseapp.com' to guarantee verified OAuth handler
-  /// availability and cross-origin compatibility across localhost and custom domains.
-  static String get resolvedWebAuthDomain => resolveWebAuthDomain();
+  /// Uses canonical 'www.truthworld.in' (or current Truthworld domain)
+  /// to ensure verified Truthworld auth handlers are used.
+  static const String resolvedWebAuthDomain = defaultAuthDomain;
 
   /// Resolves authDomain for a specific host (or Uri.base.host on Web).
   static String resolveWebAuthDomain([String? hostOverride]) {
@@ -96,6 +96,7 @@ class DefaultFirebaseOptions {
     appId: '1:768266102263:android:0d33a0242f2106ac143af2', // com.truthworld.app
     messagingSenderId: '768266102263',
     projectId: 'truthworld-1',
+    authDomain: defaultAuthDomain,
     databaseURL: 'https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'truthworld-1.firebasestorage.app',
   );
@@ -105,6 +106,7 @@ class DefaultFirebaseOptions {
     appId: '1:768266102263:android:c076a1455520f5cd143af2', // com.truthworld.studio
     messagingSenderId: '768266102263',
     projectId: 'truthworld-1',
+    authDomain: defaultAuthDomain,
     databaseURL: 'https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'truthworld-1.firebasestorage.app',
   );
@@ -114,6 +116,7 @@ class DefaultFirebaseOptions {
     appId: '1:768266102263:android:e9895203ef172ec6143af2', // com.truthworld.admin
     messagingSenderId: '768266102263',
     projectId: 'truthworld-1',
+    authDomain: defaultAuthDomain,
     databaseURL: 'https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'truthworld-1.firebasestorage.app',
   );
@@ -123,6 +126,7 @@ class DefaultFirebaseOptions {
     appId: '1:768266102263:android:965d98e244225dc4143af2', // com.truthworld.advertiser
     messagingSenderId: '768266102263',
     projectId: 'truthworld-1',
+    authDomain: defaultAuthDomain,
     databaseURL: 'https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'truthworld-1.firebasestorage.app',
   );
@@ -132,6 +136,7 @@ class DefaultFirebaseOptions {
     appId: '1:768266102263:ios:f5b76b12ba9d4024143af2',
     messagingSenderId: '768266102263',
     projectId: 'truthworld-1',
+    authDomain: defaultAuthDomain,
     databaseURL: 'https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'truthworld-1.firebasestorage.app',
     iosBundleId: 'com.truthworld.app',
@@ -142,6 +147,7 @@ class DefaultFirebaseOptions {
     appId: '1:768266102263:ios:f5b76b12ba9d4024143af2',
     messagingSenderId: '768266102263',
     projectId: 'truthworld-1',
+    authDomain: defaultAuthDomain,
     databaseURL: 'https://truthworld-1-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'truthworld-1.firebasestorage.app',
     iosBundleId: 'com.truthworld.app',

@@ -1,4 +1,10 @@
+export 'package:truthworld/features/video/presentation/views/ask_ai_screen.dart';
+export 'ai_chat/ai_credibility_chat_sheet.dart';
 export 'claim_sources_bottom_sheet.dart';
+export 'comments/add_claim_comment_sheet.dart';
+export 'comments/claim_comment_tile.dart';
+export 'comments/claim_community_notes_section.dart';
+export 'comments/video_community_notes_tab.dart';
 export 'verification_summary_card.dart';
 export 'video_analysis_chapters_section.dart';
 export 'video_analysis_claim_card.dart';

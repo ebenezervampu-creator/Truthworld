@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Section 1: Video Title input with live character counter and validation
+/// Section 3: Video Title input with live character counter and validation
 class CreateContentTitleSection extends StatelessWidget {
   const CreateContentTitleSection({
     required this.titleController,
@@ -24,7 +24,7 @@ class CreateContentTitleSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '1. Video Title',
+            '3. Video Title',
             style: context.themeTypography.title.copyWith(
               fontWeight: FontWeight.bold,
               fontSize: 15,
@@ -144,7 +144,7 @@ class CreateContentTitleSection extends StatelessWidget {
   }
 }
 
-/// Section 2: Video Description input with character counter and validation
+/// Section 4: Video Description input with character counter and validation
 class CreateContentDescriptionSection extends StatelessWidget {
   const CreateContentDescriptionSection({
     required this.descriptionController,
@@ -166,7 +166,7 @@ class CreateContentDescriptionSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '2. Description',
+            '4. Description',
             style: context.themeTypography.title.copyWith(
               fontWeight: FontWeight.bold,
               fontSize: 15,
@@ -290,7 +290,7 @@ class CreateContentDescriptionSection extends StatelessWidget {
   }
 }
 
-/// Section 3: Video Tags input with comma-separation and validation
+/// Section 5: Video Tags input with comma-separation and validation
 class CreateContentTagsSection extends StatelessWidget {
   const CreateContentTagsSection({
     required this.tagsController,
@@ -312,7 +312,7 @@ class CreateContentTagsSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '3. Tags',
+            '5. Tags',
             style: context.themeTypography.title.copyWith(
               fontWeight: FontWeight.bold,
               fontSize: 15,

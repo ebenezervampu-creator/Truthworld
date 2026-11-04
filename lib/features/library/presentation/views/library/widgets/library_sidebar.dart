@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/navigation/app_navigator.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
@@ -178,7 +179,7 @@ class LibrarySidebar extends StatelessWidget {
         _buildSidebarAction(
           icon: Icons.settings_rounded,
           title: 'Settings',
-          onTap: () => Get.toNamed('/settings'),
+          onTap: AppNavigator.toSettings,
         ),
       ],
     );

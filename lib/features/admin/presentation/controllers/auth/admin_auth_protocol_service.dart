@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -70,6 +71,138 @@ class AdminAuthProtocolService {
     });
   }
 
+  /// Step 1 of the 2-step Admin Portal login flow.
+  /// Validates whether the provided username or email belongs to an active administrator.
+  static Future<bool> verifyAdminUsername({
+    required TextEditingController usernameController,
+    required RxString loginUsername,
+    required RxInt loginStep,
+    required Rxn<Map<String, dynamic>> verifiedAdminUser,
+    required RxBool isVerifyingUsername,
+    required TextEditingController emailController,
+    required RxString loginEmail,
+    String? usernameInput,
+  }) async {
+    final rawInput = (usernameInput != null && usernameInput.trim().isNotEmpty)
+        ? usernameInput
+        : (usernameController.text.trim().isNotEmpty
+            ? usernameController.text
+            : loginUsername.value);
+    final input = rawInput.trim().toLowerCase();
+
+    if (input.isEmpty) {
+      AppSnackbar.warning(
+        'Please enter your administrator username.',
+        title: 'Username Required',
+      );
+      return false;
+    }
+
+    isVerifyingUsername.value = true;
+    try {
+      // 1. Fast check for bootstrap accounts
+      if (input == 'hello1' || input == 'hello@truthworld.in') {
+        final userData = {
+          'email': 'hello@truthworld.in',
+          'username': 'hello1',
+          'displayName': 'TruthWorld Director',
+          'role': 'Owner / Super Admin',
+          'status': 'active',
+        };
+        verifiedAdminUser.value = userData;
+        emailController.text = 'hello@truthworld.in';
+        loginEmail.value = 'hello@truthworld.in';
+        loginStep.value = 2;
+        return true;
+      }
+
+      if (input == 'ebenezer' || input == 'ebenezervampu4@gmail.com') {
+        final userData = {
+          'email': 'ebenezervampu4@gmail.com',
+          'username': 'ebenezer',
+          'displayName': 'Ebenezer Vampu',
+          'role': 'Owner / Super Admin',
+          'status': 'active',
+        };
+        verifiedAdminUser.value = userData;
+        emailController.text = 'ebenezervampu4@gmail.com';
+        loginEmail.value = 'ebenezervampu4@gmail.com';
+        loginStep.value = 2;
+        return true;
+      }
+
+      // 2. Call Cloud Function to verify username securely
+      try {
+        final callable = FirebaseFunctions.instanceFor(region: 'asia-south1')
+            .httpsCallable('verifyAdminUsername');
+        final res = await callable.call<Map<String, dynamic>>({
+          'username': input,
+        });
+        final data = Map<String, dynamic>.from(res.data);
+        if (data['valid'] == true) {
+          verifiedAdminUser.value = data;
+          final resolvedEmail = (data['email'] ?? '').toString();
+          emailController.text = resolvedEmail;
+          loginEmail.value = resolvedEmail;
+          loginStep.value = 2;
+          return true;
+        } else {
+          final msg = data['message']?.toString() ??
+              'Administrator username not found or inactive.';
+          AppSnackbar.error(msg, title: 'Access Restricted');
+          return false;
+        }
+      } catch (funcErr, s) {
+        ErrorHandler.log(
+          funcErr,
+          stackTrace: s,
+          tag: 'AdminAuthProtocolService.verifyAdminUsername.callable',
+        );
+
+        // Fallback: If network issue or offline, query Firestore if already authenticated or check direct document
+        try {
+          final doc = await FirebaseFirestore.instance
+              .collection('admin_members')
+              .doc(input)
+              .get();
+          if (doc.exists && doc.data() != null) {
+            final data = doc.data()!;
+            if (data['status'] == 'suspended') {
+              AppSnackbar.error(
+                'This administrator account has been suspended by the team.',
+                title: 'Access Restricted',
+              );
+              return false;
+            }
+            final resolvedEmail = (data['email'] ?? input).toString();
+            final userData = {
+              'email': resolvedEmail,
+              'username': (data['username'] ?? input).toString(),
+              'displayName': (data['name'] ?? data['username'] ?? 'Administrator').toString(),
+              'role': (data['role'] ?? 'Admin').toString(),
+              'status': 'active',
+            };
+            verifiedAdminUser.value = userData;
+            emailController.text = resolvedEmail;
+            loginEmail.value = resolvedEmail;
+            loginStep.value = 2;
+            return true;
+          }
+        } catch (fsErr) {
+          ErrorHandler.log(fsErr, tag: 'AdminAuthProtocolService.verifyAdminUsername.fallback');
+        }
+
+        AppSnackbar.error(
+          'Administrator username not found. Please verify your credentials.',
+          title: 'Sign In Notice',
+        );
+        return false;
+      }
+    } finally {
+      isVerifyingUsername.value = false;
+    }
+  }
+
   /// Authenticates using the TruthWorld Admin Security Protocol
   static Future<void> signInWithAdminProtocol({
     required TextEditingController emailController,
@@ -126,21 +259,35 @@ class AdminAuthProtocolService {
           user = cred.user;
         } on FirebaseAuthException catch (authErr) {
           if ((authErr.code == 'user-not-found' ||
-                  authErr.code == 'invalid-credential') &&
+                  authErr.code == 'invalid-credential' ||
+                  authErr.code == 'wrong-password') &&
               isOwner) {
             try {
-              final cred =
-                  await FirebaseAuth.instance.createUserWithEmailAndPassword(
+              // Trigger backend bootstrap sync to ensure Auth user & password
+              final callable = FirebaseFunctions.instanceFor(region: 'asia-south1')
+                  .httpsCallable('verifyAdminUsername');
+              await callable.call<Map<String, dynamic>>({'username': email});
+
+              final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
                 email: email,
                 password: password,
               );
               user = cred.user;
-            } catch (createErr, s) {
-              ErrorHandler.log(
-                createErr,
-                stackTrace: s,
-                tag: 'AdminAuthProtocolService.ownerAutoRegistration',
-              );
+            } catch (retryErr) {
+              try {
+                final cred =
+                    await FirebaseAuth.instance.createUserWithEmailAndPassword(
+                  email: email,
+                  password: password,
+                );
+                user = cred.user;
+              } catch (createErr, s) {
+                ErrorHandler.log(
+                  createErr,
+                  stackTrace: s,
+                  tag: 'AdminAuthProtocolService.ownerAutoRegistration',
+                );
+              }
             }
           }
 
@@ -267,22 +414,6 @@ class AdminAuthProtocolService {
         );
       }
 
-      // Update last login in Firestore asynchronously
-      unawaited(
-        FirebaseFirestore.instance
-            .collection('admin_members')
-            .doc(email)
-            .set({
-          'lastLoginAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true)).catchError(
-          (e, s) => ErrorHandler.log(
-            e,
-            stackTrace: s,
-            tag: 'AdminAuthProtocolService.updateLastLogin',
-          ),
-        ),
-      );
-
       unawaited(
         FirebaseFirestore.instance
             .collection('users')
@@ -290,6 +421,7 @@ class AdminAuthProtocolService {
             .set({
           'role': 'admin',
           'isAdmin': true,
+          'lastLoginAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true)).catchError(
           (e, s) => ErrorHandler.log(
@@ -397,11 +529,11 @@ class AdminAuthProtocolService {
             );
           }
 
-          // Update last login in Firestore asynchronously
+          // Update last login in user profile asynchronously
           unawaited(
             FirebaseFirestore.instance
-                .collection('admin_members')
-                .doc(email)
+                .collection('users')
+                .doc(user.uid)
                 .set({
               'lastLoginAt': FieldValue.serverTimestamp(),
             }, SetOptions(merge: true)).catchError(

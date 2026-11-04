@@ -4,7 +4,7 @@ import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/playlists_management_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Single choice chip for filtering playlists by visibility.
+/// YouTube-style pill filter chip with high contrast and zero white-on-white violations.
 class PlaylistFilterChip extends StatelessWidget {
   const PlaylistFilterChip({
     required this.label,
@@ -21,52 +21,64 @@ class PlaylistFilterChip extends StatelessWidget {
 
     return Obx(() {
       final isSelected = controller.activeFilterMode.value == mode;
-      return ChoiceChip(
-        label: Text(label),
-        selected: isSelected,
-        onSelected: (_) => controller.setFilterMode(mode),
-        labelStyle: TextStyle(
-          fontSize: 12,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-          color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
-          fontFamily: TWTypography.uiFamily,
+
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => controller.setFilterMode(mode),
+          borderRadius: BorderRadius.circular(20),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            decoration: BoxDecoration(
+              color: isSelected ? Colors.white : AppColors.bgSurface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isSelected
+                    ? Colors.white
+                    : Colors.white.withValues(alpha: 0.1),
+                width: 1,
+              ),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                // On white background: text MUST be black (Zero White-on-White Policy)
+                color: isSelected ? Colors.black : AppColors.textPrimary,
+                fontFamily: TWTypography.uiFamily,
+              ),
+            ),
+          ),
         ),
-        backgroundColor: AppColors.bgPage,
-        selectedColor: AppColors.bgSurfaceHover,
-        side: BorderSide(
-          color: isSelected ? AppColors.textSecondary : AppColors.bgDivider,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        showCheckmark: false,
       );
     });
   }
 }
 
-/// Search & filter controls bar for Playlists Management tab.
+/// YouTube Studio-inspired search & filter toolbar.
 class PlaylistsSearchFilterBar extends GetView<PlaylistsManagementController> {
   const PlaylistsSearchFilterBar({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.bgDivider),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 700;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktop = constraints.maxWidth >= 850;
 
-          final searchField = TextField(
+        // YouTube-style Pill Search Input Field
+        final searchField = SizedBox(
+          height: 40,
+          child: TextField(
             controller: controller.searchController,
             maxLength: ContentValidator.defaultMaxSearchLength,
-            buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+            buildCounter: (
+              context, {
+              required currentLength,
+              required isFocused,
+              maxLength,
+            }) => null,
             inputFormatters: TruthworldTextInputFormatters.withLimit(
               ContentValidator.defaultMaxSearchLength,
             ),
@@ -77,7 +89,7 @@ class PlaylistsSearchFilterBar extends GetView<PlaylistsManagementController> {
               fontFamily: TWTypography.uiFamily,
             ),
             decoration: InputDecoration(
-              hintText: 'Search playlists by name or description...',
+              hintText: 'Search playlists by title or description...',
               hintStyle: const TextStyle(
                 color: AppColors.textTertiary,
                 fontSize: 13,
@@ -85,8 +97,8 @@ class PlaylistsSearchFilterBar extends GetView<PlaylistsManagementController> {
               ),
               prefixIcon: const Icon(
                 Icons.search_rounded,
-                color: AppColors.textPrimary,
-                size: 18,
+                color: AppColors.textSecondary,
+                size: 19,
               ),
               suffixIcon: Obx(() {
                 if (controller.searchQuery.value.isEmpty) {
@@ -94,10 +106,11 @@ class PlaylistsSearchFilterBar extends GetView<PlaylistsManagementController> {
                 }
                 return IconButton(
                   icon: const Icon(
-                    Icons.clear_rounded,
-                    color: AppColors.textPrimary,
+                    Icons.close_rounded,
+                    color: AppColors.textSecondary,
                     size: 16,
                   ),
+                  tooltip: 'Clear search',
                   onPressed: () {
                     controller.searchController.clear();
                     controller.updateSearchQuery('');
@@ -105,132 +118,225 @@ class PlaylistsSearchFilterBar extends GetView<PlaylistsManagementController> {
                 );
               }),
               filled: true,
-              fillColor: AppColors.bgPage,
+              fillColor: AppColors.bgSurface,
               isDense: true,
               contentPadding: const EdgeInsets.symmetric(
-                horizontal: 14,
+                horizontal: 16,
                 vertical: 10,
               ),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: AppColors.bgDivider),
+                borderRadius: BorderRadius.circular(20),
+                borderSide: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.1),
+                ),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: AppColors.bgDivider),
+                borderRadius: BorderRadius.circular(20),
+                borderSide: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.1),
+                ),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: AppColors.textSecondary),
+                borderRadius: BorderRadius.circular(20),
+                borderSide: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.4),
+                  width: 1.2,
+                ),
+              ),
+            ),
+          ),
+        );
+
+        // Sort Pill Button (YouTube Studio Style)
+        final sortButton = Obx(() {
+          final sortMode = controller.activeSortMode.value;
+          var sortLabel = 'Recently Updated';
+          if (sortMode == 'videos_desc') sortLabel = 'Most Videos';
+          if (sortMode == 'title_asc') sortLabel = 'Title (A-Z)';
+          if (sortMode == 'oldest') sortLabel = 'Oldest First';
+
+          return PopupMenuButton<String>(
+            tooltip: 'Sort playlists',
+            color: AppColors.bgSurface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(
+                color: Colors.white.withValues(alpha: 0.1),
+              ),
+            ),
+            onSelected: controller.setSortMode,
+            itemBuilder: (context) => [
+              _buildSortItem('recent', 'Recently Updated', sortMode),
+              _buildSortItem('videos_desc', 'Most Videos', sortMode),
+              _buildSortItem('title_asc', 'Title (A-Z)', sortMode),
+              _buildSortItem('oldest', 'Oldest First', sortMode),
+            ],
+            child: Container(
+              height: 36,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: AppColors.bgSurface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.1),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.sort_rounded,
+                    color: AppColors.textSecondary,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    sortLabel,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                      fontFamily: TWTypography.uiFamily,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.arrow_drop_down_rounded,
+                    color: AppColors.textSecondary,
+                    size: 18,
+                  ),
+                ],
               ),
             ),
           );
+        });
 
-          final filterControls = Obx(() {
-            return Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                // Filter Chips
-                const PlaylistFilterChip(label: 'All', mode: 'all'),
-                const PlaylistFilterChip(label: 'Public', mode: 'public'),
-                const PlaylistFilterChip(label: 'Unlisted', mode: 'unlisted'),
-                const PlaylistFilterChip(label: 'Private', mode: 'private'),
-
-                // Sort Dropdown
-                Container(
-                  height: 34,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.bgPage,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.bgDivider),
+        // View Mode Toggle (Grid / List)
+        final viewToggle = Obx(() {
+          final isGrid = controller.isGridView.value;
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: controller.toggleViewMode,
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                height: 36,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.bgSurface,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.1),
                   ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: controller.activeSortMode.value,
-                      dropdownColor: const Color(0xFF1E1E1E),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isGrid
+                          ? Icons.view_list_rounded
+                          : Icons.grid_view_rounded,
+                      color: AppColors.textPrimary,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isGrid ? 'List' : 'Grid',
                       style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                         fontFamily: TWTypography.uiFamily,
                       ),
-                      icon: const Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        color: AppColors.textPrimary,
-                        size: 16,
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'recent',
-                          child: Text('Recently Updated'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'videos_desc',
-                          child: Text('Most Videos'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'title_asc',
-                          child: Text('Title (A-Z)'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'oldest',
-                          child: Text('Oldest First'),
-                        ),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) controller.setSortMode(val);
-                      },
                     ),
-                  ),
+                  ],
                 ),
+              ),
+            ),
+          );
+        });
 
-                // View Toggle (Grid / List)
-                IconButton(
-                  tooltip: controller.isGridView.value
-                      ? 'Switch to List View'
-                      : 'Switch to Grid View',
-                  icon: Icon(
-                    controller.isGridView.value
-                        ? Icons.view_list_rounded
-                        : Icons.grid_view_rounded,
-                    color: AppColors.textPrimary,
-                    size: 20,
-                  ),
-                  onPressed: controller.toggleViewMode,
-                  style: IconButton.styleFrom(
-                    backgroundColor: AppColors.bgPage,
-                    side: const BorderSide(color: AppColors.bgDivider),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          });
+        // YouTube Filter Chips Row
+        final filterChips = SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const PlaylistFilterChip(label: 'All', mode: 'all'),
+              const SizedBox(width: 8),
+              const PlaylistFilterChip(label: 'Public', mode: 'public'),
+              const SizedBox(width: 8),
+              const PlaylistFilterChip(label: 'Unlisted', mode: 'unlisted'),
+              const SizedBox(width: 8),
+              const PlaylistFilterChip(label: 'Private', mode: 'private'),
+              const SizedBox(width: 12),
+              sortButton,
+              const SizedBox(width: 8),
+              viewToggle,
+            ],
+          ),
+        );
 
-          if (isCompact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                searchField,
-                const SizedBox(height: 12),
-                filterControls,
-              ],
-            );
-          }
-
+        if (isDesktop) {
           return Row(
             children: [
-              Expanded(child: searchField),
-              const SizedBox(width: 14),
-              filterControls,
+              Expanded(
+                flex: 2,
+                child: searchField,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                flex: 3,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: filterChips,
+                ),
+              ),
             ],
           );
-        },
+        }
+
+        // Responsive Mobile / Tablet Layout (Vertical Stack with Horizontal Chips)
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            searchField,
+            const SizedBox(height: 12),
+            filterChips,
+          ],
+        );
+      },
+    );
+  }
+
+  PopupMenuItem<String> _buildSortItem(
+    String value,
+    String label,
+    String currentSort,
+  ) {
+    final isSelected = value == currentSort;
+    return PopupMenuItem(
+      value: value,
+      child: Row(
+        children: [
+          Icon(
+            isSelected ? Icons.check_rounded : Icons.circle_outlined,
+            size: 16,
+            color: isSelected ? AppColors.textPrimary : Colors.transparent,
+          ),
+          const SizedBox(width: 10),
+          Text(
+            label,
+            style: TextStyle(
+              color:
+                  isSelected ? AppColors.textPrimary : AppColors.textSecondary,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              fontSize: 13,
+              fontFamily: TWTypography.uiFamily,
+            ),
+          ),
+        ],
       ),
     );
   }

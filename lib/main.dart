@@ -19,6 +19,7 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
+import 'package:truthworld/core/services/download_notification_service.dart';
 import 'package:truthworld/core/services/guest_playback_limit_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/services/pip_service.dart';
@@ -95,6 +96,7 @@ void bootstrap({AppFlavor? flavor}) {
                 }
               }
               logger.info('Firebase initialized successfully', tag: 'Startup');
+              StorageUtils.configureRetryLimits();
               try {
                 FirebaseFirestore.instance.settings = const Settings(
                   persistenceEnabled: true,
@@ -153,24 +155,21 @@ void bootstrap({AppFlavor? flavor}) {
                         )
                       : const AppleDeviceCheckProvider(),
                 )
-                .timeout(const Duration(seconds: 4));
+                .timeout(const Duration(seconds: 10));
+
+            await FirebaseAppCheck.instance.setTokenAutoRefreshEnabled(true);
 
             // Prime and cache the initial token
             try {
               final token = await FirebaseAppCheck.instance
                   .getToken()
-                  .timeout(const Duration(seconds: 3));
+                  .timeout(const Duration(seconds: 8));
               if (token != null && token.isNotEmpty) {
                 StorageUtils.updateAppCheckToken(token);
-                await FirebaseAppCheck.instance
-                    .setTokenAutoRefreshEnabled(true);
                 logger.info(
                   'Firebase App Check active & token acquired',
                   tag: 'Startup',
                 );
-              } else {
-                await FirebaseAppCheck.instance
-                    .setTokenAutoRefreshEnabled(false);
               }
 
               // Continuously sync token updates into StorageUtils for media player requests
@@ -184,8 +183,6 @@ void bootstrap({AppFlavor? flavor}) {
                 'AppCheck initial token acquisition skipped: $tokenErr',
                 tag: 'Startup',
               );
-              await FirebaseAppCheck.instance
-                  .setTokenAutoRefreshEnabled(false);
             }
           } catch (e) {
             logger.warning(
@@ -202,6 +199,7 @@ void bootstrap({AppFlavor? flavor}) {
           Get.put(AppService(), permanent: true);
           Get.put(ConnectivityService(), permanent: true);
           Get.put(PushNotificationService(), permanent: true);
+          Get.put(DownloadNotificationService(), permanent: true);
           Get.put(UserPreferencesService(), permanent: true);
           final currencyService =
               Get.put(CurrencyLocalizationService(), permanent: true);
@@ -268,16 +266,21 @@ void bootstrap({AppFlavor? flavor}) {
             overrideInitialRoute: kIsWeb ? null : resolvedFlavor.initialRoute,
           ));
 
-          // Non-critical background services deferred until after Frame 1 paints smoothly
-          // to eliminate main-thread contention and Choreographer skipped frames on mobile.
+          // Frame 1 post-paint callback
           WidgetsBinding.instance.addPostFrameCallback((_) {
+            // Initialize deep link listeners immediately on Frame 1 so cold-launched URLs
+            // (e.g. from WhatsApp, SMS, external browsers) are captured with zero wait-time.
+            unawaited(DeepLinkService.instance.initAppLinks());
+
+            // Non-critical background services deferred until after Frame 1 paints smoothly
+            // to eliminate main-thread contention and Choreographer skipped frames on mobile.
             Future.delayed(const Duration(milliseconds: 200), () {
               unawaited(
                 Future.wait([
                   Get.find<AppService>().init(),
                   Get.find<ConnectivityService>().init(),
                   Get.find<PushNotificationService>().init(),
-                  DeepLinkService.instance.initAppLinks(),
+                  Get.find<DownloadNotificationService>().init(),
                   currencyService.fetchRealtimeRate(),
                 ]).then((_) {
                   logger.info('All background services initialized', tag: 'Startup');
@@ -506,8 +509,10 @@ class Truthworld extends StatelessWidget {
                       : safeChild,
                 ),
               ),
-              if (!isPipActive) const MiniplayerOverlayManager(),
-              if (isPipActive) const PipDedicatedView(),
+              if (!isPipActive)
+                const Positioned.fill(child: MiniplayerOverlayManager()),
+              if (isPipActive)
+                const Positioned.fill(child: PipDedicatedView()),
             ],
           );
         });

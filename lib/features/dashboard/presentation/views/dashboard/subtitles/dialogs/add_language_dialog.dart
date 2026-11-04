@@ -46,7 +46,7 @@ class AddLanguageDialog {
                 Container(
                   decoration: BoxDecoration(
                     color: isDarkMode
-                        ? const Color(0xFF1E1E1E)
+                        ? AppColors.bgSurface
                         : Colors.grey.shade200,
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -198,7 +198,7 @@ class AddLanguageDialog {
                       style: AppTextStyles.bodySmall.copyWith(fontSize: 13),
                     ),
                     dropdownColor: isDarkMode
-                        ? const Color(0xFF1E1E1E)
+                        ? AppColors.bgSurface
                         : AppColors.textPrimary,
                     items: supportedLanguages.map((lang) {
                       return DropdownMenuItem<TranslationLanguage>(

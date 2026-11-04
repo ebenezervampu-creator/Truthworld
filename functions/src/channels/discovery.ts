@@ -38,7 +38,7 @@ export const getLeaderboard = onRequest(
     applySecurityHeaders(res);
     try {
       const category = req.query.category as ChannelCategory;
-      const limit = Math.min(Number(req.query.limit) || 20, 100);
+      const limit = Math.max(1, Math.min(Math.floor(Number(req.query.limit) || 20), 100));
 
       let query: admin.firestore.Query = db().collection("channels");
 
@@ -61,7 +61,7 @@ export const getLeaderboard = onRequest(
           };
         })
         .filter((c: any) => {
-          const isSuspended = c.status === "suspended" || c.status === "banned" || c.status === "deleted";
+          const isSuspended = c.status === "suspended" || c.status === "banned" || c.status === "deleted" || c.status === "onHold" || c.status === "hold";
           const vis = (c.visibility || "").toLowerCase();
           const isPrivateOrUnlisted = vis === "private" || vis === "unlisted" || c.isPublic === false;
           return !isSuspended && !isPrivateOrUnlisted;
@@ -100,7 +100,7 @@ export const getRisingCreators = onRequest(
   async (req, res) => {
     applySecurityHeaders(res);
     try {
-      const limit = Math.min(Number(req.query.limit) || 10, 50);
+      const limit = Math.max(1, Math.min(Math.floor(Number(req.query.limit) || 10), 50));
 
       const snap = await db().collection("channels")
         .where("reputation.trend30d", ">", 0)
@@ -125,7 +125,7 @@ export const getRisingCreators = onRequest(
           };
         })
         .filter(c => {
-          const isSuspended = c.status === "suspended" || c.status === "banned" || c.status === "deleted";
+          const isSuspended = c.status === "suspended" || c.status === "banned" || c.status === "deleted" || c.status === "onHold" || c.status === "hold";
           const vis = (c.visibility || "").toLowerCase();
           const isPrivateOrUnlisted = vis === "private" || vis === "unlisted" || c.isPublic === false;
           return !isSuspended && !isPrivateOrUnlisted;

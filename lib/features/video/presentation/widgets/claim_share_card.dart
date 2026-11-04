@@ -9,6 +9,7 @@ import 'package:get/get.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -96,12 +97,120 @@ class ClaimShareCard extends StatelessWidget {
     );
   }
 
-  /// Renders the top section containing the video context title.
+  /// Renders the top section containing video thumbnail preview and video context title.
   Widget _buildTopSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (video.thumbnailUrl.isNotEmpty) ...[
+          Container(
+            height: 400,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.12),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.network(
+                  video.thumbnailUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) =>
+                      _buildFallbackThumbnail(),
+                ),
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.black.withValues(alpha: 0.6),
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.8),
+                        ],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 18,
+                  left: 18,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.75),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.25),
+                        width: 1,
+                      ),
+                    ),
+                    child: const Text(
+                      'FACT CHECK',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 18,
+                  right: 18,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: verdict.color.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: verdict.color.withValues(alpha: 0.6),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          verdict.icon,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          verdict.category.toUpperCase(),
+                          style: TextStyle(
+                            color: verdict.color,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
         // Editorial platform eyebrow
         Row(
           mainAxisSize: MainAxisSize.min,
@@ -142,6 +251,33 @@ class ClaimShareCard extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildFallbackThumbnail() {
+    return Container(
+      color: const Color(0xFF1F1F24),
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.shield_rounded,
+            size: 48,
+            color: Colors.white,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'TRUTHWORLD FACT CHECK',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.4),
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.5,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -259,24 +395,34 @@ class ClaimShareCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 if (hasConfidence)
-                  Text(
-                    'Confidence: ${verdict.confidenceText}',
-                    style: const TextStyle(
-                      fontFamily: TWTypography.uiFamily,
-                      fontSize: 16,
-                      color: AppColors.textTertiary,
+                  Flexible(
+                    child: Text(
+                      'Confidence: ${verdict.confidenceText}',
+                      style: const TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontSize: 16,
+                        color: AppColors.textTertiary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   )
                 else
                   const SizedBox.shrink(),
+                if (hasConfidence && hasSource)
+                  const SizedBox(width: 12),
                 if (hasSource)
-                  Text(
-                    primarySourceDomain!.trim(),
-                    style: const TextStyle(
-                      fontFamily: TWTypography.uiFamily,
-                      fontSize: 16,
-                      color: AppColors.textLink,
-                      fontWeight: FontWeight.w500,
+                  Flexible(
+                    child: Text(
+                      primarySourceDomain!.trim(),
+                      style: const TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontSize: 16,
+                        color: AppColors.textLink,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   )
                 else
@@ -346,7 +492,9 @@ class ClaimShareService {
   /// 4. Converts the image to PNG byte data and saves it in the temporary directory.
   /// 5. Summons [Share.shareXFiles] with the generated image.
   /// 6. Safely cleans up the [OverlayEntry] in all execution paths.
-  /// Static alias for [shareClaimCard].
+  /// Opens TruthWorld's high-fidelity share bottom sheet for this claim,
+  /// with direct sharing to WhatsApp, X, Facebook, Telegram, Email, link copying,
+  /// and full image export capabilities.
   static Future<void> shareClaim({
     required BuildContext context,
     required Video video,
@@ -354,15 +502,37 @@ class ClaimShareService {
     required ClaimVerdictInfo verdict,
     String? primarySourceDomain,
     int? claimIndex,
-  }) =>
-      shareClaimCard(
+  }) async {
+    final targetClaimIndex = claimIndex ?? 0;
+    final claimUrl = DeepLinkUrlBuilderAndShare.claimUrl(
+      video.id,
+      claimIndex: targetClaimIndex,
+    );
+
+    ShareBottomSheet.show(
+      title: claimText,
+      url: claimUrl,
+      type: 'claim',
+      thumbnailUrl: video.thumbnailUrl,
+      videoTitle: video.title,
+      channelName: video.channelName,
+      claimText: claimText,
+      verdictLabel: verdict.label,
+      verdictColor: verdict.color,
+      verdictIcon: verdict.icon,
+      summaryTakeaway: verdict.summaryTakeaway,
+      confidenceText: verdict.confidenceText,
+      sourceDomain: primarySourceDomain,
+      onShareImage: () => shareClaimCard(
         context: context,
         video: video,
         claimText: claimText,
         verdict: verdict,
         primarySourceDomain: primarySourceDomain,
-        claimIndex: claimIndex,
-      );
+        claimIndex: targetClaimIndex,
+      ),
+    );
+  }
 
   static Future<void> shareClaimCard({
     required BuildContext context,

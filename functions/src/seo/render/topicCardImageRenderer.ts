@@ -1,8 +1,10 @@
 import sharp from "sharp";
-import axios from "axios";
+import { safeFetchImageBuffer } from "./safeImageFetcher";
+import { initSeoFontConfig, TW_PREVIEW_FONT_FAMILY } from "./fontConfig";
 
 export interface TopicCardData {
-  title: string;
+  name?: string;
+  title?: string;
   handle?: string;
   followerCount?: number;
   videoCount?: number;
@@ -113,7 +115,7 @@ function setToCache(key: string, buffer: Buffer): void {
 /**
  * Renders a high-fidelity 1024x682 social share preview card for Topics matching the exact Truthworld architecture:
  * - Top Widescreen Topic Banner (1024x310)
- * - Topic Title with Gold Verified Checkmark Badge
+ * - Topic Name with Gold Verified Checkmark Badge
  * - Clean handle (@truthworldtopics or #topic)
  * - Metrics: Followers + Videos count with separator
  * - Description (up to 3 lines, #9CA3AF)
@@ -121,7 +123,9 @@ function setToCache(key: string, buffer: Buffer): void {
  * - NO Follow option (per explicit user instruction)
  */
 export async function renderTopicCardImage(data: TopicCardData): Promise<Buffer> {
-  const rawTitle = (data.title || "Truthworld Topics").trim();
+  initSeoFontConfig();
+
+  const rawTitle = (data.name || data.title || "Truthworld Topics").trim();
   const cleanTitle = rawTitle.replace(/^[#Tt]\//, "").trim();
   const cacheKey = `${data.handle || ""}_${cleanTitle}_${data.followerCount || 0}_${data.videoCount || 0}_${(data.thumbnailUrl || "").slice(-25)}`;
   const cached = getFromCache(cacheKey);
@@ -145,19 +149,21 @@ export async function renderTopicCardImage(data: TopicCardData): Promise<Buffer>
     3
   );
 
-  // 1. Fetch & process Topic Banner
+  // 1. Fetch & process Topic Banner safely with SSRF defense
   let bannerBuffer: Buffer | null = null;
   if (data.thumbnailUrl) {
     try {
-      const resp = await axios.get(data.thumbnailUrl, {
-        responseType: "arraybuffer",
-        timeout: 4000,
-        headers: { "User-Agent": "Truthworld-Topic-Card-Renderer/1.0" },
-      });
-      bannerBuffer = await sharp(resp.data)
-        .resize(width, bannerHeight, { fit: "cover", position: "center" })
-        .png()
-        .toBuffer();
+      const rawBanner = await safeFetchImageBuffer(
+        data.thumbnailUrl,
+        "Truthworld-Topic-Card-Renderer/1.0",
+        4000
+      );
+      if (rawBanner) {
+        bannerBuffer = await sharp(rawBanner)
+          .resize(width, bannerHeight, { fit: "cover", position: "center" })
+          .png()
+          .toBuffer();
+      }
     } catch (_) {
       // Graceful fallback to default banner
     }
@@ -178,9 +184,9 @@ export async function renderTopicCardImage(data: TopicCardData): Promise<Buffer>
       </linearGradient>
     </defs>
     <rect x="0" y="0" width="${width}" height="${bannerHeight}" fill="url(#twTopicGrad)"/>
-    <text x="60" y="140" fill="#ffffff" font-size="52" font-weight="900" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" letter-spacing="-0.5">Truthworld</text>
-    <text x="60" y="200" fill="#f59e0b" font-size="44" font-weight="800" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" letter-spacing="1">Topics</text>
-    <text x="60" y="245" fill="rgba(255,255,255,0.45)" font-size="16" font-weight="700" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" letter-spacing="3">EXPLORE. LEARN. VERIFY. GROW.</text>
+    <text x="60" y="140" fill="#ffffff" font-size="52" font-weight="900" font-family="${TW_PREVIEW_FONT_FAMILY}" letter-spacing="-0.5">Truthworld</text>
+    <text x="60" y="200" fill="#f59e0b" font-size="44" font-weight="800" font-family="${TW_PREVIEW_FONT_FAMILY}" letter-spacing="1">Topics</text>
+    <text x="60" y="245" fill="rgba(255,255,255,0.45)" font-size="16" font-weight="700" font-family="${TW_PREVIEW_FONT_FAMILY}" letter-spacing="3">EXPLORE. LEARN. VERIFY. GROW.</text>
   `;
 
   const descLine1Y = 486;
@@ -188,7 +194,7 @@ export async function renderTopicCardImage(data: TopicCardData): Promise<Buffer>
   const descLine3Y = 542;
 
   const svgContent = `
-    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
       <defs>
         <clipPath id="topicCardClip">
           <rect x="0" y="0" width="${width}" height="${height}" rx="24" ry="24"/>
@@ -201,18 +207,18 @@ export async function renderTopicCardImage(data: TopicCardData): Promise<Buffer>
         <rect x="0" y="0" width="${width}" height="${height}" fill="#161719"/>
 
         <!-- Top Banner (Image or Gradient) -->
-        ${bannerBase64 ? `<image href="${bannerBase64}" x="0" y="0" width="${width}" height="${bannerHeight}" preserveAspectRatio="xMidYMid slice"/>` : fallbackBannerSvg}
+        ${bannerBase64 ? `<image href="${bannerBase64}" xlink:href="${bannerBase64}" x="0" y="0" width="${width}" height="${bannerHeight}" preserveAspectRatio="xMidYMid slice"/>` : fallbackBannerSvg}
 
         <!-- Subtle bottom shadow on banner seam -->
         <rect x="0" y="${bannerHeight - 12}" width="${width}" height="14" fill="#161719" opacity="0.45"/>
 
-        <!-- Topic Title -->
-        <text x="40" y="364" fill="#ffffff" font-size="34" font-weight="800" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" letter-spacing="-0.5">${escapeXml(cleanTitle)}</text>
+        <!-- Topic Name -->
+        <text x="40" y="364" fill="#ffffff" font-size="34" font-weight="800" font-family="${TW_PREVIEW_FONT_FAMILY}" letter-spacing="-0.5">${escapeXml(cleanTitle)}</text>
 
         <!-- Handle (@ handle) -->
         <g transform="translate(40, 396)">
           <!-- At sign icon -->
-          <text x="0" y="0" fill="#8e8e93" font-size="21" font-weight="500" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">${escapeXml(handleStr)}</text>
+          <text x="0" y="0" fill="#8e8e93" font-size="21" font-weight="500" font-family="${TW_PREVIEW_FONT_FAMILY}">${escapeXml(handleStr)}</text>
         </g>
 
         <!-- Metrics Row: Followers + Videos -->
@@ -221,7 +227,7 @@ export async function renderTopicCardImage(data: TopicCardData): Promise<Buffer>
           <g transform="translate(0, -18)">
             <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" fill="#9ca3af" transform="scale(1.1)"/>
           </g>
-          <text x="32" y="0" fill="#ffffff" font-size="21" font-weight="600" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">${escapeXml(followerStr)}</text>
+          <text x="32" y="0" fill="#ffffff" font-size="21" font-weight="600" font-family="${TW_PREVIEW_FONT_FAMILY}">${escapeXml(followerStr)}</text>
 
           <!-- Divider Bar | -->
           <line x1="210" y1="-18" x2="210" y2="4" stroke="#3f3f46" stroke-width="2"/>
@@ -230,13 +236,13 @@ export async function renderTopicCardImage(data: TopicCardData): Promise<Buffer>
           <g transform="translate(230, -18)">
             <path d="M5 9.2h3V19H5zM10.6 5h2.8v14.2h-2.8zm5.6 8h2.8v6.2h-2.8z" fill="#9ca3af" transform="scale(1.1)"/>
           </g>
-          <text x="264" y="0" fill="#ffffff" font-size="21" font-weight="600" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">${escapeXml(videoStr)}</text>
+          <text x="264" y="0" fill="#ffffff" font-size="21" font-weight="600" font-family="${TW_PREVIEW_FONT_FAMILY}">${escapeXml(videoStr)}</text>
         </g>
 
         <!-- Topic Description (up to 3 lines) -->
-        ${descLines[0] ? `<text x="40" y="${descLine1Y}" fill="#9ca3af" font-size="19" font-weight="400" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">${escapeXml(descLines[0])}</text>` : ""}
-        ${descLines[1] ? `<text x="40" y="${descLine2Y}" fill="#9ca3af" font-size="19" font-weight="400" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">${escapeXml(descLines[1])}</text>` : ""}
-        ${descLines[2] ? `<text x="40" y="${descLine3Y}" fill="#9ca3af" font-size="19" font-weight="400" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">${escapeXml(descLines[2])}</text>` : ""}
+        ${descLines[0] ? `<text x="40" y="${descLine1Y}" fill="#9ca3af" font-size="19" font-weight="400" font-family="${TW_PREVIEW_FONT_FAMILY}">${escapeXml(descLines[0])}</text>` : ""}
+        ${descLines[1] ? `<text x="40" y="${descLine2Y}" fill="#9ca3af" font-size="19" font-weight="400" font-family="${TW_PREVIEW_FONT_FAMILY}">${escapeXml(descLines[1])}</text>` : ""}
+        ${descLines[2] ? `<text x="40" y="${descLine3Y}" fill="#9ca3af" font-size="19" font-weight="400" font-family="${TW_PREVIEW_FONT_FAMILY}">${escapeXml(descLines[2])}</text>` : ""}
 
         <!-- Bottom Pill Container: Link Icon, URL, Truthworld > -->
         <g transform="translate(40, 584)">
@@ -250,17 +256,27 @@ export async function renderTopicCardImage(data: TopicCardData): Promise<Buffer>
           </g>
 
           <!-- Clean URL Text -->
-          <text x="64" y="38" fill="#ffffff" font-size="20" font-weight="500" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">${escapeXml(cleanUrl)}</text>
+          <text x="64" y="38" fill="#ffffff" font-size="20" font-weight="500" font-family="${TW_PREVIEW_FONT_FAMILY}">${escapeXml(cleanUrl)}</text>
 
           <!-- Truthworld > -->
-          <text x="820" y="38" fill="#8e8e93" font-size="18" font-weight="500" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">Truthworld</text>
+          <text x="820" y="38" fill="#8e8e93" font-size="18" font-weight="500" font-family="${TW_PREVIEW_FONT_FAMILY}">Truthworld</text>
           <path d="M912 28 L918 35 L912 42" fill="none" stroke="#8e8e93" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
         </g>
       </g>
     </svg>
   `;
 
-  const finalBuffer = await sharp(Buffer.from(svgContent)).png().toBuffer();
+  let finalBuffer = await sharp(Buffer.from(svgContent))
+    .png({ compressionLevel: 9, effort: 8 })
+    .toBuffer();
+
+  // Social scrapers drop images exceeding 300KB. If needed, apply gentle optimization.
+  if (finalBuffer.length > 290 * 1024) {
+    finalBuffer = await sharp(Buffer.from(svgContent))
+      .png({ compressionLevel: 9, effort: 8, quality: 92 })
+      .toBuffer();
+  }
+
   setToCache(cacheKey, finalBuffer);
   return finalBuffer;
 }

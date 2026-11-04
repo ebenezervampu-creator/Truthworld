@@ -55,7 +55,7 @@ class PlatformChannelHandler(private val activity: Activity) {
                         "play_store" -> "com.android.vending"
                         "samsung_galaxy_store" -> "com.sec.android.app.samsungapps"
                         "amazon_appstore" -> "com.amazon.venezia"
-                        else -> null
+                        else -> "com.android.vending"
                     }
                     if (approvedPackage != null) {
                         try {

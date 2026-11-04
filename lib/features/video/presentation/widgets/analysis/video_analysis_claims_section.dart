@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
@@ -66,7 +65,7 @@ class VideoAnalysisClaimsSection extends StatelessWidget {
                             'Fact-Checked Claims (${claims.length})',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               fontSize: 15.5,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
@@ -95,7 +94,7 @@ class VideoAnalysisClaimsSection extends StatelessWidget {
                   // Sort Dropdown Pill
                   PopupMenuButton<String>(
                     onSelected: analysisCtrl.setSortOrder,
-                    color: const Color(0xFF1C1F2B),
+                    color: AppColors.bgSurface,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                       side: BorderSide(
@@ -110,7 +109,7 @@ class VideoAnalysisClaimsSection extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5.5),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF1C1F2B),
+                        color: AppColors.bgSurface,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
                           color: Colors.white.withValues(alpha: 0.12),
@@ -126,7 +125,7 @@ class VideoAnalysisClaimsSection extends StatelessWidget {
                               _getSortLabel(sortOrder),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.w500,
                                 color: Colors.white,
@@ -152,16 +151,16 @@ class VideoAnalysisClaimsSection extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1C1F2B),
+                    color: AppColors.bgSurface,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
                   ),
                   child: TextField(
                     autofocus: true,
-                    style: GoogleFonts.roboto(color: Colors.white, fontSize: 13.5),
+                    style: TextStyle(color: Colors.white, fontSize: 13.5),
                     decoration: InputDecoration(
                       hintText: 'Search verified claim statements…',
-                      hintStyle: GoogleFonts.roboto(
+                      hintStyle: TextStyle(
                         color: AppColors.textTertiary,
                         fontSize: 13,
                       ),
@@ -195,21 +194,21 @@ class VideoAnalysisClaimsSection extends StatelessWidget {
                 _buildFilterPill(
                   filterKey: 'Verified',
                   label: 'Verified ($verifiedCount)',
-                  dotColor: const Color(0xFF10B981),
+                  dotColor: AppColors.success,
                   isSelected: current == 'Verified',
                 ),
                 const SizedBox(width: 8),
                 _buildFilterPill(
                   filterKey: 'Caution',
                   label: 'Caution ($cautionCount)',
-                  dotColor: const Color(0xFFF59E0B),
+                  dotColor: AppColors.warning,
                   isSelected: current == 'Caution',
                 ),
                 const SizedBox(width: 8),
                 _buildFilterPill(
                   filterKey: 'False',
                   label: 'False ($falseCount)',
-                  dotColor: const Color(0xFFEF4444),
+                  dotColor: AppColors.error,
                   isSelected: current == 'False',
                 ),
               ],
@@ -262,7 +261,7 @@ class VideoAnalysisClaimsSection extends StatelessWidget {
             return Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: const Color(0xFF14161F),
+                color: AppColors.bgPage,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: AppColors.bgDivider),
               ),
@@ -271,7 +270,7 @@ class VideoAnalysisClaimsSection extends StatelessWidget {
                   search.isNotEmpty
                       ? 'No claims match "$search"'
                       : 'No claims found in "$filter" category.',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 13,
                   ),
@@ -316,7 +315,7 @@ class VideoAnalysisClaimsSection extends StatelessWidget {
     Color? dotColor,
   }) {
     // Zero white-on-white: If background is pure white, text & icons MUST be black
-    final bgColor = isSelected ? Colors.white : const Color(0xFF1C1F2B);
+    final bgColor = isSelected ? Colors.white : AppColors.bgSurface;
     final textColor = isSelected ? Colors.black : Colors.white;
     final borderColor = isSelected ? Colors.transparent : Colors.white.withValues(alpha: 0.12);
 
@@ -347,7 +346,7 @@ class VideoAnalysisClaimsSection extends StatelessWidget {
             ],
             Text(
               label,
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                 color: textColor, // Strictly black when selected white
@@ -368,12 +367,12 @@ class VideoAnalysisClaimsSection extends StatelessWidget {
           Icon(
             isSelected ? Icons.check_rounded : Icons.circle_outlined,
             size: 16,
-            color: isSelected ? const Color(0xFF10B981) : AppColors.textTertiary,
+            color: isSelected ? AppColors.success : AppColors.textTertiary,
           ),
           const SizedBox(width: 8),
           Text(
             title,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.w400,
               color: isSelected ? Colors.white : AppColors.textSecondary,

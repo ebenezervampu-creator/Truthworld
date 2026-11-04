@@ -5,9 +5,12 @@ import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/utils/content_validator.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
+import 'package:truthworld/features/channel/data/services/channel_memory_cache.dart';
 import 'package:truthworld/features/community/presentation/views/widgets/comments/community_comment_options_sheet.dart';
 import 'package:truthworld/features/community/presentation/views/widgets/comments/community_reply_item_controller.dart';
 import 'package:truthworld/features/community/presentation/views/widgets/comments/reply_thread_line_painter.dart';
+import 'package:truthworld/features/video/presentation/views/widgets/comments/comment_action_handler.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Declarative widget displaying an individual reply within a threaded comment hierarchy.
@@ -19,6 +22,7 @@ class CommunityReplyItem extends StatelessWidget {
     required this.onReplyToUser,
     required this.isLastReply,
     this.postOwnerId,
+    this.targetReplyId,
     super.key,
   });
 
@@ -26,28 +30,60 @@ class CommunityReplyItem extends StatelessWidget {
   final String commentId;
   final Map<String, dynamic> replyData;
   final String? postOwnerId;
+  final String? targetReplyId;
   final bool isLastReply;
   final ValueChanged<String> onReplyToUser;
 
   @override
   Widget build(BuildContext context) {
     final replyId = replyData['id'] as String? ?? '';
-    final isChannel = replyData['isChannel'] == true &&
-        (replyData['channelId']?.toString().isNotEmpty ?? false);
-    final rawName = isChannel &&
-            (replyData['channelName']?.toString().isNotEmpty ?? false)
-        ? replyData['channelName'].toString()
-        : (replyData['userName']?.toString() ??
-            replyData['displayName']?.toString() ??
-            replyData['name']?.toString() ??
-            'User');
-    final rName = rawName.startsWith('@') ? rawName.substring(1) : rawName;
-    final rImage = isChannel &&
-            (replyData['channelProfilePicUrl']?.toString().isNotEmpty ?? false)
-        ? replyData['channelProfilePicUrl'].toString()
-        : (replyData['userImage']?.toString() ??
-            replyData['userProfilePicUrl']?.toString() ??
-            '');
+    final rawChannelId = (replyData['channelId']?.toString() ?? '').trim();
+    final rawUserId = (replyData['userId']?.toString() ?? '').trim();
+    final channelHandle = (replyData['channelHandle']?.toString() ??
+        replyData['handle']?.toString() ??
+        '').trim();
+    final channelName = (replyData['channelName']?.toString() ?? '').trim();
+    final channelProfilePicUrl = (replyData['channelProfilePicUrl']?.toString() ??
+        replyData['channelAvatarUrl']?.toString() ??
+        '').trim();
+
+    final isChannel = replyData['isChannel'] == true ||
+        channelHandle.isNotEmpty ||
+        (rawChannelId.isNotEmpty && rawChannelId != rawUserId) ||
+        channelProfilePicUrl.isNotEmpty ||
+        (rawChannelId.isNotEmpty && ChannelMemoryCache.get(rawChannelId) != null);
+
+    final String displayName;
+    final String avatarUrl;
+
+    if (isChannel) {
+      final handle = () {
+        if (channelHandle.isNotEmpty) return channelHandle;
+        if (rawChannelId.isNotEmpty) {
+          final cached = ChannelMemoryCache.get(rawChannelId);
+          if (cached != null && cached.handle.trim().isNotEmpty) {
+            return cached.handle.trim();
+          }
+        }
+        if (channelName.isNotEmpty) return channelName;
+        return 'channel';
+      }();
+      displayName = handle.startsWith('@') ? handle : '@$handle';
+      avatarUrl = channelProfilePicUrl.isNotEmpty
+          ? channelProfilePicUrl
+          : (rawChannelId.isNotEmpty
+              ? (ChannelMemoryCache.get(rawChannelId)?.avatarUrl ?? '')
+              : '');
+    } else {
+      final rawName = replyData['userName']?.toString() ??
+          replyData['displayName']?.toString() ??
+          replyData['name']?.toString() ??
+          'User';
+      displayName = rawName.startsWith('@') ? rawName.substring(1) : rawName;
+      avatarUrl = replyData['userProfilePicUrl']?.toString() ??
+          replyData['userImage']?.toString() ??
+          '';
+    }
     final rText = ContentValidator.cleanProfanity(replyData['text']?.toString() ?? '');
     final rTs =
         replyData['createdAt'] as Timestamp? ??
@@ -63,6 +99,19 @@ class CommunityReplyItem extends StatelessWidget {
       ),
       tag: '${commentId}_$replyId',
       builder: (controller) {
+        final isTarget = targetReplyId != null && targetReplyId == replyId;
+        if (isTarget) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) {
+              Scrollable.ensureVisible(
+                context,
+                duration: const Duration(milliseconds: 500),
+                curve: Curves.easeInOut,
+              );
+            }
+          });
+        }
+
         return IntrinsicHeight(
           child: Padding(
             padding: const EdgeInsets.only(left: 44),
@@ -78,31 +127,71 @@ class CommunityReplyItem extends StatelessWidget {
                   ),
                 ),
                 Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(
-                      top: 4,
-                      bottom: 6,
-                      left: 6,
-                      right: 8,
-                    ),
-                    child: Column(
+                  child: Container(
+                    decoration: isTarget
+                        ? BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.4),
+                              width: 1.2,
+                            ),
+                          )
+                        : null,
+                    padding: isTarget
+                        ? const EdgeInsets.symmetric(horizontal: 8, vertical: 6)
+                        : EdgeInsets.zero,
+                    child: Padding(
+                      padding: const EdgeInsets.only(
+                        top: 4,
+                        bottom: 6,
+                        left: 6,
+                        right: 8,
+                      ),
+                      child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            UserAvatar(
-                              radius: 10,
-                              photoUrl: rImage,
-                              displayName: rName,
-                              fontSize: 9,
+                            GestureDetector(
+                              onTap: isChannel
+                                  ? () => CommentActionHandler.navigateToChannel(
+                                        rawChannelId,
+                                        channelHandle: displayName,
+                                      )
+                                  : null,
+                              child: MouseRegion(
+                                cursor: isChannel
+                                    ? SystemMouseCursors.click
+                                    : SystemMouseCursors.basic,
+                                child: UserAvatar(
+                                  radius: 10,
+                                  photoUrl: avatarUrl,
+                                  displayName: displayName,
+                                  fontSize: 9,
+                                ),
+                              ),
                             ),
                             const SizedBox(width: 6),
-                            Text(
-                              rName,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
+                            GestureDetector(
+                              onTap: isChannel
+                                  ? () => CommentActionHandler.navigateToChannel(
+                                        rawChannelId,
+                                        channelHandle: displayName,
+                                      )
+                                  : null,
+                              child: MouseRegion(
+                                cursor: isChannel
+                                    ? SystemMouseCursors.click
+                                    : SystemMouseCursors.basic,
+                                child: Text(
+                                  displayName,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
+                                  ),
+                                ),
                               ),
                             ),
                             if (isChannel) ...[
@@ -139,8 +228,8 @@ class CommunityReplyItem extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          rText,
+                        ClickableUrlText(
+                          text: rText,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 12,
@@ -227,7 +316,7 @@ class CommunityReplyItem extends StatelessWidget {
                             ),
                             const SizedBox(width: 14),
                             InkWell(
-                              onTap: () => onReplyToUser(rName),
+                              onTap: () => onReplyToUser(displayName),
                               borderRadius: BorderRadius.circular(12),
                               child: const Padding(
                                 padding: EdgeInsets.symmetric(
@@ -268,7 +357,8 @@ class CommunityReplyItem extends StatelessWidget {
                     ),
                   ),
                 ),
-              ],
+              ),
+            ],
             ),
           ),
         );

@@ -90,7 +90,7 @@ class AdvertiserReportsTab extends StatelessWidget {
                 ),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.white,
-                  side: const BorderSide(color: Color(0xFF27272A)),
+                  side: const BorderSide(color: AppColors.bgSurface),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -211,9 +211,9 @@ class AdvertiserReportsTab extends StatelessWidget {
           constraints: const BoxConstraints(minWidth: 650),
           child: Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF161618),
+              color: AppColors.appBarSurface,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF27272A)),
+              border: Border.all(color: AppColors.bgSurface),
             ),
             child: Table(
               columnWidths: const {
@@ -227,7 +227,7 @@ class AdvertiserReportsTab extends StatelessWidget {
               children: [
                 TableRow(
                   decoration: const BoxDecoration(
-                    color: Color(0xFF1F1F23),
+                    color: AppColors.bgSurface,
                     borderRadius: BorderRadius.only(
                       topLeft: Radius.circular(12),
                       topRight: Radius.circular(12),
@@ -253,7 +253,7 @@ class AdvertiserReportsTab extends StatelessWidget {
                     return TableRow(
                       decoration: const BoxDecoration(
                         border: Border(
-                          bottom: BorderSide(color: Color(0xFF27272A)),
+                          bottom: BorderSide(color: AppColors.bgSurface),
                         ),
                       ),
                       children: [
@@ -312,15 +312,15 @@ class AdvertiserReportsTab extends StatelessWidget {
     var metricColor = AppColors.brand;
     if (controller.selectedMetric.value == 'impressions') {
       metricTitle = 'Impressions Trend';
-      metricColor = const Color(0xFF38BDF8);
+      metricColor = AppColors.textLink;
     }
     if (controller.selectedMetric.value == 'clicks') {
       metricTitle = 'Clicks Trend';
-      metricColor = const Color(0xFFF59E0B);
+      metricColor = AppColors.warning;
     }
     if (controller.selectedMetric.value == 'ctr') {
       metricTitle = 'Click-Through Rate (CTR) Trend';
-      metricColor = const Color(0xFFEC4899);
+      metricColor = AppColors.success;
     }
 
     return Obx(() {
@@ -365,9 +365,9 @@ class AdvertiserReportsTab extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: const Color(0xFF161618),
+          color: AppColors.appBarSurface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF27272A)),
+          border: Border.all(color: AppColors.bgSurface),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -397,7 +397,7 @@ class AdvertiserReportsTab extends StatelessWidget {
                 primaryYAxis: const NumericAxis(
                   axisLine: AxisLine(width: 0),
                   majorTickLines: MajorTickLines(size: 0),
-                  majorGridLines: MajorGridLines(color: Color(0xFF27272A)),
+                  majorGridLines: MajorGridLines(color: AppColors.bgSurface),
                   labelStyle: TextStyle(
                     fontFamily: TWTypography.uiFamily,
                     color: AppColors.textSecondary,

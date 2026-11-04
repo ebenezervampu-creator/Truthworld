@@ -36,7 +36,7 @@ class ClaimCard extends StatelessWidget {
     );
     final claimId = (data['id'] ?? data['claimId'] ?? '').toString();
 
-    final cardBg = isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
+    final cardBg = isDarkMode ? AppColors.bgSurface : Colors.white;
     final borderColor =
         isDarkMode ? AppColors.bgDivider : Colors.grey.shade300;
 

@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
+import 'package:truthworld/features/search/data/services/engine/typesense_search_engine.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Abstract remote data source contract for Video data handling.
@@ -65,6 +67,46 @@ class FirestoreVideoRemoteDataSource implements VideoRemoteDataSource {
     int limit = 20,
     dynamic startAfter,
   }) async {
+    final tsEngine = TypesenseSearchEngine();
+    if (tsEngine.isEnabled) {
+      try {
+        final tsResults = await tsEngine.searchVideos(query, limit: limit);
+        if (tsResults.isNotEmpty) {
+          final ids = tsResults
+              .map((r) => r.id)
+              .where((id) => id.isNotEmpty)
+              .toList();
+          final videos = <Video>[];
+          for (var i = 0; i < ids.length; i += 10) {
+            final chunk = ids.skip(i).take(10).toList();
+            final snap = await _firestore
+                .collection(FirestoreCollections.videos)
+                .where(FieldPath.documentId, whereIn: chunk)
+                .get();
+            final docMap = {for (final d in snap.docs) d.id: d};
+            for (final id in chunk) {
+              final doc = docMap[id];
+              if (doc != null && doc.exists) {
+                final v = Video.fromDocumentSnapshot(doc);
+                if (VideoVisibilityPolicy.isVisibleForFeed(v)) {
+                  videos.add(v);
+                }
+              }
+            }
+          }
+          if (videos.isNotEmpty) {
+            return videos;
+          }
+        }
+      } catch (e, s) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'FirestoreVideoRemoteDataSource.typesenseSearchVideos',
+        );
+      }
+    }
+
     final queryLower = query.toLowerCase();
     var q = _firestore
         .collection(FirestoreCollections.videos)
@@ -126,14 +168,36 @@ class FirestoreVideoRemoteDataSource implements VideoRemoteDataSource {
         .doc(userId)
         .collection('likedVideos')
         .doc(videoId);
+    final userDislikedRef = _firestore
+        .collection(FirestoreCollections.users)
+        .doc(userId)
+        .collection('dislikedVideos')
+        .doc(videoId);
+
     await _firestore.runTransaction((tx) async {
+      final videoSnap = await tx.get(videoRef);
       final likedSnap = await tx.get(userLikedRef);
+      final dislikedSnap = await tx.get(userDislikedRef);
+
       if (likedSnap.exists) {
         tx.delete(userLikedRef);
-        tx.update(videoRef, {'likeCount': FieldValue.increment(-1)});
+        if (videoSnap.exists) {
+          tx.update(videoRef, {'likeCount': FieldValue.increment(-1)});
+        }
       } else {
         tx.set(userLikedRef, {'videoId': videoId, 'timestamp': FieldValue.serverTimestamp()});
-        tx.update(videoRef, {'likeCount': FieldValue.increment(1)});
+        if (videoSnap.exists) {
+          final videoUpdates = <String, dynamic>{
+            'likeCount': FieldValue.increment(1),
+          };
+          if (dislikedSnap.exists) {
+            tx.delete(userDislikedRef);
+            videoUpdates['dislikeCount'] = FieldValue.increment(-1);
+          }
+          tx.update(videoRef, videoUpdates);
+        } else if (dislikedSnap.exists) {
+          tx.delete(userDislikedRef);
+        }
       }
     });
   }
@@ -147,14 +211,36 @@ class FirestoreVideoRemoteDataSource implements VideoRemoteDataSource {
         .doc(userId)
         .collection('dislikedVideos')
         .doc(videoId);
+    final userLikedRef = _firestore
+        .collection(FirestoreCollections.users)
+        .doc(userId)
+        .collection('likedVideos')
+        .doc(videoId);
+
     await _firestore.runTransaction((tx) async {
+      final videoSnap = await tx.get(videoRef);
       final dislikedSnap = await tx.get(userDislikedRef);
+      final likedSnap = await tx.get(userLikedRef);
+
       if (dislikedSnap.exists) {
         tx.delete(userDislikedRef);
-        tx.update(videoRef, {'dislikeCount': FieldValue.increment(-1)});
+        if (videoSnap.exists) {
+          tx.update(videoRef, {'dislikeCount': FieldValue.increment(-1)});
+        }
       } else {
         tx.set(userDislikedRef, {'videoId': videoId, 'timestamp': FieldValue.serverTimestamp()});
-        tx.update(videoRef, {'dislikeCount': FieldValue.increment(1)});
+        if (videoSnap.exists) {
+          final videoUpdates = <String, dynamic>{
+            'dislikeCount': FieldValue.increment(1),
+          };
+          if (likedSnap.exists) {
+            tx.delete(userLikedRef);
+            videoUpdates['likeCount'] = FieldValue.increment(-1);
+          }
+          tx.update(videoRef, videoUpdates);
+        } else if (likedSnap.exists) {
+          tx.delete(userLikedRef);
+        }
       }
     });
   }

@@ -19,7 +19,7 @@ class CreateTopicController extends BaseController with ContentValidationMixin {
 
   // Text Controllers
   final TextEditingController nameController = TextEditingController();
-  final TextEditingController titleController = TextEditingController();
+  TextEditingController get titleController => nameController;
   final TextEditingController handleController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
   final TextEditingController accessCodeController = TextEditingController();
@@ -58,15 +58,12 @@ class CreateTopicController extends BaseController with ContentValidationMixin {
     super.onInit();
     initializeContentFilters();
     nameController.addListener(_onNameChanged);
-    titleController.addListener(_onTitleChanged);
   }
 
   @override
   void onClose() {
     nameController.removeListener(_onNameChanged);
-    titleController.removeListener(_onTitleChanged);
     nameController.dispose();
-    titleController.dispose();
     handleController.dispose();
     descriptionController.dispose();
     accessCodeController.dispose();
@@ -76,16 +73,9 @@ class CreateTopicController extends BaseController with ContentValidationMixin {
     super.onClose();
   }
 
+  /// Automatically updates handle slug as the user types topic name unless manually modified.
   void _onNameChanged() {
-    if (titleController.text.isEmpty || titleController.text == nameController.text) {
-      titleController.text = nameController.text;
-    }
-    _onTitleChanged();
-  }
-
-  /// Automatically updates handle slug as the user types title unless manually modified.
-  void _onTitleChanged() {
-    final activeText = nameController.text.isNotEmpty ? nameController.text : titleController.text;
+    final activeText = nameController.text;
     if (!autoHandleTouched.value && activeText.isNotEmpty) {
       final slug = activeText
           .trim()
@@ -207,19 +197,6 @@ class CreateTopicController extends BaseController with ContentValidationMixin {
       );
       if (!nameResult.isValid) {
         profanityError.value = nameResult.message;
-        return false;
-      }
-    }
-
-    // Title validation
-    if (titleController.text.trim().isNotEmpty) {
-      final titleResult = await validateContent(
-        titleController.text,
-        fieldName: 'Topic Title',
-        maxLength: 100,
-      );
-      if (!titleResult.isValid) {
-        profanityError.value = titleResult.message;
         return false;
       }
     }
@@ -370,7 +347,7 @@ class CreateTopicController extends BaseController with ContentValidationMixin {
 
   /// Reset form state for fresh modal opening.
   void resetForm() {
-    titleController.clear();
+    nameController.clear();
     handleController.clear();
     descriptionController.clear();
     accessCodeController.clear();

@@ -3,9 +3,9 @@ class SearchSanitizer {
   SearchSanitizer._();
 
   static final RegExp _whitespaceRegExp = RegExp(r'\s+');
-  static final RegExp _trailingPunctuationRegExp = RegExp(r'[\.\?\!\,\;\:\-_]+$');
-  static final RegExp _leadingPunctuationRegExp = RegExp(r'^[\.\?\!\,\;\:\-_]+');
-  static final RegExp _nonWordNonDigitRegExp = RegExp(r'[^\w\d]');
+  static final RegExp _trailingPunctuationRegExp = RegExp(r'[\p{P}\p{S}\s]+$', unicode: true);
+  static final RegExp _leadingPunctuationRegExp = RegExp(r'^[\p{P}\p{S}\s]+', unicode: true);
+  static final RegExp _nonWordNonDigitRegExp = RegExp(r'[^\p{L}\p{M}\p{N}]', unicode: true);
 
   /// Strips trailing and leading punctuation marks (. ? ! , ; : - _) and collapses whitespace
   static String sanitizeQuery(String query) {

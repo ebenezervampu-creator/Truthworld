@@ -6,7 +6,6 @@ import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/features/analytics/data/models/creator_bank_account.dart';
 import 'package:truthworld/features/analytics/data/models/creator_kyc_verification.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/revenue_analytics_controller.dart';
-import 'package:truthworld/features/analytics/presentation/pages/revenue/revenue_analytics_widgets.dart';
 import 'package:truthworld/features/analytics/presentation/pages/revenue_analytics_page.dart';
 import 'package:truthworld/features/analytics/presentation/widgets/revenue_withdrawal_dialog.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -111,7 +110,6 @@ void main() {
       final ctrl = Get.put(RevenueAnalyticsController());
       ctrl.superchatRevenue.value = 1000.0;
       ctrl.adsRevenue.value = 2500.0;
-      ctrl.watchTimeRevenue.value = 750.0;
 
       await tester.pumpWidget(
         createHarness(
@@ -119,7 +117,6 @@ void main() {
             children: [
               Obx(() => buildSuperchatStreamCard(ctrl)),
               Obx(() => buildAdRevenueStreamCard(ctrl)),
-              Obx(() => buildWatchTimeStreamCard(ctrl)),
             ],
           ),
         ),
@@ -128,23 +125,19 @@ void main() {
       expect(find.text('Superchats & Live Fan Support'), findsOneWidget);
       expect(find.text('100% Direct Payout (0% Platform Fee)'), findsOneWidget);
       expect(find.text('Video Ads & Monetization'), findsOneWidget);
-      expect(find.text('Watch Time & Premium Royalties'), findsOneWidget);
-      expect(find.text('70% Creator Split'), findsNWidgets(2));
+      expect(find.text('70% Creator Split'), findsOneWidget);
     });
 
     testWidgets('never displays mock ad revenue or mock RPM when channel has no active ad revenue', (tester) async {
       final ctrl = Get.put(RevenueAnalyticsController());
       ctrl.adsRevenue.value = 0.0;
-      ctrl.watchTimeRevenue.value = 0.0;
       ctrl.totalViews.value = 2; // e.g. 2 views like in bug report
-      ctrl.totalWatchMinutes.value = 4; // e.g. 4 mins watch time
 
       await tester.pumpWidget(
         createHarness(
           Column(
             children: [
               Obx(() => buildAdRevenueStreamCard(ctrl)),
-              Obx(() => buildWatchTimeStreamCard(ctrl)),
             ],
           ),
         ),
@@ -158,13 +151,12 @@ void main() {
       expect(find.text('₹0.01'), findsNothing);
     });
 
-
     testWidgets('buildRevenueDistributionCard renders stream distribution percentages', (tester) async {
       final ctrl = Get.put(RevenueAnalyticsController());
       ctrl.membershipsRevenue.value = 500.0;
       ctrl.superchatRevenue.value = 200.0;
       ctrl.adsRevenue.value = 200.0;
-      ctrl.watchTimeRevenue.value = 100.0;
+      ctrl.premiumSubsRevenue.value = 100.0;
       ctrl.totalRevenue.value = 1000.0;
 
       await tester.pumpWidget(
@@ -177,7 +169,7 @@ void main() {
       expect(find.text('Memberships: 50%'), findsOneWidget);
       expect(find.text('Superchats: 20%'), findsOneWidget);
       expect(find.text('Ads: 20%'), findsOneWidget);
-      expect(find.text('Watch Time: 10%'), findsOneWidget);
+      expect(find.text('Premium Subs: 10%'), findsOneWidget);
     });
 
     testWidgets('buildWithdrawalThresholdCard handles below and above ₹100 threshold, plus Day 2 grace period', (tester) async {

@@ -48,7 +48,7 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
               )
             : const Icon(Icons.save_rounded, size: 16, color: Colors.black),
         label: Text(
-          isSaving ? 'Saving...' : 'Save',
+          isSaving ? 'Saving...' : 'Save Changes',
           style: const TextStyle(
             fontWeight: FontWeight.bold,
             color: Colors.black,
@@ -74,9 +74,9 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF161618),
+        color: AppColors.appBarSurface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgSurface),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -94,7 +94,7 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
                   errorWidget: (_, _, _) => Container(
                     width: 64,
                     height: 44,
-                    color: const Color(0xFF121212),
+                    color: AppColors.bgInput,
                     child: const Icon(
                       Icons.video_library_rounded,
                       color: Colors.white,
@@ -114,8 +114,6 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontFamily: TWTypography.brandFamily,
-                        fontFamilyFallback: TWTypography.fallbackFamilies,
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
@@ -135,7 +133,7 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF27272A),
+                              color: AppColors.bgSurface,
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
@@ -182,7 +180,7 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
                       horizontal: 10,
                       vertical: 6,
                     ),
-                    side: const BorderSide(color: Color(0xFF27272A)),
+                    side: const BorderSide(color: AppColors.bgSurface),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -193,7 +191,7 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
           ),
 
           const SizedBox(height: 14),
-          const Divider(height: 1, color: Color(0xFF27272A)),
+          const Divider(height: 1, color: AppColors.bgSurface),
           const SizedBox(height: 14),
 
           // Actions Row: Clean toolbar matching channel creation actions
@@ -254,9 +252,9 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
                     ),
                     style: OutlinedButton.styleFrom(
                       backgroundColor: isShowing
-                          ? const Color(0xFF27272A)
-                          : const Color(0xFF18181B),
-                      side: const BorderSide(color: Color(0xFF27272A)),
+                          ? AppColors.bgSurface
+                          : AppColors.bgPage,
+                      side: const BorderSide(color: AppColors.bgSurface),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 9,
@@ -293,9 +291,9 @@ class AudioTracksWorkspaceHeader extends StatelessWidget {
                     ),
                     style: OutlinedButton.styleFrom(
                       backgroundColor: showRequests
-                          ? const Color(0xFF27272A)
-                          : const Color(0xFF18181B),
-                      side: const BorderSide(color: Color(0xFF27272A)),
+                          ? AppColors.bgSurface
+                          : AppColors.bgPage,
+                      side: const BorderSide(color: AppColors.bgSurface),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 9,
@@ -342,17 +340,56 @@ class AudioTracksMobileToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AudioTracksWorkspaceHeader(
-      video: video,
-      controller: controller,
-      showPreviewPlayer: showPreviewPlayer,
-      surfaceColor: surfaceColor,
-      textColor: Colors.white,
-      textSecondaryColor: AppColors.textSecondary,
-      borderColor: borderColor,
-      isDarkMode: true,
-      onUploadTrack: onUploadTrack,
-      onChangeVideo: onChangeVideo,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        border: Border.all(color: borderColor),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          ElevatedButton.icon(
+            onPressed: onUploadTrack,
+            icon: const Icon(Icons.cloud_upload_rounded, size: 16, color: Colors.black),
+            label: const Text(
+              'Upload Track',
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black, fontSize: 13),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+          OutlinedButton.icon(
+            onPressed: () => showPreviewPlayer.value = !showPreviewPlayer.value,
+            icon: const Icon(Icons.play_circle_outline_rounded, size: 16, color: Colors.white),
+            label: const Text(
+              'Preview',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+            ),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: borderColor),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: controller.saveCurrentAudioTracks,
+            icon: const Icon(Icons.save_rounded, size: 16, color: Colors.black),
+            label: const Text(
+              'Save',
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black, fontSize: 13),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

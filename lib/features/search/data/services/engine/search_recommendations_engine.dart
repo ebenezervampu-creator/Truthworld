@@ -130,7 +130,7 @@ class SearchRecommendationsEngine {
                 (data['videosCount'] as num?)?.toInt() ??
                 (data['videoIds'] as List?)?.length ??
                 0;
-            return (vis == null || vis != 'private') && count > 0;
+            return (vis == null || (vis != 'private' && vis != 'unlisted')) && count > 0;
           })
           .map((doc) => SearchResult.fromFirestore(doc, type: ResultType.playlist))
           .where((item) => item.isValid && item.views > 0)

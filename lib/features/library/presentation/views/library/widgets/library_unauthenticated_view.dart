@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:get/get.dart';
-import 'package:truthworld/components/ui/auth/auth_bottom_sheet.dart';
-import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/library/presentation/views/library/widgets/library_constants.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -99,11 +97,7 @@ class LibraryUnauthenticatedView extends StatelessWidget {
     return ElevatedButton.icon(
       onPressed: () {
         HapticFeedback.lightImpact();
-        if (Get.context != null) {
-          AuthBottomSheet.show(Get.context);
-        } else if (Get.isRegistered<HomeController>()) {
-          Get.find<HomeController>().showAuthBottomSheet();
-        }
+        AuthService.to.triggerPlatformSignIn();
       },
       icon: const Icon(Icons.login_rounded, color: Colors.black),
       label: const Text(

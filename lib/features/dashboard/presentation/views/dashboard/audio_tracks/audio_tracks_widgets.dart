@@ -1,7 +1,12 @@
+export '../widgets/studio_chewie_video_player.dart';
+export 'audio_track_dubbing_options_dialog.dart';
+export 'audio_track_dubbing_options_page.dart';
 export 'audio_tracks_dialogs.dart';
 export 'audio_tracks_languages_and_requests.dart';
 export 'audio_tracks_list_section.dart';
 export 'audio_tracks_preview_and_tabs.dart';
 export 'audio_tracks_skeleton.dart';
+export 'audio_tracks_video_card.dart';
 export 'audio_tracks_video_sidebar.dart';
 export 'audio_tracks_workspace_header.dart';
+export 'video_tracks_list_section.dart';

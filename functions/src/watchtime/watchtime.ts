@@ -7,6 +7,7 @@ import { applySecurityHeaders } from "../utils/securityHeaders";
 import { createHash } from "crypto";
 import { costEngine, CostEngine, CDN_RATE_CARDS } from "../pipeline/services/cost-engine";
 import { getGuestWatchUsage, recordGuestWatchDelta, getClientIp } from "./guestWatchLimit";
+import { getBigQueryAnalyticsService } from "../analytics/bigqueryService";
 
 // â”€â”€â”€ Init â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const db = admin.firestore();
@@ -50,6 +51,7 @@ interface WatchEventPayload {
   networkType?: string;
   language?: string;
   viewerHash?: string;
+  country?: string;
 }
 
 interface RawEvent extends WatchEventPayload {
@@ -126,15 +128,36 @@ function classifyAreaType(city: string): "urban" | "rural" {
   return "rural";
 }
 
-async function resolveGeo(rawIp: string): Promise<ResolvedGeo> {
+async function resolveGeo(rawIp: string, req?: any, clientCountry?: string): Promise<ResolvedGeo> {
+  const edgeCountry = (
+    req?.headers?.["x-client-geo-country"] ||
+    req?.headers?.["x-appengine-country"] ||
+    req?.headers?.["x-country-code"] ||
+    ""
+  ).toString().trim().toUpperCase();
+
   const ip = rawIp.split(",")[0].trim();
   if (!ip || ip === "::1" || ip.startsWith("127.") || ip.startsWith("::ffff:127.")) {
-    return { state: "Unknown", city: "Unknown", country: "IN", areaType: "unknown" };
+    const finalCountry = edgeCountry || (clientCountry ? clientCountry.trim().toUpperCase() : "IN");
+    return { state: "Unknown", city: "Unknown", country: finalCountry, areaType: "unknown" };
   }
   if (geoCache.has(ip)) return geoCache.get(ip)!;
   try {
     const { data } = await axios.get(`https://ipapi.co/${ip}/json/`, { timeout: 2000 });
-    const country = data.country_code ? String(data.country_code).toUpperCase() : "IN";
+    let country = data.country_code ? String(data.country_code).toUpperCase() : "IN";
+
+    // Guard against datacenter proxy IP false positives (Google LLC / Cloud proxies in US)
+    const org = (data.org || data.asn || "").toString().toLowerCase();
+    const isDatacenterProxy = org.includes("google") || org.includes("cloud") || org.includes("datacenter") || org.includes("amazon") || org.includes("microsoft");
+
+    if (edgeCountry && edgeCountry.length === 2) {
+      country = edgeCountry;
+    } else if (clientCountry && clientCountry.length === 2 && (country === "US" || isDatacenterProxy)) {
+      country = clientCountry.trim().toUpperCase();
+    } else if (isDatacenterProxy && country === "US") {
+      country = "IN";
+    }
+
     const state =
       country === "IN"
         ? (data.region ?? "Unknown")
@@ -146,7 +169,8 @@ async function resolveGeo(rawIp: string): Promise<ResolvedGeo> {
     geoCache.set(ip, resolved);
     return resolved;
   } catch {
-    return { state: "Unknown", city: "Unknown", country: "IN", areaType: "unknown" };
+    const finalCountry = edgeCountry || (clientCountry ? clientCountry.trim().toUpperCase() : "IN");
+    return { state: "Unknown", city: "Unknown", country: finalCountry, areaType: "unknown" };
   }
 }
 
@@ -382,14 +406,19 @@ export const trackWatchEvent = onRequest(
         }
       }
 
-      const position = Number(body.position);
-      const duration = Number(body.duration);
-      const prevPosition = body.prevPosition !== undefined ? Number(body.prevPosition) : undefined;
+      const rawPosition = Number(body.position);
+      const rawDuration = Number(body.duration);
+      const rawPrevPosition = body.prevPosition !== undefined ? Number(body.prevPosition) : undefined;
 
-      if (isNaN(position) || isNaN(duration) || duration <= 0) {
+      if (isNaN(rawPosition) || isNaN(rawDuration) || rawDuration <= 0) {
         res.status(400).send({ error: "Invalid position or duration" });
         return;
       }
+
+      // TW-ANALYTICS-02: Bound video duration to max 24 hours (86,400s) and clamp playback positions to prevent corruption/overflow
+      const duration = Math.min(86400, Math.max(1, rawDuration));
+      const position = Math.max(0, Math.min(rawPosition, duration));
+      const prevPosition = rawPrevPosition !== undefined ? Math.max(0, Math.min(rawPrevPosition, duration)) : undefined;
 
       // L-33: Override client-supplied userId with verified auth token
       // Prevents view count inflation by spoofing another user's ID
@@ -483,7 +512,8 @@ export const trackWatchEvent = onRequest(
 
       // ── Geo ──
       const rawIp = getClientIp(req);
-      const geo = await resolveGeo(rawIp);
+      const clientCountry = (body.country || "").toString().trim();
+      const geo = await resolveGeo(rawIp, req, clientCountry);
       const state = geo.state;
       const city = geo.city;
       const country = geo.country;
@@ -691,6 +721,7 @@ export const trackWatchEvent = onRequest(
 
         if (!isDuplicate) {
           // Distributed 20-shard subcollection writes (eliminates single-document contention on viral videos)
+          // Parent documents are consolidated every 5 minutes by rollupVideoCounterShards.
           const shardId = Math.floor(Math.random() * 20).toString();
 
           if (body.videoId) {
@@ -709,15 +740,6 @@ export const trackWatchEvent = onRequest(
                 { merge: true }
               )
               .catch((err) => logger.warn("[WatchTime] Video shard write warning:", err));
-
-            // Best-effort update on parent video document for immediate O(1) UI reads
-            db.collection("videos")
-              .doc(body.videoId)
-              .update({
-                totalWatchTimeSeconds: admin.firestore.FieldValue.increment(creditedDelta),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-              })
-              .catch((err) => logger.warn("[WatchTime] Video parent watch time increment warning:", err));
           }
 
           const channelShardRef = db
@@ -735,26 +757,43 @@ export const trackWatchEvent = onRequest(
               { merge: true }
             )
             .catch((err) => logger.warn("[WatchTime] Channel shard write warning:", err));
-
-          // Best-effort update on parent channel document for immediate O(1) UI reads
-          db.collection("channels")
-            .doc(targetChannelId)
-            .set(
-              {
-                totalWatchTimeSeconds: admin.firestore.FieldValue.increment(creditedDelta),
-                metrics: {
-                  totalWatchTimeMinutes: admin.firestore.FieldValue.increment(creditedDelta / 60),
-                },
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-              },
-              { merge: true }
-            )
-            .catch((err) => logger.warn("[WatchTime] Channel parent watch time increment warning:", err));
         }
       }
 
       if (!isVerifiedAuthUser && creditedDelta > 0 && ipHash !== "unknown") {
         await recordGuestWatchDelta(ipHash, creditedDelta, body.videoId);
+      }
+
+      // ── Stream to BigQuery Analytics Lakehouse (Non-blocking) ──
+      if (body.videoId && body.eventType) {
+        try {
+          const bqAnalytics = getBigQueryAnalyticsService();
+          bqAnalytics.enqueueWatchEvent({
+            event_id: eventId,
+            timestamp: new Date().toISOString(),
+            video_id: String(body.videoId),
+            channel_id: targetChannelId ? String(targetChannelId) : null,
+            user_id: body.userId ? String(body.userId) : null,
+            session_id: body.sessionId ? String(body.sessionId) : null,
+            event_type: String(body.eventType),
+            position_sec: position,
+            duration_sec: duration,
+            watch_time_delta_sec: creditedDelta,
+            is_subscriber: isSub,
+            is_premium: isPremiumSubscriber,
+            country,
+            state,
+            city,
+            area_type: areaType,
+            playback_quality: body.playbackQuality ?? "auto",
+            playback_rate: body.playbackRate ?? 1.0,
+            platform: body.platform ?? "unknown",
+            traffic_source: body.trafficSource ?? "direct",
+            ip_hash: ipHash,
+          });
+        } catch (bqErr) {
+          logger.warn("[WatchTime] BigQuery streaming enqueue warning", { err: String(bqErr) });
+        }
       }
 
       if (isDuplicate) {
@@ -1073,10 +1112,12 @@ export const aggregateWatchStats = onSchedule(
       const countryTrafficObj: Record<string, number> = {};
       acc.countryTraffic.forEach((count: number, key: string) => { countryTrafficObj[key] = count; });
 
-      const statsDoc: VideoStats = {
-        totalViews: acc.views,
+      const statsDoc: any = {
+        totalViews: admin.firestore.FieldValue.increment(acc.views),
+        periodViews: acc.views,
         uniqueUsers: acc.users.size,
-        totalWatchSeconds: Math.round(acc.watchSeconds),
+        totalWatchSeconds: admin.firestore.FieldValue.increment(Math.round(acc.watchSeconds)),
+        periodWatchSeconds: Math.round(acc.watchSeconds),
         avgWatchSeconds: acc.views > 0 ? Math.round(acc.watchSeconds / acc.views) : 0,
         completionRate,
         fullWatched: acc.full,
@@ -1140,11 +1181,11 @@ export const aggregateWatchStats = onSchedule(
         .doc(state);
 
       await addOp(ref, {
-        views: acc.views,
+        views: admin.firestore.FieldValue.increment(acc.views),
         uniqueUsers: acc.users.size,
-        totalWatchSeconds: Math.round(acc.watchSeconds),
-        totalSubscribers: acc.Subscribers,
-        totalNewSubscribers: acc.newSubscribers,
+        totalWatchSeconds: admin.firestore.FieldValue.increment(Math.round(acc.watchSeconds)),
+        totalSubscribers: admin.firestore.FieldValue.increment(acc.Subscribers),
+        totalNewSubscribers: admin.firestore.FieldValue.increment(acc.newSubscribers),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
     }
@@ -1226,8 +1267,17 @@ export const getCreatorStats = onRequest(
   },
   async (req, res) => {
     applySecurityHeaders(res);
-    // ── CORS headers on every response ──
-    res.set("Access-Control-Allow-Origin", "*");
+    // ── Restrict CORS to trusted TruthWorld origins (TW-ANALYTICS-01) ──
+    const origin = req.headers.origin as string | undefined;
+    const allowedOrigins = [
+      "https://truthworld.in",
+      "https://www.truthworld.in",
+      "https://studio.truthworld.in",
+      "https://admin.truthworld.in",
+    ];
+    if (origin && allowedOrigins.includes(origin)) {
+      res.set("Access-Control-Allow-Origin", origin);
+    }
     res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
     res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
@@ -1237,9 +1287,34 @@ export const getCreatorStats = onRequest(
       return;
     }
 
+    // ── TW-ANALYTICS-01: Authentication & Authorization Guard ──
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      res.status(401).send({ error: "Authentication required to access creator statistics." });
+      return;
+    }
+
+    let callerUid: string;
+    let isAdminUser = false;
+    try {
+      const token = authHeader.split("Bearer ")[1];
+      const decoded = await admin.auth().verifyIdToken(token);
+      callerUid = decoded.uid;
+      isAdminUser = decoded.admin === true && decoded.email_verified === true;
+    } catch {
+      res.status(401).send({ error: "Invalid or expired authentication credentials." });
+      return;
+    }
+
     const creatorId = req.query.creatorId as string;
     if (!creatorId) {
       res.status(400).send({ error: "Missing creatorId" });
+      return;
+    }
+
+    // Only the creator themselves or a verified administrator can access creator analytics
+    if (callerUid !== creatorId && !isAdminUser) {
+      res.status(403).send({ error: "Access denied. You can only view analytics for your own channel." });
       return;
     }
 

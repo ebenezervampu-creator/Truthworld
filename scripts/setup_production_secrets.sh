@@ -11,7 +11,9 @@ PROJECT_ID="${1:-truthworld-1}"
 CASHFREE_APP_ID="${2:-}"
 CASHFREE_SECRET_KEY="${3:-}"
 ASSEMBLYAI_KEY="${4:-}"
-INDEXNOW_KEY="${5:-truthworld-indexnow-key-2026}"
+ELEVENLABS_API_KEY="${5:-}"
+SARVAM_API_KEY="${6:-}"
+INDEXNOW_KEY="${7:-truthworld-indexnow-key-2026}"
 
 echo "=========================================================="
 echo " TruthWorld Production Secret Manager Setup"
@@ -69,6 +71,14 @@ set_gcp_secret "CASHFREE_SECRET_KEY" "${CASHFREE_SECRET_KEY}"
 
 if [ -n "${ASSEMBLYAI_KEY}" ]; then
   set_gcp_secret "ASSEMBLYAI_KEY" "${ASSEMBLYAI_KEY}"
+fi
+
+if [ -n "${ELEVENLABS_API_KEY}" ]; then
+  set_gcp_secret "ELEVENLABS_API_KEY" "${ELEVENLABS_API_KEY}"
+fi
+
+if [ -n "${SARVAM_API_KEY}" ]; then
+  set_gcp_secret "SARVAM_API_KEY" "${SARVAM_API_KEY}"
 fi
 
 if [ -n "${INDEXNOW_KEY}" ]; then

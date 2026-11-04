@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_dubbing_controller.dart';
 
 /// Advanced AI dubbing features section: Voice cloning, diarization, and audio preservation.
+/// Formatted in ElevenLabs clean, modern dark aesthetic.
 class DubbingAdvancedFeaturesSection extends StatelessWidget {
   const DubbingAdvancedFeaturesSection({required this.controller, super.key});
   final UploadDubbingController controller;
@@ -12,9 +13,9 @@ class DubbingAdvancedFeaturesSection extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF141418),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        color: const Color(0xFF14151B),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF262834)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -29,13 +30,14 @@ class DubbingAdvancedFeaturesSection extends StatelessWidget {
                   color: Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
+                  letterSpacing: -0.2,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 14),
 
-          // Voice Cloning / Vocal Identity Tile
+          // 1. Voice Cloning / Vocal Identity Tile
           Obx(() {
             final isCloned = controller.voiceType.value == 'cloned';
             final sampleName = controller.voiceSampleName;
@@ -44,13 +46,13 @@ class DubbingAdvancedFeaturesSection extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: isCloned
-                    ? const Color(0xFF7C3AED).withValues(alpha: 0.12)
-                    : Colors.white.withValues(alpha: 0.02),
+                    ? const Color(0xFF1A1C26)
+                    : const Color(0xFF101116),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
                   color: isCloned
-                      ? const Color(0xFF8B5CF6)
-                      : Colors.white10,
+                      ? const Color(0xFFA78BFA).withValues(alpha: 0.6)
+                      : const Color(0xFF222430),
                 ),
               ),
               child: Column(
@@ -63,7 +65,7 @@ class DubbingAdvancedFeaturesSection extends StatelessWidget {
                         children: [
                           Icon(
                             Icons.record_voice_over,
-                            color: isCloned ? const Color(0xFFA78BFA) : Colors.white60,
+                            color: isCloned ? const Color(0xFFA78BFA) : const Color(0xFFA1A1AA),
                             size: 18,
                           ),
                           const SizedBox(width: 8),
@@ -71,8 +73,8 @@ class DubbingAdvancedFeaturesSection extends StatelessWidget {
                             'Studio Vocal Identity & Voice Cloning',
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
@@ -80,6 +82,7 @@ class DubbingAdvancedFeaturesSection extends StatelessWidget {
                       Switch(
                         value: isCloned,
                         activeColor: Colors.white,
+                        activeTrackColor: const Color(0xFF7C3AED),
                         onChanged: (val) {
                           controller.voiceType.value = val ? 'cloned' : 'standard';
                         },
@@ -87,14 +90,12 @@ class DubbingAdvancedFeaturesSection extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    controller.isCustomChannel
-                        ? '✓ Custom Channel Partner: Studio voice cloning included at zero extra cost. Replicates your vocal pitch, tone, and inflection in all dubbed languages.'
-                        : 'Standard channels utilize high-fidelity neural voices. Upgrade to Custom Channel for full voice cloning & studio identity.',
+                  const Text(
+                    'Replicates your natural vocal pitch, tone, and inflection in all dubbed languages with studio-grade ElevenLabs voice cloning.',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.65),
-                      fontSize: 11,
-                      height: 1.3,
+                      color: Color(0xFFA1A1AA),
+                      fontSize: 11.5,
+                      height: 1.35,
                     ),
                   ),
                   if (isCloned) ...[
@@ -115,7 +116,11 @@ class DubbingAdvancedFeaturesSection extends StatelessWidget {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: Colors.black,
+                            elevation: 0,
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(6),
+                            ),
                           ),
                         ),
                         if (sampleName != null) ...[
@@ -123,7 +128,7 @@ class DubbingAdvancedFeaturesSection extends StatelessWidget {
                           Expanded(
                             child: Text(
                               'Sample: $sampleName',
-                              style: const TextStyle(color: Colors.white70, fontSize: 11),
+                              style: const TextStyle(color: Color(0xFFD4D4D8), fontSize: 11),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -135,40 +140,48 @@ class DubbingAdvancedFeaturesSection extends StatelessWidget {
               ),
             );
           }),
+
           const SizedBox(height: 10),
 
-          // Speaker Diarization Tile
+          // 2. Speaker Diarization Tile
           Obx(() {
             final isDiarization = controller.isDiarizationEnabled.value;
             return Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.02),
+                color: isDiarization
+                    ? const Color(0xFF181A24)
+                    : const Color(0xFF101116),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.white10),
+                border: Border.all(
+                  color: isDiarization
+                      ? const Color(0xFF60A5FA).withValues(alpha: 0.5)
+                      : const Color(0xFF222430),
+                ),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.people_outline, color: Colors.white70, size: 18),
+                  const Icon(Icons.people_outline, color: Color(0xFFA1A1AA), size: 18),
                   const SizedBox(width: 10),
-                  Expanded(
+                  const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Speaker Diarization (Multi-Speaker AI)',
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        SizedBox(height: 2),
                         Text(
                           'Identifies distinct speakers in podcasts, interviews, and roundtables, assigning appropriate individual voices.',
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.6),
-                            fontSize: 11,
+                            color: Color(0xFFA1A1AA),
+                            fontSize: 11.5,
+                            height: 1.35,
                           ),
                         ),
                       ],
@@ -177,70 +190,253 @@ class DubbingAdvancedFeaturesSection extends StatelessWidget {
                   Switch(
                     value: isDiarization,
                     activeColor: Colors.white,
-                    onChanged: (val) => controller.isDiarizationEnabled.value = val,
+                    activeTrackColor: const Color(0xFF2563EB),
+                    onChanged: (val) {
+                      controller.isDiarizationEnabled.value = val;
+                    },
                   ),
                 ],
               ),
             );
           }),
+
           const SizedBox(height: 10),
 
-          // Background Audio & Music Preservation Tile
+          // 3. Audio Track & BGM Preservation
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.02),
+              color: const Color(0xFF101116),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white10),
+              border: Border.all(color: const Color(0xFF222430)),
             ),
             child: Row(
               children: [
-                const Icon(Icons.music_note_outlined, color: Colors.white70, size: 18),
+                const Icon(Icons.music_note_outlined, color: Color(0xFFA1A1AA), size: 18),
                 const SizedBox(width: 10),
-                Expanded(
+                const Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Background Music & Audio Track Preservation',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            'Background Music & Audio Track Preservation',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 2),
+                      SizedBox(height: 2),
                       Text(
                         'Neural vocal separation preserves background score, sound effects, and Foley while replacing spoken voice tracks.',
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.6),
-                          fontSize: 11,
+                          color: Color(0xFFA1A1AA),
+                          fontSize: 11.5,
+                          height: 1.35,
                         ),
                       ),
                     ],
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                    color: const Color(0xFF10B981).withValues(alpha: 0.16),
                     borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
                   ),
                   child: const Text(
                     'ACTIVE',
                     style: TextStyle(
                       color: Color(0xFF34D399),
-                      fontSize: 8.5,
+                      fontSize: 9.5,
                       fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ),
               ],
             ),
           ),
+
+          const SizedBox(height: 10),
+
+          // 3b. Anti-Uncanny Cadence Locking (Audio Ultra exclusive)
+          Obx(() {
+            final isAudioUltra = controller.selectedDubbingTier.value == 'audio_ultra';
+            if (!isAudioUltra) return const SizedBox.shrink();
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF16152B),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: const Color(0xFFA78BFA).withValues(alpha: 0.35),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.sync_lock_outlined, color: Color(0xFFA78BFA), size: 18),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Anti-Uncanny Viseme Cadence Locking',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Clamps neural voice timing to original mouth closure endpoints to eliminate speech overhang on head-on vlog shots.',
+                              style: TextStyle(
+                                color: Color(0xFFA1A1AA),
+                                fontSize: 11.5,
+                                height: 1.35,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFA78BFA).withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: const Color(0xFFA78BFA).withValues(alpha: 0.4)),
+                        ),
+                        child: const Text(
+                          'ACTIVE',
+                          style: TextStyle(
+                            color: Color(0xFFA78BFA),
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F0E1D),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Need 100% video lip movement re-targeting on camera?',
+                            style: TextStyle(
+                              color: Color(0xFFD4D4D8),
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => controller.selectTier('video_pro'),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            foregroundColor: const Color(0xFF38BDF8),
+                          ),
+                          child: const Text(
+                            'Switch to Video Pro (+\$0.10/min)',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+
+          // 4. AI Visual Lip-Sync (LatentSync)
+          Obx(() {
+            final isLipSync = controller.isLipSyncEnabled.value;
+            return Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isLipSync
+                    ? const Color(0xFF181A24)
+                    : const Color(0xFF101116),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isLipSync
+                      ? const Color(0xFF38BDF8).withValues(alpha: 0.5)
+                      : const Color(0xFF222430),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.face_retouching_natural, color: Color(0xFFA1A1AA), size: 18),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'AI Visual Lip-Sync (LatentSync)',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Diffuses natural mouth and lip visemes synchronized to translated dialogue with CodeFormer 1080p facial restoration.',
+                          style: TextStyle(
+                            color: Color(0xFFA1A1AA),
+                            fontSize: 11.5,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: isLipSync,
+                    activeColor: Colors.white,
+                    activeTrackColor: const Color(0xFF0284C7),
+                    onChanged: (val) {
+                      controller.isLipSyncEnabled.value = val;
+                      if (val && !controller.selectedDubbingTier.value.startsWith('video_')) {
+                        controller.selectTier('video_pro');
+                      } else if (!val && controller.selectedDubbingTier.value.startsWith('video_')) {
+                        controller.selectTier('audio_starter');
+                      }
+                    },
+                  ),
+                ],
+              ),
+            );
+          }),
         ],
       ),
     );
   }
-
 }

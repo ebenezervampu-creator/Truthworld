@@ -46,6 +46,8 @@ void main() {
     'durationMs': 754000,
     'views': 125400,
     'isFactChecked': true,
+    'factCheckUrl': 'https://example.com/factcheck.json',
+    'trustScore': 92.0,
     'uploadedAt': Timestamp.now(),
   }, 'vid_mod_card_1');
 
@@ -244,6 +246,43 @@ void main() {
 
       expect(shortCardSize.height, equals(longCardSize.height));
       expect(shortCardSize.width, equals(longCardSize.width));
+    });
+
+    testWidgets(
+        '11. VideoCard does NOT render verified tick mark when TruthWorld Intelligence & Credibility is empty',
+        (tester) async {
+      final unverifiedVideo = Video.fromMap({
+        'id': 'vid_empty_credibility',
+        'title': 'Unverified Cyclone Video',
+        'channelId': 'chan_mod_1',
+        'channelName': 'TruthWorld Engineering',
+        'channelAvatarUrl': 'https://example.com/avatar.jpg',
+        'videoUrl': 'https://example.com/video.mp4',
+        'thumbnailUrl': 'https://example.com/thumb.jpg',
+        'duration': '07:49',
+        'durationMs': 469000,
+        'views': 1,
+        'isFactChecked': true, // Even if isFactChecked flag was true in Firestore!
+        'trustScore': 0.0,
+        'uploadedAt': Timestamp.now(),
+      }, 'vid_empty_credibility');
+
+      await tester.pumpWidget(
+        wrapWithMaterial(
+          VideoCard(
+            video: unverifiedVideo,
+            isGrid: true,
+            disableHoverPreview: true,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+
+      expect(find.text(unverifiedVideo.title), findsOneWidget);
+      expect(find.text(unverifiedVideo.duration), findsOneWidget);
+      // NEVER show verified green tick mark for videos with empty TruthWorld Intelligence & Credibility
+      expect(find.byIcon(Icons.verified_rounded), findsNothing);
     });
   });
 }

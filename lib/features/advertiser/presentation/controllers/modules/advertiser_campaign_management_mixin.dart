@@ -11,7 +11,6 @@ mixin AdvertiserCampaignManagementMixin {
   StreamSubscription<QuerySnapshot>? _presetsSub;
   StreamSubscription<QuerySnapshot>? _proposalsSub;
   StreamSubscription<QuerySnapshot>? _assetsSub;
-  StreamSubscription<QuerySnapshot>? _experimentsSub;
 
   // 1. Audience Presets
   final RxList<Map<String, dynamic>> audiencePresets = <Map<String, dynamic>>[].obs;
@@ -25,10 +24,7 @@ mixin AdvertiserCampaignManagementMixin {
   final RxString selectedAssetCategory = 'All'.obs;
   final RxList<Map<String, dynamic>> creativeAssetsList = <Map<String, dynamic>>[].obs;
 
-  // 4. A/B Testing & Optimization
-  final RxList<Map<String, dynamic>> abExperimentsList = <Map<String, dynamic>>[].obs;
-
-  // 5. Brand Profile & Settings
+  // 4. Brand Profile & Settings
   final RxString brandName = 'Truthworld'.obs;
   final RxString brandTagline = 'Truthworld Change the World'.obs;
   final RxString brandWebsite = 'https://truthworld.in'.obs;
@@ -49,7 +45,6 @@ mixin AdvertiserCampaignManagementMixin {
     _presetsSub?.cancel();
     _proposalsSub?.cancel();
     _assetsSub?.cancel();
-    _experimentsSub?.cancel();
   }
 
   void initCampaignManagement() {
@@ -60,7 +55,6 @@ mixin AdvertiserCampaignManagementMixin {
       audiencePresets.clear();
       sponsorshipProposals.clear();
       creativeAssetsList.clear();
-      abExperimentsList.clear();
       teamMembers.clear();
       return;
     }
@@ -69,7 +63,6 @@ mixin AdvertiserCampaignManagementMixin {
     _listenToPresets(uid);
     _listenToProposals(uid);
     _listenToAssets(uid);
-    _listenToExperiments(uid);
   }
 
   Future<void> _loadBrandProfile(String uid) async {
@@ -177,24 +170,6 @@ mixin AdvertiserCampaignManagementMixin {
     });
   }
 
-  void _listenToExperiments(String uid) {
-    _experimentsSub = FirebaseFirestore.instance
-        .collection('advertiser_profiles')
-        .doc(uid)
-        .collection('ab_experiments')
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .listen((snap) {
-      abExperimentsList.value = snap.docs.map((d) {
-        final data = d.data();
-        data['id'] = d.id;
-        return data;
-      }).toList();
-    }, onError: (Object e) {
-      ErrorHandler.log(e);
-    });
-  }
-
   Future<void> fetchSponsorshipCreators() async {
     try {
       final snap = await FirebaseFirestore.instance.collection('channels').limit(20).get();
@@ -213,8 +188,12 @@ mixin AdvertiserCampaignManagementMixin {
           'subscribersCount': subCount,
           'avgViews': viewsCount >= 1000 ? '${(viewsCount / 1000).toStringAsFixed(0)}K' : '$viewsCount',
           'engagement': '${(data['engagementRate'] as num?)?.toStringAsFixed(1) ?? "8.5"}%',
-          'avatarColor': 0xFF3B82F6,
+          'avatarColor': AppColors.info.toARGB32(),
           'bio': data['description'] ?? data['bio'] ?? 'Truthworld content partner.',
+          'isTrusted': (data['trustedModerationBypass'] as bool?) ??
+              (data['bypassModeration'] as bool?) ??
+              (data['trustedChannel'] as bool?) ??
+              false,
           'packages': [
             {'type': '15s Mid-roll Sponsor', 'price': 3000.0},
             {'type': 'Pinned Comment Link', 'price': 1000.0},
@@ -387,67 +366,6 @@ mixin AdvertiserCampaignManagementMixin {
       backgroundColor: AppColors.info,
       colorText: AppColors.textPrimary,
     );
-  }
-
-  Future<void> createAbExperiment(Map<String, dynamic> experiment) async {
-    final exp = Map<String, dynamic>.of(experiment);
-    final uid = AuthService.to.uid;
-    exp['createdAt'] = FieldValue.serverTimestamp();
-
-    if (uid.isNotEmpty) {
-      try {
-        final docRef = await FirebaseFirestore.instance
-            .collection('advertiser_profiles')
-            .doc(uid)
-            .collection('ab_experiments')
-            .add(exp);
-        exp['id'] = docRef.id;
-      } catch (e, s) {
-        ErrorHandler.log(e, stackTrace: s, tag: 'AdvertiserCampaignManagementMixin.createAbExperiment');
-      }
-    } else {
-      exp['id'] = exp['id'] ?? 'exp_${DateTime.now().millisecondsSinceEpoch}';
-    }
-
-    if (!abExperimentsList.any((e) => e['id'] == exp['id'])) {
-      abExperimentsList.insert(0, exp);
-    }
-
-    AppSnackbar.show(
-      'A/B Test Launched',
-      'Experiment "${experiment['title']}" is now splitting campaign traffic.',
-      backgroundColor: AppColors.success,
-      colorText: AppColors.textPrimary,
-    );
-  }
-
-  Future<void> declareExperimentWinner(String experimentId, String winningVariant) async {
-    final idx = abExperimentsList.indexWhere((e) => e['id'] == experimentId);
-    if (idx != -1) {
-      abExperimentsList[idx]['status'] = 'Concluded';
-      abExperimentsList.refresh();
-
-      final uid = AuthService.to.uid;
-      if (uid.isNotEmpty) {
-        try {
-          await FirebaseFirestore.instance
-              .collection('advertiser_profiles')
-              .doc(uid)
-              .collection('ab_experiments')
-              .doc(experimentId)
-              .update({'status': 'Concluded', 'winner': winningVariant});
-        } catch (e, s) {
-          ErrorHandler.log(e, stackTrace: s, tag: 'AdvertiserCampaignManagementMixin.declareExperimentWinner');
-        }
-      }
-
-      AppSnackbar.show(
-        'Winner Applied',
-        '$winningVariant has been declared the winner and set as default.',
-        backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary,
-      );
-    }
   }
 
   Future<void> saveBrandSettings({

@@ -265,7 +265,7 @@ void main() {
       final vpc = VideoPlayerController.networkUrl(Uri.parse('https://example.com/test.mp4'));
       final ctrl = TowerPlayerController(videoPlayerController: vpc);
 
-      expect(ctrl.aspectRatio.value, 1.0);
+      expect(ctrl.aspectRatio.value, 16 / 9);
       ctrl.aspectRatio.value = 16 / 9;
       expect(ctrl.aspectRatio.value, 16 / 9);
 

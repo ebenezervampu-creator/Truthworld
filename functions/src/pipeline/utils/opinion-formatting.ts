@@ -2,7 +2,7 @@
  * TruthWorld Opinion Formatting Utilities
  *
  * Explains clearly why our verification system configured a specific claim
- * as an opinion rather than a fact, in language a 10-year-old child can easily grasp.
+ * as an opinion rather than a fact, in clear, objective, accessible language.
  */
 
 export function formatOpinionReasoning(claimText?: string): string {

@@ -92,6 +92,7 @@ mixin CommentInteractionsMixin on CommentsStateBase {
           isVideoCreator: isVideoCreator,
           creatorName: creatorName,
         );
+        triggerLikeNotification(comment, asChannel: likeAsChannel);
       }
     } catch (e) {
       // Revert on error
@@ -219,7 +220,7 @@ mixin CommentInteractionsMixin on CommentsStateBase {
     return 'Liked by $count users';
   }
 
-  void triggerLikeNotification(Comment comment) {
+  void triggerLikeNotification(Comment comment, {bool asChannel = false}) {
     if (video == null ||
         currentUserId.isEmpty ||
         currentUserId == comment.userId) {
@@ -228,20 +229,40 @@ mixin CommentInteractionsMixin on CommentsStateBase {
 
     final authService = AuthService.to;
     final notificationService = UserNotificationService();
+    final isVideoCreator = video != null && currentUserId == video!.ownerId;
+    final videoCreatorName = video?.channelName.isNotEmpty ?? false
+        ? video!.channelName
+        : 'Creator';
+    final rawName = currentUserName;
+    final displayUserName =
+        rawName.startsWith('@') ? rawName.substring(1) : rawName;
+    final channelName = authService.userChannel?.name;
+
+    final notifTitle = isVideoCreator
+        ? '$videoCreatorName ❤️ liked your comment!'
+        : (asChannel && channelName != null
+            ? '$channelName liked your comment'
+            : 'Comment Liked');
+    final notifMessage = isVideoCreator
+        ? '$videoCreatorName gave your comment a heart: "${comment.text}"'
+        : '$displayUserName liked your comment: "${comment.text}"';
+
     notificationService.createNotification(
       userId: comment.userId,
       type: 'comment_like',
       severity: NotificationSeverity.info,
-      title: 'Comment Liked',
-      message:
-          '${currentUserName.startsWith('@') ? currentUserName.substring(1) : currentUserName} liked your comment: "${comment.text}"',
-      actionUrl: '/watch?v=${video!.id}',
+      title: notifTitle,
+      message: notifMessage,
+      actionUrl: '/watch?v=${video!.id}&commentId=${comment.id}',
+      targetApp: 'all',
       metadata: {
         'videoId': video!.id,
         'commentId': comment.id,
         'thumbnailUrl': video!.thumbnailUrl,
         'channelId': video!.channelId,
         'userAvatar': authService.activePhotoUrl,
+        'isCreator': isVideoCreator,
+        'isChannel': asChannel || isVideoCreator,
       },
     );
   }

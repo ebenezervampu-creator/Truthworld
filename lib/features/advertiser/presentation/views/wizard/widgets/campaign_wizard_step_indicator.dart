@@ -33,15 +33,15 @@ class CampaignWizardStepTab extends StatelessWidget {
           color: isActive
               ? AppColors.brand.withValues(alpha: 0.12)
               : isDone
-              ? const Color(0xFF18181B)
+              ? AppColors.bgPage
               : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isActive
                 ? AppColors.brand
                 : isDone
-                ? const Color(0xFF27272A)
-                : const Color(0xFF27272A),
+                ? AppColors.bgSurface
+                : AppColors.bgSurface,
           ),
         ),
         child: Row(

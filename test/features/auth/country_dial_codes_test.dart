@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/components/ui/auth/auth_sheet_controller.dart';
+import 'package:truthworld/components/ui/auth/country_dial_codes.dart';
 import 'package:truthworld/components/ui/auth/phone_verification_sheet.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import '../../test_helpers/mock_firebase.dart';
@@ -30,8 +30,7 @@ void main() {
   group('CountryDialCodes Dataset & Logic Tests', () {
     test('1. Provides extensive list of world countries (>240 entries)', () {
       expect(CountryDialCodes.all.length, greaterThan(240));
-      expect(AuthSheetController.supportedCountries.length, equals(CountryDialCodes.all.length));
-      expect(AuthSheetController.allCountries.length, equals(CountryDialCodes.all.length));
+      expect(PhoneVerificationController.allCountries.length, equals(CountryDialCodes.all.length));
     });
 
     test('2. Every country has valid ISO code, dial code, and name', () {
@@ -84,15 +83,15 @@ void main() {
     });
   });
 
-  group('AuthSheetController Country Search & Selection Tests', () {
+  group('PhoneVerificationController Country Search & Selection Tests', () {
     test('1. Initial country defaults to United States', () {
-      final controller = AuthSheetController();
+      final controller = PhoneVerificationController();
       expect(controller.selectedCountry.value.dialCode, equals('+1'));
       expect(controller.selectedCountry.value.isoCode, equals('US'));
     });
 
     test('2. Searching filters countries by name, dial code, and ISO code', () {
-      final controller = AuthSheetController();
+      final controller = PhoneVerificationController();
 
       // Search by name
       controller.updateCountrySearch('Brazil');
@@ -117,7 +116,7 @@ void main() {
     });
 
     test('3. Selecting a country updates selectedCountry and resets search query', () {
-      final controller = AuthSheetController();
+      final controller = PhoneVerificationController();
       controller.updateCountrySearch('Japan');
       final japan = controller.filteredCountries.firstWhere((c) => c.isoCode == 'JP');
 

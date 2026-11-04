@@ -33,7 +33,6 @@ mixin TowerPlayerNavigationMixin on GetxController {
   // ── Playlist & queue navigation ───────────────────────────
   bool get hasPreviousVideo {
     isAudioOnly.value; // Guarantee Rx access for Obx
-    if (!isAutoplay.value) return false;
     try {
       final vc = videoController;
       if (vc != null && vc.playlistVideos.isNotEmpty) {
@@ -52,7 +51,6 @@ mixin TowerPlayerNavigationMixin on GetxController {
 
   bool get hasNextVideo {
     isAudioOnly.value; // Guarantee Rx access for Obx
-    if (!isAutoplay.value) return false;
     try {
       final vc = videoController;
       if (vc != null && vc.playlistVideos.isNotEmpty) {
@@ -75,7 +73,6 @@ mixin TowerPlayerNavigationMixin on GetxController {
   final RxBool isNavigatingToVideo = false.obs;
 
   void playNext() {
-    if (!isAutoplay.value) return;
     trackAnalytics(PlayerEvent('next'));
     final vc = videoController;
     if (vc == null) return;
@@ -119,7 +116,6 @@ mixin TowerPlayerNavigationMixin on GetxController {
   }
 
   void playPrevious() {
-    if (!isAutoplay.value) return;
     trackAnalytics(PlayerEvent('previous'));
     final vc = videoController;
     if (vc == null) return;

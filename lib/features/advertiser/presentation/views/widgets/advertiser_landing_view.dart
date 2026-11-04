@@ -15,9 +15,9 @@ class AdvertiserLandingView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
+      backgroundColor: AppColors.bgPage,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F0F0F),
+        backgroundColor: AppColors.bgPage,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -66,9 +66,9 @@ class AdvertiserLandingView extends StatelessWidget {
               constraints: const BoxConstraints(maxWidth: 450),
               padding: const EdgeInsets.all(40),
               decoration: BoxDecoration(
-                color: const Color(0xFF161618),
+                color: AppColors.appBarSurface,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFF27272A)),
+                border: Border.all(color: AppColors.bgSurface),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -77,10 +77,10 @@ class AdvertiserLandingView extends StatelessWidget {
                     width: 72,
                     height: 72,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF18181B),
+                      color: AppColors.bgPage,
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: const Color(0xFF27272A),
+                        color: AppColors.bgSurface,
                         width: 1.5,
                       ),
                     ),

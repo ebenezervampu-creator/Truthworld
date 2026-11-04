@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/settings/presentation/views/settings/widgets/settings_theme.dart';
 import 'package:truthworld/features/watchhistory/presentation/controllers/watch_history_controller.dart';
+import 'package:truthworld/routes/app_routes.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class WatchHistorySettingsView extends StatelessWidget {
@@ -10,7 +11,9 @@ class WatchHistorySettingsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.find<WatchHistoryController>();
+    final controller = Get.isRegistered<WatchHistoryController>()
+        ? Get.find<WatchHistoryController>()
+        : Get.put(WatchHistoryController());
 
     return Theme(
       data: getSettingsTheme(context),
@@ -29,7 +32,13 @@ class WatchHistorySettingsView extends StatelessWidget {
               ),
               leading: IconButton(
                 icon: Icon(Icons.arrow_back, color: context.colors.textPrimary),
-                onPressed: Get.back,
+                onPressed: () {
+                  if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  } else {
+                    Get.offAllNamed('/');
+                  }
+                },
               ),
             ),
             body: SafeArea(
@@ -120,8 +129,13 @@ class WatchHistorySettingsView extends StatelessWidget {
               Get.find<HomeController>().onSideNavItemSelect(
                 HomeController.indexHistory,
               );
-              Get.back();
-              Get.back();
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              }
+              if (Get.currentRoute == AppRoutes.settings &&
+                  Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              }
             } else {
               Get.toNamed('/watchhistory');
             }

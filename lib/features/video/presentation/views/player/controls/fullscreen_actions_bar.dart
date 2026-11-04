@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/show_dialog.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
-import 'package:truthworld/theme/app_theme.dart';
 
 /// Minimal floating horizontal action dock for TruthWorld fullscreen player.
 /// Replaces the bulky vertical action bar with a sleek, translucent glass pill.
@@ -18,6 +18,25 @@ class FullscreenFloatingActionDock extends StatelessWidget {
 
   final TowerPlayerController ctrl;
   final VideoController? vc;
+
+  bool _canViewCredibility(VideoController videoCtrl) {
+    final video = videoCtrl.rxVideo.value;
+    if (video.isNonCredibilityCategory) return false;
+
+    final currentUid = AuthService.to.uid;
+    final userChannelId = AuthService.to.userChannel?.id;
+    final isOwner = currentUid.isNotEmpty &&
+        (video.ownerId == currentUid ||
+            video.userId == currentUid ||
+            (userChannelId != null &&
+                userChannelId.isNotEmpty &&
+                video.channelId == userChannelId));
+    final isAllowedToView = video.canPublicViewFactCheck || isOwner;
+    return isAllowedToView &&
+        (video.hasAiCredibility ||
+            videoCtrl.video.hasAiCredibility ||
+            videoCtrl.factCheckData.isNotEmpty);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,10 +65,43 @@ class FullscreenFloatingActionDock extends StatelessWidget {
               icon: isLiked ? Icons.thumb_up_rounded : Icons.thumb_up_outlined,
               isActive: isLiked,
               onTap: () {
+                if (!AuthService.to.isAuthenticated.value) {
+                  AppSnackbar.info(
+                    'Please sign in to like this video.',
+                    title: 'Sign In Required',
+                    actionLabel: 'SIGN IN',
+                    onAction: () => AuthService.to.triggerPlatformSignIn(),
+                  );
+                  return;
+                }
                 videoCtrl.toggleLike();
                 ctrl.startHideTimer();
               },
               tooltip: isLiked ? 'Liked' : 'Like',
+            );
+          }),
+          // Dislike
+          Obx(() {
+            final isDisliked = videoCtrl.isDisliked.value;
+            return _DockBtn(
+              icon: isDisliked
+                  ? Icons.thumb_down_rounded
+                  : Icons.thumb_down_outlined,
+              isActive: isDisliked,
+              onTap: () {
+                if (!AuthService.to.isAuthenticated.value) {
+                  AppSnackbar.info(
+                    'Please sign in to dislike this video.',
+                    title: 'Sign In Required',
+                    actionLabel: 'SIGN IN',
+                    onAction: () => AuthService.to.triggerPlatformSignIn(),
+                  );
+                  return;
+                }
+                videoCtrl.toggleDislike();
+                ctrl.startHideTimer();
+              },
+              tooltip: isDisliked ? 'Disliked' : 'Dislike',
             );
           }),
           // Comments
@@ -65,14 +117,16 @@ class FullscreenFloatingActionDock extends StatelessWidget {
                 ctrl.showCommentsPopup.value = ctrl.overlayManager.isCommentsOpen;
                 ctrl.showTranscriptPopup.value = false;
                 ctrl.showFactCheckPopup.value = false;
-                ctrl.showLiveChat.value = false;
                 ctrl.startHideTimer();
               },
               tooltip: 'Comments',
             );
           }),
-          // Claims
+          // Claims & Fact-Check
           Obx(() {
+            if (!_canViewCredibility(videoCtrl)) {
+              return const SizedBox.shrink();
+            }
             final isFactCheckOpen = ctrl.overlayManager.isFactCheckOpen || ctrl.showFactCheckPopup.value;
             return _DockBtn(
               icon: isFactCheckOpen
@@ -84,7 +138,6 @@ class FullscreenFloatingActionDock extends StatelessWidget {
                 ctrl.showFactCheckPopup.value = ctrl.overlayManager.isFactCheckOpen;
                 ctrl.showCommentsPopup.value = false;
                 ctrl.showTranscriptPopup.value = false;
-                ctrl.showLiveChat.value = false;
                 ctrl.startHideTimer();
               },
               tooltip: 'Claims & Fact-Check',
@@ -95,9 +148,17 @@ class FullscreenFloatingActionDock extends StatelessWidget {
             _DockBtn(
               icon: Icons.share_outlined,
               onTap: () {
-                final url = 'https://truthworld.app/video/${videoCtrl.video.id}';
-                Clipboard.setData(ClipboardData(text: url));
-                AppSnackbar.info('Video link copied to clipboard');
+                final mainCtrl = Get.isRegistered<MainController>()
+                    ? MainController.to
+                    : Get.put(MainController());
+                mainCtrl.shareVideo(
+                  videoCtrl.video.id,
+                  videoCtrl.video.title,
+                  thumbnailUrl: videoCtrl.video.thumbnailUrl,
+                  channelName: videoCtrl.video.channelName,
+                  durationMs: videoCtrl.video.durationValue.inMilliseconds,
+                  currentPosition: ctrl.vv.position,
+                );
                 ctrl.startHideTimer();
               },
               tooltip: 'Share',
@@ -144,18 +205,35 @@ class FullscreenFloatingActionDock extends StatelessWidget {
                 ctrl.startHideTimer();
                 switch (val) {
                   case 'share':
-                    final url = 'https://truthworld.app/video/${videoCtrl.video.id}';
-                    Clipboard.setData(ClipboardData(text: url));
-                    AppSnackbar.info('Video link copied to clipboard');
+                    final mainCtrl = Get.isRegistered<MainController>()
+                        ? MainController.to
+                        : Get.put(MainController());
+                    mainCtrl.shareVideo(
+                      videoCtrl.video.id,
+                      videoCtrl.video.title,
+                      thumbnailUrl: videoCtrl.video.thumbnailUrl,
+                      channelName: videoCtrl.video.channelName,
+                      durationMs: videoCtrl.video.durationValue.inMilliseconds,
+                      currentPosition: ctrl.vv.position,
+                    );
                   case 'more_videos':
                     ctrl.toggleMoreVideos();
                   case 'claims':
+                    if (!_canViewCredibility(videoCtrl)) break;
                     ctrl.overlayManager.toggle(TowerPlayerOverlay.factCheck);
                     ctrl.showFactCheckPopup.value = ctrl.overlayManager.isFactCheckOpen;
                     ctrl.showCommentsPopup.value = false;
                     ctrl.showTranscriptPopup.value = false;
-                    ctrl.showLiveChat.value = false;
                   case 'save':
+                    if (!AuthService.to.isAuthenticated.value) {
+                      AppSnackbar.info(
+                        'Please sign in to save this video.',
+                        title: 'Sign In Required',
+                        actionLabel: 'SIGN IN',
+                        onAction: () => AuthService.to.triggerPlatformSignIn(),
+                      );
+                      break;
+                    }
                     showModernizedPlaylistDialog(
                       context: context,
                       videoId: videoCtrl.video.id,
@@ -165,16 +243,9 @@ class FullscreenFloatingActionDock extends StatelessWidget {
                     ctrl.showTranscriptPopup.value = ctrl.overlayManager.isTranscriptOpen;
                     ctrl.showCommentsPopup.value = false;
                     ctrl.showFactCheckPopup.value = false;
-                    ctrl.showLiveChat.value = false;
                     if (ctrl.showTranscriptPopup.value) {
                       videoCtrl.loadTranscriptForVideo();
                     }
-                  case 'chat':
-                    ctrl.overlayManager.toggle(TowerPlayerOverlay.liveChat);
-                    ctrl.showLiveChat.value = ctrl.overlayManager.isLiveChatOpen;
-                    ctrl.showCommentsPopup.value = false;
-                    ctrl.showFactCheckPopup.value = false;
-                    ctrl.showTranscriptPopup.value = false;
                   case 'stats':
                     ctrl.overlayManager.toggle(TowerPlayerOverlay.statsForNerds);
                     ctrl.showStatsForNerds.value = ctrl.overlayManager.isStatsForNerdsOpen;
@@ -217,23 +288,24 @@ class FullscreenFloatingActionDock extends StatelessWidget {
                     ),
                   ),
                 ],
-                const PopupMenuItem(
-                  value: 'claims',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.fact_check_outlined,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                      SizedBox(width: 10),
-                      Text(
-                        'Claims & Fact-Check',
-                        style: TextStyle(color: Colors.white, fontSize: 13),
-                      ),
-                    ],
+                if (_canViewCredibility(videoCtrl))
+                  const PopupMenuItem(
+                    value: 'claims',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.fact_check_outlined,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                        SizedBox(width: 10),
+                        Text(
+                          'Claims & Fact-Check',
+                          style: TextStyle(color: Colors.white, fontSize: 13),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
                 const PopupMenuItem(
                   value: 'save',
                   child: Row(
@@ -263,23 +335,6 @@ class FullscreenFloatingActionDock extends StatelessWidget {
                       SizedBox(width: 10),
                       Text(
                         'Transcript',
-                        style: TextStyle(color: Colors.white, fontSize: 13),
-                      ),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'chat',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.forum_outlined,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                      SizedBox(width: 10),
-                      Text(
-                        'Live Chat',
                         style: TextStyle(color: Colors.white, fontSize: 13),
                       ),
                     ],
@@ -335,14 +390,14 @@ class _DockBtn extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: isActive
-              ? Colors.white.withValues(alpha: 0.18)
+              ? Colors.white.withValues(alpha: 0.22)
               : Colors.transparent,
           shape: BoxShape.circle,
         ),
         child: Icon(
           icon,
           size: 17,
-          color: isActive ? AppColors.brand : Colors.white,
+          color: isActive ? Colors.white : Colors.white70,
         ),
       ),
     );

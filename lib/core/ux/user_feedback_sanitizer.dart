@@ -49,6 +49,12 @@ class UserFeedbackSanitizer {
     RegExp(r'\[firebase_functions/[a-zA-Z0-9_\-]+\]', caseSensitive: false),
     RegExp('profile_inactive', caseSensitive: false),
     RegExp('server error', caseSensitive: false),
+    RegExp(r'com\.truthworld', caseSensitive: false),
+    RegExp('whitelist', caseSensitive: false),
+    RegExp('whitelisting', caseSensitive: false),
+    RegExp('not enabled or approved', caseSensitive: false),
+    RegExp('package_not_approved', caseSensitive: false),
+    RegExp('installer_package', caseSensitive: false),
   ];
 
   /// Known technical moderation, timeout, or developer status signatures that must NEVER leak as a video summary.
@@ -266,6 +272,13 @@ class UserFeedbackSanitizer {
         if (lowerTech.contains('unauthenticated')) {
           return 'Please sign in to continue.';
         }
+        if (lowerTech.contains('whitelist') ||
+            lowerTech.contains('not enabled or approved') ||
+            lowerTech.contains('package_not_approved') ||
+            lowerTech.contains('installer_package') ||
+            lowerTech.contains('com.truthworld')) {
+          return 'Unable to process payment right now. Please try again shortly or contact support.';
+        }
         if (lowerTech.contains('authentication failed') ||
             lowerTech.contains('authentication_error') ||
             lowerTech.contains('request_failed') ||
@@ -317,6 +330,13 @@ class UserFeedbackSanitizer {
       if (lower.contains('unauthenticated')) {
         return 'Please sign in to continue.';
       }
+      if (lower.contains('whitelist') ||
+          lower.contains('not enabled or approved') ||
+          lower.contains('package_not_approved') ||
+          lower.contains('installer_package') ||
+          lower.contains('com.truthworld')) {
+        return 'Unable to process payment right now. Please try again shortly or contact support.';
+      }
       if (lower.contains('authentication failed') ||
           lower.contains('authentication_error') ||
           lower.contains('request_failed') ||
@@ -358,6 +378,13 @@ class UserFeedbackSanitizer {
     }
 
     final lowerMsg = msg.toLowerCase();
+    if (lowerMsg.contains('whitelist') ||
+        lowerMsg.contains('not enabled or approved') ||
+        lowerMsg.contains('package_not_approved') ||
+        lowerMsg.contains('installer_package') ||
+        lowerMsg.contains('com.truthworld')) {
+      return 'Unable to process payment right now. Please try again shortly or contact support.';
+    }
     if (lowerMsg.contains('authentication failed') ||
         lowerMsg.contains('authentication_error') ||
         lowerMsg.contains('profile_inactive')) {

@@ -30,6 +30,8 @@ export type NotificationType =
   | "creator_motivation"
   | "monetization_revenue"
   | "monetization_payout"
+  | "monetization_refund"
+  | "lip_sync_credit"
   | "membership_milestone"
   | "ranking_change"
   | "new_video_followed"
@@ -47,7 +49,16 @@ export type NotificationType =
   | "comment"
   | "comment_like"
   | "comment_reply"
-  | "mention";
+  | "mention"
+  | "channel_health"
+  | "channel_notifications"
+  | "studio_notifications"
+  | "video_processing"
+  | "video_processing_started"
+  | "video_processing_completed"
+  | "video_processing_failed"
+  | "channel_policy"
+  | "video_policy";
 
 export interface CreatorEvent {
   eventId: string;

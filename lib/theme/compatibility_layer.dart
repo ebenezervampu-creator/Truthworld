@@ -265,7 +265,15 @@ class InteractionStyles {
   static Widget interactiveCard({
     required Widget child,
     required VoidCallback onTap,
-  }) => InkWell(onTap: onTap, child: child);
+    BorderRadius? borderRadius,
+  }) =>
+      InkWell(
+        onTap: onTap,
+        borderRadius: borderRadius ?? BorderRadius.circular(12),
+        splashColor: Colors.white.withValues(alpha: 0.08),
+        highlightColor: Colors.transparent,
+        child: child,
+      );
 }
 
 class ComponentStyles {

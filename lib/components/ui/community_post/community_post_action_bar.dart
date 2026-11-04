@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
+import 'package:truthworld/core/services/deep_link/deep_link_url_builder_and_share.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/community/presentation/controllers/community_post_controller.dart';
@@ -38,7 +39,7 @@ class CommunityPostActionBar extends StatelessWidget {
                 ),
                 onPressed: controller.toggleLike,
               ),
-              if (post.showLikeCount)
+              if (controller.showLikeCount.value)
                 Text(
                   FormatUtils.formatCount(state.likes),
                   style: const TextStyle(
@@ -61,7 +62,7 @@ class CommunityPostActionBar extends StatelessWidget {
                 ),
                 onPressed: controller.toggleDislike,
               ),
-              if (post.showDislikeCount)
+              if (controller.showDislikeCount.value)
                 Text(
                   FormatUtils.formatCount(state.dislikes),
                   style: const TextStyle(
@@ -116,9 +117,10 @@ class CommunityPostActionBar extends StatelessWidget {
               onTap: () {
                 ShareBottomSheet.show(
                   title: post.title.isNotEmpty ? post.title : post.description,
-                  url: 'https://www.truthworld.in/community/${post.id}',
+                  url: DeepLinkUrlBuilderAndShare.postUrl(post.id),
                   thumbnailUrl: post.images.isNotEmpty ? post.images.first : null,
                   channelName: post.channelName,
+                  type: 'community_post',
                 );
               },
               borderRadius: BorderRadius.circular(20),

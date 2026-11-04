@@ -81,7 +81,7 @@ class DashboardCommentsVideosListView extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         margin: const EdgeInsets.symmetric(vertical: 4),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF262626) : Colors.transparent,
+          color: isSelected ? AppColors.bgSurface : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: isSelected ? AppColors.brand : Colors.transparent,
@@ -94,7 +94,7 @@ class DashboardCommentsVideosListView extends StatelessWidget {
               width: 52,
               height: 40,
               decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
+                color: AppColors.bgSurface,
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(color: AppColors.bgDivider),
               ),
@@ -173,7 +173,7 @@ class DashboardCommentsVideosListView extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         margin: const EdgeInsets.symmetric(vertical: 4),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF262626) : Colors.transparent,
+          color: isSelected ? AppColors.bgSurface : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: isSelected ? AppColors.brand : Colors.transparent,
@@ -187,33 +187,34 @@ class DashboardCommentsVideosListView extends StatelessWidget {
               borderRadius: BorderRadius.circular(6),
               child: Stack(
                 children: [
-                  video.thumbnail.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: video.thumbnail,
-                          width: 68,
-                          height: 48,
-                          fit: BoxFit.cover,
-                          errorWidget: (context, url, err) => Container(
-                            width: 68,
-                            height: 48,
-                            color: const Color(0xFF1E1E1E),
-                            child: const Icon(
-                              Icons.play_arrow,
-                              size: 20,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        )
-                      : Container(
-                          width: 68,
-                          height: 48,
-                          color: const Color(0xFF1E1E1E),
-                          child: const Icon(
-                            Icons.ondemand_video_rounded,
-                            size: 20,
-                            color: AppColors.textPrimary,
-                          ),
+                  if (video.thumbnail.isNotEmpty)
+                    CachedNetworkImage(
+                      imageUrl: video.thumbnail,
+                      width: 68,
+                      height: 48,
+                      fit: BoxFit.cover,
+                      errorWidget: (context, url, err) => Container(
+                        width: 68,
+                        height: 48,
+                        color: AppColors.bgSurface,
+                        child: const Icon(
+                          Icons.play_arrow,
+                          size: 20,
+                          color: AppColors.textPrimary,
                         ),
+                      ),
+                    )
+                  else
+                    Container(
+                      width: 68,
+                      height: 48,
+                      color: AppColors.bgSurface,
+                      child: const Icon(
+                        Icons.ondemand_video_rounded,
+                        size: 20,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
                   if (video.duration.isNotEmpty && video.duration != '0:00')
                     Positioned(
                       bottom: 2,
@@ -288,7 +289,7 @@ class DashboardCommentsVideosListView extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1E1E1E),
+                          color: AppColors.bgSurface,
                           borderRadius: BorderRadius.circular(4),
                           border: Border.all(color: AppColors.bgDivider),
                         ),
@@ -342,19 +343,19 @@ class DashboardCommentsVideosListView extends StatelessWidget {
   }
 
   Widget _buildEmptyState() {
-    return Center(
+    return const Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.video_collection_outlined,
               size: 48,
               color: AppColors.textPrimary,
             ),
-            const SizedBox(height: 12),
-            const Text(
+            SizedBox(height: 12),
+            Text(
               'No videos found',
               style: TextStyle(
                 fontFamily: TWTypography.brandFamily,
@@ -364,8 +365,8 @@ class DashboardCommentsVideosListView extends StatelessWidget {
                 color: AppColors.textPrimary,
               ),
             ),
-            const SizedBox(height: 6),
-            const Text(
+            SizedBox(height: 6),
+            Text(
               'Videos uploaded to your channel will appear here.',
               textAlign: TextAlign.center,
               style: TextStyle(

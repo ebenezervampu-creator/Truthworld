@@ -26,6 +26,7 @@ class SearchTopicResultItem extends StatelessWidget {
     final cleanThumb = result.thumbnail.trim().replaceAll(' ', '%20');
 
     return InkWell(
+      borderRadius: BorderRadius.circular(12),
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -166,7 +167,7 @@ class SearchTopicResultItem extends StatelessWidget {
             const SizedBox(width: 8),
             FollowButton(
               topicId: result.id,
-              topicTitle: result.title,
+              topicName: result.title,
               videoCount: result.views,
             ),
           ],

@@ -8,7 +8,7 @@ service firebase.storage {
     }
 
     function isAdmin() {
-      return isSignedIn() && request.auth.token.admin == true;
+      return isSignedIn() && request.auth.token.admin == true && request.auth.token.email_verified == true;
     }
 
     // Strict ownership validation for existing assets (prevents deleting or overwriting unowned files)
@@ -45,9 +45,14 @@ service firebase.storage {
     }
 
     // Validate extension and enforce strict file size caps
+    function isValidThumbnail() {
+      return request.resource.contentType.matches('image/(jpeg|jpg|png|webp|gif)')
+        && request.resource.size <= 2 * 1024 * 1024; // 2MB max for video thumbnails (matches YouTube limit)
+    }
+
     function isValidImage() {
-      return request.resource.contentType.matches('image/.*')
-        && request.resource.size <= 15 * 1024 * 1024; // 15MB max for images
+      return request.resource.contentType.matches('image/(jpeg|jpg|png|webp|gif)')
+        && request.resource.size <= 15 * 1024 * 1024; // 15MB max for images (SVG strictly prohibited to eliminate Stored XSS)
     }
 
     function isValidVideo() {
@@ -56,7 +61,7 @@ service firebase.storage {
     }
 
     function isValidKycDocument() {
-      return (request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/pdf')
+      return (request.resource.contentType.matches('image/(jpeg|jpg|png|webp)') || request.resource.contentType == 'application/pdf')
         && request.resource.size <= 10 * 1024 * 1024; // 10MB max for KYC verification documents
     }
 
@@ -118,7 +123,7 @@ service firebase.storage {
     // ================================
     // CHANNEL AVATARS
     // ================================
-    match /channel_avatars/{fileName} {
+    match /channel_avatars/{allPaths=**} {
       allow read: if true; // public avatars
       allow write: if isSignedIn() && isValidImage() && isUploaderClaimValid() && isOwnerOrNew();
       allow delete: if isResourceOwner();
@@ -127,7 +132,7 @@ service firebase.storage {
     // ================================
     // CHANNEL BANNERS
     // ================================
-    match /channel_banners/{fileName} {
+    match /channel_banners/{allPaths=**} {
       allow read: if true;
       allow write: if isSignedIn() && isValidImage() && isUploaderClaimValid() && isOwnerOrNew();
       allow delete: if isResourceOwner();
@@ -136,49 +141,114 @@ service firebase.storage {
     // ================================
     // COMMUNITY IMAGES
     // ================================
-    match /community_images/{fileName} {
+    match /community_images/{allPaths=**} {
       allow read: if true;
       allow write: if isSignedIn() && isValidImage() && isUploaderClaimValid() && isOwnerOrNew();
       allow delete: if isResourceOwner();
     }
 
     // ================================
-    // THUMBNAILS
+    // THUMBNAILS (Public visual media for universal sharing & CDN caching)
     // ================================
-    match /thumbnails/{fileName} {
-      allow read: if true; // or restrict to signed in users
+    match /thumbnails/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSignedIn() && isValidThumbnail() && isUploaderClaimValid() && isOwnerOrNew();
+      allow delete: if isResourceOwner();
+    }
+
+    // ================================
+    // TOPICS & PLAYLISTS VISUAL MEDIA
+    // ================================
+    match /topics/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSignedIn() && isValidImage() && isUploaderClaimValid() && isOwnerOrNew();
+      allow delete: if isResourceOwner();
+    }
+
+    match /playlists/{allPaths=**} {
+      allow read: if true;
       allow write: if isSignedIn() && isValidImage() && isUploaderClaimValid() && isOwnerOrNew();
       allow delete: if isResourceOwner();
     }
 
     // ================================
-    // VIDEOS (nested pipeline structure)
+    // CHAPTERS & CLAIM CHAPTERS (Public visual media)
     // ================================
-    // Original video uploads: videos/{videoId}/original.mp4
-    // Pipeline outputs: videos/{videoId}/transcript.json, translations/, audio/, etc.
-    match /videos/{videoId}/{allPaths=**} {
+    match /chapters/{allPaths=**} {
       allow read: if true;
-      allow write: if isSignedIn() && isUploaderClaimValid() && isOwnerOrNew()
-        && (
-          (request.resource.contentType.matches('video/.*') && request.resource.size <= 1024 * 1024 * 1024) ||
-          (request.resource.contentType.matches('image/.*') && request.resource.size <= 15 * 1024 * 1024) ||
-          (request.resource.contentType.matches('audio/.*') && request.resource.size <= 100 * 1024 * 1024) ||
-          (request.resource.contentType.matches('application/.*|text/.*') && request.resource.size <= 50 * 1024 * 1024)
-        );
+      allow write: if isSignedIn() && isValidImage() && isUploaderClaimValid() && isOwnerOrNew();
       allow delete: if isResourceOwner();
     }
 
     // ================================
-    // TRANSCODED RESOLUTIONS
+    // STORYBOARDS (Video Timeline Scrub Previews)
     // ================================
-    match /resolutions/{videoId}/{allPaths=**} {
+    match /storyboards/{allPaths=**} {
       allow read: if true;
-      allow write: if false; // System only
+      allow write: if false; // System pipeline only
+      allow delete: if false;
+    }
+
+    // Video Chapters & Claim Chapters Frames / Visual Badges (Public visual media under video tree)
+    match /videos/{videoId}/chapters/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSignedIn() && isValidImage() && isUploaderClaimValid() && isOwnerOrNew();
+      allow delete: if isResourceOwner();
+    }
+
+    // Video Subtitles & Closed Captions under video tree (Public Web & Accessibility Standards: WCAG 2.1 AA)
+    match /videos/{videoId}/subtitles/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSignedIn() && (
+        request.resource.contentType.matches('text/(vtt|plain)') ||
+        request.resource.contentType.matches('application/json')
+      ) && isUploaderClaimValid() && isOwnerOrNew();
+      allow delete: if isResourceOwner();
+    }
+
+    // Video Transcripts under video tree (Public Web & Accessibility Standards: WCAG 2.1 AA)
+    match /videos/{videoId}/transcripts/{allPaths=**} {
+      allow read: if true;
+      allow write: if false; // System pipeline only
       allow delete: if false;
     }
 
     // ================================
-    // SUBTITLES & DUBBING
+    // RAW ORIGINAL VIDEOS (Restricted to creator owner & admin — blocks draft leaks)
+    // ================================
+    // Original video uploads: videos/{videoId}/original.mp4
+    // Raw master uploads are strictly protected; viewers stream transcoded resolutions
+    match /videos/{videoId}/{allPaths=**} {
+      allow read: if isSignedIn() && (isResourceOwner() || isAdmin());
+      allow write: if isSignedIn() && isUploaderClaimValid() && isOwnerOrNew()
+        && (
+          (request.resource.contentType.matches('video/(mp4|webm|quicktime|x-matroska)') && request.resource.size <= 1024 * 1024 * 1024) ||
+          (request.resource.contentType.matches('image/(jpeg|jpg|png|webp)') && request.resource.size <= 15 * 1024 * 1024) ||
+          (request.resource.contentType.matches('audio/(mp4|mpeg|wav|aac|ogg|webm)') && request.resource.size <= 100 * 1024 * 1024) ||
+          (request.resource.contentType.matches('text/(vtt|plain)') && request.resource.size <= 10 * 1024 * 1024)
+        );
+      allow delete: if isResourceOwner();
+    }
+
+    // Transcripts pipeline storage (Public Web & Accessibility Standards: WCAG 2.1 AA)
+    match /transcripts/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    // ================================
+    // TRANSCODED RESOLUTIONS (Adaptive Streaming for In-App & Web Viewers)
+    // ================================
+    match /resolutions/{videoId}/{allPaths=**} {
+      // Public read allows web guests and authentic viewers to stream transcoded resolutions
+      allow read: if true;
+      allow write: if false; // System pipeline only
+      allow delete: if false;
+    }
+
+    // ================================
+    // SUBTITLES & CLOSED CAPTIONS (Public Web & Accessibility Standards: WCAG 2.1 AA)
     // ================================
     match /subtitles/{allPaths=**} {
       allow read: if true;
@@ -213,9 +283,9 @@ service firebase.storage {
       allow delete: if false;
     }
 
-    // Legacy flat video uploads (backward compat)
+    // Legacy flat video uploads (Restricted to owner & admin)
     match /videos/{videoName} {
-      allow read: if true;
+      allow read: if isSignedIn() && (isResourceOwner() || isAdmin());
       allow write: if isSignedIn() && isValidVideo() && isUploaderClaimValid() && isOwnerOrNew();
       allow delete: if isResourceOwner();
     }

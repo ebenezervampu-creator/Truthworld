@@ -7,6 +7,8 @@ import 'package:truthworld/components/ui/video_card/video_card_avatar.dart';
 import 'package:truthworld/components/ui/video_card/video_card_formatters.dart';
 import 'package:truthworld/components/ui/video_options_sheet.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
+import 'package:truthworld/core/widgets/channel_verified_badge.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/fullscreen_more_videos_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
@@ -44,7 +46,7 @@ class _FullscreenMoreVideosOverlayContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      if (!ctrl.showMoreVideos.value || !ctrl.isFullScreen.value) {
+      if (!ctrl.isFullScreen.value) {
         return const SizedBox.shrink();
       }
 
@@ -457,8 +459,7 @@ class _MoreVideoCard extends StatelessWidget {
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      if ((video.isFactChecked || video.hasAiCredibility) &&
-                                          video.canPublicViewFactCheck) ...[
+                                      if (video.hasPublicAiCredibility) ...[
                                         const Icon(
                                           Icons.verified_rounded,
                                           color: Color(0xFF00E676),
@@ -518,15 +519,45 @@ class _MoreVideoCard extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(height: 3),
-                              Text(
-                                subtitle,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.7),
-                                  fontSize: isCompact ? 11 : 11.5,
-                                  height: 1.2,
-                                ),
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      channelName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(alpha: 0.7),
+                                        fontSize: isCompact ? 11 : 11.5,
+                                        height: 1.2,
+                                      ),
+                                    ),
+                                  ),
+                                  if (video.showVerifiedBadge ||
+                                      (DeepLinkService.instance
+                                              .getChannelFromCache(video.channelId)
+                                              ?.showVerifiedBadge ??
+                                          false) ||
+                                      (DeepLinkService.instance
+                                              .getChannelFromCache(channelName)
+                                              ?.showVerifiedBadge ??
+                                          false)) ...[
+                                    const SizedBox(width: 4),
+                                    ChannelVerifiedBadge(size: isCompact ? 10 : 11),
+                                  ],
+                                  Flexible(
+                                    child: Text(
+                                      '  •  $viewsStr views  •  $timeStr',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(alpha: 0.7),
+                                        fontSize: isCompact ? 11 : 11.5,
+                                        height: 1.2,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),

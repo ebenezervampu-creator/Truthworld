@@ -17,7 +17,7 @@ class HelpSupportTab extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(28),
             decoration: BoxDecoration(
-              color: const Color(0xFF181818),
+              color: AppColors.bgPage,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
@@ -29,7 +29,7 @@ class HelpSupportTab extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF42A5F5).withValues(alpha: 0.15),
+                        color: AppColors.info.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(
@@ -91,42 +91,42 @@ class HelpSupportTab extends StatelessWidget {
                     title: 'Dashboard Overview',
                     description:
                         'View real-time platform health, pending queue counts, and recent moderation activity at a glance.',
-                    color: const Color(0xFF4CAF50),
+                    color: AppColors.success,
                   ),
                   _buildQuickGuideCard(
                     icon: Icons.video_library_outlined,
                     title: 'Video Moderation',
                     description:
                         'Review AI-analyzed videos. Use the embedded player and our verification system analysis to approve or reject content.',
-                    color: const Color(0xFF2196F3),
+                    color: AppColors.info,
                   ),
                   _buildQuickGuideCard(
                     icon: Icons.image_outlined,
                     title: 'Image Moderation',
                     description:
                         'Review flagged images with SafeSearch scores. Each image shows Adult, Racy, Violence, Medical, and Spoof ratings.',
-                    color: const Color(0xFFFF9800),
+                    color: AppColors.warning,
                   ),
                   _buildQuickGuideCard(
                     icon: Icons.account_circle_outlined,
                     title: 'Channel Verification',
                     description:
                         'Review channel registrations analyzed by our Verification System for policy compliance on names, descriptions, and tags.',
-                    color: const Color(0xFF9C27B0),
+                    color: AppColors.info,
                   ),
                   _buildQuickGuideCard(
                     icon: Icons.report_gmailerrorred_rounded,
                     title: 'Video Reports',
                     description:
                         'Review user-submitted video reports. Dismiss false reports or reject and quarantine violating videos.',
-                    color: const Color(0xFFE91E63),
+                    color: AppColors.error,
                   ),
                   _buildQuickGuideCard(
                     icon: Icons.people_outline_rounded,
                     title: 'User Management',
                     description:
                         'Search users, view trust scores and strike history. Warn, suspend, or ban accounts that violate policies.',
-                    color: const Color(0xFF00BCD4),
+                    color: AppColors.textLink,
                   ),
                 ],
               );
@@ -176,25 +176,25 @@ class HelpSupportTab extends StatelessWidget {
               _buildTrustTierRow(
                 'HIGH',
                 '≥ 75',
-                const Color(0xFF4CAF50),
+                AppColors.success,
                 '15% of uploads scanned by Vision AI (cost savings)',
               ),
               _buildTrustTierRow(
                 'MEDIUM',
                 '40 – 74',
-                const Color(0xFFFF9800),
+                AppColors.warning,
                 '50% of uploads scanned',
               ),
               _buildTrustTierRow(
                 'LOW',
                 '10 – 39',
-                const Color(0xFFFF5722),
+                AppColors.warning,
                 '100% of uploads scanned',
               ),
               _buildTrustTierRow(
                 'NEW',
                 '< 40',
-                const Color(0xFF9E9E9E),
+                AppColors.textSecondary,
                 '100% of uploads scanned (new users)',
               ),
               const SizedBox(height: 12),
@@ -218,15 +218,15 @@ class HelpSupportTab extends StatelessWidget {
                     SizedBox(height: 8),
                     Text(
                       '• Content Approved:  +2 points',
-                      style: TextStyle(color: Color(0xFF4CAF50), fontSize: 12),
+                      style: TextStyle(color: AppColors.success, fontSize: 12),
                     ),
                     Text(
                       '• Content Flagged:   -5 points',
-                      style: TextStyle(color: Color(0xFFFF9800), fontSize: 12),
+                      style: TextStyle(color: AppColors.warning, fontSize: 12),
                     ),
                     Text(
                       '• Content Rejected: -15 points + strike',
-                      style: TextStyle(color: Color(0xFFFF5722), fontSize: 12),
+                      style: TextStyle(color: AppColors.warning, fontSize: 12),
                     ),
                   ],
                 ),
@@ -244,25 +244,25 @@ class HelpSupportTab extends StatelessWidget {
                 'Tier 1',
                 'Auto-Handled',
                 'Content within normal thresholds is auto-approved or auto-rejected.',
-                const Color(0xFF4CAF50),
+                AppColors.success,
               ),
               _buildEscalationTier(
                 'Tier 2',
                 'Standard Review',
                 'Borderline content flagged for regular admin queue review.',
-                const Color(0xFF2196F3),
+                AppColors.info,
               ),
               _buildEscalationTier(
                 'Tier 3',
                 'Senior Review',
                 'Extreme scores or repeat offenders. Requires senior admin action.',
-                const Color(0xFFFF9800),
+                AppColors.warning,
               ),
               _buildEscalationTier(
                 'Tier 4',
                 'Emergency',
                 'Potential CSAM/terrorism. Immediate quarantine + law enforcement.',
-                const Color(0xFFFF1744),
+                AppColors.error,
               ),
             ],
           ),
@@ -309,7 +309,7 @@ class HelpSupportTab extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFF6B6B).withValues(alpha: 0.15),
+                    color: AppColors.error.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
@@ -344,7 +344,7 @@ class HelpSupportTab extends StatelessWidget {
                       Text(
                         'hello@truthworld.in',
                         style: TextStyle(
-                          color: Color(0xFF42A5F5),
+                          color: AppColors.info,
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
                         ),
@@ -370,7 +370,7 @@ class HelpSupportTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
@@ -414,7 +414,7 @@ class HelpSupportTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
@@ -453,7 +453,7 @@ class HelpSupportTab extends StatelessWidget {
             width: 28,
             height: 28,
             decoration: BoxDecoration(
-              color: const Color(0xFF42A5F5).withValues(alpha: 0.15),
+              color: AppColors.info.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Center(
@@ -461,7 +461,7 @@ class HelpSupportTab extends StatelessWidget {
                 number,
                 style: const TextStyle(
                   fontFamily: TWTypography.brandFamily,
-                  color: Color(0xFF42A5F5),
+                  color: AppColors.info,
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                 ),

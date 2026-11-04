@@ -29,10 +29,10 @@ class CampaignWizardFormatOption extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected
               ? AppColors.brand.withValues(alpha: 0.12)
-              : const Color(0xFF121212),
+              : AppColors.bgInput,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected ? AppColors.brand : const Color(0xFF27272A),
+            color: isSelected ? AppColors.brand : AppColors.bgSurface,
             width: isSelected ? 1.5 : 1.0,
           ),
         ),
@@ -60,7 +60,7 @@ class CampaignWizardFormatOption extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFFEF4444), Color(0xFFF59E0B)],
+                    colors: [AppColors.error, AppColors.warning],
                   ),
                   borderRadius: BorderRadius.circular(6),
                 ),
@@ -110,10 +110,10 @@ class CampaignWizardBudgetOption extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected
               ? AppColors.brand.withValues(alpha: 0.12)
-              : const Color(0xFF121212),
+              : AppColors.bgInput,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected ? AppColors.brand : const Color(0xFF27272A),
+            color: isSelected ? AppColors.brand : AppColors.bgSurface,
             width: isSelected ? 1.5 : 1.0,
           ),
         ),

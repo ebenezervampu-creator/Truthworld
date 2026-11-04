@@ -20,10 +20,10 @@ class CampaignRejectionBanner extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF450A0A),
+        color: AppColors.errorContainer,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+          color: AppColors.error.withValues(alpha: 0.4),
         ),
       ),
       child: Row(
@@ -42,7 +42,7 @@ class CampaignRejectionBanner extends StatelessWidget {
                   'Campaign Rejected - Action Required',
                   style: TextStyle(
                     fontFamily: TWTypography.brandFamily,
-                    color: Color(0xFFF87171),
+                    color: AppColors.error,
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),

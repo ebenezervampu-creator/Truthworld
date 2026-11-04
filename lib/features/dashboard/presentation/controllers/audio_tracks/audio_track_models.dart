@@ -10,6 +10,12 @@ class AudioTrackItem {
     required this.audioUrl,
     this.isBaseTrack = false,
     this.isResolved = false,
+    this.status = 'Published',
+    this.role = 'Dubbing',
+    this.generationProgress,
+    this.generationStage,
+    this.generationStep = 1,
+    this.estimatedTimeRemaining,
   });
 
   String id;
@@ -18,6 +24,64 @@ class AudioTrackItem {
   String audioUrl;
   bool isBaseTrack;
   bool isResolved;
+  String status; // 'Published', 'Draft', 'Not added', 'Generating...'
+  String role; // 'Original video audio', 'Dubbing', etc.
+  int? generationProgress;
+  String? generationStage;
+  int generationStep;
+  String? estimatedTimeRemaining;
+}
+
+/// Reactive state tracking live progress, pipeline stages, and ETA for AI voice dubbing
+class AudioDubbingProgressState {
+  const AudioDubbingProgressState({
+    required this.langCode,
+    this.progress = 15,
+    this.stageTitle = 'Analyzing & transcribing audio...',
+    this.stageStep = 1,
+    this.totalSteps = 4,
+    this.totalStepsText = 'Step 1 of 4',
+    this.etaText = '~15-30 sec',
+    this.isGenerating = true,
+    this.status = 'running',
+    this.startedAt,
+  });
+
+  final String langCode;
+  final int progress; // 0 to 100
+  final String stageTitle; // e.g. "Translating dialogue to Telugu"
+  final int stageStep; // 1: Transcribe, 2: Translate, 3: Synthesize, 4: Master & Sync
+  final int totalSteps; // 4
+  final String totalStepsText; // "Step 2 of 4"
+  final String etaText; // "Ready in ~15-30 sec"
+  final bool isGenerating;
+  final String status;
+  final DateTime? startedAt;
+
+  AudioDubbingProgressState copyWith({
+    int? progress,
+    String? stageTitle,
+    int? stageStep,
+    int? totalSteps,
+    String? totalStepsText,
+    String? etaText,
+    bool? isGenerating,
+    String? status,
+    DateTime? startedAt,
+  }) {
+    return AudioDubbingProgressState(
+      langCode: langCode,
+      progress: progress ?? this.progress,
+      stageTitle: stageTitle ?? this.stageTitle,
+      stageStep: stageStep ?? this.stageStep,
+      totalSteps: totalSteps ?? this.totalSteps,
+      totalStepsText: totalStepsText ?? this.totalStepsText,
+      etaText: etaText ?? this.etaText,
+      isGenerating: isGenerating ?? this.isGenerating,
+      status: status ?? this.status,
+      startedAt: startedAt ?? this.startedAt,
+    );
+  }
 }
 
 /// Commentary & Multi-Video track metadata item
@@ -180,8 +244,99 @@ const List<({String code, String name})> kSupportedLanguages = [
   (code: 'ln', name: 'Lingala (Lingála)'),
 ];
 
+/// Set of language codes supported natively by Google Cloud Chirp 3: HD generative speech synthesis.
+const Set<String> kChirp3HdSupportedLanguageCodes = {
+  // Indian Subcontinent Languages
+  'te', // Telugu (తెలుగు)
+  'hi', // Hindi (हिन्दी)
+  'ta', // Tamil (தமிழ்)
+  'kn', // Kannada (ಕನ್ನಡ)
+  'ml', // Malayalam (മലയാളം)
+  'mr', // Marathi (मराठी)
+  'bn', // Bengali (বাংলা)
+  'gu', // Gujarati (ગુજરાતી)
+  'pa', // Punjabi (ਪੰਜਾਬੀ)
+
+  // Global Core Languages
+  'en', // English
+  'zh', // Chinese (Mandarin)
+  'es', // Spanish
+  'fr', // French
+  'de', // German
+  'ja', // Japanese
+  'ko', // Korean
+  'pt', // Portuguese
+  'it', // Italian
+  'ar', // Arabic
+  'ru', // Russian
+  'tr', // Turkish
+  'nl', // Dutch
+  'sv', // Swedish
+  'pl', // Polish
+  'id', // Indonesian
+  'th', // Thai
+  'vi', // Vietnamese
+  'he', // Hebrew
+  'ro', // Romanian
+  'el', // Greek
+  'cs', // Czech
+  'hu', // Hungarian
+  'da', // Danish
+  'fi', // Finnish
+  'no', // Norwegian
+  'sk', // Slovak
+  'bg', // Bulgarian
+  'hr', // Croatian
+  'sr', // Serbian
+  'lt', // Lithuanian
+  'sl', // Slovenian
+  'lv', // Latvian
+  'et', // Estonian
+  'sw', // Swahili
+};
+
+/// Languages supported by Google Cloud Chirp 3: HD for studio audio track dubbing without voice cloning.
+List<({String code, String name})> get kChirp3HdSupportedLanguages =>
+    kSupportedLanguages
+        .where((lang) => kChirp3HdSupportedLanguageCodes.contains(lang.code.toLowerCase()))
+        .toList();
+
 /// Helper resolving language code to human-friendly display name.
 String getSupportedLanguageName(String code) {
   final match = kSupportedLanguages.firstWhereOrNull((l) => l.code == code);
   return match?.name ?? code.toUpperCase();
 }
+
+/// Internal Video Track layout representation for the Video tab
+class VideoTrackItem {
+  VideoTrackItem({
+    required this.id,
+    required this.languageCode,
+    required this.languageName,
+    required this.videoUrl,
+    this.thumbnailUrl = '',
+    this.isBaseTrack = false,
+    this.isResolved = false,
+    this.status = 'Published',
+    this.role = 'Original video',
+    this.generationProgress,
+    this.generationStage,
+    this.generationStep = 1,
+    this.estimatedTimeRemaining,
+  });
+
+  String id;
+  String languageCode;
+  String languageName;
+  String videoUrl;
+  String thumbnailUrl;
+  bool isBaseTrack;
+  bool isResolved;
+  String status; // 'Published', 'Generating...', etc.
+  String role; // 'Original video', 'Dubbed video'
+  int? generationProgress;
+  String? generationStage;
+  int generationStep;
+  String? estimatedTimeRemaining;
+}
+

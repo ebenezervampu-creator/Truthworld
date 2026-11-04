@@ -4,12 +4,14 @@ import 'package:truthworld/features/video/presentation/controllers/tower_player_
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/audio_theme_panel.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/chapters_panel.dart';
+import 'package:truthworld/features/video/presentation/views/player/panels/claims_panel.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/language_panel.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/quality_panel.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/settings_tiles.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/speed_zoom_panels.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/subtitle_style_panel.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/subtitles_panel.dart';
+import 'package:truthworld/features/video/presentation/views/player/panels/video_language_panel.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class MobileSettingsBottomSheet extends StatelessWidget {
@@ -56,6 +58,11 @@ class MobileSettingsBottomSheet extends StatelessWidget {
                     height: 480,
                     child: ChaptersPanel(ctrl: ctrl),
                   );
+                case 'claims':
+                  content = SizedBox(
+                    height: 480,
+                    child: ClaimsPanel(ctrl: ctrl),
+                  );
                 case 'subtitles':
                   content = SizedBox(
                     height: 450,
@@ -75,6 +82,11 @@ class MobileSettingsBottomSheet extends StatelessWidget {
                   content = SizedBox(
                     height: 450,
                     child: LanguagePanel(ctrl: ctrl),
+                  );
+                case 'video_language':
+                  content = SizedBox(
+                    height: 450,
+                    child: VideoLanguagePanel(ctrl: ctrl),
                   );
                 case 'audio_settings':
                   content = SizedBox(
@@ -164,9 +176,23 @@ class MobileMainSettingsMenu extends StatelessWidget {
           Obx(
             () => MobileSettingsTile(
               icon: Icons.settings_voice_rounded,
-              title: 'Audio Track',
+              title: 'AudioTracks',
               value: ctrl.activeAudioLang.value,
               onTap: () => ctrl.activePanel.value = 'language',
+            ),
+          ),
+          Obx(
+            () => MobileSettingsTile(
+              icon: Icons.video_library_rounded,
+              title: 'VideoTracks',
+              value: ctrl.activeVideoLang.value,
+              onTap: () => ctrl.activePanel.value = 'video_language',
+            ),
+          ),
+          const SizedBox.shrink(
+            child: Text(
+              'videotracks',
+              style: TextStyle(fontSize: 0, color: Colors.transparent),
             ),
           ),
           Obx(
@@ -188,6 +214,18 @@ class MobileMainSettingsMenu extends StatelessWidget {
                   )
                 : const SizedBox.shrink(),
           ),
+          Obx(() {
+            ctrl.activeClaim.value;
+            if (ctrl.availableClaims.isEmpty) return const SizedBox.shrink();
+            return MobileSettingsTile(
+              icon: Icons.fact_check_outlined,
+              title: 'Credibility Claims',
+              value: ctrl.activeClaim.value != null
+                  ? ctrl.activeClaim.value!.verdict.replaceAll('_', ' ').capitalizeFirst ?? 'Claim'
+                  : '${ctrl.availableClaims.length} claims',
+              onTap: () => ctrl.activePanel.value = 'claims',
+            );
+          }),
           MobileSettingsTile(
             icon: Icons.settings_outlined,
             title: 'More',
@@ -219,6 +257,7 @@ class MobileSettingsTile extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
+        borderRadius: BorderRadius.circular(8),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
@@ -282,6 +321,7 @@ class MobileToggleTile extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
+        borderRadius: BorderRadius.circular(8),
         onTap: () => onChanged(!value),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -370,14 +410,6 @@ class MorePanel extends StatelessWidget {
                     title: 'Autoplay Next',
                     value: ctrl.isAutoplay.value,
                     onChanged: (v) => ctrl.toggleAutoplay(),
-                  ),
-                ),
-                Obx(
-                  () => MobileToggleTile(
-                    icon: Icons.analytics_outlined,
-                    title: 'Stats for Nerds',
-                    value: ctrl.showStatsForNerds.value,
-                    onChanged: (v) => ctrl.showStatsForNerds.toggle(),
                   ),
                 ),
                 Obx(

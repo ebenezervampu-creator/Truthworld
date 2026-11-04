@@ -39,9 +39,9 @@ void showCampaignVideosPicker(
           height: 480,
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: const Color(0xFF161618),
+            color: AppColors.appBarSurface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF27272A)),
+            border: Border.all(color: AppColors.bgSurface),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -68,7 +68,7 @@ void showCampaignVideosPicker(
                   ),
                 ],
               ),
-              const Divider(color: Color(0xFF27272A)),
+              const Divider(color: AppColors.bgSurface),
               const SizedBox(height: 8),
               const Text(
                 'Pick from your channel videos or select a high-quality video preset.',
@@ -92,10 +92,10 @@ void showCampaignVideosPicker(
                       final video = allVideos[index];
                       final isPreset = video['id'].toString().startsWith('preset');
                       return Card(
-                        color: const Color(0xFF121212),
+                        color: AppColors.bgInput,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
-                          side: const BorderSide(color: Color(0xFF27272A)),
+                          side: const BorderSide(color: AppColors.bgSurface),
                         ),
                         margin: const EdgeInsets.only(bottom: 10),
                         child: ListTile(
@@ -104,7 +104,7 @@ void showCampaignVideosPicker(
                             child: Container(
                               width: 60,
                               height: 36,
-                              color: const Color(0xFF18181B),
+                              color: AppColors.bgPage,
                               child: (video['thumbnailUrl']?.toString().isNotEmpty ?? false)
                                   ? CachedNetworkImage(
                                       imageUrl: video['thumbnailUrl'],
@@ -149,7 +149,7 @@ void showCampaignVideosPicker(
                                     vertical: 2,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF27272A),
+                                    color: AppColors.bgSurface,
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: const Text(
@@ -233,9 +233,9 @@ void showCampaignImagePicker(
         height: 400,
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: const Color(0xFF161618),
+          color: AppColors.appBarSurface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF27272A)),
+          border: Border.all(color: AppColors.bgSurface),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -262,7 +262,7 @@ void showCampaignImagePicker(
                 ),
               ],
             ),
-            const Divider(color: Color(0xFF27272A)),
+            const Divider(color: AppColors.bgSurface),
             const SizedBox(height: 8),
             const Text(
               'Select a brand image from sample presets for the recommended videos list.',
@@ -279,10 +279,10 @@ void showCampaignImagePicker(
                 itemBuilder: (context, idx) {
                   final item = sampleImages[idx];
                   return Card(
-                    color: const Color(0xFF121212),
+                    color: AppColors.bgInput,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
-                      side: const BorderSide(color: Color(0xFF27272A)),
+                      side: const BorderSide(color: AppColors.bgSurface),
                     ),
                     margin: const EdgeInsets.only(bottom: 10),
                     child: ListTile(

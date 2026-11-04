@@ -242,7 +242,7 @@ describe("Unit: EmailService (Google SMTP)", () => {
       expect(sendArgs.to).toBe("newchannel@example.com");
       expect(sendArgs.subject).toBe("Welcome to TruthWorld, Cosmos & Truth! Your channel is ready");
       expect(sendArgs.text).toContain("Welcome to TruthWorld, Cosmos & Truth!");
-      expect(sendArgs.html).toContain("Cosmos & Truth");
+      expect(sendArgs.html).toContain("Cosmos &amp; Truth");
     });
 
     it("gracefully catches transporter errors without throwing unhandled exceptions", async () => {

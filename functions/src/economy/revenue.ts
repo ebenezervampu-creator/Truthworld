@@ -3,6 +3,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import { RevenueStatement, TYPE_REVENUE_SHARE } from "./types";
 import { ChannelType } from "../pipeline/types";
+import { getBigQueryAnalyticsService } from "../analytics/bigqueryService";
 
 const db = () => admin.firestore();
 
@@ -16,8 +17,8 @@ export function calculateShare(
   channelType: ChannelType,
   hasPaidSubscriptionBuyout: boolean = false
 ): number {
-  if (channelType === "custom") {
-    return gross; // 100% for custom channels across all streams (0% platform cut)
+  if (channelType === "custom" || (channelType as any) === "pro") {
+    return gross; // 100% for pro channels across all streams (0% platform cut)
   }
 
   const share = (TYPE_REVENUE_SHARE.standard as Record<string, number>)[sourceType] ?? 0.70;
@@ -57,7 +58,7 @@ export const getCreatorRevenue = onCall(
 
       for (const chDoc of channelsSnap.docs) {
         const chData = chDoc.data() || {};
-        const isCustom = chData.type === "custom" || chData.channelType === "custom";
+        const isCustom = chData.type === "custom" || chData.channelType === "custom" || chData.type === "pro" || chData.channelType === "pro";
         const chViews = Number(chData.stats?.views || chData.views || 0);
         const chSuperchats = Number(chData.superchatRevenueTotal || 0);
         const chAds = Number(chData.adsRevenueTotal || 0);
@@ -82,8 +83,9 @@ export const getCreatorRevenue = onCall(
         if (isCustom) {
           currentMonthEstimatedCreatorShare += chGross;
         } else {
-          // chAds and chPremiumSubs are already net creator shares credited by settlement functions
-          currentMonthEstimatedCreatorShare += chAds + chSuperchats + chMembers + chPremiumSubs;
+          // chAds and chPremiumSubs are already net creator shares credited by settlement functions;
+          // Standard tier creators retain 90% of superchats and memberships (10% platform fee).
+          currentMonthEstimatedCreatorShare += chAds + (chSuperchats * 0.90) + (chMembers * 0.90) + chPremiumSubs;
         }
       }
 
@@ -148,12 +150,13 @@ export async function syncChannelStatements(channel: any, userId: string): Promi
   }
 
   const channelType: "standard" | "custom" =
-    (channel.type === "custom" || channel.channelType === "custom") ? "custom" : "standard";
+    (channel.type === "custom" || channel.channelType === "custom" || channel.type === "pro" || channel.channelType === "pro") ? "custom" : "standard";
 
   const grossRevenue = superchatRevenue + adsRevenue + membershipsRevenue + premiumSubsRevenue;
-  // Unified Revenue Share Rule:
-  // - Standard: 70% Creator / 30% Platform on Ads & Premium Subs, 100% Creator / 0% Platform on Superchats & Memberships.
-  // - Custom: 100% Creator / 0% Platform on all sources (Custom channels take plans $15, $30, $45/mo etc.).
+  // Unified Revenue Share Rule (Hybrid Model):
+  // - Free / Standard: 70% Creator / 30% Platform on Ads & Premium Subs,
+  //   90% Creator / 10% Platform on Superchats & Memberships (10% platform fee covering hosting, gateway & admin costs).
+  // - Pro: 100% Creator / 0% Platform on all sources (Pro channels subscribe to $15, $25, $50/mo plans).
   let creatorShare = 0;
   let platformFee = 0;
 
@@ -161,11 +164,20 @@ export async function syncChannelStatements(channel: any, userId: string): Promi
     creatorShare = Math.round(grossRevenue * 100) / 100;
     platformFee = 0;
   } else {
-    // adsRevenue and premiumSubsRevenue are already net creator shares credited by settlement functions
-    creatorShare = Math.round((adsRevenue + superchatRevenue + membershipsRevenue + premiumSubsRevenue) * 100) / 100;
+    // adsRevenue and premiumSubsRevenue are net creator shares credited by settlement functions;
+    // superchats and memberships grant 90% creator share (10% platform fee).
+    creatorShare = Math.round((
+      adsRevenue +
+      premiumSubsRevenue +
+      (superchatRevenue * 0.90) +
+      (membershipsRevenue * 0.90)
+    ) * 100) / 100;
     const grossAds = adsRevenue > 0 ? adsRevenue / 0.70 : 0;
     const grossPremium = premiumSubsRevenue > 0 ? premiumSubsRevenue / 0.70 : 0;
-    platformFee = Math.round(((grossAds + grossPremium) * 0.30) * 100) / 100;
+    platformFee = Math.round((
+      ((grossAds + grossPremium) * 0.30) +
+      ((superchatRevenue + membershipsRevenue) * 0.10)
+    ) * 100) / 100;
   }
 
 
@@ -205,6 +217,29 @@ export async function syncChannelStatements(channel: any, userId: string): Promi
       "metadata.totalViews": views,
     });
   }
+
+  // ── Stream Creator Earnings to BigQuery Ledger (Non-blocking) ──
+  try {
+    const bq = getBigQueryAnalyticsService();
+    bq.enqueueCreatorEarning({
+      earning_id: `earn_${statementDocId}`,
+      date: new Date().toISOString().slice(0, 10),
+      timestamp: new Date().toISOString(),
+      channel_id: channelId,
+      user_id: userId,
+      total_views: views,
+      gross_ads_revenue_inr: adsRevenue,
+      gross_subs_revenue_inr: superchatRevenue + membershipsRevenue,
+      gross_premium_revenue_inr: premiumSubsRevenue,
+      platform_fee_inr: platformFee,
+      net_creator_share_inr: creatorShare,
+      avg_rpm: views > 0 ? (grossRevenue / views) * 1000 : 0,
+      channel_type: channelType,
+      is_finalized: false,
+    });
+  } catch (bqErr) {
+    logger.warn("[Economy] BigQuery creator earnings streaming warning", { err: String(bqErr) });
+  }
 }
 
 /**
@@ -212,5 +247,5 @@ export async function syncChannelStatements(channel: any, userId: string): Promi
  */
 export async function generateMonthlyStatement(userId: string, month: string) {
   logger.info(`[Economy] Generating statement for ${userId} for ${month}`);
-  // Implementation would involve summing real-time earnings and deducting costs for Custom channels
+  // Implementation would involve summing real-time earnings and deducting costs for Pro channels
 }

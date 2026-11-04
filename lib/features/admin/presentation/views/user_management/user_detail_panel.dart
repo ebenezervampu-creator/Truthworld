@@ -32,7 +32,7 @@ class UserDetailPanel extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         borderRadius: isModal ? null : BorderRadius.circular(16),
         border: isModal ? null : Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
@@ -54,7 +54,7 @@ class UserDetailPanel extends StatelessWidget {
                       children: [
                         CircleAvatar(
                           radius: 32,
-                          backgroundColor: const Color(0xFF2A2A2A),
+                          backgroundColor: AppColors.bgSurface,
                           backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
                           child: photoUrl.isEmpty
                               ? Text(
@@ -74,7 +74,7 @@ class UserDetailPanel extends StatelessWidget {
                           child: Container(
                             padding: const EdgeInsets.all(4),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF1E1E1E),
+                              color: AppColors.bgSurface,
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: Colors.white.withValues(alpha: 0.4),
@@ -385,7 +385,7 @@ class UserDetailPanel extends StatelessWidget {
                 final isConsolidating = controller.isConsolidatingAccounts.value;
                 return ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF242424),
+                    backgroundColor: AppColors.bgSurface,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     shape: RoundedRectangleBorder(
@@ -434,7 +434,7 @@ class UserEmptyDetailPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
@@ -460,7 +460,7 @@ void showMobileUserDetailSheet({
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
-    backgroundColor: const Color(0xFF181818),
+    backgroundColor: AppColors.bgPage,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),

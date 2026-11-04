@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_comments_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/comments/dashboard_comment_replies_section.dart';
@@ -61,7 +62,7 @@ class DashboardCommentCard extends StatelessWidget {
                     vertical: 7,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E1E1E),
+                    color: AppColors.bgSurface,
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(
                       color: AppColors.bgDivider,
@@ -196,8 +197,8 @@ class DashboardCommentCard extends StatelessWidget {
                       const SizedBox(height: 4),
 
                       // Comment Content Text
-                      Text(
-                        comment.text,
+                      ClickableUrlText(
+                        text: comment.text,
                         style: const TextStyle(
                           fontFamily: TWTypography.uiFamily,
                           fontFamilyFallback: TWTypography.fallbackFamilies,
@@ -372,7 +373,7 @@ class DashboardCommentCard extends StatelessWidget {
                               color: AppColors.textPrimary,
                             ),
                             padding: EdgeInsets.zero,
-                            color: const Color(0xFF1E1E1E),
+                            color: AppColors.bgSurface,
                             onSelected: AppSnackbar.info,
                             itemBuilder: (context) => const [
                               PopupMenuItem(

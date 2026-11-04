@@ -45,7 +45,7 @@ class DashboardCommentsFilterToolbar extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF2A2A2A),
+                    color: AppColors.bgSurface,
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(
                       color: AppColors.brand,
@@ -125,7 +125,7 @@ class DashboardCommentsFilterToolbar extends StatelessWidget {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            color: isSelected ? Colors.white : const Color(0xFF1E1E1E),
+            color: isSelected ? Colors.white : AppColors.bgSurface,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: isSelected ? Colors.white : AppColors.bgDivider,

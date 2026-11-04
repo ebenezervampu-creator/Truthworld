@@ -2,7 +2,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -49,7 +48,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 const SizedBox(height: 18),
                 Text(
                   'SCANNING VIDEO FOR EMPIRICAL CLAIMS',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.4,
@@ -59,7 +58,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   'Cross-referencing verified knowledge bases & peer-reviewed sources…',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 13.5,
                     color: AppColors.textTertiary,
                   ),
@@ -106,6 +105,8 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
               children: [
                 if (isOwner && isPendingApproval)
                   _buildOwnerApprovalBanner(context),
+                if (parsed.isProvisional)
+                  _buildProvisionalNoticeBanner(context),
                 Expanded(
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -133,6 +134,13 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
   }
 
   Widget _buildOwnerApprovalBanner(BuildContext context) {
+    final remaining = video.factCheckGracePeriodRemaining;
+    final remainingHours = remaining.inHours;
+    final remainingMins = remaining.inMinutes % 60;
+    final timeStr = remainingHours > 0
+        ? '${remainingHours}h ${remainingMins}m'
+        : '${remainingMins}m';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(14),
@@ -140,14 +148,14 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
         color: const Color(0xFF1E1B10),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
+          color: AppColors.warning.withValues(alpha: 0.4),
         ),
       ),
       child: Row(
         children: [
           const Icon(
             Icons.lock_clock_rounded,
-            color: Color(0xFFF59E0B),
+            color: AppColors.warning,
             size: 24,
           ),
           const SizedBox(width: 12),
@@ -156,7 +164,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Creator Review Active',
+                  'Creator Review Window Active',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 13,
@@ -165,7 +173,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'This report is hidden from viewers until you approve it.',
+                  'Auto-publishes to viewers in $timeStr to maintain platform truth transparency.',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.7),
                     fontSize: 11,
@@ -198,7 +206,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF10B981),
+              backgroundColor: AppColors.success,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               shape: RoundedRectangleBorder(
@@ -215,7 +223,70 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
     );
   }
 
+  Widget _buildProvisionalNoticeBanner(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.info.withValues(alpha: 0.4),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.info.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              Icons.bolt_rounded,
+              color: Color(0xFF60A5FA),
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'FAST TRIAGE • PROVISIONAL CREDIBILITY',
+                  style: TextStyle(
+                    color: Color(0xFF93C5FD),
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Preliminary multimodal OCR and speech verification completed. Deep multi-source grounding and cross-examination are finalizing in the background.',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.8),
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPendingReviewBlockerView() {
+    final remaining = video.factCheckGracePeriodRemaining;
+    final remainingHours = remaining.inHours;
+    final remainingMins = remaining.inMinutes % 60;
+    final timeStr = remainingHours > 0
+        ? '${remainingHours} hours and ${remainingMins} minutes'
+        : '${remainingMins} minutes';
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -228,13 +299,13 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 color: const Color(0xFF1E1B10),
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                  color: AppColors.warning.withValues(alpha: 0.3),
                 ),
               ),
               child: const Icon(
                 Icons.admin_panel_settings_outlined,
                 size: 40,
-                color: Color(0xFFF59E0B),
+                color: AppColors.warning,
               ),
             ),
             const SizedBox(height: 20),
@@ -249,7 +320,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'The channel has elected to review fact-check results before making them public. Results will appear once approved by the creator.',
+              'The creator has selected preliminary review. To protect viewers and uphold epistemic transparency, this fact-check report will automatically become public in $timeStr.',
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.6),
                 fontSize: 13,
@@ -366,7 +437,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                             ),
                             child: Text(
                               durationStr,
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 fontSize: 10.5,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
@@ -383,7 +454,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                   mainTitle,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
@@ -400,7 +471,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                         subtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,
                         ),
@@ -453,10 +524,10 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: const Color(0xFF14161F),
+                color: AppColors.bgPage,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: const Color(0xFF10B981).withValues(alpha: 0.25),
+                  color: AppColors.success.withValues(alpha: 0.25),
                   width: 0.8,
                 ),
               ),
@@ -465,14 +536,14 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.lightbulb_outline_rounded, size: 15, color: Color(0xFF10B981)),
+                      const Icon(Icons.lightbulb_outline_rounded, size: 15, color: AppColors.success),
                       const SizedBox(width: 6),
                       Text(
                         'Truth Intelligence Takeaway',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: const Color(0xFF10B981),
+                          color: AppColors.success,
                         ),
                       ),
                     ],
@@ -482,7 +553,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                     effectiveConclusionSnippet,
                     maxLines: 4,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 12,
                       color: Colors.white.withValues(alpha: 0.8),
                       height: 1.35,
@@ -500,7 +571,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                       ),
                       child: Text(
                         'Full Conclusion →',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 11.5,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
@@ -529,7 +600,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 Expanded(
                   child: Text(
                     'Evaluated with peer-reviewed literature and empirical cross-referencing.',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 11,
                       color: AppColors.textSecondary,
                       height: 1.3,
@@ -589,10 +660,24 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
   Widget _buildDesktopMainPane(BuildContext context, ParsedFactCheckData parsed) {
     return Column(
       children: [
-        _buildDesktopTabBar(parsed),
+        _buildDesktopTabBar(context, parsed),
         Expanded(
           child: Obx(() {
             final currentTab = analysisCtrl.selectedTab.value;
+            if (currentTab == 7) {
+              return VideoCommunityNotesTab(video: video, parsed: parsed);
+            }
+            if (currentTab == 6) {
+              return AiCredibilityChatSheet(
+                video: video,
+                allSources: parsed.parsedSources.isNotEmpty ? parsed.parsedSources : parsed.sources,
+                allClaims: parsed.claims,
+                summary: parsed.summary.isNotEmpty ? parsed.summary : parsed.conclusion,
+                trustScore: parsed.trustScore,
+                isEmbedded: true,
+                onClose: () => analysisCtrl.selectedTab.value = 0,
+              );
+            }
             if (currentTab == 5) {
               return _buildDesktopChaptersTab(context, parsed);
             }
@@ -615,7 +700,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
     );
   }
 
-  Widget _buildDesktopTabBar(ParsedFactCheckData parsed) {
+  Widget _buildDesktopTabBar(BuildContext context, ParsedFactCheckData parsed) {
     final factClaims = _getFactClaims(parsed.claims);
     final opinionClaims = _getOpinionClaims(parsed.claims);
     final effectiveChapters = parsed.chapters.isNotEmpty
@@ -682,6 +767,30 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                   isSelected: currentTab == 3,
                   onTap: () => analysisCtrl.setSelectedTab(3),
                 ),
+                _buildDesktopTabItem(
+                  key: const Key('tab_community_notes'),
+                  title: 'Community Notes',
+                  icon: Icons.forum_outlined,
+                  isSelected: currentTab == 7,
+                  onTap: () => analysisCtrl.setSelectedTab(7),
+                ),
+                _buildDesktopTabItem(
+                  key: const Key('tab_ai_chat'),
+                  title: 'Ask AI',
+                  icon: Icons.auto_awesome_rounded,
+                  isSelected: currentTab == 6,
+                  onTap: () {
+                    AskAiScreen.open(
+                      context,
+                      video: video,
+                      controller: videoCtrl,
+                      allSources: parsed.parsedSources.isNotEmpty ? parsed.parsedSources : parsed.sources,
+                      allClaims: parsed.claims,
+                      summary: parsed.summary.isNotEmpty ? parsed.summary : parsed.conclusion,
+                      trustScore: parsed.trustScore,
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -722,7 +831,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                   Text(
                     title,
                     maxLines: 1,
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                       color: isSelected ? Colors.white : AppColors.textSecondary,
@@ -738,7 +847,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                       ),
                       child: Text(
                         count,
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
                           color: isSelected ? Colors.black : Colors.white, // Strictly black on white!
@@ -777,7 +886,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
             color: const Color(0xFF141624),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: const Color(0xFF38BDF8).withValues(alpha: 0.25),
+              color: AppColors.textLink.withValues(alpha: 0.25),
               width: 0.8,
             ),
           ),
@@ -790,17 +899,17 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF38BDF8).withValues(alpha: 0.15),
+                      color: AppColors.textLink.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+                        color: AppColors.textLink.withValues(alpha: 0.35),
                         width: 0.8,
                       ),
                     ),
                     child: const Center(
                       child: Icon(
                         Icons.psychology_rounded,
-                        color: Color(0xFF38BDF8),
+                        color: AppColors.textLink,
                         size: 22,
                       ),
                     ),
@@ -812,7 +921,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                       children: [
                         Text(
                           'Subjective Perspectives, Beliefs & Traditions',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
@@ -821,7 +930,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           'Philosophical arguments, religious doctrines, satire & creative commentary',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 12,
                             color: AppColors.textTertiary,
                           ),
@@ -834,7 +943,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 'TruthWorld respects personal viewpoints, theological convictions, and creative expression. These statements are categorized for contextual clarity and are never marked as "True" or "False".',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 13,
                   height: 1.45,
                   color: AppColors.textSecondary,
@@ -863,7 +972,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 const SizedBox(height: 14),
                 Text(
                   'No Subjective Statements Found',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -873,7 +982,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 Text(
                   'All evaluated statements in this video were analyzed as testable empirical claims.',
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 13,
                     height: 1.4,
@@ -885,7 +994,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
         ] else ...[
           Row(
             children: [
-              const Icon(Icons.psychology_rounded, size: 18, color: Color(0xFF38BDF8)),
+              const Icon(Icons.psychology_rounded, size: 18, color: AppColors.textLink),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -974,7 +1083,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                   children: [
                     Text(
                       'Interactive Timeline Chapters',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
@@ -983,7 +1092,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       'Click any topic chapter to jump directly to that point in the video',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 12,
                         color: AppColors.textTertiary,
                       ),
@@ -1014,7 +1123,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 const SizedBox(height: 14),
                 Text(
                   'No Chapters Available',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -1024,7 +1133,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 Text(
                   'This video does not have automated topic markers or timestamps yet.',
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 13,
                     height: 1.4,
@@ -1060,7 +1169,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                   const SizedBox(width: 7),
                   Text(
                     'Fact-Checked Claims (${parsed.claims.length})',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -1076,7 +1185,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 height: 36,
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1C1F2B),
+                  color: AppColors.bgSurface,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
                 ),
@@ -1086,7 +1195,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                     const SizedBox(width: 6),
                     Expanded(
                       child: TextField(
-                        style: GoogleFonts.roboto(color: Colors.white, fontSize: 12.5),
+                        style: TextStyle(color: Colors.white, fontSize: 12.5),
                         decoration: const InputDecoration(
                           hintText: 'Search claims...',
                           hintStyle: TextStyle(color: AppColors.textTertiary, fontSize: 12.5),
@@ -1105,7 +1214,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
               // Sort Dropdown Pill
               PopupMenuButton<String>(
                 onSelected: analysisCtrl.setSortOrder,
-                color: const Color(0xFF1C1F2B),
+                color: AppColors.bgSurface,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                   side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
@@ -1118,7 +1227,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1C1F2B),
+                    color: AppColors.bgSurface,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
                   ),
@@ -1127,7 +1236,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                     children: [
                       Text(
                         _getSortLabel(sortOrder),
-                        style: GoogleFonts.roboto(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white),
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white),
                       ),
                       const SizedBox(width: 4),
                       const Icon(Icons.keyboard_arrow_down_rounded, size: 15, color: Colors.white),
@@ -1154,21 +1263,21 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
               _buildFilterPill(
                 filterKey: 'Verified',
                 label: 'Verified (${parsed.verifiedCount})',
-                dotColor: const Color(0xFF10B981),
+                dotColor: AppColors.success,
                 isSelected: current == 'Verified',
               ),
               const SizedBox(width: 8),
               _buildFilterPill(
                 filterKey: 'Caution',
                 label: 'Caution (${parsed.cautionCount})',
-                dotColor: const Color(0xFFF59E0B),
+                dotColor: AppColors.warning,
                 isSelected: current == 'Caution',
               ),
               const SizedBox(width: 8),
               _buildFilterPill(
                 filterKey: 'False',
                 label: 'False (${parsed.falseCount})',
-                dotColor: const Color(0xFFEF4444),
+                dotColor: AppColors.error,
                 isSelected: current == 'False',
               ),
             ],
@@ -1222,7 +1331,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
               padding: const EdgeInsets.all(28),
               margin: const EdgeInsets.symmetric(vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xFF14161F),
+                color: AppColors.bgPage,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: AppColors.bgDivider),
               ),
@@ -1231,7 +1340,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                   search.isNotEmpty
                       ? 'No claims match "$search"'
                       : 'No claims found in "$filter" category.',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 13,
                   ),
@@ -1377,7 +1486,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
               const SizedBox(width: 10),
               Text(
                 'EXECUTIVE VIDEO & TOPIC OVERVIEW',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 11.5,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.0,
@@ -1395,7 +1504,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                   ),
                   child: Text(
                     '${parsed.claims.length} CLAIMS ANALYZED',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 0.5,
@@ -1408,7 +1517,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
           const SizedBox(height: 14),
           Text(
             effectiveSummary,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 13.5,
               color: Colors.white.withValues(alpha: 0.9),
               height: 1.55,
@@ -1423,7 +1532,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 Expanded(
                   child: Text(
                     '${parsed.verifiedCount} of ${parsed.claims.length} claims verified with documented evidence.',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 12,
                       color: AppColors.textSecondary,
                     ),
@@ -1459,14 +1568,14 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: const Color(0xFF14161F),
+              color: AppColors.bgPage,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: AppColors.bgDivider),
             ),
             child: Center(
               child: Text(
                 'No external citation links cataloged for this video.',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 13,
                 ),
@@ -1521,7 +1630,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 const SizedBox(height: 12),
                 Text(
                   'Conclusion In Progress',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
@@ -1531,7 +1640,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 Text(
                   'A final synthesized conclusion is being generated from verified claims. You can inspect each claim breakdown in the Fact-Claims tab.',
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 12,
                     height: 1.4,
@@ -1617,16 +1726,20 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              Text(
-                'CLAIMS OVERVIEW & KEY FINDINGS',
-                style: GoogleFonts.roboto(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.0,
-                  color: Colors.white70,
+              Expanded(
+                child: Text(
+                  'CLAIMS OVERVIEW & KEY FINDINGS',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.0,
+                    color: Colors.white70,
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 10),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
@@ -1636,7 +1749,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 ),
                 child: Text(
                   '${parsed.claims.length} CLAIMS',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 10.5,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 0.5,
@@ -1655,7 +1768,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 child: _buildBreakdownPill(
                   label: 'Verified True',
                   count: parsed.verifiedCount,
-                  color: const Color(0xFF10B981),
+                  color: AppColors.success,
                   icon: Icons.check_circle_outline_rounded,
                 ),
               ),
@@ -1664,7 +1777,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 child: _buildBreakdownPill(
                   label: 'Needs Context',
                   count: parsed.cautionCount,
-                  color: const Color(0xFFF59E0B),
+                  color: AppColors.warning,
                   icon: Icons.error_outline_rounded,
                 ),
               ),
@@ -1673,7 +1786,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 child: _buildBreakdownPill(
                   label: 'Contradicted',
                   count: parsed.falseCount,
-                  color: const Color(0xFFEF4444),
+                  color: AppColors.error,
                   icon: Icons.cancel_outlined,
                 ),
               ),
@@ -1685,7 +1798,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
           if (topVerified != null) ...[
             _buildClaimHighlightRow(
               badgeLabel: 'VERIFIED FACT',
-              badgeColor: const Color(0xFF10B981),
+              badgeColor: AppColors.success,
               icon: Icons.check_circle_rounded,
               claimMap: topVerified,
             ),
@@ -1694,7 +1807,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
           if (topCaution != null) ...[
             _buildClaimHighlightRow(
               badgeLabel: 'REQUIRES CONTEXT',
-              badgeColor: const Color(0xFFF59E0B),
+              badgeColor: AppColors.warning,
               icon: Icons.info_outline_rounded,
               claimMap: topCaution,
             ),
@@ -1703,7 +1816,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
           if (topFalse != null) ...[
             _buildClaimHighlightRow(
               badgeLabel: 'CONTRADICTED',
-              badgeColor: const Color(0xFFEF4444),
+              badgeColor: AppColors.error,
               icon: Icons.cancel_rounded,
               claimMap: topFalse,
             ),
@@ -1711,7 +1824,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
           ] else if (secondaryVerified != null && topCaution == null) ...[
             _buildClaimHighlightRow(
               badgeLabel: 'VERIFIED FACT',
-              badgeColor: const Color(0xFF10B981),
+              badgeColor: AppColors.success,
               icon: Icons.check_circle_rounded,
               claimMap: secondaryVerified,
             ),
@@ -1725,7 +1838,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Explore all ${parsed.claims.length} claims with citations & timestamps',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 11.5,
                     color: AppColors.textSecondary,
                   ),
@@ -1777,7 +1890,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF14161F),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: badgeColor.withValues(alpha: 0.25)),
       ),
@@ -1799,7 +1912,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                     const SizedBox(width: 4),
                     Text(
                       badgeLabel,
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
@@ -1816,7 +1929,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
             claimText,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 12.5,
               fontWeight: FontWeight.w600,
               color: Colors.white,
@@ -1829,7 +1942,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
               cleanExplanation,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 11.5,
                 color: AppColors.textSecondary,
                 height: 1.35,
@@ -1870,16 +1983,20 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              Text(
-                'MOST VALUABLE SOURCES & CITATIONS',
-                style: GoogleFonts.roboto(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.0,
-                  color: Colors.white70,
+              Expanded(
+                child: Text(
+                  'MOST VALUABLE SOURCES & CITATIONS',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.0,
+                    color: Colors.white70,
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 10),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
@@ -1889,7 +2006,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 ),
                 child: Text(
                   '${parsed.sources.length} TOTAL SOURCES',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 10.5,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 0.5,
@@ -1902,7 +2019,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             'Primary documentation, regulatory filings, and authoritative bodies evaluated for this video.',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 12,
               color: AppColors.textSecondary,
               height: 1.4,
@@ -1929,7 +2046,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 Expanded(
                   child: Text(
                     'Cataloging ${parsed.sources.length} verified references and citations',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 11.5,
                       color: AppColors.textSecondary,
                     ),
@@ -1977,7 +2094,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 'CLAIMS VERIFICATION BREAKDOWN',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textSecondary,
@@ -1993,7 +2110,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 child: _buildBreakdownPill(
                   label: 'Verified',
                   count: parsed.verifiedCount,
-                  color: const Color(0xFF10B981),
+                  color: AppColors.success,
                   icon: Icons.check_circle_outline_rounded,
                 ),
               ),
@@ -2002,7 +2119,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 child: _buildBreakdownPill(
                   label: 'Caution',
                   count: parsed.cautionCount,
-                  color: const Color(0xFFF59E0B),
+                  color: AppColors.warning,
                   icon: Icons.error_outline_rounded,
                 ),
               ),
@@ -2011,7 +2128,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 child: _buildBreakdownPill(
                   label: 'False',
                   count: parsed.falseCount,
-                  color: const Color(0xFFEF4444),
+                  color: AppColors.error,
                   icon: Icons.cancel_outlined,
                 ),
               ),
@@ -2042,7 +2159,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             '$count $label',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.bold,
               color: color,
@@ -2059,7 +2176,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
     required bool isSelected,
     Color? dotColor,
   }) {
-    final bgColor = isSelected ? Colors.white : const Color(0xFF1C1F2B);
+    final bgColor = isSelected ? Colors.white : AppColors.bgSurface;
     final textColor = isSelected ? Colors.black : Colors.white;
     final borderColor = isSelected ? Colors.transparent : Colors.white.withValues(alpha: 0.12);
 
@@ -2090,7 +2207,7 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
             ],
             Text(
               label,
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                 color: textColor, // Strictly black on white!
@@ -2111,12 +2228,12 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
           Icon(
             isSelected ? Icons.check_rounded : Icons.circle_outlined,
             size: 16,
-            color: isSelected ? const Color(0xFF10B981) : AppColors.textTertiary,
+            color: isSelected ? AppColors.success : AppColors.textTertiary,
           ),
           const SizedBox(width: 8),
           Text(
             title,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.w400,
               color: isSelected ? Colors.white : AppColors.textSecondary,

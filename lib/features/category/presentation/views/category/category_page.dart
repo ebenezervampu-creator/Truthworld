@@ -107,26 +107,41 @@ class CategoryPage extends GetView<CategoryController> {
             isTablet: isTablet,
           ),
           SizedBox(height: AppTokens.spacing.md),
-          CategoryFeaturedSection(
-            controller: controller,
-            isDesktop: isDesktop,
-            isTablet: isTablet,
-            isMobile: isMobile,
-          ),
-          SizedBox(height: AppTokens.spacing.md),
-          CategoryNewReleasesSection(
-            controller: controller,
-            isDesktop: isDesktop,
-            isTablet: isTablet,
-            isMobile: isMobile,
-          ),
-          SizedBox(height: AppTokens.spacing.md),
-          CategoryTopContentSection(
-            controller: controller,
-            isDesktop: isDesktop,
-            isTablet: isTablet,
-            isMobile: isMobile,
-          ),
+          Obx(() {
+            if (controller.debouncedSearchQuery.value.isNotEmpty) {
+              return CategorySearchResultsSection(
+                controller: controller,
+                isDesktop: isDesktop,
+                isTablet: isTablet,
+                isMobile: isMobile,
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CategoryFeaturedSection(
+                  controller: controller,
+                  isDesktop: isDesktop,
+                  isTablet: isTablet,
+                  isMobile: isMobile,
+                ),
+                SizedBox(height: AppTokens.spacing.md),
+                CategoryNewReleasesSection(
+                  controller: controller,
+                  isDesktop: isDesktop,
+                  isTablet: isTablet,
+                  isMobile: isMobile,
+                ),
+                SizedBox(height: AppTokens.spacing.md),
+                CategoryTopContentSection(
+                  controller: controller,
+                  isDesktop: isDesktop,
+                  isTablet: isTablet,
+                  isMobile: isMobile,
+                ),
+              ],
+            );
+          }),
           SizedBox(height: AppTokens.spacing.md),
         ],
       ),

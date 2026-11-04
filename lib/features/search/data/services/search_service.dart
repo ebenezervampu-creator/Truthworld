@@ -17,7 +17,9 @@ class SearchService {
     FirebaseFirestore? firestore,
     FirebaseFunctions? functions,
     SearchCache? cache,
+    TypesenseSearchEngine? typesenseEngine,
   })  : _cache = cache ?? SearchCache(),
+        _typesenseEngine = typesenseEngine ?? TypesenseSearchEngine(),
         _cloudExecutor = SearchCloudExecutor(functions: functions),
         _entityEngine = SearchEntityQueryEngine(firestore: firestore),
         _recommendationsEngine =
@@ -25,6 +27,7 @@ class SearchService {
         _ranker = const SearchResultRanker();
 
   final SearchCache _cache;
+  final TypesenseSearchEngine _typesenseEngine;
   final SearchCloudExecutor _cloudExecutor;
   final SearchEntityQueryEngine _entityEngine;
   final SearchRecommendationsEngine _recommendationsEngine;
@@ -59,9 +62,23 @@ class SearchService {
       return cached;
     }
 
-    // Step 1: In-House Server-Side Vector & Hybrid Search via Cloud Function
     final effectiveFilter =
         filter ?? (intent?.scope.name.capitalizeFirst ?? 'All');
+
+    // Step 0: Instant (<30ms) Typo-Tolerant Typesense Search
+    if (_typesenseEngine.isEnabled) {
+      final tsResults = await _typesenseEngine.searchCombined(
+        normalized,
+        filter: effectiveFilter,
+        limit: limit,
+      );
+      if (tsResults.isNotEmpty) {
+        _cache.put(cacheKey, tsResults);
+        return tsResults;
+      }
+    }
+
+    // Step 1: In-House Server-Side Vector & Hybrid Search via Cloud Function
     final backendResults = await _cloudExecutor.executeVectorSearch(
       normalized,
       filter: effectiveFilter,
@@ -155,6 +172,14 @@ class SearchService {
     }
 
     try {
+      if (_typesenseEngine.isEnabled) {
+        final tsResults = await _typesenseEngine.searchVideos(normalized);
+        if (tsResults.isNotEmpty) {
+          _cache.put(cacheKey, tsResults);
+          return tsResults;
+        }
+      }
+
       final results = await _entityEngine.searchVideos(normalized);
       _cache.put(cacheKey, results);
       return results;
@@ -178,6 +203,14 @@ class SearchService {
     }
 
     try {
+      if (_typesenseEngine.isEnabled) {
+        final tsResults = await _typesenseEngine.searchChannels(normalized);
+        if (tsResults.isNotEmpty) {
+          _cache.put(cacheKey, tsResults);
+          return tsResults;
+        }
+      }
+
       final results = await _entityEngine.searchChannels(normalized);
       _cache.put(cacheKey, results);
       return results;
@@ -223,6 +256,14 @@ class SearchService {
     }
 
     try {
+      if (_typesenseEngine.isEnabled) {
+        final tsResults = await _typesenseEngine.searchTopics(normalized);
+        if (tsResults.isNotEmpty) {
+          _cache.put(cacheKey, tsResults);
+          return tsResults;
+        }
+      }
+
       final results = await _entityEngine.searchTopics(normalized);
       _cache.put(cacheKey, results);
       return results;

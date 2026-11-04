@@ -123,6 +123,7 @@ void main() {
     test('Moderation mode observables default to false and can be updated', () {
       final controller = MockAdminController();
 
+      expect(controller.rxBypassAll.value, isFalse);
       expect(controller.rxBypassVideos.value, isFalse);
       expect(controller.rxBypassAds.value, isFalse);
       expect(controller.rxBypassChannelBanners.value, isFalse);
@@ -156,6 +157,26 @@ void main() {
       expect(controller.rxBypassCommunityPosts.value, isTrue);
       expect(controller.rxBypassTopicThumbnails.value, isTrue);
       expect(controller.rxBypassPlaylistThumbnails.value, isFalse);
+      expect(controller.rxBypassAll.value, isFalse);
+    });
+
+    test('applyModerationModes with master all=true activates all categories and rxBypassAll', () {
+      final controller = MockAdminController();
+
+      controller.applyModerationModes({
+        'all': true,
+      });
+
+      expect(controller.rxBypassAll.value, isTrue);
+      expect(controller.rxBypassVideos.value, isTrue);
+      expect(controller.rxBypassChannels.value, isTrue);
+      expect(controller.rxBypassAds.value, isTrue);
+      expect(controller.rxBypassVideoThumbnails.value, isTrue);
+      expect(controller.rxBypassChannelBanners.value, isTrue);
+      expect(controller.rxBypassChannelAvatars.value, isTrue);
+      expect(controller.rxBypassCommunityPosts.value, isTrue);
+      expect(controller.rxBypassTopicThumbnails.value, isTrue);
+      expect(controller.rxBypassPlaylistThumbnails.value, isTrue);
     });
   });
 

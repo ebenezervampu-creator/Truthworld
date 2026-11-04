@@ -102,6 +102,20 @@ mixin CommentStudioQueriesMixin on CommentServiceBase {
           for (final videoDoc in videoSnapshot.docs) {
             final videoData = videoDoc.data();
 
+            // Filter out deleted or trashed videos
+            final status = (videoData['status'] as String?)?.trim().toLowerCase() ?? '';
+            final isDeleted = videoData['isDeleted'] == true;
+            if (isDeleted ||
+                status == 'deleted' ||
+                status == 'deletion_pending' ||
+                status == 'trashed' ||
+                status == 'trash' ||
+                videoData['deletedAt'] != null ||
+                videoData['deletionRequestedAt'] != null ||
+                videoData['deletionPendingAt'] != null) {
+              continue;
+            }
+
             final commentsSnapshot = await videoDoc.reference
                 .collection(commentsCollection)
                 .count()

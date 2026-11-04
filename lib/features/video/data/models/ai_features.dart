@@ -1,6 +1,8 @@
 /// AI feature models for the video processing pipeline.
 library;
 
+import 'package:collection/collection.dart';
+
 /// Text-to-Speech configuration for video processing.
 class TTSConfig {
   const TTSConfig({
@@ -789,3 +791,30 @@ const List<TranslationLanguage> supportedLanguages = [
     category: LanguageCategory.other,
   ),
 ];
+
+/// Normalizes any language code, regional locale (e.g. 'en_us', 'en-US', 'es_ES'),
+/// or full language name into a canonical ISO 639-1 code supported by TruthWorld.
+String normalizeLanguageCode(String? raw) {
+  if (raw == null || raw.trim().isEmpty) return 'en';
+  var clean = raw.trim().toLowerCase();
+
+  // If contains locale delimiter like en_us or en-US, extract base language code
+  if (clean.contains('_') || clean.contains('-')) {
+    final base = clean.split(RegExp(r'[-_]')).first.toLowerCase();
+    if (base.length >= 2 && base.length <= 3) {
+      clean = base;
+    }
+  }
+
+  // Direct code match in supportedLanguages
+  final matchByCode = supportedLanguages.firstWhereOrNull((l) => l.code == clean);
+  if (matchByCode != null) return matchByCode.code;
+
+  // Match by name or nativeName
+  final matchByName = supportedLanguages.firstWhereOrNull(
+    (l) => l.name.toLowerCase() == clean || l.nativeName.toLowerCase() == clean,
+  );
+  if (matchByName != null) return matchByName.code;
+
+  return clean.length <= 3 ? clean : 'en';
+}

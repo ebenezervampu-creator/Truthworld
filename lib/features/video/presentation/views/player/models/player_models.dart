@@ -25,7 +25,7 @@ class PT {
 }
 
 // ── Text Style Cache ──────────────────────────────────────────────────────────
-// Pre-build expensive GoogleFonts lookups once.
+// Pre-build typography styles once.
 abstract class TS {
   static const body = TextStyle(
     color: PT.text,
@@ -103,6 +103,19 @@ class SubtitleSegment {
 
 class AudioTrack {
   const AudioTrack({
+    required this.label,
+    required this.langCode,
+    this.type = 'Original',
+    this.url,
+  });
+  final String label;
+  final String langCode;
+  final String type;
+  final String? url;
+}
+
+class VideoTrack {
+  const VideoTrack({
     required this.label,
     required this.langCode,
     this.type = 'Original',

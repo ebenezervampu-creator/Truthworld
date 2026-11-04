@@ -82,13 +82,13 @@ void main() {
 
       // Check header and titles
       expect(find.text('Compare Channel Plans'), findsOneWidget);
-      expect(find.text('Standard vs Custom Channel'), findsOneWidget);
+      expect(find.text('Standard vs Pro Channel'), findsOneWidget);
       expect(find.text('Detailed Feature Comparison'), findsOneWidget);
       expect(find.text('Which Channel Type is Right for You?'), findsOneWidget);
 
       // Check standard and custom overview cards
       expect(find.text('Standard Channel'), findsWidgets);
-      expect(find.text('Custom Channel'), findsWidgets);
+      expect(find.text('Pro Channel'), findsWidgets);
       expect(find.text('100% FREE FOREVER'), findsOneWidget);
       expect(find.text('MAX REVENUE • 100% KEEP'), findsOneWidget);
 
@@ -98,13 +98,13 @@ void main() {
       expect(find.text('Cloud Storage'), findsOneWidget);
 
       // Tap on Custom card button
-      final chooseCustomBtn = find.text('Choose Custom Channel');
+      final chooseCustomBtn = find.text('Choose Pro Channel');
       expect(chooseCustomBtn, findsOneWidget);
       await tester.tap(chooseCustomBtn);
       await tester.pumpAndSettle();
 
       // Verify custom is now selected in the bottom action bar
-      expect(find.text('Continue with Custom'), findsOneWidget);
+      expect(find.text('Continue with Pro'), findsOneWidget);
     });
   });
 }

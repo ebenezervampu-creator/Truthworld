@@ -4,7 +4,7 @@ import 'package:truthworld/features/channel/presentation/controllers/channel_con
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/views/widgets/video_recommendation_feed.dart';
-import 'package:truthworld/features/video/presentation/views/widgets/video_screen/video_chapters_section.dart';
+import 'package:truthworld/features/video/presentation/views/widgets/video_screen/video_claims_section.dart';
 import 'package:truthworld/features/video/presentation/views/widgets/video_screen/video_info_section.dart';
 import 'package:truthworld/features/video/presentation/views/widgets/video_screen/video_player_stage.dart';
 import 'package:truthworld/features/video/presentation/widgets/video_comments_sheet.dart';
@@ -48,7 +48,10 @@ class VideoScreenRecommendationHeader extends StatelessWidget {
                   scale: 0.8,
                   child: Switch(
                     value: controller.isAutoplay.value,
-                    onChanged: (v) => controller.isAutoplay.value = v,
+                    onChanged: (v) {
+                      controller.isAutoplay.value = v;
+                      controller.towerPlayerController?.isAutoplay.value = v;
+                    },
                     activeThumbColor: AppColors.brand,
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
@@ -83,7 +86,7 @@ class VideoScreenMobileLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     return CustomScrollView(
       primary: true,
-      physics: const BouncingScrollPhysics(),
+      physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
         VideoPlayerStage(controller: controller, videoTag: videoTag),
         VideoInfoHeader(
@@ -96,22 +99,15 @@ class VideoScreenMobileLayout extends StatelessWidget {
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: VideoChaptersSection(
+            child: VideoClaimsChaptersSection(
               controller: controller,
               videoTag: videoTag,
             ),
           ),
         ),
-        SliverPadding(
-          padding: const EdgeInsets.only(bottom: 24),
-          sliver: SliverToBoxAdapter(
-            child: RecommendationFeed(
-              video: controller.video,
-              videoTag: videoTag,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-            ),
-          ),
+        RecommendationFeed(
+          video: controller.video,
+          videoTag: videoTag,
         ),
       ],
     );
@@ -172,13 +168,14 @@ class VideoScreenDesktopLayout extends StatelessWidget {
         Expanded(
           flex: 3,
           child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                   child: Column(
                     children: [
-                      VideoChaptersSection(
+                      VideoClaimsChaptersSection(
                         controller: controller,
                         videoTag: videoTag,
                       ),
@@ -188,16 +185,9 @@ class VideoScreenDesktopLayout extends StatelessWidget {
                   ),
                 ),
               ),
-              SliverPadding(
-                padding: const EdgeInsets.only(bottom: 24),
-                sliver: SliverToBoxAdapter(
-                  child: RecommendationFeed(
-                    video: controller.video,
-                    videoTag: videoTag,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                  ),
-                ),
+              RecommendationFeed(
+                video: controller.video,
+                videoTag: videoTag,
               ),
             ],
           ),

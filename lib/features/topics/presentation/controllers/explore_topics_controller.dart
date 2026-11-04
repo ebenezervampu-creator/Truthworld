@@ -13,6 +13,7 @@ import 'package:truthworld/core/services/ai/models/ai_search_intent.dart';
 import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
 import 'package:truthworld/core/services/algorithm/user_signal_tracker.dart';
+import 'package:truthworld/core/services/user_preferences_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
@@ -39,6 +40,97 @@ class ExploreTopicsController extends BaseController {
   final RxString selectedCategory = 'all'.obs;
   final Rx<ExploreMode> exploreMode = ExploreMode.discover.obs;
   final RxString searchQuery = ''.obs;
+
+  final List<String> sortFilters = const [
+    'Discover',
+    'Trending',
+    'Newest',
+    'Popular',
+  ];
+
+  String get currentSortFilterName {
+    switch (exploreMode.value) {
+      case ExploreMode.trending:
+        return 'Trending';
+      case ExploreMode.newest:
+        return 'Newest';
+      case ExploreMode.popular:
+        return 'Popular';
+      case ExploreMode.yearly:
+        return 'Yearly';
+      case ExploreMode.discover:
+        return 'Discover';
+    }
+  }
+
+  void selectSortFilter(String filterName) {
+    switch (filterName.toLowerCase()) {
+      case 'trending':
+        setExploreMode(ExploreMode.trending);
+      case 'newest':
+        setExploreMode(ExploreMode.newest);
+      case 'popular':
+        setExploreMode(ExploreMode.popular);
+      case 'yearly':
+        setExploreMode(ExploreMode.yearly);
+      case 'discover':
+      default:
+        setExploreMode(ExploreMode.discover);
+    }
+  }
+
+  bool get hasActiveFilters =>
+      exploreMode.value != ExploreMode.discover ||
+      selectedCategory.value.toLowerCase() != 'all' ||
+      searchQuery.value.trim().isNotEmpty;
+
+  void resetAllFilters() {
+    setExploreMode(ExploreMode.discover);
+    selectCategory('all');
+    clearSearch();
+  }
+
+  /// Curated and sorted featured categories taking into account active filters
+  List<TopicCategory> get filteredFeaturedCategories {
+    var list = availableCategories.isNotEmpty
+        ? List<TopicCategory>.from(availableCategories)
+        : TopicCategoriesConfig.categories
+            .where((c) => c.id != 'all')
+            .toList();
+
+    // If a specific category is selected, prioritize it at the top
+    if (selectedCategory.value.toLowerCase() != 'all') {
+      try {
+        final selectedCat = list.firstWhere(
+          (c) =>
+              c.title.toLowerCase() == selectedCategory.value.toLowerCase() ||
+              c.id.toLowerCase() == selectedCategory.value.toLowerCase(),
+        );
+        list.remove(selectedCat);
+        list.insert(0, selectedCat);
+      } catch (_) {}
+    } else {
+      // Sort based on active exploreMode
+      if (exploreMode.value == ExploreMode.trending) {
+        list.sort((a, b) {
+          final countA = getAuthenticTopicCount(a.title);
+          final countB = getAuthenticTopicCount(b.title);
+          return countB.compareTo(countA);
+        });
+      } else if (exploreMode.value == ExploreMode.popular) {
+        list.sort((a, b) {
+          final countA = getAuthenticTopicCount(a.title);
+          final countB = getAuthenticTopicCount(b.title);
+          if (countA != countB) return countB.compareTo(countA);
+          return a.title.compareTo(b.title);
+        });
+      } else if (exploreMode.value == ExploreMode.newest) {
+        list = list.reversed.toList();
+      }
+    }
+
+    return list.take(3).toList();
+  }
 
   // AI-Assisted Interactive Search state
   final Rx<AiSearchIntent?> activeAiIntent = Rx<AiSearchIntent?>(null);
@@ -136,9 +228,15 @@ class ExploreTopicsController extends BaseController {
 
       // 2. Fetch Featured Curated Strips
       final rawFeatured = await _repository.fetchFeaturedTopics();
-      featuredTopics.value = rawFeatured
+      final validFeatured = rawFeatured
           .where((t) => t.isValidTopic)
           .toList();
+      final userPrefs = Get.isRegistered<UserPreferencesService>()
+          ? UserPreferencesService.to
+          : null;
+      featuredTopics.value = userPrefs != null
+          ? userPrefs.filterTopics(validFeatured)
+          : validFeatured;
 
       // 3. Fetch paginated topics
       await loadTopics(reset: true);
@@ -191,34 +289,38 @@ class ExploreTopicsController extends BaseController {
 
         final candidateMap = <String, Topic>{};
 
-        // 1. Prefix query for direct keywords
+        // 1. Prefix query for direct keywords and phrases
         if (intent.cleanKeywords.isNotEmpty) {
-          for (final kw in intent.cleanKeywords.take(2)) {
+          for (final kw in intent.cleanKeywords.take(3)) {
             final prefixResults =
-                await _repository.searchTopics(kw, limit: 30);
+                await _repository.searchTopics(kw, limit: 20);
             for (final t in prefixResults) {
               candidateMap[t.id] = t;
             }
           }
         }
 
-        // 2. Full scan of active topics to match semantic synonyms, subdomains, categories
-        try {
-          final snapshot = await FirebaseFirestore.instance
-              .collection(FirestoreCollections.topics)
-              .limit(100)
-              .getCacheFirst();
-          for (final doc in snapshot.docs) {
-            final t = Topic.fromDocumentSnapshot(doc);
-            if (t.isValidTopic) {
+        // 2. Query topics in detected categories if any
+        if (intent.detectedCategories.isNotEmpty) {
+          for (final cat in intent.detectedCategories.take(2)) {
+            final catResults =
+                await _repository.fetchTopics(category: cat, limit: 15);
+            for (final t in catResults) {
               candidateMap[t.id] = t;
             }
           }
-        } catch (e, stackTrace) {
-          ErrorHandler.log(e, stackTrace: stackTrace, tag: 'ExploreTopicsController.aiScanActiveTopics');
         }
 
-        // 3. Score candidates with AiSearchService.scoreTopic
+        // 3. Fallback direct query on raw query if candidate pool is small
+        if (candidateMap.length < 5 && raw.isNotEmpty) {
+          final rawResults =
+              await _repository.searchTopics(raw, limit: 20);
+          for (final t in rawResults) {
+            candidateMap[t.id] = t;
+          }
+        }
+
+        // 4. Score candidates with AiSearchService.scoreTopic
         final scored = <MapEntry<Topic, double>>[];
         for (final topic in candidateMap.values) {
           final score = AiSearchService.instance.scoreTopic(topic, intent);
@@ -250,64 +352,56 @@ class ExploreTopicsController extends BaseController {
         rxHasMore.value = false;
       } else {
         activeAiIntent.value = null;
-        // Standard paginated database retrieval
+        // Standard paginated database retrieval with cursor preservation
+        TopicPageResult pageResult;
         if (exploreMode.value == ExploreMode.trending) {
-          newTopics = await _repository.fetchTrendingTopics(
+          pageResult = await _repository.fetchTrendingTopicsPage(
             lastDoc: _lastDoc,
             category: selectedCategory.value,
           );
         } else if (exploreMode.value == ExploreMode.newest) {
-          newTopics = await _repository.fetchNewestTopics(
+          pageResult = await _repository.fetchNewestTopicsPage(
             lastDoc: _lastDoc,
             category: selectedCategory.value,
           );
         } else if (exploreMode.value == ExploreMode.popular) {
-          newTopics = await _repository.fetchPopularTopics(
+          pageResult = await _repository.fetchPopularTopicsPage(
             lastDoc: _lastDoc,
             category: selectedCategory.value,
           );
         } else if (exploreMode.value == ExploreMode.yearly) {
-          // Yearly trended topics query (pull by category or lower video count fallback)
-          newTopics = await _repository.fetchTopics(
+          pageResult = await _repository.fetchTopicsPage(
             lastDoc: _lastDoc,
             category: selectedCategory.value,
           );
-          // Sort or compute yearly activity boost offline
-          newTopics.sort((a, b) => b.trendingScore.compareTo(a.trendingScore));
+          pageResult.topics.sort((a, b) => b.trendingScore.compareTo(a.trendingScore));
         } else {
-          // ExploreMode.discover (default)
-          newTopics = await _repository.fetchTopics(
+          pageResult = await _repository.fetchTopicsPage(
             lastDoc: _lastDoc,
             category: selectedCategory.value,
           );
         }
 
-        if (newTopics.isNotEmpty) {
-          // Cache document snapshot reference for next pagination block
-          final rawSnapshot = await FirebaseFirestore.instance
-              .collection(FirestoreCollections.topics)
-              .doc(newTopics.last.id)
-              .getCacheFirst();
-          if (rawSnapshot.exists) {
-            _lastDoc = rawSnapshot;
-          }
+        newTopics = pageResult.topics;
+        _lastDoc = pageResult.lastDoc;
 
-          if (newTopics.length < _pageSize) {
-            rxHasMore.value = false;
-          }
-        } else {
+        if (newTopics.length < _pageSize) {
           rxHasMore.value = false;
         }
       }
 
-      // Filter out any duplicates by document id and canonical topic key
+      // Filter out any duplicates by document id and canonical topic key, and respect hidden topics
       final existingIds = topics.map((t) => t.id).toSet();
       final existingCanonicalKeys = topics.map((t) => t.canonicalKey).toSet();
+      final userPrefs = Get.isRegistered<UserPreferencesService>()
+          ? UserPreferencesService.to
+          : null;
       final uniqueNewTopics = newTopics
           .where((t) =>
               !existingIds.contains(t.id) &&
               !existingCanonicalKeys.contains(t.canonicalKey) &&
-              t.isValidTopic)
+              t.isValidTopic &&
+              (userPrefs == null || !userPrefs.isTopicBlocked(t)))
           .toList();
       if (Get.isRegistered<TruthworldAlgorithm>()) {
         final algorithm = Get.find<TruthworldAlgorithm>();
@@ -338,8 +432,8 @@ class ExploreTopicsController extends BaseController {
         }
       }
 
-      // Fetch videos for newly added topics
-      uniqueNewTopics.forEach(fetchVideosForTopic);
+      // Fetch videos on demand for top active topics (avoids over-fetching unrendered topics)
+      uniqueNewTopics.take(4).forEach(fetchVideosForTopic);
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,
@@ -422,8 +516,10 @@ class ExploreTopicsController extends BaseController {
     return trimmed[0].toUpperCase() + trimmed.substring(1);
   }
 
-  /// Fetch category video counts and filter categories to those with at least 2 videos
-  Future<void> fetchAvailableCategories() async {
+  /// Fetch category video counts and filter categories to those with at least 1 video.
+  /// Skips redundant 800-doc Firestore scans if already loaded in current session unless force is true.
+  Future<void> fetchAvailableCategories({bool force = false}) async {
+    if (!force && availableCategories.isNotEmpty) return;
     isLoadingCategories.value = true;
     try {
       final categoryCounts = <String, int>{};
@@ -565,13 +661,26 @@ class ExploreTopicsController extends BaseController {
         }
       });
 
-      availableCategories.assignAll(qualifying);
+      availableCategories.assignAll(
+        qualifying.isNotEmpty
+            ? qualifying
+            : TopicCategoriesConfig.categories
+                .where((c) => c.id.toLowerCase() != 'all')
+                .toList(),
+      );
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,
         stackTrace: stackTrace,
         tag: 'ExploreTopicsController.fetchAvailableCategories',
       );
+      if (availableCategories.isEmpty) {
+        availableCategories.assignAll(
+          TopicCategoriesConfig.categories
+              .where((c) => c.id.toLowerCase() != 'all')
+              .toList(),
+        );
+      }
     } finally {
       isLoadingCategories.value = false;
     }
@@ -663,7 +772,7 @@ class ExploreTopicsController extends BaseController {
     if (query.isNotEmpty) {
       filtered = firestoreTopics
           .where((t) =>
-              t.title.toLowerCase().contains(query) ||
+              t.name.toLowerCase().contains(query) ||
               t.description.toLowerCase().contains(query) ||
               t.slug.toLowerCase().contains(query) ||
               t.handle.toLowerCase().contains(query))
@@ -716,6 +825,13 @@ class ExploreTopicsController extends BaseController {
   // ==========================================================================
   // DISCOVERY PRELOADING ENGINE
   // ==========================================================================
+
+  /// Top active topics eligible for direct video discovery trays on the explore overview
+  List<Topic> get activeTopicsForVideoTrays {
+    final withVideos = topics.where((t) => t.isValidTopic && t.effectiveVideoCount > 0).toList();
+    if (withVideos.isNotEmpty) return withVideos.take(3).toList();
+    return topics.where((t) => t.isValidTopic).take(2).toList();
+  }
 
   /// Preload target topic metadata into details screen controller to bypass empty flashes
   void preloadTopicDetails(Topic topic) {

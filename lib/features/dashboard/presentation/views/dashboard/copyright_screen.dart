@@ -33,7 +33,7 @@ class CopyrightScreen extends StatelessWidget {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final ctrl = controller;
     final primaryTextColor = isDarkMode ? AppColors.textPrimary : Colors.black87;
-    final pageBg = isDarkMode ? AppColors.bgPage : const Color(0xFFF9FAFB);
+    final pageBg = isDarkMode ? AppColors.bgPage : AppColors.textPrimary;
 
     return Scaffold(
       backgroundColor: pageBg,

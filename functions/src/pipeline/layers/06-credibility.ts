@@ -991,8 +991,10 @@ export class CredibilityEngine {
         confidenceNotes:  [],
         vertical:         undefined,
         verticalScores:   undefined,
-        reviewTriggered:  false,
-        reviewReason:     undefined,
+        reviewTriggered:  falseCount > 0 && highestSeverityVerdict === 'false_claim',
+        reviewReason:     falseCount > 0 && highestSeverityVerdict === 'false_claim'
+          ? `Flagged for human review: ${falseCount} high-severity claim(s) contradicted by documented evidence.`
+          : undefined,
         synthesisTier,
         factCheckTier: executionPlan.factCheckTier || 'standard',
         isLongform:       durationSeconds > 600,
@@ -1412,8 +1414,8 @@ export class CredibilityEngine {
         framing:        claim.framing,
         evidenceLevel:  claim.evidenceLevel,
         ontology:       claim.nature as any, // Legacy field
-        severity:       claim.severity,
-        severityLabel:  claim.severity ? severityLabels[claim.severity] : undefined,
+        severity:       claim.severity || (['false_claim', 'incorrect', 'verified_false', 'historical_consensus_denial'].includes(claim.status) ? 'high' : ['misleading', 'disputed'].includes(claim.status) ? 'medium' : 'low'),
+        severityLabel:  severityLabels[claim.severity || (['false_claim', 'incorrect', 'verified_false', 'historical_consensus_denial'].includes(claim.status) ? 'high' : ['misleading', 'disputed'].includes(claim.status) ? 'medium' : 'low')],
         reasoning:      claim.reasoning || claim.verificationSummary || "",
         response:       claim.reasoning || claim.verificationSummary || "",
         explanation:    claim.reasoning || claim.verificationSummary || "",
@@ -1455,6 +1457,10 @@ export class CredibilityEngine {
                 relevanceScore: 0.8,
               };
             }),
+        start:          claim.start ?? 0,
+        startMs:        claim.start ?? 0,
+        end:            claim.end   ?? 0,
+        endMs:          claim.end   ?? 0,
         timestampStart: claim.start ?? 0,
         timestampEnd:   claim.end   ?? 0,
         confidence:     claim.verificationConfidence ?? claim.confidence ?? 0.5,

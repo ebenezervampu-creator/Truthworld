@@ -1,3 +1,4 @@
+import { isCallableAdmin } from "../utils/auth";
 import * as admin from "firebase-admin";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
@@ -227,7 +228,7 @@ async function runDistribution(
               if (chDoc.exists) {
                 const chData = chDoc.data() || {};
                 ownerId = chData.ownerId || "";
-                isCustom = chData.type === "custom" || chData.channelType === "custom";
+                isCustom = chData.type === "custom" || chData.channelType === "custom" || chData.type === "pro" || chData.channelType === "pro";
                 channelCache.set(channelId, { ownerId, isCustom });
               }
             } catch (_) { /* ignore */ }
@@ -583,8 +584,10 @@ export const getPremiumRevenueBreakdown = onCall(
     // Verify requester owns the channel
     const db = admin.firestore();
     const channelDoc = await db.collection("channels").doc(channelId).get();
-    if (!channelDoc.exists || channelDoc.data()?.ownerId !== userId) {
-      throw new HttpsError("permission-denied", "You do not own this channel.");
+    const isOwner = channelDoc.exists && channelDoc.data()?.ownerId === userId;
+    const isAdmin = isCallableAdmin(request.auth);
+    if (!isOwner && !isAdmin) {
+      throw new HttpsError("permission-denied", "You do not have permission to view this channel revenue breakdown.");
     }
 
     try {
@@ -638,9 +641,9 @@ export const triggerPremiumDistributionManual = onCall(
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
 
     // Verify admin claim via server-minted token
-    const isAdmin = request.auth?.token?.admin === true;
+    const isAdmin = isCallableAdmin(request.auth);
     if (!isAdmin) {
-      throw new HttpsError("permission-denied", "Admin access required.");
+      throw new HttpsError("permission-denied", "Verified admin access required.");
     }
 
     const { month } = request.data as { month?: string };
@@ -654,7 +657,7 @@ export const triggerPremiumDistributionManual = onCall(
       await runDistribution(month, "admin");
       return { success: true, month };
     } catch (err: any) {
-      throw new HttpsError("internal", err?.message || "Distribution failed.");
+      throw new HttpsError("internal", "Unable to process premium revenue distribution. Please try again later.");
     }
   }
 );

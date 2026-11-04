@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
@@ -69,7 +68,7 @@ class HomeMainContent extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           FeaturedVideoBanner(horizontalPadding: horizontalPadding),
-          const SizedBox(height: 24),
+          const SizedBox(height: 12),
         ],
       ),
     );
@@ -232,25 +231,32 @@ class HomeMainContent extends StatelessWidget {
             // All Categories Popup Button
             Padding(
               padding: const EdgeInsets.only(left: 12, right: 8),
-              child: GestureDetector(
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  _showAllCategoriesPopup(context, HomeDiscoveryController.categories);
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF272727),
+              child: Tooltip(
+                message: 'All Categories',
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
                     borderRadius: BorderRadius.circular(8),
-                  ),
-                  alignment: Alignment.center,
-                  child: const Icon(
-                    Icons.grid_view_rounded,
-                    color: Colors.white,
-                    size: 18,
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      _showAllCategoriesPopup(context, HomeDiscoveryController.categories);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.bgSurfaceHover,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.grid_view_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -267,32 +273,36 @@ class HomeMainContent extends StatelessWidget {
                         homeController.selectedCategory.value == category;
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
-                      child: GestureDetector(
-                        onTap: () {
-                          homeController.selectCategory(category);
-                          HapticFeedback.selectionClick();
-                        },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? Colors.white
-                                : const Color(0xFF272727),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            category,
-                            style: GoogleFonts.roboto(
-                              fontSize: 14,
-                              fontWeight: isSelected
-                                  ? FontWeight.bold
-                                  : FontWeight.w500,
-                              color: isSelected ? Colors.black : Colors.white,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: () {
+                            homeController.selectCategory(category);
+                            HapticFeedback.selectionClick();
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? Colors.white
+                                  : AppColors.bgSurfaceHover,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              category,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.w500,
+                                color: isSelected ? Colors.black : Colors.white,
+                              ),
                             ),
                           ),
                         ),
@@ -360,7 +370,7 @@ class HomeMainContent extends StatelessWidget {
                     const SizedBox(width: 8),
                     Text(
                       'All Categories',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -381,10 +391,10 @@ class HomeMainContent extends StatelessWidget {
                   maxLength: 100,
                   buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                   inputFormatters: TruthworldTextInputFormatters.withLimit(100),
-                  style: GoogleFonts.roboto(color: Colors.white, fontSize: 14),
+                  style: TextStyle(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: 'Search categories...',
-                    hintStyle: GoogleFonts.roboto(
+                    hintStyle: TextStyle(
                       color: AppColors.textTertiary,
                       fontSize: 14,
                     ),
@@ -394,7 +404,7 @@ class HomeMainContent extends StatelessWidget {
                       size: 20,
                     ),
                     filled: true,
-                    fillColor: const Color(0xFF272727),
+                    fillColor: AppColors.bgSurfaceHover,
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 12,
@@ -408,55 +418,65 @@ class HomeMainContent extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Expanded(
-                  child: GridView.builder(
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          childAspectRatio: 2.8,
-                          crossAxisSpacing: 10,
-                          mainAxisSpacing: 10,
-                        ),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, idx) {
-                      final cat = filtered[idx];
-                      final isSelected =
-                          homeController.selectedCategory.value == cat;
-                      return InkWell(
-                        borderRadius: BorderRadius.circular(8),
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          homeController.selectCategory(cat);
-                          Navigator.pop(context);
-                        },
-                        child: Container(
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? Colors.white
-                                : const Color(0xFF272727),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: isSelected
-                                  ? Colors.white
-                                  : Colors.transparent,
-                            ),
-                          ),
+                  child: filtered.isEmpty
+                      ? Center(
                           child: Text(
-                            cat,
-                            style: GoogleFonts.roboto(
-                              color: isSelected
-                                  ? Colors.black
-                                  : Colors.white,
-                              fontWeight: isSelected
-                                  ? FontWeight.bold
-                                  : FontWeight.w500,
-                              fontSize: 13,
+                            'No categories found',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 14,
                             ),
                           ),
+                        )
+                      : GridView.builder(
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                childAspectRatio: 2.8,
+                                crossAxisSpacing: 10,
+                                mainAxisSpacing: 10,
+                              ),
+                          itemCount: filtered.length,
+                          itemBuilder: (context, idx) {
+                            final cat = filtered[idx];
+                            final isSelected =
+                                homeController.selectedCategory.value == cat;
+                            return InkWell(
+                              borderRadius: BorderRadius.circular(8),
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                homeController.selectCategory(cat);
+                                Navigator.pop(context);
+                              },
+                              child: Container(
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? Colors.white
+                                      : AppColors.bgSurfaceHover,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? Colors.white
+                                        : Colors.transparent,
+                                  ),
+                                ),
+                                child: Text(
+                                  cat,
+                                  style: TextStyle(
+                                    color: isSelected
+                                        ? Colors.black
+                                        : Colors.white,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.w500,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
-                  ),
                 ),
               ],
             ),

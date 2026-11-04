@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/customization_screen.dart';
@@ -52,6 +53,13 @@ class CreateContentBlockedUploadCard extends StatelessWidget {
       title = 'Channel Suspended';
       subtitle =
           'Your channel has been suspended for policy violations. Publishing is disabled.';
+    } else if (channel.status == ChannelStatus.onHold) {
+      statusColor = context.colors.warning;
+      icon = Icons.pause_circle_outline_rounded;
+      title = 'Channel On Hold';
+      subtitle = channel.moderationReason != null && channel.moderationReason!.isNotEmpty
+          ? channel.moderationReason!
+          : 'Your channel is currently on hold. Publishing is temporarily disabled.';
     } else {
       statusColor = context.colors.textDisabled;
       icon = Icons.info_outline_rounded;
@@ -477,13 +485,15 @@ class CreateContentChannelSelector extends StatelessWidget {
                         channel.status == ChannelStatus.active
                             ? (isStandard
                                 ? 'Standard Channel (20m/day limit)'
-                                : 'Custom Channel (Unlimited)')
+                                : 'Pro Channel (Unlimited)')
                             : channel.status == ChannelStatus.underReview
                             ? 'Under Review'
                             : channel.status == ChannelStatus.verificationRejected
                             ? 'Rejected'
                             : channel.status == ChannelStatus.verificationPending
                             ? 'Pending Verification'
+                            : channel.status == ChannelStatus.onHold
+                            ? 'On Hold'
                             : 'Suspended',
                         style: context.themeTypography.label.copyWith(
                           color: channel.status == ChannelStatus.active
@@ -591,7 +601,7 @@ class CreateContentChannelSelector extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          '${_controller.todayUploadedDurationFormatted} / 10 min used today',
+                          '${_controller.todayUploadedDurationFormatted} / ${ContentValidationMixin.formatDurationMinutesSeconds(channel.maxDailyVideoDurationSeconds)} used today',
                           style: context.themeTypography.bodySmall.copyWith(
                             color: isDark
                                 ? AppColors.textTertiary

@@ -169,14 +169,15 @@ void main() {
       await tester.pump(const Duration(milliseconds: 200));
 
       // 1. Verify Page AppBar with back button & title
-      expect(find.text('Truth Intelligence & Credibility'), findsOneWidget);
-      expect(find.text('Independent Empirical Verification'), findsOneWidget);
+      expect(find.text('Ai Check'), findsOneWidget);
+      expect(find.text('Independent Empirical Verification'), findsNothing);
       expect(find.byIcon(Icons.arrow_back_ios_new_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.refresh_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.refresh_rounded), findsNothing);
+      expect(find.byIcon(Icons.chat_bubble_outline_rounded), findsOneWidget);
 
       // 2. Verify Video Context Card at top of the page
-      expect(find.text('Are Eggs Vegetarian or Non-Vegetarian?'), findsOneWidget);
-      expect(find.text('Science Truth'), findsOneWidget);
+      expect(find.text('Are Eggs Vegetarian or Non-Vegetarian?'), findsNothing);
+      expect(find.text('Science Truth'), findsNothing);
 
       // 3. Verify Four Tab Bar is present on the page
       expect(find.byKey(const Key('tab_claims')), findsOneWidget);
@@ -583,5 +584,75 @@ void main() {
       expect(find.text('Caution'), findsWidgets);
       expect(find.text('False'), findsWidgets);
     });
+
+    testWidgets('renders Overview tab on narrow 320px viewport without RenderFlex overflow', (tester) async {
+      tester.view.physicalSize = const Size(320, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final controller = Get.put(VideoController(), tag: testVideo.id);
+      controller.factCheckData.value = {
+        'state': 'COMPLETED',
+        'truthScore': 85.0,
+        'trustScore': 85.0,
+        'confidence': 0.95,
+        'claimCount': 2,
+        'verifiedCount': 1,
+        'cautionCount': 1,
+        'falseCount': 0,
+        'claims': [
+          {
+            'claim': 'Verified historical assertion',
+            'verdict': 'verified',
+            'status': 'verified',
+            'explanation': 'Supported by authoritative archived records.',
+          },
+          {
+            'claim': 'Disputed estimate',
+            'verdict': 'caution',
+            'status': 'caution',
+            'explanation': 'Requires further statistical verification.',
+          },
+        ],
+        'sources': [
+          {
+            'name': 'Primary Source One',
+            'url': 'https://example.com/one',
+            'authorityScore': 0.9,
+          },
+          {
+            'name': 'Primary Source Two',
+            'url': 'https://example.com/two',
+            'authorityScore': 0.85,
+          },
+        ],
+        'uiReport': testUiReport.toMap(),
+      };
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: VideoAnalysisScreen(
+            video: testVideo,
+            controller: controller,
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      // Switch to Overview tab where _buildMostValuableSourcesCard and _buildClaimsOverviewCard render
+      await tester.tap(find.text('Overview'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('MOST VALUABLE SOURCES & CITATIONS'), findsOneWidget);
+      expect(find.text('CLAIMS OVERVIEW & KEY FINDINGS'), findsOneWidget);
+    });
   });
 }
+

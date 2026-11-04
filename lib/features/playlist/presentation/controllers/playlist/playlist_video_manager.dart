@@ -41,7 +41,7 @@ class PlaylistVideoManager {
     List<String>? watchLaterVideoIds,
   }) async {
     try {
-      if (playlistId == 'watchlater') {
+      if (playlistId == 'watchlater' || playlistId == 'watch_later') {
         return watchLaterVideoIds ?? [];
       }
       final user = getUserId();
@@ -152,6 +152,42 @@ class PlaylistVideoManager {
     bool isPublic,
   ) async {
     final user = getUserId();
+    if (user.isEmpty) {
+      AppSnackbar.warning('Please sign in to update playlists.');
+      return;
+    }
+
+    if (playlistId == 'watchlater' ||
+        playlistId.toLowerCase().trim() == 'watch later') {
+      try {
+        final ref = _firestore
+            .collection(FirestoreCollections.users)
+            .doc(user)
+            .collection('watch_later')
+            .doc(videoId);
+        final doc = await ref.get();
+        if (doc.exists) {
+          AppSnackbar.info('Video is already in Watch Later.');
+        } else {
+          final now = FieldValue.serverTimestamp();
+          await ref.set({
+            'id': videoId,
+            'videoId': videoId,
+            'userId': user,
+            'addedAt': now,
+            'createdAt': now,
+          });
+          AppSnackbar.success('Saved to Watch Later');
+        }
+      } catch (e) {
+        ErrorHandler.log(e);
+        AppSnackbar.error(
+          'Unable to add video to Watch Later. Please try again.',
+        );
+      }
+      return;
+    }
+
     try {
       var targetRef = isPublic
           ? _firestore.collection('public_playlists').doc(playlistId)
@@ -220,6 +256,30 @@ class PlaylistVideoManager {
     bool isPublic,
   ) async {
     final user = getUserId();
+    if (user.isEmpty) {
+      AppSnackbar.warning('Please sign in to update playlists.');
+      return;
+    }
+
+    if (playlistId == 'watchlater' ||
+        playlistId.toLowerCase().trim() == 'watch later') {
+      try {
+        await _firestore
+            .collection(FirestoreCollections.users)
+            .doc(user)
+            .collection('watch_later')
+            .doc(videoId)
+            .delete();
+        AppSnackbar.success('Removed from Watch Later');
+      } catch (e) {
+        ErrorHandler.log(e);
+        AppSnackbar.error(
+          'Unable to remove video from Watch Later. Please try again.',
+        );
+      }
+      return;
+    }
+
     try {
       final ref = isPublic
           ? _firestore.collection('public_playlists').doc(playlistId)

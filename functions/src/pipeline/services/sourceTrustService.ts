@@ -13,9 +13,14 @@ export interface SourceReputation {
 /**
  * 🏛 v12.0: Source Trust Service (The Trust Graph)
  * 
- * Implements institutional-grade source reputation weighting.
- * Ensures that institutional sources (NOAA, CDC, Britannica) outrank 
- * blogs, social media, or general press.
+ * Implements institutional and news-agency source reputation weighting.
+ * Tier A: Intergovernmental & scientific authorities (WHO, UN, NOAA, NASA, Nature, Lancet)
+ *         AND premier global wire services (Reuters, AP, AFP, Bloomberg) with frontline bureaus.
+ * Tier B: Esteemed international investigative journalism (BBC, NYT, WSJ, FT), IFCN fact-checkers,
+ *         and curated reference encyclopedias (Britannica).
+ * Tier C: Open encyclopedias & specialized repositories (Wikipedia, Investopedia).
+ * Tier D: General commercial and tech press.
+ * Tier E: UGC, unverified social media, and personal blogs.
  */
 export class SourceTrustService {
   private dbRegistry: Record<string, SourceReputation> = {};
@@ -51,15 +56,27 @@ export class SourceTrustService {
     "pnas.org": { domain: "pnas.org", tier: "A", reputationScore: 1.0, verticals: ["science"], isOfficial: false },
     "nejm.org": { domain: "nejm.org", tier: "A", reputationScore: 1.0, verticals: ["medical"], isOfficial: false },
     "bmj.com": { domain: "bmj.com", tier: "A", reputationScore: 1.0, verticals: ["medical"], isOfficial: false },
-    "britannica.com": { domain: "britannica.com", tier: "A", reputationScore: 0.98, verticals: ["history", "science", "general"], isOfficial: false },
+    "cancer.gov": { domain: "cancer.gov", tier: "A", reputationScore: 1.0, verticals: ["health", "science", "medical"], isOfficial: true },
+    "cancerresearchuk.org": { domain: "cancerresearchuk.org", tier: "A", reputationScore: 1.0, verticals: ["health", "medical", "science"], isOfficial: true },
 
-    // Tier B: Gold Standard Global News & Verified Fact-Checking Networks
-    "reuters.com": { domain: "reuters.com", tier: "B", reputationScore: 0.95, verticals: ["news", "geopolitics"], isOfficial: false },
-    "apnews.com": { domain: "apnews.com", tier: "B", reputationScore: 0.95, verticals: ["news", "geopolitics"], isOfficial: false },
-    "afp.com": { domain: "afp.com", tier: "B", reputationScore: 0.95, verticals: ["news", "geopolitics"], isOfficial: false },
+    // Tier A: Gold Standard Global Wire Services & Primary Real-Time News Agencies
+    "reuters.com": { domain: "reuters.com", tier: "A", reputationScore: 0.99, verticals: ["news", "geopolitics", "finance", "investigative"], isOfficial: false },
+    "apnews.com": { domain: "apnews.com", tier: "A", reputationScore: 0.99, verticals: ["news", "geopolitics", "investigative"], isOfficial: false },
+    "afp.com": { domain: "afp.com", tier: "A", reputationScore: 0.99, verticals: ["news", "geopolitics"], isOfficial: false },
+    "bloomberg.com": { domain: "bloomberg.com", tier: "A", reputationScore: 0.98, verticals: ["finance", "economics", "markets", "news"], isOfficial: false },
+
+    // Tier A: Independent Non-Profit Investigative Journalism & Open-Source Telemetry (OSINT)
+    "propublica.org": { domain: "propublica.org", tier: "A", reputationScore: 0.98, verticals: ["investigative", "politics", "public_interest"], isOfficial: false },
+    "bellingcat.com": { domain: "bellingcat.com", tier: "A", reputationScore: 0.97, verticals: ["investigative", "geopolitics", "conflict", "osint"], isOfficial: false },
+    "icij.org": { domain: "icij.org", tier: "A", reputationScore: 0.98, verticals: ["investigative", "finance", "global"], isOfficial: false },
+    "ourworldindata.org": { domain: "ourworldindata.org", tier: "A", reputationScore: 0.98, verticals: ["science", "economics", "health", "climate"], isOfficial: false },
+    "archive.org": { domain: "archive.org", tier: "A", reputationScore: 0.99, verticals: ["history", "archive", "primary_source"], isOfficial: false },
+
+    // Tier B: Esteemed Global Broadcasters, Investigative Press, Curated Reference & Fact-Checking Networks
+    "britannica.com": { domain: "britannica.com", tier: "B", reputationScore: 0.92, verticals: ["history", "science", "reference", "general"], isOfficial: false },
+    "arxiv.org": { domain: "arxiv.org", tier: "B", reputationScore: 0.93, verticals: ["physics", "science", "mathematics"], isOfficial: false },
     "dw.com": { domain: "dw.com", tier: "B", reputationScore: 0.94, verticals: ["news", "geopolitics"], isOfficial: false },
     "nhk.or.jp": { domain: "nhk.or.jp", tier: "B", reputationScore: 0.94, verticals: ["news", "culture"], isOfficial: false },
-    "bloomberg.com": { domain: "bloomberg.com", tier: "B", reputationScore: 0.95, verticals: ["finance", "economics"], isOfficial: false },
     "wsj.com": { domain: "wsj.com", tier: "B", reputationScore: 0.95, verticals: ["finance", "news"], isOfficial: false },
     "ft.com": { domain: "ft.com", tier: "B", reputationScore: 0.95, verticals: ["finance", "economics"], isOfficial: false },
     "bbc.com": { domain: "bbc.com", tier: "B", reputationScore: 0.92, verticals: ["news", "geopolitics"], isOfficial: false },
@@ -240,7 +257,7 @@ export class SourceTrustService {
     },
     {
       name: "Reuters",
-      defaultTier: "B" as SourceTier,
+      defaultTier: "A" as SourceTier,
       domains: ["reuters.com"],
       socialHandles: ["x.com/reuters"]
     },
@@ -252,21 +269,45 @@ export class SourceTrustService {
     },
     {
       name: "Bloomberg",
-      defaultTier: "B" as SourceTier,
+      defaultTier: "A" as SourceTier,
       domains: ["bloomberg.com"],
       socialHandles: ["x.com/bloomberg"]
     },
     {
       name: "AP News",
-      defaultTier: "B" as SourceTier,
+      defaultTier: "A" as SourceTier,
       domains: ["apnews.com"],
       socialHandles: ["x.com/ap"]
     },
     {
       name: "Associated Press",
-      defaultTier: "B" as SourceTier,
+      defaultTier: "A" as SourceTier,
       domains: ["apnews.com"],
       socialHandles: ["x.com/ap"]
+    },
+    {
+      name: "ProPublica",
+      defaultTier: "A" as SourceTier,
+      domains: ["propublica.org"],
+      socialHandles: ["x.com/propublica"]
+    },
+    {
+      name: "Bellingcat",
+      defaultTier: "A" as SourceTier,
+      domains: ["bellingcat.com"],
+      socialHandles: ["x.com/bellingcat"]
+    },
+    {
+      name: "ICIJ",
+      defaultTier: "A" as SourceTier,
+      domains: ["icij.org"],
+      socialHandles: ["x.com/icijorg"]
+    },
+    {
+      name: "Our World in Data",
+      defaultTier: "A" as SourceTier,
+      domains: ["ourworldindata.org"],
+      socialHandles: ["x.com/ourworldindata"]
     },
     {
       name: "Nature",
@@ -426,7 +467,7 @@ export class SourceTrustService {
     },
     {
       name: "AFP",
-      defaultTier: "B" as SourceTier,
+      defaultTier: "A" as SourceTier,
       domains: ["afp.com", "factcheck.afp.com"],
       socialHandles: ["x.com/afp", "x.com/afpfactcheck"]
     },

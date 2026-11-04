@@ -30,7 +30,6 @@ class ContentValidator {
   static const int defaultMaxHandleLength = 30;
   static const int defaultMaxBioLength = 300;
   static const int defaultMaxSearchLength = 100;
-  static const int defaultMaxLiveChatLength = 250;
   static const int defaultMaxTierNameLength = 50;
   static const int defaultMaxTierDescLength = 200;
   static const int defaultMaxPerkLength = 100;
@@ -303,7 +302,6 @@ class ContentValidator {
     }
     if (lower.contains('bio')) return defaultMaxBioLength;
     if (lower.contains('search')) return defaultMaxSearchLength;
-    if (lower.contains('chat')) return defaultMaxLiveChatLength;
     if (lower.contains('tier') && lower.contains('name')) {
       return defaultMaxTierNameLength;
     }
@@ -506,14 +504,14 @@ class ContentValidator {
     return '${mins}m ${secs.toString().padLeft(2, '0')}s';
   }
 
-  static const int minVideoDurationSeconds = 120; // 2 minutes (120 seconds) platform minimum
+  static const int minVideoDurationSeconds = 1; // Allows short-form media (even 7s). Truthworld has no 2-minute minimum limit.
 
   /// Validates video upload constraints for a channel:
-  /// - Minimum Duration: Videos must be at least 2 minutes (120 seconds). Truthworld rejects shorter videos.
   /// - Standard Channels: Max 10 minutes (600 seconds) total daily video upload duration limit.
   ///   If a channel uploaded 7 minutes today, they have 3 minutes remaining for that day.
   ///   Single video duration cannot exceed 10 minutes (600 seconds) or the remaining daily quota.
   /// - Custom Channels: Unlimited daily uploads (single video supported up to 24 hours).
+  /// - Short Media: Videos and audio of any positive duration (even 7 seconds) are permitted.
   static ContentValidationResult validateChannelVideoUpload(
     Channel channel, {
     required int durationSeconds,
@@ -527,21 +525,31 @@ class ContentValidator {
         : (currentTotalDurationSeconds ?? 0);
 
     if (channel.channelType == ChannelType.standard) {
-      const maxDailySeconds = 600; // 10 minutes
+      final maxDailySeconds = channel.maxDailyVideoDurationSeconds;
+      final maxVideoSeconds = channel.maxVideoDurationSeconds;
+      final maxDailyFormatted = formatDurationMinutesSeconds(maxDailySeconds);
+      final maxVideoFormatted = formatDurationMinutesSeconds(maxVideoSeconds);
+      final dailyLimitLabel = maxDailySeconds == 600 ? '10 minutes' : maxDailyFormatted;
 
-      if (durationSeconds > maxDailySeconds) {
-        return const ContentValidationResult(
+      if (durationSeconds > maxVideoSeconds) {
+        final limitNotice = maxVideoSeconds == 600
+            ? '10 minutes (600 seconds)'
+            : '$maxVideoFormatted ($maxVideoSeconds seconds)';
+        return ContentValidationResult(
           isValid: false,
           message:
-              'Standard channel video duration cannot exceed 10 minutes (600 seconds). Upgrade to a Custom Channel to upload longer videos!',
+              'Standard channel video duration cannot exceed $limitNotice. Upgrade to a Pro Channel to upload longer videos!',
         );
       }
 
       if (effectiveDailyUploaded >= maxDailySeconds) {
-        return const ContentValidationResult(
+        final quotaNotice = maxDailySeconds == 600
+            ? '10-minute'
+            : maxDailyFormatted;
+        return ContentValidationResult(
           isValid: false,
           message:
-              'Daily upload limit reached: Standard channels can upload up to 10 minutes of video per day. You have reached your 10-minute daily limit for today. You can upload again tomorrow, or upgrade to a Custom Channel for unlimited uploads!',
+              'Daily upload limit reached: Standard channels can upload up to $dailyLimitLabel of video per day. You have reached your $quotaNotice daily limit for today. You can upload again tomorrow, or upgrade to a Pro Channel for unlimited uploads!',
         );
       }
 
@@ -557,19 +565,16 @@ class ContentValidator {
         return ContentValidationResult(
           isValid: false,
           message:
-              'Daily limit exceeded: Standard channels can upload up to 10 minutes per day. You have already uploaded $uploadedFormatted today ($remainingFormatted remaining), but this video is $videoFormatted. Upgrade to a Custom Channel for unlimited uploads!',
+              'Daily limit exceeded: Standard channels can upload up to $dailyLimitLabel per day. You have already uploaded $uploadedFormatted today ($remainingFormatted remaining), but this video is $videoFormatted. Upgrade to a Pro Channel for unlimited uploads!',
         );
       }
     }
 
-    // Platform Minimum Video Duration: 2 minutes (120 seconds) for all channels
-    if (enforceMinimumDuration &&
-        durationSeconds > 0 &&
-        durationSeconds < minVideoDurationSeconds) {
+    // Truthworld allows short media (even 7 seconds). Reject only negative durations.
+    if (enforceMinimumDuration && durationSeconds < 0) {
       return const ContentValidationResult(
         isValid: false,
-        message:
-            'Truthworld requires videos to be at least 2 minutes (120 seconds). Videos shorter than 2 minutes are not accepted.',
+        message: 'Media duration cannot be negative.',
       );
     }
 
@@ -586,7 +591,6 @@ const int defaultMaxDisplayNameLength = ContentValidator.defaultMaxDisplayNameLe
 const int defaultMaxHandleLength = ContentValidator.defaultMaxHandleLength;
 const int defaultMaxBioLength = ContentValidator.defaultMaxBioLength;
 const int defaultMaxSearchLength = ContentValidator.defaultMaxSearchLength;
-const int defaultMaxLiveChatLength = ContentValidator.defaultMaxLiveChatLength;
 const int defaultMaxTierNameLength = ContentValidator.defaultMaxTierNameLength;
 const int defaultMaxTierDescLength = ContentValidator.defaultMaxTierDescLength;
 const int defaultMaxPerkLength = ContentValidator.defaultMaxPerkLength;
@@ -613,7 +617,6 @@ mixin ContentValidationMixin {
   static const int maxHandleLength = ContentValidator.defaultMaxHandleLength;
   static const int maxBioLength = ContentValidator.defaultMaxBioLength;
   static const int maxSearchLength = ContentValidator.defaultMaxSearchLength;
-  static const int maxLiveChatLength = ContentValidator.defaultMaxLiveChatLength;
   static const int maxTierNameLength = ContentValidator.defaultMaxTierNameLength;
   static const int maxTierDescLength = ContentValidator.defaultMaxTierDescLength;
   static const int maxFeedbackLength = ContentValidator.defaultMaxFeedbackLength;
@@ -628,9 +631,9 @@ mixin ContentValidationMixin {
       ContentValidator.formatDurationMinutesSeconds(seconds);
 
   /// Validates video upload constraints for a channel:
-  /// - Minimum Duration: Videos must be at least 2 minutes (120 seconds).
   /// - Standard Channels: Max 10 minutes (600 seconds) total daily video upload duration limit.
   /// - Custom Channels: Unlimited daily uploads (single video supported up to 24 hours).
+  /// - Short Media: Videos and audio of any positive duration (even 7 seconds) are permitted.
   ContentValidationResult validateChannelVideoUpload(
     Channel channel, {
     required int durationSeconds,

@@ -24,6 +24,7 @@ class ClipVideoGridCard extends StatelessWidget {
     );
 
     return InkWell(
+      borderRadius: BorderRadius.circular(16),
       onTap: () => controller.playClip(clip),
       child: Container(
         decoration: BoxDecoration(

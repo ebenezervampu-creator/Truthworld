@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:truthworld/core/services/channel_payout_calculator.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Card displaying the 10-hour withdrawal eligibility rule or Custom Channel unlimited withdrawal status.
+/// Card displaying the 30-hour withdrawal eligibility rule or Custom Channel unlimited withdrawal status.
 class ChannelWithdrawalRulesCard extends StatelessWidget {
   final VideoWithdrawalEligibility eligibility;
   final bool isCustom;
@@ -20,7 +20,9 @@ class ChannelWithdrawalRulesCard extends StatelessWidget {
     final isUnlocked = eligibility.isUnlockedForWithdrawal;
 
     final viewsRatio = (eligibility.viewCount / 1000).clamp(0.0, 1.0);
-    final hoursRatio = (eligibility.watchTimeMinutes / 600).clamp(0.0, 1.0);
+    final hoursRatio = (eligibility.watchTimeMinutes /
+            ChannelPayoutCalculator.channelWithdrawalWatchTimeMinutesThreshold)
+        .clamp(0.0, 1.0);
     final combinedProgress = ((viewsRatio + hoursRatio) / 2.0).clamp(0.0, 1.0);
 
     return Container(
@@ -47,8 +49,8 @@ class ChannelWithdrawalRulesCard extends StatelessWidget {
                     ),
                     Text(
                       isCustom
-                          ? 'Custom Channel: 100% gross revenue retention. Video cash withdrawals unlock at 1,000 views and 10 hours watch time.'
-                          : 'Standard Channel: 70% Ad & Premium revenue share. Video cash withdrawals unlock at 1,000 views and 10 hours watch time.',
+                          ? 'Pro Channel: 100% gross revenue retention. Video cash withdrawals unlock at 1,000 views and 30 hours watch time.'
+                          : 'Standard Channel: 70% Ad & Premium revenue share. Video cash withdrawals unlock at 1,000 views and 30 hours watch time.',
                       style: typography.bodySmall.copyWith(
                         color: AppColors.textSecondary,
                       ),
@@ -84,7 +86,7 @@ class ChannelWithdrawalRulesCard extends StatelessWidget {
                   border: Border.all(color: AppColors.bgDivider),
                 ),
                 child: Text(
-                  isUnlocked ? 'Unlocked (1k Views & 10h Met)' : 'Locked',
+                  isUnlocked ? 'Unlocked (1k Views & 30h Met)' : 'Locked',
                   style: typography.caption.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -98,7 +100,7 @@ class ChannelWithdrawalRulesCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '${eligibility.viewCount} / 1,000 Views • $watchHours / 10.0 Hours',
+                '${eligibility.viewCount} / 1,000 Views • $watchHours / 30.0 Hours',
                 style: typography.bodySmall.copyWith(
                   color: AppColors.textSecondary,
                 ),
@@ -127,7 +129,7 @@ class ChannelWithdrawalRulesCard extends StatelessWidget {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    'Custom Channel: 100% Creator revenue retained upon reaching 1,000 views and 10 hours watch time.',
+                    'Pro Channel: 100% Creator revenue retained upon reaching 1,000 views and 30 hours watch time.',
                     style: typography.caption.copyWith(
                       color: AppColors.textSecondary,
                     ),

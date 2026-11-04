@@ -151,9 +151,11 @@ class FeedCacheManager {
       );
 
       if (sanitized.isEmpty && rawVideos.isNotEmpty) {
+        final seenFallback = <String>{};
         sanitized = rawVideos
             .where((v) =>
                 v.id.isNotEmpty &&
+                seenFallback.add(v.id) &&
                 !v.isDraft &&
                 v.status != VideoStatus.deleted &&
                 v.status != VideoStatus.rejected &&
@@ -200,9 +202,11 @@ class FeedCacheManager {
 
       var targetVideos = sanitizedVideos;
       if (targetVideos.isEmpty && videos.isNotEmpty) {
+        final seenTarget = <String>{};
         targetVideos = videos
             .where((v) =>
                 v.id.isNotEmpty &&
+                seenTarget.add(v.id) &&
                 !v.isDraft &&
                 v.status != VideoStatus.deleted &&
                 v.status != VideoStatus.rejected &&

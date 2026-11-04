@@ -150,6 +150,7 @@ class NoFactCheckFallback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNonCred = video?.isNonCredibilityCategory ?? false;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -168,27 +169,30 @@ class NoFactCheckFallback extends StatelessWidget {
               child: TruthLottieAnimation.emptyClaims(size: 52),
             ),
             const SizedBox(height: 14),
-            const Text(
-              'Not Fact-Checked Yet',
+            Text(
+              isNonCred ? 'Fact-Checking Not Applicable' : 'Not Fact-Checked Yet',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 15,
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 6),
-            const Text(
-              'This video has not yet completed epistemic analysis and verified corroboration.',
+            Text(
+              isNonCred
+                  ? 'Theological claims, scriptural interpretations, and spiritual content are categorized as personal convictions and are not subjected to empirical fact-checking.'
+                  : 'This video has not yet completed epistemic analysis and verified corroboration.',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 12,
                 height: 1.4,
               ),
             ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
+            if (!isNonCred) ...[
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
               onPressed: () async {
                 final auth = Get.isRegistered<AuthService>() ? AuthService.to : null;
                 if (auth == null || !auth.isAuthenticated.value) {
@@ -300,6 +304,11 @@ class NoFactCheckFallback extends StatelessWidget {
                 }
 
                 // User has $3 Fact-Checked Plan: trigger real on-demand verification
+                if (auth.user == null) {
+                  AppSnackbar.warning('Please sign in to request AI fact-checking.');
+                  return;
+                }
+
                 try {
                   final v = video;
                   if (v != null) {
@@ -310,7 +319,7 @@ class NoFactCheckFallback extends StatelessWidget {
                       'videoTitle': v.title,
                       'channelId': v.channelId,
                       'channelName': v.channelName,
-                      'requestedBy': auth.user?.uid ?? 'anonymous',
+                      'requestedBy': auth.user!.uid,
                       'requestedAt': FieldValue.serverTimestamp(),
                       'status': 'queued',
                       'priority': 'high',
@@ -350,6 +359,7 @@ class NoFactCheckFallback extends StatelessWidget {
                 ),
               ),
             ),
+          ],
             if (video?.factCheckUrl.isNotEmpty == true) ...[
               const SizedBox(height: 10),
               TextButton.icon(

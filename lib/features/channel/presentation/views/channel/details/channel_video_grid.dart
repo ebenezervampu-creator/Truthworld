@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:truthworld/components/ui/video_options_sheet.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/details/channel_details_state_widgets.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/details/channel_details_theme.dart';
@@ -69,6 +70,7 @@ class ChannelVideoListCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: InkWell(
+        borderRadius: BorderRadius.circular(8),
         onTap: () {
           MiniplayerNavigationHelper.navigateToVideoScreen(
             video: video,
@@ -146,6 +148,21 @@ class ChannelVideoListCard extends StatelessWidget {
                     ),
                   ),
                 ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(
+                Icons.more_vert,
+                size: 18,
+                color: ytTextSecondary,
+              ),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              tooltip: 'More options',
+              onPressed: () => VideoOptionsSheet.show(
+                context,
+                video,
+                isChannelContext: true,
               ),
             ),
           ],

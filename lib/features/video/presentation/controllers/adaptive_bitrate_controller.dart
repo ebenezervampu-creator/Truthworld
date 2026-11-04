@@ -111,13 +111,6 @@ class ResolutionTier {
       minBandwidth: 3000,
     ),
     const ResolutionTier(
-      label: '1040p',
-      url: '',
-      height: 1040,
-      bitrate: 4500,
-      minBandwidth: 5200,
-    ),
-    const ResolutionTier(
       label: '1080p',
       url: '',
       height: 1080,

@@ -67,6 +67,132 @@ class NotificationEmptyMentionsState extends StatelessWidget {
   }
 }
 
+/// Empty state when no verification notices are present.
+class NotificationEmptyVerificationsState extends StatelessWidget {
+  const NotificationEmptyVerificationsState({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const SliverFillRemaining(
+      hasScrollBody: false,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.verified_outlined,
+              size: 140,
+              color: Color(0xFF8E8E8E),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'No verification notices',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Fact-checks and truth verification updates will appear here.',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Empty state when no studio alerts are present.
+class NotificationEmptyStudioAlertsState extends StatelessWidget {
+  const NotificationEmptyStudioAlertsState({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const SliverFillRemaining(
+      hasScrollBody: false,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.notifications_active_outlined,
+              size: 140,
+              color: Color(0xFF8E8E8E),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'No studio alerts',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Channel health, processing status, and policy alerts will appear here.',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Empty state when no comments are present.
+class NotificationEmptyCommentsState extends StatelessWidget {
+  const NotificationEmptyCommentsState({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const SliverFillRemaining(
+      hasScrollBody: false,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.chat_bubble_outline_rounded,
+              size: 140,
+              color: Color(0xFF8E8E8E),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'No comments yet',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Viewer comments and replies on your channel will appear here.',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Generic empty notifications state.
 class NotificationEmptyGeneralState extends StatelessWidget {
   const NotificationEmptyGeneralState({super.key});

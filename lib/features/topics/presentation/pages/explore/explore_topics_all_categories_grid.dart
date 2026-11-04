@@ -25,72 +25,112 @@ class ExploreTopicsAllCategoriesGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = Get.find<ExploreTopicsController>();
 
-    // Filter out 'all' to show the concrete browseable categories
-    final allCategories = TopicCategoriesConfig.categories
-        .where((cat) => cat.id.toLowerCase() != 'all')
-        .toList();
+    return Obx(() {
+      // Filter out 'all' to show concrete browseable categories, sorted by active filter
+      var allCategories = List<TopicCategory>.from(
+        TopicCategoriesConfig.categories
+            .where((cat) => cat.id.toLowerCase() != 'all'),
+      );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Section Header Row
-        Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'All Topics',
-                style: TextStyle(
-                  fontSize: isDesktop ? 22 : (isTablet ? 20 : 18),
-                  fontWeight: FontWeight.bold,
-                  color: primaryText,
-                  letterSpacing: -0.2,
+      if (controller.exploreMode.value == ExploreMode.trending) {
+        allCategories.sort((a, b) {
+          final countA = controller.getAuthenticTopicCount(a.title);
+          final countB = controller.getAuthenticTopicCount(b.title);
+          return countB.compareTo(countA);
+        });
+      } else if (controller.exploreMode.value == ExploreMode.popular) {
+        allCategories.sort((a, b) {
+          final countA = controller.getAuthenticTopicCount(a.title);
+          final countB = controller.getAuthenticTopicCount(b.title);
+          if (countA != countB) return countB.compareTo(countA);
+          return a.title.compareTo(b.title);
+        });
+      } else if (controller.exploreMode.value == ExploreMode.newest) {
+        allCategories = allCategories.reversed.toList();
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section Header Row with necessary icon
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.grid_view_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Explore all available topics',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: secondaryText,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'All Topics',
+                        style: TextStyle(
+                          fontSize: isDesktop ? 22 : (isTablet ? 20 : 18),
+                          fontWeight: FontWeight.bold,
+                          color: primaryText,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Explore all available topics',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: secondaryText,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
 
-        // Responsive Grid
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final crossAxisCount = isDesktop ? 3 : (isTablet ? 2 : 2);
-            final childAspectRatio = isDesktop ? 1.7 : (isTablet ? 1.6 : 1.45);
+          // Responsive Grid
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final crossAxisCount = isDesktop ? 3 : (isTablet ? 2 : 2);
+              final childAspectRatio = isDesktop ? 1.7 : (isTablet ? 1.6 : 1.45);
 
-            return GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: crossAxisCount,
-                crossAxisSpacing: 14,
-                mainAxisSpacing: 14,
-                childAspectRatio: childAspectRatio,
-              ),
-              itemCount: allCategories.length,
-              itemBuilder: (context, index) {
-                final category = allCategories[index];
-                return _AllTopicCategoryCard(
-                  category: category,
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    controller.selectCategory(category.title);
-                  },
-                );
-              },
-            );
-          },
-        ),
-      ],
-    );
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 14,
+                  mainAxisSpacing: 14,
+                  childAspectRatio: childAspectRatio,
+                ),
+                itemCount: allCategories.length,
+                itemBuilder: (context, index) {
+                  final category = allCategories[index];
+                  return _AllTopicCategoryCard(
+                    category: category,
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      controller.selectCategory(category.title);
+                    },
+                  );
+                },
+              );
+            },
+          ),
+        ],
+      );
+    });
   }
 }
 

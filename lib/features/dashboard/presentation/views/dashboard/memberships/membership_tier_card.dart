@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/features/channel/data/models/channel_loyalty_badge.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/memberships_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships/member_avatar_stack.dart';
@@ -235,12 +236,12 @@ class MembershipTierCard extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: tier.includesPremiumBundle
-                        ? const Color(0xFF6366F1).withValues(alpha: 0.15)
+                        ? AppColors.info.withValues(alpha: 0.15)
                         : Colors.green.withValues(alpha: 0.12),
                     borderRadius: TWRadius.mdBorderRadius,
                     border: Border.all(
                       color: tier.includesPremiumBundle
-                          ? const Color(0xFF6366F1).withValues(alpha: 0.4)
+                          ? AppColors.info.withValues(alpha: 0.4)
                           : Colors.green.withValues(alpha: 0.25),
                     ),
                   ),
@@ -253,14 +254,17 @@ class MembershipTierCard extends StatelessWidget {
                             : Icons.check_circle_rounded,
                         size: 13,
                         color: tier.includesPremiumBundle
-                            ? const Color(0xFF818CF8)
+                            ? AppColors.info
                             : Colors.green,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         tier.includesPremiumBundle
                             ? '70% Net (30% Cut)'
-                            : '100% Net (0% Cut)',
+                            : (Get.isRegistered<MembershipsController>() &&
+                                    Get.find<MembershipsController>().isCustomChannel.value
+                                ? '100% Net (0% Cut)'
+                                : '90% Net (10% Fee)'),
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
@@ -422,7 +426,7 @@ class MembershipTierCard extends StatelessWidget {
                       borderRadius: TWRadius.mdBorderRadius,
                       border: Border.all(
                         color: isPremiumBundle
-                            ? const Color(0xFF6366F1)
+                            ? AppColors.info
                             : (isDarkMode
                                 ? AppColors.bgDivider
                                 : Colors.grey.shade300),
@@ -436,7 +440,7 @@ class MembershipTierCard extends StatelessWidget {
                               ? Icons.workspace_premium_rounded
                               : Icons.check_circle_outline_rounded,
                           color: isPremiumBundle
-                              ? const Color(0xFF818CF8)
+                              ? AppColors.info
                               : Colors.green,
                           size: 15,
                         ),

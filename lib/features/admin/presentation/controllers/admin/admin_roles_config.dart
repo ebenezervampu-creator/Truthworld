@@ -35,6 +35,7 @@ class AdminRolesConfig {
         'alerts',
         'security',
         'help',
+        'broadcast',
       ],
     },
     {
@@ -101,6 +102,17 @@ class AdminRolesConfig {
       return isPrimaryOwner;
     }
 
+    // Push Broadcast tab is strictly restricted to Super Admin only
+    if (tabId == 'broadcast') {
+      return isSuperAdmin(
+        isAdmin: isAdmin,
+        isPrimaryOwner: isPrimaryOwner,
+        currentAdminEmail: currentAdminEmail,
+        currentAdminRole: currentAdminRole,
+        currentAdminRoles: currentAdminRoles,
+      );
+    }
+
     // Help tab is universally accessible to any logged-in administrator
     if (tabId == 'help') return true;
 
@@ -125,6 +137,32 @@ class AdminRolesConfig {
     return allowed.contains(tabId);
   }
 
+  /// Checks whether the administrator has Super Admin or Owner privileges
+  static bool isSuperAdmin({
+    required bool isAdmin,
+    required bool isPrimaryOwner,
+    required String currentAdminEmail,
+    required String currentAdminRole,
+    required List<String> currentAdminRoles,
+  }) {
+    if (!isAdmin) return false;
+    if (isPrimaryOwner) return true;
+    final email = currentAdminEmail.toLowerCase();
+    if (authorizedOwnerEmails.contains(email)) return true;
+    if (currentAdminRoles.any((r) =>
+        r.toLowerCase().contains('super') ||
+        r.toLowerCase().contains('owner') ||
+        r.toLowerCase().contains('director'))) {
+      return true;
+    }
+    if (currentAdminRole.toLowerCase().contains('super') ||
+        currentAdminRole.toLowerCase().contains('owner') ||
+        currentAdminRole.toLowerCase().contains('director')) {
+      return true;
+    }
+    return false;
+  }
+
   /// Returns the set of all tab IDs allowed for the administrator
   static Set<String> getAllowedTabs({
     required bool isPrimaryOwner,
@@ -137,7 +175,7 @@ class AdminRolesConfig {
       return {
         'dashboard', 'videos', 'topics', 'images', 'channels', 'reports', 'logs',
         'users', 'team', 'ads', 'ad_reports', 'analytics', 'appeals', 'feedbacks',
-        'alerts', 'security', 'help', 'language_requests',
+        'alerts', 'security', 'help', 'language_requests', 'broadcast',
       };
     }
 
@@ -145,7 +183,7 @@ class AdminRolesConfig {
       return {
         'dashboard', 'videos', 'topics', 'images', 'channels', 'reports', 'logs',
         'users', 'team', 'ads', 'ad_reports', 'analytics', 'appeals', 'feedbacks',
-        'alerts', 'security', 'help',
+        'alerts', 'security', 'help', 'broadcast',
       };
     }
 
@@ -155,7 +193,7 @@ class AdminRolesConfig {
       return {
         'dashboard', 'videos', 'topics', 'images', 'channels', 'reports', 'logs',
         'users', 'team', 'ads', 'ad_reports', 'analytics', 'appeals', 'feedbacks',
-        'alerts', 'security', 'help',
+        'alerts', 'security', 'help', 'broadcast',
       };
     }
 
@@ -167,7 +205,7 @@ class AdminRolesConfig {
         allowed.addAll([
           'dashboard', 'videos', 'topics', 'images', 'channels', 'reports', 'logs',
           'users', 'team', 'ads', 'ad_reports', 'analytics', 'appeals', 'feedbacks',
-          'alerts', 'security', 'help'
+          'alerts', 'security', 'help', 'broadcast'
         ]);
         return;
       }

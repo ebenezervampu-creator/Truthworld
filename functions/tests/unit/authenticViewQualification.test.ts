@@ -306,7 +306,7 @@ describe('Unit: Authentic View Qualification & Fraud Rejection', () => {
       if (channel.rawViews >= 1000 && channel.qualifiedViews > 0 && (channel.qualifiedViews / channel.rawViews) < 0.20) {
         return { canWithdraw: false, reason: 'bot_click_farm_anomaly' };
       }
-      if (channel.qualifiedViews < 1000 || channel.totalWatchMinutes < 600) {
+      if (channel.qualifiedViews < 1000 || channel.totalWatchMinutes < 1800) {
         return { canWithdraw: false, reason: 'unqualified_views_or_watchtime' };
       }
       return { canWithdraw: true };
@@ -329,7 +329,7 @@ describe('Unit: Authentic View Qualification & Fraud Rejection', () => {
       const clickFarmedChannel = {
         rawViews: 5000,
         qualifiedViews: 150,
-        totalWatchMinutes: 650,
+        totalWatchMinutes: 1900,
         isKycVerified: true,
       };
 
@@ -342,7 +342,7 @@ describe('Unit: Authentic View Qualification & Fraud Rejection', () => {
       const fraudChannel = {
         rawViews: 2000,
         qualifiedViews: 1200,
-        totalWatchMinutes: 700,
+        totalWatchMinutes: 1900,
         isKycVerified: true,
         viewFraudFlagged: true,
       };
@@ -356,7 +356,7 @@ describe('Unit: Authentic View Qualification & Fraud Rejection', () => {
       const legitimateChannel = {
         rawViews: 1500,
         qualifiedViews: 1250, // Genuine 83.3% qualification ratio
-        totalWatchMinutes: 680, // > 600 mins (10 hours)
+        totalWatchMinutes: 1900, // > 1800 mins (30 hours)
         isKycVerified: true,
         viewFraudFlagged: false,
       };

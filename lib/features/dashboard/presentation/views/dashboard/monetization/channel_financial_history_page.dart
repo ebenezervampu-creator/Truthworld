@@ -6,7 +6,6 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
-import 'package:truthworld/data/models/channel_wallet_models.dart';
 import 'package:truthworld/theme/app_colors.dart';
 import 'package:truthworld/theme/tw_radius.dart';
 
@@ -51,10 +50,10 @@ class ChannelFinancialHistoryPage extends StatelessWidget {
         case 'current_fy':
           // Current Indian Fiscal Year (Apr 1 to Mar 31)
           final year = now.month >= 4 ? now.year : now.year - 1;
-          return DateTime(year, 4, 1);
+          return DateTime(year, 4);
         case 'last_fy':
           final year = (now.month >= 4 ? now.year : now.year - 1) - 1;
-          return DateTime(year, 4, 1);
+          return DateTime(year, 4);
         case 'all_time':
         default:
           // 8-Year Statutory Record Retention (Companies Act 2013 s.128)
@@ -82,7 +81,6 @@ class ChannelFinancialHistoryPage extends StatelessWidget {
           userId: channel.ownerId.isNotEmpty ? channel.ownerId : null,
           startDate: start,
           endDate: end,
-          limit: pageSize,
           forceRefresh: forceRefresh,
         );
         rxTransactions.assignAll(items);
@@ -106,7 +104,6 @@ class ChannelFinancialHistoryPage extends StatelessWidget {
           userId: channel.ownerId.isNotEmpty ? channel.ownerId : null,
           startDate: start,
           endDate: oldestTimestamp.subtract(const Duration(milliseconds: 1)),
-          limit: pageSize,
           forceRefresh: true,
         );
         if (moreItems.isEmpty) {
@@ -541,19 +538,14 @@ class ChannelFinancialHistoryPage extends StatelessWidget {
     switch (tx.type) {
       case UnifiedTransactionType.topup:
         icon = Icons.add_circle_outline_rounded;
-        break;
       case UnifiedTransactionType.payout:
         icon = Icons.account_balance_rounded;
-        break;
       case UnifiedTransactionType.revenueEarned:
         icon = Icons.trending_up_rounded;
-        break;
       case UnifiedTransactionType.planUpgrade:
         icon = Icons.stars_rounded;
-        break;
       case UnifiedTransactionType.aiSpend:
         icon = Icons.auto_awesome_rounded;
-        break;
     }
 
     final isCredit = tx.isCredit;
@@ -661,7 +653,7 @@ class ChannelFinancialHistoryPage extends StatelessWidget {
       Container(
         padding: const EdgeInsets.all(20),
         decoration: const BoxDecoration(
-          color: Color(0xFF1E1E1E),
+          color: AppColors.bgSurface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Column(
@@ -770,7 +762,7 @@ class ChannelFinancialHistoryPage extends StatelessWidget {
       Container(
         padding: const EdgeInsets.all(20),
         decoration: const BoxDecoration(
-          color: Color(0xFF1E1E1E),
+          color: AppColors.bgSurface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Column(

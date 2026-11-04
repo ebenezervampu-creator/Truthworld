@@ -43,7 +43,7 @@ class SpendRevenueBottomSheet {
     final tipsAndMembers = controller.rxMembershipsRevenue.value +
         controller.rxSuperchatRevenue.value;
     final adAndWatchRev = controller.rxAdsRevenue.value +
-        controller.rxWatchTimeRevenue.value;
+        controller.rxPremiumSubsRevenue.value;
 
     final totalWatchHours = controller.recentVideos.fold<double>(
       0.0,
@@ -112,24 +112,31 @@ class SpendRevenueBottomSheet {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Row(
-                    children: [
-                      Icon(
-                        Icons.account_balance_wallet_rounded,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                      SizedBox(width: 8),
-                      Text(
-                        'Spend Revenue & Balances',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                  const Expanded(
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.account_balance_wallet_rounded,
+                          color: Colors.white,
+                          size: 24,
                         ),
-                      ),
-                    ],
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Spend Revenue & Balances',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   IconButton(
                     icon: const Icon(
                       Icons.close_rounded,
@@ -158,14 +165,19 @@ class SpendRevenueBottomSheet {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Funded Wallet: \$${ch.walletBalanceUSD.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                    Expanded(
+                      child: Text(
+                        'Funded Wallet: \$${ch.walletBalanceUSD.toStringAsFixed(2)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                     ),
+                    const SizedBox(width: 8),
                     ElevatedButton.icon(
                       onPressed: () {
                         Get.back();
@@ -211,8 +223,8 @@ class SpendRevenueBottomSheet {
                 icon: Icons.fact_check_rounded,
                 title: 'Fact-Checking & Credibility Report',
                 description:
-                    'AI claim verification, source citation & Truth Score badge.',
-                costText: r'$2.00 • Instant from balance',
+                    'AI claim verification, source citation & credibility badge.',
+                costText: 'Free • Platform Feature',
                 onSelect: () async {
                   if (effectiveVideo == null) {
                     AppSnackbar.info(
@@ -240,12 +252,12 @@ class SpendRevenueBottomSheet {
 
                   if (success) {
                     AppSnackbar.success(
-                      'Channel balance applied for Fact-Checking & Credibility verification on "$videoTitle"!',
+                      'AI Fact-Checking & Credibility verification enabled for "$videoTitle"!',
                     );
                     controller.refreshChannelData();
                   } else {
                     AppSnackbar.warning(
-                      'Unable to apply balance for Fact-Checking. Please ensure your channel has sufficient funds or add money to your wallet.',
+                      'Unable to initiate Fact-Checking. Please try again.',
                     );
                   }
                 },
@@ -351,7 +363,7 @@ class SpendRevenueBottomSheet {
                 title: 'AI Chapters & Key Takeaways',
                 description:
                     'Auto-generate smart video chapters, tags, and summary.',
-                costText: r'$0.50 • Instant from balance',
+                costText: 'Free • Platform Feature',
                 onSelect: () async {
                   if (effectiveVideo == null) {
                     AppSnackbar.info(
@@ -379,12 +391,12 @@ class SpendRevenueBottomSheet {
 
                   if (success) {
                     AppSnackbar.success(
-                      'Channel balance applied for AI Chapters & Summary!',
+                      'AI Chapters & Summary enabled for your video!',
                     );
                     controller.refreshChannelData();
                   } else {
                     AppSnackbar.warning(
-                      'Unable to apply balance for AI Chapters. Please ensure your channel has sufficient funds or add money to your wallet.',
+                      'Unable to generate AI Chapters. Please try again.',
                     );
                   }
                 },
@@ -392,9 +404,9 @@ class SpendRevenueBottomSheet {
 
               const SizedBox(height: 20),
 
-              // Section 2: Custom Channel Infrastructure & Top-Ups
+              // Section 2: Pro Channel Infrastructure & Top-Ups
               const Text(
-                'Custom Channel Hosting & Quotas',
+                'Pro Channel Hosting & Quotas',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,

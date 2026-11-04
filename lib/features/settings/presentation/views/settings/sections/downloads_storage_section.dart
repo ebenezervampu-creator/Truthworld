@@ -103,6 +103,15 @@ class DownloadsStorageSection extends StatelessWidget {
               )
               .toList(),
         ),
+        actions: [
+          TextButton(
+            onPressed: Get.back,
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -184,6 +193,15 @@ class DownloadsStorageSection extends StatelessWidget {
               )
               .toList(),
         ),
+        actions: [
+          TextButton(
+            onPressed: Get.back,
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -242,6 +260,15 @@ class DownloadsStorageSection extends StatelessWidget {
               )
               .toList(),
         ),
+        actions: [
+          TextButton(
+            onPressed: Get.back,
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -263,15 +290,43 @@ class DownloadsStorageSection extends StatelessWidget {
           style: TextStyle(fontSize: 13, color: context.colors.textSecondary),
         ),
         trailing: TextButton(
-          onPressed: () async {
-            await ctrl.clearCache();
-            AppSnackbar.success(
-              'Cache wiped successfully.',
-              title: 'Cache Cleared',
-            );
-          },
+          onPressed: () => _confirmClearCache(context, ctrl),
           child: const Text('Clear', style: TextStyle(color: AppColors.error)),
         ),
+        onTap: () => _confirmClearCache(context, ctrl),
+      ),
+    );
+  }
+
+  void _confirmClearCache(BuildContext context, UserSettingsController ctrl) {
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: context.colors.surface,
+        title: const Text(
+          'Clear Cached Media Data?',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: Text(
+          'This will clear ${ctrl.cacheSizeMB.value.toStringAsFixed(1)} MB of temporary media cache. Offline downloads will not be removed.',
+          style: TextStyle(color: context.colors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: Get.back,
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: context.colors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              Get.back();
+              await ctrl.clearCache();
+              AppSnackbar.success('Cache cleared successfully.');
+            },
+            child: const Text('Clear', style: TextStyle(color: AppColors.error)),
+          ),
+        ],
       ),
     );
   }

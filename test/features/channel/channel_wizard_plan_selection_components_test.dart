@@ -105,7 +105,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Custom Channel'), findsOneWidget);
+      expect(find.text('Pro Channel'), findsOneWidget);
       expect(find.text(r'$15/mo'), findsOneWidget);
 
       // Tap card to select custom plan
@@ -159,13 +159,13 @@ void main() {
       );
 
       // Hidden for standard plan
-      expect(find.text('Custom Tiers Breakdown & Storage Comparison'), findsNothing);
+      expect(find.text('Pro Tiers Breakdown & Storage Comparison'), findsNothing);
 
       // Switch to custom plan
       controller.selectedPlan.value = 'custom';
       await tester.pump();
 
-      expect(find.text('Custom Tiers Breakdown & Storage Comparison'), findsOneWidget);
+      expect(find.text('Pro Tiers Breakdown & Storage Comparison'), findsOneWidget);
       expect(find.textContaining('50 GB Cloud Storage'), findsOneWidget);
       expect(find.textContaining('100 GB Cloud Storage'), findsOneWidget);
       expect(find.textContaining('400 GB Storage'), findsOneWidget);
@@ -193,7 +193,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Why Choose Custom Channel?'), findsOneWidget);
+      expect(find.text('Why Choose Pro Channel?'), findsOneWidget);
       expect(
         find.text('100% Revenue Share: Keep 100% from Ads, Subscriptions & Superchats'),
         findsOneWidget,
@@ -216,7 +216,7 @@ void main() {
       );
 
       expect(find.byIcon(Icons.shield_outlined), findsOneWidget);
-      expect(find.textContaining('upgrade or switch between Standard and Custom plans'), findsOneWidget);
+      expect(find.textContaining('upgrade or switch between Standard and Pro plans'), findsOneWidget);
     });
 
     testWidgets('PlanHighlightsCard renders feature items and ChecklistColumn', (tester) async {
@@ -241,7 +241,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Custom Channel Plan Highlights'), findsOneWidget);
+      expect(find.text('Pro Channel Plan Highlights'), findsOneWidget);
       expect(find.byType(ChecklistColumn), findsOneWidget);
     });
 
@@ -269,7 +269,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Select Standard or Custom Plan'), findsOneWidget);
+      expect(find.text('Select Standard or Pro Plan'), findsOneWidget);
       expect(find.text('Show More / Compare All Features'), findsOneWidget);
 
       await tester.tap(find.text('Show More / Compare All Features'));
@@ -282,7 +282,7 @@ void main() {
       controller.selectedPlan.value = 'custom';
       await tester.pump();
 
-      expect(find.text('Continue with Custom Channel'), findsOneWidget);
+      expect(find.text('Continue with Pro Channel'), findsOneWidget);
     });
 
     testWidgets('ChannelWizardPlanSelectionView full coordinator renders cleanly', (tester) async {

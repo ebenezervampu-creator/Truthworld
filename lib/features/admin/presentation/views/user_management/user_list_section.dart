@@ -68,7 +68,7 @@ class UserListSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: AppColors.bgPage,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
@@ -140,7 +140,7 @@ class UserListSection extends StatelessWidget {
                   onPressed: () => controller.fetchUsers(force: true),
                   tooltip: 'Reload users',
                   style: IconButton.styleFrom(
-                    backgroundColor: const Color(0xFF212121),
+                    backgroundColor: AppColors.bgSurface,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                       side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
@@ -258,7 +258,7 @@ class UserListSection extends StatelessWidget {
                             ),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF252525),
+                            backgroundColor: AppColors.bgSurface,
                             side: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
                           ),
                         ),
@@ -282,7 +282,7 @@ class UserListSection extends StatelessWidget {
                   final trustScore = (user['trustScore'] is num) ? (user['trustScore'] as num).toInt() : 100;
 
                   return Material(
-                    color: isSelected ? const Color(0xFF252525) : Colors.transparent,
+                    color: isSelected ? AppColors.bgSurface : Colors.transparent,
                     child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                       leading: Tooltip(
@@ -295,7 +295,7 @@ class UserListSection extends StatelessWidget {
                             children: [
                               CircleAvatar(
                                 radius: 20,
-                                backgroundColor: const Color(0xFF2A2A2A),
+                                backgroundColor: AppColors.bgSurface,
                                 backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
                                 child: photoUrl.isEmpty
                                     ? Text(
@@ -314,7 +314,7 @@ class UserListSection extends StatelessWidget {
                                 child: Container(
                                   padding: const EdgeInsets.all(2),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF1E1E1E),
+                                    color: AppColors.bgSurface,
                                     shape: BoxShape.circle,
                                     border: Border.all(
                                       color: Colors.white.withValues(alpha: 0.3),

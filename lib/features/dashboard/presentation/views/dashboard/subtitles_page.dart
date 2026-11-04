@@ -5,6 +5,11 @@ import 'package:truthworld/features/dashboard/presentation/controllers/subtitles
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/subtitles.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
+export 'subtitles/subtitles.dart';
+
+/// Redesigned Subtitles Studio Page.
+/// 100% responsive across all device sizes (mobile, tablet, desktop).
+/// Matches exact theme, architecture, and visual hierarchy of Audio & Video Studio Page.
 class SubtitlesPage extends StatelessWidget {
   const SubtitlesPage({
     required this.channelId,
@@ -28,319 +33,384 @@ class SubtitlesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const bgColor = AppColors.bgPage;
-    final surfaceColor =
-        isDarkMode ? const Color(0xFF1E1E1E) : AppColors.bgSurface;
-    final textColor =
-        isDarkMode ? AppColors.textPrimary : AppColors.textPrimary;
-    final textSecondaryColor =
-        isDarkMode ? AppColors.textSecondary : AppColors.textSecondary;
-    final borderColor =
-        isDarkMode ? AppColors.bgDivider : const Color(0xFF1E1E1E);
+    const surfaceColor = AppColors.appBarSurface;
+    const textColor = Colors.white;
+    const textSecondaryColor = AppColors.textSecondary;
+    const borderColor = AppColors.bgSurface;
 
     return Scaffold(
       backgroundColor: bgColor,
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isDesktop = constraints.maxWidth >= 1024;
-          final isTablet =
-              constraints.maxWidth >= 700 && constraints.maxWidth < 1024;
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isDesktop = constraints.maxWidth >= 900;
 
-          return Obx(() {
-            if (controller.isLoading && controller.videos.isEmpty) {
-              return const StudioLoadingIndicator(
-                message: 'Loading subtitles workspace...',
-              );
-            }
+            return Obx(() {
+              if (controller.isLoading && controller.filteredVideos.isEmpty) {
+                return const Center(
+                  child: StudioLoadingIndicator(
+                    message: 'Loading subtitles workspace...',
+                  ),
+                );
+              }
 
-            if (controller.isError) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.error_outline_rounded,
-                        size: 64,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        controller.errorMessage.isNotEmpty
-                            ? controller.errorMessage
-                            : 'An error occurred loading subtitles',
-                        style: AppTextStyles.titleMedium.copyWith(
-                          fontSize: 18,
-                          color: textColor,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () => controller.onInit(),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.brand,
-                          foregroundColor: Colors.black,
-                        ),
-                        child: const Text(
-                          'Retry',
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontWeight: FontWeight.bold,
+              if (controller.isEmpty && controller.filteredVideos.isEmpty) {
+                return _buildEmptyChannelState();
+              }
+
+              // Auto-select first video if none is selected
+              if (controller.selectedVideo.value == null &&
+                  controller.filteredVideos.isNotEmpty) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (controller.selectedVideo.value == null &&
+                      controller.filteredVideos.isNotEmpty) {
+                    controller.selectVideo(controller.filteredVideos.first);
+                  }
+                });
+              }
+
+              return Column(
+                children: [
+                  _buildTopHeader(context, isDesktop),
+                  Expanded(
+                    child: isDesktop
+                        ? _buildDesktopLayout(
+                            context: context,
+                            surfaceColor: surfaceColor,
+                            textColor: textColor,
+                            textSecondaryColor: textSecondaryColor,
+                            borderColor: borderColor,
+                          )
+                        : _buildMobileLayout(
+                            context: context,
+                            surfaceColor: surfaceColor,
+                            textColor: textColor,
+                            textSecondaryColor: textSecondaryColor,
+                            borderColor: borderColor,
                           ),
-                        ),
-                      ),
-                    ],
                   ),
-                ),
+                ],
               );
-            }
-
-            if (controller.isEmpty) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.subtitles_off_rounded,
-                        size: 80,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        'No Videos Found',
-                        style: AppTextStyles.pageTitle.copyWith(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: textColor,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Upload videos to your channel to manage subtitles.',
-                        textAlign: TextAlign.center,
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          fontSize: 15,
-                          color: textSecondaryColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }
-
-            return isDesktop || isTablet
-                ? _buildDesktopLayout(
-                    surfaceColor: surfaceColor,
-                    textColor: textColor,
-                    textSecondaryColor: textSecondaryColor,
-                    borderColor: borderColor,
-                    isDesktop: isDesktop,
-                  )
-                : _buildMobileLayout(
-                    surfaceColor: surfaceColor,
-                    textColor: textColor,
-                    textSecondaryColor: textSecondaryColor,
-                    borderColor: borderColor,
-                  );
-          });
-        },
+            });
+          },
+        ),
       ),
     );
   }
 
-  // ===========================================================================
-  // DESKTOP & TABLET LAYOUT
-  // ===========================================================================
+  // ---------------------------------------------------------------------------
+  // TOP HEADER BAR (Filter Icon + Subtitles Headline matching Audio & Video)
+  // ---------------------------------------------------------------------------
+  Widget _buildTopHeader(BuildContext context, bool isDesktop) {
+    final canPop = Navigator.of(context).canPop();
 
-  Widget _buildDesktopLayout({
-    required Color surfaceColor,
-    required Color textColor,
-    required Color textSecondaryColor,
-    required Color borderColor,
-    required bool isDesktop,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Left Column: Video List Selector
-        Container(
-          width: isDesktop ? 360 : 290,
-          decoration: BoxDecoration(
-            color: surfaceColor,
-            border: Border(right: BorderSide(color: borderColor)),
-          ),
-          child: Column(
-            children: [
-              SubtitlesSearchHeader(
-                controller: controller,
-                surfaceColor: surfaceColor,
-                textColor: textColor,
-                borderColor: borderColor,
-                isDarkMode: isDarkMode,
-              ),
-              Expanded(
-                child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 12,
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isDesktop ? 32 : 16,
+        vertical: 14,
+      ),
+      decoration: const BoxDecoration(
+        color: AppColors.bgPage,
+        border: Border(bottom: BorderSide(color: AppColors.bgSurface)),
+      ),
+      child: Row(
+        children: [
+          if (canPop) ...[
+            IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => Navigator.of(context).pop(),
+              tooltip: 'Back',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+            const SizedBox(width: 12),
+          ],
+          Expanded(
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(
+                    Icons.filter_list_rounded,
+                    color: Colors.white,
+                    size: 22,
                   ),
-                  itemCount: controller.filteredVideos.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final video = controller.filteredVideos[index];
-                    final isSelected =
-                        controller.selectedVideo.value?.id == video.id;
-                    return SubtitlesVideoSelectorCard(
-                      video: video,
-                      isSelected: isSelected,
-                      controller: controller,
-                      textColor: textColor,
-                      textSecondaryColor: textSecondaryColor,
-                      borderColor: borderColor,
-                      isDarkMode: isDarkMode,
-                    );
-                  },
+                  tooltip: 'Select video',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => ChangeVideoDialog.show(
+                    context,
+                    controller: controller,
+                    isDarkMode: isDarkMode,
+                  ),
                 ),
+                const SizedBox(width: 8),
+                const Flexible(
+                  child: Text(
+                    'Subtitles',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Obx(() {
+            final isSaving = controller.isSaving.value;
+            final hasChanges = controller.hasUnsavedChanges.value;
+
+            if (!hasChanges && !isSaving) {
+              return const SizedBox.shrink();
+            }
+
+            return ElevatedButton.icon(
+              onPressed: isSaving ? null : controller.saveCurrentSubtitles,
+              icon: isSaving
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                      ),
+                    )
+                  : const Icon(Icons.save_rounded,
+                      size: 16, color: Colors.black),
+              label: Text(
+                isSaving ? 'Saving...' : 'Save Changes',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                  fontSize: 13,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // EMPTY STATE
+  // ---------------------------------------------------------------------------
+  Widget _buildEmptyChannelState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Container(
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: AppColors.appBarSurface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.bgSurface),
+          ),
+          child: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.subtitles_off_rounded,
+                size: 52,
+                color: Colors.white,
+              ),
+              SizedBox(height: 16),
+              Text(
+                'No Videos Available for Subtitles Workspace',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Upload video content first to configure multi-language subtitles and captions.',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                textAlign: TextAlign.center,
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
 
-        // Right Column: Active Video Subtitle Editor
+  // ---------------------------------------------------------------------------
+  // DESKTOP LAYOUT (>= 900px)
+  // ---------------------------------------------------------------------------
+  Widget _buildDesktopLayout({
+    required BuildContext context,
+    required Color surfaceColor,
+    required Color textColor,
+    required Color textSecondaryColor,
+    required Color borderColor,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 300,
+          child: SubtitlesVideoSidebar(
+            controller: controller,
+            surfaceColor: surfaceColor,
+            textColor: textColor,
+            textSecondaryColor: textSecondaryColor,
+            borderColor: borderColor,
+            isDarkMode: isDarkMode,
+          ),
+        ),
         Expanded(
-          child: ColoredBox(
-            color: AppColors.bgPage,
-            child: controller.selectedVideo.value == null
-                ? SubtitlesEmptySelectionState(
-                    textColor: textColor,
-                    textSecondaryColor: textSecondaryColor,
-                  )
-                : _buildSubtitleWorkspace(
-                    surfaceColor: surfaceColor,
-                    textColor: textColor,
-                    textSecondaryColor: textSecondaryColor,
-                    borderColor: borderColor,
-                    isMobile: false,
-                  ),
+          child: _buildMainWorkspaceContent(
+            context: context,
+            surfaceColor: surfaceColor,
+            textColor: textColor,
+            textSecondaryColor: textSecondaryColor,
+            borderColor: borderColor,
+            isMobile: false,
           ),
         ),
       ],
     );
   }
 
-  // ===========================================================================
-  // MOBILE SINGLE-VIEW LAYOUT
-  // ===========================================================================
-
+  // ---------------------------------------------------------------------------
+  // MOBILE LAYOUT (< 900px)
+  // ---------------------------------------------------------------------------
   Widget _buildMobileLayout({
+    required BuildContext context,
     required Color surfaceColor,
     required Color textColor,
     required Color textSecondaryColor,
     required Color borderColor,
   }) {
-    return controller.selectedVideo.value == null
-        ? Column(
-            children: [
-              SubtitlesSearchHeader(
-                controller: controller,
-                surfaceColor: surfaceColor,
-                textColor: textColor,
-                borderColor: borderColor,
-                isDarkMode: isDarkMode,
-              ),
-              Expanded(
-                child: ListView.separated(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: controller.filteredVideos.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final video = controller.filteredVideos[index];
-                    return SubtitlesVideoSelectorCard(
-                      video: video,
-                      isSelected: false,
-                      controller: controller,
-                      textColor: textColor,
-                      textSecondaryColor: textSecondaryColor,
-                      borderColor: borderColor,
-                      isDarkMode: isDarkMode,
-                    );
-                  },
-                ),
-              ),
-            ],
-          )
-        : _buildSubtitleWorkspace(
-            surfaceColor: surfaceColor,
-            textColor: textColor,
-            textSecondaryColor: textSecondaryColor,
-            borderColor: borderColor,
-            isMobile: true,
-          );
+    return _buildMainWorkspaceContent(
+      context: context,
+      surfaceColor: surfaceColor,
+      textColor: textColor,
+      textSecondaryColor: textSecondaryColor,
+      borderColor: borderColor,
+      isMobile: true,
+    );
   }
 
-  // ===========================================================================
-  // SUBTITLE WORKSPACE (MAIN WORK AREA)
-  // ===========================================================================
-
-  Widget _buildSubtitleWorkspace({
+  // ---------------------------------------------------------------------------
+  // MAIN WORKSPACE CONTENT
+  // ---------------------------------------------------------------------------
+  Widget _buildMainWorkspaceContent({
+    required BuildContext context,
     required Color surfaceColor,
     required Color textColor,
     required Color textSecondaryColor,
     required Color borderColor,
     required bool isMobile,
   }) {
-    final video = controller.selectedVideo.value!;
+    return Obx(() {
+      final video = controller.selectedVideo.value;
+      if (video == null) {
+        return Center(
+          child: Container(
+            margin: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: AppColors.appBarSurface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.bgSurface),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.touch_app_rounded,
+                  size: 44,
+                  color: Colors.white,
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'Select a Video to Manage Subtitles',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Choose a video from the library to configure multi-language subtitles and captions.',
+                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: () => ChangeVideoDialog.show(
+                    context,
+                    controller: controller,
+                    isDarkMode: isDarkMode,
+                  ),
+                  icon: const Icon(
+                    Icons.video_library_rounded,
+                    size: 16,
+                    color: Colors.black,
+                  ),
+                  label: const Text(
+                    'Browse Videos',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                      fontSize: 13,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
 
-    return Column(
-      children: [
-        // 1. Top Action Bar
-        SubtitlesWorkspaceTopBar(
-          video: video,
-          controller: controller,
-          surfaceColor: surfaceColor,
-          textColor: textColor,
-          textSecondaryColor: textSecondaryColor,
-          borderColor: borderColor,
-          isDarkMode: isDarkMode,
-          isMobile: isMobile,
+      final selectedTab = controller.selectedMainTab.value;
+      final showRequests = controller.showRequestsPanel.value;
+
+      return Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 16 : 24,
+          vertical: isMobile ? 16 : 20,
         ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Underline Tab Bar (Subtitles | Transcripts)
+            SubtitlesNavTabs(controller: controller),
 
-        // 2. Truthworld AI Live Generation Progress Banner
-        SubtitlesAiProgressBanner(controller: controller),
+            const SizedBox(height: 8),
 
-        // 3. Synchronized Video Player Preview & Overlay
-        SubtitlesPlayerPreview(
-          controller: controller,
-          surfaceColor: surfaceColor,
-          borderColor: borderColor,
-          textColor: textColor,
-          isDarkMode: isDarkMode,
-        ),
-
-        // 4. Language Track Selector Ribbon
-        SubtitlesLanguageRibbon(
-          controller: controller,
-          surfaceColor: surfaceColor,
-          textColor: textColor,
-          textSecondaryColor: textSecondaryColor,
-          borderColor: borderColor,
-          isDarkMode: isDarkMode,
-          isMobile: isMobile,
-        ),
-
-        // 5. Main Editor & Requests Panel (Split / Tabbed)
-        Expanded(
-          child: isMobile
-              ? Obx(() {
-                  if (controller.showRequestsPanel.value) {
-                    return SubtitlesRequestsPanel(
+            // Tab Content
+            Expanded(
+              child: showRequests
+                  ? SubtitlesRequestsPanel(
                       controller: controller,
                       surfaceColor: surfaceColor,
                       textColor: textColor,
@@ -348,51 +418,30 @@ class SubtitlesPage extends StatelessWidget {
                       borderColor: borderColor,
                       isDarkMode: isDarkMode,
                       isMobile: isMobile,
-                    );
-                  }
-                  return SubtitlesCuesEditor(
-                    controller: controller,
-                    surfaceColor: surfaceColor,
-                    textColor: textColor,
-                    textSecondaryColor: textSecondaryColor,
-                    borderColor: borderColor,
-                    isDarkMode: isDarkMode,
-                    isMobile: isMobile,
-                  );
-                })
-              : Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: SubtitlesCuesEditor(
-                        controller: controller,
-                        surfaceColor: surfaceColor,
-                        textColor: textColor,
-                        textSecondaryColor: textSecondaryColor,
-                        borderColor: borderColor,
-                        isDarkMode: isDarkMode,
-                        isMobile: isMobile,
-                      ),
-                    ),
-                    Obx(() {
-                      if (!controller.showRequestsPanel.value) {
-                        return const SizedBox.shrink();
-                      }
-                      return SubtitlesRequestsPanel(
-                        controller: controller,
-                        surfaceColor: surfaceColor,
-                        textColor: textColor,
-                        textSecondaryColor: textSecondaryColor,
-                        borderColor: borderColor,
-                        isDarkMode: isDarkMode,
-                        isMobile: isMobile,
-                      );
-                    }),
-                  ],
-                ),
+                    )
+                  : (selectedTab == 1
+                      ? SubtitlesTranscriptsView(
+                          controller: controller,
+                          isDarkMode: isDarkMode,
+                        )
+                      : SubtitlesListSection(
+                          video: video,
+                          controller: controller,
+                          textColor: textColor,
+                          textSecondaryColor: textSecondaryColor,
+                          surfaceColor: surfaceColor,
+                          borderColor: borderColor,
+                          isDarkMode: isDarkMode,
+                          onAddSubtitles: () => showAddSubtitlesOptionsSheet(
+                            context: context,
+                            controller: controller,
+                            isDarkMode: isDarkMode,
+                          ),
+                        )),
+            ),
+          ],
         ),
-      ],
-    );
+      );
+    });
   }
-
 }

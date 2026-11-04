@@ -15,9 +15,9 @@ class BillingPaymentGatewayCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF161618),
+        color: AppColors.appBarSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF27272A)),
+        border: Border.all(color: AppColors.bgSurface),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -51,7 +51,7 @@ class BillingPaymentGatewayCard extends StatelessWidget {
                   ),
                 ),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFF3F3F46)),
+                  side: const BorderSide(color: AppColors.bgElevated),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -64,9 +64,9 @@ class BillingPaymentGatewayCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF1C1C1F),
+              color: AppColors.bgSurface,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF2E2E33)),
+              border: Border.all(color: AppColors.bgSurfaceHover),
             ),
             child: Row(
               children: [

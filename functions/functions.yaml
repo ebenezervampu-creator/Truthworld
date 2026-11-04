@@ -3526,10 +3526,10 @@
       "entryPoint": "onVideoUpload"
     },
     "handleTranscription": {
-      "availableMemoryMb": 1024,
+      "availableMemoryMb": 512,
       "timeoutSeconds": 540,
       "minInstances": 0,
-      "maxInstances": 3,
+      "maxInstances": 2,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
@@ -3803,7 +3803,7 @@
       "availableMemoryMb": 512,
       "timeoutSeconds": null,
       "minInstances": null,
-      "maxInstances": 20,
+      "maxInstances": 3,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,

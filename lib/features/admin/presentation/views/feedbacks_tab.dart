@@ -75,7 +75,7 @@ class FeedbacksTab extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      color: const Color(0xFF181818),
+      color: AppColors.bgPage,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
@@ -90,7 +90,7 @@ class FeedbacksTab extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFF212121),
+                color: AppColors.bgSurface,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
               ),
@@ -98,7 +98,7 @@ class FeedbacksTab extends StatelessWidget {
                 child: Obx(
                   () => DropdownButton<String>(
                     value: controller.feedbackFilterType.value,
-                    dropdownColor: const Color(0xFF212121),
+                    dropdownColor: AppColors.bgSurface,
                     style: const TextStyle(
                       fontFamily: TWTypography.uiFamily,
                       color: AppColors.textPrimary,
@@ -117,7 +117,7 @@ class FeedbacksTab extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFF212121),
+                color: AppColors.bgSurface,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
               ),
@@ -125,7 +125,7 @@ class FeedbacksTab extends StatelessWidget {
                 child: Obx(
                   () => DropdownButton<String>(
                     value: controller.feedbackFilterStatus.value,
-                    dropdownColor: const Color(0xFF212121),
+                    dropdownColor: AppColors.bgSurface,
                     style: const TextStyle(
                       fontFamily: TWTypography.uiFamily,
                       color: AppColors.textPrimary,
@@ -214,7 +214,7 @@ class FeedbacksTab extends StatelessWidget {
           final rating = (fb['rating'] as num?)?.toInt() ?? 0;
 
           return Material(
-            color: isSelected ? const Color(0xFF212121) : Colors.transparent,
+            color: isSelected ? AppColors.bgSurface : Colors.transparent,
             child: InkWell(
               onTap: () => controller.selectedFeedback.value = fb,
               child: Padding(
@@ -370,7 +370,7 @@ class FeedbacksTab extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: const Color(0xFF181818),
+              color: AppColors.bgPage,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
@@ -478,7 +478,7 @@ class FeedbacksTab extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: const Color(0xFF181818),
+              color: AppColors.bgPage,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
@@ -642,14 +642,14 @@ class FeedbacksTab extends StatelessWidget {
                 _buildActionButton(
                   'Mark Reviewed',
                   Icons.check_circle_outline,
-                  const Color(0xFF2196F3),
+                  AppColors.info,
                   () => controller.updateFeedbackStatus(fb['id'], 'reviewed'),
                 ),
               if (status != 'resolved')
                 _buildActionButton(
                   'Resolve',
                   Icons.done_all_rounded,
-                  const Color(0xFF2BA640),
+                  AppColors.success,
                   () => controller.updateFeedbackStatus(fb['id'], 'resolved'),
                 ),
               if (status != 'archived')
@@ -718,15 +718,15 @@ class FeedbacksTab extends StatelessWidget {
     Color color;
     switch (status) {
       case 'new':
-        color = const Color(0xFF4CAF50);
+        color = AppColors.success;
       case 'reviewed':
-        color = const Color(0xFF2196F3);
+        color = AppColors.info;
       case 'resolved':
-        color = const Color(0xFF9E9E9E);
+        color = AppColors.textSecondary;
       case 'archived':
-        color = const Color(0xFF616161);
+        color = AppColors.textTertiary;
       default:
-        color = const Color(0xFF4CAF50);
+        color = AppColors.success;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -761,13 +761,13 @@ class FeedbacksTab extends StatelessWidget {
   Color _typeColor(String type) {
     switch (type) {
       case 'Bug':
-        return const Color(0xFFFF6B6B);
+        return AppColors.error;
       case 'Feature Request':
-        return const Color(0xFF42A5F5);
+        return AppColors.info;
       case 'Other':
-        return const Color(0xFFFFB800);
+        return AppColors.warning;
       default:
-        return const Color(0xFF4CAF50);
+        return AppColors.success;
     }
   }
 }

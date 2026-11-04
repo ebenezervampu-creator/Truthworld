@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/details/channel_details_theme.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 
 /// Reusable UI states and helper widgets for Channel Details tabs.
 class ChannelDetailsStateWidgets {
@@ -115,11 +115,6 @@ class ChannelDetailsStateWidgets {
   }
 
   static Future<void> launchURL(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    } else {
-      AppSnackbar.warning('Unable to open link. Please check the URL.');
-    }
+    await ClickableUrlText.launchUrlString(url);
   }
 }
