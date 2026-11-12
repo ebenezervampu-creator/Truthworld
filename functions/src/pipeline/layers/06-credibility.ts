@@ -1863,7 +1863,10 @@ export class CredibilityEngine {
   private async fetchSpeakerPriors(speakerIds: string[]) {
     const priors: Record<string, any> = {};
     for (const id of speakerIds) {
-      priors[id] = await this.speakerReputation.getReputation(id);
+      const rep = await this.speakerReputation.getReputation(id);
+      if (rep) {
+        priors[id] = rep;
+      }
     }
     return priors;
   }

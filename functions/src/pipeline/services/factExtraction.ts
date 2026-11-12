@@ -1042,14 +1042,19 @@ Return ONLY a valid JSON object matching this structure:
 4. Flag "Crosstalk/Chaos": If there are 4+ speakers or heavy overlap, adjust confidence accordingly.`;
 
       if (context.speakerPriors && Object.keys(context.speakerPriors).length > 0) {
-        const priorsInfo = Object.entries(context.speakerPriors).map(([id, p]: any) => {
-          const name = Object.values(context.speakerIdentities || {}).find((i: any) => i.id === id)?.name || id;
-          return `- ${name}: Prior Trust Label "${p.trustLevel || 'Developing'}" (Historical Accuracy: ${(p.factualAccuracy * 100).toFixed(0)}%)`;
-        }).join("\n");
+        const priorsInfo = Object.entries(context.speakerPriors)
+          .filter(([_, p]: any) => p && typeof p === "object")
+          .map(([id, p]: any) => {
+            const name = Object.values(context.speakerIdentities || {}).find((i: any) => i.id === id)?.name || id;
+            const accuracy = typeof p.factualAccuracy === "number" ? `${(p.factualAccuracy * 100).toFixed(0)}%` : "N/A";
+            return `- ${name}: Prior Trust Label "${p.trustLevel || 'Developing'}" (Historical Accuracy: ${accuracy})`;
+          }).join("\n");
 
-        modeInstruction += `\n\n### SPEAKER REPUTATION (FOR CONTEXT ONLY):
+        if (priorsInfo) {
+          modeInstruction += `\n\n### SPEAKER REPUTATION (FOR CONTEXT ONLY):
 Use these priors to guide your confidence in their expertise, but NEVER let them override current evidence:
 ${priorsInfo}`;
+        }
       }
     }
 
