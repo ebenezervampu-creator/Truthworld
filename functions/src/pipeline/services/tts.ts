@@ -48,7 +48,7 @@ export const V4_PREMIUM_80_LANGUAGES = new Set([
   "sw", "af", "zu", "xh", "ha", "yo", "ig", "am", "so",
 ]);
 
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 2; // Strict 2-tier failover: Tier 1 (eleven_v4) -> Tier 2 (eleven_v3). Exactly one fallback, no other tiers.
 
 /**
  * Valid inline expressive audio tags supported by ElevenLabs eleven_v4.
@@ -204,7 +204,7 @@ export class ElevenLabsTTSService {
       textPreview: request.text.substring(0, 60),
     });
 
-    const attemptModels = [TTS_MODELS.v4, TTS_MODELS.v3, TTS_MODELS.flash];
+    const attemptModels = [TTS_MODELS.v4, TTS_MODELS.v3];
 
     const glossarizedText = applyPronunciationGlossary(request.text, request.pronunciationGlossary);
 
@@ -226,7 +226,7 @@ export class ElevenLabsTTSService {
     };
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      const currentModel = attemptModels[attempt] || TTS_MODELS.flash;
+      const currentModel = attemptModels[attempt] || TTS_MODELS.v3;
       const isCurrentV4 = currentModel === TTS_MODELS.v4;
       const synthesisText = isCurrentV4
         ? sanitizeTextForElevenLabsV4(glossarizedText, request.emotionTag)
@@ -329,11 +329,11 @@ export class ElevenLabsTTSService {
         }
 
         if (attempt === MAX_RETRIES - 1) {
-          throw new Error(`[ElevenLabsTTS] Failed after ${MAX_RETRIES} retries: ${statusCode} — ${errorBody}`);
+          throw new Error(`[ElevenLabsTTS] Failed after 2 attempts (Tier 1 ${TTS_MODELS.v4} and Tier 2 fallback ${TTS_MODELS.v3}): ${statusCode} — ${errorBody}`);
         }
 
-        const nextModel = attemptModels[attempt + 1] || TTS_MODELS.flash;
-        logger.info("[ElevenLabsTTS] Retrying synthesis with fallback model", {
+        const nextModel = attemptModels[attempt + 1];
+        logger.info("[ElevenLabsTTS] Retrying synthesis with single fallback model", {
           jobId: request.jobId,
           nextAttempt: attempt + 2,
           model: nextModel,
