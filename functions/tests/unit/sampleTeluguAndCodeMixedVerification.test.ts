@@ -264,9 +264,8 @@ describe('Sample Verification: Code-Mixed Telugu & ElevenLabs V4 Dubbing', () =>
       expect(result.audioUrl).toContain('gs://truthworld-test-bucket/audio/job_sample_fallback/te/chunk-');
     });
 
-    it('falls back to eleven_flash_v2_5 when both eleven_v4 and eleven_v3 fail', async () => {
+    it('stops after exactly 1 fallback (Tier 1 eleven_v4 -> Tier 2 eleven_v3) without attempting any 3rd tier', async () => {
       const sampleSegment = 'ప్రపంచవ్యాప్తంగా శాంతి మరియు సత్యం ముఖ్యం.';
-      const sampleFlashBytes = Buffer.from('sample-flash-audio');
 
       // Attempt 1: eleven_v4 fails with 500
       mockedAxios.post.mockRejectedValueOnce({
@@ -286,11 +285,6 @@ describe('Sample Verification: Code-Mixed Telugu & ElevenLabs V4 Dubbing', () =>
         message: 'Request failed with status code 503',
       });
 
-      // Attempt 3: eleven_flash_v2_5 succeeds
-      mockedAxios.post.mockResolvedValueOnce({
-        data: sampleFlashBytes,
-      });
-
       const request: TTSRequest = {
         jobId: 'job_sample_flash_fallback',
         userId: 'user_test_2',
@@ -298,13 +292,15 @@ describe('Sample Verification: Code-Mixed Telugu & ElevenLabs V4 Dubbing', () =>
         text: sampleSegment,
       };
 
-      const result = await ttsService.synthesize(request);
+      const elevenService = (ttsService as any).elevenLabsTts;
+      await expect(elevenService.synthesize(request)).rejects.toThrow(
+        /Failed after 2 attempts/
+      );
 
-      expect(mockedAxios.post).toHaveBeenCalledTimes(3);
+      // Verify EXACTLY 2 ElevenLabs attempts were made: v4 then v3. Zero 3rd tier!
+      expect(mockedAxios.post).toHaveBeenCalledTimes(2);
       expect(mockedAxios.post.mock.calls[0][1]).toMatchObject({ model_id: 'eleven_v4' });
       expect(mockedAxios.post.mock.calls[1][1]).toMatchObject({ model_id: 'eleven_v3' });
-      expect(mockedAxios.post.mock.calls[2][1]).toMatchObject({ model_id: 'eleven_flash_v2_5' });
-      expect(result.provider).toBe('elevenlabs');
     });
   });
 });
