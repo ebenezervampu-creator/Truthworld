@@ -43,21 +43,28 @@ class ChapterDialogs {
               color: isDarkMode ? Colors.white : Colors.black87,
             ),
             const SizedBox(width: 12),
-            Text(
-              'Import Timestamps',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: textColor,
+            Expanded(
+              child: Text(
+                'Import Timestamps',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
               ),
             ),
           ],
         ),
-        content: SizedBox(
-          width: 500,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 500,
+            maxHeight: MediaQuery.of(context).size.height * 0.75,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               Text(
                 'Paste video chapters/timestamps directly. Any matching timestamps will be imported and merged.',
                 style: TextStyle(
@@ -134,6 +141,7 @@ class ChapterDialogs {
             ],
           ),
         ),
+      ),
         actions: [
           TextButton(onPressed: Get.back, child: const Text('Cancel')),
           ElevatedButton(
@@ -220,23 +228,30 @@ class ChapterDialogs {
               color: isDarkMode ? Colors.white : Colors.black87,
             ),
             const SizedBox(width: 12),
-            Text(
-              index == -1
-                  ? 'Create Milestone Chapter'
-                  : 'Edit Milestone Chapter',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: textColor,
+            Expanded(
+              child: Text(
+                index == -1
+                    ? 'Create Milestone Chapter'
+                    : 'Edit Milestone Chapter',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
               ),
             ),
           ],
         ),
-        content: SizedBox(
-          width: 450,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 450,
+            maxHeight: MediaQuery.of(context).size.height * 0.75,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               Text(
                 'Provide the timestamp and content description for this milestone.',
                 style: TextStyle(
@@ -406,8 +421,12 @@ class ChapterDialogs {
                           ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: Container(
-                              width: 140,
-                              height: 78,
+                              width: MediaQuery.of(context).size.width < 400
+                                  ? 110
+                                  : 130,
+                              height: MediaQuery.of(context).size.width < 400
+                                  ? 62
+                                  : 73,
                               color: Colors.black26,
                               child: isUploading.value
                                   ? const Center(
@@ -477,6 +496,8 @@ class ChapterDialogs {
                                         : (autoThumb != null
                                             ? 'HD Frame at Timestamp'
                                             : 'Video Cover Fallback'),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,
@@ -688,6 +709,7 @@ class ChapterDialogs {
             ],
           ),
         ),
+      ),
         actions: [
           TextButton(onPressed: Get.back, child: const Text('Cancel')),
           ElevatedButton(

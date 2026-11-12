@@ -129,5 +129,82 @@ Telugu Subtitle Line 1
       expect(controller.currentCues.first.text, equals('Telugu Subtitle Line 1'));
       expect(controller.state, equals(ViewState.success));
     });
+
+    test('resolveSubtitleUrlForLanguage isolates native vs non-native tracks without transcript pollution', () {
+      final controller = Get.put(SubtitlesController());
+      final teluguVideo = Video.empty().copyWith(
+        id: 'vid_telugu',
+        title: 'Anantapur School Incident',
+        language: 'te',
+        transcriptionUrl: 'https://storage.googleapis.com/test/transcripts/job_te/full.json',
+        mediaSubtitles: {
+          'te': 'https://storage.googleapis.com/test/subtitles/vid_telugu/te.vtt',
+        },
+      );
+
+      // Native language with direct subtitle URL
+      expect(
+        controller.resolveSubtitleUrlForLanguage(teluguVideo, 'te'),
+        equals('https://storage.googleapis.com/test/subtitles/vid_telugu/te.vtt'),
+      );
+
+      // Non-native language with no subtitle URL must NOT fall back to Telugu transcriptionUrl
+      expect(
+        controller.resolveSubtitleUrlForLanguage(teluguVideo, 'en'),
+        isNull,
+      );
+
+      // Native language with no subtitle URL DOES fall back to transcriptionUrl
+      final teluguNoSubsVideo = Video.empty().copyWith(
+        id: 'vid_telugu_no_subs',
+        title: 'Anantapur School Incident',
+        language: 'te',
+        transcriptionUrl: 'https://storage.googleapis.com/test/transcripts/job_te/full.json',
+        mediaSubtitles: {},
+      );
+      expect(
+        controller.resolveSubtitleUrlForLanguage(teluguNoSubsVideo, 'te'),
+        equals('https://storage.googleapis.com/test/transcripts/job_te/full.json'),
+      );
+      expect(
+        controller.resolveSubtitleUrlForLanguage(teluguNoSubsVideo, 'en'),
+        isNull,
+      );
+    });
+
+    test('determineDefaultLanguage prefers video native language over English when native transcript is available', () {
+      final controller = Get.put(SubtitlesController());
+      final teluguVideo = Video.empty().copyWith(
+        id: 'vid_telugu_select',
+        title: 'Nehru Telugu Speech',
+        language: 'te',
+        transcriptionUrl: 'https://storage.googleapis.com/test/transcripts/job_te/full.json',
+        mediaSubtitles: {},
+      );
+
+      final orderedLangs = controller.getOrderedLanguagesForVideo(teluguVideo, {});
+      expect(orderedLangs.first, equals('te'));
+      expect(orderedLangs.contains('en'), isTrue);
+
+      final defaultLang = controller.determineDefaultLanguage(teluguVideo, {}, orderedLangs);
+      expect(defaultLang, equals('te'));
+    });
+
+    test('determineDefaultLanguage selects English when video native language is English', () {
+      final controller = Get.put(SubtitlesController());
+      final englishVideo = Video.empty().copyWith(
+        id: 'vid_english_select',
+        title: 'Tech Talk',
+        language: 'en',
+        transcriptionUrl: 'https://storage.googleapis.com/test/transcripts/job_en/full.json',
+        mediaSubtitles: {},
+      );
+
+      final orderedLangs = controller.getOrderedLanguagesForVideo(englishVideo, {});
+      expect(orderedLangs.first, equals('en'));
+
+      final defaultLang = controller.determineDefaultLanguage(englishVideo, {}, orderedLangs);
+      expect(defaultLang, equals('en'));
+    });
   });
 }

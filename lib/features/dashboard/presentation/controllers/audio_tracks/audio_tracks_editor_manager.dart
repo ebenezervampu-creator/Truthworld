@@ -282,26 +282,6 @@ class AudioTracksEditorManager {
           .where((k) => !updatedAudioMap.containsKey(k))
           .toList();
 
-      final locUpdates = <String, dynamic>{
-        'subtitles': video.mediaSubtitles,
-        'dubbedVideos': video.dubbedVideos,
-        'audioTracks': updatedAudioMap,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      final videoUpdates = <String, dynamic>{
-        'audioTracks': updatedAudioMap,
-        'media.audioTracks': updatedAudioMap,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      for (final rLang in removedLangs) {
-        locUpdates['audioTracks.$rLang'] = FieldValue.delete();
-        locUpdates['media.audioTracks.$rLang'] = FieldValue.delete();
-        videoUpdates['audioTracks.$rLang'] = FieldValue.delete();
-        videoUpdates['media.audioTracks.$rLang'] = FieldValue.delete();
-      }
-
       // Save to media/localization subcollection
       final locRef = _firestore
           .collection(FirestoreCollections.videos)
@@ -309,18 +289,59 @@ class AudioTracksEditorManager {
           .collection('media')
           .doc('localization');
 
-      await locRef.update(locUpdates).catchError((_) async {
-        await locRef.set(locUpdates, SetOptions(merge: true));
-      });
+      final locSnap = await locRef.get();
+      if (locSnap.exists) {
+        await locRef.update({
+          'subtitles': video.mediaSubtitles,
+          'dubbedVideos': video.dubbedVideos,
+          'audioTracks': updatedAudioMap,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        await locRef.set({
+          'subtitles': video.mediaSubtitles,
+          'dubbedVideos': video.dubbedVideos,
+          'audioTracks': updatedAudioMap,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
 
       // Save to main video document
       final videoRef = _firestore
           .collection(FirestoreCollections.videos)
           .doc(video.id);
 
-      await videoRef.update(videoUpdates).catchError((_) async {
-        await videoRef.set(videoUpdates, SetOptions(merge: true));
-      });
+      final videoSnap = await videoRef.get();
+      if (videoSnap.exists) {
+        final vData = videoSnap.data() ?? {};
+        final videoUpdates = <String, dynamic>{
+          'audioTracks': updatedAudioMap,
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+        if (vData['media'] is Map) {
+          videoUpdates['media.audioTracks'] = updatedAudioMap;
+        }
+        await videoRef.update(videoUpdates);
+      } else {
+        await videoRef.set({
+          'audioTracks': updatedAudioMap,
+          'media': {
+            'audioTracks': updatedAudioMap,
+          },
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
+      // Clean any legacy flat keys for removed tracks
+      if (removedLangs.isNotEmpty) {
+        final flatDeletes = <String, dynamic>{};
+        for (final rLang in removedLangs) {
+          flatDeletes['audioTracks.$rLang'] = FieldValue.delete();
+          flatDeletes['media.audioTracks.$rLang'] = FieldValue.delete();
+        }
+        await videoRef.set(flatDeletes, SetOptions(merge: true)).catchError((_) {});
+        await locRef.set(flatDeletes, SetOptions(merge: true)).catchError((_) {});
+      }
 
       // Clean video_jobs for removed tracks so pipeline fallbacks never resurrect them
       if (removedLangs.isNotEmpty) {
@@ -328,12 +349,33 @@ class AudioTracksEditorManager {
           final jobRef = _firestore.collection('video_jobs').doc(video.id);
           final jobSnap = await jobRef.get();
           if (jobSnap.exists) {
+            final jData = jobSnap.data() ?? {};
             final jobUpdates = <String, dynamic>{};
-            for (final rLang in removedLangs) {
-              jobUpdates['outputs.audioTracks.$rLang'] = FieldValue.delete();
-              jobUpdates['audioTracks.$rLang'] = FieldValue.delete();
-              jobUpdates['stages.dubbing_$rLang'] = FieldValue.delete();
-              jobUpdates['stages.translating_$rLang'] = FieldValue.delete();
+            final outputs = jData['outputs'];
+            if (outputs is Map && outputs['audioTracks'] is Map) {
+              final curOut = Map<String, dynamic>.from(outputs['audioTracks'] as Map);
+              for (final rLang in removedLangs) {
+                curOut.remove(rLang);
+              }
+              jobUpdates['outputs.audioTracks'] = curOut;
+            }
+            if (jData['audioTracks'] is Map) {
+              final curAud = Map<String, dynamic>.from(jData['audioTracks'] as Map);
+              for (final rLang in removedLangs) {
+                curAud.remove(rLang);
+              }
+              jobUpdates['audioTracks'] = curAud;
+            }
+            final stages = jData['stages'];
+            if (stages is Map) {
+              for (final rLang in removedLangs) {
+                if (stages.containsKey('dubbing_$rLang')) {
+                  jobUpdates['stages.dubbing_$rLang'] = FieldValue.delete();
+                }
+                if (stages.containsKey('translating_$rLang')) {
+                  jobUpdates['stages.translating_$rLang'] = FieldValue.delete();
+                }
+              }
             }
             if (jobUpdates.isNotEmpty) {
               await jobRef.update(jobUpdates);

@@ -54,11 +54,11 @@ export class PipelineEstimator {
     total += this.estimateStageDuration("queue", duration);
     total += this.estimateStageDuration("transcription", duration);
     
-    if (plan.enablePath1 || plan.enableTruthEngine) {
+    if (plan.enableCredibility ?? plan.factCheckEnabled) {
       total += this.estimateStageDuration("credibility", duration);
     }
     
-    if (plan.enablePath2 || plan.enableReachEngine) {
+    if ((plan.enableDubbing ?? plan.generateDubbing) || (plan.enableSubtitles ?? plan.genLangSubs)) {
       const sourceLang = normalizeLanguageCode(plan.primaryLanguage || "en");
       const targetLangs = (plan.languages ?? []).filter(l => normalizeLanguageCode(l) !== sourceLang);
       for (const lang of targetLangs) {

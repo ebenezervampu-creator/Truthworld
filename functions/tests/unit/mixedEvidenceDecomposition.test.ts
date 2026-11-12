@@ -1,10 +1,82 @@
 import { ClaimVerificationService } from '../../src/pipeline/services/claimVerification';
+import { UrlVerificationService } from '../../src/pipeline/services/urlVerificationService';
 import {
   ClaimNature,
+  EvidenceCatalog,
   FramingStyle,
   EvidenceLevel,
   EvidenceToClaimTraceability,
 } from '../../src/pipeline/types';
+
+function createClosedWorldService(
+  claimText: string,
+  items: Array<{
+    evidenceId: string;
+    title: string;
+    url: string;
+    domain: string;
+    publisher: string;
+    snippet: string;
+    tier?: 'A' | 'B' | 'C' | 'D' | 'E';
+  }>
+): ClaimVerificationService {
+  const candidatesById: EvidenceCatalog['candidatesById'] = {};
+  const orderedCandidates = items.map((item) => {
+    const candidate = {
+      evidenceId: item.evidenceId,
+      title: item.title,
+      url: item.url,
+      canonicalUrl: item.url,
+      domain: item.domain,
+      publisher: item.publisher,
+      snippet: item.snippet,
+      tier: item.tier || 'A',
+      retrievalProvider: 'PubMed',
+      retrievalMethod: 'test_fixture',
+      verification: {
+        status: 'VERIFIED' as const,
+        originalUrl: item.url,
+        canonicalUrl: item.url,
+        domain: item.domain,
+        httpStatus: 200,
+        redirectHops: 0,
+        isSoft404: false,
+        verifiedAtUtc: '2026-11-11T00:00:00.000Z',
+        verifierMethod: 'http_get' as const,
+        fetchStatus: 'HTTP_200_OK' as const,
+      },
+    };
+    candidatesById[item.evidenceId] = candidate;
+    return candidate;
+  });
+
+  const catalog: EvidenceCatalog = {
+    claimText,
+    normalizedQueries: [claimText],
+    candidatesById,
+    orderedCandidates,
+    rejectedCandidates: [],
+    verifiedAcademicMetadata: [],
+    retrievedAtUtc: '2026-11-11T00:00:00.000Z',
+  };
+
+  const urlVerifier = new UrlVerificationService({
+    dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+    useFirestoreCache: false,
+    transport: async () => ({
+      statusCode: 200,
+      headers: { 'content-type': 'text/html' },
+      bodyText: '<html><head><title>Verified</title></head><body>Verified evidence body</body></html>',
+    }),
+  });
+
+  return new ClaimVerificationService('test-key', 0.6, {
+    urlVerifier,
+    evidenceRetrieval: {
+      buildEvidenceCatalogForClaim: jest.fn().mockResolvedValue(catalog),
+    } as any,
+  });
+}
 
 describe('Unit: Evidence-to-Claim Traceability & Mixed-Evidence Decomposition Architecture', () => {
   const verificationService = new ClaimVerificationService('test-key', 0.6);
@@ -243,6 +315,7 @@ describe('Unit: Evidence-to-Claim Traceability & Mixed-Evidence Decomposition Ar
                             'Optical explanations account for all photographic features; documentary records confirm deployment and trajectory.',
                           ],
                           evidenceTraceability: mockTraceability,
+                          citedEvidenceIds: ['E1'],
                           sources: [
                             {
                               title: 'NASA Apollo Lunar Surface Journal — Hasselblad Camera Optics',
@@ -313,13 +386,61 @@ describe('Unit: Evidence-to-Claim Traceability & Mixed-Evidence Decomposition Ar
         },
       });
 
-    (verificationService as any).genAI = {
+    const cwService = createClosedWorldService(claimText, [
+      {
+        evidenceId: 'E1',
+        title: 'NASA Apollo Lunar Surface Journal — Hasselblad Camera Optics',
+        url: 'https://www.hq.nasa.gov/alsj/alsj-HA500EL.html',
+        domain: 'hq.nasa.gov',
+        publisher: 'NASA',
+        snippet: 'Cameras utilized 70mm Kodak Ektachrome film exposed at 1/250s under full lunar daylight Apollo 11.',
+        tier: 'A',
+      },
+      {
+        evidenceId: 'E2',
+        title: 'British Film Institute — Cinematic Analysis of Apollo Footage',
+        url: 'https://www.bfi.org.uk/features/apollo-moon-landing-conspiracy-kubrick',
+        domain: 'bfi.org.uk',
+        publisher: 'British Film Institute',
+        snippet: 'Recreating lighting in 1969 Hollywood studio would require spotlight arrays producing multiple distinct shadows.',
+        tier: 'B',
+      },
+      {
+        evidenceId: 'E3',
+        title: 'Soviet Academy of Sciences Deep Space Tracking Telemetry Archives',
+        url: 'https://en.wikipedia.org/wiki/Third-party_evidence_for_Apollo_Moon_Landings#Soviet_Union',
+        domain: 'en.wikipedia.org',
+        publisher: 'Wikipedia / Soviet Archives',
+        snippet: 'Soviet tracking stations tracked Apollo 11 television and radio transmissions directly from the Moon.',
+        tier: 'B',
+      },
+      {
+        evidenceId: 'E4',
+        title: 'Where No Flag Has Gone Before: Political and Technical History of the Apollo Lunar Flag',
+        url: 'https://www.hq.nasa.gov/office/pao/History/flag/flag.html',
+        domain: 'hq.nasa.gov',
+        publisher: 'NASA History Office',
+        snippet: 'The horizontal rod did not fully extend causing the American flag to ripple in lunar vacuum.',
+        tier: 'A',
+      },
+      {
+        evidenceId: 'E5',
+        title: 'Journal of Photogrammetric Engineering & Remote Sensing — Shadows on Non-Planar Surfaces',
+        url: 'https://doi.org/10.14358/PERS.71.6.721',
+        domain: 'doi.org',
+        publisher: 'ASPRS',
+        snippet: 'Parallel sunlight shadows appear non-parallel across uneven 3D lunar topography.',
+        tier: 'A',
+      },
+    ]);
+
+    (cwService as any).genAI = {
       getGenerativeModel: jest.fn().mockReturnValue({
         generateContent: mockGenerateContent,
       }),
     };
 
-    const results = await verificationService.verifyClaimBatch(
+    const results = await cwService.verifyClaimBatch(
       [
         {
           claimId: 'claim_mixed_apollo_hoax',
@@ -599,6 +720,7 @@ describe('Unit: Evidence-to-Claim Traceability & Mixed-Evidence Decomposition Ar
                             'Direct text comparison with the original document confirms exact wording and reveals the omitted qualifying context.',
                           ],
                           evidenceTraceability: mockTraceability,
+                          citedEvidenceIds: ['E1'],
                           sources: [
                             {
                               title: 'NASA Apollo 11 Preliminary Science Report (NASA SP-214)',
@@ -651,13 +773,25 @@ describe('Unit: Evidence-to-Claim Traceability & Mixed-Evidence Decomposition Ar
         },
       });
 
-    (verificationService as any).genAI = {
+    const cwService = createClosedWorldService(claimText, [
+      {
+        evidenceId: 'E1',
+        title: 'NASA Apollo 11 Preliminary Science Report (NASA SP-214)',
+        url: 'https://www.hq.nasa.gov/alsj/a11/as11psr.pdf',
+        domain: 'hq.nasa.gov',
+        publisher: 'NASA Manned Spacecraft Center',
+        snippet: 'Exposure times of 1/250 sec at f/5.6 to f/11 were required under full sunlight; Apollo 11 photographs camera optics.',
+        tier: 'A',
+      },
+    ]);
+
+    (cwService as any).genAI = {
       getGenerativeModel: jest.fn().mockReturnValue({
         generateContent: mockGenerateContent,
       }),
     };
 
-    const results = await verificationService.verifyClaimBatch(
+    const results = await cwService.verifyClaimBatch(
       [
         {
           claimId: 'claim_adversarial_context_omission',

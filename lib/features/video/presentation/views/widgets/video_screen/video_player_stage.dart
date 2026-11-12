@@ -179,7 +179,20 @@ class VideoPlayerView extends StatelessWidget {
 
     return Hero(
       tag: heroTag,
+      flightShuttleBuilder: (
+        flightContext,
+        animation,
+        flightDirection,
+        fromHeroContext,
+        toHeroContext,
+      ) {
+        return thumbnailWidget;
+      },
       child: Obx(() {
+        if (controller.isClosed || controller.isMiniplayerHandoffDone.value) {
+          return thumbnailWidget;
+        }
+
         final isError = controller.videoError.value;
         final vpc = controller.videoPlayerController;
         final vid = controller.video;

@@ -56,6 +56,8 @@ class DemixResponse(BaseModel):
     mneUrl: Optional[str] = None
     vocalsUrl: Optional[str] = None
     engine: str = "demucs_v4_neural"
+    validationStatus: str = "passed"
+    degraded: bool = False
     processingMs: int
     message: Optional[str] = None
 
@@ -197,7 +199,7 @@ def demix_audio_stems(req: DemixRequest):
             ffmpeg_mne = [
                 "ffmpeg", "-y",
                 "-i", no_vocals_path,
-                "-af", "highpass=f=35,lowpass=f=18500,afftdn=nf=-25",
+                "-af", "highpass=f=35,lowpass=f=18500,afftdn=nf=-40",
                 "-c:a", "libmp3lame",
                 "-b:a", "192k",
                 "-ar", "44100",
@@ -230,23 +232,35 @@ def demix_audio_stems(req: DemixRequest):
                 "-ac", "2",
                 clean_mne
             ]
-            subprocess.run(ffmpeg_mne, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            clean_voc = local_audio
+            subprocess.run(ffmpeg_mne, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+            clean_voc = None
 
         mne_url = _upload_to_storage(clean_mne, f"audio/{req.jobId}/m_and_e.mp3", f"{req.jobId}_mne")
-        voc_url = _upload_to_storage(clean_voc, f"audio/{req.jobId}/vocals.mp3", f"{req.jobId}_vocals")
+        voc_url = (
+            _upload_to_storage(clean_voc, f"audio/{req.jobId}/vocals.mp3", f"{req.jobId}_vocals")
+            if clean_voc and os.path.exists(clean_voc)
+            else None
+        )
 
         shutil.rmtree(work_dir, ignore_errors=True)
         duration_ms = int((time.time() - t0) * 1000)
-        logger.info(f"✅ [Demix] Completed 100% background music & vocal separation in {duration_ms}ms")
+        is_degraded = engine_used != "demucs_v4_neural"
+        validation_status = "degraded" if is_degraded else "passed"
+        logger.info(f"[Demix] Completed separation in {duration_ms}ms (engine={engine_used}, status={validation_status})")
 
         return DemixResponse(
-            status="completed",
+            status="degraded" if is_degraded else "completed",
             mneUrl=mne_url,
             vocalsUrl=voc_url,
             engine=engine_used,
+            validationStatus=validation_status,
+            degraded=is_degraded,
             processingMs=duration_ms,
-            message="100% background music preserved and unwanted noise cleared."
+            message=(
+                "Demucs unavailable; FFmpeg frequency crossover fallback engaged (degraded separation)."
+                if is_degraded
+                else "Neural Demucs v4 M&E and vocal stems separated."
+            ),
         )
     except Exception as e:
         logger.error(f"[Demix] Error: {e}", exc_info=True)
@@ -584,6 +598,19 @@ def _get_video_duration(video_path: str) -> float:
         pass
     return 10.0
 
+def _get_video_fps(video_path: str) -> float:
+    try:
+        import cv2
+        cap = cv2.VideoCapture(video_path)
+        if cap.isOpened():
+            fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+            cap.release()
+            if fps > 0:
+                return float(fps)
+    except Exception:
+        pass
+    return 25.0
+
 def _run_single_chunk_inference(video_path: str, audio_path: str, output_path: str, enable_face_restoration: bool, quality_tier: str = "pro") -> bool:
     """
     Executes LatentSync audio-conditioned diffusion inference on a single temporal video/audio segment.
@@ -850,20 +877,42 @@ def _run_latentsync_inference_scaled(
         _run_aligned_remux(video_path, master_audio_path or clean_audio_path, output_path)
         return False
 
-    # 7. Final Master Audio Muxing (Injects seamless continuous master audio)
+    # 7. Final Master Audio Muxing & Native FPS Restoration
     final_audio = master_audio_path if (master_audio_path and os.path.exists(master_audio_path)) else clean_audio_path
-    cmd_mux = [
-        "ffmpeg", "-y",
-        "-i", assembled_temp,
-        "-i", final_audio,
-        "-c:v", "copy",
-        "-c:a", "aac",
-        "-b:a", "192k",
-        "-map", "0:v:0",
-        "-map", "1:a:0",
-        "-shortest",
-        output_path
-    ]
+    target_fps = _get_video_fps(video_path)
+
+    if abs(target_fps - 25.0) > 0.5:
+        logger.info(f"[LipSync Scaled] Restoring native source frame rate ({target_fps:.2f} FPS) and exact duration ({duration:.2f}s)...")
+        filter_str = f"[0:v]fps=fps={target_fps}:round=near,tpad=stop_mode=clone:stop_duration=0.25[v]"
+        cmd_mux = [
+            "ffmpeg", "-y",
+            "-i", assembled_temp,
+            "-i", final_audio,
+            "-filter_complex", filter_str,
+            "-map", "[v]",
+            "-map", "1:a:0",
+            "-t", f"{duration:.3f}",
+            "-c:v", "libx264",
+            "-preset", "veryfast",
+            "-crf", "18",
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            output_path
+        ]
+    else:
+        cmd_mux = [
+            "ffmpeg", "-y",
+            "-i", assembled_temp,
+            "-i", final_audio,
+            "-c:v", "copy",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-map", "0:v:0",
+            "-map", "1:a:0",
+            "-t", f"{duration:.3f}",
+            output_path
+        ]
     res_mux = subprocess.run(cmd_mux, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     if res_mux.returncode == 0 and os.path.exists(output_path):
@@ -876,30 +925,34 @@ def _run_latentsync_inference_scaled(
 
 def _upload_to_storage(local_path: str, remote_path: str, work_id: str = "") -> str:
     """
-    Saves the output video to persistent volume and uploads to Google Cloud Storage or returns direct Modal URL.
+    Saves the output file to persistent volume and uploads to Google Cloud Storage or returns direct Modal URL.
+    Derives the file extension from local_path so audio (.mp3) and video (.mp4) files are handled correctly.
     """
     import shutil
+    import pathlib
+    ext = pathlib.Path(local_path).suffix  # e.g. ".mp3" or ".mp4"
     out_dir = "/checkpoints/outputs"
     os.makedirs(out_dir, exist_ok=True)
     if work_id:
-        persistent_file = os.path.join(out_dir, f"{work_id}.mp4")
+        persistent_file = os.path.join(out_dir, f"{work_id}{ext}")
         shutil.copy(local_path, persistent_file)
-        tmp_cached = os.path.join("/tmp", f"{work_id}.mp4")
+        tmp_cached = os.path.join("/tmp", f"{work_id}{ext}")
         try:
             shutil.copy(local_path, tmp_cached)
         except Exception:
             pass
 
+    content_type = "audio/mpeg" if ext == ".mp3" else "video/mp4"
     bucket_name = os.environ.get("VIDEO_BUCKET", "truthworld-1.firebasestorage.app")
     try:
         from google.cloud import storage
         client = storage.Client()
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(remote_path)
-        blob.upload_from_filename(local_path, content_type="video/mp4")
+        blob.upload_from_filename(local_path, content_type=content_type)
         return f"https://storage.googleapis.com/{bucket_name}/{remote_path}"
     except Exception as e:
         logger.warning(f"Cloud Storage upload warning ({e}), falling back to direct Modal volume endpoint.")
         if work_id:
-            return f"https://ebenezervampu--truthworld-latentsync-worker-fastapi-app.us-east.modal.run/outputs/{work_id}.mp4"
+            return f"https://ebenezervampu--truthworld-latentsync-worker-fastapi-app.us-east.modal.run/outputs/{work_id}{ext}"
         return f"https://storage.googleapis.com/{bucket_name}/{remote_path}"

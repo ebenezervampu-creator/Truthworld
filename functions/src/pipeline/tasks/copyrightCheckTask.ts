@@ -19,6 +19,7 @@ import { fingerprintService } from "../services/fingerprintService";
 import { copyrightDetectionService } from "../services/copyrightDetection";
 import { copyrightClaimsService } from "../services/copyrightClaims";
 import { CopyrightMatch, DEFAULT_CONFIDENCE_WEIGHTS, DETECTION_THRESHOLDS } from "../services/copyrightTypes";
+import { PIPELINE_CONFIG } from "../config";
 
 const db = () => admin.firestore();
 
@@ -112,7 +113,7 @@ export async function runCopyrightCheck(
             finalConfidence: 1.0,
             detectorVersion: 1,
             embeddingModel: "text-embedding-005",
-            geminiModel: "gemini-2.0-flash",
+            geminiModel: PIPELINE_CONFIG.GEMINI_MODELS?.moderation || "gemini-2.5-flash",
             pipelineVersion: "1.0.0",
             status: "detected",
             claimId: null,

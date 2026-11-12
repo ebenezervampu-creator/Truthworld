@@ -229,20 +229,9 @@ export async function creditLipSyncFallbackToWallet(
     }
 
     // 🛡️ Dynamic Delta Calculation:
-    // If not explicitly provided, calculate based on tier and duration:
-    // video_pro ($0.40/min) -> audio_pro ($0.20/min) = $0.20/min delta
-    // video_ultra ($0.50/min) -> audio_ultra ($0.30/min) = $0.20/min delta
-    const dubbingTier = params.dubbingTier || jobData.dubbingTier;
-    const durationSeconds = params.durationSeconds || jobData.durationSeconds || jobData.duration || 60;
-    
     let deltaPerLanguageUSD = params.deltaPerLanguageUSD;
     if (deltaPerLanguageUSD === undefined) {
-      if (dubbingTier && dubbingTier.startsWith("video_")) {
-        const durationMinutes = Math.max(1, durationSeconds / 60);
-        deltaPerLanguageUSD = Number((durationMinutes * 0.20).toFixed(2));
-      } else {
-        deltaPerLanguageUSD = 2.50; // Legacy default
-      }
+      deltaPerLanguageUSD = 2.50; // Standard fallback credit
     }
 
     let creditAmountUSD = Number((fallbackLanguages.length * deltaPerLanguageUSD).toFixed(2));

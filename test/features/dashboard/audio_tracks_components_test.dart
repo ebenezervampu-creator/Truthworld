@@ -182,7 +182,7 @@ void main() {
       expect(controller.activeTab.value, equals('languages'));
     });
 
-    testWidgets('AudioTracksUnderlineTabBar renders AudioTracks and VideoTracks and switches tabs', (tester) async {
+    testWidgets('AudioTracksUnderlineTabBar renders Audio Tracks tab and verifies VideoTracks tab is removed', (tester) async {
       final controller = Get.put(AudioTracksController());
       controller.setActiveTab('tracks');
 
@@ -194,14 +194,10 @@ void main() {
         ),
       );
 
-      expect(find.text('AudioTracks'), findsOneWidget);
-      expect(find.text('VideoTracks'), findsOneWidget);
+      expect(find.text('Audio Tracks'), findsOneWidget);
+      expect(find.text('VideoTracks'), findsNothing);
 
-      await tester.tap(find.text('VideoTracks'));
-      await tester.pump();
-      expect(controller.activeTab.value, equals('languages'));
-
-      await tester.tap(find.text('AudioTracks'));
+      await tester.tap(find.text('Audio Tracks'));
       await tester.pump();
       expect(controller.activeTab.value, equals('tracks'));
     });
@@ -439,11 +435,9 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Audio Track & Dubbing Options'), findsOneWidget);
-      expect(find.text('AI Voice Dubbing'), findsOneWidget);
+      expect(find.text('Audio Track & Dubbing'), findsOneWidget);
+      expect(find.text('AI Dubbing'), findsOneWidget);
       expect(find.text('Direct Audio Track'), findsOneWidget);
-      expect(find.text('Audio (3 Tiers)'), findsOneWidget);
-      expect(find.text('Video (2 Tiers)'), findsOneWidget);
     });
   });
 }

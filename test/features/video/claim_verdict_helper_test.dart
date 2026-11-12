@@ -253,12 +253,12 @@ void main() {
         }
       });
 
-      test('cleanResponseText humanizes robotic subjective/opinion responses and explains why it was configured as an opinion', () {
+      test('cleanResponseText humanizes robotic subjective/opinion responses into 10-year-old friendly explanations', () {
         const roboticInput1 = 'Classified as subjective content — not subject to factual verification.';
         final humanized1 = ClaimVerdictHelper.cleanResponseText(roboticInput1);
         expect(
           humanized1,
-          'Classified as an opinion because this statement shares a personal viewpoint or feeling rather than a measurable fact that can be proven true or false.',
+          "This is someone's personal opinion or feeling, not a fact you can test or prove right or wrong.",
         );
 
         const roboticInput2 = 'Classified as subjective content - not subject to factual verification';
@@ -268,7 +268,7 @@ void main() {
         );
         expect(
           humanized2,
-          "Classified as an opinion because the speaker describes this as 'vital'. While science can measure real facts like nutrients or numbers, deciding that something is 'vital' is a personal value judgment, not a measurable fact.",
+          "This is a personal opinion because the speaker calls it 'vital'. Everyone decides what feels 'vital' to them, so science cannot measure it like a plain fact.",
         );
 
         const roboticInput3 = 'Subjective content — not subject to factual verification.';
@@ -278,15 +278,34 @@ void main() {
         );
         expect(
           humanized3,
-          "Classified as an opinion because the speaker uses the word 'best'. Words like 'best' describe personal taste — everyone likes different things, and no science test can prove what is truly 'best'.",
+          "This is a personal opinion because the speaker uses the word 'best'. Words like 'best' describe personal taste — everyone likes different things, so no test can prove what is truly 'best'.",
         );
       });
 
-      test('Opinion verdict summary takeaway explains why it was configured as an opinion', () {
+      test('cleanResponseText removes AI jargon, internal data phrases, and "this claim" meta-talk', () {
+        const archiveInput =
+            'Authoritative corroboration could not be recovered from indexed institutional public archives.';
+        final archiveOut = ClaimVerdictHelper.cleanResponseText(archiveInput);
+        expect(
+          archiveOut,
+          'No clear outside sources or news reports were found to back this up yet.',
+        );
+        expect(archiveOut.toLowerCase(), isNot(contains('archives')));
+        expect(archiveOut.toLowerCase(), isNot(contains('corroboration')));
+
+        const internalDataInput =
+            'From internal data, this claim has no medical proof and studies contradict this claim.';
+        final metaOut = ClaimVerdictHelper.cleanResponseText(internalDataInput);
+        expect(metaOut.toLowerCase(), isNot(contains('internal data')));
+        expect(metaOut.toLowerCase(), isNot(contains('this claim')));
+        expect(metaOut, 'It has no medical proof and studies contradict it.');
+      });
+
+      test('Opinion verdict summary takeaway explains simply why something is an opinion', () {
         final opinionVerdict = ClaimVerdictHelper.resolveVerdictString('opinion');
         expect(
           opinionVerdict.summaryTakeaway,
-          'Classified as an opinion because it shares a personal perspective or value judgment rather than a measurable fact.',
+          "This is someone's personal opinion or feeling, not a fact you can test or prove right or wrong.",
         );
         expect(opinionVerdict.microTakeaway, 'Personal viewpoint, not a testable fact');
       });

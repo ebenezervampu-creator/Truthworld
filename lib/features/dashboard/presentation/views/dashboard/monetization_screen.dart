@@ -33,7 +33,7 @@ class MonetizationScreen extends StatelessWidget {
   static const double cashOutWatchHoursThreshold = 30;
 
   static const List<({IconData icon, String label})> _subTabs = [
-    (icon: Icons.account_balance_wallet_rounded, label: 'Revenue & Payouts'),
+    (icon: Icons.payments_rounded, label: 'Revenue & Payouts'),
     (icon: Icons.monetization_on_rounded, label: 'Ways You Earn'),
     (icon: Icons.video_library_rounded, label: 'Video Eligibility'),
     (icon: Icons.stars_rounded, label: 'Tier & Rules'),

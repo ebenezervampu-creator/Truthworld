@@ -27,10 +27,10 @@ export interface LipSyncRequest {
   subtitleUrl?: string;
   audioFilters?: string;
   isPreMastered?: boolean;
-  dubbingTier?: "audio_starter" | "audio_pro" | "audio_ultra" | "video_pro" | "video_ultra";
+  dubbingTier?: "audio_track";
   cinemaGrade?: boolean;
-  tier?: "video_pro" | "video_ultra" | "standard";
-  qualityMode?: "pro" | "ultra";
+  tier?: "standard";
+  qualityMode?: "standard";
 }
 
 export interface LipSyncResponse {
@@ -58,18 +58,12 @@ export class LipSyncService {
     const t0 = Date.now();
     const serviceUrl = PIPELINE_CONFIG.LIPSYNC_SERVICE_URL;
 
-    const isUltra = 
-      request.dubbingTier === "video_ultra" || 
-      request.cinemaGrade === true || 
-      request.tier === "video_ultra" || 
-      request.qualityMode === "ultra";
-    const qualityTier = isUltra ? "ultra" : "pro";
+    const qualityTier = "standard";
 
     logger.info("[LipSync] Initiating visual lip synchronization", {
       jobId: request.jobId,
       language: request.language,
       tier: qualityTier,
-      isCinemaUltra: isUltra,
       serviceConfigured: Boolean(serviceUrl && !serviceUrl.includes("placeholder")),
     });
 
@@ -87,8 +81,7 @@ export class LipSyncService {
             language: request.language,
             mode: request.mode || "latentsync",
             faceRestoration: request.faceRestoration !== false,
-            tier: isUltra ? "video_ultra" : "video_pro",
-            cinemaGrade: isUltra,
+            tier: "standard",
             qualityMode: qualityTier,
           },
           {

@@ -13,14 +13,14 @@ describe("Vertex AI Cost Optimization & Model Routing Suite", () => {
   });
 
   describe("1. PIPELINE_CONFIG Model Topology", () => {
-    it("should configure gemini-4-argon as the default reasoning model on Vertex AI", () => {
-      expect(PIPELINE_CONFIG.GEMINI_MODELS?.reasoning).toBe("gemini-4-argon");
+    it("should configure gemini-2.5-flash as the default reasoning model on Vertex AI", () => {
+      expect(PIPELINE_CONFIG.GEMINI_MODELS?.reasoning).toBe("gemini-2.5-flash");
     });
 
-    it("should configure gemini-2.0-flash-lite for worker and query micro-tasks", () => {
-      expect(PIPELINE_CONFIG.GEMINI_MODELS?.profiling).toBe("gemini-2.0-flash-lite");
-      expect(PIPELINE_CONFIG.GEMINI_MODELS?.fastTier).toBe("gemini-2.0-flash-lite");
-      expect(PIPELINE_CONFIG.GEMINI_MODELS?.queryDecomposition).toBe("gemini-2.0-flash-lite");
+    it("should configure gemini-2.5-flash for worker and query micro-tasks by default", () => {
+      expect(PIPELINE_CONFIG.GEMINI_MODELS?.profiling).toBe("gemini-2.5-flash");
+      expect(PIPELINE_CONFIG.GEMINI_MODELS?.fastTier).toBe("gemini-2.5-flash");
+      expect(PIPELINE_CONFIG.GEMINI_MODELS?.queryDecomposition).toBe("gemini-2.5-flash");
     });
 
     it("should preserve gemini-2.5-flash for bulk extraction and verification workhorse tasks", () => {
@@ -37,11 +37,9 @@ describe("Vertex AI Cost Optimization & Model Routing Suite", () => {
   });
 
   describe("2. Unit Economics & Rate Cards (Vertex AI Pricing)", () => {
-    it("should accurately reflect Gemini 4 Argon promotional pricing ($2.00 / $10.00 per 1M)", () => {
-      expect(RATE_CARDS["gemini-4-argon"].perInputToken).toBe(0.0000020);
-      expect(RATE_CARDS["gemini-4-argon"].perOutputToken).toBe(0.000010);
-      expect(RATE_CARDS["gemini-reasoning"].perInputToken).toBe(0.0000020);
-      expect(RATE_CARDS["gemini-reasoning"].perOutputToken).toBe(0.000010);
+    it("should accurately reflect Gemini reasoning model pricing ($0.15 / $0.60 per 1M)", () => {
+      expect(RATE_CARDS["gemini-reasoning"].perInputToken).toBe(0.00000015);
+      expect(RATE_CARDS["gemini-reasoning"].perOutputToken).toBe(0.0000006);
     });
 
     it("should accurately reflect Gemini Flash-Lite pricing ($0.075 / $0.30 per 1M)", () => {
@@ -58,7 +56,7 @@ describe("Vertex AI Cost Optimization & Model Routing Suite", () => {
       const engine = new CostEngine();
       const recordCostSpy = jest.spyOn(engine as any, "recordCost").mockResolvedValue(undefined);
 
-      // 100k total tokens: 80k cached input, 10k non-cached input, 10k output on Argon
+      // 100k total tokens: 80k cached input, 10k non-cached input, 10k output on Reasoning (Gemini 2.5 Flash)
       await engine.recordGeminiCost(
         "job_test_123",
         "user_test_456",
@@ -76,11 +74,11 @@ describe("Vertex AI Cost Optimization & Model Routing Suite", () => {
       expect(totalTokens).toBe(100000);
 
       // Cost calculation check:
-      // Non-cached input: 10,000 * 0.0000020 = $0.02
+      // Non-cached input: 10,000 * 0.00000015 = $0.0015
       // Cached input:     80,000 * 0.0000001 = $0.008
-      // Output:           10,000 * 0.0000100 = $0.10
-      // Total expected = $0.128
-      expect(calculatedCost).toBeCloseTo(0.128, 5);
+      // Output:           10,000 * 0.0000006 = $0.006
+      // Total expected = $0.0155
+      expect(calculatedCost).toBeCloseTo(0.0155, 5);
     });
   });
 
@@ -112,7 +110,7 @@ describe("Vertex AI Cost Optimization & Model Routing Suite", () => {
 
       expect(getGenerativeModelMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: "gemini-2.0-flash-lite",
+          model: PIPELINE_CONFIG.GEMINI_MODELS?.queryDecomposition || "gemini-2.5-flash",
         })
       );
     });

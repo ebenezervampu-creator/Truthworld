@@ -96,8 +96,24 @@ void main() {
       expect(channel.maxAllowedVideos, equals(100000));
     });
 
-    test('Subtitle Tiers use exact Starter (\$0.50) and Pro (\$0.75) for 10-minute video subtitles', () {
-      // 10-minute video (600s), 1 language
+    test('Subtitle Plan uses single unified Ultra tier (\$0.50 for 10-minute video subtitles)', () {
+      // 10-minute video (600s), 1 language = $0.50
+      final ultraCost10m = ChannelWalletService.calculateSubtitleCost(
+        languageCount: 1,
+        durationSeconds: 600,
+        tierId: 'ultra',
+      );
+      expect(ultraCost10m, equals(0.50));
+
+      // Additional language for 10-minute video (+$0.20 Ultra) = $0.70
+      final ultra2Langs = ChannelWalletService.calculateSubtitleCost(
+        languageCount: 2,
+        durationSeconds: 600,
+        tierId: 'ultra',
+      );
+      expect(ultra2Langs, equals(0.70));
+
+      // Backward compatibility aliases resolve to Ultra pricing
       final starterCost10m = ChannelWalletService.calculateSubtitleCost(
         languageCount: 1,
         durationSeconds: 600,
@@ -110,22 +126,7 @@ void main() {
         durationSeconds: 600,
         tierId: 'pro',
       );
-      expect(proCost10m, equals(0.75));
-
-      // Additional language for 10-minute video (+$0.20 Starter, +$0.30 Pro)
-      final starter2Langs = ChannelWalletService.calculateSubtitleCost(
-        languageCount: 2,
-        durationSeconds: 600,
-        tierId: 'starter',
-      );
-      expect(starter2Langs, equals(0.70));
-
-      final pro2Langs = ChannelWalletService.calculateSubtitleCost(
-        languageCount: 2,
-        durationSeconds: 600,
-        tierId: 'pro',
-      );
-      expect(pro2Langs, equals(1.05));
+      expect(proCost10m, equals(0.50));
     });
   });
 }

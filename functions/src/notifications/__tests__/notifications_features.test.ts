@@ -359,10 +359,8 @@ function testChannelNotificationPreferences() {
     // Check if video is personalized-eligible highlight
     const isVerified = video.isFactChecked === true || video.factCheckStatus === "verified";
     const isFeatured = video.featured === true || video.isFeatured === true;
-    const isHighTruth = typeof video.truthScore === "number" && video.truthScore >= 75;
-    const isHighTrust = typeof video.trustScore === "number" && video.trustScore >= 75;
-    const isHighlight = video.isHighlight === true;
-    const isPersonalizedEligible = isVerified || isFeatured || isHighTruth || isHighTrust || isHighlight;
+            const isHighlight = video.isHighlight === true;
+    const isPersonalizedEligible = isVerified || isFeatured || isHighlight;
 
     const notify = subDoc.notificationsEnabled !== false &&
       effectiveOption !== "none" &&
@@ -388,7 +386,7 @@ function testChannelNotificationPreferences() {
 
   // 3. Fan-out filtering tests
   const creatorId = "creator_123";
-  const routineVideo = { title: "Routine vlog", isFactChecked: false, truthScore: 50, featured: false };
+  const routineVideo = { title: "Routine vlog", isFactChecked: false, featured: false };
   const verifiedHighlight = { title: "Verified Fact-Check Investigation", factCheckStatus: "verified", truthScore: 92 };
 
   // Creator uploading own video
@@ -481,19 +479,15 @@ function testTopicNotificationPreferences() {
   function isPersonalizedEligible(video: any): boolean {
     const isVerified = video.isFactChecked === true || video.factCheckStatus === "verified";
     const isFeatured = video.featured === true || video.isFeatured === true;
-    const isHighTruth = typeof video.truthScore === "number" && video.truthScore >= 75;
-    const isHighTrust = typeof video.trustScore === "number" && video.trustScore >= 75;
-    const isHighlight = video.isHighlight === true;
-    return isVerified || isFeatured || isHighTruth || isHighTrust || isHighlight;
+            const isHighlight = video.isHighlight === true;
+    return isVerified || isFeatured || isHighlight;
   }
 
   assert(isPersonalizedEligible({ factCheckStatus: "verified" }) === true, "Personalized eligible: factCheckStatus verified");
   assert(isPersonalizedEligible({ isFactChecked: true }) === true, "Personalized eligible: isFactChecked true");
   assert(isPersonalizedEligible({ featured: true }) === true, "Personalized eligible: featured true");
-  assert(isPersonalizedEligible({ truthScore: 88 }) === true, "Personalized eligible: truthScore >= 75");
-  assert(isPersonalizedEligible({ trustScore: 75 }) === true, "Personalized eligible: trustScore >= 75");
-  assert(isPersonalizedEligible({ isHighlight: true }) === true, "Personalized eligible: isHighlight true");
-  assert(isPersonalizedEligible({ truthScore: 50, featured: false }) === false, "Routine video is not personalized eligible");
+      assert(isPersonalizedEligible({ isHighlight: true }) === true, "Personalized eligible: isHighlight true");
+  assert(isPersonalizedEligible({ featured: false }) === false, "Routine video is not personalized eligible");
 
   // 4. Topic follower fanout decision logic matching videoPublishTrigger
   function shouldNotifyTopicFollower(

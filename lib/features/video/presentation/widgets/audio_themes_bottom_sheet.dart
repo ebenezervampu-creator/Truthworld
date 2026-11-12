@@ -11,26 +11,16 @@ import 'package:truthworld/theme/app_theme.dart';
 extension AudioPlayerThemeStyling on AudioPlayerTheme {
   Color get accentColor {
     switch (this) {
-      case AudioPlayerTheme.ambientGlow:
-        return const Color(0xFFF59E0B); // Amber Studio Glow
-      case AudioPlayerTheme.retroVinyl:
-        return const Color(0xFFD97706); // Vinyl Bronze
-      case AudioPlayerTheme.cyberSpectrum:
-        return const Color(0xFF10B981); // Emerald Spectrum
-      case AudioPlayerTheme.lyricalStage:
-        return const Color(0xFFA78BFA); // Soft Lavender
-      case AudioPlayerTheme.zenAura:
-        return const Color(0xFF14B8A6); // Teal Zen
-      case AudioPlayerTheme.vintageCassette:
-        return const Color(0xFFF97316); // Tangerine Reel
-      case AudioPlayerTheme.analogVuMeter:
-        return const Color(0xFFFBBF24); // VU Meter Amber
-      case AudioPlayerTheme.cosmicNebula:
-        return const Color(0xFF818CF8); // Nebula Indigo
-      case AudioPlayerTheme.holographicCd:
-        return const Color(0xFF38BDF8); // Prism Sky Blue
-      case AudioPlayerTheme.fluidHorizon:
-        return const Color(0xFF06B6D4); // Cyan Horizon
+      case AudioPlayerTheme.fluidAura:
+        return const Color(0xFF6366F1); // Indigo Fluid Aura
+      case AudioPlayerTheme.kineticSyllable:
+        return const Color(0xFFA78BFA); // Soft Lavender Transcript
+      case AudioPlayerTheme.audiophileSpectral:
+        return const Color(0xFF10B981); // Emerald Precision Spectrum
+      case AudioPlayerTheme.obsidianMinimalist:
+        return const Color(0xFFFFFFFF); // Pure White Minimalist Accent
+      case AudioPlayerTheme.truthPulseHologram:
+        return const Color(0xFF38BDF8); // Cyan Hologram Pulse
     }
   }
 }

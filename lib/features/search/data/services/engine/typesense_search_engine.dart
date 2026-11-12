@@ -377,7 +377,6 @@ class TypesenseSearchEngine {
         category: doc['category']?.toString(),
         visibility: doc['visibility']?.toString() ?? 'public',
         isFactChecked: doc['isFactChecked'] == true,
-        trustScore: (doc['trustScore'] as num?)?.toDouble() ?? 0.0,
         isTrusted: doc['isTrusted'] == true,
         relevanceScore: 70.0,
       );

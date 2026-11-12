@@ -88,7 +88,7 @@ class ChannelPlanComparisonData {
           customValue: r'1,000 Views & 30h Watch Time (Min ₹100 / $10)',
           details:
               r'Payout rule is identical for Pro and Standard channels: earnings unlock per video once 1,000 views and 30 hours watch time are met. Minimum withdrawal is ₹100 for Indian channels and $10 for other countries in their currencies.',
-          icon: Icons.account_balance_wallet_outlined,
+          icon: Icons.payments_outlined,
         ),
       ],
     ),

@@ -117,7 +117,7 @@ Return ONLY a valid JSON object matching this schema:
       "sourceMedium": "speech | ocr_on_screen | hybrid",
       "verdict": "verified_true | mostly_true | false_claim | misleading | disputed | opinion | satire | unverified",
       "confidence": 0.85,
-      "reasoning": "Plain-language 1-sentence explanation"
+      "reasoning": "Very simple 1-sentence explanation a 10-year-old can understand (never say 'this claim' or 'from internal data')"
     }
   ],
   "detectedDomain": "Science | Politics | Tech | Health | Finance | General",
@@ -171,7 +171,8 @@ Return ONLY a valid JSON object matching this schema:
           for (let i = 0; i < validated.claims.length; i++) {
             const ctx = contexts.find(x => x.claimId === `claim_${i}`)?.context;
             if (ctx && ctx.length > 20) {
-              validated.claims[i].reasoning = `${validated.claims[i].reasoning} [Corroborated by Wikipedia: ${ctx.substring(0, 100)}...]`.trim();
+              const snippet = ctx.substring(0, 120).trim();
+              validated.claims[i].reasoning = `${validated.claims[i].reasoning} Helpful background: ${snippet}`.trim();
             }
           }
         } catch (tier0Err: any) {
@@ -229,7 +230,6 @@ Return ONLY a valid JSON object matching this schema:
       // Instantly write provisional data to Firestore video document
       await db().collection("videos").doc(videoId).set(
         {
-          trustScore: validated.provisionalScore,
           trustLabel: validated.provisionalLabel,
           isProvisional: true,
           provisionalScore: validated.provisionalScore,

@@ -33,7 +33,6 @@ void main() {
     required String title,
     required String category,
     required bool isFactChecked,
-    double trustScore = 0.0,
   }) {
     return Video(
       id: id,
@@ -45,7 +44,6 @@ void main() {
       channelName: 'Channel $id',
       category: category,
       tags: const [],
-      trustScore: trustScore,
       isFactChecked: isFactChecked,
       status: VideoStatus.ready,
       visibility: 'public',
@@ -84,7 +82,6 @@ void main() {
           title: 'Normal Unverified $category',
           category: category,
           isFactChecked: false,
-          trustScore: 0.0,
         );
 
         final factCheckedVideo = createTestVideo(
@@ -92,7 +89,6 @@ void main() {
           title: 'Verified Fact-Checked $category',
           category: category,
           isFactChecked: true,
-          trustScore: 4.5,
         );
 
         // Test homeFeedAll
@@ -121,7 +117,6 @@ void main() {
           title: 'Normal Unverified $category',
           category: category,
           isFactChecked: false,
-          trustScore: 0.0,
         );
 
         final factCheckedVideo = createTestVideo(
@@ -129,7 +124,6 @@ void main() {
           title: 'Verified Fact-Checked $category',
           category: category,
           isFactChecked: true,
-          trustScore: 4.0,
         );
 
         // Test videoRelated
@@ -156,14 +150,12 @@ void main() {
         title: 'Song 1',
         category: 'Music',
         isFactChecked: false,
-        trustScore: 0.0,
       );
       final music2 = createTestVideo(
         id: 'music_2',
         title: 'Song 2',
         category: 'Music',
         isFactChecked: true,
-        trustScore: 4.0,
       );
 
       final scored1 = AlgorithmEngine.scoreSingleVideo(
@@ -203,7 +195,6 @@ void main() {
           type: ResultType.video,
           category: category,
           isFactChecked: false,
-          trustScore: 0.0,
         );
 
         final factCheckedResult = SearchResult(
@@ -217,7 +208,6 @@ void main() {
           type: ResultType.video,
           category: category,
           isFactChecked: true,
-          trustScore: 4.5,
         );
 
         final query = '$category Trends';
@@ -250,7 +240,6 @@ void main() {
         type: ResultType.video,
         category: 'Health',
         isFactChecked: false,
-        trustScore: 0.0,
       );
 
       final factCheckedHealth = SearchResult(
@@ -264,7 +253,6 @@ void main() {
         type: ResultType.video,
         category: 'Health',
         isFactChecked: true,
-        trustScore: 4.8,
       );
 
       final scoreNormal = aiEngine.scoreSearchResult(normalHealth, intent);
@@ -274,7 +262,7 @@ void main() {
           reason: 'Verified fact-checked health video must score substantially higher than unverified');
     });
 
-    test('SearchResult serialization preserves isFactChecked and trustScore', () {
+    test('SearchResult serialization preserves isFactChecked', () {
       final original = SearchResult(
         id: 'sr_123',
         title: 'Quantum Computing Explained',
@@ -286,18 +274,15 @@ void main() {
         type: ResultType.video,
         category: 'Technology',
         isFactChecked: true,
-        trustScore: 4.7,
       );
 
       final map = original.toMap();
       expect(map['isFactChecked'], isTrue);
-      expect(map['trustScore'], 4.7);
 
       final reconstructed = SearchResult.fromMap(map);
       expect(reconstructed.id, original.id);
       expect(reconstructed.category, 'Technology');
       expect(reconstructed.isFactChecked, isTrue);
-      expect(reconstructed.trustScore, 4.7);
     });
   });
 }

@@ -14,6 +14,10 @@ import {
   AggregatedOutput,
   JobData,
   ExecutionPlan,
+  CredibilityJobData,
+  DubbingJobData,
+  isCredibilityEnabled,
+  isLocalizationEnabled,
 } from "../types";
 import { InputLayer } from "./02-input";
 import { DistributionLayer } from "./04-distribution";
@@ -121,11 +125,11 @@ export class EdgeLayer {
         queue: { status: "running", progress: 50, startedAt: now },
         transcription: this.stagePending(),
         copyright: this.stagePending(),
-        credibility: plan.enablePath1 ? this.stagePending() : this.stageSkipped(),
+        credibility: isCredibilityEnabled(plan) ? this.stagePending() : this.stageSkipped(),
         dubbing: plan.generateDubbing ? this.stagePending() : this.stageSkipped(),
       };
 
-      if (plan.enablePath2 || plan.enableReachEngine) {
+      if (isLocalizationEnabled(plan)) {
         const sourceLang = normalizeLanguageCode(plan.primaryLanguage || "en");
         const targetLanguages = (plan.languages || []).filter(l => normalizeLanguageCode(l) !== sourceLang); 
         for (const lang of targetLanguages) {
@@ -167,6 +171,7 @@ export class EdgeLayer {
 
       // ── 6. Firestore write ────────────────
       this.persistJobAsync(shard, jobId, jobData);
+      this.persistIndependentLedgersAsync(jobId, userId, videoUrl, plan, now);
 
       // ── 6.5 Record job acceptance ─────────────────────────
       costEngine.recordJobAccepted(userId, config.channelType, estimatedMinutes).catch((err: any) =>
@@ -217,8 +222,8 @@ export class EdgeLayer {
         else if (s.status === "running") overall += weight * (s.progress ?? 50);
       }
 
-      if (job.executionPlan?.enablePath2 || job.executionPlan?.enableReachEngine) {
-        const sourceLang = normalizeLanguageCode(job.executionPlan.primaryLanguage || "en");
+      if (isLocalizationEnabled(job.executionPlan)) {
+        const sourceLang = normalizeLanguageCode(job.executionPlan?.primaryLanguage || "en");
         const targetLanguages = (job.executionPlan.languages || []).filter(l => normalizeLanguageCode(l) !== sourceLang);
         if (targetLanguages.length > 0) {
           const weightPerLang = LOCALIZATION_TOTAL_WEIGHT / targetLanguages.length;
@@ -253,7 +258,6 @@ export class EdgeLayer {
           const d = await this.analysisRepository.loadAnalysis(jobId, "factChecks");
           if (d) {
             partial = {
-              rating: d.trustScore ?? 0,
               claims: d.claims?.map((c: any) => ({ claim: c.claim || c.text, status: c.status, severity: c.severity || "low" })) || [],
               fullResultPath: `factChecks/${jobId}/latest.json`,
             };
@@ -331,6 +335,79 @@ export class EdgeLayer {
     }
   }
 
+  /**
+   * Fail ONLY a single pipeline stage without clobbering the top-level job status
+   * so independent pipelines (Credibility vs Dubbing) never fail each other.
+   */
+  static async failStage(jobId: string, stage: string, errorMessage: string): Promise<void> {
+    const now = Date.now();
+    const fields: Record<string, unknown> = {
+      updatedAt: now,
+      version: admin.firestore.FieldValue.increment(1),
+      [`stages.${stage}.status`]: "failed",
+      [`stages.${stage}.error`]: errorMessage,
+      [`stages.${stage}.completedAt`]: now,
+    };
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await db().collection("video_jobs").doc(jobId).update(fields);
+        return;
+      } catch (err) {
+        const errMsg = String((err as any)?.message || err);
+        const isContention = /contention|aborted|unavailable|resource_exhausted|deadline/i.test(errMsg);
+        if (isContention && attempt < 3) {
+          await new Promise((res) => setTimeout(res, 50 * attempt + Math.floor(Math.random() * 50)));
+          continue;
+        }
+        logger.error("[Edge] Failed to mark stage as failed", { jobId, stage, err });
+        break;
+      }
+    }
+  }
+
+  /**
+   * Upserts the independent Credibility system ledger (`credibility_jobs/{jobId}`).
+   */
+  static async upsertCredibilityJob(
+    jobId: string,
+    patch: Partial<CredibilityJobData> & Record<string, any>
+  ): Promise<void> {
+    try {
+      await db().collection("credibility_jobs").doc(jobId).set(
+        {
+          jobId,
+          ...patch,
+          updatedAt: Date.now(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      logger.warn("[Edge] Failed to upsert credibility_jobs ledger", { jobId, err });
+    }
+  }
+
+  /**
+   * Upserts the independent Dubbing / Localization ledger (`dubbing_jobs/{jobId}`).
+   */
+  static async upsertDubbingJob(
+    jobId: string,
+    patch: Partial<DubbingJobData> & Record<string, any>
+  ): Promise<void> {
+    try {
+      await db().collection("dubbing_jobs").doc(jobId).set(
+        {
+          jobId,
+          ...patch,
+          updatedAt: Date.now(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      logger.warn("[Edge] Failed to upsert dubbing_jobs ledger", { jobId, err });
+    }
+  }
+
   static async failJob(jobId: string, stage: string, errorMessage: string): Promise<void> {
     const now = Date.now();
     const fields: Record<string, unknown> = {
@@ -365,6 +442,49 @@ export class EdgeLayer {
         await db().collection("video_jobs").doc(jobId).set(data);
       } catch (err) {
         logger.error("[Edge] Async Firestore persist failed", { jobId, err });
+      }
+    });
+  }
+
+  private persistIndependentLedgersAsync(
+    jobId: string,
+    userId: string,
+    videoUrl: string,
+    plan: ExecutionPlan,
+    now: number
+  ): void {
+    setImmediate(async () => {
+      if (isCredibilityEnabled(plan)) {
+        const credJob: CredibilityJobData = {
+          jobId,
+          ...(plan.videoId ? { videoId: plan.videoId } : {}),
+          userId,
+          ...(plan.channelId ? { channelId: plan.channelId } : {}),
+          videoUrl,
+          executionPlan: plan,
+          status: "pending",
+          progress: 0,
+          createdAt: now,
+          updatedAt: now,
+        };
+        await EdgeLayer.upsertCredibilityJob(jobId, credJob);
+      }
+      if (isLocalizationEnabled(plan)) {
+        const dubJob: DubbingJobData = {
+          jobId,
+          ...(plan.videoId ? { videoId: plan.videoId } : {}),
+          userId,
+          ...(plan.channelId ? { channelId: plan.channelId } : {}),
+          videoUrl,
+          executionPlan: plan,
+          status: "pending",
+          progress: 0,
+          languages: plan.dubbingLanguages || plan.languages || [],
+          subtitleLanguages: plan.subtitleLanguages || plan.languages || [],
+          createdAt: now,
+          updatedAt: now,
+        };
+        await EdgeLayer.upsertDubbingJob(jobId, dubJob);
       }
     });
   }

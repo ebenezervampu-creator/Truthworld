@@ -121,8 +121,7 @@ class VideoChannelActionBar {
               snapshot.data!.exists) {
             channel = Channel.fromDocumentSnapshot(snapshot.data!);
 
-            final rawTrust = snapshot.data!.data()?['trustScore'] ??
-                snapshot.data!.data()?['channelTrustScore'];
+            final rawTrust = snapshot.data!.data()?['channelTrustScore'];
             channelTrust = rawTrust is Map<String, dynamic>
                 ? ChannelTrustScore.fromMap(rawTrust)
                 : null;
@@ -514,8 +513,7 @@ class VideoChannelActionBar {
               snapshot.data!.exists) {
             channel = Channel.fromDocumentSnapshot(snapshot.data!);
 
-            final rawTrust = snapshot.data!.data()?['trustScore'] ??
-                snapshot.data!.data()?['channelTrustScore'];
+            final rawTrust = snapshot.data!.data()?['channelTrustScore'];
             channelTrust = rawTrust is Map<String, dynamic>
                 ? ChannelTrustScore.fromMap(rawTrust)
                 : null;

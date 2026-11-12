@@ -470,24 +470,39 @@ describe('Unit: World-Class Credibility Architecture', () => {
     });
   });
 
-  describe('Area 4: Institutional Reasoning Sanitizer & Cross-Lingual Grounding', () => {
+  describe('Area 4: Clear 10-Year-Old Friendly Response Sanitizer & Cross-Lingual Grounding', () => {
     const verificationService = new ClaimVerificationService('test-api-key');
 
-    it('cleans conversational first-person AI memories into institutional statements', () => {
+    it('cleans conversational first-person AI memories and archive jargon into simple everyday language', () => {
       const rawReasoning = "I looked through all my stories and general knowledge, but I couldn't find any common or famous story about a girl named Gopika being hurt with a chainsaw in a classroom. It's not something lots of people know about from my memory.";
       const cleaned = verificationService.sanitizeInstitutionalReasoning(rawReasoning, '15-year-old Gopika was attacked', 'inconclusive');
       
       expect(cleaned).not.toContain('from my memory');
       expect(cleaned).not.toContain('all my stories');
       expect(cleaned).not.toContain("I couldn't find");
-      expect(cleaned).toContain('No independent documentation');
+      expect(cleaned.toLowerCase()).not.toContain('this claim');
+      expect(cleaned.toLowerCase()).not.toContain('internal data');
+      expect(cleaned).toContain('No trusted news reports or official records have been found yet to back this up.');
     });
 
-    it('provides clear institutional confirmation for verified claims', () => {
+    it('strips forbidden phrases ("this claim", "from internal data", "indexed institutional public archives")', () => {
+      const archiveMsg = 'Authoritative corroboration could not be recovered from indexed institutional public archives.';
+      const cleanedArchive = verificationService.sanitizeInstitutionalReasoning(archiveMsg, 'Some medical statement', 'inconclusive');
+      expect(cleanedArchive).toBe('No clear outside sources or news reports were found to back this up yet.');
+      expect(cleanedArchive.toLowerCase()).not.toContain('archives');
+
+      const metaMsg = 'Based on internal data, this claim is not backed by studies, and no proof for this claim was published.';
+      const cleanedMeta = verificationService.sanitizeInstitutionalReasoning(metaMsg, 'Some medical statement', 'inconclusive');
+      expect(cleanedMeta.toLowerCase()).not.toContain('internal data');
+      expect(cleanedMeta.toLowerCase()).not.toContain('this claim');
+      expect(cleanedMeta).toContain('It is not backed by studies');
+    });
+
+    it('provides clear, simple confirmation when verified text was only AI memory chatter', () => {
       const rawReasoning = "from my memory I found some bits.";
       const cleaned = verificationService.sanitizeInstitutionalReasoning(rawReasoning, '15-year-old Gopika was attacked', 'verified_true');
       
-      expect(cleaned).toContain('Confirmed by official police reports');
+      expect(cleaned).toContain('Official reports and trusted news stories back this up.');
     });
   });
 });

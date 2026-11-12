@@ -51,7 +51,6 @@ Video _makeVideo({
     videoUrl: 'https://cdn.truthworld.in/video_$id.mp4',
     isApproved: true,
     geminiApproved: true,
-    trustScore: trustScore,
     isFactChecked: isFactChecked,
     status: status,
     visibility: visibility,

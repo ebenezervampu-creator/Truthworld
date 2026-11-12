@@ -5,5 +5,6 @@ export 'audio_tracks_context_manager.dart';
 export 'audio_tracks_editor_manager.dart';
 export 'audio_tracks_language_manager.dart';
 export 'audio_tracks_playback_controller.dart';
+export 'audio_tracks_segment_editor_controller.dart';
 export 'audio_tracks_upload_manager.dart';
 

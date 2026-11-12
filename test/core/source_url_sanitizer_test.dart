@@ -54,14 +54,14 @@ void main() {
       expect(unquoted, equals('https://en.wikipedia.org/wiki/Apollo_11'));
     });
 
-    test('Falls back to domain when raw URL is empty but domain is present', () {
+    test('Never synthesizes domain homepage when raw URL is empty', () {
       final sanitized = SourceUrlSanitizer.sanitizeUrl(
         '',
         title: 'CDC Vaccine Safety Statistics',
         publisher: 'CDC',
         domain: 'cdc.gov',
       );
-      expect(sanitized, equals('https://cdc.gov'));
+      expect(sanitized, isNull);
     });
 
     test('Returns null when both URL and domain are missing or empty', () {
@@ -125,7 +125,7 @@ void main() {
       expect(sanitized['domain'], equals('NASA'));
     });
 
-    test('Recovers authentic destination if URL was previously saved as a Google search query', () {
+    test('Strips synthetic Google search query URLs without substituting a homepage', () {
       final sourceMap = {
         'title': 'How Much Does It Cost to Go to Space in 2026? - Outer Space Trip',
         'url':
@@ -136,8 +136,9 @@ void main() {
 
       final sanitized = SourceUrlSanitizer.sanitizeSourceMap(sourceMap);
 
-      expect(sanitized['url'], equals('https://outerspacetrip.com'));
-      expect(sanitized['url'].toString().contains('google.com/search'), isFalse);
+      expect(sanitized['url'], isNull);
+      expect(sanitized['directUrl'], isNull);
+      expect(sanitized['link'], isNull);
     });
 
     test('Strictly rejects random text as authoritative sources', () {
@@ -221,10 +222,16 @@ void main() {
           'https://outerspacetrip.com/how-much-does-it-cost-to-go-to-space-in-2026/';
 
       final mockClient = MockClient.streaming((request, bodyStream) async {
+        if (request.url.host.contains('vertexaisearch')) {
+          return http.StreamedResponse(
+            const Stream.empty(),
+            302,
+            headers: {'location': canonicalArticleUrl},
+          );
+        }
         return http.StreamedResponse(
           const Stream.empty(),
-          302,
-          headers: {'location': canonicalArticleUrl},
+          200,
         );
       });
 
@@ -233,12 +240,89 @@ void main() {
         domain: 'outerspacetrip.com',
         title: 'How Much Does It Cost to Go to Space in 2026? - Outer Space Trip',
         client: mockClient,
+        isWebClient: false,
       );
 
       expect(safeUrl, equals(canonicalArticleUrl));
     });
 
-    test('resolveSafeDestinationUrl intercepts HTTP 404 from expired grounding redirect and falls back to domain', () async {
+    test('resolveSafeDestinationUrl quarantines HTTP 302 redirect when final destination returns HTTP 404', () async {
+      const redirectUrl =
+          'https://vertexaisearch.cloud.google.com/grounding-api-redirect/token404dest';
+      const deadTargetUrl =
+          'https://www.mayoclinic.org/healthy-lifestyle/deleted-page-404';
+
+      final mockClient = MockClient.streaming((request, bodyStream) async {
+        if (request.url.host.contains('vertexaisearch')) {
+          return http.StreamedResponse(
+            const Stream.empty(),
+            302,
+            headers: {'location': deadTargetUrl},
+          );
+        }
+        return http.StreamedResponse(
+          const Stream.empty(),
+          404,
+        );
+      });
+
+      String? reportedUrl;
+      int? reportedStatus;
+      final safeUrl = await SourceUrlSanitizer.resolveSafeDestinationUrl(
+        redirectUrl,
+        domain: 'mayoclinic.org',
+        client: mockClient,
+        isWebClient: false,
+        onBrokenSourceDetected: ({
+          required String brokenUrl,
+          String? videoId,
+          String? claimId,
+          int? httpStatus,
+          String? reason,
+        }) async {
+          reportedUrl = brokenUrl;
+          reportedStatus = httpStatus;
+        },
+      );
+
+      expect(safeUrl, isNull);
+      expect(reportedUrl, equals(redirectUrl));
+      expect(reportedStatus, equals(404));
+    });
+
+    test('resolveSafeDestinationUrl skips browser CORS HEAD pre-flight on Web and returns sanitized URL directly', () async {
+      const webVerifiedUrl =
+          'https://www.reuters.com/world/verified-article';
+      var httpCalled = false;
+
+      final mockClient = MockClient.streaming((request, bodyStream) async {
+        httpCalled = true;
+        throw Exception('Browser CORS would block this request');
+      });
+
+      var reported = false;
+      final safeUrl = await SourceUrlSanitizer.resolveSafeDestinationUrl(
+        webVerifiedUrl,
+        domain: 'reuters.com',
+        client: mockClient,
+        isWebClient: true,
+        onBrokenSourceDetected: ({
+          required String brokenUrl,
+          String? videoId,
+          String? claimId,
+          int? httpStatus,
+          String? reason,
+        }) async {
+          reported = true;
+        },
+      );
+
+      expect(httpCalled, isFalse);
+      expect(reported, isFalse);
+      expect(safeUrl, equals(webVerifiedUrl));
+    });
+
+    test('resolveSafeDestinationUrl quarantines HTTP 404 from expired grounding redirect instead of returning homepage', () async {
       const deadRedirectUrl =
           'https://vertexaisearch.cloud.google.com/grounding-api-redirect/expired_token';
 
@@ -249,18 +333,33 @@ void main() {
         );
       });
 
+      String? reportedUrl;
+      int? reportedStatus;
       final safeUrl = await SourceUrlSanitizer.resolveSafeDestinationUrl(
         deadRedirectUrl,
         domain: 'outerspacetrip.com',
         title: 'Space Travel Guide',
+        videoId: 'vid_test_1',
+        claimId: 'claim_18',
+        onBrokenSourceDetected: ({
+          required String brokenUrl,
+          String? videoId,
+          String? claimId,
+          int? httpStatus,
+          String? reason,
+        }) async {
+          reportedUrl = brokenUrl;
+          reportedStatus = httpStatus;
+        },
         client: mockClient,
       );
 
-      expect(safeUrl, equals('https://outerspacetrip.com'));
-      expect(safeUrl!.contains('vertexaisearch'), isFalse);
+      expect(safeUrl, isNull);
+      expect(reportedUrl, equals(deadRedirectUrl));
+      expect(reportedStatus, equals(404));
     });
 
-    test('resolveSafeDestinationUrl intercepts HTTP 404 on dead article link and falls back to domain root', () async {
+    test('resolveSafeDestinationUrl quarantines HTTP 404 on dead article link instead of falling back to domain root', () async {
       const deadArticleUrl =
           'https://reuters.com/world/deleted-broken-article-404';
 
@@ -271,13 +370,57 @@ void main() {
         );
       });
 
+      String? reportedUrl;
+      int? reportedStatus;
       final safeUrl = await SourceUrlSanitizer.resolveSafeDestinationUrl(
         deadArticleUrl,
         domain: 'reuters.com',
+        onBrokenSourceDetected: ({
+          required String brokenUrl,
+          String? videoId,
+          String? claimId,
+          int? httpStatus,
+          String? reason,
+        }) async {
+          reportedUrl = brokenUrl;
+          reportedStatus = httpStatus;
+        },
         client: mockClient,
       );
 
-      expect(safeUrl, equals('https://reuters.com'));
+      expect(safeUrl, isNull);
+      expect(reportedUrl, equals(deadArticleUrl));
+      expect(reportedStatus, equals(404));
+    });
+
+    test('resolveSafeDestinationUrl preserves HTTP 403 bot-blocked article URL for interactive browser launch', () async {
+      const protectedUrl = 'https://www.reuters.com/world/protected-article';
+
+      final mockClient = MockClient.streaming((request, bodyStream) async {
+        return http.StreamedResponse(
+          const Stream.empty(),
+          403,
+        );
+      });
+
+      var reported = false;
+      final safeUrl = await SourceUrlSanitizer.resolveSafeDestinationUrl(
+        protectedUrl,
+        domain: 'reuters.com',
+        onBrokenSourceDetected: ({
+          required String brokenUrl,
+          String? videoId,
+          String? claimId,
+          int? httpStatus,
+          String? reason,
+        }) async {
+          reported = true;
+        },
+        client: mockClient,
+      );
+
+      expect(safeUrl, equals(protectedUrl));
+      expect(reported, isFalse);
     });
 
     test('resolveSafeDestinationUrl preserves alive 200 URLs', () async {
@@ -325,39 +468,33 @@ void main() {
       expect(SourceUrlSanitizer.isDummyDomain('example.com'), isTrue);
     });
 
-    test('resolveFallbackUrl never produces broken non-FQDN URLs like https://nasa', () {
+    test('resolveFallbackUrl returns null instead of synthesizing homepages or search URLs', () {
       final nasaFallback = SourceUrlSanitizer.resolveFallbackUrl(
         domain: 'NASA',
         title: 'Risks of Human Spaceflight - NASA',
       );
-      expect(nasaFallback, equals('https://nasa.gov'));
-      expect(nasaFallback, isNot(equals('https://NASA')));
-      expect(nasaFallback, isNot(equals('https://nasa')));
+      expect(nasaFallback, isNull);
 
       final wionFallback = SourceUrlSanitizer.resolveFallbackUrl(
         domain: 'WION',
         title: "Budget 2024: India's Department of Space - WION",
       );
-      expect(wionFallback, equals('https://wionews.com'));
-      expect(wionFallback, isNot(equals('https://WION')));
+      expect(wionFallback, isNull);
 
       final visualFallback = SourceUrlSanitizer.resolveFallbackUrl(
         domain: 'Visual Capitalist',
         title: 'The Cost of Space Flight - Visual Capitalist',
       );
-      expect(visualFallback, equals('https://visualcapitalist.com'));
-      expect(visualFallback, isNot(contains('https://Visual')));
+      expect(visualFallback, isNull);
 
-      // Unknown publisher with title falls back to 100% reliable Google search URL
       final genericFallback = SourceUrlSanitizer.resolveFallbackUrl(
         domain: 'Verified Source',
         title: r'How Much Does It Cost to Go to Space? $150K to $55M in 2026',
       );
-      expect(genericFallback, contains('google.com/search?q='));
-      expect(genericFallback, isNot(contains('Verified')));
+      expect(genericFallback, isNull);
     });
 
-    test('resolveSafeDestinationUrl intercepts dead redirect and safely falls back to canonical domain for NASA', () async {
+    test('resolveSafeDestinationUrl quarantines dead redirect instead of falling back to NASA homepage', () async {
       const deadRedirectUrl =
           'https://vertexaisearch.cloud.google.com/grounding-api-redirect/expired_token';
 
@@ -368,26 +505,35 @@ void main() {
         );
       });
 
+      String? reportedUrl;
       final safeUrl = await SourceUrlSanitizer.resolveSafeDestinationUrl(
         deadRedirectUrl,
         domain: 'NASA',
         publisher: 'NASA',
         title: 'Risks of Human Spaceflight - NASA',
+        onBrokenSourceDetected: ({
+          required String brokenUrl,
+          String? videoId,
+          String? claimId,
+          int? httpStatus,
+          String? reason,
+        }) async {
+          reportedUrl = brokenUrl;
+        },
         client: mockClient,
       );
 
-      // Must resolve to https://nasa.gov and NEVER https://nasa!
-      expect(safeUrl, equals('https://nasa.gov'));
-      expect(safeUrl, isNot(equals('https://nasa')));
+      expect(safeUrl, isNull);
+      expect(reportedUrl, equals(deadRedirectUrl));
     });
 
-    test('sanitizeUrl repairs malformed host like https://nasa to https://nasa.gov', () {
+    test('sanitizeUrl rejects malformed single-label host like https://nasa instead of substituting a homepage', () {
       final sanitized = SourceUrlSanitizer.sanitizeUrl(
         'https://nasa',
         title: 'Risks of Human Spaceflight - NASA',
         domain: 'NASA',
       );
-      expect(sanitized, equals('https://nasa.gov'));
+      expect(sanitized, isNull);
     });
 
     test('isBlankOrDummyUrl correctly identifies empty, dummy anchors, and invalid schemas', () {
@@ -408,26 +554,26 @@ void main() {
       expect(SourceUrlSanitizer.isBlankOrDummyUrl('https://nasa.gov'), isFalse);
     });
 
-    test('sanitizeUrl safely heals dummy anchor "#" using publisher or title', () {
+    test('sanitizeUrl rejects dummy anchor "#" instead of fabricating a publisher homepage or search URL', () {
       final healed1 = SourceUrlSanitizer.sanitizeUrl(
         '#',
         title: 'Risks of Human Spaceflight - NASA',
         publisher: 'NASA',
       );
-      expect(healed1, equals('https://nasa.gov'));
+      expect(healed1, isNull);
 
       final healed2 = SourceUrlSanitizer.sanitizeUrl(
         '#',
         title: 'Space Tourism Trends',
         publisher: 'Visual Capitalist',
       );
-      expect(healed2, equals('https://visualcapitalist.com'));
+      expect(healed2, isNull);
 
       final healed3 = SourceUrlSanitizer.sanitizeUrl(
         '#',
         title: 'Unknown Study Results',
       );
-      expect(healed3, contains('google.com/search?q='));
+      expect(healed3, isNull);
     });
 
     test('resolveCanonicalDomain covers newly added global publishers', () {

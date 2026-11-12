@@ -117,32 +117,57 @@ export const mockBucket = {
   file: jest.fn(() => mockFile),
 };
 
-// Use jest.spyOn for getter properties
-const firestoreSpy = jest.spyOn(admin, 'firestore').mockReturnValue(testFirestore as any);
-(admin.firestore as any).FieldValue = FieldValue;
-(admin.firestore as any).Timestamp = Timestamp;
-
-jest.spyOn(admin, 'auth').mockReturnValue(mockAuth as any);
-jest.spyOn(admin, 'storage').mockReturnValue({
-  bucket: jest.fn(() => mockBucket),
-} as any);
-jest.spyOn(admin, 'appCheck').mockReturnValue({
+// Use jest.spyOn for getter properties and re-attach in beforeEach if a test calls jest.restoreAllMocks()
+const mockAppCheck = {
   verifyToken: jest.fn(async (token: string) => {
     if (token === 'invalid_app_check_token') {
       throw new Error('Invalid App Check token.');
     }
     return { appId: 'truthworld-test-app', token };
   }),
+};
+
+let firestoreSpy = jest.spyOn(admin, 'firestore').mockReturnValue(testFirestore as any);
+(admin.firestore as any).FieldValue = FieldValue;
+(admin.firestore as any).Timestamp = Timestamp;
+
+let authSpy = jest.spyOn(admin, 'auth').mockReturnValue(mockAuth as any);
+let storageSpy = jest.spyOn(admin, 'storage').mockReturnValue({
+  bucket: jest.fn(() => mockBucket),
 } as any);
+let appCheckSpy = jest.spyOn(admin, 'appCheck').mockReturnValue(mockAppCheck as any);
+
+function ensureAdminMocks() {
+  if (!jest.isMockFunction(admin.firestore)) {
+    firestoreSpy = jest.spyOn(admin, 'firestore');
+  }
+  firestoreSpy.mockReturnValue(testFirestore as any);
+  (admin.firestore as any).FieldValue = FieldValue;
+  (admin.firestore as any).Timestamp = Timestamp;
+
+  if (!jest.isMockFunction(admin.auth)) {
+    authSpy = jest.spyOn(admin, 'auth').mockReturnValue(mockAuth as any);
+  }
+  if (!jest.isMockFunction(admin.storage)) {
+    storageSpy = jest.spyOn(admin, 'storage').mockReturnValue({
+      bucket: jest.fn(() => mockBucket),
+    } as any);
+  }
+  if (!jest.isMockFunction(admin.appCheck)) {
+    appCheckSpy = jest.spyOn(admin, 'appCheck').mockReturnValue(mockAppCheck as any);
+  }
+  // Keep references used to avoid unused-variable warnings
+  void authSpy;
+  void storageSpy;
+  void appCheckSpy;
+}
 
 // Reset database and mock state before each test
 beforeEach(() => {
   testFirestore.clear();
   mockClaimsStore.clear();
   jest.clearAllMocks();
-  firestoreSpy.mockReturnValue(testFirestore as any);
-  (admin.firestore as any).FieldValue = FieldValue;
-  (admin.firestore as any).Timestamp = Timestamp;
+  ensureAdminMocks();
 });
 
 afterAll(() => {

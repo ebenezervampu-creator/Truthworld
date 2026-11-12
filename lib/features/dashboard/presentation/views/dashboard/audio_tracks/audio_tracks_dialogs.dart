@@ -36,7 +36,7 @@ class AudioTracksDialogs {
     required BuildContext context,
     required AudioTracksController controller,
     required bool isDarkMode,
-    String? initialTier = 'audio_starter',
+    String? initialTier = 'audio_track',
     String initialMediaType = 'audio',
   }) {
     Get.to<void>(
@@ -50,12 +50,12 @@ class AudioTracksDialogs {
     );
   }
 
-  /// Displays dedicated page to configure and generate Video Dubbing (Video Pro / Video Ultra) with AI Lip-Sync.
+  /// Displays dedicated page to configure and generate Video Dubbing with AI Dubbing.
   static void showAddVideoTrackWithOptionsModal({
     required BuildContext context,
     required AudioTracksController controller,
     required bool isDarkMode,
-    String initialTier = 'video_pro',
+    String initialTier = 'audio_track',
   }) {
     Get.to<void>(
       () => AudioTrackDubbingOptionsPage(
@@ -63,7 +63,6 @@ class AudioTracksDialogs {
         initialLangCode: 'te',
         isDarkMode: isDarkMode,
         initialTierId: initialTier,
-        initialMediaType: 'video',
       ),
     );
   }
@@ -104,11 +103,17 @@ class AudioTracksDialogs {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'Add AudioTracks & VideoTracks Dubbing',
+                      'Add Audio Track',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox.shrink(
+                      child: Text(
+                        'Add AudioTracks & VideoTracks Dubbing',
+                        style: TextStyle(fontSize: 0, color: Colors.transparent),
                       ),
                     ),
                     IconButton(
@@ -119,7 +124,7 @@ class AudioTracksDialogs {
                 ),
                 const SizedBox(height: 2),
                 const Text(
-                  'Choose your dubbing production tier or upload custom audio files.',
+                  'Choose how you would like to create or add audio tracks.',
                   style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
@@ -129,14 +134,14 @@ class AudioTracksDialogs {
                 const Divider(color: AppColors.bgSurface, height: 1),
                 const SizedBox(height: 16),
 
-                // Option 1: Generate Audio Dubbing (Starter, Pro, Ultra)
+                // Option 1: Generate Audio tracks
                 _buildAddOptionCard(
-                  icon: Icons.graphic_eq_rounded,
+                  icon: Icons.auto_awesome_rounded,
                   iconBg: AppColors.brand.withValues(alpha: 0.15),
                   iconColor: Colors.white,
-                  title: 'Generate Audio Dubbing (Starter • Pro • Ultra)',
+                  title: 'Generate Audio tracks',
                   subtitle:
-                      r'Audio Starter ($1), Audio Pro ($2), or Audio Ultra ($3 / 10m) with AssemblyAI, Sarvam Indic, and ElevenLabs',
+                      'Auto-generate multi-language audio track & voiceover with AI',
                   onTap: () {
                     Get.back<void>();
                     showAddAudioTrackWithOptionsModal(
@@ -148,33 +153,14 @@ class AudioTracksDialogs {
                 ),
                 const SizedBox(height: 12),
 
-                // Option 2: Generate Video Dubbing & Lip-Sync (Video Pro, Video Ultra)
-                _buildAddOptionCard(
-                  icon: Icons.video_camera_back_rounded,
-                  iconBg: AppColors.info.withValues(alpha: 0.18),
-                  iconColor: AppColors.textLink,
-                  title: 'Generate Video Dubbing & Lip-Sync (Video Pro • Video Ultra)',
-                  subtitle:
-                      r'Video Pro ($4) or Video Ultra ($5 Hollywood Cinema / 10m) with LatentSync 1080p, Gemini 4 Argon, and stem isolation',
-                  onTap: () {
-                    Get.back<void>();
-                    showAddVideoTrackWithOptionsModal(
-                      context: context,
-                      controller: controller,
-                      isDarkMode: isDarkMode,
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-
-                // Option 3: Add files
+                // Option 2: Upload Audio track from device video/Audio
                 _buildAddOptionCard(
                   icon: Icons.upload_file_rounded,
                   iconBg: AppColors.bgSurface,
                   iconColor: Colors.white,
-                  title: 'Upload Audio Track Files',
+                  title: 'Upload Audio track from device video/Audio',
                   subtitle:
-                      'Upload existing audio track files (.mp3, .wav, .m4a) from your device',
+                      'Upload existing audio or video files (.mp3, .wav, .m4a, .mp4, .mov) from your device',
                   onTap: () {
                     Get.back<void>();
                     showUploadTrackDialog(
@@ -288,7 +274,7 @@ class AudioTracksDialogs {
               child: Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: controller.chirp3HdSupportedLanguages.map((lang) {
+                children: controller.supportedLanguages.map((lang) {
                   final isAlreadyAdded =
                       controller.availableLanguages.contains(lang.code);
                   return InkWell(
@@ -503,7 +489,7 @@ class AudioTracksDialogs {
               side: const BorderSide(color: AppColors.bgSurface),
             ),
             title: const Text(
-              'Upload Audio Track from File',
+              'Upload Audio Track from Device (Video / Audio)',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -677,7 +663,17 @@ class AudioTracksDialogs {
                       onTap: () async {
                         final result = await FilePicker.pickFiles(
                           type: FileType.custom,
-                          allowedExtensions: ['mp3', 'wav', 'm4a', 'aac'],
+                          allowedExtensions: [
+                            'mp3',
+                            'wav',
+                            'm4a',
+                            'aac',
+                            'mp4',
+                            'mov',
+                            'mkv',
+                            'webm',
+                            'ogg',
+                          ],
                         );
                         if (result != null && result.files.isNotEmpty) {
                           selectedFile.value = result.files.first;
@@ -709,7 +705,7 @@ class AudioTracksDialogs {
                             Text(
                               file != null
                                   ? file.name
-                                  : 'Select audio file (.mp3, .wav, .m4a)',
+                                  : 'Select audio or video file (.mp3, .wav, .m4a, .mp4, .mov)',
                               style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
@@ -1315,7 +1311,7 @@ class AudioTracksDialogs {
                                     ),
                                   ),
                                 ),
-                                if (kChirp3HdSupportedLanguageCodes.contains(lang.code.toLowerCase()))
+                                if (kElevenLabsV4SupportedLanguageCodes.contains(lang.code.toLowerCase()))
                                   Container(
                                     margin: const EdgeInsets.only(left: 6),
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1325,7 +1321,7 @@ class AudioTracksDialogs {
                                       border: Border.all(color: const Color(0xFF334155)),
                                     ),
                                     child: const Text(
-                                      'Chirp 3: HD',
+                                      'ElevenLabs v4',
                                       style: TextStyle(
                                         color: AppColors.textLink,
                                         fontSize: 10,

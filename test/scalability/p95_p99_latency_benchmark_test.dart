@@ -162,7 +162,6 @@ void main() {
         videoUrl: 'https://cdn.truthworld.in/vid.mp4',
         isApproved: true,
         geminiApproved: true,
-        trustScore: 90.0,
         isFactChecked: true,
         status: VideoStatus.ready,
         visibility: 'public',

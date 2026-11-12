@@ -641,52 +641,50 @@ void main() {
       const sevenMinutesSeconds = 420; // 7 minutes
 
       // --- 10-MINUTE VIDEO VERIFICATION ---
-      // Standard Dubbing: $1.00
+      // Audio Track Dubbing: $3.00 ($0.30/min)
       final standardDubbing10m = ChannelWalletService.getFlatDubbingPricePerLanguage(
         durationSeconds: tenMinutesSeconds,
         voiceType: 'standard',
       );
-      expect(standardDubbing10m, equals(1.00));
+      expect(standardDubbing10m, equals(3.00));
 
-      // Studio Voice Cloning: $2.00
+      // Studio Voice Cloning: $3.00
       final voiceClone10m = ChannelWalletService.getFlatDubbingPricePerLanguage(
         durationSeconds: tenMinutesSeconds,
         voiceType: 'cloned',
       );
-      expect(voiceClone10m, equals(2.00));
+      expect(voiceClone10m, equals(3.00));
 
-      // AI Visual Lip-Sync: $3.00
+      // AI Visual Lip-Sync: $0.00 (Discontinued)
       final lipSync10m = ChannelWalletService.getFlatLipSyncPricePerLanguage(
         durationSeconds: tenMinutesSeconds,
       );
-      expect(lipSync10m, equals(3.00));
+      expect(lipSync10m, equals(0.00));
 
       // --- 7-MINUTE VIDEO VERIFICATION (Proportional Cut) ---
-      // Standard Dubbing: $0.70 ($0.30 cut from $1.00)
+      // Audio Track Dubbing: $2.10 (7 min * $0.30)
       final standardDubbing7m = ChannelWalletService.getFlatDubbingPricePerLanguage(
         durationSeconds: sevenMinutesSeconds,
         voiceType: 'standard',
       );
-      expect(standardDubbing7m, equals(0.70));
+      expect(standardDubbing7m, equals(2.10));
 
-      // Studio Voice Cloning: $1.40 ($0.60 cut from $2.00)
+      // Studio Voice Cloning: $2.10
       final voiceClone7m = ChannelWalletService.getFlatDubbingPricePerLanguage(
         durationSeconds: sevenMinutesSeconds,
         voiceType: 'cloned',
       );
-      expect(voiceClone7m, equals(1.40));
+      expect(voiceClone7m, equals(2.10));
 
-      // AI Visual Lip-Sync: $2.10 ($0.90 cut from $3.00)
+      // AI Visual Lip-Sync: $0.00 (Discontinued)
       final lipSync7m = ChannelWalletService.getFlatLipSyncPricePerLanguage(
         durationSeconds: sevenMinutesSeconds,
       );
-      expect(lipSync7m, equals(2.10));
+      expect(lipSync7m, equals(0.00));
 
-      // --- VERIFY 7-MIN AND 10-MIN DO NOT PAY THE SAME ---
+      // --- VERIFY 7-MIN AND 10-MIN DO NOT PAY THE SAME FOR DUBBING ---
       expect(standardDubbing7m, isNot(equals(standardDubbing10m)));
       expect(voiceClone7m, isNot(equals(voiceClone10m)));
-      expect(lipSync7m, isNot(equals(lipSync10m)));
-      expect(lipSync7m, lessThan(lipSync10m));
 
       // --- VERIFY STANDARD AND PRO (CUSTOM) CHANNELS GET THE SAME UNIFIED PASS-THROUGH RATE ---
       final customStandardDubbing7m = ChannelWalletService.getFlatDubbingPricePerLanguage(
@@ -706,22 +704,20 @@ void main() {
 
       expect(customStandardDubbing7m, equals(standardDubbing7m));
       expect(customVoiceClone7m, equals(voiceClone7m));
-      expect(customLipSync7m, equals(lipSync7m));
+      expect(customLipSync7m, equals(0.00));
 
-      // Total Lip-Sync cost across 3 languages for 7-minute video: 3 * $2.10 = $6.30
+      // Lip-Sync discontinued -> 0.00 cost
       final totalLipSync7m3Langs = ChannelWalletService.calculateLipSyncCost(
         languageCount: 3,
         durationSeconds: sevenMinutesSeconds,
       );
-      expect(totalLipSync7m3Langs, equals(6.30));
+      expect(totalLipSync7m3Langs, equals(0.00));
 
-      // Total Lip-Sync cost across 3 languages for 10-minute video: 3 * $3.00 = $9.00
       final totalLipSync10m3Langs = ChannelWalletService.calculateLipSyncCost(
         languageCount: 3,
         durationSeconds: tenMinutesSeconds,
       );
-      expect(totalLipSync10m3Langs, equals(9.00));
-      expect(totalLipSync7m3Langs, lessThan(totalLipSync10m3Langs));
+      expect(totalLipSync10m3Langs, equals(0.00));
     });
 
     test('Calculates Tiered Subtitle Pricing based on video duration and channel type', () {

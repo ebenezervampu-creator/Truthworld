@@ -17,7 +17,6 @@ class VideoMediaCacheManager {
     required List<VideoResolutionV2> adaptiveResolutions,
     required List<String> thumbnailVariants,
     required String animatedPreviewUrl,
-    required double trustScore,
     required String? trustLabel,
     Map<String, String>? mediaSubtitles,
     Map<String, String>? dubbedVideos,
@@ -43,13 +42,15 @@ class VideoMediaCacheManager {
     if (id.isEmpty) return;
 
     // 1. Localization cache
-    if ((mediaSubtitles != null && mediaSubtitles.isNotEmpty) ||
-        (dubbedVideos != null && dubbedVideos.isNotEmpty) ||
-        (audioTracks != null && audioTracks.isNotEmpty)) {
+    if (mediaSubtitles != null ||
+        dubbedVideos != null ||
+        audioTracks != null) {
+      final existing = VideoMediaService.localizationCache[id];
       VideoMediaService.localizationCache[id] = VideoMediaLocalization(
-        subtitles: mediaSubtitles ?? const {},
-        dubbedVideos: dubbedVideos ?? const {},
-        audioTracks: audioTracks ?? const {},
+        subtitles: mediaSubtitles ?? existing?.subtitles ?? const {},
+        dubbedVideos: dubbedVideos ?? existing?.dubbedVideos ?? const {},
+        audioTracks: audioTracks ?? existing?.audioTracks ?? const {},
+        commentaryVideos: existing?.commentaryVideos ?? const {},
       );
     }
 
@@ -60,7 +61,6 @@ class VideoMediaCacheManager {
         (factCheckUrl != null && factCheckUrl.isNotEmpty) ||
         (transcriptionUrl != null && transcriptionUrl.isNotEmpty)) {
       VideoMediaService.credibilityCache[id] = VideoMediaCredibility(
-        trustScore: trustScore,
         trustLabel: trustLabel,
         scoringFactors: scoringFactors,
         deductions: deductions ?? const [],

@@ -16,6 +16,10 @@ class VideoAnalysisEmptyFallback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isFactChecked = video?.isFactChecked == true ||
+        video?.isFactCheckApproved == true ||
+        video?.credibilityStatus == 'completed' ||
+        (video != null && video!.hasTruthIntelligence);
     final isNonCred = video?.isNonCredibilityCategory ?? false;
     return Center(
       child: Padding(
@@ -34,7 +38,11 @@ class VideoAnalysisEmptyFallback extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             Text(
-              isNonCred ? 'Fact-Checking Not Applicable' : 'Not Fact-Checked Yet',
+              isFactChecked
+                  ? 'No Empirical Claims Evaluated'
+                  : (isNonCred
+                      ? 'Fact-Checking Not Applicable'
+                      : 'Not Fact-Checked Yet'),
               style: context.twTypography.headline.copyWith(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -43,9 +51,11 @@ class VideoAnalysisEmptyFallback extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              isNonCred
-                  ? 'Theological claims, scriptural interpretations, and spiritual or creative content are categorized as personal convictions and are not subjected to empirical fact-checking.'
-                  : 'Artificial intelligence and epistemic fact-checking engines are deployed for verified videos. Subscribers to TruthWorld Premium + Fact-Checked can trigger instant analysis.',
+              isFactChecked
+                  ? 'Truth verification was completed for this video. The content consists of historical commentary, perspectives, or subjective opinions with no verifiable empirical assertions.'
+                  : (isNonCred
+                      ? 'Theological claims, scriptural interpretations, and spiritual or creative content are categorized as personal convictions and are not subjected to empirical fact-checking.'
+                      : 'Artificial intelligence and epistemic fact-checking engines are deployed for verified videos. Subscribers to TruthWorld Premium + Fact-Checked can trigger instant analysis.'),
               textAlign: TextAlign.center,
               style: context.twTypography.body.copyWith(
                 color: AppColors.textSecondary,
@@ -53,7 +63,7 @@ class VideoAnalysisEmptyFallback extends StatelessWidget {
                 height: 1.5,
               ),
             ),
-            if (!isNonCred) ...[
+            if (!isNonCred && !isFactChecked) ...[
               const SizedBox(height: 32),
               ElevatedButton.icon(
               onPressed: () async {
@@ -83,7 +93,7 @@ class VideoAnalysisEmptyFallback extends StatelessWidget {
                     buttonLabel = r'Upgrade to $3 Fact-Checked Plan';
                   } else {
                     upgradeDescription =
-                        r'On-demand AI video fact-checking is exclusive to the $3 TruthWorld Premium + Fact-Checked Plan. Upgrade to fact-check any video instantly with AI claim verification and truth scores.';
+                        r'On-demand AI video fact-checking is exclusive to the $3 TruthWorld Premium + Fact-Checked Plan. Upgrade to fact-check any video instantly with AI claim verification and source citations.';
                     buttonLabel = r'View $3 Fact-Checked Plan';
                   }
 

@@ -36,7 +36,6 @@ class VideoEntity {
     this.isKidFriendly = true,
     this.enableComments = true,
     this.isMonetized = false,
-    this.trustScore = 0.0,
     this.resubmitCount = 0,
   });
   final String id;
@@ -83,7 +82,6 @@ class VideoEntity {
   final bool enableComments;
   bool get allowComments => enableComments;
   final bool isMonetized;
-  final double trustScore;
   final int resubmitCount;
 
   bool get canResubmit => status == 'rejected' && resubmitCount < 2;

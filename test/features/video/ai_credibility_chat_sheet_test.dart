@@ -4,6 +4,8 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
+import 'package:truthworld/features/video/data/models/credibility_chat_message.dart';
+import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/ai_credibility_chat_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/ai_credibility_chat_controller.dart';
@@ -19,6 +21,8 @@ class _FakeConnectivityService extends GetxService implements ConnectivityServic
 class _FakeAuthService extends GetxService implements AuthService {
   @override
   String get uid => 'test_user';
+  @override
+  bool get isUserSignedIn => true;
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -179,7 +183,6 @@ void main() {
         userQuery: 'hi',
         scope: 'video',
         videoTitle: testVideo.title,
-        trustScore: 88,
         cachedSources: const [
           {'title': 'Poultry Science Journal', 'url': 'https://example.org/poultry'},
         ],
@@ -203,7 +206,6 @@ void main() {
         userQuery: 'what are the primary sources?',
         scope: 'video',
         videoTitle: testVideo.title,
-        trustScore: 92,
         cachedSources: const [
           {'title': 'USDA Dietary Guidelines', 'url': 'https://usda.gov/egg-guidelines'},
         ],
@@ -213,6 +215,140 @@ void main() {
       expect(msg.text.contains('primary verified sources'), isTrue);
       expect(msg.sources.isNotEmpty, isTrue);
       expect(msg.sources.first.title, equals('USDA Dietary Guidelines'));
+    });
+
+    testWidgets('Renders Perplexity-style inline citation badges [1] linked to sources and opens modal on tap', (tester) async {
+      final tag = '${testVideo.id}_claim_5';
+      final ctrl = Get.put(AiCredibilityChatController(), tag: tag);
+      ctrl.initScope(
+        targetVideoId: testVideo.id,
+        targetScope: 'claim',
+        video: testVideo,
+        targetClaimIndex: 5,
+        targetClaimText: 'Historical records verify this claim.',
+        targetVerdict: 'VERIFIED TRUE',
+        title: testVideo.title,
+      );
+
+      // Seed an AI message with inline citations [1] and [2]
+      final testSource1 = UISource(
+        title: 'National Archives & Records Administration',
+        trustLevel: 'High',
+        type: 'Government Archive',
+        url: 'https://archives.gov/historical-records',
+        domain: 'archives.gov',
+        publisher: 'NARA',
+        snippet: 'Primary documentation proving the historical succession and cabinet deliberations.',
+      );
+      final testSource2 = UISource(
+        title: 'Oxford University Press Historical Review',
+        trustLevel: 'High',
+        type: 'Academic Journal',
+        url: 'https://academic.oup.com/history/article-123',
+        domain: 'academic.oup.com',
+        publisher: 'Oxford University Press',
+      );
+
+      ctrl.messages.add(
+        CredibilityChatMessage.ai(
+          text: 'Gandhi indicated his preference for Nehru as his successor [1], despite significant support for Patel [2].',
+          sources: [testSource1, testSource2],
+          scope: 'claim',
+          claimIndex: 5,
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AiCredibilityChatSheet(
+              video: testVideo,
+              scope: 'claim',
+              claimIndex: 5,
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Verify the inline citation badges exist
+      expect(find.text('1'), findsWidgets);
+      expect(find.text('2'), findsWidgets);
+      expect(find.bySemanticsLabel(RegExp(r'Citation 1')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp(r'Citation 2')), findsOneWidget);
+
+      // Tap on citation [1] badge
+      await tester.tap(find.bySemanticsLabel(RegExp(r'Citation 1')));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Verify the citation details modal appeared
+      expect(find.text('VERIFIED EMPIRICAL CITATION'), findsOneWidget);
+      expect(find.text('National Archives & Records Administration'), findsWidgets);
+      expect(find.text('NARA'), findsWidgets);
+      expect(find.text('Open Source (archives.gov)'), findsOneWidget);
+      expect(find.text('Primary documentation proving the historical succession and cabinet deliberations.'), findsOneWidget);
+
+      // Close the modal
+      await tester.tap(find.byIcon(Icons.close_rounded).last);
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('VERIFIED EMPIRICAL CITATION'), findsNothing);
+    });
+
+    testWidgets('Displays active temporal playback anchor pill when playbackSec is provided', (tester) async {
+      final tag = '${testVideo.id}_claim_13';
+      final ctrl = Get.put(AiCredibilityChatController(), tag: tag);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AiCredibilityChatSheet(
+              video: testVideo,
+              scope: 'claim',
+              claimIndex: 13,
+              claimText: 'మనమూ జవహర్‌లాల్ నెహ్రూ నే ప్రైమ్ మినిస్టర్ చేదాము అనే అన్నారు',
+              verdict: 'MOSTLY TRUE',
+              playbackSec: 358.0, // 05:58
+              transcriptSnippet: 'మనమూ జవహర్‌లాల్ నెహ్రూ నే ప్రైమ్ మినిస్టర్ చేదాము అనే అన్నారు',
+              activeChapterTitle: 'Claim #14',
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // 1. Verify the temporal anchor indicator pill
+      expect(find.text('Anchored at 05:58'), findsOneWidget);
+      expect(find.text('• Claim #14'), findsOneWidget);
+      expect(find.textContaining('మనమూ జవహర్‌లాల్'), findsWidgets);
+
+      // 2. Verify temporal suggestion chips
+      expect(find.text('Verify what was said at 05:58'), findsOneWidget);
+      expect(find.text('What did the speaker just mean by that?'), findsOneWidget);
+      expect(ctrl.suggestedPrompts, contains('Did they contradict an earlier claim?'));
+
+      // 3. Verify dynamic input hint text
+      expect(
+        find.text('Ask what was said at 05:58, or check contradictions…'),
+        findsOneWidget,
+      );
+
+      // 4. Tap close on temporal anchor pill to unanchor
+      await tester.tap(find.byKey(const ValueKey('unanchor_temporal_btn')));
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // 5. Verify unanchored state
+      expect(find.text('Anchored at 05:58'), findsNothing);
+      expect(
+        find.text('Ask about this claim or sources…'),
+        findsOneWidget,
+      );
     });
   });
 }

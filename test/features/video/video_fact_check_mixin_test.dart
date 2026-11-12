@@ -42,7 +42,6 @@ void main() {
       category: 'Science',
       tags: const ['space', 'isro'],
       factCheckUrl: 'https://storage.googleapis.com/factchecks/test_vid_456.json',
-      trustScore: 78.0,
       uiReport: UIReport.fromMap({
         'narrative': 'Fallback narrative from video document',
         'conclusion': 'Reliable content',
@@ -84,7 +83,6 @@ void main() {
 
     // Seed credibility cache
     VideoMediaService.credibilityCache[dummyVideo.id] = const VideoMediaCredibility(
-      trustScore: 84.0,
       trustLabel: 'HIGH_TRUST',
       summary: 'Cached credibility fallback',
     );

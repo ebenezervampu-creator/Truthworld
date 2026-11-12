@@ -158,16 +158,18 @@ class ChannelTypeBenefitsBox extends StatelessWidget {
                 size: 20,
               ),
               const SizedBox(width: 8),
-              Text(
-                isStandard
-                    ? 'Standard Channel Benefits'
-                    : 'Pro Channel Benefits',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: isDark
-                      ? AppColors.textPrimary
-                      : const Color(0xFF0F172A),
+              Expanded(
+                child: Text(
+                  isStandard
+                      ? 'Standard Channel Benefits'
+                      : 'Pro Channel Benefits',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: isDark
+                        ? AppColors.textPrimary
+                        : const Color(0xFF0F172A),
+                  ),
                 ),
               ),
             ],

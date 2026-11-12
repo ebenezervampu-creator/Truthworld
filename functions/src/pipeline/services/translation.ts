@@ -223,6 +223,125 @@ export async function mapConcurrent<T, R>(
   return results;
 }
 
+/**
+ * Target-language syllable expansion ratios relative to English baseline (1.0),
+ * reflecting agglutinative/polysyllabic expansion (e.g. Telugu, Tamil, German) vs compact CJK.
+ */
+export const LANG_SYLLABLE_RATIOS: Record<string, number> = {
+  en: 1.0,
+  zh: 0.9,
+  vi: 0.95,
+  sv: 1.1,
+  th: 1.1,
+  ru: 1.12,
+  hi: 1.15,
+  pa: 1.15,
+  ur: 1.15,
+  ar: 1.15,
+  id: 1.15,
+  nl: 1.15,
+  gu: 1.18,
+  fr: 1.18,
+  pl: 1.18,
+  mr: 1.2,
+  pt: 1.2,
+  bn: 1.22,
+  es: 1.22,
+  it: 1.22,
+  de: 1.25,
+  tr: 1.25,
+  ko: 1.3,
+  ta: 1.35,
+  kn: 1.35,
+  te: 1.38,
+  ml: 1.4,
+  ja: 1.45,
+};
+
+/**
+ * Estimates spoken syllable count for Latin, Indic abugida, CJK/Kana/Hangul, and other scripts
+ * while ignoring bracketed ElevenLabs audio performance tags such as `[whispers]`.
+ */
+export function countSourceSyllables(text: string, language?: string): number {
+  const clean = (text || "").replace(/\[[^\]]+\]/g, " ").trim();
+  if (!clean) return 0;
+
+  const lang = (language || "").toLowerCase().split(/[-_]/)[0];
+
+  // CJK / Japanese Kana / Korean Hangul character-syllable counting
+  const cjkMatches = clean.match(/[\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF]/g);
+  if (cjkMatches && (lang === "zh" || lang === "ja" || lang === "ko" || cjkMatches.length >= clean.length * 0.35)) {
+    const kanjiCount = (clean.match(/[\u4E00-\u9FFF]/g) || []).length;
+    const kanaHangulCount = cjkMatches.length - kanjiCount;
+    const jpKanjiWeight = lang === "ja" ? 1.5 : 1.0;
+    const latinWords = clean.replace(/[\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF]/g, " ").trim().split(/\s+/).filter(Boolean);
+    return Math.max(1, Math.round(kanjiCount * jpKanjiWeight + kanaHangulCount + latinWords.length * 1.4));
+  }
+
+  // Indic abugidas (Devanagari, Bengali, Gurmukhi, Gujarati, Odia, Tamil, Telugu, Kannada, Malayalam)
+  const indicConsonantOrVowel = clean.match(/[\u0904-\u0939\u0958-\u0961\u0985-\u09B9\u0A05-\u0A39\u0A85-\u0AB9\u0B05-\u0B39\u0B85-\u0BB9\u0C05-\u0C39\u0C85-\u0CB9\u0D05-\u0D39]/g);
+  if (indicConsonantOrVowel && indicConsonantOrVowel.length > 0) {
+    const viramas = (clean.match(/[\u094D\u09CD\u0A4D\u0ACD\u0B4D\u0BCD\u0C4D\u0CCD\u0D4D]/g) || []).length;
+    const indicSyllables = Math.max(1, indicConsonantOrVowel.length - viramas);
+    const nonIndicLatin = clean.replace(/[\u0900-\u0D7F]/g, " ").trim().split(/\s+/).filter(Boolean);
+    const nonIndicSyllables = nonIndicLatin.reduce((sum, w) => sum + countLatinWordSyllables(w), 0);
+    return indicSyllables + nonIndicSyllables;
+  }
+
+  // Arabic / Cyrillic / Thai / Latin fallback per word
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return 0;
+
+  return words.reduce((sum, raw) => {
+    // Arabic/Hebrew abjads: approximate from word length (~2.3 chars/syllable)
+    if (/[\u0600-\u06FF\u0590-\u05FF]/.test(raw)) {
+      const letters = raw.replace(/[^\u0600-\u06FF\u0590-\u05FF]/g, "").length;
+      return sum + Math.max(1, Math.round(letters / 2.3));
+    }
+    return sum + countLatinWordSyllables(raw);
+  }, 0);
+}
+
+function countLatinWordSyllables(word: string): number {
+  const cleaned = word.toLowerCase().replace(/[^a-z\u00C0-\u024F\u0400-\u04FF]/g, "");
+  if (!cleaned) return 0;
+  if (cleaned.length <= 3) return 1;
+
+  // Cyrillic vowels + Latin vowels
+  const normalized = cleaned.replace(/(?:[^laeiouy\u0430\u0435\u0451\u0438\u043E\u0443\u044B\u044D\u044E\u044F]es|ed|[^laeiouy]e)$/, "")
+    .replace(/^y/, "");
+  const groups = normalized.match(/[aeiouy\u00E0-\u00FF\u0430\u0435\u0451\u0438\u043E\u0443\u044B\u044D\u044E\u044F]+/g);
+  return Math.max(1, groups ? groups.length : 1);
+}
+
+/**
+ * Computes normalized syllable-budget compliance score (0.0 to 1.0) for a dubbed segment.
+ * Scores 1.0 when translated syllable count fits within the timing & language expansion budget.
+ */
+export function computeSyllableBudgetCompliance(
+  sourceText: string,
+  translatedText: string,
+  sourceLanguage: string,
+  targetLanguage: string,
+  durationMs?: number
+): number {
+  const srcSyllables = Math.max(1, countSourceSyllables(sourceText, sourceLanguage));
+  const tgtSyllables = Math.max(1, countSourceSyllables(translatedText, targetLanguage));
+  const srcLang = (sourceLanguage || "en").toLowerCase().split(/[-_]/)[0];
+  const tgtLang = (targetLanguage || "en").toLowerCase().split(/[-_]/)[0];
+  const srcRatio = LANG_SYLLABLE_RATIOS[srcLang] ?? 1.1;
+  const tgtRatio = LANG_SYLLABLE_RATIOS[tgtLang] ?? 1.2;
+  const langExpansionRatio = tgtRatio / Math.max(0.7, srcRatio);
+
+  const durSec = durationMs && durationMs > 0 ? durationMs / 1000 : null;
+  const targetBudget = durSec
+    ? Math.max(4, Math.round(durSec * 3.8 * Math.min(1.35, Math.max(0.85, tgtRatio))))
+    : Math.max(2, Math.round(srcSyllables * langExpansionRatio * 1.15));
+
+  if (tgtSyllables <= targetBudget) return 1.0;
+  return Number(Math.max(0.1, Math.min(1.0, targetBudget / tgtSyllables)).toFixed(3));
+}
+
 // ─── TRANSLATION SERVICE ───────────────────────────────────────────────────
 
 export class TranslationService {
@@ -343,13 +462,26 @@ export class TranslationService {
 
   async translateSegments(
     jobId: string,
-    segments: Array<{ start: number; end: number; text: string; speaker?: string; isHook?: boolean; duration?: number }>,
+    segments: Array<{
+      start: number;
+      end: number;
+      text: string;
+      speaker?: string;
+      isHook?: boolean;
+      duration?: number;
+      emotionTag?: string;
+      energyDb?: number;
+      stabilityOverride?: number;
+      similarityBoostOverride?: number;
+      pitchRangeSemitones?: number;
+      voiceQuality?: "breathy" | "modal" | "creaky" | "pressed";
+    }>,
     sourceLanguage: string,
     targetLanguage: string,
     options?: { 
       model?: "standard" | "premium" | "dynamic"; 
-      dubbingTier?: "audio_starter" | "audio_pro" | "audio_ultra" | "video_pro" | "video_ultra";
-      subtitleTier?: "starter" | "pro";
+      dubbingTier?: "audio_track";
+      subtitleTier?: "ultra" | "starter" | "pro";
       isCinemaGrade?: boolean;
       tone?: "casual" | "formal"; 
       localeStyle?: "neutral" | "hinglish" | "hinglish_urban" | "hinglish_professional" | "slang";
@@ -377,12 +509,7 @@ export class TranslationService {
       const segmentVariants: any[] = new Array(texts.length).fill(undefined);
 
       const isKnownDubbingTier = Boolean(options?.dubbingTier);
-      const isVideoLipSync = options?.dubbingTier === "video_pro" || options?.dubbingTier === "video_ultra";
-      const isVideoUltra = options?.dubbingTier === "video_ultra" || options?.isCinemaGrade === true;
-      // All 5 tiers use the hybrid Google v3 + Gemini architecture:
-      // Audio Starter & Pro -> Google v3 + Gemini 2.5 Flash
-      // Audio Ultra, Video Pro & Video Ultra -> Google v3 + Gemini 4 Argon
-      const requestedModel = (isKnownDubbingTier || isVideoUltra || isVideoLipSync || options?.model === "premium") ? "premium" : (options?.model || "standard");
+      const requestedModel = (isKnownDubbingTier || options?.model === "premium") ? "premium" : (options?.model || "standard");
 
       // ── Lane Routing Logic ───────────────────────────────────────────────
       const premiumIndices: number[] = [];
@@ -422,10 +549,11 @@ export class TranslationService {
             speaker: segments[i].speaker,
             isHook: segments[i].isHook,
             duration: durations[i],
+            emotionTag: segments[i].emotionTag,
           }));
 
-          const isProSubtitle = options?.subtitleTier === "pro";
-          const isCinema = isVideoUltra || Boolean(options?.isCinemaGrade) || isProSubtitle;
+          const isUltraSubtitle = options?.subtitleTier === "ultra" || options?.subtitleTier === "pro";
+          const isCinema = Boolean(options?.isCinemaGrade) || isUltraSubtitle;
 
           const premiumResult = await this.translatePremiumBatch(
             premiumSegments.map((s) => s.text), 
@@ -442,7 +570,8 @@ export class TranslationService {
             premiumSegments.map((s) => s.duration),
             isCinema,
             options?.subtitleTier,
-            options?.dubbingTier
+            options?.dubbingTier,
+            premiumSegments.map((s) => s.emotionTag)
           );
 
           premiumIndices.forEach((idx, i) => {
@@ -468,15 +597,35 @@ export class TranslationService {
       });
 
       const translatedSegments: TranslatedSegment[] = segments.map(
-        (segment, index) => ({
-          original: segment.text,
-          translated: decodeHtmlEntities(translatedTexts[index] || segment.text),
-          start: segment.start,
-          end: segment.end,
-          confidence: confidenceScores?.[index],
-          isHook: segment.isHook,
-          variants: segmentVariants[index],
-        })
+        (segment, index) => {
+          const decodedText = decodeHtmlEntities(translatedTexts[index] || segment.text);
+          const segDurationMs = durations[index] > 0
+            ? (durations[index] > 1000 ? durations[index] : durations[index] * 1000)
+            : Math.max(0, segment.end - segment.start);
+          const syllableBudgetCompliance = computeSyllableBudgetCompliance(
+            segment.text,
+            decodedText,
+            normSourceLang,
+            normTargetLang,
+            segDurationMs
+          );
+          return {
+            original: segment.text,
+            translated: decodedText,
+            start: segment.start,
+            end: segment.end,
+            confidence: confidenceScores?.[index],
+            isHook: segment.isHook,
+            variants: segmentVariants[index],
+            emotionTag: segment.emotionTag,
+            energyDb: segment.energyDb,
+            stabilityOverride: segment.stabilityOverride,
+            similarityBoostOverride: segment.similarityBoostOverride,
+            pitchRangeSemitones: segment.pitchRangeSemitones,
+            voiceQuality: segment.voiceQuality,
+            syllableBudgetCompliance,
+          };
+        }
       );
 
       return {
@@ -663,8 +812,9 @@ export class TranslationService {
     hooksInBatch?: (boolean | undefined)[],
     durationsInBatch?: (number | undefined)[],
     isCinemaGrade?: boolean,
-    subtitleTier?: "starter" | "pro",
-    dubbingTier?: "audio_starter" | "audio_pro" | "audio_ultra" | "video_pro" | "video_ultra"
+    subtitleTier?: "ultra" | "starter" | "pro",
+    dubbingTier?: "audio_track",
+    emotionsInBatch?: (string | undefined)[]
   ): Promise<{ translations: string[]; confidences: number[]; variants?: any[] }> {
     if (!this.gemini) {
       throw new Error("Gemini client not initialized for premium translation");
@@ -703,11 +853,10 @@ export class TranslationService {
       required: ["translations", "confidences"]
     };
 
-    const isUltraTier = dubbingTier === "audio_ultra" || dubbingTier === "video_pro" || dubbingTier === "video_ultra";
-    const isProOrCinema = Boolean(isCinemaGrade) || subtitleTier === "pro" || isUltraTier;
-    const targetModelName = isProOrCinema
-      ? (PIPELINE_CONFIG.GEMINI_MODELS?.reasoning || "gemini-4-argon")
-      : (PIPELINE_CONFIG.GEMINI_MODELS?.translation || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-2.5-flash");
+    const isUltraTier = dubbingTier === "audio_track";
+    const isProOrCinema = Boolean(isCinemaGrade) || subtitleTier === "ultra" || subtitleTier === "pro" || isUltraTier;
+    // Unified on Gemini 2.5 Flash for all dubbing & cinema-grade subtitles
+    const targetModelName = PIPELINE_CONFIG.GEMINI_MODELS?.translation || "gemini-2.5-flash";
 
     const model = this.gemini.getGenerativeModel({
       model: targetModelName,
@@ -725,6 +874,7 @@ export class TranslationService {
       speakers: (string | undefined)[];
       hooks: (boolean | undefined)[];
       durations: (number | undefined)[];
+      emotions: (string | undefined)[];
     }> = [];
 
     for (let i = 0; i < texts.length; i += CHUNK_SIZE) {
@@ -734,6 +884,7 @@ export class TranslationService {
         speakers: speakersInBatch?.slice(i, i + CHUNK_SIZE) || [],
         hooks: hooksInBatch?.slice(i, i + CHUNK_SIZE) || [],
         durations: durationsInBatch?.slice(i, i + CHUNK_SIZE) || [],
+        emotions: emotionsInBatch?.slice(i, i + CHUNK_SIZE) || [],
       });
     }
 
@@ -757,55 +908,50 @@ export class TranslationService {
         if (creatorDNA.customInstructions) dnaContext += `\n- Extra Instructions: ${creatorDNA.customInstructions}`;
       }
 
-      // Structured segment input with duration, syllable budgeting, and audio dubbing pacing limits
+      // Structured segment input with language-calibrated syllable budgeting, acoustic counts, and audio dubbing pacing limits
+      const tgtLangKey = targetLanguage.toLowerCase().split(/[-_]/)[0];
+      const srcLangKey = sourceLanguage.toLowerCase().split(/[-_]/)[0];
+      const tgtRatio = LANG_SYLLABLE_RATIOS[tgtLangKey] ?? 1.2;
+      const srcRatio = LANG_SYLLABLE_RATIOS[srcLangKey] ?? 1.1;
+
       const segmentsPromptData = chunkInput.texts.map((t, idx) => {
         const durMs = chunkInput.durations[idx];
         const durSec = durMs && durMs > 0 ? (durMs / 1000) : null;
         // Natural speech rate: ~2.8 words/second maximum for clear articulation
         const maxWords = durSec ? Math.max(3, Math.ceil(durSec * 2.8)) : null;
-        const estSourceWords = t.trim().split(/\s+/).length;
-        const estSourceSyllables = Math.max(1, Math.round(estSourceWords * 1.35));
-        // Target syllable budget: In polysyllabic languages (Telugu, Tamil, Kannada, German), clamp syllables to prevent audio overrun
-        const targetSyllableBudget = durSec ? Math.max(4, Math.round(durSec * 3.6)) : Math.round(estSourceSyllables * 1.25);
+        const sourceSyllableCount = Math.max(1, countSourceSyllables(t, sourceLanguage));
+        // Language-calibrated target syllable budget: scales natural speech rate (~3.8 syl/s) or source ratio
+        const targetSyllableBudget = durSec
+          ? Math.max(4, Math.round(durSec * 3.8 * Math.min(1.35, Math.max(0.85, tgtRatio))))
+          : Math.max(4, Math.round(sourceSyllableCount * (tgtRatio / Math.max(0.7, srcRatio)) * 1.15));
 
         return {
           segmentIndex: idx,
           text: t,
           isHook: Boolean(chunkInput.hooks[idx]),
           speaker: chunkInput.speakers[idx] || undefined,
+          emotionTag: chunkInput.emotions[idx] || undefined,
+          sourceSyllableCount,
           targetSyllableBudget,
           ...(durSec ? { durationSeconds: Number(durSec.toFixed(2)), maxWords } : {}),
         };
       });
 
-      const isUltra = Boolean(isCinemaGrade) || dubbingTier === "video_ultra";
-      const isVideoPro = dubbingTier === "video_pro";
-      const isAudioUltra = dubbingTier === "audio_ultra";
+      const isAudioTrack = dubbingTier === "audio_track" || !dubbingTier;
 
-      const cinemaTheatricalPrompt = isUltra
-        ? `\n\n*** MANDATORY HOLLYWOOD CINEMA THEATRICAL ISOMETRY (GEMINI 4 ARGON) ***
-- This video is undergoing full theatrical visual lip-sync dubbing for movies, short films, or web series (Cinema Ultra).
-- STRICT RHYTHM & ISOMETRY: Match the actor's visual mouth cadence. Translated speech length must match durationSeconds within +/- 5%.
-- BILABIAL PHONEME ALIGNMENT: Prioritize bilabial plosive consonants (B, P, M) at initial and terminal closures where the speaker's lips meet on screen.
-- PREVENT AUDIO RAMPING: Dialogue must never require unnatural speeding up or slowing down. Dialogue must feel like native studio cinematic dubbing.`
-        : isVideoPro
-          ? `\n\n*** STUDIO ISOCHRONIC LIP-SYNC CADENCE (GEMINI 4 ARGON) ***
-- This video is undergoing studio visual lip-sync dubbing (Cinema Pro).
-- Match the speaker's natural pacing and syllable cadence within +/- 10% of durationSeconds.
-- Avoid run-on sentences or overly verbose phrasing to ensure natural lip closure matching.`
-          : isAudioUltra
-            ? `\n\n*** CREATOR VOICE CLONING VISEME CADENCE HARMONY (GEMINI 4 ARGON) ***
-- This audio track is undergoing voice cloning via ElevenLabs v4 on Audio Ultra with Anti-Uncanny Viseme Locking.
+      const cadenceLockPrompt = isAudioTrack
+        ? `\n\n*** CREATOR VOICE CLONING VISEME CADENCE HARMONY (GEMINI 2.5 FLASH) ***
+- This audio track is undergoing voice cloning via ElevenLabs v4 with Anti-Uncanny Viseme Cadence Locking.
 - STRICT VISEME DURATION & MOUTH-CLOSURE CONSTRAINT: Match the speaker's on-screen pacing within +/- 5% of durationSeconds.
 - PREVENT VOCAL OVERHANG: Spoken delivery must stop before or exactly when the speaker's mouth closes (utterance.end). The translated phrase MUST NOT exceed targetSyllableBudget.
 - NATURAL PAUSE CADENCE: Align translated sentence pauses with the original speaker's breath and pauses so speech cadence feels visually harmonious with the creator's natural body language without audio-visual mismatch.`
-            : `\n\n*** NATURAL CREATOR CONVERSATIONAL SPEECH (GEMINI 2.5 FLASH) ***
+        : `\n\n*** NATURAL CREATOR CONVERSATIONAL SPEECH (GEMINI 2.5 FLASH) ***
 - Deliver lively, natural conversational dialogue. Avoid archaic, literary, or textbook translations. Use modern creator phrasing.`;
 
       const prompt = `Translate the following ${sourceLanguage} text segments to ${targetLanguage}.
 Tone: ${tone}
 Style Preference: ${localeStyle}
-Target Platform: ${targetPlatform}${personaContext}${dnaContext}${cinemaTheatricalPrompt}
+Target Platform: ${targetPlatform}${personaContext}${dnaContext}${cadenceLockPrompt}
 
 Special Rules for World-Class Localization:
 1. Preserve Brand Names & Tech Entities: Keep brand names and technical terms in English or accurate phonetic transliteration (e.g., Anthropic, Claude, Figma, Adobe, Gemini, ChatGPT, API, UI, GPU).
@@ -822,18 +968,21 @@ Special Rules for World-Class Localization:
 3. Idiomatic Transcreation (No Literal Word-for-Word Metaphors):
    - NEVER translate idioms, colloquial metaphors, or comedic punchlines word-for-word (e.g. "bite the bullet", "cost an arm and a leg", "hit the nail on the head", "piece of cake", "game changer", "touch grass", "spill the beans").
    - Transcreate the true emotional intent and punchline into the equivalent native cultural saying or punchy conversational phrase.
-4. Syllable Budgeting & Audio Timing Constraints:
-   - For segments providing 'durationSeconds', 'maxWords', and 'targetSyllableBudget', the translation will be spoken aloud in video dubbing.
+4. Syllable Budgeting, Phonetic Difficulty Avoidance & Audio Timing Constraints:
+   - Each segment provides 'sourceSyllableCount' and a language-calibrated 'targetSyllableBudget' (based on target expansion ratio ${tgtRatio.toFixed(2)} vs source ${srcRatio.toFixed(2)}).
    - The spoken syllable count of the translated text MUST NOT exceed 'targetSyllableBudget'.
-   - In polysyllabic languages (Telugu, Tamil, Kannada, German), select concise conversational phrases rather than verbose compound words so speech fits the original video cut without audio drift or unnatural acceleration.
+   - In polysyllabic/agglutinative languages (Telugu, Tamil, Kannada, Malayalam, German, Japanese), select concise conversational phrases rather than verbose compound words so speech fits the original video cut cleanly.
+   - Phonetic Difficulty Avoidance for TTS Clarity: avoid dense consonant clusters, tongue-twister alliterations, or unnaturally long agglutinative compounds when speaking duration is tight (< 2.5s); prefer crisp vowel-balanced natural spoken phrasing.
 5. Platform Optimization:
    - If Target Platform is 'reels' or 'shorts', keep hooks fast-paced, high emotion, and catchy.
    - If 'linkedin', ensure the first few segments sound authoritative and deliver a punchy insight.
-6. A/B Hook Generation: If 'isHook' is true AND enableABHooks is true, return 3 variants in the "variants" object:
+6. Expressive ElevenLabs v4 Prosody & Performance Audio Tags (Critical for Dubbing):
+   - When an input segment specifies an "emotionTag" (e.g., "whispers", "shouts", "laughs", "sighs", "gasps", "excited", "sorrowful", "angry", "calm", "serious"), preserve or prepend that exact bracketed English tag (e.g. "[whispers] ...") inside the translated string so the ElevenLabs v4 voice actor performs with matching vocal emotion. NEVER translate the English keyword inside [...] brackets.
+7. A/B Hook Generation: If 'isHook' is true AND enableABHooks is true, return 3 variants in the "variants" object:
    - viral: High-energy, catchy, slang-friendly.
    - safe: Reliable, standard translation.
    - professional: Authoritative, formal.
-7. Return a JSON object with:
+8. Return a JSON object with:
    - translations: array of strings matching input length exactly (${chunkInput.texts.length} items)
    - confidences: array of numbers (0.0 to 1.0)
    - variants: array of objects (one per segment, null if no variants)

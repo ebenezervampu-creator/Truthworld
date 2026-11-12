@@ -260,84 +260,92 @@ class ChaptersTimelineView {
         // Top Header Row: Drag handle, Timestamp, Exceeds pill, and compact Action buttons
         Row(
           children: [
-            // Reorder drag handle
-            ReorderableDragStartListener(
-              index: index,
-              child: MouseRegion(
-                cursor: SystemMouseCursors.grab,
-                child: Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.all(5),
-                  decoration: BoxDecoration(
-                    color:
-                        isDarkMode ? AppColors.bgInput : Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: borderColor),
+            Expanded(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Reorder drag handle
+                  ReorderableDragStartListener(
+                    index: index,
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.grab,
+                      child: Container(
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                          color: isDarkMode
+                              ? AppColors.bgInput
+                              : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: borderColor),
+                        ),
+                        child: Icon(
+                          Icons.drag_indicator_rounded,
+                          color: textSecondaryColor,
+                          size: 16,
+                        ),
+                      ),
+                    ),
                   ),
-                  child: Icon(
-                    Icons.drag_indicator_rounded,
-                    color: textSecondaryColor,
-                    size: 16,
+
+                  // Timestamp block
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: (isExceeding
+                              ? AppColors.error
+                              : (isDarkMode ? AppColors.brand : Colors.black87))
+                          .withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      chapter.formattedStartTime,
+                      style: TextStyle(
+                        color: isExceeding
+                            ? AppColors.error
+                            : (isDarkMode ? AppColors.brand : Colors.black87),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
                   ),
-                ),
+
+                  if (isExceeding) ...[
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: AppColors.error.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Text(
+                          'Exceeds duration${video != null ? ' (${video.duration})' : ''}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.error,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
 
-            // Timestamp block
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 4,
-              ),
-              decoration: BoxDecoration(
-                color: (isExceeding
-                        ? AppColors.error
-                        : (isDarkMode ? AppColors.brand : Colors.black87))
-                    .withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                chapter.formattedStartTime,
-                style: TextStyle(
-                  color: isExceeding
-                      ? AppColors.error
-                      : (isDarkMode ? AppColors.brand : Colors.black87),
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-
-            if (isExceeding) ...[
-              const SizedBox(width: 6),
-              Flexible(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.error.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: AppColors.error.withValues(alpha: 0.4),
-                    ),
-                  ),
-                  child: Text(
-                    'Exceeds duration${video != null ? ' (${video.duration})' : ''}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.error,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-
-            const Spacer(),
+            const SizedBox(width: 6),
 
             // Quick action shift buttons
             IconButton(
@@ -526,24 +534,28 @@ class ChaptersTimelineView {
               ),
               if (isExceeding) ...[
                 const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.error.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: AppColors.error.withValues(alpha: 0.4),
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
                     ),
-                  ),
-                  child: Text(
-                    'Exceeds duration${video != null ? ' (${video.duration})' : ''}',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.error,
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: AppColors.error.withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: Text(
+                      'Exceeds duration${video != null ? ' (${video.duration})' : ''}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.error,
+                      ),
                     ),
                   ),
                 ),

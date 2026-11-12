@@ -10,9 +10,7 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/data/models/channel.dart';
-import 'package:truthworld/data/models/channel_wallet_models.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles/subtitles_controller_base.dart';
-import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 
@@ -22,7 +20,8 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
   Future<void> triggerSubtitlesGeneration({
     required List<String> targetLanguages,
     String priorityMode = 'accuracy',
-    String subtitleTier = 'starter',
+    String subtitleTier = 'ultra',
+    bool isDirectlyPaid = false,
   }) async {
     final video = selectedVideo.value;
     if (video == null) {
@@ -62,9 +61,9 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
     );
 
     WalletTransaction? walletTx;
-    if (subtitleCost > 0) {
+    if (subtitleCost > 0 && !isDirectlyPaid) {
       if (chan == null) {
-        showError('Unable to verify channel wallet. Please ensure you have a valid channel to proceed with AI subtitles.');
+        showError('Unable to verify channel revenue account. Please ensure you have a valid channel to proceed with AI subtitles.');
         return;
       }
       final walletService = ChannelWalletService();
@@ -76,7 +75,7 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
           tierId: subtitleTier,
         );
         showError(
-          'Subtitles are not free. Your channel balance of \$${balance.totalSpendableBalance.toStringAsFixed(2)} is insufficient for the subtitle cost of \$${subtitleCost.toStringAsFixed(2)} (\$${rate.toStringAsFixed(3)}/lang × ${targetLanguages.length} languages for ${durationSecs}s video). Please add money to your wallet to proceed.',
+          'Subtitles are not free. Channel revenue of \$${balance.totalSpendableBalance.toStringAsFixed(2)} is insufficient for the subtitle cost of \$${subtitleCost.toStringAsFixed(2)} (\$${rate.toStringAsFixed(3)}/lang × ${targetLanguages.length} languages for ${durationSecs}s video). Please pay directly to proceed.',
         );
         return;
       }
@@ -86,18 +85,19 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
         userId: currentUser.uid,
         amount: subtitleCost,
         category: WalletTransactionCategory.aiSubtitles,
-        description: '${subtitleTier == "pro" ? "Pro" : "Starter"} AI Subtitles for "${video.title}" (${targetLanguages.length} langs, ${durationSecs}s)',
+        description: 'Ultra AI Subtitles for "${video.title}" (${targetLanguages.length} langs, ${durationSecs}s)',
         metadata: {
           'videoId': video.id,
           'targetLanguages': targetLanguages,
           'durationSeconds': durationSecs,
           'costUSD': subtitleCost,
           'subtitleTier': subtitleTier,
+          'paidFromRevenue': true,
         },
       );
 
       if (walletTx == null) {
-        showError('Unable to deduct subtitle payment from channel wallet. Please ensure your wallet has sufficient funds.');
+        showError('Unable to deduct subtitle payment from channel revenue. Please ensure your account has sufficient funds.');
         return;
       }
       unawaited(refreshSpendableBalance());
@@ -110,8 +110,8 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
     }
     aiLanguageStatuses.assignAll(initialStatuses);
 
-    final hasExistingSource = video.mediaSubtitles.isNotEmpty ||
-        availableLanguages.isNotEmpty;
+    final hasExistingSource = video.mediaSubtitles.values.any((s) => s.isNotEmpty) ||
+        video.transcriptionUrl.isNotEmpty;
 
     isGeneratingAI.value = true;
     isAiJobPaused.value = false;
@@ -154,7 +154,8 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
             'subtitleTier': subtitleTier,
             'autoChapters': false,
             if (walletTx != null) 'walletTransactionId': walletTx.id,
-            if (subtitleCost > 0) 'paidFromWallet': true,
+            if (subtitleCost > 0) 'paidFromRevenue': true,
+            if (isDirectlyPaid) 'paidDirectly': true,
           }),
         ).timeout(const Duration(seconds: 15));
 
@@ -198,7 +199,8 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
           'videoUrl': video.videoUrl,
           'fileName': video.title,
           'status': 'processing',
-          'paidFromWallet': walletTx != null,
+          'paidFromRevenue': walletTx != null,
+          if (isDirectlyPaid) 'paidDirectly': true,
           if (walletTx != null) 'walletTransactionId': walletTx.id,
           'createdAt': nowMs,
           'updatedAt': nowMs,
@@ -207,7 +209,7 @@ mixin SubtitlesAiMixin on SubtitlesControllerBase {
             'languages': targetLanguages,
             'generateSubtitles': true,
             'genLangSubs': true,
-            'enablePath2': true,
+            'enableSubtitles': true,
             'priorityMode': priorityMode,
           },
           'stages': {

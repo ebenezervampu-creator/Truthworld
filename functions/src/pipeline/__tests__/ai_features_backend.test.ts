@@ -307,17 +307,16 @@ function testTruthVerificationWiring() {
   const enableFactChecking = resolveFactChecking({ factChecking: true });
 
   const executionPlan = {
-    enablePath1: enableFactChecking,
-    enableTruthEngine: enableFactChecking,
+    enableCredibility: enableFactChecking,
+    factCheckEnabled: enableFactChecking,
     maxClaims: enableFactChecking ? 100 : 0,
   };
 
-  assert(executionPlan.enablePath1 === true, "enablePath1 set to true for fact checking");
-  assert(executionPlan.enableTruthEngine === true, "enableTruthEngine set to true for fact checking");
+  assert(executionPlan.enableCredibility === true, "enableCredibility set to true for fact checking");
+  assert(executionPlan.factCheckEnabled === true, "factCheckEnabled set to true for fact checking");
   assert(executionPlan.maxClaims === 100, "maxClaims allocated for fact checking analysis");
 
   const mockCredibility = {
-    trustScore: null,
     trustLabel: "Verified",
     factCheckStats: { totalClaims: 5, correct: 4, incorrect: 1, unverifiable: 0 }
   };

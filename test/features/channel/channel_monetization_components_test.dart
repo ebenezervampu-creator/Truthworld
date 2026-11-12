@@ -1,13 +1,26 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/core/services/channel_payout_calculator.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/data/models/channel.dart';
-import 'package:truthworld/features/channel/presentation/views/channel/monetization/monetization_widgets.dart';
+import 'package:truthworld/features/channel/presentation/views/channel_monetization_dashboard_view.dart';
+import 'package:truthworld/theme/app_theme.dart';
+import '../../test_helpers/mock_firebase.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() async {
+    await setupMockFirebase();
+  });
+
+  setUp(() {
+    Get.testMode = true;
+  });
+
+  tearDown(Get.reset);
 
   final dummyChannel = Channel(
     id: 'test_chan_1',
@@ -323,6 +336,132 @@ void main() {
       expect(find.text('0 CENTS WASTED'), findsOneWidget);
       expect(find.text(r'$15.00'), findsWidgets);
       expect(find.text('Safe For Next Month'), findsOneWidget);
+    });
+  });
+
+  group('Mobile Layout Overflow Regression Tests', () {
+    void setMobileSize(WidgetTester tester, Size size) {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+    }
+
+    testWidgets('ChannelMonetizationDashboardView renders Standard channel without overflow on 384x800', (tester) async {
+      setMobileSize(tester, const Size(384, 800));
+
+      final standardChannel = dummyChannel.copyWith(
+        noAdsForMembers: true,
+        membershipRevenueTotal: 150.0,
+        superchatRevenueTotal: 75.0,
+      );
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          theme: buildAppTheme(),
+          home: ChannelMonetizationDashboardView(channel: standardChannel),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.text('Monetization & Infrastructure'), findsOneWidget);
+      expect(find.text('Pro Channel Infrastructure Plans'), findsOneWidget);
+      expect(find.text('Complete Ground-Truth Fact-Checking'), findsOneWidget);
+      expect(find.text('Creator Net Take-Home'), findsOneWidget);
+    });
+
+    testWidgets('ChannelMonetizationDashboardView renders Custom channel with Hype Surge & Infra Metering without overflow on 360x800', (tester) async {
+      setMobileSize(tester, const Size(360, 800));
+
+      final customChannel = dummyChannel.copyWith(
+        channelType: ChannelType.custom,
+        pendingChannelType: ChannelType.standard,
+        adsRevenueTotal: 250.0,
+        premiumSubsRevenueTotal: 120.0,
+        superchatRevenueTotal: 80.0,
+        membershipRevenueTotal: 60.0,
+        infraConfig: CustomChannelInfraConfig(
+          subscriptionId: 'sub_overflow_test',
+          bandwidthQuotaBytesThisMonth: 100 * 1024 * 1024 * 1024,
+          bandwidthUsedBytesThisMonth: 180 * 1024 * 1024 * 1024,
+          storageUsedBytes: 22 * 1024 * 1024 * 1024,
+          rolloverCreditUSD: 10.0,
+          lossPreventionMode: LossPreventionMode.autoScaled,
+        ),
+      );
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          theme: buildAppTheme(),
+          home: ChannelMonetizationDashboardView(channel: customChannel),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.text('Infrastructure Metering'), findsOneWidget);
+      expect(find.text('Sudden Hype Surge Detected'), findsOneWidget);
+      expect(find.text('Zero-Waste Rollover Guarantee'), findsOneWidget);
+    });
+
+    testWidgets('ChannelRevenueRow wraps long membership label with platform share cleanly inside 310px card width', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 310,
+              child: ChannelRevenueRow(
+                label: 'Memberships (70% Creator / 30% Platform - Ad-Free)',
+                creatorShare: 1400.0,
+                platformShare: 600.0,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Memberships (70% Creator / 30% Platform - Ad-Free)'), findsOneWidget);
+    });
+
+    testWidgets('Storage & Bandwidth top-up bottom sheets render without overflow on 360x800', (tester) async {
+      setMobileSize(tester, const Size(360, 800));
+
+      final controller = ChannelMonetizationController(initialChannel: dummyChannel);
+      controller.onInit();
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          theme: buildAppTheme(),
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => Column(
+                children: [
+                  TextButton(
+                    onPressed: () => showStorageTopupSheet(ctx, controller),
+                    child: const Text('Open Storage'),
+                  ),
+                  TextButton(
+                    onPressed: () => showBandwidthTopupSheet(ctx, controller),
+                    child: const Text('Open Bandwidth'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Storage'));
+      await tester.pumpAndSettle();
+      expect(find.text('Buy Extra Storage with Balance'), findsOneWidget);
+
+      Get.back<void>();
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Open Bandwidth'));
+      await tester.pumpAndSettle();
+      expect(find.text('Buy Extra Bandwidth with Balance'), findsOneWidget);
     });
   });
 }

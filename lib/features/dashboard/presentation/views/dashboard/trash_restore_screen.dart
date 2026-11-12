@@ -10,7 +10,6 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
-import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_comments_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -49,6 +48,8 @@ class TrashRestoreController extends BaseController {
       'All'.obs; // 'All', 'Video', 'Topic', 'Playlist'
   final RxBool rxIsLoading = false.obs;
   final RxList<Map<String, dynamic>> trashItems = <Map<String, dynamic>>[].obs;
+  final Set<String> _activeItemKeys = <String>{};
+  bool _isEmptyingTrash = false;
 
   @override
   void onInit() {
@@ -59,6 +60,8 @@ class TrashRestoreController extends BaseController {
   void clearData() {
     trashItems.clear();
     rxIsLoading.value = false;
+    _activeItemKeys.clear();
+    _isEmptyingTrash = false;
   }
 
   @override
@@ -382,14 +385,153 @@ class TrashRestoreController extends BaseController {
     }
   }
 
+  /// Pushes a dedicated blocking loading dialog and returns an idempotent closer
+  /// that removes only this dialog route (immune to open GetX snackbars).
+  VoidCallback _openLoadingDialog() {
+    final overlayCtx = Get.overlayContext;
+    if (overlayCtx == null) return () {};
+    final navigator = Navigator.of(overlayCtx, rootNavigator: true);
+    final route = DialogRoute<void>(
+      context: overlayCtx,
+      barrierDismissible: false,
+      builder: (_) => const PopScope(
+        canPop: false,
+        child: Center(
+          child: CircularProgressIndicator(color: AppColors.brand),
+        ),
+      ),
+    );
+    navigator.push(route);
+    var closed = false;
+    return () {
+      if (closed || !route.isActive) return;
+      closed = true;
+      if (route.isCurrent) {
+        navigator.pop();
+      } else {
+        navigator.removeRoute(route);
+      }
+    };
+  }
+
+  void _showConfirmDeleteDialog({
+    required String title,
+    required String message,
+    required String confirmLabel,
+    required VoidCallback onConfirm,
+  }) {
+    Get.dialog<void>(
+      Builder(
+        builder: (dialogContext) => Dialog(
+          backgroundColor: AppColors.bgSurface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: AppColors.bgDivider),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: AppTextStyles.titleLarge.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: TWTypography.brandFamily,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  message,
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                      child: Text(
+                        'Cancel',
+                        style: AppTextStyles.buttonText.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.error,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: () {
+                        Navigator.of(dialogContext).pop();
+                        onConfirm();
+                      },
+                      child: Text(
+                        confirmLabel,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _permanentlyDeleteEntry(Map<String, dynamic> item) async {
+    final docRef = item['ref'] as DocumentReference?;
+    final type = item['type'] as String? ?? '';
+    final id = item['id'] as String? ?? '';
+
+    if (type == 'Video') {
+      await VideoManagementController.permanentlyDeleteVideoDoc(
+        videoId: id,
+        isShort: item['isShort'] == true,
+        videoUrl: item['videoUrl'] as String? ?? '',
+        thumbnailUrl: item['imageUrl'] as String? ?? '',
+        originalUrl: item['originalUrl'] as String? ?? '',
+      );
+    } else if (docRef != null) {
+      await docRef.delete();
+      if (type == 'Playlist' && item['isUserPlaylist'] == true) {
+        try {
+          await FirebaseFirestore.instance
+              .collection(FirestoreCollections.playlists)
+              .doc(id)
+              .delete();
+        } catch (_) {}
+      } else if (type == 'Post') {
+        final img = item['imageUrl'] as String? ?? '';
+        if (img.isNotEmpty) {
+          await VideoManagementController.safeDeleteStorageUrl(img);
+        }
+      }
+    }
+  }
+
   Future<void> restoreItem(Map<String, dynamic> item) async {
     final docRef = item['ref'] as DocumentReference;
     final type = item['type'] as String;
+    final id = item['id'] as String? ?? '';
+    final itemKey = '${type}_$id';
+    if (_isEmptyingTrash || !_activeItemKeys.add(itemKey)) return;
 
-    Get.dialog(
-      const Center(child: CircularProgressIndicator(color: AppColors.brand)),
-      barrierDismissible: false,
-    );
+    final closeLoading = _openLoadingDialog();
 
     try {
       final updateFields = <String, dynamic>{
@@ -432,7 +574,7 @@ class TrashRestoreController extends BaseController {
               .get();
 
           if (existingVideos.docs.isEmpty) {
-            Get.back();
+            closeLoading();
             AppSnackbar.show(
               'Restoration Blocked',
               'Cannot restore this topic because it contains 0 videos. Topics must contain at least 1 video.',
@@ -472,9 +614,9 @@ class TrashRestoreController extends BaseController {
       }
 
       await docRef.update(updateFields);
+      trashItems.removeWhere((e) => e['id'] == id && e['type'] == type);
 
-      // Close loading dialog
-      Get.back();
+      closeLoading();
 
       AppSnackbar.success(
         '${item['title']} has been successfully restored.',
@@ -483,265 +625,95 @@ class TrashRestoreController extends BaseController {
       // Reload list
       loadTrashItems();
     } catch (e) {
-      Get.back(); // Close loading dialog
+      closeLoading();
       ErrorHandler.log(e);
       AppSnackbar.error(
         'Unable to restore item. Please try again.',
       );
+    } finally {
+      _activeItemKeys.remove(itemKey);
+      closeLoading();
     }
   }
 
   void confirmPermanentDelete(BuildContext context, Map<String, dynamic> item) {
-    Get.dialog<void>(
-      Dialog(
-        backgroundColor: AppColors.bgSurface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.bgDivider),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Delete Permanently?',
-                style: AppTextStyles.titleLarge.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: TWTypography.brandFamily,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                "Are you sure you want to permanently delete '${item['title']}'? This action cannot be undone and media assets will be destroyed.",
-                style: AppTextStyles.bodyMedium.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: Get.back<void>,
-                    child: Text(
-                      'Cancel',
-                      style: AppTextStyles.buttonText.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.error,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    onPressed: () {
-                      Get.back<void>();
-                      permanentlyDeleteItem(item);
-                    },
-                    child: const Text(
-                      'Delete Forever',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
+    final itemKey = '${item['type']}_${item['id']}';
+    if (_isEmptyingTrash || _activeItemKeys.contains(itemKey)) return;
+
+    _showConfirmDeleteDialog(
+      title: 'Delete Permanently?',
+      message:
+          "Are you sure you want to permanently delete '${item['title']}'? This action cannot be undone and media assets will be destroyed.",
+      confirmLabel: 'Delete Forever',
+      onConfirm: () => permanentlyDeleteItem(item),
     );
   }
 
   Future<void> permanentlyDeleteItem(Map<String, dynamic> item) async {
-    final docRef = item['ref'] as DocumentReference;
-    final type = item['type'] as String;
-    final id = item['id'] as String;
+    final type = item['type'] as String? ?? '';
+    final id = item['id'] as String? ?? '';
+    final itemKey = '${type}_$id';
+    if (_isEmptyingTrash || !_activeItemKeys.add(itemKey)) return;
 
-    Get.dialog(
-      const Center(child: CircularProgressIndicator(color: AppColors.brand)),
-      barrierDismissible: false,
-    );
+    final closeLoading = _openLoadingDialog();
 
     try {
-      if (type == 'Video') {
-        await VideoManagementController.permanentlyDeleteVideoDoc(
-          videoId: id,
-          isShort: item['isShort'] == true,
-          videoUrl: item['videoUrl'] as String? ?? '',
-          thumbnailUrl: item['imageUrl'] as String? ?? '',
-          originalUrl: item['originalUrl'] as String? ?? '',
-        );
-        if (Get.isRegistered<DashboardCommentsController>()) {
-          Get.find<DashboardCommentsController>().removeVideo(id);
-        }
-      } else {
-        await docRef.delete();
-        if (type == 'Playlist' && item['isUserPlaylist'] == true) {
-          try {
-            await FirebaseFirestore.instance
-                .collection(FirestoreCollections.playlists)
-                .doc(id)
-                .delete();
-          } catch (_) {}
-        } else if (type == 'Post') {
-          final img = item['imageUrl'] as String? ?? '';
-          if (img.isNotEmpty) {
-            await VideoManagementController.safeDeleteStorageUrl(img);
-          }
-        }
-      }
+      await _permanentlyDeleteEntry(item);
+      trashItems.removeWhere((e) => e['id'] == id && e['type'] == type);
 
-      Get.back(); // Close loading dialog
+      closeLoading();
       AppSnackbar.success(
         "'${item['title']}' has been permanently deleted.",
       );
       loadTrashItems();
     } catch (e, s) {
-      Get.back();
+      closeLoading();
       ErrorHandler.log(e, stackTrace: s, tag: 'TrashRestore.permanentlyDeleteItem');
       AppSnackbar.error(
         'Unable to permanently delete item. Please try again.',
       );
+    } finally {
+      _activeItemKeys.remove(itemKey);
+      closeLoading();
     }
   }
 
   Future<void> emptyAllTrash() async {
-    if (trashItems.isEmpty) return;
+    if (trashItems.isEmpty || _isEmptyingTrash) return;
+    _isEmptyingTrash = true;
 
-    Get.dialog(
-      const Center(child: CircularProgressIndicator(color: AppColors.brand)),
-      barrierDismissible: false,
-    );
+    final closeLoading = _openLoadingDialog();
 
     try {
       final itemsToDelete = List<Map<String, dynamic>>.from(trashItems);
       for (final item in itemsToDelete) {
-        final docRef = item['ref'] as DocumentReference?;
-        final type = item['type'] as String? ?? '';
-        final id = item['id'] as String? ?? '';
-
-        if (type == 'Video') {
-          await VideoManagementController.permanentlyDeleteVideoDoc(
-            videoId: id,
-            isShort: item['isShort'] == true,
-            videoUrl: item['videoUrl'] as String? ?? '',
-            thumbnailUrl: item['imageUrl'] as String? ?? '',
-            originalUrl: item['originalUrl'] as String? ?? '',
-          );
-          if (Get.isRegistered<DashboardCommentsController>()) {
-            Get.find<DashboardCommentsController>().removeVideo(id);
-          }
-        } else if (docRef != null) {
-          await docRef.delete();
-          if (type == 'Playlist' && item['isUserPlaylist'] == true) {
-            try {
-              await FirebaseFirestore.instance
-                  .collection(FirestoreCollections.playlists)
-                  .doc(id)
-                  .delete();
-            } catch (_) {}
-          } else if (type == 'Post') {
-            final img = item['imageUrl'] as String? ?? '';
-            if (img.isNotEmpty) {
-              await VideoManagementController.safeDeleteStorageUrl(img);
-            }
-          }
-        }
+        await _permanentlyDeleteEntry(item);
       }
+      trashItems.clear();
 
-      Get.back(); // Close loading dialog
+      closeLoading();
       AppSnackbar.success('All trash items have been permanently deleted.');
       loadTrashItems();
     } catch (e, s) {
-      Get.back();
+      closeLoading();
       ErrorHandler.log(e, stackTrace: s, tag: 'TrashRestore.emptyAllTrash');
       AppSnackbar.error('Unable to empty trash completely. Please try again.');
       loadTrashItems();
+    } finally {
+      _isEmptyingTrash = false;
+      closeLoading();
     }
   }
 
   void confirmEmptyTrash(BuildContext context) {
-    if (trashItems.isEmpty) return;
+    if (trashItems.isEmpty || _isEmptyingTrash) return;
 
-    Get.dialog<void>(
-      Dialog(
-        backgroundColor: AppColors.bgSurface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.bgDivider),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Empty ${isConsumer.value ? "Personal Trash" : "Trash"}?',
-                style: AppTextStyles.titleLarge.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: TWTypography.brandFamily,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Are you sure you want to permanently delete all ${trashItems.length} items in ${isConsumer.value ? "Personal Trash" : "trash"}? This action cannot be undone.',
-                style: AppTextStyles.bodyMedium.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: Get.back<void>,
-                    child: Text(
-                      'Cancel',
-                      style: AppTextStyles.buttonText.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.error,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    onPressed: () {
-                      Get.back<void>();
-                      emptyAllTrash();
-                    },
-                    child: const Text(
-                      'Empty Trash',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
+    _showConfirmDeleteDialog(
+      title: 'Empty ${isConsumer.value ? "Personal Trash" : "Trash"}?',
+      message:
+          'Are you sure you want to permanently delete all ${trashItems.length} items in ${isConsumer.value ? "Personal Trash" : "trash"}? This action cannot be undone.',
+      confirmLabel: 'Empty Trash',
+      onConfirm: emptyAllTrash,
     );
   }
 

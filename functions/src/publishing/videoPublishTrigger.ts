@@ -5,7 +5,7 @@
  *
  * Scenarios:
  *   A. First-time publish (becamePublished) → Create job + start full speculative pipeline
- *   B. Re-language (languagesChanged)      → Trigger Path 2 for additional languages
+ *   B. Re-language (languagesChanged)      → Trigger Localization (Dubbing/Subtitles) for additional languages
  *   C. Re-publish (job already exists)     → Idempotent skip
  *   D. Approved & Published                → Fan-out subscriber notifications
  *   E. Fact-Check Dispute Submitted        → Dispatch credibility re-evaluation via Pub/Sub
@@ -16,7 +16,7 @@ import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { v4 as uuidv4 } from "uuid";
 import { notifyUser } from "../notifications/notifications";
 import { notifyMentions } from "../notifications/triggers";
-import { ExecutionPlan } from "../pipeline/types";
+import { ExecutionPlan, isCredibilityEnabled } from "../pipeline/types";
 import { logger } from "../pipeline/utils/logger";
 import { normalizeLanguageCode, normalizeLanguageCodes } from "../shared/language-normalizer";
 import { getFlatDubbingRatePerLanguage, getFlatSubtitleRatePerLanguage } from "../pipeline/pipelineTriggers";
@@ -184,11 +184,12 @@ export const onVideoPublished = onDocumentUpdated(
 
       const executionPlan: ExecutionPlan = {
         jobId: videoId,
+        videoId,
         languages: [],
-        enablePath1: true,
-        enablePath2: false,
-        enableTruthEngine: true,
-        enableReachEngine: false,
+        enableCredibility: true,
+        factCheckEnabled: true,
+        enableDubbing: false,
+        enableSubtitles: false,
         enableAuxiliary: false,
         dubbingMode: "none",
         generateDubbing: false,
@@ -200,6 +201,17 @@ export const onVideoPublished = onDocumentUpdated(
         synthesisTier: "deep",
         disputedClaimIndex,
       };
+
+      await admin.firestore().collection("credibility_jobs").doc(videoId).set({
+        jobId: videoId,
+        videoId,
+        userId: afterData.userId || afterData.ownerId || "unknown",
+        executionPlan,
+        status: "pending",
+        progress: 0,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      }, { merge: true }).catch(() => {});
 
       const eventId = `dispute_re_eval_${videoId}_${Date.now()}`;
       await distributionLayer.publish("fact-processing", {
@@ -553,7 +565,7 @@ export const onVideoPublished = onDocumentUpdated(
         }
       }
 
-      const enablePath2 = enableDubbing || enableGenLangSubs || (requestedLanguages.length > 0);
+      const enableLocalization = enableDubbing || enableGenLangSubs || (requestedLanguages.length > 0);
 
       const ttsConfig = aiFeatures.tts || {};
       const voiceType = ttsConfig.voiceType || "standard";
@@ -578,10 +590,9 @@ export const onVideoPublished = onDocumentUpdated(
         topics: afterData.topics || [],
         providedSources: afterData.providedSources || [],
         visibility: afterData.visibility || "public",
-        enablePath1: enableFactChecking,
-        enablePath2,
-        enableTruthEngine: enableFactChecking,
-        enableReachEngine: enablePath2,
+        enableCredibility: enableFactChecking,
+        enableDubbing,
+        enableSubtitles: enableGenLangSubs,
         enableAuxiliary: enableSummary || enableFactChecking,
         enableDiarization,
         diarization: enableDiarization,
@@ -631,7 +642,7 @@ export const onVideoPublished = onDocumentUpdated(
         aggregation: { status: "pending", progress: 0 },
       };
 
-      if (enablePath2) {
+      if (enableLocalization) {
         const targetLangs = (requestedLanguages || []).filter(l => normalizeLanguageCode(l) !== channelLang);
         for (const lang of targetLangs) {
           const normLang = normalizeLanguageCode(lang);
@@ -680,6 +691,36 @@ export const onVideoPublished = onDocumentUpdated(
         try {
           const batch = db.batch();
           batch.set(db.collection("video_jobs").doc(jobId), jobData);
+          if (enableFactChecking) {
+            batch.set(db.collection("credibility_jobs").doc(jobId), {
+              jobId,
+              videoId,
+              userId,
+              channelId: afterData.channelId || null,
+              videoUrl,
+              executionPlan,
+              status: "pending",
+              progress: 0,
+              createdAt: now,
+              updatedAt: now,
+            }, { merge: true });
+          }
+          if (enableLocalization) {
+            batch.set(db.collection("dubbing_jobs").doc(jobId), {
+              jobId,
+              videoId,
+              userId,
+              channelId: afterData.channelId || null,
+              videoUrl,
+              executionPlan,
+              status: "pending",
+              progress: 0,
+              languages: executionPlan.dubbingLanguages || executionPlan.languages || [],
+              subtitleLanguages: executionPlan.languages || [],
+              createdAt: now,
+              updatedAt: now,
+            }, { merge: true });
+          }
           batch.update(db.collection("videos").doc(videoId), {
             jobId,
             language: channelLang,
@@ -768,7 +809,7 @@ export const onVideoPublished = onDocumentUpdated(
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // SCENARIO B: Already published, job exists → Re-trigger Path 2 for new languages
+    // SCENARIO B: Already published, job exists → Re-trigger Localization for new languages (100% independent of Credibility)
     // ═══════════════════════════════════════════════════════════════════════════
     if (languagesChanged && afterData.jobId) {
       const jobId = afterData.jobId;
@@ -942,15 +983,35 @@ export const onVideoPublished = onDocumentUpdated(
         }
       }
 
+      const updatedGenerateDubbing = aiFeatures.generateDubbing ?? jobData.executionPlan?.generateDubbing;
+      const updatedGenLangSubs = aiFeatures.genLangSubs ?? jobData.executionPlan?.genLangSubs;
       const updatedPlan: ExecutionPlan = {
         ...jobData.executionPlan,
         languages: Array.from(new Set([scenarioBChannelLang, ...normRelangs])),
-        generateDubbing: aiFeatures.generateDubbing ?? jobData.executionPlan.generateDubbing,
-        genLangSubs: aiFeatures.genLangSubs ?? jobData.executionPlan.genLangSubs,
-        enablePath2: true,
-        enableReachEngine: true,
+        generateDubbing: updatedGenerateDubbing,
+        genLangSubs: updatedGenLangSubs,
+        enableDubbing: updatedGenerateDubbing,
+        enableSubtitles: updatedGenLangSubs,
         jobId,
       };
+
+      const isolatedLocalizationPlan: ExecutionPlan = {
+        ...updatedPlan,
+        enableCredibility: false,
+        factCheckEnabled: false,
+      };
+
+      await db.collection("dubbing_jobs").doc(jobId).set({
+        jobId,
+        videoId,
+        userId: jobData.userId,
+        videoUrl: jobData.videoUrl,
+        executionPlan: isolatedLocalizationPlan,
+        status: "pending",
+        progress: 0,
+        languages: isolatedLocalizationPlan.languages || [],
+        updatedAt: Date.now(),
+      }, { merge: true }).catch(() => {});
 
       await distributionLayer.publish("dubbing-processing", {
         eventId: uuidv4(),
@@ -960,7 +1021,7 @@ export const onVideoPublished = onDocumentUpdated(
         timestamp: Date.now(),
         data: {
           videoUrl: jobData.videoUrl,
-          executionPlan: updatedPlan,
+          executionPlan: isolatedLocalizationPlan,
         },
         retryCount: 0,
         source: "publish-gate-relang",
@@ -1020,7 +1081,7 @@ export const onVideoPublished = onDocumentUpdated(
       if (jobSnap.exists) {
         const jobData = jobSnap.data()!;
         const existingCredStatus = jobData.stages?.credibility?.status;
-        const existingTruthEngine = jobData.executionPlan?.enableTruthEngine;
+        const existingCredEnabled = isCredibilityEnabled(jobData.executionPlan);
         const existingDubStatus = jobData.stages?.dubbing?.status;
 
         // Reconcile Dubbing if creator skipped dubbing but job has it pending or completed
@@ -1034,14 +1095,15 @@ export const onVideoPublished = onDocumentUpdated(
             "stages.dubbing": { status: "skipped", progress: 100 },
             "config.generateDubbing": false,
             "config.dubbingMode": "none",
+            "executionPlan.enableDubbing": false,
             "executionPlan.generateDubbing": false,
             "executionPlan.dubbingMode": "none",
             updatedAt: Date.now(),
           });
         }
 
-        if (enableFactCheckingOnReconcile && (existingCredStatus === "skipped" || !existingTruthEngine)) {
-          logger.info("[PublishGate] Reconciling Truth Verification on existing job", {
+        if (enableFactCheckingOnReconcile && (existingCredStatus === "skipped" || !existingCredEnabled)) {
+          logger.info("[PublishGate] Reconciling Credibility Verification on existing job", {
             videoId,
             jobId: existingJobId,
             previousStatus: existingCredStatus,
@@ -1049,8 +1111,7 @@ export const onVideoPublished = onDocumentUpdated(
 
           const reconciledPlan: ExecutionPlan = {
             ...jobData.executionPlan,
-            enablePath1: true,
-            enableTruthEngine: true,
+            enableCredibility: true,
             factCheckEnabled: true,
             factCheckTier: "full_ground",
             maxClaims: 200,
@@ -1058,6 +1119,17 @@ export const onVideoPublished = onDocumentUpdated(
             jobId: existingJobId,
           };
           (reconciledPlan as any).enableFactChecking = true;
+
+          await db.collection("credibility_jobs").doc(existingJobId).set({
+            jobId: existingJobId,
+            videoId,
+            userId: jobData.userId || afterData.userId || afterData.ownerId || "unknown",
+            videoUrl: jobData.videoUrl || afterData.videoUrl || "",
+            executionPlan: reconciledPlan,
+            status: "pending",
+            progress: 0,
+            updatedAt: Date.now(),
+          }, { merge: true }).catch(() => {});
 
           const jobUpdates: Record<string, any> = {
             executionPlan: reconciledPlan,
@@ -1217,10 +1289,8 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
   // Notable highlights: verified fact checks, high truth/trust score (>=75), featured, or explicit highlight.
   const isVerified = video.isFactChecked === true || video.factCheckStatus === "verified";
   const isFeatured = video.featured === true || video.isFeatured === true;
-  const isHighTruth = typeof video.truthScore === "number" && video.truthScore >= 75;
-  const isHighTrust = typeof video.trustScore === "number" && video.trustScore >= 75;
   const isHighlight = video.isHighlight === true;
-  const isPersonalizedEligible = isVerified || isFeatured || isHighTruth || isHighTrust || isHighlight;
+  const isPersonalizedEligible = isVerified || isFeatured || isHighlight;
 
   // Process a batch of subscriber docs from any collection/subcollection source
   const processSubscriberBatch = async (docs: FirebaseFirestore.QueryDocumentSnapshot[]) => {

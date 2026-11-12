@@ -318,21 +318,13 @@ class VideoContentCard extends StatelessWidget {
                     Get.to<dynamic>(() => EditVideoScreen(video: video));
                   } else if (value == 'reactions_settings') {
                     showVideoReactionsSettingsDialog(context, video, controller);
-                  } else if (value == 'video_dubbing') {
+                  } else if (value == 'video_dubbing' || value == 'audio_dubbing') {
                     showGenerateAIFeaturesDialog(
                       context,
                       video,
                       controller,
                       initialFeatures: {'dubbing'},
-                      initialDubbingTier: 'video_pro',
-                    );
-                  } else if (value == 'audio_dubbing') {
-                    showGenerateAIFeaturesDialog(
-                      context,
-                      video,
-                      controller,
-                      initialFeatures: {'dubbing'},
-                      initialDubbingTier: 'audio_starter',
+                      initialDubbingTier: 'audio_track',
                     );
                   } else if (value == 'ai_features') {
                     showGenerateAIFeaturesDialog(context, video, controller);
@@ -498,26 +490,6 @@ class VideoContentCard extends StatelessWidget {
                     ),
                   ),
                   PopupMenuItem<String>(
-                    value: 'video_dubbing',
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.record_voice_over_rounded,
-                          size: 18,
-                          color: AppColors.textPrimary,
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          'Video Dubbing & Lip-Sync (Pro • Ultra)',
-                          style: AppTextStyles.bodyMedium.copyWith(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  PopupMenuItem<String>(
                     value: 'audio_dubbing',
                     child: Row(
                       children: [
@@ -528,7 +500,7 @@ class VideoContentCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 10),
                         Text(
-                          'Audio Dubbing (Starter • Pro • Ultra)',
+                          'AI Audio Dubbing',
                           style: AppTextStyles.bodyMedium.copyWith(
                             color: AppColors.textPrimary,
                             fontWeight: FontWeight.w600,

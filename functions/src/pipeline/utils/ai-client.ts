@@ -179,11 +179,21 @@ export class GenAIVertexAdapter {
           config.cachedContent = cachedContent || generationConfig.cachedContent;
         }
 
-        return await ai.models.generateContentStream({
+        const streamGen = await ai.models.generateContentStream({
           model,
           contents,
           config,
         });
+
+        // Compatibility shim:
+        // Legacy @google-cloud/vertexai callers used `result.stream`.
+        // Modern @google/genai returns AsyncGenerator directly.
+        // We attach .stream pointing to the generator itself so BOTH:
+        // - `for await (const chunk of streamResult.stream)`
+        // - `for await (const chunk of streamResult)`
+        // work flawlessly.
+        (streamGen as any).stream = streamGen;
+        return streamGen;
       },
     };
   }

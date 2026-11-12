@@ -1590,29 +1590,34 @@ class _CustomizationView extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.bgDivider),
       ),
-      child: SwitchListTile(
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontFamily: TWTypography.uiFamily,
-            fontFamilyFallback: TWTypography.fallbackFamilies,
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w600,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        clipBehavior: Clip.antiAlias,
+        child: SwitchListTile(
+          title: Text(
+            title,
+            style: const TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              fontFamilyFallback: TWTypography.fallbackFamilies,
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
-        subtitle: Text(
-          subtitle,
-          style: const TextStyle(
-            fontFamily: TWTypography.uiFamily,
-            fontFamilyFallback: TWTypography.fallbackFamilies,
-            color: AppColors.textSecondary,
-            fontSize: 12,
+          subtitle: Text(
+            subtitle,
+            style: const TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              fontFamilyFallback: TWTypography.fallbackFamilies,
+              color: AppColors.textSecondary,
+              fontSize: 12,
+            ),
           ),
+          value: value,
+          onChanged: onChanged,
+          activeThumbColor: AppColors.brand,
+          activeTrackColor: AppColors.brand.withValues(alpha: 0.4),
         ),
-        value: value,
-        onChanged: onChanged,
-        activeThumbColor: AppColors.brand,
-        activeTrackColor: AppColors.brand.withValues(alpha: 0.4),
       ),
     );
   }

@@ -69,11 +69,11 @@ LatencyStats calculateStats(
 }
 
 class _Candidate {
-  _Candidate(this.channelId, this.category, this.tags, this.trustScore);
+  _Candidate(this.channelId, this.category, this.tags, this.isFactChecked);
   final String channelId;
   final String category;
   final List<String> tags;
-  final double trustScore;
+  final bool isFactChecked;
 }
 
 void main() {
@@ -210,12 +210,12 @@ void main() {
           'chan_${i % 10}',
           (i % 3 == 0) ? 'News' : 'Tech',
           ['ai', 'factcheck', 'truthworld'],
-          70.0 + (i % 30),
+          i % 2 == 0,
         );
       });
 
       double scoreCandidate(_Candidate c, String currentChannel, String currentCategory, List<String> currentTags) {
-        var score = c.trustScore * 0.4;
+        var score = c.isFactChecked ? 25.0 : 10.0;
         if (c.channelId == currentChannel) score += 30.0;
         if (c.category == currentCategory) score += 20.0;
         for (final t in currentTags) {

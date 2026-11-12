@@ -231,7 +231,6 @@ class FeedAlgorithmService extends GetxService {
         } else if (firestoreMap.containsKey(sVideo.id)) {
           final fVideo = firestoreMap[sVideo.id]!;
           hydrated.add(fVideo.copyWith(
-            trustScore: sVideo.trustScore > 0 ? sVideo.trustScore : fVideo.trustScore,
             embedding: sVideo.embedding ?? fVideo.embedding,
           ));
         } else {

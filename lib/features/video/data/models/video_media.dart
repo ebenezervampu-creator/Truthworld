@@ -120,7 +120,6 @@ class VideoMediaLocalization {
 /// This is the largest payload — can be 50-100KB for detailed reports.
 class VideoMediaCredibility {
   const VideoMediaCredibility({
-    this.trustScore = 0.0,
     this.trustLabel,
     this.summary = '',
     this.scoringFactors,
@@ -146,12 +145,6 @@ class VideoMediaCredibility {
   });
 
   factory VideoMediaCredibility.fromMap(Map<String, dynamic> data) {
-    final rawTrustScore = data['trustScore'] ??
-        data['trustIndex'] ??
-        data['score'] ??
-        data['videoRating'] ??
-        0;
-    final trustScore = (rawTrustScore is num) ? rawTrustScore.toDouble() : 0.0;
     final trustLabel =
         (data['trustLabel'] ?? data['label'] ?? data['state'])?.toString();
     final rawSummary = (data['summary'] ??
@@ -204,7 +197,6 @@ class VideoMediaCredibility {
             : null;
 
     return VideoMediaCredibility(
-      trustScore: trustScore,
       trustLabel: trustLabel,
       summary: summary,
       scoringFactors: scoringFactors,
@@ -260,7 +252,6 @@ class VideoMediaCredibility {
     );
   }
   // Core scores (also duplicated as summary on main doc for card display)
-  final double trustScore;
   final String? trustLabel;
   final String summary;
 
@@ -296,7 +287,6 @@ class VideoMediaCredibility {
   final Timestamp? updatedAt;
 
   Map<String, dynamic> toMap() => {
-    'trustScore': trustScore,
     'trustLabel': trustLabel,
     'summary': summary,
     'viewerNote': summary,

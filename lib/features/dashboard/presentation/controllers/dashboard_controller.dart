@@ -49,6 +49,10 @@ class DashboardController extends BaseController {
   RxInt selectedIndex = 1.obs;
   final RxString targetVideoId = ''.obs;
   RxBool isDrawerExpanded = true.obs;
+
+  /// Tracks the last route key (tab + videoId) for which applyRouteTargetIfPresent
+  /// has already been applied, preventing repeated mutations on every Obx rebuild.
+  String _appliedRouteKey = '';
   RxBool rxIsLoading = true.obs;
   final RxBool rxIsRefreshing = false.obs;
   @override
@@ -214,6 +218,12 @@ class DashboardController extends BaseController {
         : (currentChannel.value?.id ?? '');
     if (effectiveChannelId.isEmpty) return false;
 
+    // Check loaded videos or populate from channel query first
+    if (recentVideos.isEmpty) {
+      await ensureVideosLoaded();
+      if (hasAnyVideoCrossedThreshold) return true;
+    }
+
     try {
       final snap = await _firestore
           .collection(FirestoreCollections.videos)
@@ -230,6 +240,38 @@ class DashboardController extends BaseController {
           }
           return true;
         }
+      }
+    } on FirebaseException catch (e, stackTrace) {
+      // If composite index is building or not yet deployed, fallback to single-field index
+      if (e.code == 'failed-precondition') {
+        try {
+          final fallbackSnap = await _firestore
+              .collection(FirestoreCollections.videos)
+              .where('channelId', isEqualTo: effectiveChannelId)
+              .limit(100)
+              .get();
+          for (final doc in fallbackSnap.docs) {
+            final v = Video.fromDocumentSnapshot(doc);
+            if (v.status != VideoStatus.deleted && isVideoWithdrawalEligible(v)) {
+              if (!recentVideos.any((rv) => rv.id == v.id)) {
+                recentVideos.add(v);
+              }
+              return true;
+            }
+          }
+        } catch (innerError, innerStack) {
+          ErrorHandler.log(
+            innerError,
+            stackTrace: innerStack,
+            tag: 'DashboardController.checkVideoMonetizationThreshold.fallback',
+          );
+        }
+      } else {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'DashboardController.checkVideoMonetizationThreshold',
+        );
       }
     } catch (e, stackTrace) {
       ErrorHandler.log(
@@ -1942,6 +1984,18 @@ class DashboardController extends BaseController {
     final tabArg = Get.arguments is Map ? Get.arguments['tab'] : null;
     final tabParam = Get.parameters['tab'];
     final tab = tabArg ?? tabParam;
+
+    final vidId =
+        (Get.arguments is Map ? Get.arguments['videoId'] as String? : null) ??
+            Get.parameters['videoId'];
+
+    // Build a key representing the current route target. If we've already
+    // processed this exact combination, skip — prevents repeated Rx mutations
+    // on every Obx rebuild that would cause "setState() during build" crashes.
+    final routeKey = '${tab ?? ''}_${vidId ?? ''}';
+    if (routeKey == _appliedRouteKey) return;
+    _appliedRouteKey = routeKey;
+
     if (tab is int && tab >= 1 && tab <= 20) {
       if (tab == 18 && !isChannelMonetizationActive) {
         selectedIndex.value = 1;
@@ -2024,8 +2078,6 @@ class DashboardController extends BaseController {
     }
 
     // Video ID targeting for Truth Verification, Copyright, or Content tabs
-    final vidId = (Get.arguments is Map ? Get.arguments['videoId'] as String? : null) ??
-        Get.parameters['videoId'];
     if (vidId != null && vidId.isNotEmpty) {
       targetVideoId.value = vidId;
     }

@@ -18,6 +18,7 @@ import 'package:truthworld/features/video/presentation/controllers/video_control
 import 'package:truthworld/features/video/presentation/services/sleep_timer_service.dart';
 import 'package:truthworld/features/video/presentation/services/video_playback_queue_service.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
+import 'package:truthworld/features/video/presentation/views/player/overlays/components/audio_themes/core/audio_analysis_service.dart';
 import 'package:video_player/video_player.dart';
 
 export 'tower_player/tower_player_components.dart';
@@ -49,6 +50,9 @@ class TowerPlayerController extends BaseController
   Worker? _langWorker;
 
   TowerPlayerController({required this.videoPlayerController, this.tag}) {
+    if (tag != null) {
+      TowerPlayerRegistry.clearDisposed(tag!);
+    }
     try {
       rxValue = videoPlayerController.value.obs;
       isInitialized.value = videoPlayerController.value.isInitialized;
@@ -177,6 +181,10 @@ class TowerPlayerController extends BaseController
   ChewieController? chewieController;
   @override
   final String? tag;
+
+  AudioAnalysisService? _audioAnalysisService;
+  AudioAnalysisService get audioAnalysisService =>
+      _audioAnalysisService ??= AudioAnalysisService(playerCtrl: this);
 
   void _initChewieController() {
     TowerPlayerChewieConfigurator.safeDispose(
@@ -421,7 +429,11 @@ class TowerPlayerController extends BaseController
   }
 
   // ── VPC listener ──────────────────────────────────────────
+  bool _isHandlingVpcUpdate = false;
+
   void _onVpcUpdate() {
+    if (_isHandlingVpcUpdate || _isClosed) return;
+    _isHandlingVpcUpdate = true;
     try {
       final val = videoPlayerController.value;
       rxValue.value = val;
@@ -561,11 +573,14 @@ class TowerPlayerController extends BaseController
     } catch (e, s) {
       ErrorHandler.log(
           e, stackTrace: s, tag: 'TowerPlayerController.onVpcUpdate');
+    } finally {
+      _isHandlingVpcUpdate = false;
     }
   }
 
   @override
   void onClose() {
+    if (_isClosed) return;
     _isClosed = true;
     _langWorker?.dispose();
     _langWorker = null;
@@ -596,6 +611,9 @@ class TowerPlayerController extends BaseController
     TowerPlayerChewieConfigurator.safeDispose(chewieController);
     chewieController = null;
     TowerPlayerRegistry.unregister(this);
+    if (tag != null) {
+      TowerPlayerRegistry.markDisposed(tag!);
+    }
     timers.cancelAll();
     overlayTranscriptAutoScrollTimer?.cancel();
     overlayTranscriptScrollController.dispose();
@@ -614,6 +632,8 @@ class TowerPlayerController extends BaseController
     if (Get.isRegistered<PlayerLockController>(tag: tag)) {
       Get.delete<PlayerLockController>(tag: tag, force: true);
     }
+    _audioAnalysisService?.onClose();
+    _audioAnalysisService = null;
     super.onClose();
   }
 

@@ -24,7 +24,6 @@ class AskAiScreen extends StatelessWidget {
     this.allSources,
     this.allClaims,
     this.summary,
-    this.trustScore,
     this.claimExplanation,
     super.key,
   });
@@ -38,7 +37,6 @@ class AskAiScreen extends StatelessWidget {
   final List<dynamic>? allSources;
   final List<dynamic>? allClaims;
   final String? summary;
-  final double? trustScore;
   final String? claimExplanation;
 
   /// Seamlessly navigates to the Ask AI dedicated screen.
@@ -53,7 +51,6 @@ class AskAiScreen extends StatelessWidget {
     List<dynamic>? allSources,
     List<dynamic>? allClaims,
     String? summary,
-    double? trustScore,
     String? claimExplanation,
   }) {
     // 1. Pre-initialize AiCredibilityChatController
@@ -70,7 +67,6 @@ class AskAiScreen extends StatelessWidget {
       allSources: allSources,
       allClaims: allClaims,
       summary: summary,
-      trustScore: trustScore,
       claimExplanation: claimExplanation,
     );
 
@@ -85,7 +81,6 @@ class AskAiScreen extends StatelessWidget {
             allSources: allSources,
             allClaims: allClaims,
             summary: summary,
-            trustScore: trustScore,
             claimExplanation: claimExplanation,
           ),
           routeName: AppRoutes.askAi,
@@ -99,7 +94,6 @@ class AskAiScreen extends StatelessWidget {
             'allSources': allSources,
             'allClaims': allClaims,
             'summary': summary,
-            'trustScore': trustScore,
             'claimExplanation': claimExplanation,
             'videoId': video.id,
           },
@@ -122,7 +116,6 @@ class AskAiScreen extends StatelessWidget {
     var resolvedAllSources = allSources;
     var resolvedAllClaims = allClaims;
     var resolvedSummary = summary;
-    var resolvedTrustScore = trustScore;
     var resolvedClaimExplanation = claimExplanation;
 
     final args = Get.arguments;
@@ -156,9 +149,7 @@ class AskAiScreen extends StatelessWidget {
       if (args['summary'] is String) {
         resolvedSummary = args['summary'] as String;
       }
-      if (args['trustScore'] is num) {
-        resolvedTrustScore = (args['trustScore'] as num).toDouble();
-      }
+      
       if (args['claimExplanation'] is String) {
         resolvedClaimExplanation = args['claimExplanation'] as String;
       }
@@ -204,7 +195,6 @@ class AskAiScreen extends StatelessWidget {
             allSources: resolvedAllSources,
             allClaims: resolvedAllClaims,
             summary: resolvedSummary,
-            trustScore: resolvedTrustScore,
             claimExplanation: resolvedClaimExplanation,
           );
         },
@@ -222,7 +212,6 @@ class AskAiScreen extends StatelessWidget {
       allSources: resolvedAllSources,
       allClaims: resolvedAllClaims,
       summary: resolvedSummary,
-      trustScore: resolvedTrustScore,
       claimExplanation: resolvedClaimExplanation,
     );
   }
@@ -238,7 +227,6 @@ class AskAiScreen extends StatelessWidget {
     List<dynamic>? allSources,
     List<dynamic>? allClaims,
     String? summary,
-    double? trustScore,
     String? claimExplanation,
   }) {
     final tag = '${video.id}_${scope}_${claimIndex ?? 'all'}';
@@ -258,7 +246,6 @@ class AskAiScreen extends StatelessWidget {
         allSources: allSources,
         allClaims: allClaims,
         summary: summary,
-        trustScore: trustScore,
         claimExplanation: claimExplanation,
       );
     }
@@ -389,7 +376,6 @@ class AskAiScreen extends StatelessWidget {
               allSources: allSources,
               allClaims: allClaims,
               summary: summary,
-              trustScore: trustScore,
               claimExplanation: claimExplanation,
               isEmbedded: true,
               hideHeader: true,

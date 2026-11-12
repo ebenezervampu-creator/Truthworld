@@ -25,6 +25,15 @@ import {
 import { SemanticEvidenceValidator } from './semanticEvidenceValidator';
 import { EvidenceTransferValidator } from './evidenceTransferValidator';
 
+export interface CrossLingualDriftAudit {
+  hasFramingDrift: boolean;
+  driftType: 'HYPERBOLIC_ESCALATION' | 'UNSUBSTANTIATED_GENERALIZATION' | 'CAUSAL_INVERSION' | 'NONE';
+  severityScore: number; // 0.0 - 1.0
+  sourceClaimText: string;
+  translatedClaimText: string;
+  detectedDiscrepancies: string[];
+}
+
 export class DeterministicVerifierService {
   /**
    * Deterministic Exact Span Alignment (Normalized substring and Levenshtein alignment)
@@ -224,7 +233,16 @@ export class DeterministicVerifierService {
       }
     }
 
-    const k_eff = standalonePrimaryCount + uniqueUpstreamSources.size;
+    // Deduplicate: if an upstream source is directly present in evidenceIds,
+    // prevent double-counting it both as standalone primary and as upstream parent.
+    let rootOverlap = 0;
+    for (const upstreamId of uniqueUpstreamSources) {
+      if (evidenceIds.includes(upstreamId)) {
+        rootOverlap++;
+      }
+    }
+
+    const k_eff = Math.max(1, standalonePrimaryCount + uniqueUpstreamSources.size - rootOverlap);
     return {
       totalWeight: parseFloat(totalWeight.toFixed(2)),
       k_eff,
@@ -497,9 +515,140 @@ export class DeterministicVerifierService {
       }
     }
 
+    // 9. Rule 9: Formally Retracted Citation Guardrail
+    for (const prop of assessment.claimDecomposition || []) {
+      for (const id of prop.supportingEvidenceIds || []) {
+        const item = registry[id];
+        if (item && ((item as any).isRetracted || (item as any).retractionNotice)) {
+          errors.push(
+            `[RETRACTED_EVIDENCE_REJECTION] Proposition '${prop.propositionId}' marked SUPPORTED references formally retracted citation '${id}'.`
+          );
+        }
+      }
+    }
+
     return {
       isValid: errors.length === 0,
       errors,
+    };
+  }
+
+  /**
+   * Evidence Sovereignty Conflict Resolver (Epistemic Principle):
+   * When an institutional statement (Tier A without primary telemetry) conflicts with
+   * direct reproducible primary technical telemetry (even from Tier D/E origin),
+   * primary physical telemetry decisively takes epistemic precedence over institutional pedigree.
+   */
+  public static resolveEvidentiaryConflict(params: {
+    institutionalEvidence: EvidenceRegistryItem;
+    reproducibleTechnicalEvidence: EvidenceRegistryItem;
+  }): {
+    winningEvidenceId?: string;
+    precedenceReason: string;
+    adjudicatedStatus: EvidenceStatus;
+  } {
+    const { institutionalEvidence, reproducibleTechnicalEvidence } = params;
+
+    const isInstitutionalPrimaryTelemetry =
+      institutionalEvidence.independence?.lineageType === 'PRIMARY_TECHNICAL_RECORD' ||
+      institutionalEvidence.independence?.lineageType === 'PRIMARY_DATASET';
+
+    const isTechnicalPrimaryTelemetry =
+      reproducibleTechnicalEvidence.independence?.lineageType === 'PRIMARY_TECHNICAL_RECORD' ||
+      reproducibleTechnicalEvidence.independence?.lineageType === 'PRIMARY_DATASET';
+
+    // If technical evidence has raw reproducible telemetry and exact verification >= 0.95
+    if (
+      isTechnicalPrimaryTelemetry &&
+      !isInstitutionalPrimaryTelemetry &&
+      (reproducibleTechnicalEvidence.deterministicVerification?.exactMatchScore ?? 0) >= 0.95
+    ) {
+      return {
+        winningEvidenceId: reproducibleTechnicalEvidence.sourceIdentity?.primaryArtifactId || undefined,
+        precedenceReason:
+          'EVIDENCE_SOVEREIGNTY: Reproducible primary technical telemetry decisively supersedes institutional communiqué lacking raw sensor/dataset verification.',
+        adjudicatedStatus: 'CONTRADICTED',
+      };
+    }
+
+    return {
+      precedenceReason: 'Standard evidentiary evaluation applies.',
+      adjudicatedStatus: 'CONFLICTING_EVIDENCE',
+    };
+  }
+
+  /**
+   * Cross-Lingual Semantic Scope & Framing Drift Auditor
+   * Detects when a translation into Telugu, Hindi, or other vernacular languages departs from
+   * the empirical boundaries of the source claim through rhetorical hyperbole, catastrophic framing,
+   * or ungrounded generalization.
+   */
+  public static auditCrossLingualDrift(params: {
+    sourceClaimText: string;
+    translatedClaimText: string;
+    targetLang: 'hi' | 'te' | 'en' | string;
+  }): CrossLingualDriftAudit {
+    const { sourceClaimText, translatedClaimText, targetLang } = params;
+    const discrepancies: string[] = [];
+    let driftType: CrossLingualDriftAudit['driftType'] = 'NONE';
+    let severityScore = 0.0;
+
+    const lowerSource = sourceClaimText.toLowerCase();
+
+    // Vernacular Hyperbolic Trigger Dictionaries
+    const hindiHyperbolicMarkers = [
+      { pattern: /पूरी तरह (तबाह|ध्वस्त|बर्बाद)/i, meaning: 'completely destroyed/ruined' },
+      { pattern: /महाघोटाला|विशाल घोटाला/i, meaning: 'massive scam/fraud' },
+      { pattern: /सर्वनाश|कंगाल|दिवालिया/i, meaning: 'apocalypse/bankruptcy' },
+      { pattern: /पूरी तरह झूठ|पूरी तरह फर्जी/i, meaning: 'completely fake/fabricated' },
+    ];
+
+    const teluguHyperbolicMarkers = [
+      { pattern: /సర్వనాశనం|పూర్తిగా నాశనం/i, meaning: 'total destruction' },
+      { pattern: /ఘోర వైఫల్యం|తీవ్ర సంక్షోభం/i, meaning: 'catastrophic failure/extreme crisis' },
+      { pattern: /పూర్తిగా అబద్ధం|మోసం/i, meaning: 'completely false/fraud' },
+      { pattern: /దివాళా|కుప్పకూలింది/i, meaning: 'bankrupt/collapsed' },
+    ];
+
+    const hasMeasuredSourcePhrasing =
+      lowerSource.includes('moderated') ||
+      lowerSource.includes('slowed') ||
+      lowerSource.includes('decelerated') ||
+      lowerSource.includes('decreased by') ||
+      lowerSource.includes('rose by') ||
+      lowerSource.includes('adjusted') ||
+      lowerSource.includes('revised') ||
+      lowerSource.includes('growth of');
+
+    if (targetLang === 'hi') {
+      for (const marker of hindiHyperbolicMarkers) {
+        if (marker.pattern.test(translatedClaimText)) {
+          if (hasMeasuredSourcePhrasing && !lowerSource.includes('collapse') && !lowerSource.includes('destroyed')) {
+            discrepancies.push(`Source contains measured empirical phrasing but Hindi translation introduced hyperbolic escalation: '${marker.meaning}'.`);
+            driftType = 'HYPERBOLIC_ESCALATION';
+            severityScore = Math.max(severityScore, 0.85);
+          }
+        }
+      }
+    } else if (targetLang === 'te') {
+      for (const marker of teluguHyperbolicMarkers) {
+        if (marker.pattern.test(translatedClaimText)) {
+          if (hasMeasuredSourcePhrasing && !lowerSource.includes('collapse') && !lowerSource.includes('destroyed')) {
+            discrepancies.push(`Source contains measured empirical phrasing but Telugu translation introduced hyperbolic escalation: '${marker.meaning}'.`);
+            driftType = 'HYPERBOLIC_ESCALATION';
+            severityScore = Math.max(severityScore, 0.85);
+          }
+        }
+      }
+    }
+
+    return {
+      hasFramingDrift: discrepancies.length > 0,
+      driftType,
+      severityScore,
+      sourceClaimText,
+      translatedClaimText,
+      detectedDiscrepancies: discrepancies,
     };
   }
 }

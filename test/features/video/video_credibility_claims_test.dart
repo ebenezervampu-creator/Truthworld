@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:truthworld/core/utils/source_url_sanitizer.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
+import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_helpers.dart';
 
 void main() {
   group('Video Credibility Claims & Real Sources Tests', () {
@@ -384,6 +385,54 @@ void main() {
       expect(claimResult.effectiveSources.length, equals(2));
       expect(claimResult.effectiveSources.first.domain, equals('biblegateway.com'));
       expect(claimResult.effectiveSources.last.domain, equals('en.wikipedia.org'));
+    });
+
+    test('Closed-World ClaimResult hides broken URLs on missing status and retains non-clickable academic metadata', () {
+      final claimMap = {
+        'claimId': 'claim_18',
+        'claim': 'Biological aging rate can be influenced by lifestyle habits.',
+        'verdict': 'VERIFIED TRUE',
+        'sourceStatus': 'missing',
+        'verifiedAcademicMetadata': [
+          {
+            'title': 'Lifestyle factors and biological age markers',
+            'authors': ['Smith J', 'Lee K'],
+            'journal': 'Nature Aging',
+            'year': '2024',
+            'doi': '10.1038/s43587-024-0001-x',
+          },
+        ],
+        'richSources': [
+          {
+            'title': 'Mayo Clinic',
+            'url': 'https://www.mayoclinic.org/',
+            'domain': 'mayoclinic.org',
+          },
+        ],
+      };
+
+      final claimResult = ClaimResult.fromMap(claimMap);
+
+      expect(claimResult.sourceStatus, equals('missing'));
+      expect(claimResult.effectiveSources, isEmpty);
+      expect(claimResult.verifiedAcademicMetadata, hasLength(1));
+      expect(
+        claimResult.verifiedAcademicMetadata!.first['doi'],
+        equals('10.1038/s43587-024-0001-x'),
+      );
+
+      final resolved = VideoAnalysisHelpers.resolveRealClaimDetails(
+        claimMap,
+        17,
+        [
+          {
+            'title': 'Aging video global source',
+            'url': 'https://www.who.int/news-room/fact-sheets/detail/ageing-and-health',
+            'domain': 'who.int',
+          },
+        ],
+      );
+      expect(resolved.sources, isEmpty);
     });
   });
 }

@@ -30,6 +30,11 @@ class DashboardViewController extends BaseController
   bool _isSearchControllerDisposed = false;
   bool _isSearchFocusNodeDisposed = false;
   bool _isDisposed = false;
+  final RxBool rxIsDisposed = false.obs;
+  DashboardController? _boundDashboardController;
+
+  @override
+  bool get isDisposed => _isDisposed || super.isDisposed;
 
   TextEditingController get searchController {
     bool isCtrlDisposed = _isSearchControllerDisposed;
@@ -88,15 +93,23 @@ class DashboardViewController extends BaseController
   DashboardController get dashboardController {
     if (Get.isRegistered<DashboardController>()) {
       final ctrl = Get.find<DashboardController>();
-      final chId = getChannelId(channel);
-      if (chId.isNotEmpty && ctrl.channelId != chId) {
-        ctrl.updateChannelId(chId);
-      } else if (chId.isEmpty && ctrl.channelId.isNotEmpty) {
-        ctrl.clearData();
+      if (!ctrl.isDisposed) {
+        final chId = getChannelId(channel);
+        if (chId.isNotEmpty && ctrl.channelId != chId) {
+          ctrl.updateChannelId(chId);
+        } else if (chId.isEmpty && ctrl.channelId.isNotEmpty) {
+          ctrl.clearData();
+        }
+        _boundDashboardController = ctrl;
+        return ctrl;
       }
-      return ctrl;
+      Get.delete<DashboardController>(force: true);
     }
-    return Get.put(DashboardController(channelId: getChannelId(channel)));
+    final created = Get.put<DashboardController>(
+      DashboardController(channelId: getChannelId(channel)),
+    );
+    _boundDashboardController = created;
+    return created;
   }
 
   dynamic get channel {
@@ -178,8 +191,16 @@ class DashboardViewController extends BaseController
     _initializeAnimations();
     _initGlobalKeyboardListener();
     final initChannelId = getChannelId(channel);
-    if (!Get.isRegistered<DashboardController>()) {
-      Get.put(DashboardController(channelId: initChannelId));
+    if (!Get.isRegistered<DashboardController>() ||
+        Get.find<DashboardController>().isDisposed) {
+      if (Get.isRegistered<DashboardController>()) {
+        Get.delete<DashboardController>(force: true);
+      }
+      _boundDashboardController = Get.put<DashboardController>(
+        DashboardController(channelId: initChannelId),
+      );
+    } else {
+      _boundDashboardController = Get.find<DashboardController>();
     }
     unawaited(resolveChannelAndInit());
 
@@ -290,6 +311,15 @@ class DashboardViewController extends BaseController
     if (!chartAnimationController.isAnimating &&
         !chartAnimationController.isCompleted) {
       chartAnimationController.forward();
+    }
+  }
+
+  /// Ensures staggered reveal animations are running or completed when returning to Studio.
+  void ensureAnimationsVisible() {
+    if (isDisposed) return;
+    if (Get.isRegistered<AuthService>() &&
+        AuthService.to.isAuthenticated.value) {
+      startAnimations();
     }
   }
 
@@ -491,9 +521,18 @@ class DashboardViewController extends BaseController
         }
       }
 
-      final vmCtrl = Get.isRegistered<VideoManagementController>()
-          ? Get.find<VideoManagementController>()
-          : Get.put(VideoManagementController());
+      VideoManagementController vmCtrl;
+      if (Get.isRegistered<VideoManagementController>()) {
+        final existing = Get.find<VideoManagementController>();
+        if (!existing.isDisposed) {
+          vmCtrl = existing;
+        } else {
+          Get.delete<VideoManagementController>(force: true);
+          vmCtrl = Get.put(VideoManagementController());
+        }
+      } else {
+        vmCtrl = Get.put(VideoManagementController());
+      }
       if (channelId.isNotEmpty) {
         vmCtrl.ensureInitialized(channelId);
       }
@@ -807,6 +846,7 @@ class DashboardViewController extends BaseController
   @override
   void onClose() {
     _isDisposed = true;
+    rxIsDisposed.value = true;
     HardwareKeyboard.instance.removeHandler(_handleGlobalHardwareKeyEvent);
     _authWorker?.dispose();
     _channelWorker?.dispose();
@@ -839,8 +879,13 @@ class DashboardViewController extends BaseController
     }
     chartAnimationController.dispose();
     if (Get.isRegistered<DashboardController>()) {
-      Get.delete<DashboardController>();
+      final registered = Get.find<DashboardController>();
+      if (_boundDashboardController == null ||
+          identical(registered, _boundDashboardController)) {
+        Get.delete<DashboardController>();
+      }
     }
+    _boundDashboardController = null;
     super.onClose();
   }
 }

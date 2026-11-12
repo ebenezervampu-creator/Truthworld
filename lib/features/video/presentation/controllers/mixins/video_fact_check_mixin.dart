@@ -54,7 +54,7 @@ mixin VideoFactCheckMixin on GetxController {
       if (cached != null &&
           (cached.uiReport != null ||
               cached.claims.isNotEmpty ||
-              (cached.trustScore > 0 && video.isFactChecked))) {
+              video.isFactChecked)) {
         factCheckData.value = cached.toMap();
         hasFactCheckError.value = false;
         hasAttemptedFactCheck.value = true;
@@ -74,7 +74,6 @@ mixin VideoFactCheckMixin on GetxController {
         factCheckData.value = {
           'isProvisional': true,
           'credibilityStatus': video.credibilityStatus ?? 'provisional_ready',
-          'trustScore': video.provisionalScore ?? video.trustScore,
           'trustLabel': video.provisionalLabel ?? video.trustLabel,
           'viewerNote': video.provisionalViewerNote ??
               'Preliminary scan complete. Full multi-source verification is finalizing in background.',
@@ -149,9 +148,6 @@ mixin VideoFactCheckMixin on GetxController {
           final existing = VideoMediaService.credibilityCache[video.id];
           final parsedCred = VideoMediaCredibility.fromMap(decoded);
           VideoMediaService.credibilityCache[video.id] = VideoMediaCredibility(
-            trustScore: parsedCred.trustScore > 0
-                ? parsedCred.trustScore
-                : (existing?.trustScore ?? video.trustScore),
             trustLabel: parsedCred.trustLabel ??
                 existing?.trustLabel ??
                 decoded['trustLabel']?.toString() ??
@@ -222,7 +218,6 @@ mixin VideoFactCheckMixin on GetxController {
             await VideoMediaService().getCredibility(video.id);
         if (cached.uiReport != null ||
             cached.claims.isNotEmpty ||
-            cached.trustScore > 0 ||
             cached.summary.isNotEmpty) {
           factCheckData.value = cached.toMap();
           fallbackSucceeded = true;

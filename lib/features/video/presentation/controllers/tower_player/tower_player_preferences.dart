@@ -44,11 +44,9 @@ class TowerPlayerPreferences {
   static AudioPlayerTheme _loadSavedAudioTheme() {
     final saved = _box.read('pref_global_audio_theme');
     if (saved != null) {
-      for (final theme in AudioPlayerTheme.values) {
-        if (theme.name == saved) return theme;
-      }
+      return AudioPlayerTheme.fromStorage(saved.toString());
     }
-    return AudioPlayerTheme.ambientGlow;
+    return AudioPlayerTheme.fluidAura;
   }
 
   static AudioPlayerTheme get globalAudioThemeValue => globalAudioTheme.value;
@@ -104,89 +102,82 @@ class TowerPlayerPreferences {
 
 /// Available aesthetic themes for TruthWorld Audio-Only mode.
 enum AudioPlayerTheme {
-  ambientGlow,
-  retroVinyl,
-  cyberSpectrum,
-  lyricalStage,
-  zenAura,
-  vintageCassette,
-  analogVuMeter,
-  cosmicNebula,
-  holographicCd,
-  fluidHorizon;
+  fluidAura,
+  kineticSyllable,
+  audiophileSpectral,
+  obsidianMinimalist,
+  truthPulseHologram;
+
+  /// Migrates legacy and stored preference keys to the new 5-theme architecture.
+  static AudioPlayerTheme fromStorage(String? raw) {
+    if (raw == null) return AudioPlayerTheme.fluidAura;
+    return switch (raw) {
+      'fluidAura' || 'ambientGlow' || 'retroVinyl' || 'vintageCassette' ||
+      'cosmicNebula' || 'holographicCd' || 'fluidHorizon' =>
+        AudioPlayerTheme.fluidAura,
+      'kineticSyllable' || 'lyricalStage' => AudioPlayerTheme.kineticSyllable,
+      'audiophileSpectral' || 'cyberSpectrum' || 'analogVuMeter' =>
+        AudioPlayerTheme.audiophileSpectral,
+      'obsidianMinimalist' || 'zenAura' => AudioPlayerTheme.obsidianMinimalist,
+      'truthPulseHologram' => AudioPlayerTheme.truthPulseHologram,
+      _ => AudioPlayerTheme.fluidAura,
+    };
+  }
+
+  // Backward-compatibility aliases for legacy enum references
+  static AudioPlayerTheme get ambientGlow => fluidAura;
+  static AudioPlayerTheme get retroVinyl => fluidAura;
+  static AudioPlayerTheme get cyberSpectrum => audiophileSpectral;
+  static AudioPlayerTheme get lyricalStage => kineticSyllable;
+  static AudioPlayerTheme get zenAura => obsidianMinimalist;
+  static AudioPlayerTheme get vintageCassette => fluidAura;
+  static AudioPlayerTheme get analogVuMeter => audiophileSpectral;
+  static AudioPlayerTheme get cosmicNebula => fluidAura;
+  static AudioPlayerTheme get holographicCd => fluidAura;
+  static AudioPlayerTheme get fluidHorizon => fluidAura;
 
   String get displayName {
     switch (this) {
-      case AudioPlayerTheme.ambientGlow:
-        return 'Ambient Studio Glow';
-      case AudioPlayerTheme.retroVinyl:
-        return 'Classic Vinyl Turntable';
-      case AudioPlayerTheme.cyberSpectrum:
-        return 'Studio Acoustic Spectrum';
-      case AudioPlayerTheme.lyricalStage:
-        return 'Lyrical Stage';
-      case AudioPlayerTheme.zenAura:
-        return 'Minimalist Zen Flow';
-      case AudioPlayerTheme.vintageCassette:
-        return 'Vintage Reel-to-Reel Tape';
-      case AudioPlayerTheme.analogVuMeter:
-        return 'Precision VU Meters';
-      case AudioPlayerTheme.cosmicNebula:
-        return 'Celestial Orbit';
-      case AudioPlayerTheme.holographicCd:
-        return 'Prism Compact Disc';
-      case AudioPlayerTheme.fluidHorizon:
-        return 'Fluid Horizon Waves';
+      case AudioPlayerTheme.fluidAura:
+        return 'Fluid Aura Canvas';
+      case AudioPlayerTheme.kineticSyllable:
+        return 'Kinetic Syllable Stage';
+      case AudioPlayerTheme.audiophileSpectral:
+        return 'Audiophile Studio Spectral';
+      case AudioPlayerTheme.obsidianMinimalist:
+        return 'Obsidian Minimalist';
+      case AudioPlayerTheme.truthPulseHologram:
+        return 'TruthPulse Spatial Hologram';
     }
   }
 
   String get description {
     switch (this) {
-      case AudioPlayerTheme.ambientGlow:
-        return 'Dynamic album ambient diffusion with breathing halo';
-      case AudioPlayerTheme.retroVinyl:
-        return 'Audiophile grooved disc with rotating album artwork';
-      case AudioPlayerTheme.cyberSpectrum:
-        return 'Precision acoustic equalizer with reflective studio bars';
-      case AudioPlayerTheme.lyricalStage:
-        return 'Kinetic typographic presentation with frosted glass backdrop';
-      case AudioPlayerTheme.zenAura:
-        return 'Tranquil harmonic acoustic ripples on velvet obsidian';
-      case AudioPlayerTheme.vintageCassette:
-        return 'Analog studio master tape machine with rotating precision reels';
-      case AudioPlayerTheme.analogVuMeter:
-        return 'Dual high-end dark glass analog meters with ballistic response';
-      case AudioPlayerTheme.cosmicNebula:
-        return 'Deep space void with planetary orb and orbiting stardust';
-      case AudioPlayerTheme.holographicCd:
-        return 'Precision metallic mirror disc with frosted jewel case';
-      case AudioPlayerTheme.fluidHorizon:
-        return 'Silky multi-layered harmonic ribbon waves across obsidian horizon';
+      case AudioPlayerTheme.fluidAura:
+        return 'Artwork-driven dynamic living aura with responsive zero-overflow scaling';
+      case AudioPlayerTheme.kineticSyllable:
+        return 'Word and sentence synchronized transcripts with tap-to-seek and truth verification';
+      case AudioPlayerTheme.audiophileSpectral:
+        return 'Three-band frequency visualizer with real-time RMS/peak levels and verified metadata';
+      case AudioPlayerTheme.obsidianMinimalist:
+        return 'Pure OLED deep black canvas engineered for battery saving, zero glare, and high contrast';
+      case AudioPlayerTheme.truthPulseHologram:
+        return 'Geometric acoustic orbital pulse with evaluated-only credibility illumination';
     }
   }
 
   IconData get icon {
     switch (this) {
-      case AudioPlayerTheme.ambientGlow:
+      case AudioPlayerTheme.fluidAura:
         return Icons.auto_awesome_rounded;
-      case AudioPlayerTheme.retroVinyl:
-        return Icons.album_rounded;
-      case AudioPlayerTheme.cyberSpectrum:
+      case AudioPlayerTheme.kineticSyllable:
+        return Icons.subtitles_rounded;
+      case AudioPlayerTheme.audiophileSpectral:
         return Icons.graphic_eq_rounded;
-      case AudioPlayerTheme.lyricalStage:
-        return Icons.mic_external_on_rounded;
-      case AudioPlayerTheme.zenAura:
-        return Icons.spa_rounded;
-      case AudioPlayerTheme.vintageCassette:
-        return Icons.radio_rounded;
-      case AudioPlayerTheme.analogVuMeter:
-        return Icons.speed_rounded;
-      case AudioPlayerTheme.cosmicNebula:
-        return Icons.brightness_medium_rounded;
-      case AudioPlayerTheme.holographicCd:
-        return Icons.disc_full_rounded;
-      case AudioPlayerTheme.fluidHorizon:
-        return Icons.waves_rounded;
+      case AudioPlayerTheme.obsidianMinimalist:
+        return Icons.dark_mode_rounded;
+      case AudioPlayerTheme.truthPulseHologram:
+        return Icons.blur_circular_rounded;
     }
   }
 }

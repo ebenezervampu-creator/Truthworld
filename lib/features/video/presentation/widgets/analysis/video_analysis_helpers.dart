@@ -168,65 +168,68 @@ class VideoAnalysisHelpers {
       }
     }
 
+    final sourceStatus = (claim['sourceStatus'] ?? claim['sourcesStatus'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    final isMissingSources = sourceStatus == 'missing';
+
     final realSources = <Map<dynamic, dynamic>>[];
-    final rawSources = claim['sources'] ??
-        claim['effectiveSources'] ??
-        claim['richSources'] ??
-        claim['evidence'] ??
-        claim['citations'] ??
-        claim['references'];
-    if (rawSources is List) {
-      for (final s in rawSources) {
-        if (!SourceUrlSanitizer.isValidSource(s)) continue;
-        if (s is UISource) {
-          realSources.add(SourceUrlSanitizer.sanitizeSourceMap(s.toMap()));
-        } else if (s is Map) {
-          final sanitized = SourceUrlSanitizer.sanitizeSourceMap(Map<dynamic, dynamic>.from(s));
-          final url = sanitized['url']?.toString();
-          if (url != null && url.isNotEmpty) {
-            realSources.add(sanitized);
-          } else {
-            final fallbackUrl = SourceUrlSanitizer.resolveFallbackUrl(
-              domain: sanitized['domain']?.toString(),
-              publisher: sanitized['publisher']?.toString(),
-              title: sanitized['title']?.toString(),
-            );
-            if (fallbackUrl != null && fallbackUrl.isNotEmpty) {
-              sanitized['url'] = fallbackUrl;
-              sanitized['directUrl'] = fallbackUrl;
+    if (!isMissingSources) {
+      final rawSources = claim['sources'] ??
+          claim['effectiveSources'] ??
+          claim['richSources'] ??
+          claim['evidence'] ??
+          claim['citations'] ??
+          claim['references'];
+      if (rawSources is List) {
+        for (final s in rawSources) {
+          if (!SourceUrlSanitizer.isValidSource(s)) continue;
+          if (s is UISource) {
+            final sanitized = SourceUrlSanitizer.sanitizeSourceMap(s.toMap());
+            final url = sanitized['url']?.toString();
+            if (url != null && url.isNotEmpty) {
               realSources.add(sanitized);
             }
-          }
-        } else if (s is String && s.trim().isNotEmpty) {
-          final clean = SourceUrlSanitizer.sanitizeUrl(s, title: s);
-          if (clean != null && clean.isNotEmpty) {
-            realSources.add({
-              'title': s.trim(),
-              'url': clean,
-              'directUrl': clean,
-              'domain': SourceUrlSanitizer.resolveDisplayDomain(clean, title: s),
-              'snippet': 'Historical citation reference',
-            });
+          } else if (s is Map) {
+            final sanitized = SourceUrlSanitizer.sanitizeSourceMap(Map<dynamic, dynamic>.from(s));
+            final url = sanitized['url']?.toString();
+            if (url != null && url.isNotEmpty) {
+              realSources.add(sanitized);
+            }
+          } else if (s is String && s.trim().isNotEmpty) {
+            final clean = SourceUrlSanitizer.sanitizeUrl(s, title: s);
+            if (clean != null && clean.isNotEmpty) {
+              realSources.add({
+                'title': s.trim(),
+                'url': clean,
+                'directUrl': clean,
+                'domain': SourceUrlSanitizer.resolveDisplayDomain(clean, title: s),
+                'snippet': 'Historical citation reference',
+              });
+            }
           }
         }
       }
-    }
 
-    // Match global sources from report (legitimate cross-referencing)
-    for (final s in allSources) {
-      if (!SourceUrlSanitizer.isValidSource(s)) continue;
-      final sMap = s is UISource
-          ? SourceUrlSanitizer.sanitizeSourceMap(s.toMap())
-          : (s is Map ? SourceUrlSanitizer.sanitizeSourceMap(Map<dynamic, dynamic>.from(s)) : null);
-      if (sMap != null) {
-        final sTitle = (sMap['title'] ?? sMap['author'] ?? sMap['domain'] ?? '')
-            .toString()
-            .toLowerCase();
-        final keywords =
-            rawText.toLowerCase().split(' ').where((w) => w.length > 3);
-        if (keywords.any(sTitle.contains)) {
-          if (!realSources.any((existing) => existing['title'] == sMap['title'])) {
-            realSources.add(sMap);
+      // Match global sources from report (legitimate cross-referencing)
+      for (final s in allSources) {
+        if (!SourceUrlSanitizer.isValidSource(s)) continue;
+        final sMap = s is UISource
+            ? SourceUrlSanitizer.sanitizeSourceMap(s.toMap())
+            : (s is Map ? SourceUrlSanitizer.sanitizeSourceMap(Map<dynamic, dynamic>.from(s)) : null);
+        if (sMap != null) {
+          final url = sMap['url']?.toString();
+          if (url == null || url.isEmpty) continue;
+          final sTitle = (sMap['title'] ?? sMap['author'] ?? sMap['domain'] ?? '')
+              .toString()
+              .toLowerCase();
+          final keywords =
+              rawText.toLowerCase().split(' ').where((w) => w.length > 3);
+          if (keywords.any(sTitle.contains)) {
+            if (!realSources.any((existing) => existing['title'] == sMap['title'])) {
+              realSources.add(sMap);
+            }
           }
         }
       }

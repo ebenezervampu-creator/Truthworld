@@ -25,10 +25,11 @@ export const RATE_CARDS = {
   // ─── Gemini AI (Vertex AI pricing, USD per token) ───────────────────────
   "gemini-flash-lite": { perInputToken: 0.000000075, perOutputToken: 0.0000003 },
   "gemini-flash": { perInputToken: 0.00000015, perOutputToken: 0.0000006 },
-  "gemini-reasoning": { perInputToken: 0.0000020, perOutputToken: 0.000010 }, // Gemini 4 Argon ($2.00 in / $10.00 out per 1M)
-  "gemini-4-argon": { perInputToken: 0.0000020, perOutputToken: 0.000010 },
+  "gemini-2.5-flash": { perInputToken: 0.00000015, perOutputToken: 0.0000006 },
+  "gemini-reasoning": { perInputToken: 0.00000015, perOutputToken: 0.0000006 }, // Gemini 2.5 Flash ($0.15 in / $0.60 out per 1M)
+  "gemini-4-argon": { perInputToken: 0.00000015, perOutputToken: 0.0000006 }, // Legacy alias mapped to Gemini 2.5 Flash
   "gemini-pro": { perInputToken: 0.00000125, perOutputToken: 0.000005 },
-  "gemini-cached-read": { perToken: 0.0000001 }, // $0.10 per 1M for Argon implicit cache read
+  "gemini-cached-read": { perToken: 0.0000001 }, // $0.10 per 1M for implicit cache read
   // ─── Google Search Grounding API ────────────────────────────────────────
   "search-grounding": { perQuery: 0.005 },
   // ─── Cloud Functions compute (USD per vCPU-second) ──────────────────────
@@ -75,23 +76,20 @@ export interface DubbingDurationTier {
   voiceClonePriceUSD?: number;
 }
 
-export const PER_MINUTE_STANDARD_DUBBING_RATE = 0.10; // $1.00 for 10 mins ($0.10/min)
-export const PER_MINUTE_VOICE_CLONE_RATE = 0.20;       // $2.00 for 10 mins ($0.20/min)
-export const PER_MINUTE_LIP_SYNC_RATE = 0.30;          // $3.00 for 10 mins ($0.30/min)
+export const PER_MINUTE_AUDIO_TRACK_RATE = 0.30; // $3.00 for 10 mins ($0.30/min)
+export const PER_MINUTE_STANDARD_DUBBING_RATE = 0.30;
+export const PER_MINUTE_VOICE_CLONE_RATE = 0.30;
+export const PER_MINUTE_LIP_SYNC_RATE = 0.0;
 
 export const DUBBING_TIER_RATES = {
-  audio_starter: 0.10, // $1.00 for 10 mins ($0.10/min)
-  audio_pro: 0.20,     // $2.00 for 10 mins ($0.20/min)
-  audio_ultra: 0.30,   // $3.00 for 10 mins ($0.30/min)
-  video_pro: 0.40,     // $4.00 for 10 mins ($0.40/min)
-  video_ultra: 0.50,   // $5.00 for 10 mins ($0.50/min, Cinema Grade)
+  audio_track: 0.30,   // Studio Audio Track ($3.00 for 10 mins flat rate)
 } as const;
 
 export function getTierDubbingRatePerMinute(tierId: string): number {
-  return (DUBBING_TIER_RATES as any)[tierId] ?? DUBBING_TIER_RATES.audio_starter;
+  return (DUBBING_TIER_RATES as any)[tierId] ?? DUBBING_TIER_RATES.audio_track;
 }
 
-export function getFlatDubbingPriceForTier(durationSeconds: number, tierId: string = "audio_starter"): number {
+export function getFlatDubbingPriceForTier(durationSeconds: number, tierId: string = "audio_track"): number {
   const perMinuteRate = getTierDubbingRatePerMinute(tierId);
   if (!durationSeconds || durationSeconds <= 0) {
     return perMinuteRate;
@@ -197,25 +195,13 @@ export function calculateDubbingCost(
 }
 
 /**
- * 👄 AI Visual Lip-Sync (LatentSync / MuseTalk GPU pass-through rate card)
- *
- * TruthWorld Rule: Zero Charm-Pricing, clean round numbers.
- * Costs ~10x less than SyncLabs while delivering broadcast 1080p latent diffusion quality.
+ * 👄 AI Visual Lip-Sync feature has been discontinued and removed.
  */
 export function getFlatLipSyncPricePerLanguage(
   durationSeconds: number,
   channelType: "standard" | "custom" = "standard"
 ): number {
-  const perMinuteRate = PER_MINUTE_LIP_SYNC_RATE; // $0.30/min ($3.00 for 10 min, $2.10 for 7 min)
-
-  if (!durationSeconds || durationSeconds <= 0) {
-    return perMinuteRate;
-  }
-
-  // Proportional per-minute calculation (ElevenLabs model) with 60s floor
-  const effectiveSeconds = Math.max(60, durationSeconds);
-  const cost = (effectiveSeconds / 60.0) * perMinuteRate;
-  return Math.round(cost * 100) / 100;
+  return 0.0;
 }
 
 export function calculateLipSyncCost(
@@ -224,33 +210,37 @@ export function calculateLipSyncCost(
   channelType: "standard" | "custom" = "standard",
   discountPercent: number = 0
 ): number {
-  if (languageCount <= 0 || durationSeconds <= 0) return 0.0;
-  if (discountPercent >= 100) return 0.0;
-  const flatPerLang = getFlatLipSyncPricePerLanguage(durationSeconds, channelType);
-  const baseCost = Math.round(languageCount * flatPerLang * 100) / 100;
-  if (discountPercent > 0) {
-    const clampedDiscount = Math.min(100.0, Math.max(0.0, discountPercent));
-    const factor = (100.0 - clampedDiscount) / 100.0;
-    return Math.round(baseCost * factor * 100) / 100;
-  }
-  return baseCost;
+  return 0.0;
 }
 
+export type SubtitleTierId = "ultra" | "starter" | "pro";
+
 export interface SubtitleTierConfig {
-  id: "starter" | "pro";
+  id: SubtitleTierId;
   name: string;
-  basePrice10MinUSD: number; // $0.50 (Starter) or $0.75 (Pro)
-  perMinuteRateUSD: number;  // $0.05/min (Starter) or $0.075/min (Pro)
-  additionalLang10MinUSD: number; // $0.20 (Starter) or $0.30 (Pro)
-  additionalLangPerMinuteUSD: number; // $0.02/min (Starter) or $0.03/min (Pro)
+  basePrice10MinUSD: number; // $0.50 (Ultra)
+  perMinuteRateUSD: number;  // $0.05/min (Ultra)
+  additionalLang10MinUSD: number; // $0.20 (Ultra)
+  additionalLangPerMinuteUSD: number; // $0.02/min (Ultra)
   sttEngine: string;
   translationEngine: string;
 }
 
-export const SUBTITLE_TIERS: Record<"starter" | "pro", SubtitleTierConfig> = {
+export const SUBTITLE_TIERS: Record<string, SubtitleTierConfig> = {
+  ultra: {
+    id: "ultra",
+    name: "Ultra Subtitles",
+    basePrice10MinUSD: 0.50,
+    perMinuteRateUSD: 0.05,
+    additionalLang10MinUSD: 0.20,
+    additionalLangPerMinuteUSD: 0.02,
+    sttEngine: "AssemblyAI Universal 3.5 Pro (Global) + Sarvam AI (Indic) + Google Cloud Chirp 2 (Long-tail)",
+    translationEngine: "Google Cloud Translation v3 Advanced + Gemini 2.5 Flash",
+  },
+  // Backward compatibility mappings
   starter: {
     id: "starter",
-    name: "Starter Subtitles",
+    name: "Ultra Subtitles",
     basePrice10MinUSD: 0.50,
     perMinuteRateUSD: 0.05,
     additionalLang10MinUSD: 0.20,
@@ -260,13 +250,13 @@ export const SUBTITLE_TIERS: Record<"starter" | "pro", SubtitleTierConfig> = {
   },
   pro: {
     id: "pro",
-    name: "Pro Subtitles (Cinema-Grade)",
-    basePrice10MinUSD: 0.75,
-    perMinuteRateUSD: 0.075,
-    additionalLang10MinUSD: 0.30,
-    additionalLangPerMinuteUSD: 0.03,
+    name: "Ultra Subtitles",
+    basePrice10MinUSD: 0.50,
+    perMinuteRateUSD: 0.05,
+    additionalLang10MinUSD: 0.20,
+    additionalLangPerMinuteUSD: 0.02,
     sttEngine: "AssemblyAI Universal 3.5 Pro (Global) + Sarvam AI (Indic) + Google Cloud Chirp 2 (Long-tail)",
-    translationEngine: "Google Cloud Translation v3 Advanced + Gemini 4 Argon",
+    translationEngine: "Google Cloud Translation v3 Advanced + Gemini 2.5 Flash",
   },
 };
 
@@ -332,9 +322,9 @@ export const SUBTITLE_DURATION_TIERS: SubtitleDurationTier[] = [
 export function getFlatSubtitlePricePerLanguage(
   durationSeconds: number,
   channelType: "standard" | "custom" = "standard",
-  tier: "starter" | "pro" = "starter"
+  tier: "ultra" | "starter" | "pro" = "ultra"
 ): number {
-  const tierConfig = SUBTITLE_TIERS[tier] || SUBTITLE_TIERS.starter;
+  const tierConfig = SUBTITLE_TIERS[tier] || SUBTITLE_TIERS.ultra;
   const effectiveSeconds = Math.max(60, durationSeconds || 600);
   const cost = (effectiveSeconds / 60.0) * tierConfig.perMinuteRateUSD;
   return Number(cost.toFixed(3));
@@ -345,12 +335,12 @@ export function calculateSubtitleCost(
   durationSeconds: number = 0,
   channelType: "standard" | "custom" = "standard",
   discountPercent: number = 0,
-  tier: "starter" | "pro" = "starter"
+  tier: "ultra" | "starter" | "pro" = "ultra"
 ): number {
   if (languageCount <= 0) return 0.0;
   if (discountPercent >= 100) return 0.0;
 
-  const tierConfig = SUBTITLE_TIERS[tier] || SUBTITLE_TIERS.starter;
+  const tierConfig = SUBTITLE_TIERS[tier] || SUBTITLE_TIERS.ultra;
   const effectiveSeconds = Math.max(60, durationSeconds || 600);
   const effectiveMinutes = effectiveSeconds / 60.0;
 
@@ -603,14 +593,14 @@ export class CostEngine {
     userId: string,
     durationSeconds: number,
     languageCount: number,
-    tier: "starter" | "pro" = "starter"
+    tier: "ultra" | "starter" | "pro" = "ultra"
   ): Promise<void> {
     const cost = calculateSubtitleCost(languageCount, durationSeconds, "standard", 0, tier);
     await this.recordCost(
       jobId,
       userId,
       "subtitles",
-      tier === "pro" ? "google-translate-v3+gemini-4-argon" : "google-translate-v3+gemini-flash",
+      "google-translate-v3+gemini-2.5-flash",
       cost,
       "subtitles_job",
       languageCount
@@ -621,7 +611,7 @@ export class CostEngine {
     jobId: string,
     userId: string,
     chars: number,
-    provider: "elevenlabs" | "elevenlabs-turbo" | "google-tts-chirp3-hd" | "google-tts-neural2" | "google-tts-standard" = "google-tts-chirp3-hd"
+    provider: "elevenlabs" | "elevenlabs-turbo" | "google-tts-chirp3-hd" | "google-tts-neural2" | "google-tts-standard" = "elevenlabs"
   ): Promise<void> {
     const rateCard = (RATE_CARDS as any)[provider] ?? RATE_CARDS["google-tts-neural2"];
     const cost = chars * rateCard.perCharacter;
@@ -657,7 +647,7 @@ export class CostEngine {
         break;
       case "reasoning":
       case "argon" as any:
-        rateCard = RATE_CARDS["gemini-4-argon"];
+        rateCard = RATE_CARDS["gemini-2.5-flash"];
         break;
       case "pro":
         rateCard = RATE_CARDS["gemini-pro"];

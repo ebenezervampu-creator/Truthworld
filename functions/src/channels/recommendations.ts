@@ -108,7 +108,6 @@ function calculateDiscoveryScore(params: {
   category?: string;
   isFactChecked?: boolean;
   isCredibilityVerified: boolean;
-  trustScore?: number;
   isFlagged?: boolean;
   createdAt: number;       // epoch ms
   engagementRate: number;  // 0.0 - 1.0 (likes/views)
@@ -125,11 +124,8 @@ function calculateDiscoveryScore(params: {
   weights?: AlgorithmWeights; // A/B test variant weights (optional)
 }): number {
   // ── Credibility Gate ─────────────────────────────────────────────────────
-  // If video has proven low trust score (< 2.0 on 10 scale) or is flagged low trust → GATE IT OUT
-  if (params.trustScore !== undefined && params.trustScore < 2.0) {
-    return 0;
-  }
-  if (params.isFlagged && (params.trustScore ?? 10) < 3.0) {
+  // If video is flagged for safety or trust violations → GATE IT OUT
+  if (params.isFlagged) {
     return 0;
   }
 
@@ -142,9 +138,7 @@ function calculateDiscoveryScore(params: {
   const ageHours = (now - params.createdAt) / 3600000;
 
   // ── Component Normalization (0-10) ────────────────────────────────────
-  const credibilityBonus = params.trustScore !== undefined
-    ? Math.min(10, Math.max(0, params.trustScore))
-    : (params.isCredibilityVerified ? 7.5 : 5.0);
+  const credibilityBonus = (params.isCredibilityVerified || params.isFactChecked) ? 7.5 : 5.0;
   const engagementScore = Math.min(10, params.engagementRate * 100);
   const recencyScore = 10 * Math.exp(-ageHours / 72); // 72h half-life
   const followScore = params.isSubscribed ? 10 : 0;
@@ -182,11 +176,8 @@ function calculateDiscoveryScore(params: {
   // ── Fact-Checking Priority Boost (10 High-Credibility Categories) ───────
   let factCheckCategoryBoost = 0;
   if (isFactCheckRelevantCategory(params.category)) {
-    if (params.isFactChecked || params.isCredibilityVerified || (params.trustScore !== undefined && params.trustScore >= 3.5)) {
-      factCheckCategoryBoost += 3.5;
-      if (params.trustScore !== undefined && params.trustScore >= 4.0) {
-        factCheckCategoryBoost += 1.5;
-      }
+    if (params.isFactChecked || params.isCredibilityVerified) {
+      factCheckCategoryBoost += 5.0;
     }
   }
 
@@ -591,7 +582,6 @@ export const getHomeFeed = onRequest(
           category: data.category,
           isFactChecked: data.isFactChecked ?? data.credibilityVerified ?? false,
           isCredibilityVerified: data.credibilityVerified ?? false,
-          trustScore: data.trustScore,
           isFlagged: data.isFlagged ?? false,
           createdAt: data.createdAt?.toMillis ? data.createdAt.toMillis() : (data.createdAt || Date.now()),
           engagementRate,
@@ -621,7 +611,7 @@ export const getHomeFeed = onRequest(
         let recommendationReason = "For You";
         let recommendationExplanation = "Recommended based on your interests";
 
-        if (isFactCheckRelevantCategory(data.category) && (data.isFactChecked || data.credibilityVerified || (data.trustScore && data.trustScore >= 3.5))) {
+        if (isFactCheckRelevantCategory(data.category) && (data.isFactChecked || data.credibilityVerified)) {
           recommendationReason = "Fact-Checked";
           recommendationExplanation = `Fact-checked for verified accuracy in ${data.category || videoCat || "this topic"}`;
         } else if (isSubscribed) {
@@ -772,7 +762,6 @@ export const getHomeFeed = onRequest(
           duration: v.duration || 0,
           durationMs: v.durationMs || 0,
           isShort: v.isShort ?? false,
-          trustScore: v.trustScore,
           recommendationReason: v.recommendationReason,
           recommendationExplanation: v.recommendationExplanation,
           discoveryScore: v.discoveryScore,

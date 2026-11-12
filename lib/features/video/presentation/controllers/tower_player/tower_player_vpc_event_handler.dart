@@ -48,6 +48,7 @@ class TowerPlayerVpcEventHandler {
 
   static int _lastSeekTimestamp = 0;
   static int? _pendingSeekTargetMs;
+  static bool _isSyncingAudio = false;
 
   /// Notifies the sync handler that a manual seek was initiated, resetting cooldowns
   /// and preventing machinegun re-seeks while the media buffers.
@@ -70,104 +71,116 @@ class TowerPlayerVpcEventHandler {
     required double volume,
     bool hasAlternateAudioTrack = false,
   }) {
-    final isAlternateActive =
-        hasAlternateAudioTrack && audioCtrl != null && !audioCtrl.value.hasError;
-
-    if (isAlternateActive) {
-      if (mainVpc.value.volume > 0.0) {
-        mainVpc.setVolume(0);
-      }
-    } else if (audioCtrl == null || audioCtrl.value.hasError) {
-      // Re-enable main video audio if alternate audio is not active or errored
+    if (_isSyncingAudio) return;
+    _isSyncingAudio = true;
+    try {
+      final val = mainVpc.value;
       final targetVol = isMuted ? 0.0 : volume;
-      if (mainVpc.value.volume != targetVol) {
-        mainVpc.setVolume(targetVol);
+
+      final isInitialized = audioCtrl != null && audioCtrl.value.isInitialized;
+      final hasError = audioCtrl != null && audioCtrl.value.hasError;
+      final audioDur = isInitialized ? audioCtrl.value.duration : Duration.zero;
+      final isAudioExhausted = isInitialized &&
+          audioDur > Duration.zero &&
+          val.position > audioDur;
+
+      // Alternate audio is actively providing sound if it's selected, has a controller,
+      // has no playback error, and has not exceeded its duration.
+      final isAlternateActive = hasAlternateAudioTrack &&
+          audioCtrl != null &&
+          !hasError &&
+          !isAudioExhausted;
+
+      // 1. Single source of truth for main VPC volume (prevents cyclic oscillation & stack overflow)
+      final expectedMainVol = isAlternateActive ? 0.0 : targetVol;
+      if ((val.volume - expectedMainVol).abs() > 0.001) {
+        mainVpc.setVolume(expectedMainVol);
       }
-    }
 
-    if (audioCtrl == null || !audioCtrl.value.isInitialized || audioCtrl.value.hasError) {
-      return;
-    }
-    final val = mainVpc.value;
-    final targetVol = isMuted ? 0.0 : volume;
-    if (audioCtrl.value.volume != targetVol) {
-      audioCtrl.setVolume(targetVol);
-    }
-
-    final audioDur = audioCtrl.value.duration;
-    if (audioDur > Duration.zero && val.position > audioDur) {
-      if (audioCtrl.value.isPlaying) {
-        audioCtrl.pause();
-      }
-      final targetVol = isMuted ? 0.0 : volume;
-      if (mainVpc.value.volume != targetVol) {
-        mainVpc.setVolume(targetVol);
-      }
-      return;
-    }
-
-    final isVideoBuffering = val.isBuffering;
-    final isAudioBuffering = audioCtrl.value.isBuffering;
-
-    if (val.isPlaying && !isVideoBuffering && !audioCtrl.value.isPlaying) {
-      audioCtrl.play();
-    } else if ((!val.isPlaying || isVideoBuffering) && audioCtrl.value.isPlaying) {
-      audioCtrl.pause();
-    }
-
-    // Measure clock drift between video and audio (positive => audio lags behind video)
-    final driftMs = (val.position - audioCtrl.value.position).inMilliseconds;
-    final absDrift = driftMs.abs();
-    final now = DateTime.now().millisecondsSinceEpoch;
-
-    // Check if a prior major seek has settled
-    if (_pendingSeekTargetMs != null) {
-      final seekDiff = (audioCtrl.value.position.inMilliseconds - _pendingSeekTargetMs!).abs();
-      if (seekDiff < 400 || (now - _lastSeekTimestamp) > 2000) {
-        _pendingSeekTargetMs = null;
-      } else {
-        // Seek is still settling in decoder/network stream; do not trigger new seek or slew
+      // If alternate audio is missing, uninitialized, or in error state, exit cleanly
+      if (audioCtrl == null || !isInitialized || hasError) {
         return;
       }
-    }
 
-    if (absDrift > 1200) {
-      // Major user seek / jump: debounced seekTo to prevent machinegun buffer flushes
-      // Must not interrupt an ongoing network buffer cycle
-      if (!isAudioBuffering && (now - _lastSeekTimestamp > 1500)) {
-        _lastSeekTimestamp = now;
-        _pendingSeekTargetMs = val.position.inMilliseconds;
-        audioCtrl.seekTo(val.position);
-      }
-    } else if (absDrift >= 40) {
-      // Graduated PLL Clock Smoothing to eliminate drift smoothly without audio clicks or decode restarts
-      final double slewFactor;
-      if (absDrift < 200) {
-        slewFactor = 0.04;
-      } else if (absDrift < 600) {
-        slewFactor = 0.08;
-      } else {
-        slewFactor = 0.14;
+      // If video has advanced past the alternate audio duration, pause audio track
+      if (isAudioExhausted) {
+        if (audioCtrl.value.isPlaying) {
+          audioCtrl.pause();
+        }
+        return;
       }
 
-      if (driftMs > 0) {
-        // Audio is lagging behind video -> speed up audio
-        final targetSpeed = (val.playbackSpeed * (1.0 + slewFactor)).clamp(0.25, 2.0);
-        if ((audioCtrl.value.playbackSpeed - targetSpeed).abs() > 0.01) {
-          audioCtrl.setPlaybackSpeed(targetSpeed);
+      // 2. Sync alternate audio volume
+      if ((audioCtrl.value.volume - targetVol).abs() > 0.001) {
+        audioCtrl.setVolume(targetVol);
+      }
+
+      // 3. Sync play/pause state
+      final isVideoBuffering = val.isBuffering;
+      final isAudioBuffering = audioCtrl.value.isBuffering;
+
+      if (val.isPlaying && !isVideoBuffering && !audioCtrl.value.isPlaying) {
+        audioCtrl.play();
+      } else if ((!val.isPlaying || isVideoBuffering) && audioCtrl.value.isPlaying) {
+        audioCtrl.pause();
+      }
+
+      // 4. Measure clock drift between video and audio (positive => audio lags behind video)
+      final driftMs = (val.position - audioCtrl.value.position).inMilliseconds;
+      final absDrift = driftMs.abs();
+      final now = DateTime.now().millisecondsSinceEpoch;
+
+      // Check if a prior major seek has settled
+      if (_pendingSeekTargetMs != null) {
+        final seekDiff = (audioCtrl.value.position.inMilliseconds - _pendingSeekTargetMs!).abs();
+        if (seekDiff < 400 || (now - _lastSeekTimestamp) > 2000) {
+          _pendingSeekTargetMs = null;
+        } else {
+          // Seek is still settling in decoder/network stream; do not trigger new seek or slew
+          return;
+        }
+      }
+
+      if (absDrift > 1200) {
+        // Major user seek / jump: debounced seekTo to prevent machinegun buffer flushes
+        // Must not interrupt an ongoing network buffer cycle
+        if (!isAudioBuffering && (now - _lastSeekTimestamp > 1500)) {
+          _lastSeekTimestamp = now;
+          _pendingSeekTargetMs = val.position.inMilliseconds;
+          audioCtrl.seekTo(val.position);
+        }
+      } else if (absDrift >= 40) {
+        // Graduated PLL Clock Smoothing to eliminate drift smoothly without audio clicks or decode restarts
+        final double slewFactor;
+        if (absDrift < 200) {
+          slewFactor = 0.04;
+        } else if (absDrift < 600) {
+          slewFactor = 0.08;
+        } else {
+          slewFactor = 0.14;
+        }
+
+        if (driftMs > 0) {
+          // Audio is lagging behind video -> speed up audio
+          final targetSpeed = (val.playbackSpeed * (1.0 + slewFactor)).clamp(0.25, 2.0);
+          if ((audioCtrl.value.playbackSpeed - targetSpeed).abs() > 0.01) {
+            audioCtrl.setPlaybackSpeed(targetSpeed);
+          }
+        } else {
+          // Audio is ahead of video -> slow down audio
+          final targetSpeed = (val.playbackSpeed * (1.0 - slewFactor)).clamp(0.25, 2.0);
+          if ((audioCtrl.value.playbackSpeed - targetSpeed).abs() > 0.01) {
+            audioCtrl.setPlaybackSpeed(targetSpeed);
+          }
         }
       } else {
-        // Audio is ahead of video -> slow down audio
-        final targetSpeed = (val.playbackSpeed * (1.0 - slewFactor)).clamp(0.25, 2.0);
-        if ((audioCtrl.value.playbackSpeed - targetSpeed).abs() > 0.01) {
-          audioCtrl.setPlaybackSpeed(targetSpeed);
+        // In-sync lock (< 40ms): return to main playback speed
+        if ((audioCtrl.value.playbackSpeed - val.playbackSpeed).abs() > 0.005) {
+          audioCtrl.setPlaybackSpeed(val.playbackSpeed);
         }
       }
-    } else {
-      // In-sync lock (< 40ms): return to main playback speed
-      if ((audioCtrl.value.playbackSpeed - val.playbackSpeed).abs() > 0.005) {
-        audioCtrl.setPlaybackSpeed(val.playbackSpeed);
-      }
+    } finally {
+      _isSyncingAudio = false;
     }
   }
 

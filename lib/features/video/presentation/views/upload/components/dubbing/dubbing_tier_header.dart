@@ -135,7 +135,7 @@ class DubbingTierHeader extends StatelessWidget {
                 Icon(Icons.layers_outlined, color: Colors.white, size: 18),
                 SizedBox(width: 8),
                 Text(
-                  'Dubbing Production Tier',
+                  'Dubbing Plan: Audio Track',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 14,
@@ -150,18 +150,16 @@ class DubbingTierHeader extends StatelessWidget {
               return Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: tier.isCinemaGrade
-                      ? const Color(0xFFEAB308).withValues(alpha: 0.16)
-                      : const Color(0xFF7C3AED).withValues(alpha: 0.16),
+                  color: const Color(0xFF7C3AED).withValues(alpha: 0.16),
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
-                    color: tier.isCinemaGrade ? const Color(0xFFFACC15) : const Color(0xFFA78BFA),
+                    color: const Color(0xFFA78BFA),
                   ),
                 ),
                 child: Text(
                   tier.badge,
-                  style: TextStyle(
-                    color: tier.isCinemaGrade ? const Color(0xFFFDE047) : const Color(0xFFC4B5FD),
+                  style: const TextStyle(
+                    color: Color(0xFFC4B5FD),
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                   ),
@@ -172,7 +170,7 @@ class DubbingTierHeader extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         const Text(
-          'Select production quality for speech recognition, translation context, voice synthesis, and visual lip-sync.',
+          'Studio vocal identity, precision translation context, voice synthesis, and 100% background music preservation.',
           style: TextStyle(
             color: Color(0xFFA1A1AA),
             fontSize: 12,
@@ -186,7 +184,6 @@ class DubbingTierHeader extends StatelessWidget {
           return Column(
             children: DubbingProductionTier.allTiers.map((tier) {
               final isSelected = activeTierId == tier.id;
-              final isCinema = tier.isCinemaGrade;
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -203,7 +200,7 @@ class DubbingTierHeader extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: isSelected
-                            ? (isCinema ? const Color(0xFFFACC15) : const Color(0xFFA78BFA))
+                            ? const Color(0xFFA78BFA)
                             : const Color(0xFF262834),
                         width: isSelected ? 1.4 : 1.0,
                       ),
@@ -222,11 +219,11 @@ class DubbingTierHeader extends StatelessWidget {
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     color: isSelected
-                                        ? (isCinema ? const Color(0xFFFACC15) : const Color(0xFFA78BFA))
+                                        ? const Color(0xFFA78BFA)
                                         : Colors.transparent,
                                     border: Border.all(
                                       color: isSelected
-                                          ? (isCinema ? const Color(0xFFFACC15) : const Color(0xFFA78BFA))
+                                          ? const Color(0xFFA78BFA)
                                           : const Color(0xFF52525B),
                                       width: 1.5,
                                     ),
@@ -252,17 +249,13 @@ class DubbingTierHeader extends StatelessWidget {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: tier.category == 'video'
-                                        ? const Color(0xFF0284C7).withValues(alpha: 0.2)
-                                        : const Color(0xFF262834),
+                                    color: const Color(0xFF262834),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
-                                  child: Text(
-                                    tier.category == 'video' ? 'VIDEO DUB' : 'AUDIO DUB',
+                                  child: const Text(
+                                    'AUDIO DUB',
                                     style: TextStyle(
-                                      color: tier.category == 'video'
-                                          ? const Color(0xFF38BDF8)
-                                          : Colors.white70,
+                                      color: Colors.white70,
                                       fontSize: 9,
                                       fontWeight: FontWeight.bold,
                                       letterSpacing: 0.5,
@@ -275,7 +268,7 @@ class DubbingTierHeader extends StatelessWidget {
                               '\$${tier.tenMinutePriceUSD.toStringAsFixed(0)} / 10m',
                               style: TextStyle(
                                 color: isSelected
-                                    ? (isCinema ? const Color(0xFFFDE047) : const Color(0xFFA78BFA))
+                                    ? const Color(0xFFA78BFA)
                                     : Colors.white,
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
@@ -341,56 +334,30 @@ class DubbingTierHeader extends StatelessWidget {
                                   ),
                                 ],
                               ),
-                              if (tier.category == 'video') ...[
-                                const SizedBox(height: 2),
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.face_retouching_natural,
-                                      size: 12,
-                                      color: Color(0xFF38BDF8),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Expanded(
-                                      child: Text(
-                                        'Sync: ${tier.visualSync}',
-                                        style: const TextStyle(
-                                          color: Color(0xFF38BDF8),
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                              const SizedBox(height: 2),
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.sync_lock,
+                                    size: 12,
+                                    color: Color(0xFFA78BFA),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      'Cadence: ${tier.visualSync}',
+                                      style: const TextStyle(
+                                        color: Color(0xFFA78BFA),
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w500,
                                       ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                  ],
-                                ),
-                              ] else if (tier.id == 'audio_ultra') ...[
-                                const SizedBox(height: 2),
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.sync_lock,
-                                      size: 12,
-                                      color: Color(0xFFA78BFA),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Expanded(
-                                      child: Text(
-                                        'Cadence: ${tier.visualSync}',
-                                        style: const TextStyle(
-                                          color: Color(0xFFA78BFA),
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                              if (isSelected && tier.id == 'audio_ultra') ...[
+                                  ),
+                                ],
+                              ),
+                              if (isSelected) ...[
                                 const SizedBox(height: 8),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),

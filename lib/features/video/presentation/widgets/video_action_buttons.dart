@@ -205,7 +205,6 @@ class VideoActionButtons {
                     children: [
                       AnimatedCredibilityButton(
                         onTap: () => _showAnalysisBottomSheet(context, controller),
-                        score: video.trustScore > 0 ? video.trustScore : null,
                       ),
                       const SizedBox(width: 8),
                     ],
@@ -539,7 +538,6 @@ class VideoActionButtons {
                               children: [
                                 AnimatedCredibilityButton(
                                   onTap: () => _showAnalysisBottomSheet(context, controller),
-                                  score: video.trustScore > 0 ? video.trustScore : null,
                                 ),
                                 const SizedBox(width: 8),
                               ],

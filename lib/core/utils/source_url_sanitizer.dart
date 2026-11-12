@@ -1,11 +1,23 @@
+import 'dart:async';
+
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+typedef BrokenSourceReporter = Future<void> Function({
+  required String brokenUrl,
+  String? videoId,
+  String? claimId,
+  int? httpStatus,
+  String? reason,
+});
+
 /// Centralized utility for validating, sanitizing, and launching source citations.
-/// Ensures zero 404 errors by intercepting Vertex AI grounding redirects,
-/// malformed URLs, and dummy links, replacing them with canonical destinations.
+/// Enforces Closed-World URL safety by pre-flighting redirects and intercepting
+/// 404/broken links without ever substituting bare publisher homepages.
 class SourceUrlSanitizer {
   SourceUrlSanitizer._();
 
@@ -223,12 +235,14 @@ class SourceUrlSanitizer {
   /// Resolves a 100% valid and reachable fallback URL for a source citation.
   /// Guarantees that the returned URL is an authentic canonical domain or Google search query,
   /// and NEVER an invalid hostname (e.g. 'https://nasa', 'https://wion').
+  /// Legacy compatibility helper: returns `null` under Closed-World citation
+  /// rules so unverified/dead citations are never downgraded to publisher homepages.
   static String? resolveFallbackUrl({
     String? domain,
     String? publisher,
     String? title,
   }) {
-    return _fallbackToDomainOrPublisher(domain, publisher, title);
+    return null;
   }
 
   /// Returns true if [url] is an ephemeral Google Vertex AI Search grounding redirect.
@@ -368,35 +382,19 @@ class SourceUrlSanitizer {
     );
   }
 
-  /// Sanitizes any raw source URL.
+  /// Sanitizes any raw source URL under Closed-World safety rules.
   ///
-  /// - Preserves Vertex AI grounding redirect URLs for direct browser navigation to authentic sources.
-  /// - Recovers authentic destinations when a source URL was previously stored as a Google Search query.
-  /// - Normalizes missing schemes (`https://`).
-  /// - Strips trailing punctuation, unbalanced brackets, and hallucinated tokens.
-  /// - Returns `null` if the URL is completely unresolvable.
+  /// - Preserves Vertex AI grounding redirect URLs for pre-flight resolution.
+  /// - Normalizes missing schemes (`https://`) and strips trailing punctuation.
+  /// - Rejects blank, dummy, placeholder, Google Search, malformed, and bare root
+  ///   homepage URLs by returning `null` (never substitutes publisher homepages).
   static String? sanitizeUrl(
     String? rawUrl, {
     String? title,
     String? publisher,
     String? domain,
   }) {
-    final cleanTitle = title?.trim() ?? '';
-    final cleanDom = domain?.trim();
-
     if (rawUrl == null || isBlankOrDummyUrl(rawUrl)) {
-      final canonicalDomain =
-          resolveCanonicalDomain(cleanDom) ?? resolveCanonicalDomain(publisher);
-      if (canonicalDomain != null) {
-        if (canonicalDomain.contains('wikipedia.org') && cleanTitle.isNotEmpty) {
-          final query = cleanTitle.split(RegExp(r'\s+[-|–—]\s+')).first.trim();
-          return 'https://en.wikipedia.org/wiki/Special:Search?search=${Uri.encodeComponent(query)}';
-        }
-        return 'https://$canonicalDomain';
-      }
-      if (cleanTitle.isNotEmpty) {
-        return createSearchUrl(cleanTitle, publisher: publisher, domain: cleanDom);
-      }
       return null;
     }
 
@@ -404,8 +402,9 @@ class SourceUrlSanitizer {
 
     // Strip wrapping quotes and brackets: "url", <url>, (url), [url]
     url = url.replaceAll(RegExp(r'^["\x27<(\[]+|[">\x27)\]]+$'), '').trim();
+    if (url.isEmpty) return null;
 
-    // 1. Preserve Vertex AI Grounding redirects -> authentic direct navigation
+    // 1. Preserve Vertex AI Grounding redirects for server/pre-flight resolution
     if (isGroundingRedirect(url)) {
       if (!url.startsWith('http://') && !url.startsWith('https://')) {
         url = 'https://$url';
@@ -413,19 +412,9 @@ class SourceUrlSanitizer {
       return url;
     }
 
-    // 2. Intercept and recover from Google Search URLs -> take user to authentic destination
+    // 2. Reject stored Google Search queries so search pages never masquerade as publisher citations
     if (isGoogleSearchUrl(url)) {
-      final canonicalDomain =
-          resolveCanonicalDomain(cleanDom) ?? resolveCanonicalDomain(publisher);
-      if (canonicalDomain != null) {
-        final normalizedDom = canonicalDomain.replaceFirst(RegExp(r'^www\.'), '');
-        if (normalizedDom.contains('wikipedia.org') && cleanTitle.isNotEmpty) {
-          final query = cleanTitle.split(RegExp(r'\s+[-|–—]\s+')).first.trim();
-          return 'https://$normalizedDom/wiki/Special:Search?search=${Uri.encodeComponent(query)}';
-        }
-        return 'https://$normalizedDom';
-      }
-      return url;
+      return null;
     }
 
     // 3. Normalize scheme
@@ -436,48 +425,16 @@ class SourceUrlSanitizer {
     // 4. Strip trailing punctuation/brackets often left by OCR / LLM tokens
     url = url.replaceAll(RegExp(r'[\.,;:!?\)\]>"\x27]+$'), '');
 
-    // 5. Validate Uri
+    // 5. Validate Uri, FQDN host, and dummy domains without substituting homepages
     final parsed = Uri.tryParse(url);
     if (parsed == null || !parsed.hasScheme || !parsed.hasAuthority) {
-      final canonicalDomain =
-          resolveCanonicalDomain(cleanDom) ?? resolveCanonicalDomain(publisher);
-      if (canonicalDomain != null) {
-        return 'https://$canonicalDomain';
-      }
-      if (cleanTitle.isNotEmpty) {
-        return createSearchUrl(cleanTitle, publisher: publisher, domain: cleanDom);
-      }
       return null;
     }
-
-    // Host must be a valid domain
-    if (!isValidDomain(parsed.host)) {
-      final canonicalDomain = resolveCanonicalDomain(parsed.host) ??
-          resolveCanonicalDomain(cleanDom) ??
-          resolveCanonicalDomain(publisher);
-      if (canonicalDomain != null) {
-        return 'https://$canonicalDomain';
-      }
-      if (cleanTitle.isNotEmpty) {
-        return createSearchUrl(cleanTitle, publisher: publisher, domain: cleanDom);
-      }
+    if (!isValidDomain(parsed.host) || isDummyDomain(parsed.host)) {
       return null;
     }
-
-    if (isDummyDomain(parsed.host)) {
-      final canonicalDomain =
-          resolveCanonicalDomain(cleanDom) ?? resolveCanonicalDomain(publisher);
-      if (canonicalDomain != null) {
-        return 'https://$canonicalDomain';
-      }
-      final isGenericTitle = cleanTitle.isEmpty ||
-          cleanTitle.toLowerCase() == 'source citation' ||
-          cleanTitle.toLowerCase() == 'reference source' ||
-          cleanTitle.startsWith('http');
-      if (!isGenericTitle) {
-        return createSearchUrl(cleanTitle, publisher: publisher);
-      }
-      return url;
+    if (isStaticHomepageUrl(url)) {
+      return null;
     }
 
     return url;
@@ -605,6 +562,10 @@ class SourceUrlSanitizer {
     if (cleanUrl != null) {
       rawMap['url'] = cleanUrl;
       rawMap['directUrl'] = cleanUrl;
+    } else {
+      rawMap.remove('url');
+      rawMap.remove('directUrl');
+      rawMap.remove('link');
     }
 
     if (explicitDomain != null &&
@@ -627,23 +588,66 @@ class SourceUrlSanitizer {
     return rawMap;
   }
 
+  /// Non-blocking broken-link telemetry reported to backend `reportBrokenSourceUrl`
+  /// when a user or pre-flight check encounters a 404, broken redirect, or unreachable source.
+  static Future<void> reportBrokenSourceUrl({
+    required String brokenUrl,
+    String? videoId,
+    String? claimId,
+    int? httpStatus,
+    String? reason,
+  }) async {
+    final cleanUrl = brokenUrl.trim();
+    if (cleanUrl.isEmpty ||
+        (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://'))) {
+      return;
+    }
+
+    try {
+      final callable = FirebaseFunctions.instanceFor(region: 'asia-south1')
+          .httpsCallable(
+            'reportBrokenSourceUrl',
+            options: HttpsCallableOptions(timeout: const Duration(seconds: 5)),
+          );
+      final reasonWithStatus = [
+        if (httpStatus != null) 'http_$httpStatus',
+        if (reason != null && reason.trim().isNotEmpty) reason.trim(),
+      ].join(': ');
+      await callable.call<Map<String, dynamic>>({
+        if (videoId != null && videoId.trim().isNotEmpty) 'videoId': videoId.trim(),
+        if (claimId != null && claimId.trim().isNotEmpty) 'claimId': claimId.trim(),
+        'url': cleanUrl,
+        if (reasonWithStatus.isNotEmpty) 'reason': reasonWithStatus,
+      });
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'SourceUrlSanitizer.reportBrokenSourceUrl',
+      );
+    }
+  }
+
   /// Resolves any source citation URL to a verified, alive destination.
   /// Intercepts Vertex AI grounding redirects and dead links:
   /// - If the redirect is alive, follows to the canonical target article URL.
-  /// - If the redirect or article returns 404 or 410, falls back to the authentic publisher domain.
-  /// Guarantees that users NEVER land on a 404 error page.
+  /// - If the redirect or article returns 404, 410, or fails, reports telemetry
+  ///   and returns `null` rather than substituting a bare publisher homepage.
   static Future<String?> resolveSafeDestinationUrl(
     String? rawUrl, {
     String? title,
     String? domain,
     String? publisher,
+    String? videoId,
+    String? claimId,
+    BrokenSourceReporter? onBrokenSourceDetected,
     http.Client? client,
+    bool isWebClient = kIsWeb,
   }) async {
     final cleanTitle = title?.trim() ?? '';
     final cleanDom = domain?.trim();
     final cleanPub = publisher?.trim();
 
-    // First sanitize the static structure
     final url = sanitizeUrl(
       rawUrl,
       title: cleanTitle,
@@ -652,82 +656,122 @@ class SourceUrlSanitizer {
     );
 
     if (url == null || url.isEmpty) {
-      return _fallbackToDomainOrPublisher(cleanDom, cleanPub, cleanTitle);
+      return null;
     }
 
-    final isRedirect = isGroundingRedirect(url);
+    // On Flutter Web, browser CORS policies block client-side HEAD probes to external publishers
+    // and disallow custom User-Agent headers. Backend Closed-World verification already validated
+    // persisted URLs, so launch the sanitized destination directly instead of false-quarantining.
+    if (isWebClient) {
+      return url;
+    }
+
+    void notifyBroken({int? httpStatus, required String reason}) {
+      final reporter = onBrokenSourceDetected ?? reportBrokenSourceUrl;
+      unawaited(
+        reporter(
+          brokenUrl: url,
+          videoId: videoId,
+          claimId: claimId,
+          httpStatus: httpStatus,
+          reason: reason,
+        ),
+      );
+    }
+
+    final initialIsRedirect = isGroundingRedirect(url);
     final effectiveClient = client ?? http.Client();
     final shouldCloseClient = client == null;
+    const maxHops = 3;
 
     try {
-      final uri = Uri.tryParse(url);
-      if (uri == null || !uri.hasScheme || !uri.hasAuthority) {
-        return _fallbackToDomainOrPublisher(cleanDom, cleanPub, cleanTitle);
+      final initialUri = Uri.tryParse(url);
+      if (initialUri == null || !initialUri.hasScheme || !initialUri.hasAuthority) {
+        return null;
       }
+      var currentUri = initialUri;
 
-      // Check URL liveness via lightweight HEAD request (with followRedirects: false)
-      final request = http.Request('HEAD', uri)..followRedirects = false;
-      request.headers['User-Agent'] =
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 TruthWorld/1.0';
+      final visitedUrls = <String>{currentUri.toString()};
 
-      final streamedResponse = await effectiveClient
-          .send(request)
-          .timeout(const Duration(milliseconds: 2500));
+      for (var hop = 0; hop <= maxHops; hop++) {
+        final request = http.Request('HEAD', currentUri)..followRedirects = false;
+        request.headers['User-Agent'] =
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 TruthWorld/1.0';
 
-      final statusCode = streamedResponse.statusCode;
+        final streamedResponse = await effectiveClient
+            .send(request)
+            .timeout(const Duration(milliseconds: 2500));
 
-      // Case 1: Redirect (301, 302, 303, 307, 308) -> Follow Location header
-      if (statusCode >= 300 && statusCode < 400) {
-        final location = streamedResponse.headers['location'];
-        if (location != null && location.trim().isNotEmpty) {
+        final statusCode = streamedResponse.statusCode;
+
+        // Case 1: Redirect (301, 302, 303, 307, 308) -> Resolve and verify Location destination
+        if (statusCode >= 300 && statusCode < 400) {
+          final location = streamedResponse.headers['location'];
+          if (location == null || location.trim().isEmpty) {
+            return currentUri.toString();
+          }
+
           final resolvedLocation = location.trim();
           final resolvedUri = Uri.tryParse(resolvedLocation);
-          if (resolvedUri != null &&
-              (resolvedUri.hasScheme || resolvedLocation.startsWith('/'))) {
-            final absoluteUrl = resolvedLocation.startsWith('http')
-                ? resolvedLocation
-                : uri.resolve(resolvedLocation).toString();
+          if (resolvedUri == null ||
+              (!resolvedUri.hasScheme && !resolvedLocation.startsWith('/'))) {
+            return currentUri.toString();
+          }
+
+          final absoluteUrl = resolvedLocation.startsWith('http')
+              ? resolvedLocation
+              : currentUri.resolve(resolvedLocation).toString();
+          final nextUri = Uri.tryParse(absoluteUrl);
+          if (nextUri == null ||
+              (nextUri.scheme != 'http' && nextUri.scheme != 'https') ||
+              isStaticHomepageUrl(absoluteUrl) ||
+              isDummyDomain(absoluteUrl)) {
+            notifyBroken(
+              httpStatus: statusCode,
+              reason: 'redirect_to_homepage_or_dummy',
+            );
+            return null;
+          }
+
+          // Cookie-wall/self-redirect loop: delegate to interactive browser instead of false-blocking
+          if (visitedUrls.contains(absoluteUrl) || hop == maxHops) {
             return absoluteUrl;
           }
+
+          visitedUrls.add(absoluteUrl);
+          currentUri = nextUri;
+          continue;
         }
+
+        // Case 2: Explicit 404 Not Found or 410 Gone -> Intercept, report telemetry, and quarantine
+        if (statusCode == 404 || statusCode == 410) {
+          ErrorHandler.log(
+            'Intercepted HTTP $statusCode dead link for source ($url). Quarantining instead of falling back to homepage.',
+            tag: 'SourceUrlSanitizer.resolveSafeDestinationUrl',
+          );
+          notifyBroken(httpStatus: statusCode, reason: 'http_$statusCode');
+          return null;
+        }
+
+        // Case 3: Broken grounding redirect (status >= 400 or invalid < 200)
+        if (initialIsRedirect && hop == 0 && (statusCode >= 400 || statusCode < 200)) {
+          notifyBroken(httpStatus: statusCode, reason: 'broken_redirect_$statusCode');
+          return null;
+        }
+
+        // Success (200 OK, or publisher anti-bot 403/405/503 where a real browser succeeds)
+        return currentUri.toString();
       }
 
-      // Case 2: Explicit 404 Not Found or 410 Gone -> Intercept and fallback!
-      if (statusCode == 404 || statusCode == 410) {
-        ErrorHandler.log(
-          'Intercepted 404 dead link for source ($url). Rerouting to authentic publisher landing page.',
-          tag: 'SourceUrlSanitizer.resolveSafeDestinationUrl',
-        );
-        final fallbackDomain = (cleanDom != null && !cleanDom.contains('vertexaisearch') && !cleanDom.contains('google.com'))
-            ? cleanDom
-            : (!uri.host.contains('vertexaisearch') && !uri.host.contains('google.com') ? uri.host : null);
-        return _fallbackToDomainOrPublisher(
-          fallbackDomain,
-          cleanPub,
-          cleanTitle,
-        );
-      }
-
-      // Case 3: For grounding redirects, if it returned an error (status >= 400)
-      if (isRedirect && (statusCode >= 400 || statusCode < 200)) {
-        return _fallbackToDomainOrPublisher(cleanDom, cleanPub, cleanTitle);
-      }
-
-      // Success (200 OK, or publisher anti-bot 403/405/503 where real browser will succeed)
-      return url;
+      return currentUri.toString();
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,
         stackTrace: stackTrace,
         tag: 'SourceUrlSanitizer.resolveSafeDestinationUrl',
       );
-      // On network timeout, connection failure, or NXDOMAIN host lookup failure:
-      // Always fallback to canonical domain or reliable search rather than launching a broken link!
-      final fallback = _fallbackToDomainOrPublisher(cleanDom, cleanPub, cleanTitle);
-      if (fallback != null) {
-        return fallback;
-      }
-      return isRedirect ? null : url;
+      notifyBroken(reason: 'network_or_timeout');
+      return null;
     } finally {
       if (shouldCloseClient) {
         effectiveClient.close();
@@ -740,45 +784,72 @@ class SourceUrlSanitizer {
     String? publisher,
     String? title,
   ) {
-    final cleanTitle = title?.trim() ?? '';
-
-    // 1. Resolve canonical domain from domain or publisher (e.g. "NASA" -> "nasa.gov", "WION" -> "wionews.com")
-    final canonicalDomain =
-        resolveCanonicalDomain(domain) ?? resolveCanonicalDomain(publisher);
-    if (canonicalDomain != null) {
-      if (canonicalDomain.contains('wikipedia.org') && cleanTitle.isNotEmpty) {
-        final query = cleanTitle.split(RegExp(r'\s+[-|–—]\s+')).first.trim();
-        return 'https://en.wikipedia.org/wiki/Special:Search?search=${Uri.encodeComponent(query)}';
-      }
-      return 'https://$canonicalDomain';
-    }
-
-    // 2. If a title is available, Google Search is 100% guaranteed to find the authoritative citation without 404 or NXDOMAIN
-    if (cleanTitle.isNotEmpty) {
-      return createSearchUrl(cleanTitle, publisher: publisher, domain: domain);
-    }
-
     return null;
   }
 
+  static Future<bool> _openExternalUrl(String targetUrl) async {
+    final uri = Uri.tryParse(targetUrl);
+    if (uri == null) {
+      throw FormatException('Invalid URI: $targetUrl');
+    }
+    if (await canLaunchUrl(uri)) {
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (launched) return true;
+    }
+    final fallbackLaunched = await launchUrl(uri);
+    if (fallbackLaunched) return true;
+    throw Exception('launchUrl returned false');
+  }
+
+  /// Launches an explicit user-triggered web search in the external browser.
+  static Future<bool> launchWebSearch({
+    required String query,
+    String? publisher,
+    String? domain,
+  }) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return false;
+    final searchUrl = createSearchUrl(trimmed, publisher: publisher, domain: domain);
+    try {
+      return await _openExternalUrl(searchUrl);
+    } catch (e, stackTrace) {
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'SourceUrlSanitizer.launchWebSearch',
+      );
+      AppSnackbar.warning(
+        'Unable to open web search in browser. Please check your connection and try again.',
+        title: 'Web Search',
+      );
+      return false;
+    }
+  }
+
   /// Launches a source URL safely in an external application (system browser).
-  /// Automatically resolves and pre-flights the URL before launching,
-  /// following redirects to canonical destinations and intercepting 404s.
-  /// Guarantees that users NEVER land on a 404 or NXDOMAIN error page.
+  /// Pre-flights the URL before launching, reporting broken links via telemetry
+  /// and surfacing an honest warning instead of navigating to a 404 or homepage.
   static Future<bool> launchSourceUrl({
     required String? url,
     String? title,
     String? publisher,
     String? domain,
     Map<dynamic, dynamic>? source,
+    String? videoId,
+    String? claimId,
+    BrokenSourceReporter? onBrokenSourceDetected,
     http.Client? httpClient,
   }) async {
     var rawUrl = url;
     var rawTitle = title;
     var rawPublisher = publisher;
     var rawDomain = domain;
+    var resolvedVideoId = videoId;
+    var resolvedClaimId = claimId;
 
     if (source != null) {
+      resolvedVideoId ??= source['videoId']?.toString();
+      resolvedClaimId ??= (source['claimId'] ?? source['id'])?.toString();
       final cleanMap = sanitizeSourceMap(source);
       rawUrl = cleanMap['url']?.toString();
       if (rawUrl == null || rawUrl.isEmpty) {
@@ -792,70 +863,51 @@ class SourceUrlSanitizer {
       rawPublisher = cleanMap['publisher']?.toString() ?? rawPublisher;
     }
 
+    // Allow explicit Google Search queries when initiated by user Search Web actions.
+    if (source == null && rawUrl != null && isGoogleSearchUrl(rawUrl)) {
+      try {
+        return await _openExternalUrl(rawUrl.trim());
+      } catch (e, stackTrace) {
+        ErrorHandler.log(e, stackTrace: stackTrace, tag: 'SourceUrlSanitizer.launchSourceUrl');
+        AppSnackbar.warning(
+          'Unable to open web search in browser. Please check your connection and try again.',
+          title: 'Web Search',
+        );
+        return false;
+      }
+    }
+
     final safeUrl = await resolveSafeDestinationUrl(
       rawUrl,
       title: rawTitle,
       domain: rawDomain,
       publisher: rawPublisher,
+      videoId: resolvedVideoId,
+      claimId: resolvedClaimId,
+      onBrokenSourceDetected: onBrokenSourceDetected,
       client: httpClient,
     );
 
-    final directDestination = (safeUrl != null && safeUrl.isNotEmpty)
-        ? resolveDirectNavigationUrl(
-            url: safeUrl,
-            title: rawTitle,
-            publisher: rawPublisher,
-            domain: rawDomain,
-          )
-        : null;
-
-    final finalUrl = (directDestination != null && directDestination.isNotEmpty)
-        ? directDestination
-        : (rawTitle != null && rawTitle.isNotEmpty)
-            ? createSearchUrl(rawTitle, publisher: rawPublisher, domain: rawDomain)
-            : null;
-
-    if (finalUrl == null || finalUrl.isEmpty) {
+    if (safeUrl == null || safeUrl.isEmpty || isStaticHomepageUrl(safeUrl)) {
       ErrorHandler.log(
-        'Unable to resolve valid destination URL for source: $rawTitle',
+        'Blocked broken or unverified destination URL for source: $rawTitle',
         tag: 'SourceUrlSanitizer.launchSourceUrl',
       );
       AppSnackbar.warning(
-        'This source citation is currently unavailable. Please check your connection and try again.',
+        'This source page could not be verified or may no longer exist. Try Search web below to find an updated reference.',
         title: 'Source Unavailable',
       );
       return false;
     }
 
     try {
-      final uri = Uri.tryParse(finalUrl);
-      if (uri == null) {
-        throw FormatException('Invalid URI: $finalUrl');
-      }
-      final canLaunch = await canLaunchUrl(uri);
-      if (canLaunch) {
-        final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-        if (launched) return true;
-      }
-      final fallbackLaunched = await launchUrl(uri);
-      if (fallbackLaunched) return true;
-      throw Exception('launchUrl returned false');
+      return await _openExternalUrl(safeUrl);
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,
         stackTrace: stackTrace,
         tag: 'SourceUrlSanitizer.launchSourceUrl',
       );
-      // Fallback: If primary launch failed, try launching Google Search as ultimate resilient fallback
-      if (rawTitle != null && rawTitle.isNotEmpty && !isGoogleSearchUrl(finalUrl)) {
-        try {
-          final searchFallback = createSearchUrl(rawTitle, publisher: rawPublisher, domain: rawDomain);
-          final searchUri = Uri.tryParse(searchFallback);
-          if (searchUri != null) {
-            return await launchUrl(searchUri, mode: LaunchMode.externalApplication);
-          }
-        } catch (_) {}
-      }
       AppSnackbar.warning(
         'Unable to open source in browser. Please check your connection and try again.',
         title: 'Source Link',

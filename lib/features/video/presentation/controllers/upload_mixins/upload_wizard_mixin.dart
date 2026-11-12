@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
+import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_mixins/upload_controller_base.dart';
@@ -262,7 +263,7 @@ mixin UploadWizardMixin on UploadControllerBase {
     }
   }
 
-  Future<void> uploadCommunityPost(
+  Future<bool> uploadCommunityPost(
     String title,
     String description,
     String channelName,
@@ -274,7 +275,7 @@ mixin UploadWizardMixin on UploadControllerBase {
       AppSnackbar.info(
         'A community post is already being published.',
       );
-      return;
+      return false;
     }
 
     // Check Moderation Status - only block if explicitly REJECTED
@@ -282,12 +283,12 @@ mixin UploadWizardMixin on UploadControllerBase {
       AppSnackbar.warning(
         'Your community post image was rejected: ${communityImageStatusReason.value}. Please upload a compliant image.',
       );
-      return;
+      return false;
     }
 
     if (pickedCommunityImage.value == null && communityImageUrl.value.isEmpty) {
       AppSnackbar.warning('Please select an image.');
-      return;
+      return false;
     }
 
     // If image is still uploading in background, await it
@@ -303,31 +304,31 @@ mixin UploadWizardMixin on UploadControllerBase {
     // CONTENT VALIDATION - Title
     if (title.isEmpty) {
       AppSnackbar.warning('Title cannot be empty.');
-      return;
+      return false;
     }
 
     if (title.length > UploadControllerBase.maxTitleLength) {
       AppSnackbar.warning('Title cannot exceed ${UploadControllerBase.maxTitleLength} characters.');
-      return;
+      return false;
     }
 
     final titleValidation = await validateContent(title, fieldName: 'Title');
     if (!titleValidation.isValid) {
       AppSnackbar.warning(titleValidation.message);
-      return;
+      return false;
     }
 
     // CONTENT VALIDATION - Description
     if (description.isEmpty) {
       AppSnackbar.warning('Description cannot be empty.');
-      return;
+      return false;
     }
 
     if (description.length > UploadControllerBase.maxDescriptionLength) {
       AppSnackbar.warning(
         'Description cannot exceed ${UploadControllerBase.maxDescriptionLength} characters.',
       );
-      return;
+      return false;
     }
 
     final descValidation = await validateContent(
@@ -337,7 +338,7 @@ mixin UploadWizardMixin on UploadControllerBase {
     );
     if (!descValidation.isValid) {
       AppSnackbar.warning(descValidation.message);
-      return;
+      return false;
     }
 
     // CONTENT VALIDATION - Tags
@@ -346,7 +347,7 @@ mixin UploadWizardMixin on UploadControllerBase {
       final tagsValidation = await validateTags(validTags);
       if (!tagsValidation.isValid) {
         AppSnackbar.warning(tagsValidation.message);
-        return;
+        return false;
       }
     }
 
@@ -401,9 +402,8 @@ mixin UploadWizardMixin on UploadControllerBase {
       AppSnackbar.success('Community post published successfully!');
       uploadProgress.value = 0.0;
       resetUploads();
-      if (Get.currentRoute != '/studio') {
-        Get.offAllNamed('/studio');
-      }
+      RouteStackObserver.navigateToStudio();
+      return true;
     } on FirebaseException catch (e) {
       ErrorHandler.log(e, context: 'UploadController.uploadCommunityPost');
       var errorMessage = 'Unable to upload community post. Please try again.';
@@ -412,9 +412,11 @@ mixin UploadWizardMixin on UploadControllerBase {
         errorMessage = 'Authentication expired. Please sign in again.';
       }
       AppSnackbar.error(errorMessage);
+      return false;
     } catch (e) {
       ErrorHandler.log(e, context: 'UploadController.uploadCommunityPost');
       AppSnackbar.error('Unable to publish community post. Please try again.');
+      return false;
     } finally {
       isUploading.value = false;
       isCommunityPostUploading.value = false;

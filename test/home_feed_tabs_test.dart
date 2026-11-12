@@ -49,7 +49,7 @@ bool testMatchesCategory(Video v, String cat) {
 double calculateTrendingScore(Video v) {
   final daysOld = DateTime.now().difference(v.createdAt.toDate()).inDays + 1;
   final views = (v.views > 0 ? v.views : v.viewCount).toDouble();
-  return (views * 0.5) + (v.likes * 0.3) + (v.commentCount * 0.2) + ((1.0 / daysOld) * 100) + (v.trustScore * 10);
+  return (views * 0.5) + (v.likes * 0.3) + (v.commentCount * 0.2) + ((1.0 / daysOld) * 100) + (v.isFactChecked ? 50.0 : 0.0);
 }
 
 void main() {

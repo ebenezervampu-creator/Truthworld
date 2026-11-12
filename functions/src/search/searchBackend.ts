@@ -444,12 +444,23 @@ export const searchTruthWorld = onCall(
 
           // Secondary prefix fallback when keywords yield few results
           if (resultsMap.size < 5) {
-            const prefixSnap = await db
+            let prefixSnap = await db
               .collection("videos")
-              .where("title", ">=", cleanQuery)
-              .where("title", "<=", cleanQuery + "\uf8ff")
+              .where("titleLowercase", ">=", cleanQuery)
+              .where("titleLowercase", "<=", cleanQuery + "\uf8ff")
               .limit(10)
               .get();
+
+            if (prefixSnap.empty) {
+              const titleCased =
+                cleanQuery.charAt(0).toUpperCase() + cleanQuery.slice(1);
+              prefixSnap = await db
+                .collection("videos")
+                .where("title", ">=", titleCased)
+                .where("title", "<=", titleCased + "\uf8ff")
+                .limit(10)
+                .get();
+            }
 
             for (const doc of prefixSnap.docs) {
               const vData = doc.data();

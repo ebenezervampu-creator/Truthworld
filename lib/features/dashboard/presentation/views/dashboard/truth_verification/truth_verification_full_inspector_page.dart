@@ -3,6 +3,8 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_dialogs.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_models.dart';
+
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_video_card.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_controller.dart';
@@ -86,16 +88,10 @@ class TruthVerificationFullInspectorPage extends StatelessWidget {
     required bool isDarkMode,
     required void Function(String videoId, bool currentStatus) onToggleApproval,
   }) async {
-    await Get.to<void>(
-      () => TruthVerificationFullInspectorPage(
-        videoItem: videoItem,
-        channelId: channelId,
-        isDarkMode: isDarkMode,
-        onToggleApproval: onToggleApproval,
-      ),
-      transition: Transition.rightToLeftWithFade,
-      curve: Curves.easeOutCubic,
-      duration: const Duration(milliseconds: 280),
+    await TruthVerificationVideoCard.openAiCheck(
+      context,
+      videoItem: videoItem,
+      channelId: channelId,
     );
   }
 

@@ -3426,11 +3426,11 @@
       "minInstances": null,
       "maxInstances": 10,
       "ingressSettings": null,
-      "concurrency": null,
+      "concurrency": 20,
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
-      "cpu": "gcf_gen1",
+      "cpu": 1,
       "region": [
         "asia-south1"
       ],
@@ -3447,13 +3447,13 @@
       "availableMemoryMb": 512,
       "timeoutSeconds": 60,
       "minInstances": null,
-      "maxInstances": 15,
+      "maxInstances": 10,
       "ingressSettings": null,
-      "concurrency": null,
+      "concurrency": 20,
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
-      "cpu": "gcf_gen1",
+      "cpu": 1,
       "region": [
         "asia-south1"
       ],
@@ -3798,6 +3798,229 @@
       "labels": {},
       "callableTrigger": {},
       "entryPoint": "getSourceAvatars"
+    },
+    "verifyElevenLabsStatus": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": 30,
+      "minInstances": 0,
+      "maxInstances": 5,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "secretEnvironmentVariables": [
+        {
+          "key": "ELEVENLABS_API_KEY"
+        }
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "verifyElevenLabsStatus"
+    },
+    "reportBrokenSourceUrl": {
+      "availableMemoryMb": 512,
+      "timeoutSeconds": 60,
+      "minInstances": 0,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "reportBrokenSourceUrl"
+    },
+    "auditAndHealBrokenSources": {
+      "availableMemoryMb": 1024,
+      "timeoutSeconds": 300,
+      "minInstances": 0,
+      "maxInstances": 3,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "auditAndHealBrokenSources"
+    },
+    "handleDubbingReel": {
+      "availableMemoryMb": 2048,
+      "timeoutSeconds": 540,
+      "minInstances": 0,
+      "maxInstances": 16,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "secretEnvironmentVariables": [
+        {
+          "key": "ELEVENLABS_API_KEY"
+        },
+        {
+          "key": "GOOGLE_TRANSLATION_API_KEY"
+        },
+        {
+          "key": "GEMINI_API_KEY"
+        }
+      ],
+      "labels": {},
+      "eventTrigger": {
+        "eventType": "google.cloud.pubsub.topic.v1.messagePublished",
+        "eventFilters": {
+          "topic": "dubbing.reel.requested"
+        },
+        "retry": true
+      },
+      "entryPoint": "handleDubbingReel"
+    },
+    "handleAssembleDubbingReels": {
+      "availableMemoryMb": 2048,
+      "timeoutSeconds": 540,
+      "minInstances": 0,
+      "maxInstances": 6,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "secretEnvironmentVariables": [
+        {
+          "key": "ELEVENLABS_API_KEY"
+        }
+      ],
+      "labels": {},
+      "eventTrigger": {
+        "eventType": "google.cloud.pubsub.topic.v1.messagePublished",
+        "eventFilters": {
+          "topic": "dubbing.reel.assemble"
+        },
+        "retry": true
+      },
+      "entryPoint": "handleAssembleDubbingReels"
+    },
+    "getDubbingEditorManifest": {
+      "availableMemoryMb": 512,
+      "timeoutSeconds": 60,
+      "minInstances": null,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "getDubbingEditorManifest"
+    },
+    "updateDubbingSegmentAndResynthesize": {
+      "availableMemoryMb": 1024,
+      "timeoutSeconds": 120,
+      "minInstances": null,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "secretEnvironmentVariables": [
+        {
+          "key": "ELEVENLABS_API_KEY"
+        }
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "updateDubbingSegmentAndResynthesize"
+    },
+    "saveDubbingPronunciationGlossary": {
+      "availableMemoryMb": 512,
+      "timeoutSeconds": 60,
+      "minInstances": null,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "saveDubbingPronunciationGlossary"
+    },
+    "updateDubbingSegmentTimings": {
+      "availableMemoryMb": 512,
+      "timeoutSeconds": 120,
+      "minInstances": null,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "updateDubbingSegmentTimings"
+    },
+    "remasterDubbedAudioTrack": {
+      "availableMemoryMb": 2048,
+      "timeoutSeconds": 540,
+      "minInstances": null,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "secretEnvironmentVariables": [
+        {
+          "key": "ELEVENLABS_API_KEY"
+        }
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "remasterDubbedAudioTrack"
     },
     "onVideoPublished": {
       "availableMemoryMb": 512,

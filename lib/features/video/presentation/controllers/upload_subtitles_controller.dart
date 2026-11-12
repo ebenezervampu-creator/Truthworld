@@ -315,7 +315,7 @@ class UploadSubtitlesController extends GetxController {
   void applyAndSave() {
     if (isInsufficientBalance && selectedLanguages.isNotEmpty && isSubtitlesEnabled.value) {
       AppSnackbar.warning(
-        'Insufficient channel wallet balance (\$${walletBalance.toStringAsFixed(2)} available vs \$${calculatedCost.toStringAsFixed(2)} required). Please add money to your wallet to proceed with AI Subtitles for these languages.',
+        'Insufficient channel revenue (\$${walletBalance.toStringAsFixed(2)} available vs \$${calculatedCost.toStringAsFixed(2)} required). You can pay directly to proceed with AI Subtitles for these languages.',
       );
       return;
     }

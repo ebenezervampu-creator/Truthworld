@@ -1,18 +1,19 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/channel_wallet_models.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/dubbing_options/ai_dubbing_tab_view.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/dubbing_options/direct_track_tab_view.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/dubbing_options/dubbing_language_bar.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/dubbing_options/dubbing_mode_switcher.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/dubbing_options/dubbing_options_state.dart';
-import 'package:truthworld/theme/app_colors.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
-/// Modal dialog providing clean, premium ElevenLabs-style options for AI Voice Dubbing and Direct Audio Track.
-/// Follows 100% GetX reactive architecture, Zero setState, Zero White-on-White, and Zero Charm-Pricing.
+/// Modal dialog for configuring AI Audio Dubbing and Direct Audio Tracks.
+/// Reuses the shared TruthWorld minimalist components and supports multi-language
+/// batch generation as well as direct audio uploads.
 class AudioTrackDubbingOptionsDialog extends StatelessWidget {
   AudioTrackDubbingOptionsDialog({
     required this.controller,
@@ -39,8 +40,9 @@ class AudioTrackDubbingOptionsDialog extends StatelessWidget {
 
   final DubbingOptionsState state;
 
-  // Convenience accessors for backwards compatibility
+  // Convenience accessors
   RxString get selectedLangCode => state.selectedLangCode;
+  RxList<String> get selectedLangCodes => state.selectedLangCodes;
   RxInt get selectedTab => state.selectedTab;
   RxString get selectedDubbingTier => state.selectedDubbingTier;
   RxString get selectedMediaMode => state.selectedMediaMode;
@@ -55,6 +57,8 @@ class AudioTrackDubbingOptionsDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+    final typography = context.twTypography;
     final video = controller.selectedVideo.value;
     final durationSeconds = (video != null && video.durationSeconds > 0)
         ? video.durationSeconds
@@ -64,167 +68,95 @@ class AudioTrackDubbingOptionsDialog extends StatelessWidget {
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 620),
+        constraints: const BoxConstraints(maxWidth: 560),
         decoration: BoxDecoration(
-          color: AppColors.bgPage,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.bgSurface),
+          color: colors.background,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Header Bar
-                _buildHeader(context),
-
-                // Content
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // 1. Language Selector
-                      DubbingLanguageBar(state: state),
-
-                      const SizedBox(height: 12),
-
-                      // 2. Segmented Mode Switcher
-                      _buildSegmentedTabSwitcher(),
-
-                      const SizedBox(height: 14),
-
-                      // 3. Tab Content
-                      Obx(() {
-                        if (state.selectedTab.value == 0) {
-                          return AiDubbingTabView(
-                            state: state,
-                            durationSeconds: durationSeconds,
-                            onGenerate: () => state.handleGenerateAiDubbing(context),
-                          );
-                        } else {
-                          return DirectTrackTabView(
-                            state: state,
-                            durationLabel: video?.duration ?? '00:00',
-                            onUpload: () => state.handleUploadDirectTrack(context),
-                          );
-                        }
-                      }),
-                    ],
-                  ),
+                // Header
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Audio Track & Dubbing',
+                            style: typography.display.copyWith(
+                              fontFamily: TWTypography.brandFamily,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.4,
+                              color: colors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Create a new audio track or dub your video into another language.',
+                            style: typography.bodySmall.copyWith(
+                              fontSize: 12.5,
+                              color: colors.textSecondary,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: Icon(
+                        Icons.close_rounded,
+                        color: colors.textSecondary,
+                        size: 20,
+                      ),
+                      onPressed: () => Get.back<void>(),
+                      tooltip: 'Close',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
                 ),
+
+                const SizedBox(height: 18),
+
+                // 1. Segmented Mode Switcher
+                DubbingModeSwitcher(state: state),
+
+                const SizedBox(height: 14),
+
+                // 2. Target Language(s) Selector Card
+                DubbingLanguageBar(state: state),
+
+                const SizedBox(height: 12),
+
+                // 3. Mode-specific Settings & CTA
+                Obx(() {
+                  if (state.selectedTab.value == 0) {
+                    return AiDubbingTabView(
+                      state: state,
+                      durationSeconds: durationSeconds,
+                      onGenerate: () => state.handleGenerateAiDubbing(context),
+                    );
+                  }
+                  return DirectTrackTabView(
+                    state: state,
+                    durationLabel: video?.duration ?? '00:00',
+                    onUpload: () => state.handleUploadDirectTrack(context),
+                  );
+                }),
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.bgSurface)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text(
-            'Audio Track & Dubbing Options',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 20),
-            onPressed: () => Get.back<void>(),
-            tooltip: 'Close',
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSegmentedTabSwitcher() {
-    return Obx(() {
-      final tab = state.selectedTab.value;
-      return Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: AppColors.bgSurface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.bgSurface),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: _buildTabPill(
-                index: 0,
-                activeTab: tab,
-                icon: Icons.auto_awesome_rounded,
-                label: 'AI Voice Dubbing',
-              ),
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: _buildTabPill(
-                index: 1,
-                activeTab: tab,
-                icon: Icons.graphic_eq_rounded,
-                label: 'Direct Audio Track',
-              ),
-            ),
-          ],
-        ),
-      );
-    });
-  }
-
-  Widget _buildTabPill({
-    required int index,
-    required int activeTab,
-    required IconData icon,
-    required String label,
-  }) {
-    final isActive = activeTab == index;
-    return InkWell(
-      onTap: () => state.selectedTab.value = index,
-      borderRadius: BorderRadius.circular(8),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-        decoration: BoxDecoration(
-          color: isActive ? AppColors.bgSurface : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          border: isActive
-              ? Border.all(color: Colors.white.withValues(alpha: 0.15))
-              : null,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 15,
-              color: isActive ? Colors.white : AppColors.textSecondary,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
-                color: isActive ? Colors.white : AppColors.textSecondary,
-              ),
-            ),
-          ],
         ),
       ),
     );

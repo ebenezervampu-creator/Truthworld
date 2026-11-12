@@ -169,7 +169,7 @@ class ChannelWalletService {
   static double getFlatSubtitlePricePerLanguage({
     required ChannelType channelType,
     int durationSeconds = 0,
-    String tierId = 'starter',
+    String tierId = 'ultra',
   }) => ChannelWalletPricing.getFlatSubtitlePricePerLanguage(
     channelType: channelType,
     durationSeconds: durationSeconds,
@@ -185,7 +185,7 @@ class ChannelWalletService {
     int durationSeconds = 0,
     Channel? channel,
     double? discountPercent,
-    String tierId = 'starter',
+    String tierId = 'ultra',
   }) => ChannelWalletPricing.calculateSubtitleCost(
     languageCount: languageCount,
     channelType: channelType,
@@ -246,7 +246,7 @@ class ChannelWalletService {
     Channel? channel,
     double? dubbingDiscountPercent,
     double? subtitlesDiscountPercent,
-    String subtitleTier = 'starter',
+    String subtitleTier = 'ultra',
   }) => ChannelWalletPricing.calculateAIFeatureCost(
     selectedFeatures: selectedFeatures,
     targetLanguages: targetLanguages,
@@ -725,6 +725,98 @@ class ChannelWalletService {
     }
   }
 
+  /// Direct payment for AI Audio Dubbing via Cashfree PG (no wallet option)
+  Future<bool> payForDubbingWithCashfree({
+    required Channel channel,
+    required double amountUSD,
+    required String languageCode,
+    required String videoId,
+    required String dubbingTier,
+    List<String>? targetLanguages,
+  }) async {
+    try {
+      unawaited(CurrencyLocalizationService.to.fetchRealtimeRate());
+      final rate = Get.isRegistered<CurrencyLocalizationService>()
+          ? CurrencyLocalizationService.to.rate
+          : CurrencyLocalizationService.defaultRate;
+      final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+          CurrencyLocalizationService.to.isIndianUser;
+      final currency = isIndian ? 'INR' : 'USD';
+      final chargeAmount = isIndian
+          ? math.max(1.0, double.parse((amountUSD * rate).toStringAsFixed(2)))
+          : amountUSD;
+      final resolvedLangs = (targetLanguages != null && targetLanguages.isNotEmpty)
+          ? targetLanguages
+          : [languageCode];
+      final langSummary = resolvedLangs.join(',');
+      final paymentResult = await CashfreePaymentService.to.startPayment(
+        amount: chargeAmount,
+        currency: currency,
+        purpose: 'ai_dubbing',
+        orderNote: 'AI Dubbing ($langSummary): \$$amountUSD',
+        metadata: {
+          'channelId': channel.id,
+          'videoId': videoId,
+          'languageCode': languageCode,
+          'targetLanguages': resolvedLangs,
+          'dubbingTier': dubbingTier,
+          'amountUSD': amountUSD,
+          'currency': currency,
+          'chargeAmount': chargeAmount,
+          'category': 'aiDubbing',
+          'description': 'Direct Payment for AI Dubbing ($langSummary) via Cashfree',
+        },
+      );
+
+      return paymentResult.success;
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, tag: 'ChannelWalletService.payForDubbingWithCashfree');
+      return false;
+    }
+  }
+
+  /// Direct payment for AI Subtitles via Cashfree PG (no wallet option)
+  Future<bool> payForSubtitlesWithCashfree({
+    required Channel channel,
+    required double amountUSD,
+    required List<String> targetLanguages,
+    required String videoId,
+  }) async {
+    try {
+      unawaited(CurrencyLocalizationService.to.fetchRealtimeRate());
+      final rate = Get.isRegistered<CurrencyLocalizationService>()
+          ? CurrencyLocalizationService.to.rate
+          : CurrencyLocalizationService.defaultRate;
+      final isIndian = !Get.isRegistered<CurrencyLocalizationService>() ||
+          CurrencyLocalizationService.to.isIndianUser;
+      final currency = isIndian ? 'INR' : 'USD';
+      final chargeAmount = isIndian
+          ? math.max(1.0, double.parse((amountUSD * rate).toStringAsFixed(2)))
+          : amountUSD;
+      final paymentResult = await CashfreePaymentService.to.startPayment(
+        amount: chargeAmount,
+        currency: currency,
+        purpose: 'ai_subtitles',
+        orderNote: 'AI Subtitles (${targetLanguages.length} langs): \$$amountUSD',
+        metadata: {
+          'channelId': channel.id,
+          'videoId': videoId,
+          'targetLanguages': targetLanguages,
+          'amountUSD': amountUSD,
+          'currency': currency,
+          'chargeAmount': chargeAmount,
+          'category': 'aiSubtitles',
+          'description': 'Direct Payment for AI Subtitles (${targetLanguages.join(", ")}) via Cashfree',
+        },
+      );
+
+      return paymentResult.success;
+    } catch (e, stackTrace) {
+      ErrorHandler.log(e, stackTrace: stackTrace, tag: 'ChannelWalletService.payForSubtitlesWithCashfree');
+      return false;
+    }
+  }
+
   /// Spend balance for Video AI Features and immediately enqueue pipeline jobs
   Future<bool> spendForVideoAIFeatures({
     required Channel channel,
@@ -822,8 +914,10 @@ class ChannelWalletService {
                   channelType: channel.channelType,
                 )
               : 0.0,
-          'enablePath1': features.contains('factcheck'),
-          'enablePath2': features.contains('dubbing') || features.contains('subtitles'),
+          'enableCredibility': features.contains('factcheck'),
+          'factCheckEnabled': features.contains('factcheck'),
+          'enableDubbing': features.contains('dubbing'),
+          'enableSubtitles': features.contains('subtitles'),
           'autoChapters': autoChapters,
           'priorityMode': priorityMode,
           'channelType': channel.channelType.name,

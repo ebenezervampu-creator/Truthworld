@@ -82,7 +82,6 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
     List<dynamic>? allSources,
     List<dynamic>? allClaims,
     String? summary,
-    double? trustScore,
     String? claimExplanation,
   }) {
     return AskAiScreen.open<T>(
@@ -96,7 +95,6 @@ class VideoAnalysisBottomSheet extends StatelessWidget {
       allSources: allSources,
       allClaims: allClaims,
       summary: summary,
-      trustScore: trustScore,
       claimExplanation: claimExplanation,
     );
   }

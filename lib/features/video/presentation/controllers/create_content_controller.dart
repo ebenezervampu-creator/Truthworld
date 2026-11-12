@@ -586,7 +586,6 @@ class CreateContentController extends GetxController {
                 ? 'Your video has been scheduled for publication.'
                 : 'Your video is being processed and will be available soon.'),
       );
-      Get.offAllNamed('/studio');
     } catch (e) {
       ErrorHandler.log(e);
       var errorMessage = 'Failed to upload video. Please try again.';
@@ -633,7 +632,7 @@ class CreateContentController extends GetxController {
 
       final tags = rawCommunityTags.take(ContentValidator.defaultMaxTags).toList();
 
-      await uploadController.uploadCommunityPost(
+      final published = await uploadController.uploadCommunityPost(
         communityTitleController.text.trim(),
         communityDescriptionController.text.trim(),
         channel.channelName,
@@ -641,10 +640,10 @@ class CreateContentController extends GetxController {
         channel.avatarUrl,
         tags,
       );
+      if (!published) return;
 
       HapticFeedback.mediumImpact();
       AppSnackbar.success('Your community post has been published successfully.');
-      Get.offAllNamed('/studio');
     } catch (e) {
       ErrorHandler.log(e);
       var errorMessage = 'Failed to publish community post. Please try again.';

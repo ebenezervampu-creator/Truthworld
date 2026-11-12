@@ -173,8 +173,12 @@ describe('Industry-Standard Hybrid Text-to-Speech (TTS) Architecture', () => {
     });
   });
 
-  describe('3. Dubbing Architecture Routing (Google Cloud Chirp Default vs ElevenLabs Voice Cloning)', () => {
-    it('routes video dubbing audio track requests to Google Cloud Chirp 3: HD by default', async () => {
+  describe('3. Dubbing Architecture Routing (Strictly ElevenLabs v4, Chirp 3: HD Terminated)', () => {
+    it('routes video dubbing audio track requests strictly to ElevenLabs v4', async () => {
+      mockedAxios.post.mockResolvedValueOnce({
+        data: Buffer.from('mock-elevenlabs-v4-audio-bytes'),
+      });
+
       const request: TTSRequest = {
         jobId: 'job_std_dubbing',
         userId: 'user_creator_1',
@@ -185,14 +189,14 @@ describe('Industry-Standard Hybrid Text-to-Speech (TTS) Architecture', () => {
 
       const result = await hybridTtsService.synthesize(request);
 
-      // Verified: Google Cloud Chirp called, ElevenLabs NOT called
-      expect(mockGoogleClient.synthesizeSpeech).toHaveBeenCalledTimes(1);
-      expect(mockedAxios.post).not.toHaveBeenCalled();
-      expect(result.provider).toBe('google-cloud-tts');
-      expect(result.voiceName).toBe('te-IN-Chirp3-HD-Kore');
+      // Verified: ElevenLabs v4 called, Google Cloud TTS NOT called
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+      expect(mockedAxios.post.mock.calls[0][1]).toMatchObject({ model_id: 'eleven_v4' });
+      expect(mockGoogleClient.synthesizeSpeech).not.toHaveBeenCalled();
+      expect(result.provider).toBe('elevenlabs');
     });
 
-    it('routes voice cloning requests (preferVoiceCloning: true) strictly to ElevenLabs', async () => {
+    it('routes voice cloning requests strictly to ElevenLabs v4', async () => {
       mockedAxios.post.mockResolvedValueOnce({
         data: Buffer.from('mock-elevenlabs-cloned-audio-bytes'),
       });
@@ -210,45 +214,25 @@ describe('Industry-Standard Hybrid Text-to-Speech (TTS) Architecture', () => {
 
       // Verified: ElevenLabs called, Google Cloud TTS NOT called
       expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+      expect(mockedAxios.post.mock.calls[0][1]).toMatchObject({ model_id: 'eleven_v4' });
       expect(mockGoogleClient.synthesizeSpeech).not.toHaveBeenCalled();
       expect(result.provider).toBe('elevenlabs');
       expect(result.voiceName).toBe('custom_voice_clone_abc');
     });
-
-    it('routes Audio Pro requests strictly to ElevenLabs v4 Turbo (eleven_v4_turbo)', async () => {
-      mockedAxios.post.mockResolvedValueOnce({
-        data: Buffer.from('mock-elevenlabs-v4-turbo-audio-bytes'),
-      });
-
-      const request: TTSRequest = {
-        jobId: 'job_pro_audio',
-        userId: 'user_creator_pro',
-        language: 'en',
-        text: 'This is high-speed audio pro dubbing with ElevenLabs v4 Turbo.',
-        ttsTier: 'audio_pro',
-      };
-
-      const result = await hybridTtsService.synthesize(request);
-
-      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
-      expect(mockedAxios.post.mock.calls[0][1]).toMatchObject({ model_id: 'eleven_v4_turbo' });
-      expect(mockGoogleClient.synthesizeSpeech).not.toHaveBeenCalled();
-      expect(result.provider).toBe('elevenlabs');
-    });
   });
 
   describe('4. Resilient Fallback to ElevenLabs Tier 2 and Graceful Google Chirp Fallback', () => {
-    it('seamlessly falls back to Tier 2 (eleven_v3) when Tier 1 (eleven_v4) returns 429 Rate Limit', async () => {
+    it('seamlessly falls back to Tier 2 (eleven_v3) when Tier 1 (eleven_v4) returns 503 error', async () => {
       mockedAxios.post
         .mockRejectedValueOnce({
           response: {
-            status: 429,
-            data: { detail: 'Too many requests' },
+            status: 503,
+            data: { detail: 'Service temporarily unavailable' },
           },
-          message: 'Request failed with status code 429',
+          message: 'Request failed with status code 503',
         })
         .mockResolvedValueOnce({
-          data: Buffer.from('mock-v3-audio-bytes'),
+          data: Buffer.from('mock-v4-retry-audio-bytes'),
         });
 
       const request: TTSRequest = {
@@ -256,12 +240,11 @@ describe('Industry-Standard Hybrid Text-to-Speech (TTS) Architecture', () => {
         userId: 'user_creator_2',
         language: 'hi',
         text: 'यह एक स्वचालित परीक्षण है।',
-        preferVoiceCloning: true,
       };
 
       const result = await hybridTtsService.synthesize(request);
 
-      // Verified: ElevenLabs attempted v4, failed, then fallback to v3 succeeded
+      // Verified: ElevenLabs attempted v4, then fell back to v3
       expect(mockedAxios.post).toHaveBeenCalledTimes(2);
       expect(mockedAxios.post.mock.calls[0][1]).toMatchObject({ model_id: 'eleven_v4' });
       expect(mockedAxios.post.mock.calls[1][1]).toMatchObject({ model_id: 'eleven_v3' });
@@ -269,10 +252,12 @@ describe('Industry-Standard Hybrid Text-to-Speech (TTS) Architecture', () => {
       expect(result.audioUrl).toContain('gs://truthworld-test-bucket/audio/job_rate_limited/hi/chunk-');
     });
 
-    it('gracefully falls back to Google Cloud Chirp 3: HD if voice cloning is requested without an ElevenLabs API key', async () => {
+    it('gracefully falls back to Google Cloud Chirp 3: HD if ElevenLabs API key is missing', async () => {
+      const unconfiguredEleven = new ElevenLabsTTSService('');
+      jest.spyOn(unconfiguredEleven, 'getApiKey').mockReturnValue('');
       const serviceWithoutKey = new TTSService(
         googleTtsService,
-        new ElevenLabsTTSService('')
+        unconfiguredEleven
       );
 
       const request: TTSRequest = {
@@ -280,7 +265,6 @@ describe('Industry-Standard Hybrid Text-to-Speech (TTS) Architecture', () => {
         userId: 'user_creator_3',
         language: 'te',
         text: 'ఏకీకృత ధ్వని సంశ్లేషణ',
-        preferVoiceCloning: true,
       };
 
       const result = await serviceWithoutKey.synthesize(request);

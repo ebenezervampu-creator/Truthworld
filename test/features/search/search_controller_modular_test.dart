@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:truthworld/core/services/ai/models/ai_search_intent.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart';
 import 'package:truthworld/features/search/data/services/search_service.dart';
@@ -11,6 +12,17 @@ import 'package:truthworld/features/search/presentation/controllers/search_contr
 import '../../test_helpers/mock_firebase.dart';
 
 class _FakeSearchService extends Fake implements SearchService {
+  @override
+  bool isCached(String query) => false;
+
+  @override
+  Future<List<SearchResult>> search(
+    String query, {
+    AiSearchIntent? intent,
+    String? filter,
+    int limit = 20,
+  }) async => [];
+
   @override
   Future<List<String>> getTrendingSuggestions() async => [];
 
@@ -226,20 +238,48 @@ void main() {
       expect(controller.showSuggestions.value, isFalse);
     });
 
-    test('onSearchChanged updates query and displays suggestions', () {
+    test('onSearchChanged updates query and displays suggestions without triggering executed search', () {
       final controller = Get.put(SearchController(
         searchService: _FakeSearchService(),
         trendingManager: _FakeSearchTrendingManager(),
       ));
 
+      expect(controller.hasExecutedSearch.value, isFalse);
+      expect(controller.executedQuery.value, isEmpty);
+
       controller.onSearchChanged('flutter tutorial');
       expect(controller.searchQuery.value, equals('flutter tutorial'));
       expect(controller.showSuggestions.value, isTrue);
+      expect(controller.hasExecutedSearch.value, isFalse);
 
       controller.clearSearch();
       expect(controller.searchQuery.value, isEmpty);
       expect(controller.showSuggestions.value, isFalse);
       expect(controller.searchResults, isEmpty);
+      expect(controller.hasExecutedSearch.value, isFalse);
+      expect(controller.executedQuery.value, isEmpty);
+    });
+
+    test('decouples live typing from executed search state', () async {
+      final controller = Get.put(SearchController(
+        searchService: _FakeSearchService(),
+        trendingManager: _FakeSearchTrendingManager(),
+      ));
+
+      // User types 'j'
+      controller.onSearchChanged('j');
+      expect(controller.hasExecutedSearch.value, isFalse);
+
+      // User submits 'j'
+      await controller.performSearch('j');
+      expect(controller.hasExecutedSearch.value, isTrue);
+      expect(controller.executedQuery.value, equals('j'));
+      expect(controller.showSuggestions.value, isFalse);
+
+      // User starts typing again to change to 'ji'
+      controller.onSearchChanged('ji');
+      expect(controller.hasExecutedSearch.value, isFalse);
+      expect(controller.showSuggestions.value, isTrue);
     });
 
     test('setFilter updates filter and resets pagination', () {

@@ -178,7 +178,7 @@ void main() {
         expect(find.byType(AudioThemesBottomSheet), findsOneWidget);
 
         // Verify selecting a theme in the popup updates globalAudioTheme
-        final targetTile = find.text('Classic Vinyl Turntable');
+        final targetTile = find.text('Obsidian Minimalist');
         expect(targetTile, findsOneWidget);
         await tester.ensureVisible(targetTile);
         await tester.pump(const Duration(milliseconds: 100));
@@ -186,7 +186,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 300));
         expect(
           TowerPlayerPreferences.globalAudioTheme.value,
-          equals(AudioPlayerTheme.retroVinyl),
+          equals(AudioPlayerTheme.obsidianMinimalist),
         );
 
         // Dismiss popup

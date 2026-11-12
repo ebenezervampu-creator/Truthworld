@@ -7,7 +7,6 @@ export interface TypesenseVideoDoc {
   channelImage?: string;
   thumbnailUrl?: string;
   views: number;
-  trustScore?: number;
   isFactChecked?: boolean;
   isTrusted?: boolean;
   category?: string;
@@ -118,7 +117,6 @@ export function mapVideoToTypesense(id: string, data: any): TypesenseVideoDoc | 
   ]);
 
   const views = Number(data.viewCount || data.views || data.stats?.views || 0);
-  const trustScore = Number(data.trustScore || data.truthScore || 0);
 
   const isFactChecked =
     data.isFactChecked === true ||
@@ -142,7 +140,6 @@ export function mapVideoToTypesense(id: string, data: any): TypesenseVideoDoc | 
     channelImage: channelImage || undefined,
     thumbnailUrl: thumbnailUrl || undefined,
     views: isNaN(views) ? 0 : views,
-    trustScore: isNaN(trustScore) ? 0 : trustScore,
     isFactChecked,
     isTrusted,
     category: data.category ? String(data.category) : undefined,

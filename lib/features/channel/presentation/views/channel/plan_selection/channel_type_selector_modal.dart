@@ -107,37 +107,40 @@ class ChannelTypeSelectorModal extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Select Channel Type',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: isDark
-                              ? AppColors.textPrimary
-                              : const Color(0xFF0F172A),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Select Channel Type',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: isDark
+                                ? AppColors.textPrimary
+                                : const Color(0xFF0F172A),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Choose your channel monetization & infrastructure plan',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isDark
-                              ? AppColors.textSecondary
-                              : const Color(0xFF64748B),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Choose your channel monetization & infrastructure plan',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark
+                                ? AppColors.textSecondary
+                                : const Color(0xFF64748B),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   IconButton(
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.close_rounded,
-                      color: Colors.white,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
                     ),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
@@ -216,12 +219,16 @@ class ChannelTypeSelectorModal extends StatelessWidget {
                               size: 16,
                             ),
                             SizedBox(width: 8),
-                            Text(
-                              'Compare Standard vs Pro Benefits',
-                              style: TextStyle(
-                                color: Color(0xFF818CF8),
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
+                            Flexible(
+                              child: Text(
+                                'Compare Standard vs Pro Benefits',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Color(0xFF818CF8),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                             SizedBox(width: 6),
@@ -272,6 +279,8 @@ class ChannelTypeSelectorModal extends StatelessWidget {
                   ),
                   child: Text(
                     'Continue with ${isStandard ? 'Standard Channel' : 'Pro Channel'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,

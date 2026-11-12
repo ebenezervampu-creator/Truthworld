@@ -1,9 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/source_avatar_service.dart';
+import 'package:truthworld/core/utils/source_url_sanitizer.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/core/widgets/truth_lottie_animation.dart';
@@ -13,7 +13,6 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/ai_credibility_chat_controller.dart';
 import 'package:truthworld/features/video/presentation/views/ask_ai_screen.dart';
 import 'package:truthworld/theme/app_theme.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// 💬 AiCredibilityChatSheet
 ///
@@ -28,8 +27,10 @@ class AiCredibilityChatSheet extends StatelessWidget {
   final List<dynamic>? allSources;
   final List<dynamic>? allClaims;
   final String? summary;
-  final double? trustScore;
   final String? claimExplanation;
+  final double? playbackSec;
+  final String? transcriptSnippet;
+  final String? activeChapterTitle;
   final bool isEmbedded;
   final bool hideHeader;
   final VoidCallback? onClose;
@@ -43,8 +44,10 @@ class AiCredibilityChatSheet extends StatelessWidget {
     this.allSources,
     this.allClaims,
     this.summary,
-    this.trustScore,
     this.claimExplanation,
+    this.playbackSec,
+    this.transcriptSnippet,
+    this.activeChapterTitle,
     this.isEmbedded = false,
     this.hideHeader = false,
     this.onClose,
@@ -62,8 +65,10 @@ class AiCredibilityChatSheet extends StatelessWidget {
     List<dynamic>? allSources,
     List<dynamic>? allClaims,
     String? summary,
-    double? trustScore,
     String? claimExplanation,
+    double? playbackSec,
+    String? transcriptSnippet,
+    String? activeChapterTitle,
   }) async {
     final authService = Get.isRegistered<AuthService>() ? AuthService.to : null;
     final isSignedIn = authService?.isUserSignedIn ??
@@ -89,9 +94,56 @@ class AiCredibilityChatSheet extends StatelessWidget {
       allSources: allSources,
       allClaims: allClaims,
       summary: summary,
-      trustScore: trustScore,
       claimExplanation: claimExplanation,
     );
+
+    final isDesktop = MediaQuery.sizeOf(context).width >= TWBreakpoints.desktop;
+    if (isDesktop) {
+      return showGeneralDialog<T>(
+        context: context,
+        barrierDismissible: true,
+        barrierLabel: 'Truth AI Right Drawer',
+        barrierColor: Colors.black.withValues(alpha: 0.55),
+        transitionDuration: const Duration(milliseconds: 280),
+        pageBuilder: (dialogCtx, anim1, anim2) {
+          return Align(
+            alignment: Alignment.centerRight,
+            child: Material(
+              color: Colors.transparent,
+              child: SizedBox(
+                width: 480,
+                height: double.infinity,
+                child: AiCredibilityChatSheet(
+                  video: video,
+                  scope: scope,
+                  claimIndex: claimIndex,
+                  claimText: claimText,
+                  verdict: verdict,
+                  allSources: allSources,
+                  allClaims: allClaims,
+                  summary: summary,
+                  claimExplanation: claimExplanation,
+                  playbackSec: playbackSec,
+                  transcriptSnippet: transcriptSnippet,
+                  activeChapterTitle: activeChapterTitle,
+                  isEmbedded: true,
+                  onClose: () => Navigator.of(dialogCtx).pop(),
+                ),
+              ),
+            ),
+          );
+        },
+        transitionBuilder: (dialogCtx, anim, secAnim, child) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(1, 0),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+            child: child,
+          );
+        },
+      );
+    }
 
     return showModalBottomSheet<T>(
       context: context,
@@ -106,8 +158,10 @@ class AiCredibilityChatSheet extends StatelessWidget {
         allSources: allSources,
         allClaims: allClaims,
         summary: summary,
-        trustScore: trustScore,
         claimExplanation: claimExplanation,
+        playbackSec: playbackSec,
+        transcriptSnippet: transcriptSnippet,
+        activeChapterTitle: activeChapterTitle,
       ),
     );
   }
@@ -130,16 +184,28 @@ class AiCredibilityChatSheet extends StatelessWidget {
         allSources: allSources,
         allClaims: allClaims,
         summary: summary,
-        trustScore: trustScore,
         claimExplanation: claimExplanation,
+        initialPlaybackSec: playbackSec,
+        initialTranscriptSnippet: transcriptSnippet,
+        initialActiveChapterTitle: activeChapterTitle,
       );
     }
     return ctrl;
   }
 
-  Future<void> _launchUrl(String? urlStr) async {
-    if (urlStr == null || urlStr.trim().isEmpty) return;
-    await ClickableUrlText.launchUrlString(urlStr);
+  Future<void> _launchUrl(String? urlStr, {UISource? source}) async {
+    final targetUrl =
+        (urlStr != null && urlStr.trim().isNotEmpty) ? urlStr : source?.url;
+    if (targetUrl == null || targetUrl.trim().isEmpty) return;
+    await SourceUrlSanitizer.launchSourceUrl(
+      url: targetUrl,
+      title: source?.title,
+      publisher: source?.publisher,
+      domain: source?.domain,
+      source: source?.toMap(),
+      videoId: video.id,
+      claimId: claimIndex != null ? 'claim_$claimIndex' : null,
+    );
   }
 
   @override
@@ -176,6 +242,7 @@ class AiCredibilityChatSheet extends StatelessWidget {
               _buildHeader(context),
               if (!hideHeader) const Divider(height: 1, color: AppColors.bgDivider),
               Expanded(child: _buildMessagesList()),
+              _buildTemporalAnchorIndicator(),
               _buildSuggestedChipsSection(),
               _buildInputBar(context),
             ],
@@ -311,7 +378,6 @@ class AiCredibilityChatSheet extends StatelessWidget {
                 allSources: allSources,
                 allClaims: allClaims,
                 summary: summary,
-                trustScore: trustScore,
                 claimExplanation: claimExplanation,
               );
             },
@@ -353,7 +419,11 @@ class AiCredibilityChatSheet extends StatelessWidget {
     });
   }
 
-  Widget _buildMarkdownContent(String text, {required bool isStreaming}) {
+  Widget _buildMarkdownContent(
+    String text, {
+    required bool isStreaming,
+    List<UISource> sources = const [],
+  }) {
     if (text.isEmpty) return const SizedBox.shrink();
 
     final lines = text.split('\n');
@@ -380,10 +450,15 @@ class AiCredibilityChatSheet extends StatelessWidget {
             child: Text.rich(
               TextSpan(
                 children: [
-                  ..._buildFormattedTextSpans(headerContent),
+                  ..._buildFormattedTextSpans(
+                    headerContent,
+                    sources: sources,
+                    fontSize: 16,
+                    isHeader: true,
+                  ),
                   if (isLastLine && isStreaming) _buildStreamingCursorSpan(),
                 ],
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                   color: Colors.white,
@@ -412,7 +487,7 @@ class AiCredibilityChatSheet extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   '• ',
                   style: TextStyle(
                     fontSize: 15,
@@ -425,7 +500,7 @@ class AiCredibilityChatSheet extends StatelessWidget {
                   child: Text.rich(
                     TextSpan(
                       children: [
-                        ..._buildFormattedTextSpans(content),
+                        ..._buildFormattedTextSpans(content, sources: sources),
                         if (isLastLine && isStreaming) _buildStreamingCursorSpan(),
                       ],
                     ),
@@ -442,7 +517,7 @@ class AiCredibilityChatSheet extends StatelessWidget {
             child: Text.rich(
               TextSpan(
                 children: [
-                  ..._buildFormattedTextSpans(line),
+                  ..._buildFormattedTextSpans(line, sources: sources),
                   if (isLastLine && isStreaming) _buildStreamingCursorSpan(),
                 ],
               ),
@@ -479,7 +554,12 @@ class AiCredibilityChatSheet extends StatelessWidget {
     );
   }
 
-  List<InlineSpan> _buildFormattedTextSpans(String text) {
+  List<InlineSpan> _buildFormattedTextSpans(
+    String text, {
+    List<UISource> sources = const [],
+    double fontSize = 14.5,
+    bool isHeader = false,
+  }) {
     if (text.isEmpty) return const [];
     final spans = <InlineSpan>[];
     final regex = RegExp(r'\*\*(.*?)\*\*');
@@ -488,49 +568,359 @@ class AiCredibilityChatSheet extends StatelessWidget {
     for (final match in regex.allMatches(text)) {
       if (match.start > lastIndex) {
         final segment = text.substring(lastIndex, match.start);
-        spans.addAll(
-          ClickableUrlText.parseSpans(
-            segment,
-            style: TextStyle(
-              fontSize: 14.5,
-              color: Colors.white,
-              height: 1.55,
-              letterSpacing: 0.1,
-            ),
-          ),
-        );
+        spans.addAll(_parseCitationsAndUrls(
+          segment,
+          isBold: isHeader,
+          sources: sources,
+          fontSize: fontSize,
+        ));
       }
       final boldContent = match.group(1) ?? '';
-      spans.addAll(
-        ClickableUrlText.parseSpans(
-          boldContent,
-          style: TextStyle(
-            fontSize: 14.5,
-            fontWeight: FontWeight.w700,
-            color: Colors.white,
-            height: 1.55,
-            letterSpacing: 0.1,
-          ),
-        ),
-      );
+      spans.addAll(_parseCitationsAndUrls(
+        boldContent,
+        isBold: true,
+        sources: sources,
+        fontSize: fontSize,
+      ));
       lastIndex = match.end;
     }
 
     if (lastIndex < text.length) {
-      spans.addAll(
-        ClickableUrlText.parseSpans(
-          text.substring(lastIndex),
-          style: TextStyle(
-            fontSize: 14.5,
-            color: Colors.white,
-            height: 1.55,
-            letterSpacing: 0.1,
-          ),
-        ),
-      );
+      spans.addAll(_parseCitationsAndUrls(
+        text.substring(lastIndex),
+        isBold: isHeader,
+        sources: sources,
+        fontSize: fontSize,
+      ));
     }
 
     return spans;
+  }
+
+  List<InlineSpan> _parseCitationsAndUrls(
+    String segment, {
+    required bool isBold,
+    List<UISource> sources = const [],
+    double fontSize = 14.5,
+  }) {
+    if (segment.isEmpty) return const [];
+    final spans = <InlineSpan>[];
+    // Matches citation brackets like [1], [2], [1, 2], [1, 3]
+    final citationRegex = RegExp(r'\[(\d+(?:\s*,\s*\d+)*)\]');
+    var lastIndex = 0;
+
+    final baseStyle = TextStyle(
+      fontSize: fontSize,
+      fontWeight: isBold ? FontWeight.w700 : FontWeight.normal,
+      color: Colors.white,
+      height: 1.55,
+      letterSpacing: 0.1,
+    );
+
+    for (final match in citationRegex.allMatches(segment)) {
+      if (match.start > lastIndex) {
+        final textBefore = segment.substring(lastIndex, match.start);
+        spans.addAll(ClickableUrlText.parseSpans(textBefore, style: baseStyle));
+      }
+
+      final numbersText = match.group(1) ?? '';
+      final rawIndices = numbersText.split(',');
+      for (final raw in rawIndices) {
+        final index = int.tryParse(raw.trim());
+        if (index != null && index > 0) {
+          spans.add(
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: _buildInlineCitationBadge(
+                index,
+                sources: sources,
+              ),
+            ),
+          );
+        }
+      }
+      lastIndex = match.end;
+    }
+
+    if (lastIndex < segment.length) {
+      final textAfter = segment.substring(lastIndex);
+      spans.addAll(ClickableUrlText.parseSpans(textAfter, style: baseStyle));
+    }
+
+    return spans;
+  }
+
+  Widget _buildInlineCitationBadge(
+    int citationIndex, {
+    List<UISource> sources = const [],
+  }) {
+    final hasSource = citationIndex >= 1 && citationIndex <= sources.length;
+    final source = hasSource ? sources[citationIndex - 1] : null;
+    final domain = source != null
+        ? (source.domain ?? SourceAvatarService.cleanDomain(source.url))
+        : null;
+    final publisher = source?.publisher ?? domain ?? 'Source';
+    final tooltipText = source != null
+        ? '[$citationIndex] $publisher: ${source.title.isNotEmpty ? source.title : source.url}'
+        : 'Verified Citation [$citationIndex]';
+
+    return Builder(
+      builder: (badgeContext) {
+        return Tooltip(
+          message: tooltipText,
+          preferBelow: false,
+          textStyle: const TextStyle(
+            fontSize: 11,
+            color: Colors.white,
+            fontWeight: FontWeight.w500,
+          ),
+          decoration: BoxDecoration(
+            color: const Color(0xFF161B22),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: const Color(0xFF30363D)),
+          ),
+          child: Semantics(
+            button: true,
+            label: 'Citation $citationIndex, $publisher',
+            child: InkWell(
+              onTap: () {
+                if (source != null) {
+                  _showCitationDetailsModal(badgeContext, citationIndex, source);
+                } else {
+                  AppSnackbar.info('Citation [$citationIndex]');
+                }
+              },
+              borderRadius: BorderRadius.circular(5),
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1D58A7).withValues(alpha: 0.25),
+                  borderRadius: BorderRadius.circular(5),
+                  border: Border.all(
+                    color: const Color(0xFF388BFD).withValues(alpha: 0.55),
+                    width: 0.8,
+                  ),
+                ),
+                child: Text(
+                  '$citationIndex',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF79B8FF),
+                    height: 1.15,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showCitationDetailsModal(BuildContext context, int citationIndex, UISource source) {
+    final domain = source.domain ?? SourceAvatarService.cleanDomain(source.url);
+    final publisher = source.publisher ?? domain;
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (modalContext) {
+        return SafeArea(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF161B22),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: const Color(0xFF388BFD).withValues(alpha: 0.35),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.7),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1D58A7).withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: const Color(0xFF388BFD).withValues(alpha: 0.6),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: Text(
+                        '[$citationIndex]',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF79B8FF),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'VERIFIED EMPIRICAL CITATION',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.1,
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 18, color: Colors.white70),
+                      onPressed: () => Navigator.of(modalContext).pop(),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    ClipOval(
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        color: Colors.white.withValues(alpha: 0.08),
+                        child: SourceAvatarService.buildAvatar(
+                          domain: domain,
+                          publisher: publisher,
+                          url: source.url,
+                          avatarUrl: source.avatarUrl,
+                          size: 28,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            publisher,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (domain.isNotEmpty)
+                            Text(
+                              domain,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (source.publishedAt != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          source.publishedAt!,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textTertiary,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  source.title.isNotEmpty ? source.title : 'Authoritative Record',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                    height: 1.35,
+                  ),
+                ),
+                if (source.snippet != null && source.snippet!.trim().isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.03),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.06),
+                        width: 0.5,
+                      ),
+                    ),
+                    child: Text(
+                      source.snippet!,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                        height: 1.45,
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 18),
+                if (source.url != null && source.url!.isNotEmpty)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                      icon: const Icon(Icons.open_in_new_rounded, size: 16, color: Colors.black),
+                      label: Text(
+                        'Open Source (${domain.isNotEmpty ? domain : "Web"})',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black,
+                        ),
+                      ),
+                      onPressed: () {
+                        Navigator.of(modalContext).pop();
+                        _launchUrl(source.url, source: source);
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildMessageItem(BuildContext context, CredibilityChatMessage message) {
@@ -576,7 +966,11 @@ class AiCredibilityChatSheet extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildMarkdownContent(message.text, isStreaming: message.isStreaming),
+            _buildMarkdownContent(
+              message.text,
+              isStreaming: message.isStreaming,
+              sources: message.sources,
+            ),
             if (message.sources.isNotEmpty) ...[
               const SizedBox(height: 16),
               Text(
@@ -589,7 +983,9 @@ class AiCredibilityChatSheet extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              ...message.sources.map(_buildSourcePill),
+              ...message.sources.asMap().entries.map(
+                    (entry) => _buildSourcePill(entry.value, index: entry.key + 1),
+                  ),
             ],
             if (message.disclaimer != null && message.disclaimer!.isNotEmpty) ...[
               const SizedBox(height: 12),
@@ -608,7 +1004,7 @@ class AiCredibilityChatSheet extends StatelessWidget {
     );
   }
 
-  Widget _buildSourcePill(UISource source) {
+  Widget _buildSourcePill(UISource source, {int? index}) {
     final domain = source.domain ?? SourceAvatarService.cleanDomain(source.url);
     final publisher = source.publisher ?? domain;
 
@@ -625,19 +1021,45 @@ class AiCredibilityChatSheet extends StatelessWidget {
         child: ListTile(
           dense: true,
           contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-          leading: ClipOval(
-            child: Container(
-              width: 26,
-              height: 26,
-              color: Colors.white.withValues(alpha: 0.08),
-              child: SourceAvatarService.buildAvatar(
-                domain: domain,
-                publisher: publisher,
-                url: source.url,
-                avatarUrl: source.avatarUrl,
-                size: 26,
+          leading: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (index != null)
+                Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1D58A7).withValues(alpha: 0.28),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(
+                      color: const Color(0xFF388BFD).withValues(alpha: 0.5),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Text(
+                    '$index',
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF79B8FF),
+                    ),
+                  ),
+                ),
+              ClipOval(
+                child: Container(
+                  width: 26,
+                  height: 26,
+                  color: Colors.white.withValues(alpha: 0.08),
+                  child: SourceAvatarService.buildAvatar(
+                    domain: domain,
+                    publisher: publisher,
+                    url: source.url,
+                    avatarUrl: source.avatarUrl,
+                    size: 26,
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
           title: Text(
             source.title.isNotEmpty ? source.title : publisher,
@@ -661,10 +1083,93 @@ class AiCredibilityChatSheet extends StatelessWidget {
             size: 16,
             color: Colors.white70,
           ),
-          onTap: () => _launchUrl(source.url),
+          onTap: () => _launchUrl(source.url, source: source),
         ),
       ),
     );
+  }
+
+  Widget _buildTemporalAnchorIndicator() {
+    return Obx(() {
+      final sec = _ctrl.playbackSec.value;
+      if (sec == null) return const SizedBox.shrink();
+
+      final timeStr = AiCredibilityChatController.formatTime(sec);
+      final snippet = _ctrl.transcriptSnippet.value;
+      final chapter = _ctrl.activeChapterTitle.value;
+
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1D58A7).withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: const Color(0xFF388BFD).withValues(alpha: 0.35),
+            width: 0.8,
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.access_time_filled_rounded,
+              size: 14,
+              color: Color(0xFF79B8FF),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Anchored at $timeStr',
+              style: const TextStyle(
+                color: Color(0xFF79B8FF),
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (chapter.isNotEmpty) ...[
+              const SizedBox(width: 4),
+              Text(
+                '• $chapter',
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
+            if (snippet.isNotEmpty) ...[
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  '• "$snippet"',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white60,
+                    fontSize: 11,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+            ] else
+              const Spacer(),
+            const SizedBox(width: 4),
+            InkWell(
+              key: const ValueKey('unanchor_temporal_btn'),
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => _ctrl.clearTemporalContext(),
+              child: const Padding(
+                padding: EdgeInsets.all(2),
+                child: Icon(
+                  Icons.close_rounded,
+                  size: 14,
+                  color: Colors.white54,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
   }
 
   Widget _buildSuggestedChipsSection() {
@@ -818,9 +1323,11 @@ class AiCredibilityChatSheet extends StatelessWidget {
                   textInputAction: TextInputAction.send,
                   onSubmitted: (_) => _ctrl.sendMessage(),
                   decoration: InputDecoration(
-                    hintText: scope == 'claim'
-                        ? 'Ask about this claim or sources…'
-                        : 'Ask about video credibility or claims…',
+                    hintText: _ctrl.playbackSec.value != null
+                        ? 'Ask what was said at ${AiCredibilityChatController.formatTime(_ctrl.playbackSec.value!)}, or check contradictions…'
+                        : (scope == 'claim'
+                            ? 'Ask about this claim or sources…'
+                            : 'Ask about video credibility or claims…'),
                     hintStyle: TextStyle(color: AppColors.textTertiary, fontSize: 13),
                     border: InputBorder.none,
                     isDense: true,

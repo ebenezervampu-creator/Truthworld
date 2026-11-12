@@ -30,10 +30,14 @@ class AiCredibilityChatController extends GetxController {
   final RxList<dynamic> cachedSources = <dynamic>[].obs;
   final RxList<dynamic> cachedClaims = <dynamic>[].obs;
   final RxString videoSummary = ''.obs;
-  final RxnDouble trustScore = RxnDouble();
   final RxBool cursorVisible = true.obs;
   final RxBool isSuspended = false.obs;
   final RxString suspensionNotice = ''.obs;
+
+  // ⏱️ Temporal Video & Transcript Anchoring
+  final RxnDouble playbackSec = RxnDouble();
+  final RxString transcriptSnippet = ''.obs;
+  final RxString activeChapterTitle = ''.obs;
 
   late final TextEditingController textController;
   late final ScrollController scrollController;
@@ -99,6 +103,75 @@ class AiCredibilityChatController extends GetxController {
     }
   }
 
+  static String formatTime(double sec) {
+    final safe = sec < 0 ? 0 : sec.toInt();
+    final m = (safe ~/ 60).toString().padLeft(2, '0');
+    final s = (safe % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  /// Updates temporal video and transcript playback context
+  void updateTemporalContext({
+    double? playbackSec,
+    String? transcriptSnippet,
+    String? activeChapterTitle,
+  }) {
+    var changed = false;
+    if (playbackSec != null && this.playbackSec.value != playbackSec) {
+      this.playbackSec.value = playbackSec;
+      changed = true;
+    }
+    if (transcriptSnippet != null && this.transcriptSnippet.value != transcriptSnippet) {
+      this.transcriptSnippet.value = transcriptSnippet;
+      changed = true;
+    }
+    if (activeChapterTitle != null && this.activeChapterTitle.value != activeChapterTitle) {
+      this.activeChapterTitle.value = activeChapterTitle;
+      changed = true;
+    }
+
+    if (changed) {
+      _syncSuggestedPrompts();
+    }
+  }
+
+  /// Clears temporal context and returns to holistic claim/video mode
+  void clearTemporalContext() {
+    playbackSec.value = null;
+    transcriptSnippet.value = '';
+    activeChapterTitle.value = '';
+    _syncSuggestedPrompts();
+  }
+
+  void _syncSuggestedPrompts() {
+    if (playbackSec.value != null) {
+      final timeStr = formatTime(playbackSec.value!);
+      suggestedPrompts.assignAll([
+        'Verify what was said at $timeStr',
+        'What did the speaker just mean by that?',
+        'Did they contradict an earlier claim?',
+        if (scope.value == 'claim')
+          'Suggest better videos for this claim'
+        else
+          'Suggest better videos on this topic',
+      ]);
+    } else if (scope.value == 'claim') {
+      suggestedPrompts.assignAll([
+        'Suggest better videos for this claim',
+        'Why this verdict?',
+        'What sources support this claim?',
+        'Show counter-evidence',
+      ]);
+    } else {
+      suggestedPrompts.assignAll([
+        'Suggest better videos on this topic',
+        'Summarize the credibility of this video',
+        'What are the most controversial claims?',
+        'Summarize verified claims',
+      ]);
+    }
+  }
+
   /// Initializes context for a particular claim or overall video
   void initScope({
     required String targetVideoId,
@@ -111,8 +184,10 @@ class AiCredibilityChatController extends GetxController {
     List<dynamic>? allSources,
     List<dynamic>? allClaims,
     String? summary,
-    double? trustScore,
     String? claimExplanation,
+    double? initialPlaybackSec,
+    String? initialTranscriptSnippet,
+    String? initialActiveChapterTitle,
   }) {
     videoId.value = targetVideoId;
     scope.value = targetScope;
@@ -125,9 +200,7 @@ class AiCredibilityChatController extends GetxController {
     if (summary != null && summary.isNotEmpty) {
       videoSummary.value = summary;
     }
-    if (trustScore != null) {
-      this.trustScore.value = trustScore;
-    }
+    
     if (allSources != null && allSources.isNotEmpty) {
       cachedSources.assignAll(allSources);
     }
@@ -135,15 +208,21 @@ class AiCredibilityChatController extends GetxController {
       cachedClaims.assignAll(allClaims);
     }
 
+    if (initialPlaybackSec != null) {
+      playbackSec.value = initialPlaybackSec;
+    }
+    if (initialTranscriptSnippet != null) {
+      transcriptSnippet.value = initialTranscriptSnippet;
+    }
+    if (initialActiveChapterTitle != null) {
+      activeChapterTitle.value = initialActiveChapterTitle;
+    }
+
+    _syncSuggestedPrompts();
+
     // If fresh chat, seed greeting and context-aware starter prompts
     if (messages.isEmpty) {
       if (targetScope == 'claim') {
-        suggestedPrompts.assignAll([
-          'Suggest better videos for this claim',
-          'Why this verdict?',
-          'What sources support this claim?',
-          'Show counter-evidence',
-        ]);
         messages.add(
           CredibilityChatMessage.ai(
             text: 'I am your Truth Intelligence assistant for **Claim #${(targetClaimIndex ?? 0) + 1}**:\n\n'
@@ -155,12 +234,6 @@ class AiCredibilityChatController extends GetxController {
           ),
         );
       } else {
-        suggestedPrompts.assignAll([
-          'Suggest better videos on this topic',
-          'Summarize the credibility of this video',
-          'What are the most controversial claims?',
-          'Summarize verified claims',
-        ]);
         messages.add(
           CredibilityChatMessage.ai(
             text: 'Welcome to Truth Intelligence for **${videoTitle.value}**.\n\n'
@@ -314,8 +387,10 @@ class AiCredibilityChatController extends GetxController {
             videoTitle: videoTitle.value.isNotEmpty ? videoTitle.value : null,
             videoCategory: videoCategory.value.isNotEmpty ? videoCategory.value : null,
             videoSummary: videoSummary.value.isNotEmpty ? videoSummary.value : null,
-            trustScore: trustScore.value,
             claimExplanation: claimExplanation.value.isNotEmpty ? claimExplanation.value : null,
+            playbackSec: playbackSec.value,
+            transcriptSnippet: transcriptSnippet.value.isNotEmpty ? transcriptSnippet.value : null,
+            activeChapterTitle: activeChapterTitle.value.isNotEmpty ? activeChapterTitle.value : null,
           )
           .listen(
             (event) {
@@ -410,7 +485,6 @@ class AiCredibilityChatController extends GetxController {
       allSources: cachedSources.toList(),
       allClaims: cachedClaims.toList(),
       summary: videoSummary.value,
-      trustScore: trustScore.value,
       claimExplanation: claimExplanation.value,
     );
   }

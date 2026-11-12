@@ -75,41 +75,51 @@ class ChannelWithdrawalRulesCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 3,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.bgSurfaceHigh,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.bgDivider),
-                ),
-                child: Text(
-                  isUnlocked ? 'Unlocked (1k Views & 30h Met)' : 'Locked',
-                  style: typography.caption.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgSurfaceHigh,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.bgDivider),
+                  ),
+                  child: Text(
+                    isUnlocked ? 'Unlocked (1k Views & 30h Met)' : 'Locked',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: typography.caption.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '${eligibility.viewCount} / 1,000 Views • $watchHours / 30.0 Hours',
-                style: typography.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
+          SizedBox(
+            width: double.infinity,
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                Text(
+                  '${eligibility.viewCount} / 1,000 Views • $watchHours / 30.0 Hours',
+                  style: typography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
-              ),
-              Text(
-                'Withdrawable: ₹${eligibility.withdrawableAmount.toStringAsFixed(0)}',
-                style: typography.title.copyWith(color: Colors.white),
-              ),
-            ],
+                Text(
+                  'Withdrawable: ₹${eligibility.withdrawableAmount.toStringAsFixed(0)}',
+                  style: typography.title.copyWith(color: Colors.white),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 6),
           ClipRRect(

@@ -199,31 +199,31 @@ function testTruthTableStageSynchronization() {
 
     const transcriptionDone = isDone(stages.transcription);
     const copyrightDone = stages.copyright ? isDone(stages.copyright) : true;
-    const truthEngineRequired = !!(plan.enablePath1 || plan.enableTruthEngine);
-    const truthEngineDone = !truthEngineRequired || isDone(stages.credibility);
-    const reachEngineRequired = !!(plan.enablePath2 || plan.enableReachEngine);
-    let reachEngineDone = true;
+    const credibilityRequired = !!(plan.enableCredibility ?? plan.factCheckEnabled);
+    const credibilityDone = !credibilityRequired || isDone(stages.credibility);
+    const localizationRequired = !!(plan.enableDubbing ?? plan.generateDubbing ?? plan.enableSubtitles ?? plan.genLangSubs);
+    let localizationDone = true;
 
-    if (reachEngineRequired) {
-      reachEngineDone = isDone(stages.dubbing);
+    if (localizationRequired) {
+      localizationDone = isDone(stages.dubbing);
       const targetLangs = (plan.languages || []).filter((l: string) => l !== (plan.primaryLanguage || "en"));
       for (const lang of targetLangs) {
         const transStage = stages[`translating_${lang}`];
         if (!transStage || !isDone(transStage)) {
-          reachEngineDone = false;
+          localizationDone = false;
           break;
         }
         if (plan.generateDubbing) {
           const dubStage = stages[`dubbing_${lang}`];
           if (!dubStage || !isDone(dubStage)) {
-            reachEngineDone = false;
+            localizationDone = false;
             break;
           }
         }
       }
     }
 
-    return transcriptionDone && copyrightDone && truthEngineDone && reachEngineDone;
+    return transcriptionDone && copyrightDone && credibilityDone && localizationDone;
   };
 
   // Case 1: Transcription done, but copyright check is still running
@@ -233,7 +233,7 @@ function testTruthTableStageSynchronization() {
     credibility: { status: "skipped" },
     dubbing: { status: "skipped" },
   };
-  const planSimple = { enablePath1: false, enablePath2: false };
+  const planSimple = { enableCredibility: false, enableDubbing: false, enableSubtitles: false };
   assert(evaluateTruthTable(stagesWithRunningCopyright, planSimple) === false, "Truth table blocks aggregation while copyright check is running");
 
   // Case 2: Copyright finishes -> Truth table becomes ready
@@ -245,14 +245,14 @@ function testTruthTableStageSynchronization() {
   };
   assert(evaluateTruthTable(stagesWithDoneCopyright, planSimple) === true, "Truth table satisfies and unlocks aggregation once copyright completes");
 
-  // Case 3: ReachEngine enabled for 'es', but translation stage not yet recorded
+  // Case 3: Localization enabled for 'es', but translation stage not yet recorded
   const stagesMissingTranslation = {
     transcription: { status: "completed" },
     copyright: { status: "completed" },
     dubbing: { status: "pending" },
   };
-  const planWithReach = { enableReachEngine: true, languages: ["es"], primaryLanguage: "en" };
-  assert(evaluateTruthTable(stagesMissingTranslation, planWithReach) === false, "Truth table blocks aggregation when target language translation is not yet created/completed");
+  const planWithLocalization = { enableDubbing: true, generateDubbing: true, languages: ["es"], primaryLanguage: "en" };
+  assert(evaluateTruthTable(stagesMissingTranslation, planWithLocalization) === false, "Truth table blocks aggregation when target language translation is not yet created/completed");
 }
 
 // ----------------------------------------------------------------------

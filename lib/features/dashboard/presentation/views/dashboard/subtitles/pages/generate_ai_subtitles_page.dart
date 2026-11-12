@@ -4,7 +4,6 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_wallet_topup_sheet.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -15,13 +14,17 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
   const GenerateAiSubtitlesPage({
     required this.controller,
     required this.isDarkMode,
-    this.initialTier = 'starter',
+    this.initialTier = 'ultra',
+    this.initialLanguage,
+    this.initialLanguages,
     super.key,
   });
 
   final SubtitlesController controller;
   final bool isDarkMode;
   final String initialTier;
+  final String? initialLanguage;
+  final List<String>? initialLanguages;
 
   @override
   Widget build(BuildContext context) {
@@ -38,16 +41,23 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
         isDarkMode ? AppColors.bgSurface : AppColors.bgSurface;
 
     // Reactive state for the page (Zero setState policy)
-    final selectedTier = initialTier.obs; // 'starter' | 'pro'
-    // Start with clean empty selection so creator chooses only desired languages
-    final selectedLangs = <String>{}.obs;
+    final selectedTier = initialTier.obs; // 'ultra'
+    final initialSet = <String>{};
+    if (initialLanguage != null && initialLanguage!.trim().isNotEmpty) {
+      initialSet.add(normalizeLanguageCode(initialLanguage!.trim()));
+    }
+    if (initialLanguages != null) {
+      initialSet.addAll(initialLanguages!.map((l) => normalizeLanguageCode(l.trim())));
+    }
+    final selectedLangs = initialSet.obs;
     final priorityMode = 'standard'.obs; // 'standard' | 'high'
     final searchQuery = ''.obs;
 
-    // Detect languages that already have subtitles generated for this video
+    // Detect languages that already have subtitles published for this video
     final existingSubs = <String>{
-      ...?video?.mediaSubtitles.keys.map((k) => k.toLowerCase()),
-      ...controller.availableLanguages.map((k) => k.toLowerCase()),
+      ...?video?.mediaSubtitles.entries
+          .where((e) => e.value.trim().isNotEmpty)
+          .map((e) => normalizeLanguageCode(e.key)),
     };
 
     return Scaffold(
@@ -95,6 +105,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
             return _buildLiveProgressView(
               context: context,
               video: video,
+              existingSubs: existingSubs,
               surfaceColor: surfaceColor,
               borderColor: borderColor,
               textColor: textColor,
@@ -192,7 +203,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                   ),
                 const SizedBox(height: 18),
 
-                // Subtitle Generation Tier Selection (Starter vs Pro)
+                // Subtitle Generation Plan (Ultra $0.50 / 10m)
                 _buildTierSelectionSection(
                   selectedTier: selectedTier,
                   surfaceColor: surfaceColor,
@@ -612,6 +623,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
   Widget _buildLiveProgressView({
     required BuildContext context,
     required Video? video,
+    required Set<String> existingSubs,
     required Color surfaceColor,
     required Color borderColor,
     required Color textColor,
@@ -639,7 +651,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
               if (video != null)
                 _buildVideoHeaderCard(
                   video: video,
-                  existingSubs: controller.availableLanguages.toSet(),
+                  existingSubs: existingSubs,
                   surfaceColor: surfaceColor,
                   borderColor: borderColor,
                   textColor: textColor,
@@ -1356,7 +1368,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
   }
 
   // ===========================================================================
-  // 3. TIER SELECTION SECTION (Starter $0.50 vs Pro $0.75)
+  // 3. TIER SECTION (Ultra Subtitles $0.50 / 10m)
   // ===========================================================================
   Widget _buildTierSelectionSection({
     required RxString selectedTier,
@@ -1365,106 +1377,78 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
     required Color textColor,
     required Color textSecondaryColor,
   }) {
-    return Obx(() {
-      final currentTier = selectedTier.value;
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppColors.bgPage,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.bgSurface),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.layers_rounded,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Text(
-                    'Select Subtitle Tier',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.bgPage,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.bgSurface),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.auto_awesome_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Subtitle Plan',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Both tiers use AssemblyAI Universal 3.5 Pro (Global), Sarvam AI (Indic), and Google Cloud Chirp 2 (Long-tail) for transcription.',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
               ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.brand,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  'Ultra',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black, // High contrast: black on white/brand
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Unified cinema-grade subtitles powered by Universal 3.5 Pro, Sarvam AI Indic, Google Chirp 2, and Gemini 2.5 Flash.',
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
             ),
-            const SizedBox(height: 16),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final isWide = constraints.maxWidth >= 550;
-                final starterCard = _buildTierCard(
-                  id: 'starter',
-                  name: 'Starter Subtitles',
-                  priceLabel: '\$0.50 / 10 min',
-                  addOnLabel: '+\$0.20 per additional language',
-                  badge: 'Starter',
-                  badgeColor: AppColors.bgSurface,
-                  badgeTextColor: Colors.white,
-                  modelsDescription:
-                      'Google Translation v3 + Gemini 2.5 Flash',
-                  featuresDescription:
-                      'Duration sync, reading pacing & standard cue formatting',
-                  isSelected: currentTier == 'starter',
-                  onTap: () => selectedTier.value = 'starter',
-                );
-
-                final proCard = _buildTierCard(
-                  id: 'pro',
-                  name: 'Pro Subtitles',
-                  priceLabel: '\$0.75 / 10 min',
-                  addOnLabel: '+\$0.30 per additional language',
-                  badge: 'Cinema-Grade',
-                  badgeColor: AppColors.brand,
-                  badgeTextColor: Colors.black, // High contrast: black on brand
-                  modelsDescription:
-                      'Google Translation v3 + Gemini 4 Argon',
-                  featuresDescription:
-                      'Frontier reasoning, cultural transcreation & precision timing',
-                  isSelected: currentTier == 'pro',
-                  onTap: () => selectedTier.value = 'pro',
-                );
-
-                if (isWide) {
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: starterCard),
-                      const SizedBox(width: 12),
-                      Expanded(child: proCard),
-                    ],
-                  );
-                } else {
-                  return Column(
-                    children: [
-                      starterCard,
-                      const SizedBox(height: 12),
-                      proCard,
-                    ],
-                  );
-                }
-              },
-            ),
-          ],
-        ),
-      );
-    });
+          ),
+          const SizedBox(height: 16),
+          _buildTierCard(
+            id: 'ultra',
+            name: 'Ultra Subtitles',
+            priceLabel: '\$0.50 / 10 min',
+            addOnLabel: '+\$0.20 per additional language',
+            badge: 'Cinema-Grade',
+            badgeColor: AppColors.brand,
+            badgeTextColor: Colors.black, // High contrast: black on brand
+            modelsDescription:
+                'Universal 3.5 Pro + Sarvam Indic + Google Cloud Chirp 2 • Gemini 2.5 Flash',
+            featuresDescription:
+                'Frontier reasoning, cultural transcreation, reading pacing & precision timing',
+            isSelected: true,
+            onTap: () => selectedTier.value = 'ultra',
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildTierCard({
@@ -1643,7 +1627,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
             Row(
               children: [
                 const Icon(
-                  Icons.account_balance_wallet_rounded,
+                  Icons.payments_rounded,
                   size: 20,
                   color: Colors.white,
                 ),
@@ -1676,10 +1660,10 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
             const SizedBox(height: 10),
             Row(
               children: [
-                Expanded(
+                const Expanded(
                   child: Text(
-                    'Tier: ${selectedTier.value == "pro" ? "Pro Subtitles (\$0.75 / 10m)" : "Starter Subtitles (\$0.50 / 10m)"}',
-                    style: const TextStyle(
+                    'Tier: Ultra Subtitles (\$0.50 / 10m)',
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
@@ -1690,7 +1674,7 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  selectedTier.value == "pro" ? "Gemini 4 Argon" : "Gemini 2.5 Flash",
+                  'Gemini 2.5 Flash',
                   style: TextStyle(fontSize: 12, color: textSecondaryColor),
                 ),
               ],
@@ -1717,16 +1701,16 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
             Row(
               children: [
                 Icon(
-                  Icons.account_balance_wallet_outlined,
+                  Icons.payments_outlined,
                   size: 16,
-                  color: isInsufficient ? AppColors.error : textSecondaryColor,
+                  color: isInsufficient ? AppColors.warning : textSecondaryColor,
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  'Spendable Balance:',
+                  'Channel Revenue:',
                   style: TextStyle(
                     fontSize: 12,
-                    color: isInsufficient ? AppColors.error : textSecondaryColor,
+                    color: isInsufficient ? AppColors.warning : textSecondaryColor,
                   ),
                 ),
                 const SizedBox(width: 6),
@@ -1735,35 +1719,27 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
-                    color: isInsufficient ? AppColors.error : Colors.white,
+                    color: isInsufficient ? AppColors.warning : Colors.white,
                   ),
                 ),
                 const Spacer(),
-                if (controller.currentChannel.value != null)
-                  GestureDetector(
-                    onTap: () {
-                      ChannelWalletTopupSheet.show(
-                        context,
-                        channel: controller.currentChannel.value!,
-                        onTopupSuccess: controller.refreshSpendableBalance,
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.brand,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text(
-                        '+ Add Money',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isInsufficient
+                        ? AppColors.info.withValues(alpha: 0.15)
+                        : AppColors.success.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    isInsufficient ? 'Direct Pay Ready' : 'Deduct from Revenue',
+                    style: TextStyle(
+                      color: isInsufficient ? AppColors.info : AppColors.success,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
+                ),
               ],
             ),
             if (isInsufficient) ...[
@@ -1771,20 +1747,20 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: AppColors.error.withValues(alpha: 0.1),
+                  color: AppColors.info.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                  border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.warning_amber_rounded, size: 14, color: AppColors.error),
+                    const Icon(Icons.info_outline_rounded, size: 14, color: AppColors.info),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        'Insufficient funds (\$${(roundedCost - bal).toStringAsFixed(2)} needed). Please add money to your wallet to proceed.',
+                        'Channel revenue (\$${bal.toStringAsFixed(2)}) is insufficient for \$${roundedCost.toStringAsFixed(2)}. You can pay directly to proceed.',
                         style: const TextStyle(
                           fontSize: 11,
-                          color: AppColors.error,
+                          color: AppColors.textSecondary,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -1853,38 +1829,49 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
         height: 48,
         child: ElevatedButton.icon(
           onPressed: isReady
-              ? () {
+              ? () async {
                   if (isInsufficient) {
-                    AppSnackbar.warning(
-                      'Generating subtitles requires \$${roundedCost.toStringAsFixed(2)}, but channel wallet has \$${bal.toStringAsFixed(2)}. Please add money to your wallet.',
-                      title: 'Insufficient Balance',
-                    );
-                    if (controller.currentChannel.value != null) {
-                      ChannelWalletTopupSheet.show(
-                        context,
-                        channel: controller.currentChannel.value!,
-                        onTopupSuccess: controller.refreshSpendableBalance,
-                      );
+                    final chan = controller.currentChannel.value;
+                    if (chan == null) {
+                      AppSnackbar.error('Unable to verify channel. Please select a valid channel.');
+                      return;
                     }
+                    final paymentOk = await ChannelWalletService().payForSubtitlesWithCashfree(
+                      channel: chan,
+                      amountUSD: roundedCost,
+                      targetLanguages: selectedLangs.toList(),
+                      videoId: controller.selectedVideo.value?.id ?? '',
+                    );
+                    if (!paymentOk) {
+                      AppSnackbar.error('Direct payment was not completed. Please try again.');
+                      return;
+                    }
+                    controller.triggerSubtitlesGeneration(
+                      targetLanguages: selectedLangs.toList(),
+                      priorityMode: priorityMode.value,
+                      subtitleTier: selectedTier.value,
+                      isDirectlyPaid: true,
+                    );
                     return;
                   }
                   controller.triggerSubtitlesGeneration(
                     targetLanguages: selectedLangs.toList(),
                     priorityMode: priorityMode.value,
                     subtitleTier: selectedTier.value,
+                    isDirectlyPaid: false,
                   );
                 }
               : null,
           icon: Icon(
             isInsufficient
-                ? Icons.account_balance_wallet_rounded
+                ? Icons.payment_rounded
                 : Icons.auto_awesome_rounded,
             size: 18,
             color: Colors.black,
           ),
           label: Text(
             isInsufficient
-                ? 'Insufficient Funds — Add Money (\$${(roundedCost - bal).toStringAsFixed(2)})'
+                ? 'Pay Directly (\$${roundedCost.toStringAsFixed(2)}) & Start AI'
                 : (isReady
                     ? 'Generate Subtitles (${selectedLangs.length} Languages)'
                     : 'Generate Subtitles (Select Languages)'),

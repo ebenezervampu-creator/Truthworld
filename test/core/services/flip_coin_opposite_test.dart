@@ -46,7 +46,6 @@ void main() {
       category: category,
       tags: tags,
       topics: topics,
-      trustScore: trustScore,
       isFactChecked: isFactChecked,
       status: VideoStatus.ready,
       visibility: 'public',

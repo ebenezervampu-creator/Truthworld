@@ -42,7 +42,6 @@ Video _makeVideo({
     category: category,
     tags: const [],
     topics: topics,
-    trustScore: trustScore,
     isFactChecked: isFactChecked,
     status: VideoStatus.ready,
     visibility: 'public',
@@ -365,13 +364,11 @@ void main() {
             id: 'low_$i',
             channelId: 'ch_low_${i % 10}',
             category: 'Technology',
-            trustScore: 0.5,
           ));
       final highTrust = List.generate(500, (i) => _makeVideo(
             id: 'high_$i',
             channelId: 'ch_high_${i % 10}',
             category: 'Technology',
-            trustScore: 4.5,
           ));
 
       final pool = [...lowTrust, ...highTrust]..shuffle();
@@ -403,8 +400,7 @@ void main() {
       final pool = List.generate(200, (i) => _makeVideo(
             id: 'unscored_$i',
             channelId: 'ch_${i % 10}',
-            category: 'Science',
-            trustScore: 0.0, // unscored
+            category: 'Science', // unscored
             isFactChecked: false,
           ));
 

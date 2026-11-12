@@ -124,7 +124,21 @@ abstract class AppException implements Exception {
       );
     }
 
-    // 6. Generic Fallback
+    // 6. HTTP / Server 5xx status codes
+    final statusMatch = RegExp(r'status\s*([45]\d{2})', caseSensitive: false).firstMatch(errorStr);
+    if (statusMatch != null) {
+      final statusCode = int.tryParse(statusMatch.group(1) ?? '');
+      if (statusCode != null && statusCode >= 500) {
+        return ServerException(
+          message: errorStr,
+          statusCode: statusCode,
+          originalException: error,
+          stackTrace: stackTrace,
+        );
+      }
+    }
+
+    // 7. Generic Fallback
     return GenericAppException(
       message: fallbackMessage ?? errorStr,
       userMessage: fallbackMessage ?? 'An unexpected error occurred. Please try again.',

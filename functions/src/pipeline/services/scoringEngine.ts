@@ -2,13 +2,13 @@ import { FactCheckResult, VerifiedClaim, TranscriptData, TrustVertical, Verifica
 import { SourceAvatarService } from "./sourceAvatarService";
 
 /**
- * 🏛 SCORING ENGINE (v11.0 — Path 1 Epistemic Framework)
+ * 🏛 SCORING ENGINE (v11.0 — Credibility Epistemic Framework)
  * 
  * Centralized engine for TruthWorld trust scoring.
  * Implements the Truth Index formula: (Truth * 0.35) + (Honesty * 0.40) + (Rationality * 0.25).
  */
 export class ScoringEngine {
-  private static readonly SCORING_VERSION = "v11.0-path1";
+  private static readonly SCORING_VERSION = "v11.0-credibility";
 
   calculateInstitutionalTrustScore(
     videoId: string,
@@ -38,7 +38,7 @@ export class ScoringEngine {
     synthesisTier: 'standard' | 'deep' | 'podcast' = 'standard',
     batchStats: { completed: number, timedOut: number } = { completed: 0, timedOut: 0 }
   ): FactCheckResult {
-    // 1. Initialize Stats (TruthWorld Path 1)
+    // 1. Initialize Stats (Credibility Framework)
     const stats = {
       verified_true: 0,
       mostly_true: 0,
@@ -175,7 +175,6 @@ export class ScoringEngine {
       transcript,
       analysisState: finalState,
       scoreAvailable: false,
-      trustScore: null,
       trustLabel: 'Not Scored' as any,
       confidence: 0,
       confidenceTier: 'low',

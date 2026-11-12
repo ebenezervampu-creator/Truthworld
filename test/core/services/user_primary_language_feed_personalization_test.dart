@@ -56,7 +56,6 @@ void main() {
       languages: languages,
       audioTracks: audioTracks,
       mediaSubtitles: subtitles,
-      trustScore: trustScore,
       isFactChecked: true,
       tags: const [],
       status: VideoStatus.ready,

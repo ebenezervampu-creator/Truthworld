@@ -18,6 +18,22 @@ export 'package:truthworld/features/dashboard/presentation/views/dashboard/widge
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
+  DashboardViewController _resolveLiveViewController([
+    DashboardViewController? candidate,
+  ]) {
+    if (candidate != null && !candidate.isDisposed) {
+      return candidate;
+    }
+    if (Get.isRegistered<DashboardViewController>()) {
+      final registered = Get.find<DashboardViewController>();
+      if (!registered.isDisposed) {
+        return registered;
+      }
+      Get.delete<DashboardViewController>(force: true);
+    }
+    return Get.put(DashboardViewController());
+  }
+
   @override
   Widget build(BuildContext context) {
     return Theme(
@@ -26,21 +42,28 @@ class DashboardScreen extends StatelessWidget {
         builder: (context) {
           return GetBuilder<DashboardViewController>(
             autoRemove: false,
-            init: (Get.isRegistered<DashboardViewController>() &&
-                    !Get.find<DashboardViewController>().isDisposed)
-                ? Get.find<DashboardViewController>()
-                : Get.put(DashboardViewController(), permanent: false),
+            init: _resolveLiveViewController(),
             builder: (viewController) {
-              final effectiveViewController = (viewController.isDisposed)
-                  ? (Get.isRegistered<DashboardViewController>() &&
-                          !Get.find<DashboardViewController>().isDisposed
-                      ? Get.find<DashboardViewController>()
-                      : Get.put(DashboardViewController(), permanent: false))
-                  : viewController;
-              final dashboardController = effectiveViewController.dashboardController;
-              dashboardController.applyRouteTargetIfPresent();
-
               return Obx(() {
+                // Observe disposal so out-of-band GetX route replacement cannot
+                // leave the dashboard bound to a dead AnimationController.
+                final isCandidateDisposed = viewController.rxIsDisposed.value;
+                final effectiveViewController = isCandidateDisposed ||
+                        viewController.isDisposed
+                    ? _resolveLiveViewController(viewController)
+                    : viewController;
+                effectiveViewController.rxIsDisposed.value;
+                final dashboardController =
+                    effectiveViewController.dashboardController;
+                // NOTE: Never call applyRouteTargetIfPresent() directly inside
+                // an Obx builder — mutating Rx values during a build phase
+                // triggers "setState() called during build" Flutter assertions.
+                // The controller already calls this in onInit(); for subsequent
+                // navigations a post-frame callback is used here instead.
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  dashboardController.applyRouteTargetIfPresent();
+                });
+
                 final mediaQuery = MediaQuery.of(context);
                 final isMobile = mediaQuery.size.width < 600;
                 final isTablet =

@@ -1,17 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/pages/add_subtitle_track_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/pages/generate_ai_subtitles_page.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/subtitles_cues_editor.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/subtitles_list_section.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Bottom sheet displaying subtitle addition options:
 /// 1. Generate Subtitles (AI)
-/// 2. Add files (Import)
+/// 2. Copy from Available Subtitles (if existing track has subtitles)
+/// 3. Create Track Manually
+/// 4. Add files (Import)
 void showAddSubtitlesOptionsSheet({
   required BuildContext context,
   required SubtitlesController controller,
   required bool isDarkMode,
+  String? targetLanguageCode,
 }) {
+  final targetName = targetLanguageCode != null
+      ? controller.getLanguageName(targetLanguageCode)
+      : null;
+  final availableTracksWithSubs = controller.availableLanguagesWithSubtitles;
+  final sourceLangForCopy = availableTracksWithSubs.isNotEmpty
+      ? (availableTracksWithSubs.contains('en')
+          ? 'en'
+          : availableTracksWithSubs.first)
+      : null;
+  final sourceLangName = sourceLangForCopy != null
+      ? controller.getLanguageName(sourceLangForCopy)
+      : null;
+
   Get.bottomSheet<void>(
     Material(
       color: AppColors.bgPage,
@@ -40,9 +59,9 @@ void showAddSubtitlesOptionsSheet({
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Add Subtitles',
-                    style: TextStyle(
+                  Text(
+                    targetName != null ? 'Add $targetName Subtitles' : 'Add Subtitles',
+                    style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -55,9 +74,11 @@ void showAddSubtitlesOptionsSheet({
                 ],
               ),
               const SizedBox(height: 2),
-              const Text(
-                'Choose how you would like to create or add subtitles.',
-                style: TextStyle(
+              Text(
+                targetName != null
+                    ? 'Choose how to create or transcribe $targetName subtitles.'
+                    : 'Choose how you would like to create or add subtitles.',
+                style: const TextStyle(
                   fontSize: 12,
                   color: AppColors.textSecondary,
                 ),
@@ -66,14 +87,15 @@ void showAddSubtitlesOptionsSheet({
               const Divider(color: AppColors.bgSurface, height: 1),
               const SizedBox(height: 16),
 
-              // Option 1: Generate Subtitles (Starter & Pro)
+              // Option 1: Generate Subtitles (Ultra)
               _buildAddOptionCard(
                 icon: Icons.auto_awesome_rounded,
                 iconBg: AppColors.brand.withValues(alpha: 0.15),
                 iconColor: Colors.white,
                 title: 'Generate Subtitles',
-                subtitle:
-                    'Starter (\$0.50) or Pro (\$0.75) • Universal 3.5 Pro, Sarvam Indic & Chirp STT + Gemini 2.5/4 Argon',
+                subtitle: targetName != null
+                    ? 'Ultra (\$0.50 / 10m) • Transcribe and generate $targetName with Universal 3.5 Pro & Indic STT'
+                    : 'Ultra (\$0.50 / 10m) • Universal 3.5 Pro, Sarvam Indic & Chirp STT + Gemini 2.5 Flash',
                 extraBadge: Container(
                   margin: const EdgeInsets.only(top: 8),
                   child: Row(
@@ -81,33 +103,15 @@ void showAddSubtitlesOptionsSheet({
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: AppColors.bgSurface,
+                          color: AppColors.brand,
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: AppColors.bgElevated),
                         ),
                         child: const Text(
-                          'Starter \$0.50',
+                          'Ultra \$0.50',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppColors.brand.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: AppColors.brand.withValues(alpha: 0.4)),
-                        ),
-                        child: const Text(
-                          'Pro \$0.75',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: Colors.black,
                           ),
                         ),
                       ),
@@ -119,12 +123,64 @@ void showAddSubtitlesOptionsSheet({
                   Get.to(() => GenerateAiSubtitlesPage(
                         controller: controller,
                         isDarkMode: isDarkMode,
+                        initialTier: 'ultra',
+                        initialLanguage: targetLanguageCode,
                       ));
                 },
               ),
               const SizedBox(height: 12),
 
-              // Option 2: Add files
+              // Option 2 (if available track has subtitles): Copy Timings from Available Track
+              if (sourceLangForCopy != null &&
+                  targetLanguageCode != null &&
+                  normalizeLanguageCode(sourceLangForCopy) !=
+                      normalizeLanguageCode(targetLanguageCode)) ...[
+                _buildAddOptionCard(
+                  icon: Icons.copy_all_rounded,
+                  iconBg: AppColors.bgSurface,
+                  iconColor: Colors.white,
+                  title: 'Copy from $sourceLangName Subtitles',
+                  subtitle:
+                      'Duplicate all time intervals and cues from $sourceLangName to translate into $targetName',
+                  onTap: () async {
+                    Get.back<void>();
+                    await controller.copyCuesFromTrack(
+                      sourceLangCode: sourceLangForCopy,
+                      targetLangCode: targetLanguageCode,
+                    );
+                    if (context.mounted) {
+                      showSubtitlesCuesEditorModal(
+                        context: context,
+                        controller: controller,
+                        langCode: targetLanguageCode,
+                        isDarkMode: isDarkMode,
+                      );
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // Option 3: Create Track Manually / Copy Timings in Dedicated Studio
+              _buildAddOptionCard(
+                icon: Icons.edit_note_rounded,
+                iconBg: AppColors.bgSurface,
+                iconColor: Colors.white,
+                title: 'Create Track Manually',
+                subtitle:
+                    'Start with blank cues or customize track in dedicated subtitle editor',
+                onTap: () {
+                  Get.back<void>();
+                  Get.to(() => AddSubtitleTrackPage(
+                        controller: controller,
+                        isDarkMode: isDarkMode,
+                        initialLanguage: targetLanguageCode,
+                      ));
+                },
+              ),
+              const SizedBox(height: 12),
+
+              // Option 4: Add files
               _buildAddOptionCard(
                 icon: Icons.upload_file_rounded,
                 iconBg: AppColors.bgSurface,
@@ -134,6 +190,9 @@ void showAddSubtitlesOptionsSheet({
                     'Upload existing subtitle files (.srt, .vtt, .txt, .json) from your device',
                 onTap: () {
                   Get.back<void>();
+                  if (targetLanguageCode != null) {
+                    controller.switchLanguage(targetLanguageCode);
+                  }
                   controller.importSubtitleFile();
                 },
               ),

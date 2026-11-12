@@ -52,7 +52,7 @@ void main() {
       expect(dubbed.url, equals('https://cdn.truthworld.com/videos/es.mp4'));
     });
 
-    testWidgets('MainSettingsMenu shows AudioTracks and VideoTracks options in sequence', (tester) async {
+    testWidgets('MainSettingsMenu shows Audio Tracks and removes VideoTracks from player options', (tester) async {
       final vpc = VideoPlayerController.networkUrl(Uri.parse('https://example.com/v.mp4'));
       final ctrl = Get.put(
         TowerPlayerController(
@@ -74,20 +74,17 @@ void main() {
       );
       await tester.pump();
 
-      // Verify AudioTracks and VideoTracks options exist
-      expect(find.text('AudioTracks'), findsOneWidget);
-      expect(find.text('VideoTracks'), findsOneWidget);
+      // Verify Audio Tracks option exists
+      expect(find.text('Audio Tracks'), findsOneWidget);
 
-      // Verify they display active language
-      expect(find.text('Original (English)'), findsNWidgets(2));
+      // Verify VideoTracks option is removed from settings menu tiles
+      expect(find.text('VideoTracks'), findsNothing);
 
-      // Tap VideoTracks tile opens video_language panel
-      await tester.tap(find.text('VideoTracks'));
-      await tester.pump();
-      expect(ctrl.activePanel.value, equals('video_language'));
+      // Verify Audio Tracks displays active language
+      expect(find.text('Original (English)'), findsOneWidget);
 
-      // Tap AudioTracks tile opens language panel
-      await tester.tap(find.text('AudioTracks'));
+      // Tap Audio Tracks tile opens language panel
+      await tester.tap(find.text('Audio Tracks'));
       await tester.pump();
       expect(ctrl.activePanel.value, equals('language'));
 
@@ -95,7 +92,7 @@ void main() {
       TowerPlayerRegistry.unregister(ctrl);
     });
 
-    testWidgets('MobileMainSettingsMenu displays AudioTracks and VideoTracks tiles in order', (tester) async {
+    testWidgets('MobileMainSettingsMenu displays Audio Tracks tile and removes VideoTracks', (tester) async {
       final vpc = VideoPlayerController.networkUrl(Uri.parse('https://example.com/v.mp4'));
       final ctrl = Get.put(
         TowerPlayerController(
@@ -117,17 +114,14 @@ void main() {
       );
       await tester.pump();
 
-      // Verify renamed to AudioTracks and VideoTracks
-      expect(find.text('AudioTracks'), findsOneWidget);
-      expect(find.text('VideoTracks'), findsOneWidget);
+      // Verify Audio Tracks option exists
+      expect(find.text('Audio Tracks'), findsOneWidget);
 
-      // Tap VideoTracks tile opens video_language panel
-      await tester.tap(find.text('VideoTracks'));
-      await tester.pump();
-      expect(ctrl.activePanel.value, equals('video_language'));
+      // Verify VideoTracks option is removed from mobile settings menu
+      expect(find.text('VideoTracks'), findsNothing);
 
-      // Tap AudioTracks tile opens language panel
-      await tester.tap(find.text('AudioTracks'));
+      // Tap Audio Tracks tile opens language panel
+      await tester.tap(find.text('Audio Tracks'));
       await tester.pump();
       expect(ctrl.activePanel.value, equals('language'));
 

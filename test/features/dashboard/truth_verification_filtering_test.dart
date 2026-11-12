@@ -5,6 +5,7 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/features/analytics/data/services/video_presence_service.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification_dashboard_page.dart';
+import 'package:truthworld/features/video/presentation/views/video_analysis_screen.dart';
 import '../../test_helpers/mock_firebase.dart';
 
 void main() {
@@ -35,22 +36,13 @@ void main() {
       expect(TruthVerificationDashboardPage.hasFactChecking(data), isTrue);
     });
 
-    test('returns true when trustScore or credibilityScore is positive', () {
-      final dataWithTrustScore = <String, dynamic>{
-        'title': 'Scored Video',
-        'trustScore': 95.0,
+    test('returns true when credibility is verified or present in aiFeatures', () {
+      final dataWithFactChecking = <String, dynamic>{
+        'title': 'Fact Checked Video',
+        'isFactChecked': true,
       };
       expect(
-        TruthVerificationDashboardPage.hasFactChecking(dataWithTrustScore),
-        isTrue,
-      );
-
-      final dataWithCredScore = <String, dynamic>{
-        'title': 'Credibility Scored Video',
-        'credibilityScore': 80.0,
-      };
-      expect(
-        TruthVerificationDashboardPage.hasFactChecking(dataWithCredScore),
+        TruthVerificationDashboardPage.hasFactChecking(dataWithFactChecking),
         isTrue,
       );
     });
@@ -116,8 +108,7 @@ void main() {
         'title': 'Mahonathuda song by Raj prakash paul worship conference',
         'factCheckReviewMode': 'open_to_users',
         'isFactCheckApproved': true,
-        'trustScore': 0,
-        'claims': <dynamic>[],
+                'claims': <dynamic>[],
         'aiFeatures': {
           'factChecking': false,
           'factCheckTier': 'full_ground',
@@ -127,20 +118,18 @@ void main() {
         TruthVerificationDashboardPage.hasFactChecking(
           routineData,
           claims: [],
-          trustScore: 0.0,
         ),
         isFalse,
       );
     });
 
-    test('returns false for video where factChecking is disabled even if trustScore is 100', () {
+    test('returns false for video where factChecking is disabled', () {
       // Models video such as "Are Eggs Vegetarian or Non-Vegetarian?" where fact-checking was not requested
       final eggsVideoData = <String, dynamic>{
         'title': 'Are Eggs Vegetarian or Non-Vegetarian? 🥚 The Science & Truth Explained',
         'factCheckReviewMode': 'open_to_users',
         'isFactCheckApproved': true,
         'isFactChecked': false,
-        'trustScore': 100,
         'claims': <dynamic>[],
         'factCheckUrl': '',
         'aiFeatures': {
@@ -152,7 +141,6 @@ void main() {
         TruthVerificationDashboardPage.hasFactChecking(
           eggsVideoData,
           claims: [],
-          trustScore: 100.0,
         ),
         isFalse,
       );
@@ -165,7 +153,6 @@ void main() {
         id: '014FDF6E-8648-47E0-B83A-D5815DC145A2',
         title: "If a language can be misinterpreted so easily, how can it be a great language? Isn't it useless?",
         thumbnailUrl: '',
-        truthScore: 1.0,
         factCheckReviewMode: 'open_to_users',
         isFactCheckApproved: true,
         claims: [],
@@ -203,7 +190,6 @@ void main() {
         id: 'v1',
         title: 'Test Video',
         thumbnailUrl: '',
-        truthScore: 1.0,
         factCheckReviewMode: 'open_to_users',
         isFactCheckApproved: true,
         claims: [verifiedClaim],
@@ -224,7 +210,6 @@ void main() {
         id: 'v1',
         title: 'Test Verification Video',
         thumbnailUrl: '',
-        truthScore: 0.95,
         factCheckReviewMode: 'open_to_users',
         isFactCheckApproved: true,
         claims: [],
@@ -294,7 +279,7 @@ void main() {
       );
     });
 
-    testWidgets('Tapping Inspect Full Report opens TruthVerificationFullInspectorPage on a separate page', (tester) async {
+    testWidgets('Tapping Inspect Full Report opens VideoAnalysisScreen on a separate page', (tester) async {
       final item = VideoFactCheckItem(
         id: 'v_inspect_1',
         title: 'Deep-dive Analysis Video',
@@ -330,22 +315,19 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 350));
 
-      // Verify TruthVerificationFullInspectorPage is opened on a separate page
-      expect(find.byType(TruthVerificationFullInspectorPage), findsOneWidget);
-      expect(find.text('Fact-Check & Verification Report'), findsOneWidget);
-      expect(find.text('Deep-dive Analysis Video'), findsWidgets);
-      expect(find.byIcon(Icons.arrow_back_rounded), findsOneWidget);
-      expect(find.text('Talk to AI (Add Sources)'), findsOneWidget);
-      expect(find.text('Dispute'), findsOneWidget);
+      // Verify VideoAnalysisScreen (Ai Check) is opened on a separate page
+      expect(find.byType(VideoAnalysisScreen), findsOneWidget);
+      expect(find.text('Ai Check'), findsOneWidget);
+      expect(find.byIcon(Icons.arrow_back_ios_new_rounded), findsOneWidget);
 
       // Tap back button and verify returning to video card list
-      await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+      await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 350));
       await VideoPresenceService.to.stopWatching(immediate: true);
       await tester.pumpAndSettle();
 
-      expect(find.byType(TruthVerificationFullInspectorPage), findsNothing);
+      expect(find.byType(VideoAnalysisScreen), findsNothing);
       expect(find.text('Inspect Full Report'), findsOneWidget);
     });
   });

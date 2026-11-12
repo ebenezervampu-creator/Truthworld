@@ -239,17 +239,7 @@ class AvailableVideoTrackCard extends StatelessWidget {
                         controller: controller,
                         langCode: track.languageCode,
                         isDarkMode: isDarkMode,
-                        initialTier: 'video_pro',
-                        initialMediaType: 'video',
-                      );
-                    case 'generate_video_ultra':
-                      AudioTracksDialogs.showAudioTrackDubbingOptionsModal(
-                        context: context,
-                        controller: controller,
-                        langCode: track.languageCode,
-                        isDarkMode: isDarkMode,
-                        initialTier: 'video_ultra',
-                        initialMediaType: 'video',
+                        initialTier: 'audio_track',
                       );
                     case 'copy':
                       if (track.videoUrl.isNotEmpty) {
@@ -332,27 +322,11 @@ class AvailableVideoTrackCard extends StatelessWidget {
                       value: 'generate_video',
                       child: Row(
                         children: [
-                          Icon(Icons.record_voice_over_rounded, color: AppColors.textLink, size: 16),
+                          Icon(Icons.graphic_eq_rounded, color: Colors.white, size: 16),
                           SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'Generate Video Dubbing (Video Pro)',
-                              style: TextStyle(color: Colors.white, fontSize: 13),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'generate_video_ultra',
-                      child: Row(
-                        children: [
-                          Icon(Icons.movie_filter_rounded, color: AppColors.warning, size: 16),
-                          SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Generate Video Dubbing (Video Ultra Cinema)',
+                              'Generate AI Audio Track',
                               style: TextStyle(color: Colors.white, fontSize: 13),
                               overflow: TextOverflow.ellipsis,
                             ),

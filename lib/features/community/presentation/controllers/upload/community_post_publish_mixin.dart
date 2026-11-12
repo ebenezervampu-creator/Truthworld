@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/community/data/models/community_draft.dart';
@@ -354,7 +355,7 @@ mixin CommunityPostPublishMixin on CommunityPostUploadStateBase {
 
       isUploading.value = false;
       resetForm();
-      Get.offAllNamed('/studio');
+      RouteStackObserver.navigateToStudio();
       AppSnackbar.success(
         'Your community post is live.',
       );

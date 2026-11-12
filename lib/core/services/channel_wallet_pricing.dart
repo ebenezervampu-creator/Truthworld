@@ -71,35 +71,28 @@ class ChannelWalletPricing {
   /// - Audio Ultra: $0.30 / min ($3.00 for 10-minute video)
   /// - Video Pro: $0.40 / min ($4.00 for 10-minute video)
   /// - Video Ultra (Hollywood Cinema Grade): $0.50 / min ($5.00 for 10-minute video)
-  static const double perMinuteAudioStarterRate = 0.10;
-  static const double perMinuteAudioProRate = 0.20;
+  /// Transparent proportional per-minute pricing rate card:
+  /// - Audio Track (Studio Voice Cloning & 100% BGM Preservation): $0.30 / min ($3.00 for 10-minute video)
+  static const double perMinuteAudioTrackRate = 0.30;
+
+  // Backward-compatibility aliases
+  static const double perMinuteAudioStarterRate = 0.30;
+  static const double perMinuteAudioProRate = 0.30;
   static const double perMinuteAudioUltraRate = 0.30;
-  static const double perMinuteVideoProRate = 0.40;
-  static const double perMinuteVideoUltraRate = 0.50;
+  static const double perMinuteVideoProRate = 0.30;
+  static const double perMinuteVideoUltraRate = 0.30;
 
   // Legacy aliases for backward compatibility
-  static const double perMinuteStandardDubbingRate = 0.10;
-  static const double perMinuteVoiceCloneRate = 0.20;
-  static const double perMinuteLipSyncRate = 0.30;
+  static const double perMinuteStandardDubbingRate = 0.30;
+  static const double perMinuteVoiceCloneRate = 0.30;
+  static const double perMinuteLipSyncRate = 0.0;
 
   /// Production-Ready Dubbing Tiers Catalog
   static const List<DubbingProductionTier> productionTiers = DubbingProductionTier.allTiers;
 
   /// Resolve the per-minute rate for a given tier ID
   static double getTierRatePerMinute(String tierId) {
-    switch (tierId) {
-      case 'audio_pro':
-        return perMinuteAudioProRate;
-      case 'audio_ultra':
-        return perMinuteAudioUltraRate;
-      case 'video_pro':
-        return perMinuteVideoProRate;
-      case 'video_ultra':
-        return perMinuteVideoUltraRate;
-      case 'audio_starter':
-      default:
-        return perMinuteAudioStarterRate;
-    }
+    return perMinuteAudioTrackRate;
   }
 
   /// Get the flat dubbing rate per language based on tier and duration.
@@ -340,41 +333,22 @@ class ChannelWalletPricing {
     return double.parse(baseCost.toStringAsFixed(2));
   }
 
-  /// Transparent rate card for AI Visual Lip-Sync (LatentSync GPU pass-through)
-  /// Proportional per-minute calculation ($0.30/min, yielding $3.00 for 10 min, $2.10 for 7 min).
-  /// Channels do NOT pay the same flat amount for 10 minutes and 7 minutes.
+  /// AI Visual Lip-Sync feature has been discontinued and removed.
   static double getFlatLipSyncPricePerLanguage({
     required int durationSeconds,
     ChannelType channelType = ChannelType.standard,
   }) {
-    const perMinuteRate = perMinuteLipSyncRate; // $0.30 / min ($3.00 for 10-minute video)
-    if (durationSeconds <= 0) {
-      return perMinuteRate; // Default 1-minute floor
-    }
-    final effectiveSeconds = math.max(60, durationSeconds);
-    final calculated = (effectiveSeconds / 60.0) * perMinuteRate;
-    return double.parse(calculated.toStringAsFixed(2));
+    return 0.0;
   }
 
-  /// Calculate total cost for AI Visual Lip-Sync across selected languages.
+  /// AI Visual Lip-Sync feature has been discontinued and removed.
   static double calculateLipSyncCost({
     required int languageCount,
     int durationSeconds = 0,
     ChannelType channelType = ChannelType.standard,
     double discountPercent = 0.0,
   }) {
-    if (languageCount <= 0 || durationSeconds <= 0) return 0.0;
-    if (discountPercent >= 100.0) return 0.0;
-    final rate = getFlatLipSyncPricePerLanguage(
-      durationSeconds: durationSeconds,
-      channelType: channelType,
-    );
-    final baseCost = languageCount * rate;
-    if (discountPercent > 0.0) {
-      final discountedCost = baseCost * (1.0 - (discountPercent / 100.0));
-      return double.parse(discountedCost.toStringAsFixed(2));
-    }
-    return double.parse(baseCost.toStringAsFixed(2));
+    return 0.0;
   }
 
   /// Transparent flat pricing tiers for Subtitles based on video duration:
@@ -432,20 +406,23 @@ class ChannelWalletPricing {
     return subtitleDurationTiers[3];
   }
 
-  /// Production-Ready Subtitle Tiers Catalog (Starter: $0.50 / 10m, Pro: $0.75 / 10m)
+  /// Production-Ready Subtitle Tier Catalog (Single unified Ultra Tier: $0.50 / 10m)
   static const List<SubtitleProductionTier> subtitleTiers = SubtitleProductionTier.allTiers;
 
   /// Transparent proportional per-minute pricing for Subtitles:
-  /// - Starter: $0.05 / min ($0.50 for 10-minute video)
-  /// - Pro: $0.075 / min ($0.75 for 10-minute video)
-  static const double perMinuteSubtitleStarterRate = 0.05;
-  static const double perMinuteSubtitleProRate = 0.075;
-  static const double perMinuteSubtitleStarterAddLangRate = 0.02;
-  static const double perMinuteSubtitleProAddLangRate = 0.03;
+  /// - Ultra: $0.05 / min ($0.50 for 10-minute video)
+  static const double perMinuteSubtitleUltraRate = 0.05;
+  static const double perMinuteSubtitleUltraAddLangRate = 0.02;
 
-  /// Calculate total cost for Subtitles with Starter vs Pro tier
+  // Backward compatibility aliases
+  static const double perMinuteSubtitleStarterRate = 0.05;
+  static const double perMinuteSubtitleProRate = 0.05;
+  static const double perMinuteSubtitleStarterAddLangRate = 0.02;
+  static const double perMinuteSubtitleProAddLangRate = 0.02;
+
+  /// Calculate total cost for Subtitles (Ultra tier default)
   static double calculateSubtitleTierCost({
-    required String tierId, // 'starter' | 'pro'
+    String tierId = 'ultra', // 'ultra'
     required int languageCount,
     required int durationSeconds,
     Channel? channel,
@@ -482,7 +459,7 @@ class ChannelWalletPricing {
   static double getFlatSubtitlePricePerLanguage({
     required int durationSeconds,
     ChannelType channelType = ChannelType.standard,
-    String tierId = 'starter',
+    String tierId = 'ultra',
   }) {
     final tier = SubtitleProductionTier.fromId(tierId);
     final effectiveSeconds = math.max(60, durationSeconds > 0 ? durationSeconds : 600);
@@ -506,7 +483,7 @@ class ChannelWalletPricing {
     ChannelType channelType = ChannelType.standard,
     Channel? channel,
     double? discountPercent,
-    String tierId = 'starter',
+    String tierId = 'ultra',
   }) {
     return calculateSubtitleTierCost(
       tierId: tierId,
@@ -663,7 +640,7 @@ class ChannelWalletPricing {
     Channel? channel,
     double? dubbingDiscountPercent,
     double? subtitlesDiscountPercent,
-    String subtitleTier = 'starter',
+    String subtitleTier = 'ultra',
   }) {
     if (selectedFeatures.isEmpty) return 0.0;
 

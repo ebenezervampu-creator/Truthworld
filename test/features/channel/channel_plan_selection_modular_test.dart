@@ -145,5 +145,28 @@ void main() {
 
       expect(resultPlan, ChannelPlanType.custom);
     });
+
+    testWidgets('renders modal without RenderFlex overflow on narrow mobile (384x800 & 320x700)', (tester) async {
+      for (final size in [const Size(384, 800), const Size(320, 700)]) {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1.0;
+
+        await tester.pumpWidget(
+          GetMaterialApp(
+            theme: ThemeData.dark(),
+            home: const Scaffold(
+              body: ChannelTypeSelectorModal(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Select Channel Type'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
+
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
   });
 }

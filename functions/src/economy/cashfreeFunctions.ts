@@ -334,6 +334,33 @@ async function fulfillOrder(
           },
         });
       }
+    } else if (purpose === "ai_dubbing" || purpose === "ai_subtitles") {
+      const channelId = metadata.channelId;
+      if (channelId) {
+        const amountUSD = orderCurrency === "USD"
+          ? Number(amount.toFixed(2))
+          : (amount > 0 ? Number((amount / 84.0).toFixed(2)) : 0);
+
+        const txRef = firestore.collection("channel_wallet_transactions").doc(orderId);
+        transaction.set(txRef, {
+          id: orderId,
+          channelId,
+          userId,
+          amount: amountUSD,
+          trialCreditDeducted: 0,
+          fundedDeducted: 0,
+          revenueDeducted: 0,
+          category: purpose === "ai_dubbing" ? "aiDubbing" : "aiSubtitles",
+          description: metadata.description || `Direct Payment for ${purpose === "ai_dubbing" ? "AI Dubbing" : "AI Subtitles"} via Cashfree`,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          paymentGateway: "cashfree",
+          metadata: {
+            ...metadata,
+            inrAmount: amount,
+            paidDirectly: true,
+          },
+        });
+      }
     } else if (purpose === "superchat" || purpose === "super_thanks") {
       const { channelId, videoId, text, userName, userProfilePicUrl, tierColor } = metadata;
       if (channelId) {
@@ -572,12 +599,21 @@ export const createCashfreeOrder = onCall(
       "superchat",
       "super_thanks",
       "custom_channel_plan",
+      "ai_dubbing",
+      "ai_subtitles",
     ];
 
     if (!ALLOWED_PURPOSES.includes(purpose)) {
       throw new HttpsError(
         "invalid-argument",
         "Invalid or unsupported payment purpose."
+      );
+    }
+
+    if (purpose === "channel_wallet_topup") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Channel wallet services have been discontinued. Audio tracks, subtitles, and add-ons can be paid directly or using channel revenue."
       );
     }
 

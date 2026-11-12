@@ -162,12 +162,9 @@ async function processVideo(id: string, action: string, reason: string) {
           source: "admin-bulk-approval"
         }).catch(() => {});
 
-        const shouldRunCredibility = !!(
-          executionPlan.enablePath1 ||
-          executionPlan.enableTruthEngine ||
-          executionPlan.enableCredibility ||
-          executionPlan.enableFactChecking
-        );
+        const { isCredibilityEnabled, isLocalizationEnabled } = require("../pipeline/types");
+        const shouldRunCredibility = isCredibilityEnabled(executionPlan);
+        const shouldRunLocalization = isLocalizationEnabled(executionPlan);
 
         if (shouldRunCredibility) {
           await distribution.publish("fact-processing", {
@@ -176,6 +173,17 @@ async function processVideo(id: string, action: string, reason: string) {
             jobId: id, userId,
             timestamp: now,
             data: { executionPlan },
+            retryCount: 0,
+            source: "admin-bulk-approval"
+          }).catch(() => {});
+        }
+        if (shouldRunLocalization) {
+          await distribution.publish("dubbing-processing", {
+            eventId: `dub_bulk_${id}`,
+            eventType: "dubbing-processing",
+            jobId: id, userId,
+            timestamp: now,
+            data: { videoUrl: jobData.videoUrl || "", executionPlan },
             retryCount: 0,
             source: "admin-bulk-approval"
           }).catch(() => {});

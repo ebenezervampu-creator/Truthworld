@@ -163,34 +163,40 @@ class ChaptersWorkspacePane extends StatelessWidget {
                         ),
                         Row(
                           children: [
-                            Text(
-                              'Duration: ${video.duration}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.brand,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '•',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: textSecondaryColor,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
+                            Flexible(
                               child: Text(
-                                'Manage content chapters & segment timestamps',
+                                'Duration: ${video.duration}',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.brand,
+                                ),
+                              ),
+                            ),
+                            if (!isMobile) ...[
+                              const SizedBox(width: 8),
+                              Text(
+                                '•',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: textSecondaryColor,
                                 ),
                               ),
-                            ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Manage content chapters & segment timestamps',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: textSecondaryColor,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ],

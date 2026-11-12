@@ -5,17 +5,22 @@ import 'package:truthworld/features/video/presentation/views/player/overlays/com
 import 'package:truthworld/features/video/presentation/widgets/audio_themes_bottom_sheet.dart';
 
 /// AudioOnlyOverlay: Multi-theme audio playback stage for TruthWorld.
-/// Replaces wireframes with production-grade music themes (Ambient Glow, Retro Vinyl, Cyber Spectrum, Lyrical Stage, Zen Aura).
+/// Presents 5 specialized listening experiences powered by a shared low-power audio analysis engine.
 class AudioOnlyOverlay extends StatelessWidget {
   const AudioOnlyOverlay({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
 
   @override
   Widget build(BuildContext context) {
+    final analysisService = ctrl.audioAnalysisService;
+    // Explicit reduced-motion behavior via platform disableAnimations signal
+    final isReducedMotion = MediaQuery.of(context).disableAnimations;
+
     return Obx(() {
       ctrl.isAudioOnly.value; // Reactive dependency
-      final isPlaying = ctrl.isPlaying.value;
-      final activeTheme = TowerPlayerPreferences.globalAudioTheme.value;
+      final prefTheme = TowerPlayerPreferences.globalAudioTheme.value;
+      // Fallback to Obsidian Minimalist for reduced motion or constrained environments
+      final activeTheme = isReducedMotion ? AudioPlayerTheme.obsidianMinimalist : prefTheme;
       final video = ctrl.videoController?.video;
       final currentSub = ctrl.currentSubtitle.value;
 
@@ -46,7 +51,7 @@ class AudioOnlyOverlay extends StatelessWidget {
           key: ValueKey<AudioPlayerTheme>(activeTheme),
           child: _buildThemeStage(
             activeTheme: activeTheme,
-            isPlaying: isPlaying,
+            analysisService: analysisService,
             video: video,
             currentSubtitle: currentSub,
           ),
@@ -57,60 +62,40 @@ class AudioOnlyOverlay extends StatelessWidget {
 
   Widget _buildThemeStage({
     required AudioPlayerTheme activeTheme,
-    required bool isPlaying,
+    required AudioAnalysisService analysisService,
     required String currentSubtitle,
     dynamic video,
   }) {
     switch (activeTheme) {
-      case AudioPlayerTheme.ambientGlow:
-        return AmbientGlowTheme(
-          isPlaying: isPlaying,
+      case AudioPlayerTheme.fluidAura:
+        return FluidAuraTheme(
+          ctrl: ctrl,
+          analysisService: analysisService,
           video: video,
         );
-      case AudioPlayerTheme.retroVinyl:
-        return RetroVinylTheme(
-          isPlaying: isPlaying,
+      case AudioPlayerTheme.kineticSyllable:
+        return KineticSyllableTheme(
+          ctrl: ctrl,
+          analysisService: analysisService,
           video: video,
-        );
-      case AudioPlayerTheme.cyberSpectrum:
-        return CyberSpectrumTheme(
-          isPlaying: isPlaying,
-          video: video,
-        );
-      case AudioPlayerTheme.lyricalStage:
-        return LyricalStageTheme(
-          isPlaying: isPlaying,
           currentSubtitle: currentSubtitle,
+        );
+      case AudioPlayerTheme.audiophileSpectral:
+        return AudiophileSpectralTheme(
+          ctrl: ctrl,
+          analysisService: analysisService,
           video: video,
         );
-      case AudioPlayerTheme.zenAura:
-        return ZenAuraTheme(
-          isPlaying: isPlaying,
+      case AudioPlayerTheme.obsidianMinimalist:
+        return ObsidianMinimalistTheme(
+          ctrl: ctrl,
+          analysisService: analysisService,
           video: video,
         );
-      case AudioPlayerTheme.vintageCassette:
-        return VintageCassetteTheme(
-          isPlaying: isPlaying,
-          video: video,
-        );
-      case AudioPlayerTheme.analogVuMeter:
-        return AnalogVuMeterTheme(
-          isPlaying: isPlaying,
-          video: video,
-        );
-      case AudioPlayerTheme.cosmicNebula:
-        return CosmicNebulaTheme(
-          isPlaying: isPlaying,
-          video: video,
-        );
-      case AudioPlayerTheme.holographicCd:
-        return HolographicCdTheme(
-          isPlaying: isPlaying,
-          video: video,
-        );
-      case AudioPlayerTheme.fluidHorizon:
-        return FluidHorizonTheme(
-          isPlaying: isPlaying,
+      case AudioPlayerTheme.truthPulseHologram:
+        return TruthPulseHologramTheme(
+          ctrl: ctrl,
+          analysisService: analysisService,
           video: video,
         );
     }

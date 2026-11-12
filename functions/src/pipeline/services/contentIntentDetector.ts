@@ -27,8 +27,8 @@ export interface ContentIntent {
   confidence: number;           // 0.0-1.0
   subjectiveRatio: number;      // % of text that is subjective
   promotionalSignals: string[]; // matched keywords for audit trail
-  ratingFloor: number;          // minimum trustScore (0-100) based on intent
-  ratingCeiling: number;        // maximum trustScore (0-100) based on intent
+  ratingFloor: number;          // minimum threshold based on intent
+  ratingCeiling: number;        // maximum threshold based on intent
   genre?: string;               // v5.0: detected content genre
 }
 
@@ -145,8 +145,8 @@ const TESTIMONIAL_SIGNALS: string[] = [
 // ─── Floor/Ceiling Configuration ──────────────────────────────────────────────
 
 interface IntentBounds {
-  floor: number;   // Minimum trustScore (0-100)
-  ceiling: number; // Maximum trustScore (0-100)
+  floor: number;   // Minimum threshold
+  ceiling: number; // Maximum threshold
 }
 
 const INTENT_BOUNDS: Record<ContentIntentType, IntentBounds> = {

@@ -691,18 +691,40 @@ Return JSON:
 
         await batch.commit();
 
-        // RESUME PIPELINE: Publish dubbing/transcoding task if distributionLayer provided
+        // RESUME PIPELINE: Publish enabled independent pipelines (Credibility and/or Localization)
         if (distributionLayer) {
-          await distributionLayer.publish("dubbing-processing", {
-            eventId: `dub_resume_${jobId}`,
-            eventType: "dubbing-processing",
-            jobId,
-            userId: notif.copiedUserId,
-            timestamp: Date.now(),
-            data: { videoUrl: "", executionPlan: { enablePath2: true } },
-            retryCount: 0,
-            source: "copyright-resume"
-          });
+          const { isCredibilityEnabled, isLocalizationEnabled } = require("../types");
+          const resumeJobSnap = await db().collection("video_jobs").doc(jobId).get().catch(() => null);
+          const resumePlan = resumeJobSnap?.exists && resumeJobSnap.data()?.executionPlan
+            ? resumeJobSnap.data()!.executionPlan
+            : {};
+          const resumeVideoUrl = resumeJobSnap?.data()?.videoUrl || "";
+
+          if (isCredibilityEnabled(resumePlan)) {
+            await distributionLayer.publish("fact-processing", {
+              eventId: `fact_resume_${jobId}`,
+              eventType: "fact-processing",
+              jobId,
+              userId: notif.copiedUserId,
+              timestamp: Date.now(),
+              data: { videoUrl: resumeVideoUrl, executionPlan: resumePlan },
+              retryCount: 0,
+              source: "copyright-resume"
+            });
+          }
+
+          if (isLocalizationEnabled(resumePlan)) {
+            await distributionLayer.publish("dubbing-processing", {
+              eventId: `dub_resume_${jobId}`,
+              eventType: "dubbing-processing",
+              jobId,
+              userId: notif.copiedUserId,
+              timestamp: Date.now(),
+              data: { videoUrl: resumeVideoUrl, executionPlan: resumePlan },
+              retryCount: 0,
+              source: "copyright-resume"
+            });
+          }
         }
 
         logger.info(`[CopyrightClaims] Pipeline resumed post-copyright resolution (${action}) with Truthworld Escrow Payout`, { videoId });

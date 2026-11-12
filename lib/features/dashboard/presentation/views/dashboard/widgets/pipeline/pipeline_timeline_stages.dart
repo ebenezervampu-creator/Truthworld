@@ -26,8 +26,8 @@ class PipelineTimelineStages extends StatelessWidget {
       'upload': ['uploadSource', 'ingestion', 'upload_source'],
       'validation': ['safety', 'safetyFormatCheck', 'formatCheck', 'safety_and_format'],
       'transcription': ['transcribe', 'audioTranscription', 'transcription_gemini'],
-      'credibility': ['factcheck', 'truthEngine', 'fact_check', 'credibilityCheck'],
-      'dubbing': ['localization', 'reachEngine', 'translation', 'translate'],
+      'credibility': ['factcheck', 'fact_check', 'credibilityCheck'],
+      'dubbing': ['localization', 'translation', 'translate'],
       'rendering': ['render', 'videoRendering', 'transcoding'],
       'aggregation': ['finalizing', 'finish', 'complete', 'aggregationFinish'],
     };
@@ -99,14 +99,16 @@ class PipelineTimelineStages extends StatelessWidget {
               status = 'completed';
             }
           } else if (key == 'credibility') {
-            if (status == 'skipped') {
+            if (status == 'failed') {
+              status = 'failed';
+              statusSubtitle = stageData?['error'] as String?;
+            } else if (status == 'skipped') {
               status = 'skipped';
               statusSubtitle = 'Not Requested';
-            } else if (isTranscriptionFailed && status != 'completed') {
-              status = 'blocked';
-              statusSubtitle = 'Requires Transcription';
             } else if (video.hasAiCredibility || video.factCheckUrl.isNotEmpty || status == 'completed') {
               status = 'completed';
+            } else if (status == 'running') {
+              status = 'running';
             } else if (status == 'pending' &&
                 (video.factCheckTier == 'none' ||
                     video.factCheckTier == 'off' ||

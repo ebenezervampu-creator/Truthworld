@@ -14,8 +14,6 @@ export interface TestVideo {
   likeCount: number;
   commentCount: number;
   createdAt: any;
-  truthScore?: number;
-  trustScore?: number;
 }
 
 export function buildVideo(overrides: Partial<TestVideo> = {}): TestVideo {
@@ -31,8 +29,6 @@ export function buildVideo(overrides: Partial<TestVideo> = {}): TestVideo {
     likeCount: overrides.likeCount ?? 120,
     commentCount: overrides.commentCount ?? 45,
     createdAt: overrides.createdAt || new Date(),
-    truthScore: overrides.truthScore ?? 92,
-    trustScore: overrides.trustScore ?? 88,
     ...overrides,
   };
 }

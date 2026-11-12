@@ -423,7 +423,7 @@ class VideoMapParser {
       mediaSubtitles: () {
         final raw = data['media'] != null && data['media']['subtitles'] != null
             ? data['media']['subtitles']
-            : data['subtitles'];
+            : (data['mediaSubtitles'] ?? data['subtitles']);
         if (raw is Map) {
           final res = <String, String>{};
           raw.forEach((k, v) {
@@ -508,10 +508,19 @@ class VideoMapParser {
           data['showDislikes'] ??
           true,
       autoChaptersEnabled: parsedAutoChaptersEnabled,
-      trustScore: (data['trustScore'] ?? 0).toDouble(),
       sourceLinks: List<String>.from(data['sourceLinks'] ?? []),
-      isFactChecked:
-          (data['isFactChecked'] as bool?) ?? parsedFactCheckUrl.isNotEmpty,
+      isFactChecked: (data['isFactChecked'] == true) ||
+          (data['credibilityVerified'] == true) ||
+          (data['hasFactChecking'] == true) ||
+          (data['factChecking'] == true) ||
+          (data['isFactChecking'] == true) ||
+          (data['aiFeatures'] is Map &&
+              (data['aiFeatures']['isFactChecked'] == true ||
+                  data['aiFeatures']['factChecking'] == true ||
+                  data['aiFeatures']['factCheck'] == true)) ||
+          (data['factCheckStats'] is Map) ||
+          (data['uiReport'] is Map) ||
+          parsedFactCheckUrl.isNotEmpty,
       factCheckTier:
           (data['factCheckTier'] ??
                   (data['aiFeatures'] is Map
@@ -608,9 +617,7 @@ class VideoMapParser {
           data['credibilityStatus'] == 'provisional_ready',
       provisionalScore: (data['provisionalScore'] is num)
           ? (data['provisionalScore'] as num).toDouble()
-          : (data['isProvisional'] == true && data['trustScore'] is num
-              ? (data['trustScore'] as num).toDouble()
-              : null),
+          : null,
       provisionalLabel: data['provisionalLabel']?.toString(),
       provisionalViewerNote: data['provisionalViewerNote']?.toString(),
       provisionalClaims: (data['provisionalClaims'] is List)

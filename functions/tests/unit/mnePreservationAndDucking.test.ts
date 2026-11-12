@@ -8,9 +8,10 @@
  *        when isolated vocal is not provided or fails.
  *      - Idempotent stem caching: returns existing GCS path without reprocessing.
  *   2. MediaService.mixDubWithMne:
- *      - Dynamic sidechain ducking (20ms attack, 300ms release) of M&E stem under dubbed dialogue.
+ *      - Dynamic sidechain ducking (15ms attack, 200ms release) of M&E stem under dubbed dialogue.
  *      - Integrated EBU R128 / ITU-R BS.1770 -14 LUFS loudness mastering with -1 dBTP true peak limiting.
- *      - DSP filter chain integration and video duration clamping.
+ *      - Single-pass loudnorm (no double DSP application — dialogue pre-mastered by stitchAudio).
+ *      - M&E auto-gain calibration metadata written to GCS.
  *   3. Dubbing Pipeline Non-Destructive Preservation:
  *      - Preserves M&E, dialogue, master, and vocal stem URLs in job outputs and Firestore.
  *      - Guarantees video muxing receives pre-mastered composite track instead of destructive dialog-only overwrite.
@@ -24,10 +25,21 @@ const mockSave = jest.fn().mockResolvedValue(undefined);
 const mockDownload = jest.fn().mockResolvedValue([Buffer.from('fake-audio-bytes')]);
 const mockExists = jest.fn().mockResolvedValue([false]);
 const mockUpload = jest.fn().mockResolvedValue(undefined);
+const mockGetMetadata = jest.fn().mockResolvedValue([
+  {
+    size: 123456,
+    metadata: {
+      mnePipelineVersion: '2',
+      mneSource: 'neural_demixing',
+      degraded: 'false',
+    },
+  },
+]);
 const mockFile = jest.fn((path: string) => ({
   save: mockSave,
   download: mockDownload,
   exists: mockExists,
+  getMetadata: mockGetMetadata,
 }));
 const mockBucket = {
   name: 'truthworld-test-bucket',
@@ -104,8 +116,8 @@ describe('🎛️ Industry-Standard M&E (Music & Foley) Preservation & Ducking',
 
       // Verifies phase subtraction formula c0-c2 and c1-c3
       expect(filterArg).toContain('pan=stereo|c0=c0-c2|c1=c1-c3');
-      // Verifies mid/side stereotools vocal cleanup
-      expect(filterArg).toContain('stereotools=mlev=0.08:slev=1.05');
+      // Verifies spectral cleanup + denoising after phase cancellation (relaxed to nf=-40 — was nf=-25 which gated ambient music)
+      expect(filterArg).toContain('highpass=f=35,lowpass=f=18500,afftdn=nf=-40');
       expect(mockUpload).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
@@ -141,7 +153,7 @@ describe('🎛️ Industry-Standard M&E (Music & Foley) Preservation & Ducking',
       expect(filterArg).toContain('lowpass=f=220');
       // Bandpass + stereotools suppresses center-channel vocal formants while keeping stereo music
       expect(filterArg).toContain('bandpass=f=1800:width_type=h:w=3200');
-      expect(filterArg).toContain('stereotools=mlev=0.10:slev=1.15');
+      expect(filterArg).toContain('stereotools=mlev=0.45:slev=1.15');
       // Highpass preserves cymbals & high-frequency foley above 5000Hz
       expect(filterArg).toContain('highpass=f=5000');
       // 3-way summation
@@ -163,7 +175,7 @@ describe('🎛️ Industry-Standard M&E (Music & Foley) Preservation & Ducking',
   });
 
   describe('2. MediaService.mixDubWithMne (Sidechain Dynamic Ducking & Mastering)', () => {
-    it('applies sidechain dynamic ducking with 20ms attack, 300ms release, and -14 LUFS mastering', async () => {
+    it('applies sidechain dynamic ducking with gentler 15ms attack, 200ms release, and -14 LUFS mastering', async () => {
       const result = await mediaService.mixDubWithMne('job_mix', 'te', {
         mneUrl: 'gs://truthworld-test-bucket/audio/job_mix/m_and_e.mp3',
         dubbedAudioUrl: 'gs://truthworld-test-bucket/audio/job_mix/te/dialogue.mp3',
@@ -173,16 +185,21 @@ describe('🎛️ Industry-Standard M&E (Music & Foley) Preservation & Ducking',
       expect(mockDownload).toHaveBeenCalledTimes(2); // M&E stem + Dubbed voice stem
       expect(mockedExecFile).toHaveBeenCalled();
 
+      // The first execFile call is the loudness probe; the second is the actual mix.
+      // Filter complex is on the mix call.
       const demixCall = mockedExecFile.mock.calls.find((call: any[]) => call[1]?.includes('-filter_complex'));
       const ffmpegArgs = demixCall[1];
       const filterArg = ffmpegArgs[ffmpegArgs.indexOf('-filter_complex') + 1];
 
-      // Verifies sidechain compressor configuration
-      expect(filterArg).toContain('sidechaincompress=threshold=0.03:ratio=4:attack=20:release=300:makeup=1');
+      // Verifies sidechain compressor uses gentler defaults (threshold 0.08, ratio 2.0 -> "2", attack 15ms, release 200ms)
+      expect(filterArg).toContain('sidechaincompress=threshold=0.08:ratio=2:attack=15:release=200:makeup=1');
       // Verifies amix combining ducked M&E with dubbed voice
-      expect(filterArg).toContain('amix=inputs=2:weights=1.0 1.0:normalize=0');
-      // Verifies ITU-R BS.1770 / EBU R128 -14 LUFS broadcast mastering
+      expect(filterArg).toContain('amix=inputs=2:weights=');
+      // Verifies single-pass -14 LUFS mastering (not cinema mastering chain)
       expect(filterArg).toContain('loudnorm=I=-14:TP=-1:LRA=11');
+      // Verifies dialogue passes through without filter re-application (no dub_raw→dub_mix DSP)
+      expect(filterArg).toContain('[dub_sc][dub_mix]');
+      expect(filterArg).not.toContain('[dub_raw]');
 
       // Verifies duration clamp
       expect(ffmpegArgs).toContain('-t');
@@ -197,6 +214,7 @@ describe('🎛️ Industry-Standard M&E (Music & Foley) Preservation & Ducking',
               stem: 'master_mix',
               ducking: 'sidechain_dynamic',
               targetLoudness: '-14 LUFS',
+              mneAutoGain: expect.any(String),
             }),
           }),
         })
@@ -204,7 +222,9 @@ describe('🎛️ Industry-Standard M&E (Music & Foley) Preservation & Ducking',
       expect(result).toBe('gs://truthworld-test-bucket/audio/job_mix/te/master.mp3');
     });
 
-    it('integrates custom DSP filters into dubbed dialogue stream before ducking', async () => {
+    it('does NOT re-apply custom DSP filters to the dubbed stream (dialogue pre-mastered by stitchAudio)', async () => {
+      // audioFilters passed to mixDubWithMne are intentionally ignored — dialogue is already mastered.
+      // Passing them causes double loudnorm stacking which was Problem B root cause.
       const customFilters = 'equalizer=f=120:width_type=h:w=100:g=3,compand=attacks=0.03';
       await mediaService.mixDubWithMne('job_dsp', 'hi', {
         mneUrl: 'gs://truthworld-test-bucket/audio/job_dsp/m_and_e.mp3',
@@ -216,8 +236,11 @@ describe('🎛️ Industry-Standard M&E (Music & Foley) Preservation & Ducking',
       const ffmpegArgs = demixCall[1];
       const filterArg = ffmpegArgs[ffmpegArgs.indexOf('-filter_complex') + 1];
 
-      expect(filterArg).toContain(customFilters);
+      // Dialogue passthrough — custom DSP must NOT appear in filter_complex
+      expect(filterArg).not.toContain(customFilters);
+      // Sidechain and final loudnorm must still be present
       expect(filterArg).toContain('sidechaincompress=');
+      expect(filterArg).toContain('loudnorm=I=-14:TP=-1:LRA=11');
     });
   });
 

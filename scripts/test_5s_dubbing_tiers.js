@@ -9,7 +9,9 @@ const path = require("path");
 const fs = require("fs");
 const { spawnSync } = require("child_process");
 
-const ffmpegPath = path.resolve("functions/node_modules/ffmpeg-static/ffmpeg.exe");
+const ffmpegPath = fs.existsSync(path.resolve("functions/node_modules/@ffmpeg-installer/win32-x64/ffmpeg.exe"))
+  ? path.resolve("functions/node_modules/@ffmpeg-installer/win32-x64/ffmpeg.exe")
+  : path.resolve("functions/node_modules/ffmpeg-static/ffmpeg.exe");
 const ffprobePath = path.resolve("functions/node_modules/@ffprobe-installer/win32-x64/ffprobe.exe");
 const sourceVideoPath = path.resolve(
   "windows/flutter/ephemeral/.plugin_symlinks/ffmpeg_kit_flutter_new/example/assets/sample_video.mp4"
@@ -126,7 +128,7 @@ async function main() {
   const filterScript = [
     "[0:a]aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,adelay=500|500[d_0];",
     "[1:a]aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,adelay=2600|2600[d_1];",
-    "[d_0][d_1]amix=inputs=2:normalize=0:dropout_transition=0[dialogue_mixed];",
+    "[d_0][d_1]amix=inputs=2:dropout_transition=0[dialogue_mixed];",
     "[dialogue_mixed]apad=whole_dur=5.000[dialogue_padded];",
     "[dialogue_padded]loudnorm=I=-14:TP=-1:LRA=11[out]",
   ].join("\n");
@@ -154,7 +156,7 @@ async function main() {
       "[1:a]aformat=channel_layouts=stereo,asplit=2[dub_sc][dub_raw];",
       "[dub_raw]anull[dub_mix];",
       "[mne][dub_sc]sidechaincompress=threshold=0.03:ratio=4:attack=20:release=300:makeup=1[ducked];",
-      "[ducked][dub_mix]amix=inputs=2:weights=1.0 1.0:normalize=0:duration=first[mixed];",
+      "[ducked][dub_mix]amix=inputs=2:dropout_transition=0:duration=first[mixed];",
       "[mixed]loudnorm=I=-14:TP=-1:LRA=11[out]",
     ].join("");
 

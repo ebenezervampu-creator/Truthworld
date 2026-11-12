@@ -10,6 +10,9 @@ import {
   ExecutionPlan,
   FactCompleteData,
   DubbingCompleteData,
+  isCredibilityEnabled,
+  isDubbingEnabled,
+  isSubtitlesEnabled,
 } from "./types";
 import { logger } from "./utils/logger";
 import { PIPELINE_CONFIG } from "./config";
@@ -122,16 +125,75 @@ export const triggerVideoAIFeatures = onRequest(
         return;
       }
 
-      const jobDocRef = admin.firestore().collection("video_jobs").doc(videoId);
-      const jobSnap = await jobDocRef.get();
-      const jobData = jobSnap.exists ? jobSnap.data() : null;
+      const reqFeatures = Array.isArray(features) ? features : [];
+      const wantSubtitles = reqFeatures.includes("subtitles");
+      const wantDubbing = reqFeatures.includes("dubbing");
+      const wantFactCheck = reqFeatures.includes("factcheck");
+      const wantSummary = reqFeatures.includes("summary");
+      const wantChapters = reqFeatures.includes("chapters");
+      const requestCredibility = wantFactCheck || wantSummary || wantChapters;
+      const requestLocalization = wantDubbing || wantSubtitles;
 
-      // 🛡️ Concurrency & Re-trigger Protection: Prevent overlapping jobs for the same video
-      if (jobData) {
-        const currentJobStatus = jobData.status;
-        if (currentJobStatus === "accepted" || currentJobStatus === "processing" || currentJobStatus === "running") {
+      const jobDocRef = admin.firestore().collection("video_jobs").doc(videoId);
+      const credJobDocRef = admin.firestore().collection("credibility_jobs").doc(videoId);
+      const dubJobDocRef = admin.firestore().collection("dubbing_jobs").doc(videoId);
+      const [jobSnap, credJobSnap, dubJobSnap] = await Promise.all([
+        jobDocRef.get(),
+        credJobDocRef.get().catch(() => null),
+        dubJobDocRef.get().catch(() => null),
+      ]);
+      const jobData = jobSnap.exists ? jobSnap.data() : null;
+      const credJobData = credJobSnap?.exists ? credJobSnap.data() : null;
+      const dubJobData = dubJobSnap?.exists ? dubJobSnap.data() : null;
+
+      // 🛡️ Independent Concurrency Guards:
+      // Credibility and Dubbing/Subtitles run independently; neither blocks the other.
+      // Jobs older than 5 minutes (300,000 ms) are dead zombies and must NOT block new requests.
+      const nowMs = Date.now();
+      const MAX_ACTIVE_JOB_AGE_MS = 5 * 60 * 1000;
+
+      const isJobRecent = (job: any, stage?: any): boolean => {
+        if (!job && !stage) return false;
+        let ts: number | null = null;
+        if (typeof stage?.startedAt === "number") ts = stage.startedAt;
+        else if (typeof stage?.updatedAt === "number") ts = stage.updatedAt;
+        else if (typeof job?.updatedAt === "number") ts = job.updatedAt;
+        else if (typeof job?.createdAt === "number") ts = job.createdAt;
+        else if (job?.updatedAt?._seconds) ts = job.updatedAt._seconds * 1000;
+        else if (job?.createdAt?._seconds) ts = job.createdAt._seconds * 1000;
+        if (!ts) return false;
+        return (nowMs - ts) <= MAX_ACTIVE_JOB_AGE_MS;
+      };
+
+      if (requestCredibility) {
+        const credActive = credJobData
+          ? ((credJobData.status === "pending" || credJobData.status === "running") && isJobRecent(credJobData))
+          : Boolean(
+              jobData &&
+              (jobData.status === "accepted" || jobData.status === "processing" || jobData.status === "running") &&
+              jobData.stages?.credibility?.status === "running" &&
+              isJobRecent(jobData, jobData.stages?.credibility)
+            );
+        if (credActive) {
           res.status(409).json({
-            error: "An AI processing job is already running for this video. Please wait for the current job to complete."
+            error: "Credibility analysis is already running for this video. Please wait for it to complete."
+          });
+          return;
+        }
+      }
+
+      if (requestLocalization) {
+        const locActive = dubJobData
+          ? ((dubJobData.status === "pending" || dubJobData.status === "running") && isJobRecent(dubJobData))
+          : Boolean(
+              jobData &&
+              (jobData.status === "accepted" || jobData.status === "processing" || jobData.status === "running") &&
+              (jobData.stages?.dubbing?.status === "running" || jobData.stages?.subtitles?.status === "running") &&
+              (isJobRecent(jobData, jobData.stages?.dubbing) || isJobRecent(jobData, jobData.stages?.subtitles))
+            );
+        if (locActive) {
+          res.status(409).json({
+            error: "Dubbing or subtitle generation is already running for this video. Please wait for it to complete."
           });
           return;
         }
@@ -139,21 +201,33 @@ export const triggerVideoAIFeatures = onRequest(
 
       const channelId = req.body?.channelId || videoData.channelId || userId;
 
-      // 🛡️ Denial of Service Prevention: Bound concurrent active AI jobs per channel
+      // 🛡️ Denial of Service Prevention: Bound concurrent active AI jobs per channel (ignoring dead zombies > 15m)
       const activeJobsSnap = await admin.firestore().collection("video_jobs")
         .where("channelId", "==", channelId)
         .where("status", "in", ["accepted", "processing", "running"])
-        .limit(5)
+        .limit(10)
         .get();
-      if (activeJobsSnap.size >= 4) {
+      const trulyActiveCount = activeJobsSnap.docs.filter(doc => {
+        const d = doc.data() || {};
+        let ts = typeof d.updatedAt === "number" ? d.updatedAt : (typeof d.createdAt === "number" ? d.createdAt : 0);
+        if (ts === 0 && d.updatedAt?._seconds) ts = d.updatedAt._seconds * 1000;
+        return (nowMs - ts) <= (15 * 60 * 1000);
+      }).length;
+      if (trulyActiveCount >= 4) {
         res.status(429).json({
           error: "Too many concurrent AI jobs running for your channel. Please wait for existing jobs to finish."
         });
         return;
       }
 
-      let resolvedPrimaryLang = normalizeLanguageCode(videoData.language || videoData.sourceLanguage || "");
-      if (!resolvedPrimaryLang && videoData.channelId) {
+      let resolvedPrimaryLang = normalizeLanguageCode(
+        videoData.language ||
+        videoData.sourceLanguage ||
+        videoData.originalLanguage ||
+        videoData.primaryLanguage ||
+        ""
+      );
+      if ((!resolvedPrimaryLang || resolvedPrimaryLang === "en") && videoData.channelId) {
         try {
           const chSnap = await admin.firestore().collection("channels").doc(videoData.channelId).get();
           if (chSnap.exists) {
@@ -165,6 +239,19 @@ export const triggerVideoAIFeatures = onRequest(
         } catch (e) {
           logger.warn("[triggerVideoAIFeatures] Error fetching channel language:", e);
         }
+      }
+      if ((!resolvedPrimaryLang || resolvedPrimaryLang === "en") && videoId) {
+        try {
+          const locSnap = await admin.firestore().collection("videos").doc(videoId).collection("media").doc("localization").get();
+          if (locSnap.exists) {
+            const locData = locSnap.data() || {};
+            const audioTracks = (locData.audioTracks as Record<string, string>) || {};
+            const nonEnKeys = Object.keys(audioTracks).filter(k => k.toLowerCase() !== "en");
+            if (nonEnKeys.length > 0) {
+              resolvedPrimaryLang = normalizeLanguageCode(nonEnKeys[0]);
+            }
+          }
+        } catch (_) {}
       }
       if (!resolvedPrimaryLang) {
         resolvedPrimaryLang = "en";
@@ -187,12 +274,7 @@ export const triggerVideoAIFeatures = onRequest(
       const languagesSet = new Set([...existingLanguages, ...validatedTargetLanguages]);
       const combinedLanguages = Array.from(languagesSet);
 
-      const wantSubtitles = features.includes("subtitles");
-      const wantDubbing = features.includes("dubbing");
-      const wantFactCheck = features.includes("factcheck");
-      const wantSummary = features.includes("summary");
-      const wantChapters = features.includes("chapters");
-      const wantDiarization = features.includes("diarization") || features.includes("speaker_diarization") || (jobData?.executionPlan?.enableDiarization ?? false);
+      const wantDiarization = reqFeatures.includes("diarization") || reqFeatures.includes("speaker_diarization") || (jobData?.executionPlan?.enableDiarization ?? false);
 
       const existingDubLangs: string[] = jobData?.executionPlan?.dubbingLanguages || [];
       const mergedDubLangs = Array.from(new Set([...existingDubLangs, ...validatedTargetLanguages]));
@@ -277,14 +359,14 @@ export const triggerVideoAIFeatures = onRequest(
         }
       }
 
-      const dubbingMode = String(req.body?.dubbingMode || "standard");
-      const voiceType = (dubbingMode === "cloned" || dubbingMode === "voice_clone") ? "cloned" : "standard";
+      const dubbingTier = "audio_track";
+      const dubbingMode = String(req.body?.dubbingMode || "voice_clone");
+      const voiceType = (dubbingMode === "standard") ? "standard" : "cloned";
 
-      const dubbingTier = (req.body?.dubbingTier || req.body?.aiDubbingTier) as ("audio_starter" | "audio_pro" | "audio_ultra" | "video_pro" | "video_ultra" | undefined);
-      const isLipSyncRequested = Boolean(req.body?.enableLipSync || (dubbingTier && dubbingTier.startsWith("video_")) || req.body?.features?.includes("lipsync"));
-      const isCinemaGradeRequested = Boolean(req.body?.cinemaGrade || req.body?.isCinemaGrade || dubbingTier === "video_ultra");
-      // 100% Studio Preservation: Discrete stem separation (Vocals, Drums, Bass, Foley) enabled for every dubbing tier
-      const isStemIsolationRequested = Boolean(wantDubbing || req.body?.stemIsolation || isCinemaGradeRequested);
+      const isLipSyncRequested = false; // Video lip sync removed per user specification
+      const isCinemaGradeRequested = false;
+      // 100% Studio Preservation: Discrete stem separation (Vocals, Drums, Bass, Foley) enabled for dubbing
+      const isStemIsolationRequested = Boolean(wantDubbing || req.body?.stemIsolation);
 
       let dubbingCost = 0;
       if (wantDubbing && nonPrimaryTargetLanguages.length > 0) {
@@ -308,7 +390,7 @@ export const triggerVideoAIFeatures = onRequest(
         }
       }
 
-      const subtitleTier = (req.body?.subtitleTier || req.body?.tier || "starter") as "starter" | "pro";
+      const subtitleTier = (req.body?.subtitleTier || req.body?.tier || "ultra") as "ultra" | "starter" | "pro";
 
       let subtitleCost = 0;
       if (wantSubtitles && nonPrimaryTargetLanguages.length > 0) {
@@ -499,32 +581,37 @@ export const triggerVideoAIFeatures = onRequest(
         }
       }
 
+      const existingCredEnabled = isCredibilityEnabled(credJobData?.executionPlan) || isCredibilityEnabled(jobData?.executionPlan);
+      const existingDubEnabled = isDubbingEnabled(dubJobData?.executionPlan) || isDubbingEnabled(jobData?.executionPlan);
+      const existingSubEnabled = isSubtitlesEnabled(dubJobData?.executionPlan) || isSubtitlesEnabled(jobData?.executionPlan);
+
       const executionPlan: ExecutionPlan = {
         jobId: videoId,
+        videoId,
         languages: combinedLanguages,
         primaryLanguage: resolvedPrimaryLang,
-        enablePath1: wantFactCheck || wantSummary || (jobData?.executionPlan?.enablePath1 ?? true),
-        enablePath2: wantDubbing || wantSubtitles || (jobData?.executionPlan?.enablePath2 ?? true),
-        enableTruthEngine: wantFactCheck || wantSummary || (jobData?.executionPlan?.enableTruthEngine ?? true),
-        enableReachEngine: wantDubbing || wantSubtitles || (jobData?.executionPlan?.enableReachEngine ?? true),
+        enableCredibility: Boolean(requestCredibility || existingCredEnabled),
+        factCheckEnabled: Boolean(requestCredibility || existingCredEnabled),
+        enableDubbing: Boolean(wantDubbing || existingDubEnabled),
+        enableSubtitles: Boolean(wantSubtitles || existingSubEnabled),
         enableAuxiliary: true,
         enableDiarization: wantDiarization,
         diarization: wantDiarization,
         subtitleLanguages: wantSubtitles ? targetLanguages : (jobData?.executionPlan?.subtitleLanguages || []),
-        dubbingLanguages: wantDubbing ? targetLanguages : (jobData?.executionPlan?.dubbingLanguages || []),
+        dubbingLanguages: wantDubbing ? mergedDubLangs : (jobData?.executionPlan?.dubbingLanguages || []),
         dubbingMode: voiceType === "cloned" ? "voice_clone" : "standard",
-        dubbingTier: dubbingTier,
-        uncannyMitigation: (req.body?.uncannyMitigation as any) || (dubbingTier === "audio_ultra" ? "cadence_lock" : "none"),
-        isometryMode: req.body?.isometryMode || (dubbingTier === "video_ultra" || dubbingTier === "audio_ultra" ? "strict_syllable" : "natural"),
-        enableLipSync: isLipSyncRequested,
-        cinemaGrade: isCinemaGradeRequested,
+        dubbingTier: dubbingTier || "audio_track",
+        uncannyMitigation: (req.body?.uncannyMitigation as any) || "cadence_lock",
+        isometryMode: req.body?.isometryMode || "strict_syllable",
+        enableLipSync: false,
+        cinemaGrade: false,
         stemIsolation: isStemIsolationRequested,
-        generateDubbing: wantDubbing,
+        generateDubbing: Boolean(wantDubbing || existingDubEnabled),
         voiceGender: (req.body?.voiceGender as any) || "auto",
         duration: durationSeconds,
         durationSeconds: durationSeconds,
-        genLangSubs: wantSubtitles,
-        generateSubtitles: wantSubtitles,
+        genLangSubs: Boolean(wantSubtitles || existingSubEnabled),
+        generateSubtitles: Boolean(wantSubtitles || existingSubEnabled),
         autoChapters: wantChapters || autoChapters,
         priorityMode: priorityMode,
         sensitiveTopics: sensitiveTopics,
@@ -534,6 +621,30 @@ export const triggerVideoAIFeatures = onRequest(
         synthesisTier: wantFactCheck ? "deep" : "standard",
         priority: "normal",
         skipCache: false,
+      };
+
+      const credibilityExecutionPlan: ExecutionPlan = {
+        ...executionPlan,
+        enableCredibility: true,
+        factCheckEnabled: true,
+        enableDubbing: false,
+        generateDubbing: false,
+        enableSubtitles: false,
+        genLangSubs: false,
+        generateSubtitles: false,
+      };
+
+      const localizationExecutionPlan: ExecutionPlan = {
+        ...executionPlan,
+        enableCredibility: false,
+        factCheckEnabled: false,
+        enableDubbing: wantDubbing,
+        generateDubbing: wantDubbing,
+        enableSubtitles: wantSubtitles,
+        genLangSubs: wantSubtitles,
+        generateSubtitles: wantSubtitles,
+        subtitleLanguages: wantSubtitles ? targetLanguages : (jobData?.executionPlan?.subtitleLanguages || []),
+        dubbingLanguages: wantDubbing ? mergedDubLangs : (jobData?.executionPlan?.dubbingLanguages || []),
       };
 
       const now = Date.now();
@@ -588,11 +699,35 @@ export const triggerVideoAIFeatures = onRequest(
               progress: 100,
               completedAt: now,
             },
-            subtitles: {
-              status: "running",
-              progress: 35,
-              startedAt: now,
+          } : {}),
+          ...(requestCredibility ? {
+            credibility: {
+              status: "pending",
+              progress: 0,
             },
+          } : {}),
+          ...(requestLocalization ? {
+            dubbing: wantDubbing ? { status: "pending", progress: 0 } : (jobData?.stages?.dubbing || { status: "skipped", progress: 100 }),
+            ...(wantSubtitles ? {
+              subtitles: {
+                status: transcriptionCompleted ? "running" : "pending",
+                progress: transcriptionCompleted ? 35 : 0,
+                ...(transcriptionCompleted ? { startedAt: now } : {}),
+              },
+            } : {}),
+            ...(wantDubbing ? targetLanguages.reduce((acc: Record<string, any>, lang: string) => {
+              acc[`dubbing_${lang}`] = {
+                status: "pending",
+                progress: 0,
+                startedAt: now,
+              };
+              acc[`translating_${lang}`] = {
+                status: "pending",
+                progress: 0,
+                startedAt: now,
+              };
+              return acc;
+            }, {}) : {}),
           } : {}),
           onDemandAI: {
             status: "running",
@@ -603,6 +738,34 @@ export const triggerVideoAIFeatures = onRequest(
           }
         }
       }, { merge: true });
+
+      const { EdgeLayer } = require("./layers/01-edge");
+      if (requestCredibility) {
+        await EdgeLayer.upsertCredibilityJob(videoId, {
+          videoId,
+          userId,
+          channelId: videoData.channelId || userId,
+          videoUrl,
+          executionPlan: credibilityExecutionPlan,
+          status: "pending",
+          progress: 0,
+          createdAt: credJobData?.createdAt || now,
+        });
+      }
+      if (requestLocalization) {
+        await EdgeLayer.upsertDubbingJob(videoId, {
+          videoId,
+          userId,
+          channelId: videoData.channelId || userId,
+          videoUrl,
+          executionPlan: localizationExecutionPlan,
+          status: "pending",
+          progress: 0,
+          languages: localizationExecutionPlan.dubbingLanguages || localizationExecutionPlan.languages || [],
+          subtitleLanguages: localizationExecutionPlan.subtitleLanguages || [],
+          createdAt: dubJobData?.createdAt || now,
+        });
+      }
 
       const isAlreadyPublished = videoData.status === "published" ||
         videoData.aiFeatures?.pipelineStage === "published" ||
@@ -639,37 +802,41 @@ export const triggerVideoAIFeatures = onRequest(
       try {
         const { DistributionLayer } = require("./layers/04-distribution");
         const distribution = new DistributionLayer();
+        const publishTasks: Promise<any>[] = [];
 
-        if (!transcriptionCompleted) {
-          await distribution.publish("video-uploaded", {
-            eventId,
-            eventType: "video-uploaded",
-            jobId: videoId,
-            userId,
-            timestamp: now,
-            data: { videoUrl, executionPlan },
-            retryCount: 0,
-            source: "triggerVideoAIFeatures",
-          });
-        } else {
-          const publishTasks: Promise<any>[] = [];
+        // 1. Independent Credibility System — dispatched directly without waiting for Dubbing or STT
+        if (requestCredibility) {
+          publishTasks.push(
+            distribution.publish("fact-processing", {
+              eventId: `fact_${eventId}`,
+              eventType: "fact-processing",
+              jobId: videoId,
+              userId,
+              timestamp: now,
+              data: { videoUrl, executionPlan: credibilityExecutionPlan },
+              retryCount: 0,
+              source: "triggerVideoAIFeatures",
+            })
+          );
+        }
 
-          if (wantFactCheck || wantSummary) {
+        // 2. Independent Localization System — run STT first only if transcript is missing,
+        //    strictly keeping Credibility disabled in that localization transcription payload.
+        if (requestLocalization) {
+          if (!transcriptionCompleted) {
             publishTasks.push(
-              distribution.publish("fact-processing", {
-                eventId: `fact_${eventId}`,
-                eventType: "fact-processing",
+              distribution.publish("video-uploaded", {
+                eventId,
+                eventType: "video-uploaded",
                 jobId: videoId,
                 userId,
                 timestamp: now,
-                data: { videoUrl, executionPlan },
+                data: { videoUrl, executionPlan: localizationExecutionPlan },
                 retryCount: 0,
                 source: "triggerVideoAIFeatures",
               })
             );
-          }
-
-          if (wantDubbing || wantSubtitles) {
+          } else {
             publishTasks.push(
               distribution.publish("dubbing-processing", {
                 eventId: `dub_${eventId}`,
@@ -677,19 +844,26 @@ export const triggerVideoAIFeatures = onRequest(
                 jobId: videoId,
                 userId,
                 timestamp: now,
-                data: { videoUrl, executionPlan },
+                data: { videoUrl, executionPlan: localizationExecutionPlan },
                 retryCount: 0,
                 source: "triggerVideoAIFeatures",
               })
             );
           }
-
-          await Promise.all(publishTasks);
         }
+
+        await Promise.all(publishTasks);
       } catch (pubSubError) {
         logger.error("[triggerVideoAIFeatures] Pub/Sub dispatch failure:", pubSubError);
-        const { EdgeLayer } = require("./layers/01-edge");
-        await EdgeLayer.failJob(videoId, "onDemandAI", "Pub/Sub message broker unavailable to queue AI job").catch(() => {});
+        const dispatchErr = "Pub/Sub message broker unavailable to queue AI job";
+        if (requestCredibility) {
+          await EdgeLayer.failStage(videoId, "credibility", dispatchErr).catch(() => {});
+          await EdgeLayer.upsertCredibilityJob(videoId, { status: "failed", error: dispatchErr, completedAt: Date.now() });
+        }
+        if (requestLocalization) {
+          await EdgeLayer.failStage(videoId, "dubbing", dispatchErr).catch(() => {});
+          await EdgeLayer.upsertDubbingJob(videoId, { status: "failed", error: dispatchErr, completedAt: Date.now() });
+        }
         res.status(503).json({
           error: "Unable to schedule background AI pipeline. Please try again.",
         });
@@ -793,7 +967,7 @@ export const handleTranscription = onMessagePublished(
 );
 
 /**
- * 🧠 Handle credibility processing (Path 1)
+ * 🧠 Handle credibility processing (Independent Credibility System)
  *
  * CONFIG: minInstances=0, maxInstances=15, 2GiB, 540s timeout
  */
@@ -861,15 +1035,20 @@ export const handleCredibilitySynthesis = onMessagePublished(
       const { CredibilityEngine } = require("./layers/06-credibility");
       const engine = new CredibilityEngine(geminiKey);
       await engine.runSynthesisPass(parsedEvent.jobId, parsedEvent.userId, parsedEvent.eventId);
-    } catch (error) {
-      logger.error("[handleCredibilitySynthesis] Critical failure", { error: String(error) });
-      throw error;
+    } catch (error: any) {
+      logger.error("[handleCredibilitySynthesis] Execution error", { error: String(error) });
+      const isFatalNonRetryable = String(error?.message || error).includes("No such object") ||
+        String(error?.message || error).includes("not found");
+      if (!isFatalNonRetryable) {
+        throw error;
+      }
+      logger.warn("[handleCredibilitySynthesis] Non-retryable error encountered, acknowledging message to prevent infinite retry loop", { error: String(error) });
     }
   }
 );
 
 /**
- * 🌍 Handle dubbing processing (Path 2)
+ * 🌍 Handle dubbing processing (Independent Localization System)
  *
  * CONFIG: minInstances=0, maxInstances=10, 2GiB, 540s timeout
  */
@@ -935,12 +1114,15 @@ export const handleFactComplete = onMessagePublished(
       const parsedEvent = DistributionLayer.parseMessage(event.data.message);
       logger.info("[handleFactComplete] Start", { jobId: parsedEvent.jobId, eventId: parsedEvent.eventId });
 
-      const jobDoc = await admin
-        .firestore()
-        .collection("video_jobs")
-        .doc(parsedEvent.jobId)
-        .get();
-      const executionPlan = jobDoc.data()?.executionPlan as ExecutionPlan;
+      const [jobDoc, credJobDoc] = await Promise.all([
+        admin.firestore().collection("video_jobs").doc(parsedEvent.jobId).get(),
+        admin.firestore().collection("credibility_jobs").doc(parsedEvent.jobId).get().catch(() => null),
+      ]);
+      const executionPlan = ((jobDoc.data()?.executionPlan || credJobDoc?.data()?.executionPlan || {
+        jobId: parsedEvent.jobId,
+        enableCredibility: true,
+        factCheckEnabled: true,
+      })) as ExecutionPlan;
 
       const { aggregationLayer } = require("./layers/09-aggregation");
       await aggregationLayer.onFactComplete(
@@ -978,12 +1160,15 @@ export const handleDubbingComplete = onMessagePublished(
       const parsedEvent = DistributionLayer.parseMessage(event.data.message);
       logger.info("[handleDubbingComplete] Start", { jobId: parsedEvent.jobId, eventId: parsedEvent.eventId });
 
-      const jobDoc = await admin
-        .firestore()
-        .collection("video_jobs")
-        .doc(parsedEvent.jobId)
-        .get();
-      const executionPlan = jobDoc.data()?.executionPlan as ExecutionPlan;
+      const [jobDoc, dubJobDoc] = await Promise.all([
+        admin.firestore().collection("video_jobs").doc(parsedEvent.jobId).get(),
+        admin.firestore().collection("dubbing_jobs").doc(parsedEvent.jobId).get().catch(() => null),
+      ]);
+      const executionPlan = ((jobDoc.data()?.executionPlan || dubJobDoc?.data()?.executionPlan || {
+        jobId: parsedEvent.jobId,
+        enableDubbing: true,
+        generateDubbing: true,
+      })) as ExecutionPlan;
 
       const { aggregationLayer } = require("./layers/09-aggregation");
       await aggregationLayer.onDubbingComplete(
@@ -1344,6 +1529,492 @@ export const getSourceAvatars = onCall(
 
     const avatars = await SourceAvatarService.resolveBatch(queryItems);
     return { avatars };
+  }
+);
+
+/**
+ * 🎙️ Verify ElevenLabs API Key & Subscription Quota (onCall)
+ *
+ * Safe production diagnostic endpoint: Queries ElevenLabs metadata (/v1/user/subscription)
+ * without generating audio, consuming characters, or deducting credits ($0.00 cost).
+ */
+export const verifyElevenLabsStatus = onCall(
+  {
+    cors: true,
+    region: "asia-south1",
+    minInstances: 0,
+    maxInstances: 5,
+    memory: "256MiB",
+    timeoutSeconds: 30,
+    secrets: ["ELEVENLABS_API_KEY"],
+  },
+  async (request) => {
+    if (!request.auth || !request.auth.uid) {
+      throw new HttpsError("unauthenticated", "Authentication required to check service status.");
+    }
+
+    const token = request.auth.token || {};
+    const isAdmin =
+      token.admin === true ||
+      token.role === "admin" ||
+      token.isDirector === true ||
+      token.isSuperAdmin === true;
+
+    if (!isAdmin) {
+      throw new HttpsError("permission-denied", "Administrator privileges required.");
+    }
+
+    const { elevenLabsTtsService } = require("./services/tts");
+    try {
+      const status = await elevenLabsTtsService.verifyConnection();
+      logger.info("[verifyElevenLabsStatus] Successfully verified ElevenLabs API key in production", {
+        tier: status.tier,
+        characters: `${status.characterCount}/${status.characterLimit}`,
+      });
+      return { success: true, ...status };
+    } catch (err: any) {
+      logger.error("[verifyElevenLabsStatus] Verification failed", { error: err.message });
+      throw new HttpsError("internal", "Unable to verify ElevenLabs API key. Please check credentials and try again.");
+    }
+  }
+);
+
+const BROKEN_REPORT_WINDOW_MS = 60 * 1000;
+const MAX_BROKEN_REPORTS_PER_WINDOW = 12;
+const brokenReportRateMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkBrokenReportRateLimit(callerKey: string): boolean {
+  const now = Date.now();
+  if (brokenReportRateMap.size > 5000) {
+    for (const [k, v] of brokenReportRateMap.entries()) {
+      if (now > v.resetAt) brokenReportRateMap.delete(k);
+    }
+  }
+  const existing = brokenReportRateMap.get(callerKey);
+  if (!existing || now > existing.resetAt) {
+    brokenReportRateMap.set(callerKey, { count: 1, resetAt: now + BROKEN_REPORT_WINDOW_MS });
+    return false;
+  }
+  if (existing.count >= MAX_BROKEN_REPORTS_PER_WINDOW) {
+    return true;
+  }
+  existing.count += 1;
+  return false;
+}
+
+/**
+ * 🚨 Report Broken or 404 Source URL (onCall)
+ *
+ * Receives broken-link telemetry from TruthWorld clients when a user encounters
+ * a 404, Soft-404, or unreachable citation URL. Re-verifies server-side and
+ * triggers automatic source healing for the associated video report if confirmed dead.
+ */
+export const reportBrokenSourceUrl = onCall(
+  {
+    cors: true,
+    region: "asia-south1",
+    minInstances: 0,
+    maxInstances: 10,
+    memory: "512MiB",
+    timeoutSeconds: 60,
+  },
+  async (request) => {
+    // Require signed-in user or App Check verified client to prevent unauthenticated scraping/amplification
+    if (!request.auth?.uid && !request.app) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Authentication or a verified TruthWorld client session is required."
+      );
+    }
+
+    const forwardedHeader = request.rawRequest?.headers?.["x-forwarded-for"];
+    const clientIp = typeof forwardedHeader === "string"
+      ? forwardedHeader.split(",")[0].trim()
+      : (request.rawRequest?.ip || request.rawRequest?.socket?.remoteAddress || "");
+    const callerKey = request.auth?.uid
+      ? `uid:${request.auth.uid}`
+      : `app:${(request.app as any)?.appId || "verified"}:${clientIp || "unknown"}`;
+
+    if (checkBrokenReportRateLimit(callerKey)) {
+      logger.warn("[reportBrokenSourceUrl] Rate limit active for broken source telemetry", { callerKey });
+      return {
+        accepted: false,
+        verificationStatus: "RATE_LIMITED",
+        healedVideo: false,
+      };
+    }
+
+    const data = request.data && typeof request.data === "object" ? request.data : {};
+    const rawUrl = typeof data.url === "string" ? data.url.trim() : "";
+    if (!rawUrl || rawUrl.length > 2048 || !/^https?:\/\//i.test(rawUrl)) {
+      throw new HttpsError("invalid-argument", "Please provide a valid web source URL.");
+    }
+
+    const rawVideoId = typeof data.videoId === "string" ? data.videoId.trim() : undefined;
+    const rawClaimId = typeof data.claimId === "string" ? data.claimId.trim() : undefined;
+    const rawReason = typeof data.reason === "string" ? data.reason.trim().slice(0, 240) : undefined;
+
+    if (rawVideoId && !/^[a-zA-Z0-9_-]{1,128}$/.test(rawVideoId)) {
+      throw new HttpsError("invalid-argument", "Invalid video reference.");
+    }
+    if (rawClaimId && !/^[a-zA-Z0-9_.:-]{1,128}$/.test(rawClaimId)) {
+      throw new HttpsError("invalid-argument", "Invalid claim reference.");
+    }
+
+    const { sourceHealingService } = require("./services/sourceHealingService");
+    try {
+      const result = await sourceHealingService.recordBrokenSourceReport({
+        url: rawUrl,
+        videoId: rawVideoId,
+        claimId: rawClaimId,
+        reason: rawReason,
+        reporterUid: request.auth?.uid,
+      });
+      return result;
+    } catch (err: any) {
+      logger.error("[reportBrokenSourceUrl] Failed processing broken source telemetry", {
+        error: err?.message || String(err),
+        videoId: rawVideoId,
+      });
+      throw new HttpsError("internal", "Unable to record source feedback right now. Please try again later.");
+    }
+  }
+);
+
+/**
+ * 🩺 Audit & Heal Broken Claim Sources / Claim Cache (Admin onCall)
+ *
+ * Retroactively audits stored video fact-check reports and `claim_cache` entries
+ * to purge unverified/404 URLs and re-run Closed-World retrieval healing (e.g. Claim #18).
+ */
+export const auditAndHealBrokenSources = onCall(
+  {
+    cors: true,
+    region: "asia-south1",
+    minInstances: 0,
+    maxInstances: 3,
+    memory: "1GiB",
+    timeoutSeconds: 300,
+  },
+  async (request) => {
+    if (!request.auth || !request.auth.uid) {
+      throw new HttpsError("unauthenticated", "Authentication required to run source audits.");
+    }
+
+    const token = request.auth.token || {};
+    const isAdmin =
+      token.admin === true ||
+      token.role === "admin" ||
+      token.isDirector === true ||
+      token.isSuperAdmin === true;
+
+    if (!isAdmin) {
+      throw new HttpsError("permission-denied", "Administrator privileges required.");
+    }
+
+    const data = request.data && typeof request.data === "object" ? request.data : {};
+    const videoId = typeof data.videoId === "string" ? data.videoId.trim() : undefined;
+    if (videoId && !/^[a-zA-Z0-9_-]{1,128}$/.test(videoId)) {
+      throw new HttpsError("invalid-argument", "Invalid video reference.");
+    }
+
+    const repairWithRetrieval = data.repairWithRetrieval !== false;
+    const sweepCache = data.sweepCache === true;
+    const dryRun = data.dryRun === true;
+    const rawLimit = typeof data.limit === "number" && Number.isFinite(data.limit) ? Math.floor(data.limit) : 200;
+    const limit = Math.min(Math.max(rawLimit, 1), 1000);
+
+    const { sourceHealingService } = require("./services/sourceHealingService");
+    try {
+      const videoHealing = videoId
+        ? await sourceHealingService.auditAndHealVideoReport(videoId, { repairWithRetrieval })
+        : null;
+      const cacheAudit = sweepCache || !videoId
+        ? await sourceHealingService.auditAndHealClaimCache({ limit, dryRun })
+        : null;
+
+      return {
+        success: true,
+        videoHealing,
+        cacheAudit,
+      };
+    } catch (err: any) {
+      logger.error("[auditAndHealBrokenSources] Failed auditing sources", {
+        error: err?.message || String(err),
+        videoId,
+      });
+      throw new HttpsError("internal", "Unable to complete source audit right now. Please try again later.");
+    }
+  }
+);
+
+// ============================================================================
+// LONG-FORM DISTRIBUTED 15-MINUTE REEL DUBBING WORKERS (90–150 MIN MOVIES)
+// ============================================================================
+
+export const handleDubbingReel = onMessagePublished(
+  {
+    topic: "dubbing.reel.requested",
+    region: "asia-south1",
+    timeoutSeconds: 540,
+    memory: "2GiB",
+    minInstances: 0,
+    maxInstances: 16,
+    retry: true,
+    secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY", "GEMINI_API_KEY"],
+  },
+  async (event) => {
+    try {
+      const { DistributionLayer } = require("./layers/04-distribution");
+      const parsedEvent = DistributionLayer.parseMessage(event.data.message);
+      logger.info("[handleDubbingReel] Start", {
+        jobId: parsedEvent.jobId,
+        reelIndex: parsedEvent.data?.reelIndex,
+      });
+
+      const { dubbingEngine } = require("./layers/07-dubbing");
+      await dubbingEngine.processDubbingReel(parsedEvent.data);
+    } catch (error) {
+      logger.error("[handleDubbingReel] Reel worker failed", { error: String(error) });
+      throw error;
+    }
+  }
+);
+
+export const handleAssembleDubbingReels = onMessagePublished(
+  {
+    topic: "dubbing.reel.assemble",
+    region: "asia-south1",
+    timeoutSeconds: 540,
+    memory: "2GiB",
+    minInstances: 0,
+    maxInstances: 6,
+    retry: true,
+    secrets: ["ELEVENLABS_API_KEY"],
+  },
+  async (event) => {
+    try {
+      const { DistributionLayer } = require("./layers/04-distribution");
+      const parsedEvent = DistributionLayer.parseMessage(event.data.message);
+      logger.info("[handleAssembleDubbingReels] Start", {
+        jobId: parsedEvent.jobId,
+        totalReels: parsedEvent.data?.totalReels,
+      });
+
+      const { dubbingEngine } = require("./layers/07-dubbing");
+      await dubbingEngine.assembleDubbingReels(parsedEvent.data);
+    } catch (error) {
+      logger.error("[handleAssembleDubbingReels] Reel assembly failed", { error: String(error) });
+      throw error;
+    }
+  }
+);
+
+// ============================================================================
+// INTERACTIVE CREATOR DUBBING EDITOR CALLABLES
+// ============================================================================
+
+function getCallerIsAdmin(auth: { token?: Record<string, any> } | undefined): boolean {
+  const token = auth?.token || {};
+  return Boolean(
+    token.admin === true ||
+      token.role === "admin" ||
+      token.isDirector === true ||
+      token.isSuperAdmin === true
+  );
+}
+
+export const getDubbingEditorManifest = onCall(
+  {
+    region: "asia-south1",
+    timeoutSeconds: 60,
+    memory: "512MiB",
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Please sign in to edit dubbed audio tracks.");
+    }
+    const data = request.data && typeof request.data === "object" ? request.data : {};
+    const language = typeof data.language === "string" ? data.language.trim() : "";
+    const jobId = typeof data.jobId === "string" ? data.jobId.trim() : undefined;
+    const videoId = typeof data.videoId === "string" ? data.videoId.trim() : undefined;
+
+    if (!language || (!jobId && !videoId)) {
+      throw new HttpsError("invalid-argument", "Video or dubbing job reference and target language are required.");
+    }
+
+    const { dubbingEditorService } = require("./services/dubbingEditorService");
+    try {
+      const manifest = await dubbingEditorService.getManifest({
+        jobId,
+        videoId,
+        language,
+        uid: request.auth.uid,
+        isAdmin: getCallerIsAdmin(request.auth),
+      });
+      return { success: true, manifest };
+    } catch (err: any) {
+      if (err instanceof HttpsError) throw err;
+      logger.error("[getDubbingEditorManifest] Error:", { error: err?.message || String(err) });
+      throw new HttpsError("internal", "Unable to load the dubbing editor right now. Please try again.");
+    }
+  }
+);
+
+export const updateDubbingSegmentAndResynthesize = onCall(
+  {
+    region: "asia-south1",
+    timeoutSeconds: 120,
+    memory: "1GiB",
+    secrets: ["ELEVENLABS_API_KEY"],
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Please sign in to edit and regenerate dialogue.");
+    }
+    const data = request.data && typeof request.data === "object" ? request.data : {};
+    const jobId = typeof data.jobId === "string" ? data.jobId.trim() : "";
+    const language = typeof data.language === "string" ? data.language.trim() : "";
+    const segmentIndex = typeof data.segmentIndex === "number" ? Math.floor(data.segmentIndex) : -1;
+
+    if (!jobId || !language || segmentIndex < 0) {
+      throw new HttpsError("invalid-argument", "A valid jobId, language, and segment index are required.");
+    }
+
+    const { dubbingEditorService } = require("./services/dubbingEditorService");
+    try {
+      const result = await dubbingEditorService.updateSegmentAndResynthesize({
+        jobId,
+        language,
+        segmentIndex,
+        uid: request.auth.uid,
+        isAdmin: getCallerIsAdmin(request.auth),
+        editedText: typeof data.editedText === "string" ? data.editedText : undefined,
+        emotionTag: data.emotionTag === null ? null : typeof data.emotionTag === "string" ? data.emotionTag : undefined,
+        stabilityOverride: typeof data.stabilityOverride === "number" ? data.stabilityOverride : undefined,
+        similarityBoostOverride: typeof data.similarityBoostOverride === "number" ? data.similarityBoostOverride : undefined,
+        voiceId: typeof data.voiceId === "string" ? data.voiceId : undefined,
+      });
+      return { success: true, ...result };
+    } catch (err: any) {
+      if (err instanceof HttpsError) throw err;
+      logger.error("[updateDubbingSegmentAndResynthesize] Error:", { error: err?.message || String(err) });
+      throw new HttpsError("internal", "Unable to regenerate this dialogue line right now. Please try again.");
+    }
+  }
+);
+
+export const saveDubbingPronunciationGlossary = onCall(
+  {
+    region: "asia-south1",
+    timeoutSeconds: 60,
+    memory: "512MiB",
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Please sign in to save pronunciation rules.");
+    }
+    const data = request.data && typeof request.data === "object" ? request.data : {};
+    const jobId = typeof data.jobId === "string" ? data.jobId.trim() : "";
+    const language = typeof data.language === "string" ? data.language.trim() : "";
+    const rules = Array.isArray(data.rules) ? data.rules : [];
+
+    if (!jobId || !language) {
+      throw new HttpsError("invalid-argument", "Job reference and language are required.");
+    }
+
+    const { dubbingEditorService } = require("./services/dubbingEditorService");
+    try {
+      const result = await dubbingEditorService.savePronunciationGlossary({
+        jobId,
+        language,
+        uid: request.auth.uid,
+        isAdmin: getCallerIsAdmin(request.auth),
+        rules,
+      });
+      return { success: true, ...result };
+    } catch (err: any) {
+      if (err instanceof HttpsError) throw err;
+      logger.error("[saveDubbingPronunciationGlossary] Error:", { error: err?.message || String(err) });
+      throw new HttpsError("internal", "Unable to save the pronunciation glossary right now.");
+    }
+  }
+);
+
+export const updateDubbingSegmentTimings = onCall(
+  {
+    region: "asia-south1",
+    timeoutSeconds: 120,
+    memory: "512MiB",
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Please sign in to adjust dubbing segment timings.");
+    }
+    const data = request.data && typeof request.data === "object" ? request.data : {};
+    const jobId = typeof data.jobId === "string" ? data.jobId.trim() : "";
+    const language = typeof data.language === "string" ? data.language.trim() : "";
+    const timings = Array.isArray(data.timings) ? data.timings : [];
+
+    if (!jobId || !language) {
+      throw new HttpsError("invalid-argument", "Job reference and language are required.");
+    }
+
+    const { dubbingEditorService } = require("./services/dubbingEditorService");
+    try {
+      const result = await dubbingEditorService.updateSegmentTimings({
+        jobId,
+        language,
+        uid: request.auth.uid,
+        isAdmin: getCallerIsAdmin(request.auth),
+        timings,
+      });
+      return { success: true, ...result };
+    } catch (err: any) {
+      if (err instanceof HttpsError) throw err;
+      logger.error("[updateDubbingSegmentTimings] Error:", { error: err?.message || String(err) });
+      throw new HttpsError("internal", "Unable to save timeline adjustments right now.");
+    }
+  }
+);
+
+export const remasterDubbedAudioTrack = onCall(
+  {
+    region: "asia-south1",
+    timeoutSeconds: 540,
+    memory: "2GiB",
+    secrets: ["ELEVENLABS_API_KEY"],
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Please sign in to remaster this audio track.");
+    }
+    const data = request.data && typeof request.data === "object" ? request.data : {};
+    const jobId = typeof data.jobId === "string" ? data.jobId.trim() : "";
+    const language = typeof data.language === "string" ? data.language.trim() : "";
+    const mneGain = typeof data.mneGain === "number" && Number.isFinite(data.mneGain) ? data.mneGain : undefined;
+    const dialogueGain = typeof data.dialogueGain === "number" && Number.isFinite(data.dialogueGain) ? data.dialogueGain : undefined;
+
+    if (!jobId || !language) {
+      throw new HttpsError("invalid-argument", "Job reference and language are required.");
+    }
+
+    const { dubbingEditorService } = require("./services/dubbingEditorService");
+    try {
+      const result = await dubbingEditorService.remasterTrack({
+        jobId,
+        language,
+        uid: request.auth.uid,
+        isAdmin: getCallerIsAdmin(request.auth),
+        mneGain,
+        dialogueGain,
+      });
+      return { success: true, ...result };
+    } catch (err: any) {
+      if (err instanceof HttpsError) throw err;
+      logger.error("[remasterDubbedAudioTrack] Error:", { error: err?.message || String(err) });
+      throw new HttpsError("internal", "Unable to publish the remastered audio track right now.");
+    }
   }
 );
 

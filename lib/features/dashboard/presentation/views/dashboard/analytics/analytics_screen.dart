@@ -146,9 +146,11 @@ class AnalyticsScreen extends StatelessWidget {
                           flex: 6,
                           child: Column(
                             children: [
-                              AnalyticsTopVideosCard(
-                                topVideos: controller.topVideos,
-                                channelId: channelId,
+                              Obx(
+                                () => AnalyticsTopVideosCard(
+                                  topVideos: controller.topVideos.toList(),
+                                  channelId: channelId,
+                                ),
                               ),
                               const SizedBox(height: 24),
                               const AnalyticsViewerEngagementCard(),
@@ -174,9 +176,11 @@ class AnalyticsScreen extends StatelessWidget {
                           channelId: channelId,
                         ),
                         const SizedBox(height: 20),
-                        AnalyticsTopVideosCard(
-                          topVideos: controller.topVideos,
-                          channelId: channelId,
+                        Obx(
+                          () => AnalyticsTopVideosCard(
+                            topVideos: controller.topVideos.toList(),
+                            channelId: channelId,
+                          ),
                         ),
                         const SizedBox(height: 20),
                         const AnalyticsViewerEngagementCard(),
@@ -210,29 +214,44 @@ class AnalyticsScreen extends StatelessWidget {
             final isSelected = currentRange == range;
             return Padding(
               padding: const EdgeInsets.only(right: 8),
-              child: InkWell(
-                onTap: () => controller.setDateRange(range),
-                borderRadius: BorderRadius.circular(20),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected ? AppColors.brand : AppColors.appBarSurface,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => controller.setDateRange(range),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isSelected ? AppColors.brand : AppColors.bgSurface,
-                    ),
-                  ),
-                  child: Text(
-                    range.label,
-                    style: TextStyle(
-                      fontFamily: TWTypography.uiFamily,
-                      color: isSelected ? Colors.black : AppColors.textSecondary,
-                      fontSize: 12,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected ? AppColors.brand : AppColors.appBarSurface,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isSelected ? AppColors.brand : AppColors.bgSurface,
+                        ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: Colors.white.withValues(alpha: 0.15),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Text(
+                        range.label,
+                        style: TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          color: isSelected ? Colors.black : AppColors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                        ),
+                      ),
                     ),
                   ),
                 ),

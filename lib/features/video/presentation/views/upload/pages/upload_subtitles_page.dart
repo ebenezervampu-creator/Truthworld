@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_wallet_topup_sheet.dart';
 import 'package:truthworld/features/video/data/models/video/video_duration_utils.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_subtitles_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -348,17 +347,17 @@ class UploadSubtitlesPage extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
-            // Wallet Balance & Topup
+            // Channel Revenue & Payment
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: isInsufficient
-                    ? const Color(0xFFEF4444).withValues(alpha: 0.1)
+                    ? const Color(0xFF3B82F6).withValues(alpha: 0.1)
                     : Colors.white.withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: isInsufficient
-                      ? const Color(0xFFEF4444).withValues(alpha: 0.4)
+                      ? const Color(0xFF3B82F6).withValues(alpha: 0.4)
                       : Colors.white10,
                 ),
               ),
@@ -368,18 +367,18 @@ class UploadSubtitlesPage extends StatelessWidget {
                   Row(
                     children: [
                       Icon(
-                        Icons.account_balance_wallet_outlined,
+                        Icons.payments_outlined,
                         color: isInsufficient
-                            ? const Color(0xFFF87171)
+                            ? const Color(0xFF60A5FA)
                             : Colors.white70,
                         size: 16,
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        'Wallet Balance: \$${wallet.toStringAsFixed(2)}',
+                        'Channel Revenue: \$${wallet.toStringAsFixed(2)}',
                         style: TextStyle(
                           color: isInsufficient
-                              ? const Color(0xFFF87171)
+                              ? const Color(0xFF60A5FA)
                               : Colors.white,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -387,33 +386,26 @@ class UploadSubtitlesPage extends StatelessWidget {
                       ),
                     ],
                   ),
-                  if (controller.channel != null)
-                    GestureDetector(
-                      onTap: () {
-                        ChannelWalletTopupSheet.show(
-                          context,
-                          channel: controller.channel!,
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.brand,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          '+ Add Money',
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3.5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isInsufficient
+                          ? const Color(0xFF60A5FA).withValues(alpha: 0.15)
+                          : const Color(0xFF34D399).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      isInsufficient ? 'Direct Pay Ready' : 'Deduct from Revenue',
+                      style: TextStyle(
+                        color: isInsufficient ? const Color(0xFF60A5FA) : const Color(0xFF34D399),
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
+                  ),
                 ],
               ),
             ),
@@ -421,9 +413,9 @@ class UploadSubtitlesPage extends StatelessWidget {
             if (isInsufficient) ...[
               const SizedBox(height: 8),
               Text(
-                '⚠️ Insufficient wallet balance (\$${wallet.toStringAsFixed(2)} available vs \$${cost.toStringAsFixed(2)} required). Please top up channel wallet or reduce selected languages.',
+                'Channel revenue (\$${wallet.toStringAsFixed(2)}) is insufficient for this cost (\$${cost.toStringAsFixed(2)}). You can pay directly at upload submission.',
                 style: const TextStyle(
-                  color: Color(0xFFFCA5A5),
+                  color: AppColors.textSecondary,
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
                 ),

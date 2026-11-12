@@ -1,5 +1,5 @@
 /**
- * 🧠 LAYER 06 — CREDIBILITY ENGINE (PATH 1)
+ * 🧠 LAYER 06 — CREDIBILITY ENGINE (INDEPENDENT SYSTEM)
  *
  * Fact-checking pipeline with explainability and cost-optimised caching.
  */
@@ -41,6 +41,11 @@ import { registryService } from "../registry/RegistryService";
 import { sourceTrustService } from "../services/sourceTrustService";
 import { tier0KnowledgeService } from "../services/tier0Knowledge";
 import { getAnalysisRepository, AnalysisRepository } from "../services/analysisRepository";
+import {
+  enforceClosedWorldCitationFirewall,
+  isVerifiedRichSource,
+  sanitizeReportPayloadForClosedWorld,
+} from "../services/urlVerificationService";
 import { costEngine } from "../services/cost-engine";
 import { JobTokenTracker, normalizeToGcsUri } from "../utils/ai-utils";
 import { formatOpinionReasoning } from "../utils/opinion-formatting";
@@ -186,7 +191,8 @@ export class CredibilityEngine {
     const status = await this.distribution.checkAndMarkEventId(eventId, jobId);
     if (status === "COMPLETED") {
       logger.info("[Credibility] Duplicate — loading existing", { jobId });
-      return this.loadExistingResult(jobId);
+      const existing = await this.loadExistingResult(jobId);
+      return existing || ({} as CredibilityResult);
     }
     if (status === "PROCESSING") {
       logger.info("[Credibility] Already processing — exiting gracefully", { jobId });
@@ -194,7 +200,15 @@ export class CredibilityEngine {
     }
 
     const t0 = Date.now();
-    logger.info("[TruthEngine] Starting Path 1", { jobId, traceId });
+    logger.info("[Credibility] Starting independent Credibility pipeline", { jobId, traceId });
+    await EdgeLayer.upsertCredibilityJob(jobId, {
+      userId,
+      ...(executionPlan.videoId ? { videoId: executionPlan.videoId } : {}),
+      executionPlan,
+      status: "running",
+      progress: 5,
+      startedAt: t0,
+    });
     let transcript: any = null;
 
     // ── Input Resolution (Decoupled from AssemblyAI Transcription) ───────────
@@ -502,9 +516,9 @@ export class CredibilityEngine {
         nature: claim.nature,
         verificationConfidence: 1.0,
         reasoning: claim.nature === ClaimNature.RHETORICAL_EXAGGERATION
-          ? `Figurative expression: "${claim.text}" is identified as conversational hyperbole or rhetorical exaggeration rather than a literal empirical assertion.`
+          ? `Just an exaggeration! "${claim.text}" is a colorful way of speaking for dramatic effect, not a literal number or fact.`
           : (claim.nature === ClaimNature.SATIRE
-              ? `Satirical expression: "${claim.text}" is parodic or comedic content not intended as an empirical claim.`
+              ? `Just a joke! "${claim.text}" is playful comedy or teasing, not meant as a serious fact.`
               : formatOpinionReasoning(claim.text)),
         sources: [],
         richSources: [],
@@ -609,6 +623,7 @@ export class CredibilityEngine {
 
           const deepResearchOptions = {
             jobId: jobId,
+            functionStartTime: t0,
             groundingMode: deepResearchActive ? DEEP_RESEARCH_CONFIG.GROUNDING_MODE : (effectiveGroundingMode as any),
             forcePro: deepResearchActive && DEEP_RESEARCH_CONFIG.FORCE_PRO_MODEL,
             minSourcesRequired: DEEP_RESEARCH_CONFIG.MIN_SOURCES_PER_CLAIM,
@@ -815,23 +830,7 @@ export class CredibilityEngine {
         pipelineStartMs: t0,
         savedAt: Date.now(),
       });
-
-      // Publish credibility-synthesis event for async background completion
-      await this.distribution.publish("credibility-synthesis", {
-        eventId: uuidv4(),
-        eventType: "credibility-synthesis",
-        jobId,
-        userId,
-        timestamp: Date.now(),
-        data: {
-          jobId,
-          userId,
-          eventId,
-        },
-        retryCount: 0,
-        source: "credibility-engine",
-      });
-      logger.info("[Credibility] Async synthesis event published", { jobId });
+      logger.info("[Credibility] Verified claims draft persisted", { jobId });
 
       // Safe fallback synthesis so claims and verifications show immediately
       const hasVerifiedClaims = allVerified.length > 0;
@@ -949,8 +948,6 @@ export class CredibilityEngine {
         analysisFailureReason: undefined,
         viewerNote:       synthesis.viewerNote,
         uiReport:         undefined, // v12.0: No scoring-based UI report
-
-        trustScore:       null, // v12.0: Scoring removed
         trustLabel:       'Not Scored' as any,
         confidence:       0,
         confidenceTier:   'low' as any,
@@ -1072,6 +1069,23 @@ export class CredibilityEngine {
       // 14. Store result
       await this.storeResult(jobId, userId, result);
 
+      // Trigger async synthesis pass AFTER result is safely persisted in Storage (eliminates race condition)
+      await this.distribution.publish("credibility-synthesis", {
+        eventId: uuidv4(),
+        eventType: "credibility-synthesis",
+        jobId,
+        userId,
+        timestamp: Date.now(),
+        data: {
+          jobId,
+          userId,
+          eventId,
+        },
+        retryCount: 0,
+        source: "credibility-engine",
+      }).catch((synthErr) => logger.warn("[Credibility] Could not publish credibility-synthesis event", { jobId, err: String(synthErr) }));
+      logger.info("[Credibility] Async synthesis event published after result storage", { jobId });
+
       // 15. Cost Attribution — Track Gemini AI, Grounding, and Compute costs
       //     (Previously untracked: the largest variable cost components)
       const elapsedSec = (Date.now() - t0) / 1000;
@@ -1139,11 +1153,15 @@ export class CredibilityEngine {
         source:     "credibility-engine",
       });
 
+      await EdgeLayer.upsertCredibilityJob(jobId, {
+        status: "completed",
+        progress: 100,
+        completedAt: Date.now(),
+      });
       await aggregationLayer.onStageComplete(jobId, "credibility", userId, executionPlan);
 
-      logger.info("[TruthEngine] Completed", {
+      logger.info("[Credibility] Completed", {
         jobId,
-        rating: result.trustScore,
         ms:     result.processingTime,
         hitRate,
       });
@@ -1179,11 +1197,17 @@ export class CredibilityEngine {
         logger.warn("[Credibility] Critical Capacity Limit hit at orchestration level", { jobId });
         
         // Check if we already tried a cool-down
+        const credSnap = await db().collection("credibility_jobs").doc(jobId).get().catch(() => null);
         const jobSnap = await db().collection("video_jobs").doc(jobId).get();
-        const retryCount = (jobSnap.data()?.credibilityRetryCount || 0);
+        const retryCount = credSnap?.exists && typeof credSnap.data()?.retryCount === "number"
+          ? credSnap.data()!.retryCount
+          : (jobSnap.data()?.credibilityRetryCount || 0);
         
         if (retryCount < 1) {
-           await db().collection("video_jobs").doc(jobId).update({ credibilityRetryCount: retryCount + 1 });
+           await Promise.all([
+             db().collection("video_jobs").doc(jobId).update({ credibilityRetryCount: retryCount + 1 }).catch(() => {}),
+             EdgeLayer.upsertCredibilityJob(jobId, { retryCount: retryCount + 1 }),
+           ]);
            logger.info("[Credibility] Scheduling a 60s cool-down retry...", { jobId });
            
            // We throw a specific error that the outer orchestrator can catch to retry the task
@@ -1196,6 +1220,11 @@ export class CredibilityEngine {
         // If second attempt also fails, fallback to PARTIAL/UNVERIFIED instead of hard failure
         const fallbackResult = this.generateCapacityFallbackResult(jobId, userId, errMsg, transcript);
         await this.storeResult(jobId, userId, fallbackResult);
+        await EdgeLayer.upsertCredibilityJob(jobId, {
+          status: "completed",
+          progress: 100,
+          completedAt: Date.now(),
+        });
 
         // 🚨 VITAL FIX: Notify orchestration that the stage is complete (even if degraded)
         // Without this, the UI and Aggregation Layer will hang forever waiting for 'credibility'.
@@ -1222,7 +1251,13 @@ export class CredibilityEngine {
         return fallbackResult;
       }
 
-      await EdgeLayer.failJob(jobId, "credibility", errMsg);
+      await EdgeLayer.failStage(jobId, "credibility", errMsg);
+      await EdgeLayer.upsertCredibilityJob(jobId, {
+        status: "failed",
+        error: errMsg,
+        completedAt: Date.now(),
+      });
+      await aggregationLayer.onStageComplete(jobId, "credibility", userId, executionPlan).catch(() => {});
       throw error;
     }
   }
@@ -1235,7 +1270,6 @@ export class CredibilityEngine {
     return {
       analysisState: 'ANALYSIS_INCOMPLETE' as any,
       scoreAvailable: false,
-      trustScore: null,
       trustLabel: 'Not Scored' as any,
       confidence: 0,
       confidenceTier: 'low' as any,
@@ -1358,7 +1392,8 @@ export class CredibilityEngine {
   }
 
   private buildExplainability(verified: VerifiedClaim[]): ExplainabilityResult[] {
-    return verified.map((claim, idx) => {
+    return verified.map((rawClaim, idx) => {
+      const claim = enforceClosedWorldCitationFirewall(rawClaim);
       const severityLabels: Record<string, string> = {
         low: "Minor error / Inaccuracy",
         medium: "Misleading context",
@@ -1423,40 +1458,29 @@ export class CredibilityEngine {
         correction:     ['incorrect', 'historical_consensus_denial', 'incorrect_citation'].includes(claim.status)
           ? `Correction: ${claim.reasoning}`
           : (claim.reasoning || undefined),
-        sources:        claim.richSources && claim.richSources.length > 0
-          ? claim.richSources.map(rs => {
-              const dom = rs.domain || SourceAvatarService.cleanDomain(rs.url);
-              const avatar = SourceAvatarService.resolveAvatar(dom, rs.publisher || rs.author);
-              return {
-                title:          rs.title,
-                url:            rs.url,
-                domain:         dom,
-                publisher:      rs.publisher || rs.author,
-                publishedAt:    rs.publishedAt || rs.lastPublished || (rs.yearPublished ? `${rs.yearPublished}` : undefined),
-                avatarUrl:      avatar,
-                snippet:        rs.snippet || "",
-                relevanceScore: 0.9,
-                tier:           rs.tier,       // v5.0
-                provenance:     rs.snippet     // v5.0: Source snippet used as provenance
-              };
-            })
-          : (claim.sources ?? []).map((s: string) => {
-              const dom = sourceTrustService.resolvePublisherDomain(s) || SourceAvatarService.cleanDomain(s);
-              const url = s.startsWith("http")
-                ? s
-                : (dom
-                    ? `https://${dom}`
-                    : (s.trim().length > 0 ? `https://www.google.com/search?q=${encodeURIComponent(s.trim())}` : undefined));
-              const avatar = SourceAvatarService.resolveAvatar(dom, s);
-              return {
-                title:          s,
-                url:            url,
-                domain:         dom,
-                avatarUrl:      avatar,
-                snippet:        "",
-                relevanceScore: 0.8,
-              };
-            }),
+        sources:        (claim.richSources && claim.richSources.length > 0)
+          ? claim.richSources
+              .filter((rs) => isVerifiedRichSource(rs))
+              .map(rs => {
+                const dom = rs.domain || SourceAvatarService.cleanDomain(rs.url);
+                const avatar = SourceAvatarService.resolveAvatar(dom, rs.publisher || rs.author);
+                return {
+                  title:          rs.title,
+                  url:            rs.url,
+                  domain:         dom,
+                  publisher:      rs.publisher || rs.author,
+                  publishedAt:    rs.publishedAt || rs.lastPublished || (rs.yearPublished ? `${rs.yearPublished}` : undefined),
+                  avatarUrl:      avatar,
+                  snippet:        rs.snippet || "",
+                  relevanceScore: 0.9,
+                  tier:           rs.tier,       // v5.0
+                  provenance:     rs.snippet,    // v5.0: Source snippet used as provenance
+                  urlVerification: rs.urlVerification,
+                };
+              })
+          : [],
+        sourceStatus:   claim.sourceStatus || ((claim.richSources || []).some((rs) => isVerifiedRichSource(rs)) ? "partial" : "missing"),
+        verifiedAcademicMetadata: claim.verifiedAcademicMetadata,
         start:          claim.start ?? 0,
         startMs:        claim.start ?? 0,
         end:            claim.end   ?? 0,
@@ -1474,37 +1498,40 @@ export class CredibilityEngine {
     userId: string,
     result: CredibilityResult
   ): Promise<void> {
-    const { path: latestPath } = await this.analysisRepository.saveAnalysis(jobId, "factChecks", result);
+    const sanitizedResult = sanitizeReportPayloadForClosedWorld(result);
+    const { path: latestPath } = await this.analysisRepository.saveAnalysis(jobId, "factChecks", sanitizedResult);
     const bucket = admin.storage().bucket();
     const factCheckUrl = `gs://${bucket.name}/${latestPath}`;
 
-    // v12.1 FIX: Distinguish between "unscored" (null) and "scored 0" (genuine low-trust).
-    // When scoring is disabled (v12.0 decoupled mode), trustScore is null — do NOT coerce to 0.
-    const isScored = result.scoreAvailable !== false && result.trustScore !== null && !isNaN(result.trustScore as any);
-    const finalTrustScore = isScored ? (result.trustScore as number) : null;
-    // Update video_jobs with the factCheckUrl
-    await db().collection("video_jobs").doc(jobId).update({
-      "outputs.factCheckUrl": factCheckUrl,
-      "outputs.trustScore": finalTrustScore,
-      "outputs.scoreAvailable": isScored,
-      updatedAt: Date.now(),
-    });
+    // Industry Standard Resilient Multi-Path Storage:
+    // Persist full.json and latest.json directly so all readers resolve consistently
+    try {
+      await Promise.all([
+        bucket.file(`factChecks/${jobId}/full.json`).save(JSON.stringify(sanitizedResult), {
+          metadata: { contentType: "application/json" }
+        }),
+        bucket.file(`factChecks/${jobId}/latest.json`).save(JSON.stringify(sanitizedResult), {
+          metadata: { contentType: "application/json" }
+        }),
+      ]);
+    } catch (saveErr) {
+      logger.warn("[Credibility] Non-fatal direct full.json storage backup warning", { jobId, err: String(saveErr) });
+    }
+
+    // Update video_jobs and independent credibility_jobs with the factCheckUrl
+    await Promise.all([
+      db().collection("video_jobs").doc(jobId).update({
+        "outputs.factCheckUrl": factCheckUrl,
+        updatedAt: Date.now(),
+      }),
+      EdgeLayer.upsertCredibilityJob(jobId, {
+        factCheckUrl,
+        progress: 95,
+      }),
+    ]);
 
     // Skip Firestore factChecks write to comply with storage-only verification results policy
     logger.info("[Credibility] Skipped Firestore factChecks write, result saved to Storage only", { jobId });
-
-    // v12.1 FIX: Only update channel reputation when a real score was computed.
-    // Writing unscored sentinel values into EWMA would poison channel ratings.
-    if (isScored && finalTrustScore !== null) {
-      try {
-        const { updateChannelReputationAndVideos } = await import("../../channels/reputation_triggers.js");
-        await updateChannelReputationAndVideos(jobId, finalTrustScore);
-      } catch (err) {
-        logger.error("[Credibility] Failed to propagate reputation updates", { jobId, err });
-      }
-    } else {
-      logger.info("[Credibility] Skipped reputation update — scoring not available (v12.0 decoupled mode)", { jobId });
-    }
 
     // Note: Propagation to video collection is now handled centrally by AggregationLayer.onStageComplete
     // which is called immediately after this method returns in runCredibilityPipeline.
@@ -1512,7 +1539,6 @@ export class CredibilityEngine {
     // Initialize/Update Creator Trust Score (Exponential Moving Average later)
     await db().collection("users").doc(userId).set({
        creatorTrustVersion: 30,
-       latestTrustScore: result.trustScore,
        factors: result.factors,
        updatedAt: Date.now()
     }, { merge: true });
@@ -1548,10 +1574,52 @@ export class CredibilityEngine {
       return;
     }
 
-    const existingResult = await this.loadExistingResult(jobId);
+    let existingResult = await this.loadExistingResult(jobId);
     if (!existingResult) {
-      logger.error("[CredibilityEngine.runSynthesisPass] Existing CredibilityResult not found", { jobId });
-      return;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        await new Promise(r => setTimeout(r, 1000 * attempt));
+        existingResult = await this.loadExistingResult(jobId);
+        if (existingResult) break;
+      }
+    }
+
+    if (!existingResult) {
+      logger.warn("[CredibilityEngine.runSynthesisPass] Existing CredibilityResult not found in storage, synthesizing from draft claims directly", { jobId });
+      existingResult = {
+        analysisState: 'VERIFIED' as any,
+        scoreAvailable: false,
+        analysisFailureReason: undefined,
+        trustLabel: 'Not Scored' as any,
+        confidence: 0,
+        confidenceTier: 'low' as any,
+        factors: null,
+        chapters: [],
+        speakers: [],
+        speakerIdentities,
+        claims: this.buildExplainability(verifiedClaims),
+        factCheckStats: draft.factCheckStats,
+        filteringReasons: [],
+        contentIntent: draft.contentIntent,
+        scoringMethod: 'balanced',
+        diagnostics: [],
+        confidenceNotes: [],
+        synthesisTier,
+        factCheckTier: 'standard',
+        isLongform: false,
+        isFinal: true,
+        summary: "",
+        conclusion: { label: "Review Complete", text: "", confidence: 0.8, sources: [] },
+        domain: draft.domainInfo?.domain || "General",
+        isLaunchNews: !!draft.domainInfo?.isLaunchNews,
+        evaluationHealth,
+        verifiedAt: Date.now(),
+        processingTime: 0,
+        versions: { model: "Gemini 2.5 Multi-Model", scoring: "v12.0-no-scoring", registry: "v3-blended" },
+        llmProvider: "Gemini 2.5 (Flash+Pro)",
+        sttProvider: "AssemblyAI",
+        language: "en",
+        latencyMs: { extraction: 0, verification: 0, consistency: 0, synthesis: 0, total: 0 },
+      } as any;
     }
 
     const speakerCount = Object.keys(speakerIdentities).length;
@@ -1579,9 +1647,10 @@ export class CredibilityEngine {
       const fallbackSources: any[] = [];
       const seenFallbackKeys = new Set<string>();
       for (const c of verifiedClaims) {
-        const sList = (c as any).sources || (c as any).richSources || (c as any).effectiveSources || [];
+        const sList = (c as any).richSources || [];
         for (const s of sList) {
-          const k = (s.url || s.domain || s.title || "").toLowerCase();
+          if (!isVerifiedRichSource(s)) continue;
+          const k = (s.url || "").toLowerCase();
           if (k && !seenFallbackKeys.has(k)) {
             seenFallbackKeys.add(k);
             fallbackSources.push({
@@ -1591,6 +1660,7 @@ export class CredibilityEngine {
               trustLevel: s.tier === 'A' || s.tier === 'B' ? 'High' : 'Medium',
               type: s.type || 'Supporting',
               snippet: s.snippet || "",
+              urlVerification: s.urlVerification,
             });
           }
         }
@@ -1621,17 +1691,21 @@ export class CredibilityEngine {
     }
 
     // Patch existingResult with synthesized fields
-    existingResult.summary = synthesis.summary;
-    existingResult.conclusion = synthesis.conclusion;
-    existingResult.viewerNote = synthesis.viewerNote;
-    existingResult.chapters = synthesis.chapters || existingResult.chapters || [];
-    existingResult.keyThemes = synthesis.keyThemes || existingResult.keyThemes || [];
-    existingResult.manipulationScore = synthesis.manipulationScore;
+    const targetResult = existingResult!;
+    targetResult.summary = synthesis.summary;
+    targetResult.conclusion = synthesis.conclusion;
+    targetResult.viewerNote = synthesis.viewerNote;
+    targetResult.chapters = synthesis.chapters || targetResult.chapters || [];
+    targetResult.keyThemes = synthesis.keyThemes || targetResult.keyThemes || [];
+    targetResult.manipulationScore = synthesis.manipulationScore;
+
+    // Enforce Closed-World persistence invariant before saving GCS / Firestore artifacts
+    const sanitizedExistingResult = sanitizeReportPayloadForClosedWorld(targetResult);
 
     // Save updated result to GCS analysis repository and full.json
-    await this.analysisRepository.saveAnalysis(jobId, "factChecks", existingResult);
+    await this.analysisRepository.saveAnalysis(jobId, "factChecks", sanitizedExistingResult);
     const bucket = admin.storage().bucket();
-    await bucket.file(`factChecks/${jobId}/full.json`).save(JSON.stringify(existingResult), {
+    await bucket.file(`factChecks/${jobId}/full.json`).save(JSON.stringify(sanitizedExistingResult), {
       metadata: { contentType: "application/json" }
     });
 
@@ -1653,10 +1727,32 @@ export class CredibilityEngine {
     logger.info("[CredibilityEngine.runSynthesisPass] Successfully completed async synthesis pass and deleted draft", { jobId });
   }
 
-  private async loadExistingResult(jobId: string): Promise<CredibilityResult> {
+  private async loadExistingResult(jobId: string): Promise<CredibilityResult | null> {
+    try {
+      const repoResult = await this.analysisRepository.loadAnalysis(jobId, "factChecks");
+      if (repoResult) return repoResult as CredibilityResult;
+    } catch (e) {
+      logger.warn("[Credibility] loadAnalysis failed, checking direct GCS paths", { jobId, err: String(e) });
+    }
+
     const bucket = admin.storage().bucket();
-    const [data] = await bucket.file(`factChecks/${jobId}/full.json`).download();
-    return JSON.parse(data.toString()) as CredibilityResult;
+    const candidatePaths = [
+      `factChecks/${jobId}/full.json`,
+      `factChecks/${jobId}/latest.json`,
+    ];
+
+    for (const p of candidatePaths) {
+      try {
+        const file = bucket.file(p);
+        const [exists] = await file.exists();
+        if (exists) {
+          const [data] = await file.download();
+          return JSON.parse(data.toString()) as CredibilityResult;
+        }
+      } catch (_) {}
+    }
+
+    return null;
   }
 
   private async loadTranscript(jobId: string): Promise<any | null> {

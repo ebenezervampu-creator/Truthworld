@@ -51,7 +51,6 @@ void main() {
         'enableComments': true,
         'isMonetized': false,
         'allowRatings': true,
-        'trustScore': 85.0,
       };
     });
 
@@ -73,7 +72,6 @@ void main() {
       expect(video.isShort, false);
       expect(video.isKidFriendly, true);
       expect(video.enableComments, true);
-      expect(video.trustScore, 85.0);
     });
 
     test('creates Video from map with missing optional fields', () {
@@ -123,7 +121,6 @@ void main() {
       // Compatibility getters
       expect(video.likes, video.likeCount);
       expect(video.views, video.viewCount);
-      expect(video.trustIndex, video.trustScore);
     });
 
     test('resolvedViewCount correctly resolves positive views when viewCount is 0', () {

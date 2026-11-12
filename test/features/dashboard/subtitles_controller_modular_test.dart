@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import '../../test_helpers/mock_firebase.dart';
 
 void main() {
@@ -181,6 +183,47 @@ void main() {
       // 100% translation moves to stage 3 (75%..95%)
       final p100 = (75 + (100 * 0.20)).round().clamp(75, 95);
       expect(p100, 95);
+    });
+
+    test('deleteLanguageTrack removes subtitle and updates selectedVideo and localizationCache', () async {
+      final controller = Get.put(SubtitlesController());
+      final video = Video.empty().copyWith(
+        id: 'test_vid_sub_1',
+        title: 'Sample Video',
+        language: 'en',
+        languages: const ['te'],
+        mediaSubtitles: const {
+          'en': 'https://example.com/en.vtt',
+          'te': 'https://example.com/te.vtt',
+        },
+      );
+
+      controller.videos.assignAll([video]);
+      controller.filteredVideos.assignAll([video]);
+      controller.selectedVideo.value = video;
+      controller.availableLanguages.assignAll(['en', 'te']);
+      controller.selectedLanguage.value = 'te';
+
+      // Verify initial state
+      expect(controller.selectedVideo.value!.mediaSubtitles.containsKey('te'), isTrue);
+      expect(controller.availableLanguages.contains('te'), isTrue);
+
+      // Cannot delete base track 'en'
+      await controller.deleteLanguageTrack('en');
+      expect(controller.selectedVideo.value!.mediaSubtitles.containsKey('en'), isTrue);
+
+      // Successfully delete non-base subtitle 'te'
+      await controller.deleteLanguageTrack('te');
+
+      // Verify 'te' is removed from selectedVideo.value
+      expect(controller.selectedVideo.value!.mediaSubtitles.containsKey('te'), isFalse);
+      expect(controller.selectedVideo.value!.mediaSubtitles.containsKey('en'), isTrue);
+      expect(controller.availableLanguages.contains('te'), isFalse);
+      expect(controller.selectedVideo.value!.languages.contains('te'), isFalse);
+
+      // Verify localizationCache is updated
+      final cached = VideoMediaService.localizationCache['test_vid_sub_1'];
+      expect(cached?.subtitles.containsKey('te') ?? false, isFalse);
     });
   });
 }

@@ -1,6 +1,17 @@
 import * as admin from "firebase-admin";
+import { EvidenceRole, EvidentiaryStance, ClaimStatus } from "../types";
 
 export type SourceTier = "A" | "B" | "C" | "D" | "E";
+
+export interface EpistemicInvariantResult {
+  invariantVerdict: ClaimStatus;
+  supportMass: number;
+  contradictMass: number;
+  highestTierSupport?: SourceTier;
+  highestTierContradict?: SourceTier;
+  isOverridden: boolean;
+  reason: string;
+}
 
 export interface SourceReputation {
   domain: string;
@@ -8,6 +19,27 @@ export interface SourceReputation {
   reputationScore: number; // 0.0 - 1.0
   verticals?: string[];    // Areas of high expertise
   isOfficial?: boolean;
+  isRetracted?: boolean;
+  retractionReason?: string;
+  isProvisionallyDowngraded?: boolean;
+}
+
+export interface FormalRetractionRecord {
+  targetUrlOrDoi: string;
+  sourceDomain: string;
+  retractingEntity: string;
+  reason: string;
+  retractedAtUtc: string;
+  formalNoticeUrl?: string;
+}
+
+export interface ProvisionalDowngradeRecord {
+  domain: string;
+  downgradedTier: SourceTier;
+  reducedReputationScore: number;
+  reason: string;
+  authorizedByQuorum: boolean;
+  authorizedAtUtc: string;
 }
 
 /**
@@ -27,6 +59,54 @@ export class SourceTrustService {
   private dbPublishers: any[] = [];
   private lastFetched = 0;
   private FETCH_INTERVAL_MS = 600_000; // 10 minutes cache
+
+  // Formal scientific/journal retractions registry
+  private formalRetractions: Map<string, FormalRetractionRecord> = new Map();
+  // Authorized institutional provisional downgrades (ombudsman/quorum approved)
+  private provisionalDowngrades: Map<string, ProvisionalDowngradeRecord> = new Map();
+
+  /**
+   * Register a formal publication, study, or artifact retraction.
+   * Invalidates specific articles or DOIs, reducing their reputation weight to 0.0.
+   */
+  public registerFormalRetraction(record: FormalRetractionRecord): void {
+    const key = record.targetUrlOrDoi.toLowerCase().trim();
+    this.formalRetractions.set(key, record);
+  }
+
+  /**
+   * Check if a specific URL, DOI, or artifact is formally retracted.
+   */
+  public isRetracted(urlOrDoi: string): boolean {
+    if (!urlOrDoi) return false;
+    const clean = urlOrDoi.toLowerCase().trim();
+    if (this.formalRetractions.has(clean)) return true;
+    for (const [key] of this.formalRetractions.entries()) {
+      if (clean.includes(key) || key.includes(clean)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Apply an authorized provisional institutional downgrade.
+   * Authorized by multi-signatory ombudsman quorum (e.g., following systemic misconduct).
+   * Note: Raw community report spikes CANNOT trigger this (protected by TN-08).
+   */
+  public applyAuthorizedProvisionalDowngrade(record: ProvisionalDowngradeRecord): void {
+    if (!record.authorizedByQuorum) {
+      throw new Error("Provisional downgrade rejected: Multi-signatory quorum authorization required.");
+    }
+    const cleanDomain = record.domain.toLowerCase().trim();
+    this.provisionalDowngrades.set(cleanDomain, record);
+  }
+
+  /**
+   * Clear test overrides.
+   */
+  public resetDynamicOverrides(): void {
+    this.formalRetractions.clear();
+    this.provisionalDowngrades.clear();
+  }
 
   private static readonly TRUST_GRAPH: Record<string, SourceReputation> = {
     // Tier A: Global Multilateral / Scientific Bodies & Space Agencies
@@ -71,6 +151,10 @@ export class SourceTrustService {
     "icij.org": { domain: "icij.org", tier: "A", reputationScore: 0.98, verticals: ["investigative", "finance", "global"], isOfficial: false },
     "ourworldindata.org": { domain: "ourworldindata.org", tier: "A", reputationScore: 0.98, verticals: ["science", "economics", "health", "climate"], isOfficial: false },
     "archive.org": { domain: "archive.org", tier: "A", reputationScore: 0.99, verticals: ["history", "archive", "primary_source"], isOfficial: false },
+    "biblegateway.com": { domain: "biblegateway.com", tier: "B", reputationScore: 0.90, verticals: ["religion", "scripture", "history"], isOfficial: true },
+    "quran.com": { domain: "quran.com", tier: "B", reputationScore: 0.90, verticals: ["religion", "scripture"], isOfficial: true },
+    "sefaria.org": { domain: "sefaria.org", tier: "B", reputationScore: 0.90, verticals: ["religion", "scripture"], isOfficial: true },
+    "gutenberg.org": { domain: "gutenberg.org", tier: "B", reputationScore: 0.90, verticals: ["literature", "history", "primary_source"], isOfficial: true },
 
     // Tier B: Esteemed Global Broadcasters, Investigative Press, Curated Reference & Fact-Checking Networks
     "britannica.com": { domain: "britannica.com", tier: "B", reputationScore: 0.92, verticals: ["history", "science", "reference", "general"], isOfficial: false },
@@ -556,6 +640,33 @@ export class SourceTrustService {
    */
   resolveSourceTrust(url: string, vertical?: string): SourceReputation {
     const domain = this.extractDomain(url).toLowerCase();
+
+    // 1. Check if the specific URL or artifact is formally retracted
+    if (this.isRetracted(url)) {
+      const retraction = [...this.formalRetractions.values()].find(r => 
+        url.toLowerCase().includes(r.targetUrlOrDoi.toLowerCase())
+      );
+      return {
+        domain,
+        tier: "E",
+        reputationScore: 0.0,
+        isOfficial: false,
+        isRetracted: true,
+        retractionReason: retraction?.reason || "Formally retracted by publishing journal or authority."
+      };
+    }
+
+    // 2. Check if the domain has an authorized provisional downgrade
+    const downgrade = this.provisionalDowngrades.get(domain);
+    if (downgrade) {
+      return {
+        domain,
+        tier: downgrade.downgradedTier,
+        reputationScore: downgrade.reducedReputationScore,
+        isOfficial: false,
+        isProvisionallyDowngraded: true,
+      };
+    }
     
     // Check dynamic registry first, fall back to static
     const rep = this.dbRegistry[domain] || SourceTrustService.TRUST_GRAPH[domain];
@@ -574,9 +685,13 @@ export class SourceTrustService {
     let reputationScore = 0.4; // Default base trust
 
     // 1. Social/Forum/UGC
-    const ugcPatterns = [/reddit\.com/i, /twitter\.com/i, /x\.com/i, /facebook\.com/i, /youtube\.com/i, /instagram\.com/i, /medium\.com/i, /quora\.com/i];
+    const ugcPatterns = [
+      /reddit\.com/i, /twitter\.com/i, /x\.com/i, /facebook\.com/i, /youtube\.com/i,
+      /instagram\.com/i, /medium\.com/i, /quora\.com/i, /scribd\.com/i, /tiktok\.com/i,
+      /threads\.net/i, /substack\.com/i, /linkedin\.com/i, /pinterest\.com/i
+    ];
     // 2. Blog check
-    const isBlog = domain.includes("blog") || domain.includes("wordpress") || domain.includes("tumblr");
+    const isBlog = domain.includes("blog") || domain.includes("wordpress") || domain.includes("tumblr") || domain.includes("blogspot");
 
     if (ugcPatterns.some(p => p.test(domain)) || isBlog) {
       tier = "E";
@@ -664,20 +779,60 @@ export class SourceTrustService {
   /**
    * Resolves official publishers from URLs and handles UGC filtering.
    */
-  resolvePublisher(url: string): { publisher?: string; tier?: SourceTier; isSecondary?: boolean; isRejectedUgc?: boolean } {
+  resolvePublisher(url: string): {
+    publisher?: string;
+    tier?: SourceTier;
+    isSecondary?: boolean;
+    isRejectedUgc?: boolean;
+    isQuarantined?: boolean;
+    isScribd?: boolean;
+    rejectionReason?: string;
+  } {
     const urlLower = url.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, "");
     
-    // Check if UGC domain
-    const ugcDomains = ["youtube.com", "reddit.com", "x.com", "twitter.com"];
-    const isUgc = ugcDomains.some(d => urlLower.startsWith(d));
+    // Explicit platforms with hard rejections
+    if (urlLower.startsWith("scribd.com")) {
+      return {
+        isRejectedUgc: true,
+        isQuarantined: true,
+        isScribd: true,
+        tier: "E",
+        rejectionReason: "UGC document platform (Scribd) is quarantined and cannot serve as authoritative evidence"
+      };
+    }
+    if (urlLower.startsWith("reddit.com")) {
+      return {
+        isRejectedUgc: true,
+        tier: "E",
+        rejectionReason: "UGC forum (Reddit) cannot serve as authoritative evidence"
+      };
+    }
+    if (urlLower.startsWith("quora.com")) {
+      return {
+        isRejectedUgc: true,
+        tier: "E",
+        rejectionReason: "UGC forum (Quora) cannot serve as authoritative evidence"
+      };
+    }
+    if (urlLower.startsWith("medium.com") || urlLower.startsWith("substack.com") || urlLower.startsWith("wordpress.com") || urlLower.startsWith("blogspot.com") || urlLower.startsWith("tumblr.com")) {
+      return {
+        isRejectedUgc: true,
+        tier: "E",
+        rejectionReason: "Independent blog/self-publishing platform cannot serve as primary authoritative evidence"
+      };
+    }
+
+    const socialDomains = ["youtube.com", "x.com", "twitter.com", "tiktok.com", "facebook.com", "instagram.com", "threads.net", "linkedin.com", "pinterest.com", "t.me", "telegram.org"];
+    const isSocial = socialDomains.some(d => urlLower.startsWith(d));
 
     const allPublishers = [...this.dbPublishers, ...SourceTrustService.PUBLISHERS];
 
-    if (isUgc) {
-      // Find matching official social handle
+    if (isSocial) {
+      // Find matching official social handle (must match domain and channel/account path)
       for (const pub of allPublishers) {
         for (const handle of pub.socialHandles) {
-          if (urlLower.startsWith(handle) || urlLower.includes("/" + handle.split("/")[1])) {
+          const cleanHandle = handle.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, "");
+          if (urlLower === cleanHandle || urlLower.startsWith(cleanHandle + "/") || urlLower.startsWith(cleanHandle + "?")) {
             return {
               publisher: pub.name,
               tier: pub.defaultTier,
@@ -686,7 +841,11 @@ export class SourceTrustService {
           }
         }
       }
-      return { isRejectedUgc: true };
+      return {
+        isRejectedUgc: true,
+        tier: "E",
+        rejectionReason: "Unverified social media content cannot serve as authoritative evidence"
+      };
     }
 
     // Non-UGC: Find matching official domain
@@ -722,6 +881,254 @@ export class SourceTrustService {
       }
     }
     return undefined;
+  }
+
+  /**
+   * P7.1: Domain-Role Precedence Matrix (M_domain).
+   * Maps claim domain context and evidence role to a precedence multiplier [0.0 - 1.0].
+   * Ensures primary records take precedence in legal/finance, meta-analyses in health,
+   * and frontline investigative reporting in breaking news.
+   */
+  public getDomainRoleMultiplier(domainContext: string, role: EvidenceRole): number {
+    const d = (domainContext || "general").toLowerCase().trim();
+
+    // Legal / Regulatory Domain
+    if (d.includes("legal") || d.includes("court") || d.includes("crime") || d.includes("law") || d.includes("regulatory")) {
+      switch (role) {
+        case EvidenceRole.PRIMARY_RECORD: return 1.0;            // Official court docket / gazette
+        case EvidenceRole.INVESTIGATIVE_REPORTING: return 0.75;  // Investigative press reporting on filings
+        case EvidenceRole.INDEPENDENT_CORROBORATION: return 0.70;
+        case EvidenceRole.EXPERT_SYNTHESIS: return 0.65;
+        case EvidenceRole.OFFICIAL_ASSERTION: return 0.40;       // Statement by accused/litigant
+        case EvidenceRole.SECONDARY_COMMENTARY: return 0.30;
+        default: return 0.50;
+      }
+    }
+
+    // Health / Clinical / Medical Domain
+    if (d.includes("health") || d.includes("medical") || d.includes("pharma") || d.includes("clinical") || d.includes("epidemiology")) {
+      switch (role) {
+        case EvidenceRole.EXPERT_SYNTHESIS: return 1.0;          // Systematic reviews, meta-analyses (Cochrane, Lancet)
+        case EvidenceRole.PRIMARY_RECORD: return 0.90;           // Published clinical trial results
+        case EvidenceRole.INDEPENDENT_CORROBORATION: return 0.80;
+        case EvidenceRole.OFFICIAL_ASSERTION: return 0.60;       // Public health body advisory
+        case EvidenceRole.INVESTIGATIVE_REPORTING: return 0.50;
+        case EvidenceRole.SECONDARY_COMMENTARY: return 0.30;
+        default: return 0.50;
+      }
+    }
+
+    // Breaking News / Geopolitics / Conflict
+    if (d.includes("news") || d.includes("geopolitics") || d.includes("conflict") || d.includes("war") || d.includes("politics")) {
+      switch (role) {
+        case EvidenceRole.INVESTIGATIVE_REPORTING: return 1.0;   // Frontline wire bureau / verified OSINT
+        case EvidenceRole.OFFICIAL_ASSERTION: return 0.85;       // Diplomatic communiqué / official statement
+        case EvidenceRole.INDEPENDENT_CORROBORATION: return 0.85;
+        case EvidenceRole.PRIMARY_RECORD: return 0.80;
+        case EvidenceRole.EXPERT_SYNTHESIS: return 0.40;         // Stale post-event analysis
+        case EvidenceRole.SECONDARY_COMMENTARY: return 0.30;
+        default: return 0.50;
+      }
+    }
+
+    // Economics / Finance Domain
+    if (d.includes("finance") || d.includes("economy") || d.includes("economic") || d.includes("market") || d.includes("banking")) {
+      switch (role) {
+        case EvidenceRole.PRIMARY_RECORD: return 1.0;            // Central bank ledger, SEC/MCA filings, census
+        case EvidenceRole.INVESTIGATIVE_REPORTING: return 0.85;  // Financial press investigative pieces
+        case EvidenceRole.EXPERT_SYNTHESIS: return 0.80;
+        case EvidenceRole.INDEPENDENT_CORROBORATION: return 0.75;
+        case EvidenceRole.OFFICIAL_ASSERTION: return 0.60;
+        case EvidenceRole.SECONDARY_COMMENTARY: return 0.35;
+        default: return 0.50;
+      }
+    }
+
+    // Science / Technology Domain
+    if (d.includes("science") || d.includes("technology") || d.includes("tech") || d.includes("physics") || d.includes("astronomy")) {
+      switch (role) {
+        case EvidenceRole.EXPERT_SYNTHESIS: return 1.0;          // Meta-analyses / literature reviews
+        case EvidenceRole.PRIMARY_RECORD: return 0.95;           // Original peer-reviewed journal papers
+        case EvidenceRole.INDEPENDENT_CORROBORATION: return 0.85;
+        case EvidenceRole.INVESTIGATIVE_REPORTING: return 0.75;
+        case EvidenceRole.OFFICIAL_ASSERTION: return 0.65;
+        case EvidenceRole.SECONDARY_COMMENTARY: return 0.40;
+        default: return 0.50;
+      }
+    }
+
+    // General / Default Domain
+    switch (role) {
+      case EvidenceRole.PRIMARY_RECORD: return 0.95;
+      case EvidenceRole.EXPERT_SYNTHESIS: return 0.90;
+      case EvidenceRole.INDEPENDENT_CORROBORATION: return 0.85;
+      case EvidenceRole.INVESTIGATIVE_REPORTING: return 0.80;
+      case EvidenceRole.OFFICIAL_ASSERTION: return 0.65;
+      case EvidenceRole.SECONDARY_COMMENTARY: return 0.40;
+      default: return 0.50;
+    }
+  }
+
+  /**
+   * P7.1: Calculates non-negative Evidentiary Capacity (C_s >= 0).
+   * C_s = W_base * M_domain * Relevance * Independence
+   */
+  public calculateEvidentiaryCapacity(params: {
+    baseReliability: number;
+    domainContext?: string;
+    role?: EvidenceRole;
+    relevance?: number;
+    independenceFactor?: number;
+  }): number {
+    const wBase = Math.max(0.0, Math.min(1.0, params.baseReliability ?? 0.5));
+    const mDomain = this.getDomainRoleMultiplier(
+      params.domainContext || "general",
+      params.role || EvidenceRole.SECONDARY_COMMENTARY
+    );
+    const relevance = Math.max(0.0, Math.min(1.0, params.relevance ?? 1.0));
+    const independence = Math.max(0.2, Math.min(1.0, params.independenceFactor ?? 1.0));
+
+    const capacity = wBase * mDomain * relevance * independence;
+    return Math.max(0.0, Math.min(1.0, Math.round(capacity * 1000) / 1000));
+  }
+
+  /**
+   * P7.1: Dual-Mass Aggregation & Epistemic Invariant Evaluator.
+   * Enforces the non-negotiable rule: unproven is the epistemic null state.
+   * false_claim strictly requires affirmative contradiction from reliable sources.
+   */
+  public evaluateDualMassInvariants(
+    sources: Array<{
+      evidentiaryCapacity?: number;
+      stance?: EvidentiaryStance;
+      tier?: SourceTier;
+      role?: EvidenceRole;
+      isContradictory?: boolean;
+    }>,
+    proposedVerdict?: ClaimStatus
+  ): EpistemicInvariantResult {
+    let supportMass = 0.0;
+    let contradictMass = 0.0;
+
+    let hasTierASupport = false;
+    let hasTierBSupport = false;
+    let hasTierAContradict = false;
+    let hasTierBContradict = false;
+
+    for (const s of sources) {
+      const cap = Math.max(0.0, s.evidentiaryCapacity ?? 0.5);
+      const isContradictory = s.stance === "CONTRADICTS" || s.isContradictory === true;
+      const isSupporting = s.stance === "SUPPORTS" || (!isContradictory && s.stance !== "NEUTRAL" && s.stance !== "CONTEXTUAL");
+
+      if (isContradictory) {
+        contradictMass += cap;
+        if (s.tier === "A") hasTierAContradict = true;
+        if (s.tier === "B") hasTierBContradict = true;
+      } else if (isSupporting) {
+        supportMass += cap;
+        if (s.tier === "A") hasTierASupport = true;
+        if (s.tier === "B") hasTierBSupport = true;
+      }
+    }
+
+    supportMass = Math.round(supportMass * 100) / 100;
+    contradictMass = Math.round(contradictMass * 100) / 100;
+
+    const highestTierSupport: SourceTier | undefined = hasTierASupport ? "A" : hasTierBSupport ? "B" : undefined;
+    const highestTierContradict: SourceTier | undefined = hasTierAContradict ? "A" : hasTierBContradict ? "B" : undefined;
+
+    // 1. Strict False Claim Invariant
+    // Requires affirmative empirical contradiction mass >= 1.5 AND authoritative contradictor (Tier A or B)
+    if (contradictMass >= 1.5 && (hasTierAContradict || hasTierBContradict) && supportMass < 0.4) {
+      return {
+        invariantVerdict: "false_claim",
+        supportMass,
+        contradictMass,
+        highestTierSupport,
+        highestTierContradict,
+        isOverridden: proposedVerdict !== "false_claim",
+        reason: `Substantiated contradiction: Contradict mass ${contradictMass} >= 1.5 with ${highestTierContradict}-tier evidence.`
+      };
+    }
+
+    // 2. Strict Verified True Invariant
+    if (supportMass >= 1.5 && (hasTierASupport || hasTierBSupport) && contradictMass < 0.3) {
+      return {
+        invariantVerdict: "verified_true",
+        supportMass,
+        contradictMass,
+        highestTierSupport,
+        highestTierContradict,
+        isOverridden: proposedVerdict !== "verified_true",
+        reason: `Substantiated confirmation: Support mass ${supportMass} >= 1.5 with ${highestTierSupport}-tier corroboration.`
+      };
+    }
+
+    // 3. Mostly True Invariant
+    if (supportMass >= 1.2 && contradictMass < 0.5) {
+      return {
+        invariantVerdict: "mostly_true",
+        supportMass,
+        contradictMass,
+        highestTierSupport,
+        highestTierContradict,
+        isOverridden: proposedVerdict !== "mostly_true",
+        reason: `Substantial corroboration: Support mass ${supportMass} >= 1.2 with minimal contradiction.`
+      };
+    }
+
+    // 4. Disputed Invariant (both sides have substantial mass)
+    if (supportMass >= 1.0 && contradictMass >= 1.0) {
+      return {
+        invariantVerdict: "disputed",
+        supportMass,
+        contradictMass,
+        highestTierSupport,
+        highestTierContradict,
+        isOverridden: proposedVerdict !== "disputed",
+        reason: `Contested evidence: Substantial conflicting evidence (Support: ${supportMass}, Contradict: ${contradictMass}).`
+      };
+    }
+
+    // 5. Invariant Guard: Prevent absence-of-evidence being labeled as false_claim
+    if (proposedVerdict === "false_claim" || proposedVerdict === "verified_false") {
+      if (contradictMass < 1.0 || (!hasTierAContradict && !hasTierBContradict)) {
+        return {
+          invariantVerdict: "unproven",
+          supportMass,
+          contradictMass,
+          highestTierSupport,
+          highestTierContradict,
+          isOverridden: true,
+          reason: `P7.1 Invariant Overrule: Claim was proposed as false_claim, but lacks affirmative contradiction (Contradict mass: ${contradictMass} < 1.0, authoritative: ${hasTierAContradict || hasTierBContradict}). Converted to unproven.`
+        };
+      }
+    }
+
+    // 6. Default Epistemic Null State (Unproven)
+    if (supportMass < 0.8 && contradictMass < 0.8) {
+      return {
+        invariantVerdict: "unproven",
+        supportMass,
+        contradictMass,
+        highestTierSupport,
+        highestTierContradict,
+        isOverridden: proposedVerdict !== "unproven" && proposedVerdict !== "unsupported",
+        reason: `Insufficient evidence: Support mass ${supportMass} and Contradict mass ${contradictMass} are below threshold (0.8). Assigned epistemic null.`
+      };
+    }
+
+    // 7. Fallback to proposed verdict if already valid, otherwise unproven
+    const safeVerdict = proposedVerdict || "unproven";
+    return {
+      invariantVerdict: safeVerdict,
+      supportMass,
+      contradictMass,
+      highestTierSupport,
+      highestTierContradict,
+      isOverridden: false,
+      reason: "Verdict consistent with dual-mass parameters."
+    };
   }
 }
 

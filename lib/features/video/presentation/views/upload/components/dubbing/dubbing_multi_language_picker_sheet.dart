@@ -139,80 +139,16 @@ void showDubbingMultiLanguagePicker({
               ),
 
               // Header Row
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(7),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF7C3AED).withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.translate,
-                        color: Color(0xFFA78BFA),
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Select Dubbing Languages',
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              letterSpacing: -0.3,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Obx(() {
-                            final count = controller.selectedLanguages.length;
-                            return Text(
-                              count == 0
-                                  ? 'Choose 1 or more target languages'
-                                  : '$count languages selected for AI dubbing',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.white.withValues(alpha: 0.6),
-                              ),
-                            );
-                          }),
-                        ],
-                      ),
-                    ),
-                    Obx(() {
-                      final count = controller.selectedLanguages.length;
-                      if (count > 0) {
-                        return Container(
-                          margin: const EdgeInsets.only(right: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Text(
-                            '$count Selected',
-                            style: const TextStyle(
-                              color: Colors.black,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        );
-                      }
-                      return const SizedBox.shrink();
-                    }),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white70),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                  ],
-                ),
+              _buildPickerHeader(
+                icon: Icons.translate,
+                iconColor: const Color(0xFFA78BFA),
+                iconBackgroundColor: const Color(0xFF7C3AED).withValues(alpha: 0.18),
+                title: 'Select Dubbing Languages',
+                selectedCount: () => controller.selectedLanguages.length,
+                emptySubtitle: 'Choose 1 or more target languages',
+                selectedSubtitleBuilder: (count) =>
+                    '$count languages selected for AI dubbing',
+                onClose: () => Navigator.pop(ctx),
               ),
 
               // Search Bar
@@ -333,47 +269,25 @@ void showDubbingMultiLanguagePicker({
               ),
 
               // Quick Presets Row
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-                child: Row(
-                  children: [
-                    _buildPresetButton(
-                      title: '+ Top 5 Global',
-                      onTap: controller.selectTopGlobal,
-                    ),
-                    const SizedBox(width: 6),
-                    _buildPresetButton(
-                      title: '+ Top Indic',
-                      onTap: controller.selectTopIndic,
-                    ),
-                    const SizedBox(width: 6),
-                    _buildPresetButton(
-                      title: '+ Top European',
-                      onTap: controller.selectTopEuropean,
-                    ),
-                    const Spacer(),
-                    Obx(() {
-                      if (controller.selectedLanguages.isNotEmpty) {
-                        return InkWell(
-                          onTap: controller.clearAll,
-                          borderRadius: BorderRadius.circular(6),
-                          child: const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                            child: Text(
-                              'Clear All',
-                              style: TextStyle(
-                                color: Color(0xFFA1A1AA),
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        );
-                      }
-                      return const SizedBox.shrink();
-                    }),
-                  ],
-                ),
+              _buildQuickPresetsBar(
+                presets: [
+                  _buildPresetButton(
+                    title: '+ Top 5 Global',
+                    onTap: controller.selectTopGlobal,
+                  ),
+                  const SizedBox(width: 6),
+                  _buildPresetButton(
+                    title: '+ Top Indic',
+                    onTap: controller.selectTopIndic,
+                  ),
+                  const SizedBox(width: 6),
+                  _buildPresetButton(
+                    title: '+ Top European',
+                    onTap: controller.selectTopEuropean,
+                  ),
+                ],
+                hasSelection: () => controller.selectedLanguages.isNotEmpty,
+                onClearAll: controller.clearAll,
               ),
 
               const SizedBox(height: 6),
@@ -415,12 +329,16 @@ void showDubbingMultiLanguagePicker({
                         leading: buildLanguageFlag(lang.name),
                         title: Row(
                           children: [
-                            Text(
-                              lang.name,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                color: isSource ? Colors.white38 : Colors.white,
+                            Flexible(
+                              child: Text(
+                                lang.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                  color: isSource ? Colors.white38 : Colors.white,
+                                ),
                               ),
                             ),
                             if (isSource) ...[
@@ -590,80 +508,16 @@ void showSubtitlesMultiLanguagePicker({
               ),
 
               // Header Row
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(7),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2563EB).withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.subtitles,
-                        color: Color(0xFF60A5FA),
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Select Subtitle Languages',
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              letterSpacing: -0.3,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Obx(() {
-                            final count = controller.aiTranslationLanguages.length;
-                            return Text(
-                              count == 0
-                                  ? '130+ languages supported via Google Cloud'
-                                  : '$count languages selected for subtitles',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.white.withValues(alpha: 0.6),
-                              ),
-                            );
-                          }),
-                        ],
-                      ),
-                    ),
-                    Obx(() {
-                      final count = controller.aiTranslationLanguages.length;
-                      if (count > 0) {
-                        return Container(
-                          margin: const EdgeInsets.only(right: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Text(
-                            '$count Selected',
-                            style: const TextStyle(
-                              color: Colors.black,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        );
-                      }
-                      return const SizedBox.shrink();
-                    }),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white70),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                  ],
-                ),
+              _buildPickerHeader(
+                icon: Icons.subtitles,
+                iconColor: const Color(0xFF60A5FA),
+                iconBackgroundColor: const Color(0xFF2563EB).withValues(alpha: 0.18),
+                title: 'Select Subtitle Languages',
+                selectedCount: () => controller.aiTranslationLanguages.length,
+                emptySubtitle: '130+ languages supported via Google Cloud',
+                selectedSubtitleBuilder: (count) =>
+                    '$count languages selected for subtitles',
+                onClose: () => Navigator.pop(ctx),
               ),
 
               // Search Bar
@@ -723,58 +577,37 @@ void showSubtitlesMultiLanguagePicker({
               ),
 
               // Quick Presets Row
-              Padding(
+              _buildQuickPresetsBar(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                child: Row(
-                  children: [
-                    _buildPresetButton(
-                      title: '+ Top 5 Global',
-                      onTap: () {
-                        const topGlobal = ['English', 'Spanish', 'French', 'German', 'Chinese (Simplified)'];
-                        for (final l in topGlobal) {
-                          if (!controller.aiTranslationLanguages.contains(l)) {
-                            controller.aiTranslationLanguages.add(l);
-                          }
+                presets: [
+                  _buildPresetButton(
+                    title: '+ Top 5 Global',
+                    onTap: () {
+                      const topGlobal = ['English', 'Spanish', 'French', 'German', 'Chinese (Simplified)'];
+                      for (final l in topGlobal) {
+                        if (!controller.aiTranslationLanguages.contains(l)) {
+                          controller.aiTranslationLanguages.add(l);
                         }
-                        controller.aiGenerateSubtitles.value = true;
-                      },
-                    ),
-                    const SizedBox(width: 6),
-                    _buildPresetButton(
-                      title: '+ Top Indic',
-                      onTap: () {
-                        const topIndic = ['Hindi', 'Bengali', 'Telugu', 'Tamil', 'Marathi'];
-                        for (final l in topIndic) {
-                          if (!controller.aiTranslationLanguages.contains(l)) {
-                            controller.aiTranslationLanguages.add(l);
-                          }
-                        }
-                        controller.aiGenerateSubtitles.value = true;
-                      },
-                    ),
-                    const Spacer(),
-                    Obx(() {
-                      if (controller.aiTranslationLanguages.isNotEmpty) {
-                        return InkWell(
-                          onTap: () => controller.aiTranslationLanguages.clear(),
-                          borderRadius: BorderRadius.circular(6),
-                          child: const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                            child: Text(
-                              'Clear All',
-                              style: TextStyle(
-                                color: Color(0xFFA1A1AA),
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        );
                       }
-                      return const SizedBox.shrink();
-                    }),
-                  ],
-                ),
+                      controller.aiGenerateSubtitles.value = true;
+                    },
+                  ),
+                  const SizedBox(width: 6),
+                  _buildPresetButton(
+                    title: '+ Top Indic',
+                    onTap: () {
+                      const topIndic = ['Hindi', 'Bengali', 'Telugu', 'Tamil', 'Marathi'];
+                      for (final l in topIndic) {
+                        if (!controller.aiTranslationLanguages.contains(l)) {
+                          controller.aiTranslationLanguages.add(l);
+                        }
+                      }
+                      controller.aiGenerateSubtitles.value = true;
+                    },
+                  ),
+                ],
+                hasSelection: () => controller.aiTranslationLanguages.isNotEmpty,
+                onClearAll: () => controller.aiTranslationLanguages.clear(),
               ),
 
               const SizedBox(height: 6),
@@ -932,26 +765,167 @@ void showSubtitlesMultiLanguagePicker({
   );
 }
 
+/// Renders the header row for multi-language picker sheets with bounded text
+/// lines so narrow viewports do not cause unbounded header wrapping.
+Widget _buildPickerHeader({
+  required IconData icon,
+  required Color iconColor,
+  required Color iconBackgroundColor,
+  required String title,
+  required int Function() selectedCount,
+  required String emptySubtitle,
+  required String Function(int count) selectedSubtitleBuilder,
+  required VoidCallback onClose,
+}) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+    child: Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: iconBackgroundColor,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: iconColor, size: 20),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Obx(() {
+                final count = selectedCount();
+                return Text(
+                  count == 0 ? emptySubtitle : selectedSubtitleBuilder(count),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withValues(alpha: 0.6),
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+        Obx(() {
+          final count = selectedCount();
+          if (count > 0) {
+            return Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                '$count Selected',
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            );
+          }
+          return const SizedBox.shrink();
+        }),
+        IconButton(
+          tooltip: 'Close',
+          icon: const Icon(Icons.close, color: Colors.white70),
+          onPressed: onClose,
+        ),
+      ],
+    ),
+  );
+}
+
+/// Renders a horizontally scrollable quick-preset bar with a pinned Clear All button
+/// so narrow screens and large text scales never trigger RenderFlex overflow.
+Widget _buildQuickPresetsBar({
+  required List<Widget> presets,
+  required bool Function() hasSelection,
+  required VoidCallback onClearAll,
+  EdgeInsetsGeometry padding = const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+}) {
+  return Padding(
+    padding: padding,
+    child: Row(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(children: presets),
+          ),
+        ),
+        Obx(() {
+          if (!hasSelection()) return const SizedBox.shrink();
+          return Padding(
+            padding: const EdgeInsets.only(left: 6),
+            child: Semantics(
+              button: true,
+              label: 'Clear all selected languages',
+              child: InkWell(
+                onTap: onClearAll,
+                borderRadius: BorderRadius.circular(6),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  child: Text(
+                    'Clear All',
+                    style: TextStyle(
+                      color: Color(0xFFA1A1AA),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    ),
+  );
+}
+
 Widget _buildPresetButton({
   required String title,
   required VoidCallback onTap,
 }) {
-  return InkWell(
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(6),
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1F212A),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: const Color(0xFF2D303E)),
-      ),
-      child: Text(
-        title,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
+  return Semantics(
+    button: true,
+    label: title,
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1F212A),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFF2D303E)),
+        ),
+        child: Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     ),

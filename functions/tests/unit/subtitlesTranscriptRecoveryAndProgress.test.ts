@@ -82,7 +82,7 @@ The noble eightfold path leads to liberation.
       dubbingLanguages: ['te'], // Stale or previous default dubbing language
       generateDubbing: false,
       genLangSubs: true,
-      enablePath2: true,
+      enableSubtitles: true,
     };
 
     let languagesToProcess: string[];

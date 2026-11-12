@@ -58,7 +58,7 @@ describe('Unit: 10 Diverse Claims Credibility Test (Simple, Critical, Breaking N
       domain: 'Health',
       nature: ClaimNature.VERIFIABLE_FACT,
       framing: FramingStyle.ABSOLUTE,
-      expectedModel: 'gemini-4-argon',
+      expectedModel: 'gemini-2.5-flash',
       expectedVerdict: 'false_claim' as ClaimStatus,
       isSensitive: true,
       isFrontier: false,
@@ -70,7 +70,7 @@ describe('Unit: 10 Diverse Claims Credibility Test (Simple, Critical, Breaking N
       domain: 'Finance',
       nature: ClaimNature.VERIFIABLE_FACT,
       framing: FramingStyle.ABSOLUTE,
-      expectedModel: 'gemini-4-argon',
+      expectedModel: 'gemini-2.5-flash',
       expectedVerdict: 'false_claim' as ClaimStatus,
       isSensitive: true,
       isFrontier: false,
@@ -84,7 +84,7 @@ describe('Unit: 10 Diverse Claims Credibility Test (Simple, Critical, Breaking N
       domain: 'Physics',
       nature: ClaimNature.VERIFIABLE_FACT,
       framing: FramingStyle.ASSERTIVE,
-      expectedModel: 'gemini-4-argon',
+      expectedModel: 'gemini-2.5-flash',
       expectedVerdict: 'disputed' as ClaimStatus,
       isSensitive: false,
       isFrontier: true,
@@ -96,7 +96,7 @@ describe('Unit: 10 Diverse Claims Credibility Test (Simple, Critical, Breaking N
       domain: 'News',
       nature: ClaimNature.VERIFIABLE_FACT,
       framing: FramingStyle.ASSERTIVE,
-      expectedModel: 'gemini-4-argon',
+      expectedModel: 'gemini-2.5-flash',
       expectedVerdict: 'disputed' as ClaimStatus,
       isSensitive: true,
       isFrontier: true,
@@ -136,7 +136,7 @@ describe('Unit: 10 Diverse Claims Credibility Test (Simple, Critical, Breaking N
       domain: 'War',
       nature: ClaimNature.VERIFIABLE_FACT,
       framing: FramingStyle.ABSOLUTE,
-      expectedModel: 'gemini-4-argon',
+      expectedModel: 'gemini-2.5-flash',
       expectedVerdict: 'disputed' as ClaimStatus,
       isSensitive: true,
       isFrontier: true,
@@ -148,14 +148,14 @@ describe('Unit: 10 Diverse Claims Credibility Test (Simple, Critical, Breaking N
       domain: 'International Law',
       nature: ClaimNature.VERIFIABLE_FACT,
       framing: FramingStyle.BALANCED,
-      expectedModel: 'gemini-4-argon',
+      expectedModel: 'gemini-2.5-flash',
       expectedVerdict: 'verified_true' as ClaimStatus,
       isSensitive: true,
       isFrontier: false,
     },
   ];
 
-  it('1. Verifies that high-stakes domains (Critical, War) trigger Selective Escalation to Gemini 4 Argon', () => {
+  it('1. Verifies that high-stakes domains (Critical, War) trigger Selective Escalation to Gemini 2.5 Flash', () => {
     for (const item of DIVERSE_TEN_CLAIMS) {
       const isSensitive = (verificationService as any).isSensitiveClaim(
         { text: item.text, nature: item.nature },
@@ -180,14 +180,14 @@ describe('Unit: 10 Diverse Claims Credibility Test (Simple, Critical, Breaking N
   it('3. Runs all 10 claims through Credibility verification and cross-examination', async () => {
     const verifiedClaims: VerifiedClaim[] = [];
 
-    // Mock Gemini 4 Argon for Cross-Examination
+    // Mock Gemini 2.5 Flash for Cross-Examination
     (verificationService as any).genAI = {
       getGenerativeModel: (opts: any) => {
         const selectedModel = opts?.model || 'gemini-2.5-flash';
         return {
           modelId: selectedModel,
           generateContent: async (prompt: string) => {
-            // Emulate Gemini 4 Argon's deep reasoning cross-examination output
+            // Emulate Gemini 2.5 Flash reasoning cross-examination output
             if (prompt.includes('breaking') || prompt.includes('Developing') || prompt.includes('missile strike') || prompt.includes('reported')) {
               return {
                 response: {
@@ -203,7 +203,7 @@ describe('Unit: 10 Diverse Claims Credibility Test (Simple, Critical, Breaking N
                               secondaryVerdict: 'DISPUTED',
                               concursWithPrimary: false,
                               adjudicationRationale:
-                                'Gemini 4 Argon Audit: Real-time developing conflict/breaking story with unverified reports. Epistemic humility de-escalates to Disputed.',
+                                'Gemini 2.5 Flash Audit: Real-time developing conflict/breaking story with unverified reports. Epistemic humility de-escalates to Disputed.',
                               epistemicConfidence: 0.85,
                             }),
                           },
@@ -227,7 +227,7 @@ describe('Unit: 10 Diverse Claims Credibility Test (Simple, Critical, Breaking N
                             evidentiaryBalance: "Unanimous primary source confirmation of statutory law.",
                             secondaryVerdict: 'CONFIRMED_TRUE',
                             concursWithPrimary: true,
-                            adjudicationRationale: 'Gemini 4 Argon Audit: Verified against international treaty archives.',
+                            adjudicationRationale: 'Gemini 2.5 Flash Audit: Verified against international treaty archives.',
                             epistemicConfidence: 0.98,
                           }),
                         },
@@ -293,7 +293,7 @@ describe('Unit: 10 Diverse Claims Credibility Test (Simple, Critical, Breaking N
         sourceUrl = 'https://www.fda.gov';
         sourceTier = 'A';
       } else if (frontierCheck.isFrontier) {
-        // Cross-examine with Gemini 4 Argon
+        // Cross-examine with Gemini 2.5 Flash
         const crossExam = await verificationService.crossExamineClaim(
           item.text,
           'verified_true',
@@ -303,7 +303,7 @@ describe('Unit: 10 Diverse Claims Credibility Test (Simple, Critical, Breaking N
         );
         status = crossExam.adjudicatedStatus;
         reasoning = crossExam.consensusMetadata.adjudicationRationale || '';
-        sourceTitle = 'Cross-Examination Audit (Gemini 4 Argon)';
+        sourceTitle = 'Cross-Examination Audit (Gemini 2.5 Flash)';
         sourceUrl = 'https://reuters.com';
         sourceTier = 'A';
 
@@ -373,18 +373,16 @@ describe('Unit: 10 Diverse Claims Credibility Test (Simple, Critical, Breaking N
     expect(aggregateResult.factCheckStats.opinion_claim).toBe(2); // 2 debate / subjective policy claims
   });
 
-  it('4. Unit Economics: Verifies accurate cost breakdown between Flash and Argon for the 10 claims', async () => {
+  it('4. Unit Economics: Verifies accurate cost breakdown for Flash across all 10 claims', async () => {
     // 2 Simple claims on Flash: ~2,000 tokens
     const flashCost = 2000 * RATE_CARDS['gemini-flash'].perInputToken;
-    // 4 Escalated claims on Argon (Critical + War): ~8,000 tokens
-    const argonCost = 8000 * RATE_CARDS['gemini-4-argon'].perInputToken;
+    // 4 Escalated claims on Reasoning (Gemini 2.5 Flash): ~8,000 tokens
+    const escalatedCost = 8000 * RATE_CARDS['gemini-reasoning'].perInputToken;
 
     expect(flashCost).toBeCloseTo(0.0003, 4);
-    expect(argonCost).toBeCloseTo(0.016, 4);
+    expect(escalatedCost).toBeCloseTo(0.0012, 4);
 
-    // Argon is ~13x more expensive per token, but because it only ran on the 4 high-stakes claims,
-    // total verification cost remains under $0.02!
-    const totalVerificationCost = flashCost + argonCost;
-    expect(totalVerificationCost).toBeLessThan(0.05); // Less than 5 cents total
+    const totalVerificationCost = flashCost + escalatedCost;
+    expect(totalVerificationCost).toBeLessThan(0.01); // Under 1 cent total
   });
 });

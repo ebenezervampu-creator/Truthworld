@@ -6,7 +6,6 @@ import 'package:truthworld/core/utils/truthworld_text_input_formatters.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_wallet_topup_sheet.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -49,40 +48,25 @@ import 'package:truthworld/theme/app_theme.dart';
         initialFeatures.contains('chapters') &&
         !initialFeatures.contains('dubbing');
 
-    final isVideoDubbingPreselected = isDubbingPreselected &&
-        (initialDubbingTier == 'video_pro' || initialDubbingTier == 'video_ultra');
-    final isAudioDubbingPreselected = isDubbingPreselected &&
-        (initialDubbingTier == 'audio_starter' ||
-            initialDubbingTier == 'audio_pro' ||
-            initialDubbingTier == 'audio_ultra');
+    final dialogTitle = isDubbingPreselected
+        ? 'Multilingual Audio Dubbing Studio'
+        : (isSubtitlesPreselected
+            ? 'Generate Subtitles & Captions'
+            : (isFactCheckPreselected
+                ? 'Run Credibility & Fact-Check'
+                : (isChaptersPreselected
+                    ? 'Generate Auto-Chapters'
+                    : 'AI Features & Advanced Settings')));
 
-    final dialogTitle = isVideoDubbingPreselected
-        ? 'Multilingual Video Dubbing & Neural Lip-Sync Studio'
-        : (isAudioDubbingPreselected
-            ? 'Multilingual Audio Dubbing Studio'
-            : (isSubtitlesPreselected
-                ? 'Generate Subtitles & Captions'
-                : (isDubbingPreselected
-                    ? 'Multilingual AI Dubbing Studio'
-                    : (isFactCheckPreselected
-                        ? 'Run Credibility & Fact-Check'
-                        : (isChaptersPreselected
-                            ? 'Generate Auto-Chapters'
-                            : 'AI Features & Advanced Settings')))));
-
-    final dialogSubtitle = isVideoDubbingPreselected
-        ? 'Select target languages to generate cinema-grade neural lip-syncing and vocal identity cloning.'
-        : (isAudioDubbingPreselected
-            ? 'Select target languages to generate studio-grade multilingual audio dubbing.'
-            : (isSubtitlesPreselected
-                ? 'Select target languages to generate synchronized native closed captions (SRT/VTT).'
-                : (isDubbingPreselected
-                    ? 'Select target languages to generate voice-matched multilingual audio dubbing with vocal identity.'
-                    : (isFactCheckPreselected
-                        ? 'Extract spoken claims from speech transcripts and evaluate authenticity against verified sources.'
-                        : (isChaptersPreselected
-                            ? 'Detect semantic topic shifts across your video to generate timestamped chapters.'
-                            : 'Generate subtitles, dubbed audio tracks, fact-checking, AI summaries, and chapters anytime on demand.')))));
+    final dialogSubtitle = isDubbingPreselected
+        ? 'Select target languages to generate voice-matched multilingual audio dubbing with vocal identity.'
+        : (isSubtitlesPreselected
+            ? 'Select target languages to generate synchronized native closed captions (SRT/VTT).'
+            : (isFactCheckPreselected
+                ? 'Extract spoken claims from speech transcripts and evaluate authenticity against verified sources.'
+                : (isChaptersPreselected
+                    ? 'Detect semantic topic shifts across your video to generate timestamped chapters.'
+                    : 'Generate subtitles, dubbed audio tracks, fact-checking, AI summaries, and chapters anytime on demand.')));
 
     final selectedLangs = (initialLangs ?? <String>{'te', 'hi'}).toSet().obs;
     final selectedFeatures = (initialFeatures ?? <String>{
@@ -92,7 +76,7 @@ import 'package:truthworld/theme/app_theme.dart';
       'chapters',
     }).toSet().obs;
     final selectedFactCheckTier = 'standard'.obs;
-    final selectedDubbingTier = (initialDubbingTier ?? (isDubbingPreselected ? 'video_pro' : 'video_pro')).obs;
+    final selectedDubbingTier = (initialDubbingTier ?? 'audio_track').obs;
     final isAccuracyMode = true.obs;
     final showAdvanced = false.obs;
 
@@ -398,13 +382,10 @@ import 'package:truthworld/theme/app_theme.dart';
                     ),
                     buildFeatureCheckbox(
                       title:
-                          'AI Audio & Video Dubbing (${DubbingProductionTier.fromId(selectedDubbingTier.value).name} • \$${currentTierPerLangRate.toStringAsFixed(2)}/lang)',
-                      subtitle: DubbingProductionTier.fromId(selectedDubbingTier.value).isLipSync
-                          ? 'Synchronized neural visual lip-sync with vocal identity and multi-language translation.'
-                          : 'Clean localized speech narration across chosen languages with studio vocal clarity.',
-                      icon: DubbingProductionTier.fromId(selectedDubbingTier.value).isLipSync
-                          ? Icons.video_camera_back_outlined
-                          : Icons.record_voice_over_outlined,
+                          'AI Audio Dubbing (${DubbingProductionTier.fromId(selectedDubbingTier.value).name} • \$${currentTierPerLangRate.toStringAsFixed(2)}/lang)',
+                      subtitle:
+                          'Clean localized speech narration with studio vocal identity, cadence locking, and 100% background score preservation.',
+                      icon: Icons.record_voice_over_outlined,
                       value: selectedFeatures.contains('dubbing'),
                       onChanged: (val) {
                         if (val ?? false) {
@@ -475,29 +456,6 @@ import 'package:truthworld/theme/app_theme.dart';
                                 ],
                               ),
                             ),
-                            if (selectedDubbingTier.value == 'video_ultra') ...[
-                              const SizedBox(height: 8),
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: AppColors.warning.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
-                                ),
-                                child: const Row(
-                                  children: [
-                                    Icon(Icons.movie_filter_rounded, size: 14, color: AppColors.warning),
-                                    SizedBox(width: 6),
-                                    Expanded(
-                                      child: Text(
-                                        'Hollywood Cinema: Gemini 4 Argon isometry + Demucs M&E stem separation + 1080p lip sync',
-                                        style: TextStyle(fontSize: 10.5, color: AppColors.warning, fontWeight: FontWeight.w600),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
                           ],
                         ),
                       ),
@@ -769,7 +727,7 @@ import 'package:truthworld/theme/app_theme.dart';
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  'Channel Wallet Balance:',
+                                  'Available Channel Revenue:',
                                   style: AppTextStyles.caption.copyWith(
                                     color: AppColors.textSecondary,
                                   ),
@@ -850,43 +808,14 @@ import 'package:truthworld/theme/app_theme.dart';
                                 children: [
                                   Text(
                                     isCustom
-                                        ? 'Channel Wallet & Revenue (Pro Channel)'
-                                        : 'Channel Wallet & Revenue',
+                                        ? 'Channel Revenue (Pro Channel)'
+                                        : 'Channel Revenue / Direct Pay',
                                     style: AppTextStyles.labelMedium.copyWith(
                                       color: isCustom ? AppColors.info : AppColors.success,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 12,
                                     ),
                                   ),
-                                  if (currentChannel != null) ...[
-                                    const SizedBox(width: 8),
-                                    GestureDetector(
-                                      onTap: () {
-                                        ChannelWalletTopupSheet.show(
-                                          context,
-                                          channel: currentChannel,
-                                        );
-                                      },
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.brand,
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: const Text(
-                                          '+ Add Money',
-                                          style: TextStyle(
-                                            color: Colors.black,
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
                                 ],
                               ),
                             ],

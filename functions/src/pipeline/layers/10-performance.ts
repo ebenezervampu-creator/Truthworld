@@ -305,7 +305,7 @@ export class PerformanceLayer {
   ): Promise<string | null> {
     const lang = (language || "en").toLowerCase().trim();
     const vId = voiceId || "default";
-    const tierKey = (tier || "audio_starter").toLowerCase().trim();
+    const tierKey = (tier || "audio_track").toLowerCase().trim();
     const vType = (voiceType || "standard").toLowerCase().trim();
     const userScope = (vType === "cloned" && userId) ? `:${userId}` : "";
     const textHash = crypto.createHash("md5").update(text).digest("hex");
@@ -368,7 +368,7 @@ export class PerformanceLayer {
   ): Promise<void> {
     const lang = (language || "en").toLowerCase().trim();
     const vId = voiceId || "default";
-    const tierKey = (tier || "audio_starter").toLowerCase().trim();
+    const tierKey = (tier || "audio_track").toLowerCase().trim();
     const vType = (voiceType || "standard").toLowerCase().trim();
     const userScope = (vType === "cloned" && userId) ? `:${userId}` : "";
     const textHash = crypto.createHash("md5").update(text).digest("hex");

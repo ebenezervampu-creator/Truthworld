@@ -35,15 +35,21 @@ SYMBOLS_DIR="$PROJECT_ROOT/build/app/outputs/symbols/$FLAVOR/$TIMESTAMP"
 RELEASES_DIR="$PROJECT_ROOT/releases/android"
 mkdir -p "$SYMBOLS_DIR" "$RELEASES_DIR"
 
+ENTRY_POINT="lib/main.dart"
+if [ -f "$PROJECT_ROOT/lib/main_${FLAVOR}.dart" ]; then
+    ENTRY_POINT="lib/main_${FLAVOR}.dart"
+fi
+
 echo -e "\n>>> [2/3] Compiling Secure Release Artifact ($FORMAT)..."
+echo "Target Entry Point:       $ENTRY_POINT"
 echo "Output symbols directory: $SYMBOLS_DIR"
 
 if [ "$FORMAT" = "appbundle" ]; then
-    flutter build appbundle --release --flavor "$FLAVOR" -t lib/main.dart --obfuscate --split-debug-info="$SYMBOLS_DIR"
+    flutter build appbundle --release --flavor "$FLAVOR" -t "$ENTRY_POINT" --obfuscate --split-debug-info="$SYMBOLS_DIR"
     SOURCE="$PROJECT_ROOT/build/app/outputs/bundle/${FLAVOR}Release/app-$FLAVOR-release.aab"
     DESTINATION="$RELEASES_DIR/truthworld-$FLAVOR-release-$TIMESTAMP.aab"
 else
-    flutter build apk --release --flavor "$FLAVOR" -t lib/main.dart --obfuscate --split-debug-info="$SYMBOLS_DIR"
+    flutter build apk --release --flavor "$FLAVOR" -t "$ENTRY_POINT" --obfuscate --split-debug-info="$SYMBOLS_DIR"
     SOURCE="$PROJECT_ROOT/build/app/outputs/flutter-apk/app-$FLAVOR-release.apk"
     DESTINATION="$RELEASES_DIR/truthworld-$FLAVOR-release-$TIMESTAMP.apk"
 fi

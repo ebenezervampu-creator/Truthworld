@@ -49,10 +49,8 @@ class VideoMediaService {
 
       if (doc.exists && doc.data() != null) {
         final result = VideoMediaLocalization.fromMap(doc.data()!);
-        if (!result.isEmpty) {
-          localizationCache[videoId] = result;
-          return result;
-        }
+        localizationCache[videoId] = result;
+        return result;
       }
 
       // Fallback: try reading from top-level fields on main video doc

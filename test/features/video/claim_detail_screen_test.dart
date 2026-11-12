@@ -32,6 +32,8 @@ class _MockAuthService extends GetxService implements AuthService {
   @override
   String get uid => 'user_test_123';
   @override
+  bool get isUserSignedIn => true;
+  @override
   Channel? get userChannel => null;
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -257,26 +259,31 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
-      // Statement
-      expect(find.text('The Indian Council of Medical Research recommends 180 eggs annually.'), findsOneWidget);
+      // Statement rendered across top claim card and timeline/transcript
+      expect(find.text('The Indian Council of Medical Research recommends 180 eggs annually.'), findsWidgets);
 
       // Claim #1 header & index badge
-      expect(find.text('Claim #1'), findsOneWidget);
+      expect(find.text('Claim #1'), findsWidgets);
       expect(find.text('1'), findsWidgets);
 
       // Verdict pill "DISPUTED"
-      expect(find.text('DISPUTED'), findsOneWidget);
+      expect(find.text('DISPUTED'), findsWidgets);
 
       // Timestamp pill "05:11"
-      expect(find.text('05:11'), findsOneWidget);
+      expect(find.text('05:11'), findsWidgets);
+
+      // Command Media Stage & Live Transcript
+      expect(find.text('LIVE TRANSCRIPT'), findsOneWidget);
+
+      // Claim Ledger Timeline
+      expect(find.text('CLAIM LEDGER TIMELINE'), findsOneWidget);
 
       // Truth Intelligence Breakdown Card
       expect(find.text('Truth Intelligence Breakdown'), findsOneWidget);
       expect(find.byIcon(Icons.auto_awesome_rounded), findsWidgets);
 
-      // Desktop Sources Sidebar Panel (Sources rendered directly in sidebar, not via modal)
-      expect(find.text('Sources'), findsOneWidget);
-      expect(find.text('5'), findsWidgets);
+      // Desktop Sources Panel
+      expect(find.text('Sources'), findsWidgets);
       expect(find.text('Showing all 5 sources'), findsOneWidget);
 
       // Sources directly visible on screen
@@ -284,14 +291,15 @@ void main() {
       expect(find.text('Nutrient Requirements and Recommended Dietary Allowances for Indians'), findsOneWidget);
 
       // Action buttons on desktop
-      expect(find.text('Ask AI'), findsOneWidget);
+      expect(find.text('Ask AI'), findsWidgets);
       expect(find.text('Search web'), findsOneWidget);
       expect(find.text('Provide source'), findsOneWidget);
 
-      // Claim navigation buttons ("1 of 2")
+      // Desktop Command Center App Bar dock indicator & claim navigation ("1 of 2")
       expect(find.text('1 of 2'), findsOneWidget);
-      expect(find.byIcon(Icons.chevron_left_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.chevron_right_rounded), findsOneWidget);
+      expect(find.text('Truth AI (35%)'), findsOneWidget);
+      expect(find.byIcon(Icons.chevron_left_rounded), findsWidgets);
+      expect(find.byIcon(Icons.chevron_right_rounded), findsWidgets);
 
       // Bottom sheet is NOT open on desktop
       expect(find.byType(ClaimSourcesBottomSheet), findsNothing);

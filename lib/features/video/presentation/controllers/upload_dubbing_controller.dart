@@ -33,11 +33,11 @@ class UploadDubbingController extends GetxController {
   // Working copy of selections
   final RxSet<String> selectedLanguages = <String>{}.obs;
   final RxBool isDubbingEnabled = true.obs;
-  final RxString selectedDubbingTier = 'audio_starter'.obs;
-  final RxString voiceType = 'standard'.obs; // 'standard' | 'fast_api' | 'cloned'
+  final RxString selectedDubbingTier = 'audio_track'.obs;
+  final RxString voiceType = 'cloned'.obs; // Voice cloning & vocal identity
   final RxBool isDiarizationEnabled = false.obs;
   final RxBool isLipSyncEnabled = false.obs;
-  final RxBool isStemIsolationEnabled = false.obs;
+  final RxBool isStemIsolationEnabled = true.obs;
   final RxBool isCinemaGradeEnabled = false.obs;
 
   @override
@@ -56,51 +56,23 @@ class UploadDubbingController extends GetxController {
     isDubbingEnabled.value = uploadController.aiDubbingLanguages.isEmpty ||
         uploadController.aiGenerateDubbing.value;
 
-    final initialTier = uploadController.aiDubbingTier.value;
-    if (initialTier.isNotEmpty && DubbingProductionTier.allTiers.any((t) => t.id == initialTier)) {
-      selectedDubbingTier.value = initialTier;
-    } else if (uploadController.aiLipSyncEnabled.value) {
-      selectedDubbingTier.value = uploadController.aiCinemaGradeEnabled.value ? 'video_ultra' : 'video_pro';
-    } else if (uploadController.aiTTSVoiceType.value == 'cloned') {
-      selectedDubbingTier.value = 'audio_ultra';
-    } else if (uploadController.aiTTSVoiceType.value == 'fast_api') {
-      selectedDubbingTier.value = 'audio_pro';
-    } else {
-      selectedDubbingTier.value = 'audio_starter';
-    }
-
-    voiceType.value = uploadController.aiTTSVoiceType.value == 'cloned'
-        ? 'cloned'
-        : (uploadController.aiTTSVoiceType.value == 'fast_api' ? 'fast_api' : 'standard');
+    selectedDubbingTier.value = 'audio_track';
+    voiceType.value = 'cloned';
     isDiarizationEnabled.value = uploadController.aiDiarizationEnabled.value;
-    isLipSyncEnabled.value = uploadController.aiLipSyncEnabled.value;
-    isCinemaGradeEnabled.value = uploadController.aiCinemaGradeEnabled.value;
-    isStemIsolationEnabled.value = uploadController.aiStemIsolationEnabled.value;
+    isLipSyncEnabled.value = false;
+    isCinemaGradeEnabled.value = false;
+    isStemIsolationEnabled.value = true;
   }
 
   DubbingProductionTier get currentProductionTier =>
-      DubbingProductionTier.fromId(selectedDubbingTier.value);
+      DubbingProductionTier.audioTrack;
 
   void selectTier(String tierId) {
-    selectedDubbingTier.value = tierId;
-    final tier = DubbingProductionTier.fromId(tierId);
-    if (tier.category == 'video') {
-      isLipSyncEnabled.value = true;
-      voiceType.value = 'cloned';
-      isCinemaGradeEnabled.value = tier.isCinemaGrade;
-      isStemIsolationEnabled.value = tier.isCinemaGrade;
-    } else {
-      isLipSyncEnabled.value = false;
-      isCinemaGradeEnabled.value = false;
-      isStemIsolationEnabled.value = false;
-      if (tierId == 'audio_ultra') {
-        voiceType.value = 'cloned';
-      } else if (tierId == 'audio_pro') {
-        voiceType.value = 'fast_api';
-      } else {
-        voiceType.value = 'standard';
-      }
-    }
+    selectedDubbingTier.value = 'audio_track';
+    voiceType.value = 'cloned';
+    isLipSyncEnabled.value = false;
+    isCinemaGradeEnabled.value = false;
+    isStemIsolationEnabled.value = true;
   }
 
   static DubbingLanguageInfo? findLanguage(String identifier) {
@@ -162,12 +134,6 @@ class UploadDubbingController extends GetxController {
   double get flatDubbingRatePerLang =>
       ChannelWalletService.getFlatRateForTier(
         tierId: selectedDubbingTier.value,
-        durationSeconds: durationSeconds,
-      );
-
-  double get flatLipSyncRatePerLang =>
-      ChannelWalletService.getFlatRateForTier(
-        tierId: 'video_pro',
         durationSeconds: durationSeconds,
       );
 
@@ -402,7 +368,7 @@ class UploadDubbingController extends GetxController {
   void applyAndSave() {
     if (isInsufficientBalance && selectedLanguages.isNotEmpty && isDubbingEnabled.value) {
       AppSnackbar.warning(
-        'Insufficient channel wallet balance (\$${walletBalance.toStringAsFixed(2)} available vs \$${calculatedCost.toStringAsFixed(2)} required). Please add money to your wallet to proceed with AI Audio Dubbing for these languages.',
+        'Insufficient channel revenue (\$${walletBalance.toStringAsFixed(2)} available vs \$${calculatedCost.toStringAsFixed(2)} required). You can pay directly to proceed with AI Audio Dubbing for these languages.',
       );
       return;
     }

@@ -7,7 +7,6 @@ import 'package:truthworld/theme/app_theme.dart';
   class FactCheckHeroCard extends StatelessWidget {
   const FactCheckHeroCard({
     required this.analysisState,
-    required this.trustScore,
     required this.trustLabel,
     required this.confidenceVal,
     required this.confidenceTier,
@@ -20,7 +19,6 @@ import 'package:truthworld/theme/app_theme.dart';
   });
 
   final String analysisState;
-  final double? trustScore;
   final String trustLabel;
   final double confidenceVal;
   final String confidenceTier;
@@ -30,33 +28,25 @@ import 'package:truthworld/theme/app_theme.dart';
   final int cautionCount;
   final int falseCount;
 
+  bool get isNotScored => totalClaims == 0;
+
   @override
   Widget build(BuildContext context) {
-    final score = trustScore;
-    final hasScore = totalClaims > 0 && score != null && score > 0;
-    final isNotScored = !hasScore || trustLabel.toLowerCase().contains('not scored') || totalClaims == 0;
-
-    final displayScore = (score != null && totalClaims > 0)
-        ? (score > 5.0 ? score.toInt() : (score * 20).toInt())
-        : null;
-
     const stateColor = Colors.white;
     String badgeText;
-    if (!isNotScored && displayScore != null && totalClaims > 0) {
-      badgeText = analysisState.toUpperCase();
-    } else if (falseCount > 0 && falseCount >= verifiedCount) {
+    if (falseCount > 0 && falseCount >= verifiedCount) {
       badgeText = 'DISPUTED CONTENT';
     } else if (cautionCount > 0 && cautionCount > verifiedCount) {
       badgeText = 'CAUTION ADVISED';
     } else if (totalClaims == 0) {
       badgeText = 'MEDIA AUTHENTIC • UNASSESSED';
     } else {
-      badgeText = 'FACT-CHECK COMPLETE';
+      badgeText = 'CLAIM LEDGER VERIFIED';
     }
 
-    final headlineTitle = isNotScored
-        ? (totalClaims > 0 ? '$totalClaims Claims Evaluated' : '0 Empirical Claims Evaluated')
-        : (totalClaims == 0 ? 'Media Authentic (No Empirical Claims)' : trustLabel);
+    final headlineTitle = totalClaims > 0
+        ? '$totalClaims Claims Evaluated'
+        : '0 Empirical Claims Evaluated';
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -87,16 +77,7 @@ import 'package:truthworld/theme/app_theme.dart';
                   border: Border.all(color: stateColor, width: 2),
                 ),
                 alignment: Alignment.center,
-                child: displayScore != null
-                    ? Text(
-                        '$displayScore%',
-                        style: const TextStyle(
-                          color: stateColor,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      )
-                    : TruthLottieAnimation.verifiedShield(size: 26),
+                child: TruthLottieAnimation.verifiedShield(size: 26),
               ),
               const SizedBox(width: 12),
               Expanded(

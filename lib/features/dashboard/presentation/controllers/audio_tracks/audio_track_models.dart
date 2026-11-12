@@ -244,8 +244,8 @@ const List<({String code, String name})> kSupportedLanguages = [
   (code: 'ln', name: 'Lingala (Lingála)'),
 ];
 
-/// Set of language codes supported natively by Google Cloud Chirp 3: HD generative speech synthesis.
-const Set<String> kChirp3HdSupportedLanguageCodes = {
+/// Set of language codes supported natively by ElevenLabs v4 flagship generative speech synthesis.
+const Set<String> kElevenLabsV4SupportedLanguageCodes = {
   // Indian Subcontinent Languages
   'te', // Telugu (తెలుగు)
   'hi', // Hindi (हिन्दी)
@@ -256,6 +256,9 @@ const Set<String> kChirp3HdSupportedLanguageCodes = {
   'bn', // Bengali (বাংলা)
   'gu', // Gujarati (ગુજરાતી)
   'pa', // Punjabi (ਪੰਜਾਬੀ)
+  'or', // Odia (ଓଡ଼ିଆ)
+  'as', // Assamese (অসমীয়া)
+  'ur', // Urdu (اردو)
 
   // Global Core Languages
   'en', // English
@@ -293,13 +296,27 @@ const Set<String> kChirp3HdSupportedLanguageCodes = {
   'lv', // Latvian
   'et', // Estonian
   'sw', // Swahili
+  'ms', // Malay
+  'fil', // Filipino
+  'uk', // Ukrainian
+  'af', // Afrikaans
+  'zu', // Zulu
+  'xh', // Xhosa
+  'ha', // Hausa
+  'so', // Somali
 };
 
-/// Languages supported by Google Cloud Chirp 3: HD for studio audio track dubbing without voice cloning.
-List<({String code, String name})> get kChirp3HdSupportedLanguages =>
+/// Backwards compatibility alias (Chirp 3: HD terminated in favor of ElevenLabs v4)
+const Set<String> kChirp3HdSupportedLanguageCodes = kElevenLabsV4SupportedLanguageCodes;
+
+/// Languages supported by ElevenLabs v4 for studio audio track dubbing.
+List<({String code, String name})> get kElevenLabsV4SupportedLanguages =>
     kSupportedLanguages
-        .where((lang) => kChirp3HdSupportedLanguageCodes.contains(lang.code.toLowerCase()))
+        .where((lang) => kElevenLabsV4SupportedLanguageCodes.contains(lang.code.toLowerCase()))
         .toList();
+
+/// Backwards compatibility alias (Chirp 3: HD terminated in favor of ElevenLabs v4)
+List<({String code, String name})> get kChirp3HdSupportedLanguages => kElevenLabsV4SupportedLanguages;
 
 /// Helper resolving language code to human-friendly display name.
 String getSupportedLanguageName(String code) {

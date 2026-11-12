@@ -40,10 +40,9 @@ export interface JobData {
   estimatedCostUsd: number;
   stages: {
     transcription: StageStatus;
-    credibility: StageStatus; // Legacy Path 1
-    dubbing?: StageStatus;    // Legacy Path 2 (Optional in v5)
-    truthEngine?: StageStatus; // New TruthEngine
-    reachEngine?: StageStatus; // New ReachEngine
+    credibility: StageStatus; // Independent Credibility / Fact-Checking system
+    dubbing?: StageStatus;    // Independent Dubbing / Localization system
+    subtitles?: StageStatus;  // Independent Subtitles stage
     aggregation?: StageStatus; // Optional in v5
     [key: string]: StageStatus | undefined; // Allow dynamic stages like 'translating_hi'
   };
@@ -68,6 +67,53 @@ export interface JobData {
     dubbed?: Record<string, any>;
     [key: string]: any;
   };
+  artifacts?: {
+    transcription?: {
+      audioUrl?: string;
+      [key: string]: any;
+    };
+    mneValidation?: import("./services/media").MneValidationResult;
+    [key: string]: any;
+  };
+}
+
+export type IndependentSystemStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
+
+export interface CredibilityJobData {
+  jobId: string;
+  videoId?: string;
+  userId: string;
+  channelId?: string;
+  videoUrl?: string;
+  executionPlan: ExecutionPlan;
+  status: IndependentSystemStatus;
+  progress: number;
+  retryCount?: number;
+  error?: string;
+  factCheckUrl?: string;
+  rating?: number;
+  startedAt?: number;
+  completedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface DubbingJobData {
+  jobId: string;
+  videoId?: string;
+  userId: string;
+  channelId?: string;
+  videoUrl?: string;
+  executionPlan: ExecutionPlan;
+  status: IndependentSystemStatus;
+  progress: number;
+  error?: string;
+  languages?: string[];
+  subtitleLanguages?: string[];
+  startedAt?: number;
+  completedAt?: number;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface ProcessingOptions {
@@ -152,6 +198,13 @@ export interface TranslatedSegment {
   start: number;
   end: number;
   confidence?: number;
+  emotionTag?: string;
+  energyDb?: number;
+  stabilityOverride?: number;
+  similarityBoostOverride?: number;
+  pitchRangeSemitones?: number;
+  voiceQuality?: "breathy" | "modal" | "creaky" | "pressed";
+  syllableBudgetCompliance?: number;
   isHook?: boolean;
   variants?: {
     viral: string;
@@ -170,11 +223,17 @@ export interface TTSRequest {
   provider?: "google-cloud-tts" | "elevenlabs" | "auto";
   preferVoiceCloning?: boolean;
   voiceCloneId?: string;
-  ttsTier?: "audio_starter" | "audio_pro" | "audio_ultra" | "video_pro" | "video_ultra";
+  ttsTier?: "audio_track";
   voiceType?: "standard" | "fast_api" | "cloned" | "voice_clone";
   gender?: "MALE" | "FEMALE" | "NEUTRAL";
   speakingRate?: number;
   pitch?: number;
+  stability?: number;
+  similarityBoost?: number;
+  useSpeakerBoost?: boolean;
+  emotionTag?: string;
+  energyDb?: number;
+  pronunciationGlossary?: PronunciationRule[];
 }
 
 export interface TTSResult {
@@ -329,7 +388,124 @@ export type SourceTier = 'A' | 'B' | 'C' | 'D' | 'E';
 export type VerificationMethod = 'grounded' | 'deterministic' | 'cache_hit' | 'llm_training' | 'not_verified';
 export type SourceCategory = 'book' | 'journal' | 'newspaper' | 'website' | 'government' | 'scripture' | 'legal' | 'encyclopedia' | 'academic_press' | 'archive';
 
+export enum EvidenceRole {
+  PRIMARY_RECORD = "primary_record",
+  INDEPENDENT_CORROBORATION = "independent_corroboration",
+  EXPERT_SYNTHESIS = "expert_synthesis",
+  INVESTIGATIVE_REPORTING = "investigative_reporting",
+  OFFICIAL_ASSERTION = "official_assertion",
+  SECONDARY_COMMENTARY = "secondary_commentary",
+}
+
+export type EvidentiaryStance = "SUPPORTS" | "CONTRADICTS" | "CONTEXTUAL" | "NEUTRAL";
+
+export type EvidenceAdmissionStatus =
+  | 'pending'
+  | 'admitted'
+  | 'quarantined'
+  | 'rejected';
+
+export interface DocumentEvidenceAssessment {
+  admissionStatus: EvidenceAdmissionStatus;
+  publisherTier: SourceTier;
+  publisherVerified: boolean;
+  claimRelevanceScore: number;
+  directEvidenceScore: number;
+  isPrimaryEvidence: boolean;
+  isIndependent: boolean;
+  isContradictory?: boolean;
+  wireOrigin?: string;
+  publicationDate?: string;
+  retrievedAt: string;
+  rejectionReason?: string;
+  evidenceRole?: EvidenceRole;
+  evidentiaryCapacity?: number;
+  stance?: EvidentiaryStance;
+}
+
+export type UrlVerificationStatus =
+  | 'VERIFIED'
+  | 'NOT_FOUND'
+  | 'SOFT_404'
+  | 'BOT_BLOCKED'
+  | 'FETCH_FAILED'
+  | 'IRRELEVANT'
+  | 'UNVERIFIED';
+
+export interface UrlVerificationRecord {
+  status: UrlVerificationStatus;
+  originalUrl: string;
+  canonicalUrl: string;
+  domain: string;
+  httpStatus: number;
+  redirectHops: number;
+  isSoft404: boolean;
+  soft404Reason?: string;
+  isGenericHomepage?: boolean;
+  contentType?: string;
+  contentTitle?: string;
+  excerpt?: string;
+  verifiedAtUtc: string;
+  verifierMethod: 'http_get' | 'api_record' | 'grounding_resolved' | 'snapshot';
+  fetchStatus: DeterministicVerification['fetchStatus'];
+  relevanceScore?: number;
+  errorReason?: string;
+}
+
+export interface VerifiedAcademicMetadata {
+  title: string;
+  authors?: string[];
+  journalName?: string;
+  yearPublished?: number;
+  volume?: string;
+  issue?: string;
+  pages?: string;
+  doi?: string;
+  pmid?: string;
+  abstractExcerpt?: string;
+  retrievalProvider: string;
+}
+
+export interface EvidenceCandidate {
+  evidenceId?: string;
+  title: string;
+  url: string;
+  canonicalUrl?: string;
+  domain: string;
+  publisher?: string;
+  snippet: string;
+  publishedAt?: string;
+  doi?: string;
+  pmid?: string;
+  sourceType?: SourceCategory;
+  tier?: SourceTier;
+  retrievalProvider: string;
+  retrievalMethod: string;
+  verification?: UrlVerificationRecord;
+  verifiedAcademicMetadata?: VerifiedAcademicMetadata;
+}
+
+export interface RejectedEvidenceCandidate {
+  url: string;
+  title?: string;
+  status: UrlVerificationStatus;
+  reason: string;
+  provider?: string;
+  httpStatus?: number;
+}
+
+export interface EvidenceCatalog {
+  claimText: string;
+  normalizedQueries: string[];
+  candidatesById: Record<string, EvidenceCandidate>;
+  orderedCandidates: EvidenceCandidate[];
+  rejectedCandidates: RejectedEvidenceCandidate[];
+  verifiedAcademicMetadata: VerifiedAcademicMetadata[];
+  retrievedAtUtc: string;
+}
+
 export interface RichSource {
+  evidenceId?: string;
   title: string;
   url: string;
   domain?: string;
@@ -359,7 +535,677 @@ export interface RichSource {
   whatItSupports?: string;
   whatItDoesNotEstablish?: string;
   sourceRole?: 'primary_scripture' | 'independent_corroboration' | 'scholarly_reference' | 'scientific_reference' | 'news_reporting';
+  evidenceRole?: EvidenceRole;
+  stance?: EvidentiaryStance;
+  evidentiaryCapacity?: number;
+  baseReliability?: number;
+  domainRelevance?: number;
+  independenceFactor?: number;
+  independenceGroup?: string;
+  calculationVersion?: string;
+  sourceTier?: SourceTier;
+  evidenceAssessment?: DocumentEvidenceAssessment;
+  urlVerification?: UrlVerificationRecord;
+  isContradictory?: boolean;
+  wireOrigin?: string;
 }
+
+// ============================================
+// P2: TEMPORAL NORMALIZATION & COMPARATIVE CLAIMS
+// ============================================
+
+export type TemporalPrecision =
+  | 'exact'
+  | 'year'
+  | 'decade'
+  | 'historical_period'
+  | 'unspecified';
+
+export interface TemporalConstraint {
+  startDate?: string;
+  endDate?: string;
+  startYear?: number;
+  endYear?: number;
+  referenceEvent?: string;
+  temporalPrecision: TemporalPrecision;
+  isExplicit: boolean;
+  coverageYears?: number[];
+  missingYears?: number[];
+  rawExpression?: string;
+}
+
+export type AccountingReconciliationStatus =
+  | 'compatible'
+  | 'normalizable'
+  | 'incompatible';
+
+export type GrowthCalculationMethod =
+  | 'cagr'
+  | 'arithmetic_annual_mean'
+  | 'single_year'
+  | 'unspecified';
+
+export interface ComparableMetric {
+  entity: string;
+  metric: string;
+  value: number;
+  unit: string;
+  startDate?: string;
+  endDate?: string;
+  startYear?: number;
+  endYear?: number;
+  methodology?: string;
+  sourceId?: string;
+  sourceTitle?: string;
+  priceBasis?: 'real' | 'nominal' | 'constant_price' | 'current_price' | 'unspecified';
+  populationBasis?: 'total' | 'per_capita' | 'unspecified';
+  calendarVsFiscal?: 'calendar' | 'fiscal' | 'unspecified';
+  accountingReconciliation?: AccountingReconciliationStatus;
+  calculationMethod?: GrowthCalculationMethod;
+  annualized?: boolean;
+  coverageYears?: number[];
+  missingYears?: number[];
+  rawObservations?: { year: number; value: number }[];
+}
+
+export interface HistoricalEventBoundary {
+  eventId: string;
+  name: string;
+  aliases: string[];
+  startDate: string;
+  endDate: string;
+  startYear: number;
+  endYear: number;
+  description: string;
+  region?: string;
+}
+
+export interface ConflictingHistoricalSource {
+  sourceTitle: string;
+  sourceId?: string;
+  metricValue: number;
+  unit: string;
+  varianceDescription: string;
+}
+
+export interface SensitivityAnalysisItem {
+  windowDescription: string;
+  startYear: number;
+  endYear: number;
+  percentagePointsDiff: number;
+  verdictImpact: string;
+  verdictShiftType: 'flips_verdict' | 'changes_ranking' | 'alters_magnitude_only' | 'no_effect';
+  resultSummary: string;
+}
+
+export interface ComparabilityAssessment {
+  sameMetric: boolean;
+  sameUnit: boolean;
+  compatiblePeriods: boolean;
+  compatibleMethodology: boolean;
+  comparableDefinitions: boolean;
+  isComparable: boolean;
+  accountingReconciliationStatus?: AccountingReconciliationStatus;
+  reconciliationNotes?: string[];
+  reasons: string[];
+  coverageGapNotice?: string;
+  conflictingSources?: ConflictingHistoricalSource[];
+  sensitivityAnalysis?: SensitivityAnalysisItem[];
+  normalizedMetrics?: ComparableMetric[];
+}
+
+// ============================================
+// P3: BENCHMARK & EVALUATION SUITE
+// ============================================
+
+export type EpistemicCategory =
+  | 'historical_event'
+  | 'textual_record'
+  | 'traditional_religious_belief'
+  | 'scientific_empirical_claim'
+  | 'unfalsifiable_metaphysical_belief'
+  | 'economic_statistical_indicator'
+  | 'political_attribution'
+  | 'counterfactual_opinion';
+
+export type BenchmarkCategory =
+  | 'straightforward_factual'
+  | 'historical'
+  | 'economic_statistical'
+  | 'political'
+  | 'scientific_medical'
+  | 'religious_philosophical'
+  | 'misleading_partially_true'
+  | 'comparative_temporal';
+
+export interface ConfidenceInterval95 {
+  lower: number;
+  upper: number;
+  confidenceLevel: 0.95;
+}
+
+export interface BenchmarkClaimRecord {
+  id: string;
+  category: BenchmarkCategory;
+  epistemicCategory?: EpistemicCategory;
+  claimText: string;
+  transcriptSnippet?: string;
+  normalizedProposition: string;
+  referenceVerdict: ClaimStatus;
+  acceptableVerdicts?: ClaimStatus[];
+  referenceSources: RichSource[];
+  contradictorySources?: RichSource[];
+  relevantTemporalConstraints?: TemporalConstraint[];
+  expectedComparableMetrics?: ComparableMetric[];
+  expertAnnotationNotes: string;
+  annotatorAgreementRate: number; // e.g. 1.0 (unanimous) or 0.85
+  difficultyTier?: 'standard' | 'nuanced' | 'adversarial';
+  // P3 Provenance & Independence Metadata
+  annotatorId?: string;
+  annotationTimestamp?: string;
+  adjudicationHistory?: { timestamp: string; annotatorId: string; verdict: ClaimStatus; rationale: string }[];
+  datasetVersion?: string;
+  isIndependentlyEstablished?: boolean; // Verified independent of TruthWorld AI predictions
+}
+
+export interface VerdictAccuracyMetrics {
+  totalClaims: number;
+  evaluatedClaims: number;
+  correctPredictions: number;
+  accuracy: number;
+  accuracyConfidenceInterval?: ConfidenceInterval95;
+  precisionMacro: number;
+  recallMacro: number;
+  f1Macro: number;
+  f1Weighted: number;
+  perVerdictMetrics: Record<string, { precision: number; recall: number; f1: number; support: number }>;
+  confusionMatrix: Record<string, Record<string, number>>;
+  abstentionRate: number; // percentage marked inconclusive or unproven
+  coverageRate: number;   // percentage of claims given definitive verdicts
+}
+
+export interface CalibrationBin {
+  binLower: number;
+  binUpper: number;
+  binCenter: number;
+  sampleCount: number;
+  meanPredictedConfidence: number;
+  observedAccuracy: number;
+  calibrationError: number;
+}
+
+export interface ConfidenceCalibrationMetrics {
+  brierScore: number;
+  multiclassBrierScore?: number;
+  expectedCalibrationError: number; // ECE
+  eceConfidenceInterval?: ConfidenceInterval95;
+  maxCalibrationError: number;      // MCE
+  overconfidenceError: number;
+  underconfidenceError: number;
+  reliabilityBins: CalibrationBin[];
+  decoupledScoresEvaluated: boolean; // Confirms verdictConfidence != evidenceStrength
+}
+
+export interface EvidenceQualityMetrics {
+  totalAdmittedSources: number;
+  relevantAdmittedSources: number;
+  evidencePrecision: number; // relevantAdmittedSources / totalAdmittedSources
+  tierEExclusionRate: number; // 1.0 = 100% of Tier-E candidates correctly excluded/quarantined
+  contradictoryPreservationRate: number; // percentage of known contradictory evidence preserved
+  wireDeduplicationAccuracy: number;
+  provenanceCompletenessRate: number; // percentage of claims with full lineage & URL traces
+  quarantinedSourcesAudited: number;
+}
+
+export interface TemporalEvaluationMetrics {
+  totalComparativeClaims: number;
+  invalidComparisonsTested: number;
+  invalidComparisonsAcceptedAsTrue: number; // MUST BE 0 FOR RELEASE GATE
+  temporalConstraintExtractionAccuracy: number;
+  eventBoundaryResolutionAccuracy: number;
+  accountingMismatchDetectionRate: number;
+}
+
+export interface ReleaseGateRule {
+  gateName: string;
+  threshold: number | string;
+  actualValue: number | string;
+  passed: boolean;
+  isBlocking: boolean;
+  description: string;
+}
+
+export interface BenchmarkReport {
+  reportId: string;
+  timestamp: string;
+  modelVersion: string;
+  totalDatasetSize: number;
+  categoryBreakdown: Record<string, number>;
+  verdictBreakdown?: Record<string, number>;
+  classImbalanceRatio?: number;
+  datasetIntegrityVerified?: boolean;
+  verdictAccuracy: VerdictAccuracyMetrics;
+  confidenceCalibration: ConfidenceCalibrationMetrics;
+  evidenceQuality: EvidenceQualityMetrics;
+  temporalEvaluation: TemporalEvaluationMetrics;
+  releaseGates: {
+    passed: boolean;
+    blockingViolations: string[];
+    rules: ReleaseGateRule[];
+  };
+  historicalRegressions?: {
+    claimId: string;
+    claimText: string;
+    previousVerdict: ClaimStatus;
+    currentVerdict: ClaimStatus;
+    isRegression: boolean;
+  }[];
+}
+
+// ============================================
+// P4: ADVERSARIAL ROBUSTNESS & RED-TEAM TYPES
+// ============================================
+
+export type AdversarialVector =
+  | 'prompt_injection_source'
+  | 'fabricated_citation'
+  | 'misleading_quotation'
+  | 'cherry_picked_statistics'
+  | 'coordinated_source_manipulation'
+  | 'translation_semantic_drift'
+  | 'multimodal_contradiction'
+  | 'ambiguous_compound_claim';
+
+export interface MultilingualPropositionRecord {
+  claimId: string;
+  originalTranscript: string;
+  sourceLanguage: string; // 'te', 'hi', 'ta', 'kn', 'mr', 'bn', etc.
+  literalTranslation: string;
+  contextualTranslation: string;
+  normalizedProposition: string;
+  semanticDivergenceScore: number; // 0.0 (identical) to 1.0 (severe divergence)
+  divergenceNotes: string[];
+  adjudicationBasis: 'normalized_proposition';
+  culturalContextualEquivalence: boolean;
+}
+
+export interface PromptInjectionAuditResult {
+  hasInjectionAttempt: boolean;
+  sanitizedContent: string;
+  quarantinedSnippet?: string;
+  detectedPatterns: string[];
+  severity: 'none' | 'low' | 'medium' | 'high' | 'critical';
+}
+
+export interface FabricatedCitationAuditResult {
+  isVerifiable: boolean;
+  doiValid?: boolean;
+  domainResolvable?: boolean;
+  registryFound?: boolean;
+  discrepancies: string[];
+  riskScore: number;
+}
+
+export interface CircularSyndicationCluster {
+  clusterId: string;
+  canonicalOriginUrl: string;
+  syndicatedUrls: string[];
+  similarityScore: number;
+  isCircularRing: boolean;
+  effectiveIndependentSourceCount: number;
+}
+
+export interface MultiModalConsistencyReport {
+  isConsistent: boolean;
+  crossModalDiscordanceScore: number;
+  audioTranscript: string;
+  visualOcrText?: string;
+  subtitleText?: string;
+  discordanceDetails?: string[];
+}
+
+export interface AtomicSubProposition {
+  subClaimId: string;
+  text: string;
+  status: ClaimStatus;
+  verdictConfidence: number;
+  reasoning: string;
+  supportingSourceCount: number;
+}
+
+export interface CompoundClaimDecompositionResult {
+  originalClaim: string;
+  isCompound: boolean;
+  atomicPropositions: AtomicSubProposition[];
+  aggregateStatus: ClaimStatus;
+  synthesisRationale: string;
+}
+
+export interface AdversarialEvaluationReport {
+  reportId: string;
+  timestamp: string;
+  totalAttacksTested: number;
+  successfulDefenses: number;
+  defenseRate: number;
+  perVectorResults: Record<AdversarialVector, {
+    attacksTested: number;
+    defended: number;
+    defenseRate: number;
+    passed: boolean;
+  }>;
+  multilingualIntegrityScore: number;
+  promptInjectionDefendedCount: number;
+  circularSyndicationCollapsedCount: number;
+  adversarialReleaseGatePassed: boolean;
+}
+
+// ============================================
+// P5: INDEPENDENT VALIDATION & PRODUCTION TRUST CERTIFICATION
+// ============================================
+
+export interface CryptographicProvenanceRecord {
+  recordId: string;
+  payloadHash: string; // SHA-256 of canonical JSON
+  merkleRoot?: string;
+  signature: string; // Ed25519 signature in hex
+  signerId: string; // e.g. 'audit_authority_truthworld_main'
+  publicKeyPem?: string; // Ed25519 public key in PEM format for universal verification
+  timestamp: string; // ISO 8601
+  algorithm: 'Ed25519' | 'HMAC-SHA256' | 'ECDSA-P256-SHA256';
+  isTamperEvident: boolean;
+}
+
+export interface DatasetIntegrityManifest {
+  manifestId: string;
+  datasetVersion: string;
+  datasetName: string;
+  totalRecords: number;
+  datasetContentHash: string; // SHA-256 of sorted record hashes
+  recordHashes: Record<string, string>; // recordId -> sha256
+  createdAt: string;
+  signedBy: string;
+  signature: string;
+  publicKeyPem?: string;
+  algorithm?: 'Ed25519' | 'HMAC-SHA256';
+}
+
+export interface StructuralBreakEvent {
+  year: number;
+  event: string;
+  impactType: 'exogenous_shock' | 'policy_regime_shift' | 'measurement_standard_revision';
+  historicalMagnitude: number;
+  description: string;
+}
+
+export interface NeweyWestHacDetails {
+  lagTruncation: number; // L = floor(4 * (n / 100)^(2/9))
+  bartlettWeights: number[];
+  autocovariances: number[]; // gamma_0 ... gamma_L
+  longRunVarianceOmega: number; // Omega_HAC
+  standardErrorHac: number;
+  effectiveSampleSizeAr1: number; // Moran/Bayley-Hammersley AR(1) formula: n * (1 - r1) / (1 + r1)
+}
+
+export interface EconometricTrendAssessment {
+  entity: string;
+  metric: string;
+  targetYear: number;
+  targetValue: number;
+  sampleMean: number;
+  sampleStandardDeviation: number;
+  standardErrorOfMean: number;
+  zScore: number;
+  degreesOfFreedom: number;
+  meanConfidenceInterval95: [number, number]; // CI for the mean: \mu \pm t * (s / \sqrt{n})
+  observationPredictionInterval95: [number, number]; // PI for an observation: \mu \pm t * s * \sqrt{1 + 1/n}
+  confidenceInterval95: [number, number]; // Legacy alias for backward compatibility
+  autocorrelationCoefficient?: number; // First-order serial correlation r_1
+  neweyWestHacDetails?: NeweyWestHacDetails; // Formal Newey-West (1987) HAC Long-Run Variance
+  isStatisticallyAnomalous: boolean; // |z| >= 2.5
+  structuralBreakIdentified?: StructuralBreakEvent;
+  anomalyClassification: 'structural_break_event' | 'statistical_anomaly_requiring_context' | 'expected_historical_volatility';
+  isCherryPickedAnomaly: boolean;
+  rationale: string;
+}
+
+export interface RetractionRegistryRecord {
+  doi: string;
+  title: string;
+  journal: string;
+  retractionDate?: string;
+  retractionReason?: string;
+  retractionNoticeUrl?: string;
+  lastCheckedTimestamp?: string;
+  status: 'active' | 'retracted' | 'expression_of_concern' | 'corrected' | 'partially_corrected' | 'reinstated';
+  evidentiaryWeight?: number; // 0.0 if retracted
+}
+
+export type MultiModalDiscrepancyClassification =
+  | 'deliberate_deception'
+  | 'contextual_contrast'
+  | 'measurement_basis_difference'
+  | 'speaker_self_correction'
+  | 'unresolved';
+
+export interface MultimodalReconciliation {
+  classification: MultiModalDiscrepancyClassification;
+  discrepancyDetected: boolean;
+  explanationSupported: boolean;
+  propositionVerdictUnaffected: boolean;
+  requiresHumanReview: boolean;
+  evidence: string[];
+  adjudicationNote: string;
+}
+
+export interface ContextAwareMultiModalReport {
+  isConsistent: boolean;
+  discordanceScore: number;
+  classification: MultiModalDiscrepancyClassification;
+  audioValue?: number;
+  ocrValue?: number;
+  speechContext?: string;
+  isPermissibleVariance: boolean;
+  adjudicationNote: string;
+  reconciliation?: MultimodalReconciliation;
+}
+
+export interface SourceSnapshot {
+  sourceUrl: string;
+  title: string;
+  retrievedAt: string;
+  contentSha256: string;
+  permissibleExcerpt: string;
+  tier: 'A' | 'B' | 'C' | 'D' | 'E';
+  admissionDecision: 'admitted' | 'quarantined' | 'rejected';
+  admissionRationale: string;
+}
+
+export interface PublicAuditPackV1 {
+  schemaVersion: '1.0.0-auditpack' | '1.1.0-auditpack' | '2.0.0-auditpack';
+  packId: string;
+  generatedAt: string;
+  claimId: string;
+  proposition: {
+    originalText: string;
+    normalizedAtomicClaim: string;
+    sourceLanguage: string;
+    epistemicCategory: EpistemicCategory;
+  };
+  verdict: {
+    finalStatus: ClaimStatus;
+    verdictConfidence: number;
+    evidenceStrength: number;
+    sourceIndependenceScore: number;
+    publicExplanation: string;
+  };
+  evidenceGraph: {
+    admittedSources: RichSource[];
+    quarantinedSources?: RichSource[];
+    retractedSourcesAudit?: RetractionRegistryRecord[];
+    evidencePrecision: number;
+  };
+  sourceSnapshots?: SourceSnapshot[];
+  comparabilityAudit?: {
+    isComparative: boolean;
+    comparabilityStatus?: string;
+    reconciliationMethod?: string;
+  };
+  engineMetadata?: {
+    modelIdentifier: string;
+    pipelineVersion: string;
+    policyCommitHash: string;
+    retrievalConfiguration?: {
+      provider: string;
+      minTier: string;
+      crossValidationThreshold: number;
+    };
+  };
+  cryptographicAttestation: {
+    auditPackSha256: string;
+    datasetManifestHash: string;
+    signerId: string;
+    algorithm: 'Ed25519' | 'HMAC-SHA256';
+    publicKeyPem?: string;
+    signature: string;
+    verificationInstructions: string;
+  };
+  sevenCoreAnswers: {
+    q1_exactClaim: string;
+    q2_supportingEvidence: string;
+    q3_contradictoryEvidence: string;
+    q4_sourceAdmissionRationale: string;
+    q5_comparabilityIntegrity: string;
+    q6_epistemicConfidence: string;
+    q7_limitationsAndUnresolvedDisagreements: string;
+  };
+}
+
+export type PublicAuditPackV2 = PublicAuditPackV1;
+export type PublicAuditPack = PublicAuditPackV1;
+
+// ============================================
+// P6: INDEPENDENT EXTERNAL AUDIT & REAL-WORLD CERTIFICATION
+// ============================================
+
+export interface AuthorityKeyRecord {
+  kid: string;
+  algorithm: 'Ed25519';
+  publicKeyPem: string;
+  publicKeyFingerprintSha256: string;
+  status: 'active' | 'revoked' | 'deprecated';
+  validFrom: string;
+  validUntil?: string;
+  revokedAt?: string;
+  revocationReason?: string;
+}
+
+export interface WellKnownKeySet {
+  authority: string;
+  endpoint: string;
+  publishedAt: string;
+  keys: AuthorityKeyRecord[];
+}
+
+export interface PassageEvidenceAssessment {
+  findingId: string;
+  targetPassage: string;
+  isAffectedByRetractionOrCorrection: boolean;
+  findingSpecificWeight: number; // 0.0 to 1.0
+  findingRationale: string;
+}
+
+export interface BlindEvaluationItem {
+  claimId: string;
+  claimText: string;
+  language: 'en' | 'te' | 'hi' | 'ta' | 'mr' | 'bn';
+  epistemicCategory: EpistemicCategory;
+  expertAnnotation: {
+    expertVerdict: ClaimStatus;
+    expertConfidence: number;
+    domainExpertise: 'economist' | 'historian' | 'scientist' | 'linguist' | 'legal_scholar';
+    notes: string;
+  };
+  truthworldEvaluation?: {
+    verdict: ClaimStatus;
+    verdictConfidence: number;
+    evidenceStrength: number;
+    isAbstained: boolean;
+  };
+}
+
+export interface BlindEvaluationReport {
+  reportId: string;
+  evaluatedAt: string;
+  totalClaims: number;
+  agreementRate: number; // overall observed agreement p_o
+  cohenKappa: number;    // inter-rater agreement statistic
+  definitiveClaimCount: number;
+  abstainedClaimCount: number;
+  definitiveAgreementRate: number; // Agreement on claims with definitive verdicts
+  abstentionAgreementRate: number; // Agreement on abstentions (inconclusive / unproven)
+  accuracyConditionalOnCoverage: number; // Accuracy conditional on rendering a definitive verdict
+  abstentionRate: number;
+  coverageRate: number;
+  wilsonConfidenceInterval95?: [number, number];
+  confusionMatrix: Record<string, Record<string, number>>;
+  byLanguage: Record<string, { total: number; agreed: number; agreementRate: number }>;
+  byCategory: Record<string, { total: number; agreed: number; agreementRate: number }>;
+  disagreements: {
+    claimId: string;
+    claimText: string;
+    language: string;
+    expertVerdict: ClaimStatus;
+    truthworldVerdict: ClaimStatus;
+    analysis: string;
+  }[];
+}
+
+export interface AuditPackAmendment {
+  amendmentId: string;
+  originalPackId: string;
+  originalPackHash: string;
+  amendedAt: string;
+  amendmentReason: string;
+  amendedBy: string;
+  previousVerdict: ClaimStatus;
+  newVerdict: ClaimStatus;
+  newAuditPackSha256: string;
+  immutableChainHash: string;
+}
+
+export interface SignedLedgerCheckpoint {
+  checkpointId: string;
+  checkpointSequence: number;
+  ledgerRootHash: string;
+  previousCheckpointRootHash: string;
+  totalAmendments: number;
+  timestamp: string;
+  signedBy: string;
+  publicKeyPem: string;
+  publicKeyFingerprint: string;
+  signature: string;
+  externalAnchors?: {
+    anchorType: 'rfc3161_timestamp' | 'git_commit_anchor' | 'public_transparency_log';
+    anchorUri: string;
+    anchorProof: string;
+  }[];
+}
+
+export interface TruthPerformanceDashboardMetrics {
+  totalAuditPacksPublished: number;
+  overallExpertAgreement: number;
+  definitiveAccuracy: number;
+  abstentionRate: number;
+  coverageRate: number;
+  interRaterKappa: number;
+  totalAmendmentsLogged: number;
+  signedCheckpointsCount: number;
+  activeAuthorityKeyFingerprint: string;
+  byLanguage: Record<string, { agreementRate: number; total: number }>;
+  byCategory: Record<string, { agreementRate: number; total: number }>;
+  lastUpdated: string;
+}
+
 
 export type ClaimType = string;
 
@@ -416,8 +1262,34 @@ export interface FramingViolationDetail {
   explanation?: string;
 }
 
+export type VerificationLifecycle =
+  | 'primary_verification'
+  | 'provisional'
+  | 'citation_recovery'
+  | 're_adjudication'
+  | 'finalized'
+  | 'failed';
+
+export interface RecoveredClaimContext {
+  claimId: string;
+  originalClaim: string;
+  provisionalStatus: ClaimStatus;
+  recoveredSources: RichSource[];
+  previousReasoning?: string;
+  previousConfidence: number;
+  retrievalStage: 'citation_retry';
+}
+
 export interface VerifiedClaim extends FilteredClaim {
   status: ClaimStatus; // Pipeline state
+  lifecycle?: VerificationLifecycle;
+  provisionalStatus?: ClaimStatus;
+  isProvisional?: boolean;
+  adjudicationVersion?: number;
+  lastAdjudicatedAt?: string;
+  evidenceStrength?: number; // 0.0 - 1.0: Quality & direct relevance of supporting sources
+  verdictConfidence?: number; // 0.0 - 1.0: Confidence that the assigned verdict is correct
+  sourceIndependenceScore?: number; // 0.0 - 1.0: Distinct independent corroboration without circular syndication
   lineage?: EvidenceLineage;
   rhetoricalManipulations?: string[];
   displayLabel?: string; // NEW: Semantic override for UI (e.g., "Popular Claim")
@@ -427,7 +1299,12 @@ export interface VerifiedClaim extends FilteredClaim {
   verificationConfidence: number;
   reasoning: string;
   sources?: string[]; // Legacy / Concatenated
-  richSources?: RichSource[]; // Production rich links
+  richSources?: RichSource[]; // Production rich links (strictly verified against closed-world EvidenceCatalog)
+  quarantinedSources?: RichSource[]; // P1 Strict Source Gating: Audit trail of rejected or quarantined citations
+  verifiedAcademicMetadata?: VerifiedAcademicMetadata[]; // Non-clickable bibliographic records when landing URL unavailable
+  evidenceCatalogVersion?: string; // Closed-world evidence contract version (e.g., v2_verified_urls)
+  temporalConstraints?: TemporalConstraint[]; // P2 Temporal Normalization: Time constraints extracted from claim
+  comparabilityAssessment?: ComparabilityAssessment; // P2 Temporal Normalization: Comparability gate assessment
   isGrounded?: boolean;
   freshnessScore?: number;
   importance: number; // 0-1 scale of impact on core message
@@ -483,6 +1360,11 @@ export interface VerifiedClaim extends FilteredClaim {
   evidenceTraceability?: EvidenceToClaimTraceability;
   calibratedConfidence?: CalibratedConfidenceBreakdown;
   assessmentV2?: CredibilityAssessmentV2;
+  claimDomain?: string;
+  claimNature?: string;
+  verdictBasis?: string[];
+  evidence?: Array<{ type: string; strength: string }>;
+  consensus?: Array<{ domain: string; level: string }>;
 }
 
 export type ComponentVerificationStatus =
@@ -674,7 +1556,7 @@ export interface SourceIdentity {
 }
 
 export interface DeterministicVerification {
-  fetchStatus: 'HTTP_200_OK' | 'ARCHIVE_LOCAL' | 'API_RESOLVED' | 'FETCH_FAILED' | 'UNVERIFIED';
+  fetchStatus: 'HTTP_200_OK' | 'ARCHIVE_LOCAL' | 'API_RESOLVED' | 'FETCH_FAILED' | 'UNVERIFIED' | 'NOT_FOUND' | 'SOFT_404' | 'BOT_BLOCKED';
   snapshotSha256: string;
   retrievedAtUtc: string;
   verifiedPassage: string;
@@ -1076,8 +1958,6 @@ export interface FactCheckResult {
   analysisFailureReason?: AnalysisFailureReason; // v8.2: Structured failure
   viewerNote?: string;               // v8.2: Dynamic message
   uiReport?: UIReport;               // v8.3: Human-friendly UI format
-  
-  trustScore: number | null;         // 0-100 institutional score (null = not evaluated)
   structuralReliabilityScore?: number | null; // v10.0: Structural-only composite
   compositeRating?: number | null;   // v8.5 Normalized public rating (0-10)
   
@@ -1487,6 +2367,7 @@ export const GeminiSingleVerificationSchema = z.object({
   publicNote: z.string().optional().default(""),
   recommendedAction: z.string().optional().default(""),
   reasonCategory: z.string().optional().default("insufficient_evidence"),
+  citedEvidenceIds: z.array(z.string()).optional().default([]),
   sources: z.array(z.object({
     title: z.string().optional().default("Reference Source"),
     url: z.string().optional().default(""),
@@ -1545,70 +2426,74 @@ export const GeminiSingleVerificationSchema = z.object({
   evidenceTraceability: z.object({
     isCompoundClaim: z.boolean().optional().default(false),
     components: z.array(z.object({
-      componentId: z.string(),
-      statement: z.string(),
-      type: z.enum(['PREMISE_OBSERVATION', 'INFERENTIAL_CONCLUSION', 'CONTEXTUAL_ASSERTION']).or(z.string()),
-      factualAccuracy: z.enum(['ACCURATE_OBSERVATION', 'INACCURATE_OBSERVATION', 'UNVERIFIABLE']).or(z.string()),
+      componentId: z.string().optional().default(""),
+      statement: z.string().optional().default(""),
+      type: z.enum(['PREMISE_OBSERVATION', 'INFERENTIAL_CONCLUSION', 'CONTEXTUAL_ASSERTION']).or(z.string()).optional().default('PREMISE_OBSERVATION'),
+      factualAccuracy: z.enum(['ACCURATE_OBSERVATION', 'INACCURATE_OBSERVATION', 'UNVERIFIABLE']).or(z.string()).optional().default('ACCURATE_OBSERVATION'),
       inferentialValidity: z.string().optional(),
-      explanation: z.string(),
+      explanation: z.string().optional().default(""),
       detectedFallacy: z.string().optional(),
       evidenceIds: z.array(z.string()).optional().default([]),
-    })).optional().default([]),
+    }).passthrough()).optional().default([]),
     evidenceTraces: z.array(z.object({
-      evidenceId: z.string(),
-      componentId: z.string(),
-      sourceTitle: z.string(),
-      sourceUrl: z.string(),
+      evidenceId: z.string().optional().default(""),
+      componentId: z.string().optional().default(""),
+      sourceTitle: z.string().optional().default(""),
+      sourceUrl: z.string().optional().default(""),
       retrievalTimestamp: z.number().optional().default(Date.now()),
-      sourceType: z.string(),
+      sourceType: z.string().optional().default(""),
       provenance: z.object({
-        originAgencyOrAuthor: z.string(),
-        isIndependentOfSubject: z.boolean(),
-        independenceValidation: z.string(),
+        originAgencyOrAuthor: z.string().optional().default(""),
+        isIndependentOfSubject: z.boolean().optional().default(true),
+        independenceValidation: z.string().optional().default(""),
+      }).passthrough().optional().default({
+        originAgencyOrAuthor: "",
+        isIndependentOfSubject: true,
+        independenceValidation: "",
       }),
       sourceIndependence: z.object({
-        publisherIndependentOfSubject: z.boolean(),
-        underlyingDataIndependentOfSubject: z.boolean(),
-        analysisIndependentlyConducted: z.boolean(),
-        corroborationType: z.string(),
-      }).optional(),
+        publisherIndependentOfSubject: z.boolean().optional().default(true),
+        underlyingDataIndependentOfSubject: z.boolean().optional().default(true),
+        analysisIndependentlyConducted: z.boolean().optional().default(true),
+        corroborationType: z.string().optional().default(""),
+      }).passthrough().optional(),
       automatedVerification: z.object({
-        urlResolved: z.boolean(),
-        passageLocated: z.boolean(),
-        passageMatchesSource: z.boolean(),
-        supportsClaimComponent: z.boolean(),
-        verificationMethod: z.string(),
-        lastVerifiedAt: z.string(),
+        urlResolved: z.boolean().optional().default(false),
+        passageLocated: z.boolean().optional().default(false),
+        passageMatchesSource: z.boolean().optional().default(false),
+        supportsClaimComponent: z.boolean().optional().default(false),
+        verificationMethod: z.string().optional().default(""),
+        lastVerifiedAt: z.string().optional().default(""),
         locatedContextSnippet: z.string().optional(),
         omittedContextDetected: z.boolean().optional(),
         omittedContextExplanation: z.string().optional(),
-      }).optional(),
-      exactPassage: z.string(),
-      claimComponentAddressed: z.string(),
-      relationship: z.string(),
-      verificationStatus: z.string(),
+      }).passthrough().optional(),
+      exactPassage: z.string().optional().default(""),
+      claimComponentAddressed: z.string().optional().default(""),
+      relationship: z.string().optional().default(""),
+      verificationStatus: z.string().optional().default(""),
       knownLimitations: z.array(z.string()).optional().default([]),
-    })).optional().default([]),
+    }).passthrough()).optional().default([]),
     inferentialBridgeSummary: z.string().optional().default(""),
     overallSynthesis: z.object({
       premisesVerdict: z.string().optional(),
       conclusionVerdict: z.string().optional(),
       finalAdjudication: z.string().optional(),
-    }).optional(),
-  }).optional(),
+    }).passthrough().optional(),
+  }).passthrough().optional(),
   calibratedConfidence: z.object({
     claimDecomposition: z.number().nullable().optional(),
     premiseAssessment: z.number().nullable().optional(),
     sourceVerification: z.number().nullable().optional(),
     inferenceAssessment: z.number().nullable().optional(),
     overallVerdict: z.number().nullable().optional(),
-  }).optional(),
+  }).passthrough().optional(),
   classification: z.object({
     propositionType: z.string().optional(),
     evidenceStatus: z.string().optional(),
     reasoningValidity: z.string().optional(),
     displayBadge: z.string().optional(),
-  }).optional(),
+  }).passthrough().optional(),
   claimDecomposition: z.array(z.object({
     propositionId: z.string(),
     role: z.string(),
@@ -1618,7 +2503,7 @@ export const GeminiSingleVerificationSchema = z.object({
     supportingEvidenceIds: z.array(z.string()).optional().default([]),
     contradictingEvidenceIds: z.array(z.string()).optional().default([]),
     independentPrimarySourceCount: z.number().optional().default(0),
-  })).optional(),
+  }).passthrough()).optional(),
   evidenceRegistry: z.record(z.string(), z.any()).optional(),
   reasoningAssessment: z.object({
     premisesVerifiedAccurate: z.array(z.string()).optional().default([]),
@@ -1627,20 +2512,20 @@ export const GeminiSingleVerificationSchema = z.object({
     evaluatedAlternativeExplanations: z.array(z.object({
       explanation: z.string(),
       supportingEvidenceIds: z.array(z.string()).optional().default([]),
-    })).optional().default([]),
-  }).optional(),
+    }).passthrough()).optional().default([]),
+  }).passthrough().optional(),
   uncertainty: z.object({
     numericalConfidenceAvailable: z.boolean().optional().default(false),
     calibrationModelVersion: z.string().nullable().optional(),
     qualitativeTier: z.string().optional(),
     conformalPredictionSet: z.array(z.string()).optional().default([]),
     disclosedGaps: z.array(z.string()).optional().default([]),
-  }).optional(),
-});
+  }).passthrough().optional(),
+}).passthrough();
 
 export const GeminiVerificationSchema = z.object({
   verifications: z.array(GeminiSingleVerificationSchema),
-});
+}).passthrough();
 
 export interface FactCheckConfig {
   extractionChunkDuration: number;
@@ -1725,10 +2610,9 @@ export interface ExecutionPlan {
   topics?: string[];
   providedSources?: string[];
   visibility?: string;
-  enablePath1: boolean;      // Legacy
-  enablePath2: boolean;      // Legacy
-  enableTruthEngine: boolean; // Strategic alias for Path 1
-  enableReachEngine: boolean; // Strategic alias for Path 2
+  enableCredibility?: boolean; // Independent Credibility / Fact-Checking system
+  enableDubbing?: boolean;     // Independent Dubbing system
+  enableSubtitles?: boolean;   // Independent Subtitles system
   enableAuxiliary: boolean;
   languages: string[];
   dubbingMode: 'none' | 'standard' | 'voice_clone';
@@ -1764,13 +2648,18 @@ export interface ExecutionPlan {
   enableLipSync?: boolean;
   lipSyncMode?: 'latentsync' | 'musetalk' | 'standard';
   dubbingLanguages?: string[];
-  dubbingTier?: 'audio_starter' | 'audio_pro' | 'audio_ultra' | 'video_pro' | 'video_ultra';
+  dubbingTier?: 'audio_track';
   uncannyMitigation?: 'none' | 'cadence_lock' | 'smart_cutaway' | 'selective_lipsync';
   isometryMode?: 'natural' | 'strict_syllable' | 'viseme_locked';
   cinemaGrade?: boolean;
   stemIsolation?: boolean;
+  studioMneStemUrl?: string; // Original studio-provided clean M&E stem URL (bypasses neural demixing for 100% clean M&E)
+  reelIndex?: number;        // For distributed 15-minute reel processing (0-based)
+  totalReels?: number;       // Total reels in multi-reel film job
+  reelTimeOffsetMs?: number; // Starting offset in milliseconds for this reel
+  isReelJob?: boolean;       // Flag indicating this is a sub-reel task
   subtitleLanguages?: string[];
-  subtitleTier?: 'starter' | 'pro';
+  subtitleTier?: 'ultra' | 'starter' | 'pro';
   voiceGender?: 'auto' | 'male' | 'female';
   durationSeconds?: number;
 
@@ -1779,6 +2668,47 @@ export interface ExecutionPlan {
   priority: 'low' | 'normal' | 'high';
   skipCache: boolean;
   disputedClaimIndex?: number;
+}
+
+/**
+ * Returns true when the independent Credibility / Fact-Checking system is enabled.
+ */
+export function isCredibilityEnabled(plan?: Partial<ExecutionPlan> | Record<string, any> | null): boolean {
+  if (!plan) return false;
+  const p = plan as Record<string, any>;
+  if (typeof p.enableCredibility === "boolean") return p.enableCredibility;
+  if (typeof p.factCheckEnabled === "boolean") return p.factCheckEnabled;
+  if (typeof p.enableFactCheck === "boolean") return p.enableFactCheck;
+  return !!p.enableFactChecking;
+}
+
+/**
+ * Returns true when Dubbing / Audio Localization is specifically enabled.
+ */
+export function isDubbingEnabled(plan?: Partial<ExecutionPlan> | Record<string, any> | null): boolean {
+  if (!plan) return false;
+  const p = plan as Record<string, any>;
+  if (typeof p.enableDubbing === "boolean") return p.enableDubbing;
+  return !!p.generateDubbing;
+}
+
+/**
+ * Returns true when Subtitles generation is specifically enabled.
+ */
+export function isSubtitlesEnabled(plan?: Partial<ExecutionPlan> | Record<string, any> | null): boolean {
+  if (!plan) return false;
+  const p = plan as Record<string, any>;
+  if (typeof p.enableSubtitles === "boolean") return p.enableSubtitles;
+  if (typeof p.genLangSubs === "boolean") return p.genLangSubs;
+  return !!p.generateSubtitles;
+}
+
+/**
+ * Returns true when any Localization system (Dubbing or Subtitles) is enabled.
+ * Completely independent from Credibility.
+ */
+export function isLocalizationEnabled(plan?: Partial<ExecutionPlan> | Record<string, any> | null): boolean {
+  return isDubbingEnabled(plan) || isSubtitlesEnabled(plan);
 }
 
 export interface CreatorDNA {
@@ -1835,6 +2765,8 @@ export type EventType =
   | 'transcription-complete'
   | 'fact-processing'
   | 'dubbing-processing'
+  | 'dubbing-reel-requested'
+  | 'dubbing-reel-assemble'
   | 'fact-complete'
   | 'dubbing-complete'
   | 'aggregation-ready'
@@ -1942,6 +2874,7 @@ export interface DubbingCompleteData {
     master?: Record<string, string>;
     vocals?: string;
   };
+  mneValidation?: Record<string, any>;
 }
 
 export interface EnhancedTranscriptionResult {
@@ -1987,6 +2920,23 @@ export interface TimedSegment {
   isHook?: boolean;
   language?: string;
   words: WordTimestamp[];
+  emotionTag?: string;
+  energyDb?: number;
+  speakingRateRatio?: number;
+  stabilityOverride?: number;
+  similarityBoostOverride?: number;
+  deliveryStyle?: string;
+  pitchRangeSemitones?: number;
+  voiceQuality?: "breathy" | "modal" | "creaky" | "pressed";
+  emotionalIntensity?: {
+    anger: number;
+    sadness: number;
+    joy: number;
+    fear: number;
+    disgust: number;
+    surprise: number;
+  };
+  energyEnvelopePattern?: "rising" | "falling" | "flat" | "dynamic";
 }
 
 export interface SpeakerInfo {
@@ -2031,6 +2981,8 @@ export interface ExplainabilityResult {
   whyWrong?: string;
   correction?: string;
   sources: SourceReference[];
+  sourceStatus?: 'complete' | 'partial' | 'missing';
+  verifiedAcademicMetadata?: VerifiedAcademicMetadata[];
   timestampStart: number;
   timestampEnd: number;
   confidence: number;
@@ -2046,6 +2998,7 @@ export interface SourceReference {
   relevanceScore: number;
   tier?: SourceTier;       // v5.0: Evidence provenance
   provenance?: string;     // v5.0: Source description (e.g. "News Archive")
+  urlVerification?: UrlVerificationRecord;
 }
 
 export interface TrustIndexFactors {
@@ -2083,8 +3036,6 @@ export interface CredibilityResult {
   analysisFailureReason?: AnalysisFailureReason; // v8.2: Structured failure
   viewerNote?: string;               // v8.2: Dynamic message
   uiReport?: UIReport;               // v8.3: Human-friendly UI format
-
-  trustScore: number | null;
   trustLabel: TrustLabel;
   confidence: number;
   confidenceTier: 'high' | 'medium' | 'low';
@@ -2247,6 +3198,18 @@ export interface DubbingSegment {
   speaker?: string;
   confidence?: number;
   isHook?: boolean; // first 10s of video
+  emotionTag?: string;
+  energyDb?: number;
+  speakingRateRatio?: number;
+  stabilityOverride?: number;
+  similarityBoostOverride?: number;
+  deliveryStyle?: string;
+  pitchRangeSemitones?: number;
+  voiceQuality?: "breathy" | "modal" | "creaky" | "pressed";
+  syllableBudgetCompliance?: number;
+  synthesizedAudioUrl?: string;
+  durationMs?: number;
+  speedFactor?: number;
 }
 
 export interface SyncInstruction {
@@ -2279,6 +3242,9 @@ export interface DubbingResult {
   meta?: {
     voice?: string;
     durationSec: number;
+    mneValidationStatus?: 'passed' | 'degraded' | 'failed' | 'not_required';
+    mneSource?: string;
+    dialogueBleedDb?: number;
   };
 }
 
@@ -2350,12 +3316,11 @@ export interface AggregatedOutput {
   jobId: string;
   userId: string;
   videoUrl: string;
-  trustScore: number;       // v3.0 Institutional Score
   trustLabel: TrustLabel;   // Highly Reliable | Reliable | etc.
   confidence: number;       // 0-1
   confidenceTier: 'high' | 'medium' | 'low';
   speakerConfidence?: number; // v5.3
-  rating: number;           // LEGACY: trustIndex compatibility
+  rating?: number;
   summary?: string;
   conclusion?: {
     label: string;
@@ -2429,7 +3394,6 @@ export interface CreatorReputation {
   userId:           string;
   channelId:        string;
   channelRating:    number;             // v4.2 Public score
-  trustScore:       number;             // 0-100 Aggregate
   trustLevel:       'elite' | 'high' | 'developing' | 'risk' | 'critical';
   
   // Aggregate Stats
@@ -2599,4 +3563,153 @@ export interface EpistemicTelemetry {
   costUsd: number;
   timestamp: number;
 }
+
+// ============================================
+// DUBBING PROSODY, REEL ORCHESTRATION & CREATOR STUDIO TYPES
+// ============================================
+
+export type ElevenLabsEmotionTag =
+  | 'whispers'
+  | 'shouts'
+  | 'laughs'
+  | 'sighs'
+  | 'gasps'
+  | 'excited'
+  | 'sorrowful'
+  | 'angry'
+  | 'calm'
+  | 'serious';
+
+export interface EmotionalIntensityProfile {
+  anger: number;
+  sadness: number;
+  joy: number;
+  fear: number;
+  disgust: number;
+  surprise: number;
+}
+
+export interface SegmentProsodyCue {
+  segmentIndex: number;
+  emotionTag?: ElevenLabsEmotionTag;
+  energyDb?: number;
+  speakingRateRatio?: number;
+  stabilityOverride?: number;
+  similarityBoostOverride?: number;
+  deliveryStyle?: string;
+  pitchRangeSemitones?: number;
+  speakingRateSyllablesPerSec?: number;
+  voiceQuality?: 'breathy' | 'modal' | 'creaky' | 'pressed';
+  emotionalIntensity?: EmotionalIntensityProfile;
+  energyEnvelopePattern?: 'rising' | 'falling' | 'flat' | 'dynamic';
+  breathingPattern?: 'natural' | 'rapid' | 'suppressed';
+  accentStressMarkers?: string[];
+}
+
+export interface PronunciationRule {
+  id: string;
+  term: string;
+  replacement: string;
+  ipaOrPhonetic?: string;
+  caseSensitive?: boolean;
+}
+
+export interface DubbingEditableSegment {
+  index: number;
+  startMs: number;
+  endMs: number;
+  speaker?: string;
+  originalText: string;
+  translatedText: string;
+  editedText?: string;
+  emotionTag?: string;
+  energyDb?: number;
+  stabilityOverride?: number;
+  similarityBoostOverride?: number;
+  pitchRangeSemitones?: number;
+  voiceQuality?: 'breathy' | 'modal' | 'creaky' | 'pressed';
+  voiceId?: string;
+  synthesizedAudioUrl?: string;
+  durationMs?: number;
+  speedFactor?: number;
+  locked?: boolean;
+  updatedAt?: number;
+}
+
+export interface DubbingEditableManifest {
+  jobId: string;
+  videoId?: string;
+  userId: string;
+  language: string;
+  sourceLanguage: string;
+  totalDurationMs: number;
+  mneStemUrl?: string | null;
+  dialogueStemUrl?: string | null;
+  masterAudioUrl?: string | null;
+  masterVideoUrl?: string | null;
+  subtitleUrl?: string | null;
+  subtitleFormat?: 'srt' | 'vtt';
+  mneGain?: number;
+  dialogueGain?: number;
+  pronunciationGlossary: PronunciationRule[];
+  segments: DubbingEditableSegment[];
+  version: number;
+  updatedAt: number;
+}
+
+export interface DubbingReelTaskPayload {
+  jobId: string;
+  videoId?: string;
+  userId: string;
+  reelIndex: number;
+  totalReels: number;
+  startMs: number;
+  endMs: number;
+  durationMs: number;
+  languages: string[];
+  sourceLanguage: string;
+  dubbingTier?: 'audio_track';
+  preferVoiceCloning: boolean;
+  mneStemUrl?: string | null;
+  voiceIdsBySpeaker?: Record<string, Record<string, string>>;
+  speakerProfiles?: Array<{
+    speakerId: string;
+    gender: string;
+    tone: string;
+    emotion: string;
+    style: string;
+    pitch?: number;
+    speakingRate?: number;
+  }>;
+  segmentsByLanguage: Record<string, Array<{
+    index: number;
+    start: number;
+    end: number;
+    originalText: string;
+    translatedText: string;
+    speaker?: string;
+    isHook?: boolean;
+    emotionTag?: string;
+    energyDb?: number;
+    stabilityOverride?: number;
+    similarityBoostOverride?: number;
+  }>>;
+  idempotencyKey: string;
+}
+
+export interface DubbingReelAssemblyPayload {
+  jobId: string;
+  videoId?: string;
+  userId: string;
+  totalReels: number;
+  totalDurationMs: number;
+  languages: string[];
+  sourceLanguage: string;
+  mneStemUrl?: string | null;
+  mneValidation?: Record<string, any>;
+  dubbingTier?: 'audio_track';
+  videoUrl: string;
+  idempotencyKey: string;
+}
+
 

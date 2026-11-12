@@ -218,7 +218,7 @@ def test_harmonizer_pipeline(tier: str = "ultra"):
     gpu="A10G",
     volumes={"/checkpoints": volume},
     timeout=300,
-    concurrency_limit=10
+    max_containers=10
 )
 def process_chunk_distributed(
     chunk_index: int,
@@ -329,7 +329,7 @@ def demix_audio_stems_distributed(audio_bytes: bytes) -> dict:
             ffmpeg_cmd = [
                 "ffmpeg", "-y",
                 "-i", no_vocals_path,
-                "-af", "highpass=f=35,lowpass=f=18500,afftdn=nf=-25",
+                "-af", "highpass=f=35,lowpass=f=18500,afftdn=nf=-40",
                 "-c:a", "libmp3lame",
                 "-b:a", "192k",
                 cleaned_no_vocals_path

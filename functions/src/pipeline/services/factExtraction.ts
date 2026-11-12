@@ -1093,7 +1093,7 @@ ${modeInstruction}
 Produce a JSON response with:
 1. summary: A faithful, objective, and clear representation of what the speaker discussed in accessible journalistic language.
 2. conclusion: High-integrity, objective synthesis (label: Supported|Mixed|Contested|Unsupported). Explain clearly what the video asserted, what verified evidence shows, and the empirical confidence level.
-   CRITICAL STYLE RULE: Write in professional, clear, objective plain English. Avoid condescending language, childish analogies, or storytelling. Do NOT use dense robotic AI jargon (e.g. NEVER use: "empirical concordance", "epistemological consensus", "substantiates the thesis", "hermeneutical alignment", "macroeconomic quantification", "institutional corroboration", "thematic synthesis").
+   CRITICAL STYLE RULE: Write in very clear, simple everyday words that even a 10-year-old can easily understand. Keep sentences short and direct. NEVER say "this claim", "this statement", "from internal data", "internal training data", "from my memory", or robotic AI jargon (NEVER use: "empirical concordance", "epistemological consensus", "substantiates the thesis", "hermeneutical alignment", "macroeconomic quantification", "institutional corroboration", "thematic synthesis", "indexed institutional public archives").
    Must include an array of authoritative "sources" (with title, url, domain, trustLevel, type) that substantiate or contest the conclusion.
 3. hallucinationIsolation: (v10.0) Separate the following:
    - "verifiedFacts": Statements directly supported by the "Verified Claims" list.
@@ -1139,7 +1139,7 @@ Return ONLY valid JSON according to:
   "speakerRoles": { "Speaker A": "Host" }
 }
 
-#### RATIONAL NEUTRALITY RULES (TRUTHWORLD PATH 1):
+#### RATIONAL NEUTRALITY RULES (CREDIBILITY SYSTEM):
 1. THE CORE RULE: A Fact is a Fact. A Belief is a Belief.
 2. BUCKET 1 (Verifiable Fact): Treat as empirical. Distinguish between "Unproven" (no evidence found) and "False" (contradicted by evidence). "Unproven" should NOT be penalized as heavily as "False".
 3. BUCKET 2/3 (Opinion/Belief): Respect fully. DO NOT attempt to verify for truth.

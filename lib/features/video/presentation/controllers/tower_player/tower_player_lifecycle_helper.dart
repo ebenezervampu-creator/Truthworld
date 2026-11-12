@@ -141,7 +141,20 @@ class TowerPlayerLifecycleHelper {
     }
     errorDebounceTimer?.cancel();
     singleTapTimer?.cancel();
-    focusNode.dispose();
+    try {
+      if (focusNode.canRequestFocus && focusNode.hasFocus) {
+        focusNode.unfocus();
+      }
+      focusNode.dispose();
+    } catch (e, s) {
+      if (!e.toString().contains('already') && !e.toString().contains('disposed')) {
+        ErrorHandler.log(
+          e,
+          stackTrace: s,
+          tag: 'TowerPlayerLifecycleHelper.dispose.focusNode',
+        );
+      }
+    }
     try {
       videoPlayerController.removeListener(onVpcUpdate);
     } catch (e, s) {

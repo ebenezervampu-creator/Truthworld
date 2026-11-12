@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
-import 'package:truthworld/features/video/presentation/controllers/tower_player/tower_player_vpc_event_handler.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/services/sleep_timer_service.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
@@ -99,7 +98,6 @@ void main() {
       const originalTrack = AudioTrack(
         label: 'Original (English)',
         langCode: 'en',
-        type: 'Original',
       );
       const teluguTrack = AudioTrack(
         label: 'Telugu (Audio)',
@@ -221,6 +219,52 @@ void main() {
 
       // Main video player volume must be restored so user is not in dead silence
       expect(mainVpc.value.volume, equals(1.0));
+    });
+
+    test('syncAlternateAudioTrack does not cause stack overflow recursion when listener is attached to mainVpc and position > audioDur', () {
+      final mainVpc = VideoPlayerController.networkUrl(Uri.parse('https://example.com/main.mp4'));
+      final audioVpc = VideoPlayerController.networkUrl(Uri.parse('https://example.com/audio.mp3'));
+
+      mainVpc.value = mainVpc.value.copyWith(
+        isInitialized: true,
+        isPlaying: true,
+        volume: 0.0,
+        position: const Duration(seconds: 215),
+        duration: const Duration(seconds: 300),
+      );
+
+      audioVpc.value = audioVpc.value.copyWith(
+        isInitialized: true,
+        isPlaying: true,
+        volume: 1.0,
+        position: const Duration(seconds: 60),
+        duration: const Duration(seconds: 60),
+      );
+
+      var listenerCallCount = 0;
+      mainVpc.addListener(() {
+        listenerCallCount++;
+        TowerPlayerVpcEventHandler.syncAlternateAudioTrack(
+          mainVpc: mainVpc,
+          audioCtrl: audioVpc,
+          isMuted: false,
+          volume: 1.0,
+          hasAlternateAudioTrack: true,
+        );
+      });
+
+      // Trigger initial call
+      TowerPlayerVpcEventHandler.syncAlternateAudioTrack(
+        mainVpc: mainVpc,
+        audioCtrl: audioVpc,
+        isMuted: false,
+        volume: 1.0,
+        hasAlternateAudioTrack: true,
+      );
+
+      expect(mainVpc.value.volume, equals(1.0));
+      expect(audioVpc.value.isPlaying, isFalse);
+      expect(listenerCallCount, lessThanOrEqualTo(2));
     });
   });
 }

@@ -175,10 +175,10 @@ void main() {
       );
 
       expect(find.text('Monetization Program Gate'), findsOneWidget);
-      expect(find.text('1,000 Views & 10 Hours Watch Time Required'), findsOneWidget);
+      expect(find.text('1,000 Views & 30 Hours Watch Time Required'), findsOneWidget);
       expect(find.textContaining('Preliminary Report'), findsOneWidget);
       expect(find.textContaining('650 / 1,000 views'), findsOneWidget);
-      expect(find.textContaining('5.0 / 10.0 hrs'), findsOneWidget);
+      expect(find.textContaining('5.0 / 30.0 hrs'), findsOneWidget);
       expect(find.text('Got It'), findsOneWidget);
       expect(find.text('View All Videos'), findsOneWidget);
     });

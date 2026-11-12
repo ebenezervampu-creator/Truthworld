@@ -105,21 +105,35 @@ class ChannelFactCheckPricingSection extends StatelessWidget {
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.verified_user_outlined, size: 20, color: Color(0xFF34D399)),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Complete Ground-Truth Fact-Checking',
-                              style: typography.label.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                fontSize: 14,
+                        Expanded(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Padding(
+                                padding: EdgeInsets.only(top: 1),
+                                child: Icon(
+                                  Icons.verified_user_outlined,
+                                  size: 20,
+                                  color: Color(0xFF34D399),
+                                ),
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Complete Ground-Truth Fact-Checking',
+                                  style: typography.label.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
+                        const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
@@ -140,9 +154,10 @@ class ChannelFactCheckPricingSection extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 6,
+                      runSpacing: 4,
                       children: [
                         Text(
                           r'FREE ($0.00)',
@@ -152,7 +167,6 @@ class ChannelFactCheckPricingSection extends StatelessWidget {
                             color: const Color(0xFF34D399),
                           ),
                         ),
-                        const SizedBox(width: 6),
                         Text(
                           '• Sponsored 100% by TruthWorld Platform',
                           style: typography.caption.copyWith(
@@ -246,12 +260,18 @@ class ChannelFactCheckPricingSection extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        const Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('All Claims:', style: TextStyle(color: Colors.white60, fontSize: 10)),
-                            Text(r'FREE ($0.00)', style: TextStyle(color: Color(0xFF34D399), fontSize: 11, fontWeight: FontWeight.bold)),
-                          ],
+                        const SizedBox(
+                          width: double.infinity,
+                          child: Wrap(
+                            alignment: WrapAlignment.spaceBetween,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 4,
+                            runSpacing: 2,
+                            children: [
+                              Text('All Claims:', style: TextStyle(color: Colors.white60, fontSize: 10)),
+                              Text(r'FREE ($0.00)', style: TextStyle(color: Color(0xFF34D399), fontSize: 11, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -299,15 +319,20 @@ class ChannelFactCheckPricingSection extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            plan.title,
-                            style: typography.title.copyWith(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                          Expanded(
+                            child: Text(
+                              plan.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: typography.title.copyWith(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
-                          if (plan.isPopular)
+                          if (plan.isPopular) ...[
+                            const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
@@ -323,6 +348,7 @@ class ChannelFactCheckPricingSection extends StatelessWidget {
                                 ),
                               ),
                             ),
+                          ],
                         ],
                       ),
                       const SizedBox(height: 6),

@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/source_avatar_service.dart';
-import 'package:truthworld/core/widgets/clickable_url_text.dart';
+import 'package:truthworld/core/utils/source_url_sanitizer.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/widgets/claim_source_submission_dialog.dart';
 import 'package:truthworld/theme/app_theme.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// 🏛 ClaimSourcesBottomSheet
 ///
@@ -51,16 +49,23 @@ class ClaimSourcesBottomSheet extends StatelessWidget {
     );
   }
 
-  Future<void> _launchUrl(String? urlStr) async {
-    if (urlStr == null || urlStr.trim().isEmpty) return;
-    await ClickableUrlText.launchUrlString(urlStr);
+  Future<void> _launchSource(UISource source) async {
+    final claimId = (initialClaim?['claimId'] ?? initialClaim?['id'])?.toString();
+    await SourceUrlSanitizer.launchSourceUrl(
+      url: source.url,
+      title: source.title,
+      publisher: source.publisher,
+      domain: source.domain,
+      source: source.toMap(),
+      videoId: video.id.isNotEmpty ? video.id : null,
+      claimId: claimId,
+    );
   }
 
   Future<void> _searchWeb(BuildContext context) async {
     final query = claimText.trim();
     if (query.isEmpty) return;
-    final searchUrl = 'https://www.google.com/search?q=${Uri.encodeComponent(query)}';
-    await _launchUrl(searchUrl);
+    await SourceUrlSanitizer.launchWebSearch(query: query);
   }
 
   @override
@@ -140,11 +145,12 @@ class ClaimSourcesBottomSheet extends StatelessWidget {
                     child: Padding(
                       padding: const EdgeInsets.all(24),
                       child: Text(
-                        'No specific external citations cataloged for this claim.',
+                        'Verified source links are currently unavailable for this claim. TruthWorld only displays sources confirmed live.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 13,
                           color: AppColors.textTertiary,
+                          height: 1.45,
                         ),
                       ),
                     ),
@@ -267,7 +273,7 @@ class ClaimSourcesBottomSheet extends StatelessWidget {
         : (s.domain != null && s.domain!.isNotEmpty ? s.domain! : 'Verified Organization');
 
     return InkWell(
-      onTap: () => _launchUrl(s.url),
+      onTap: () => _launchSource(s),
       borderRadius: BorderRadius.circular(12),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
@@ -345,7 +351,7 @@ class ClaimSourcesBottomSheet extends StatelessWidget {
                 size: 20,
                 color: AppColors.textSecondary,
               ),
-              onPressed: () => _launchUrl(s.url),
+              onPressed: () => _launchSource(s),
             ),
           ],
         ),

@@ -27,7 +27,6 @@ void main() {
     updatedAt: Timestamp.now(),
     tags: const ['news', 'factcheck'],
     category: 'News',
-    trustScore: 88.0,
     visibility: 'public',
   );
 

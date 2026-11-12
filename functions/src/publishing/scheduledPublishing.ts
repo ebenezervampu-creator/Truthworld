@@ -406,7 +406,7 @@ export async function manualTriggerScheduledPublishing() {
 
 /**
  * Automatically publishes fact checks for videos where the creator review window has expired.
- * Standard grace period is 48 hours (accelerated to 24 hours for videos with trustScore < 50 or contested claims).
+ * Standard grace period is 48 hours (accelerated to 24 hours for videos with contested or disputed claims).
  */
 async function sweepExpiredFactCheckEmbargoes(executionId: string): Promise<number> {
   const nowMs = Date.now();
@@ -430,8 +430,8 @@ async function sweepExpiredFactCheckEmbargoes(executionId: string): Promise<numb
     const createdAt = data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt)) : null;
     if (!createdAt) continue;
 
-    const trustScore = typeof data.trustScore === "number" ? data.trustScore : 0;
-    const isContested = trustScore > 0 && ((trustScore <= 5.0 && trustScore < 2.5) || (trustScore > 5.0 && trustScore < 50.0));
+    const hasDisputes = data.hasDisputedClaims === true || (Array.isArray(data.disputedClaims) && data.disputedClaims.length > 0) || data.hasHighConcernClaims === true;
+    const isContested = hasDisputes;
     const effectiveCutoff = isContested ? cutoff24h : cutoff48h;
 
     if (createdAt <= effectiveCutoff) {

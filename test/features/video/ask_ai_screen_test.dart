@@ -65,7 +65,6 @@ void main() {
     channelName: 'Science Truth',
     category: 'Science',
     tags: const ['science', 'quantum'],
-    trustScore: 92.0,
     factCheckUrl: 'https://example.com/factcheck.json',
   );
 

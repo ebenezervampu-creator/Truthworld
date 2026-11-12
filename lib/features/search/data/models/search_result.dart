@@ -21,7 +21,6 @@ class SearchResult {
     this.category,
     this.visibility = 'public',
     this.isFactChecked = false,
-    this.trustScore = 0.0,
     this.isTrusted = false,
   });
 
@@ -223,9 +222,6 @@ class SearchResult {
                       (data['credibilityReport'] as Map)['isApproved'] == true)) ||
               (data['factCheckUrl'] is String &&
                   (data['factCheckUrl'] as String).trim().isNotEmpty),
-          trustScore: (data['trustScore'] as num?)?.toDouble() ??
-              (data['truthScore'] as num?)?.toDouble() ??
-              0.0,
           isTrusted: (data['channelTrustedModerationBypass'] as bool?) ??
               (data['isChannelTrusted'] as bool?) ??
               (data['trustedModerationBypass'] as bool?) ??
@@ -257,7 +253,6 @@ class SearchResult {
       category: map['category'] as String?,
       visibility: map['visibility'] as String? ?? 'public',
       isFactChecked: map['isFactChecked'] as bool? ?? false,
-      trustScore: (map['trustScore'] as num?)?.toDouble() ?? 0.0,
       isTrusted: (map['isTrusted'] as bool?) ??
           (map['trustedModerationBypass'] as bool?) ??
           (map['trustedChannel'] as bool?) ??
@@ -279,7 +274,6 @@ class SearchResult {
   final String? category;
   final String visibility;
   final bool isFactChecked;
-  final double trustScore;
   final bool isTrusted;
   double relevanceScore;
 
@@ -395,7 +389,6 @@ class SearchResult {
     'category': category,
     'visibility': visibility,
     'isFactChecked': isFactChecked,
-    'trustScore': trustScore,
     'isTrusted': isTrusted,
   };
 

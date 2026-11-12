@@ -110,7 +110,6 @@ void main() {
         // Populate credibility cache with claims
         VideoMediaService.credibilityCache[factCheckedVideo.id] =
             const VideoMediaCredibility(
-          trustScore: 92.0,
           claims: [
             {'text': 'Claim verified by source', 'verdict': 'verified'},
           ],

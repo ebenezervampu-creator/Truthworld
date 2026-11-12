@@ -1,19 +1,61 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:truthworld/features/video/presentation/controllers/tower_player/tower_player_registry.dart';
-import 'package:truthworld/features/video/presentation/controllers/tower_player/tower_player_vpc_event_handler.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/services/sleep_timer_service.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:video_player/video_player.dart';
+import 'package:video_player_platform_interface/video_player_platform_interface.dart';
+
+class _FakeVideoPlayerPlatform extends VideoPlayerPlatform {
+  double currentVolume = 1.0;
+  bool isPlaying = false;
+  Duration currentPosition = Duration.zero;
+
+  @override
+  Future<void> init() async {}
+  @override
+  Future<void> dispose(int textureId) async {}
+  @override
+  Future<int?> create(DataSource dataSource) async => 1;
+  @override
+  Future<void> setLooping(int textureId, bool looping) async {}
+  @override
+  Future<void> play(int textureId) async {
+    isPlaying = true;
+  }
+  @override
+  Future<void> pause(int textureId) async {
+    isPlaying = false;
+  }
+  @override
+  Future<void> setVolume(int textureId, double volume) async {
+    currentVolume = volume;
+  }
+  @override
+  Future<void> setPlaybackSpeed(int textureId, double speed) async {}
+  @override
+  Future<void> seekTo(int textureId, Duration position) async {
+    currentPosition = position;
+  }
+  @override
+  Future<Duration> getPosition(int textureId) async => currentPosition;
+  @override
+  Stream<VideoEvent> videoEventsFor(int textureId) => const Stream.empty();
+  @override
+  Widget buildView(int textureId) => const SizedBox();
+  @override
+  Future<void> setMixWithOthers(bool mixWithOthers) async {}
+}
 
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
+    VideoPlayerPlatform.instance = _FakeVideoPlayerPlatform();
     const MethodChannel('plugins.flutter.io/path_provider')
-        .setMockMethodCallHandler((MethodCall methodCall) async => '.');
+        .setMockMethodCallHandler((methodCall) async => '.');
     await GetStorage.init();
   });
 
@@ -22,9 +64,7 @@ void main() {
     Get.put(SleepTimerService());
   });
 
-  tearDown(() {
-    Get.reset();
-  });
+  tearDown(Get.reset);
 
   group('TowerPlayerController Audio Track Switching & Volume Isolation Tests', () {
     test('1. Initial state has hasAlternateAudioTrack false and normal volume', () {
@@ -136,12 +176,13 @@ void main() {
 
     test('5. syncAlternateAudioTrack enforces zero volume on main player when alternate audio track is active', () {
       final vpc = VideoPlayerController.networkUrl(Uri.parse('https://example.com/video.mp4'));
+      final audioVpc = VideoPlayerController.networkUrl(Uri.parse('https://example.com/audio.mp3'));
       vpc.setVolume(1.0);
       expect(vpc.value.volume, equals(1.0));
 
       TowerPlayerVpcEventHandler.syncAlternateAudioTrack(
         mainVpc: vpc,
-        audioCtrl: null,
+        audioCtrl: audioVpc,
         isMuted: false,
         volume: 1.0,
         hasAlternateAudioTrack: true,
@@ -174,7 +215,6 @@ void main() {
       const originalTrack = AudioTrack(
         label: 'Original (English)',
         langCode: 'en',
-        type: 'Original',
       );
       ctrl.setAudioLanguage(originalTrack);
 

@@ -88,11 +88,12 @@ class VideoAnalysisView extends StatelessWidget {
       final parsed = FactCheckDataParser.parse(
         reportData,
         fallbackReport: video.uiReport,
-        fallbackTrustScore: video.trustScore > 0 ? video.trustScore : null,
         isVideoFactChecked: video.isFactChecked,
       );
 
-      if (parsed.isEmpty || (parsed.claims.isEmpty && parsed.viewerNote.isEmpty)) {
+      if (!video.isFactChecked &&
+          (parsed.isEmpty ||
+              (parsed.claims.isEmpty && parsed.viewerNote.isEmpty))) {
         return VideoAnalysisEmptyFallback(video: video);
       }
 
@@ -373,7 +374,6 @@ class VideoAnalysisView extends StatelessWidget {
                 allSources: parsed.parsedSources.isNotEmpty ? parsed.parsedSources : parsed.sources,
                 allClaims: parsed.claims,
                 summary: parsed.summary.isNotEmpty ? parsed.summary : parsed.conclusion,
-                trustScore: parsed.trustScore,
                 isEmbedded: true,
                 onClose: () => analysisCtrl.selectedTab.value = 0,
               );
@@ -487,7 +487,6 @@ class VideoAnalysisView extends StatelessWidget {
                       allSources: parsed.parsedSources.isNotEmpty ? parsed.parsedSources : parsed.sources,
                       allClaims: parsed.claims,
                       summary: parsed.summary.isNotEmpty ? parsed.summary : parsed.conclusion,
-                      trustScore: parsed.trustScore,
                     );
                   },
                 ),
@@ -592,7 +591,6 @@ class VideoAnalysisView extends StatelessWidget {
             verifiedCount: parsed.verifiedCount,
             cautionCount: parsed.cautionCount,
             falseCount: parsed.falseCount,
-            trustScore: parsed.trustScore ?? (video.trustScore > 0 ? video.trustScore : null),
           ),
           const SizedBox(height: 16),
         ],
@@ -697,7 +695,6 @@ class VideoAnalysisView extends StatelessWidget {
             verifiedCount: parsed.verifiedCount,
             cautionCount: parsed.cautionCount,
             falseCount: parsed.falseCount,
-            trustScore: parsed.trustScore ?? (video.trustScore > 0 ? video.trustScore : null),
           ),
           const SizedBox(height: 16),
         ],
@@ -1023,7 +1020,6 @@ class VideoAnalysisView extends StatelessWidget {
                       allSources: parsed.parsedSources.isNotEmpty ? parsed.parsedSources : parsed.sources,
                       allClaims: parsed.claims,
                       summary: parsed.summary.isNotEmpty ? parsed.summary : parsed.conclusion,
-                      trustScore: parsed.trustScore,
                     );
                   },
                   icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16, color: Colors.black),
@@ -1431,7 +1427,6 @@ class VideoAnalysisView extends StatelessWidget {
   }
 
   Widget _buildConclusionStatusBanner(ParsedFactCheckData parsed) {
-    final score = parsed.trustScore ?? 0.0;
     final ratingLabel = parsed.trustLabel.isNotEmpty ? parsed.trustLabel : 'ANALYZED';
     final scoreColor = parsed.scoreColor;
 
@@ -1472,25 +1467,7 @@ class VideoAnalysisView extends StatelessWidget {
                         letterSpacing: 0.5,
                       ),
                     ),
-                    if (score > 0) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: scoreColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          '${score.toInt()}% TRUST',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: scoreColor,
-                          ),
-                        ),
-                      ),
                     ],
-                  ],
                 ),
                 const SizedBox(height: 3),
                 Text(

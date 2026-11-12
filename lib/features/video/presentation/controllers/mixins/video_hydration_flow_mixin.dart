@@ -122,8 +122,7 @@ mixin VideoHydrationFlowMixin on GetxController {
         .asyncExpand((snapshot) async* {
           if (snapshot.exists) {
             ChannelMemoryCache.set(channelId, Channel.fromDocumentSnapshot(snapshot));
-            final rawTrust = snapshot.data()?['trustScore'] ??
-                snapshot.data()?['channelTrustScore'];
+            final rawTrust = snapshot.data()?['channelTrustScore'];
             if (rawTrust is Map<String, dynamic>) {
               ChannelMemoryCache.setTrustScore(
                 channelId,
@@ -141,8 +140,7 @@ mixin VideoHydrationFlowMixin on GetxController {
               if (querySnap.docs.isNotEmpty) {
                 final resolvedSnap = querySnap.docs.first;
                 ChannelMemoryCache.set(channelId, Channel.fromDocumentSnapshot(resolvedSnap));
-                final rawTrust = resolvedSnap.data()['trustScore'] ??
-                    resolvedSnap.data()['channelTrustScore'];
+                final rawTrust = resolvedSnap.data()['channelTrustScore'];
                 if (rawTrust is Map<String, dynamic>) {
                   ChannelMemoryCache.setTrustScore(
                     channelId,

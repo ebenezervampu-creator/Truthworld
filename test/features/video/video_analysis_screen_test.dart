@@ -108,7 +108,6 @@ void main() {
     updatedAt: Timestamp.now(),
     tags: const ['science', 'food'],
     category: 'Science',
-    trustScore: 88.0,
     visibility: 'public',
     uiReport: testUiReport,
   );

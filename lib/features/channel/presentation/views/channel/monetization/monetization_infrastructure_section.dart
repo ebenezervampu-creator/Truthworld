@@ -24,10 +24,13 @@ class ChannelMeterBar extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              title,
-              style: typography.bodySmall.copyWith(color: Colors.white),
+            Expanded(
+              child: Text(
+                title,
+                style: typography.bodySmall.copyWith(color: Colors.white),
+              ),
             ),
+            const SizedBox(width: 8),
             Text(
               valueText,
               style: typography.caption.copyWith(
@@ -89,71 +92,81 @@ class ChannelInfrastructureSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.cloud_queue, color: Colors.white, size: 22),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Infrastructure Metering',
-                    style: typography.headline.copyWith(color: Colors.white),
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: onStorageTopup,
-                    icon: const Icon(
-                      Icons.add_circle_outline_rounded,
-                      color: Colors.white,
-                      size: 14,
+          SizedBox(
+            width: double.infinity,
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 10,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.cloud_queue, color: Colors.white, size: 22),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        'Infrastructure Metering',
+                        style: typography.headline.copyWith(color: Colors.white),
+                      ),
                     ),
-                    label: const Text(
-                      '+ Storage',
-                      style: TextStyle(
-                        fontSize: 11,
+                  ],
+                ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: onStorageTopup,
+                      icon: const Icon(
+                        Icons.add_circle_outline_rounded,
                         color: Colors.white,
-                        fontWeight: FontWeight.bold,
+                        size: 14,
+                      ),
+                      label: const Text(
+                        '+ Storage',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.bgDivider),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                       ),
                     ),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppColors.bgDivider),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  OutlinedButton.icon(
-                    onPressed: onBandwidthTopup,
-                    icon: const Icon(
-                      Icons.speed_rounded,
-                      color: Colors.white,
-                      size: 14,
-                    ),
-                    label: const Text(
-                      '+ Bandwidth',
-                      style: TextStyle(
-                        fontSize: 11,
+                    OutlinedButton.icon(
+                      onPressed: onBandwidthTopup,
+                      icon: const Icon(
+                        Icons.speed_rounded,
                         color: Colors.white,
-                        fontWeight: FontWeight.bold,
+                        size: 14,
+                      ),
+                      label: const Text(
+                        '+ Bandwidth',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.bgDivider),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                       ),
                     ),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppColors.bgDivider),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 16),
 
@@ -178,12 +191,15 @@ class ChannelInfrastructureSection extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Estimated Cloud Cost:',
-                style: typography.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
+              Expanded(
+                child: Text(
+                  'Estimated Cloud Cost:',
+                  style: typography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               Text(
                 '\$${infraCost.toStringAsFixed(2)} / mo',
                 style: typography.title.copyWith(color: Colors.white),

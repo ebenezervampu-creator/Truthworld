@@ -26,7 +26,6 @@ class FactCheckReportWidget extends StatelessWidget {
     final parsed = FactCheckDataParser.parse(
       data,
       fallbackReport: video.uiReport,
-      fallbackTrustScore: video.trustScore > 0 ? video.trustScore : null,
       isVideoFactChecked: video.isFactChecked,
     );
 

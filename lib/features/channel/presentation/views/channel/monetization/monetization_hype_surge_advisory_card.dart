@@ -221,20 +221,26 @@ class ChannelHypeSurgeAdvisoryCard extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Total Hype Revenue Collected:',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w500,
+                  const Expanded(
+                    child: Text(
+                      'Total Hype Revenue Collected:',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
-                  Text(
-                    '\$${summary.grossTotalRevenue.toStringAsFixed(2)} (≈ ₹$grossInr)',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF10B981),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      '\$${summary.grossTotalRevenue.toStringAsFixed(2)} (≈ ₹$grossInr)',
+                      textAlign: TextAlign.end,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF10B981),
+                      ),
                     ),
                   ),
                 ],
@@ -246,14 +252,17 @@ class ChannelHypeSurgeAdvisoryCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Surge Bandwidth Consumption',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                const Expanded(
+                  child: Text(
+                    'Surge Bandwidth Consumption',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
+                const SizedBox(width: 8),
                 Text(
                   '${summary.bandwidthUsedGB.toStringAsFixed(1)} GB / ${summary.bandwidthQuotaGB.toStringAsFixed(0)} GB',
                   style: const TextStyle(
@@ -282,13 +291,16 @@ class ChannelHypeSurgeAdvisoryCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Incurred Cloud Infrastructure Cost:',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
+                const Expanded(
+                  child: Text(
+                    'Incurred Cloud Infrastructure Cost:',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ),
+                const SizedBox(width: 8),
                 Text(
                   '\$${summary.currentInfraCost.toStringAsFixed(2)} USD',
                   style: const TextStyle(
@@ -321,6 +333,7 @@ class ChannelHypeSurgeAdvisoryCard extends StatelessWidget {
                         color: Colors.white,
                         size: 18,
                       ),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           summary.isWithdrawalHeld
@@ -421,7 +434,7 @@ class ChannelHypeSurgeAdvisoryCard extends StatelessWidget {
                     icon: Icon(
                       summary.isWithdrawalHeld
                           ? Icons.lock_outline_rounded
-                          : Icons.account_balance_wallet_outlined,
+                          : Icons.payments_outlined,
                       color: summary.isWithdrawalHeld ? const Color(0xFFFBBF24) : Colors.white,
                       size: 16,
                     ),

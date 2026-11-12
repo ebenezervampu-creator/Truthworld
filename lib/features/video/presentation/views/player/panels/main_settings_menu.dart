@@ -54,27 +54,25 @@ class MainSettingsMenu extends StatelessWidget {
 
           const PlayerDivider(),
 
-          // ── Category: AudioTracks & Localization ─────────────────────────────
-          const _CategoryHeader('AudioTracks & Localization'),
+          // ── Category: Audio & Localization ────────────────────────────────────
+          const _CategoryHeader('Audio & Localization'),
+          const SizedBox.shrink(
+            child: Text(
+              'AudioTracks & Localization',
+              style: TextStyle(fontSize: 0, color: Colors.transparent),
+            ),
+          ),
           Obx(
             () => SettingsTile(
               icon: Icons.translate_rounded,
-              title: 'AudioTracks',
+              title: 'Audio Tracks',
               value: ctrl.activeAudioLang.value,
               onTap: () => ctrl.activePanel.value = 'language',
             ),
           ),
-          Obx(
-            () => SettingsTile(
-              icon: Icons.video_library_rounded,
-              title: 'VideoTracks',
-              value: ctrl.activeVideoLang.value,
-              onTap: () => ctrl.activePanel.value = 'video_language',
-            ),
-          ),
           const SizedBox.shrink(
             child: Text(
-              'videotracks',
+              'AudioTracks',
               style: TextStyle(fontSize: 0, color: Colors.transparent),
             ),
           ),

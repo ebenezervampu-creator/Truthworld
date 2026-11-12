@@ -465,12 +465,7 @@ class UISource {
             domain: rawDomain,
           )
         : null;
-    final url = sanitizedUrl ??
-        SourceUrlSanitizer.resolveFallbackUrl(
-          domain: rawDomain,
-          publisher: publisher,
-          title: title,
-        );
+    final url = sanitizedUrl;
 
     final candidateHost = (rawUrl != null && !SourceUrlSanitizer.isGroundingRedirect(rawUrl))
         ? Uri.tryParse(rawUrl.startsWith('http') ? rawUrl : 'https://$rawUrl')
@@ -598,6 +593,8 @@ class ClaimResult {
     this.isAppealed,
     this.appealStatus,
     this.thumbnailUrl,
+    this.sourceStatus,
+    this.verifiedAcademicMetadata,
     this.evidenceAssessment,
     this.beliefAssessment,
     this.misinformationVerdict,
@@ -665,25 +662,35 @@ class ClaimResult {
       for (final s in rawSources) {
         if (!SourceUrlSanitizer.isValidSource(s)) continue;
         if (s is Map) {
-          sourcesList.add(
-            UISource.fromMap(Map<String, dynamic>.from(s)),
-          );
+          final parsedSource = UISource.fromMap(Map<String, dynamic>.from(s));
+          if (parsedSource.url != null && parsedSource.url!.isNotEmpty) {
+            sourcesList.add(parsedSource);
+          }
         } else if (s is String && s.trim().isNotEmpty) {
-          final clean = SourceUrlSanitizer.sanitizeUrl(s, title: s) ??
-              SourceUrlSanitizer.resolveFallbackUrl(domain: s, title: s);
-          final domain = SourceUrlSanitizer.resolveDisplayDomain(clean ?? s, title: s);
-          sourcesList.add(
-            UISource(
-              title: s.trim(),
-              trustLevel: 'Medium',
-              type: 'Supporting',
-              url: clean,
-              domain: domain,
-            ),
-          );
+          final clean = SourceUrlSanitizer.sanitizeUrl(s, title: s);
+          if (clean != null && clean.isNotEmpty) {
+            final domain = SourceUrlSanitizer.resolveDisplayDomain(clean, title: s);
+            sourcesList.add(
+              UISource(
+                title: s.trim(),
+                trustLevel: 'Medium',
+                type: 'Supporting',
+                url: clean,
+                domain: domain,
+              ),
+            );
+          }
         }
       }
     }
+
+    final rawAcademicMeta = map['verifiedAcademicMetadata'];
+    final academicMetaList = rawAcademicMeta is List
+        ? rawAcademicMeta
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList()
+        : null;
 
     List<String>? basisList;
     if (map['verdictBasis'] != null) {
@@ -754,6 +761,8 @@ class ClaimResult {
       thumbnailUrl: (rawThumbnail != null && rawThumbnail.trim().isNotEmpty)
           ? rawThumbnail.trim()
           : null,
+      sourceStatus: map['sourceStatus']?.toString(),
+      verifiedAcademicMetadata: academicMetaList,
       evidenceAssessment: map['evidenceAssessment'] is Map
           ? EvidenceAssessment.fromMap(
               Map<String, dynamic>.from(map['evidenceAssessment']),
@@ -796,6 +805,8 @@ class ClaimResult {
   final bool? isLowRiskTrivia;
   final List<UISource> effectiveSources;
   final String? thumbnailUrl;
+  final String? sourceStatus;
+  final List<Map<String, dynamic>>? verifiedAcademicMetadata;
   final EvidenceAssessment? evidenceAssessment;
   final String? beliefAssessment;
   final String? misinformationVerdict;
@@ -879,6 +890,8 @@ class ClaimResult {
     'isAppealed': isAppealed,
     'appealStatus': appealStatus,
     'thumbnailUrl': thumbnailUrl,
+    'sourceStatus': sourceStatus,
+    'verifiedAcademicMetadata': verifiedAcademicMetadata,
     'evidenceAssessment': evidenceAssessment?.toMap(),
     'beliefAssessment': beliefAssessment,
     'misinformationVerdict': misinformationVerdict,
@@ -960,9 +973,6 @@ class UIReport {
     final summaryMap = map['summary'] is Map
         ? Map<String, dynamic>.from(map['summary'])
         : <String, dynamic>{};
-    if (!summaryMap.containsKey('rating') && map.containsKey('trustScore')) {
-      summaryMap['rating'] = map['trustScore'];
-    }
     if (!summaryMap.containsKey('label') && map.containsKey('trustLabel')) {
       summaryMap['label'] = map['trustLabel'];
     }
@@ -1121,7 +1131,6 @@ class UIReport {
   }
 
   double? get rating => summary.rating;
-  double? get truthScore => summary.honestyScore;
   double? get honestyScore => summary.honestyScore;
   double? get rationalityScore => summary.rationalityScore;
   String get label => summary.label;

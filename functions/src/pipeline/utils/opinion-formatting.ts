@@ -12,27 +12,27 @@ export function formatOpinionReasoning(claimText?: string): string {
     const vitalMatch = /\b(vital|essential|important|crucial|matters most|matter most)\b/.exec(lower);
     if (vitalMatch) {
       const word = vitalMatch[1];
-      return `Classified as an opinion because the speaker describes this as '${word}'. While science can measure real facts like nutrients or numbers, deciding that something is '${word}' is a personal value judgment, not a measurable fact.`;
+      return `This is a personal opinion because the speaker calls it '${word}'. Everyone decides what feels '${word}' to them, so science cannot measure it like a plain fact.`;
     }
 
     const bestMatch = /\b(best|worst|greatest|favorite|favourite|awesome|terrible|cool|boring)\b/.exec(lower);
     if (bestMatch) {
       const word = bestMatch[1];
-      return `Classified as an opinion because the speaker uses the word '${word}'. Words like '${word}' describe personal taste — everyone likes different things, and no science test can prove what is truly '${word}'.`;
+      return `This is a personal opinion because the speaker uses the word '${word}'. Words like '${word}' describe personal taste — everyone likes different things, so no test can prove what is truly '${word}'.`;
     }
 
     const adviceMatch = /\b(should|must|ought to|need to)\b/.exec(lower);
     if (adviceMatch) {
       const word = adviceMatch[1];
-      return `Classified as an opinion because the speaker is giving personal advice ('${word}'). Advice depends on what someone personally recommends, not an absolute rule that can be proven true or false.`;
+      return `This is personal advice because the speaker says '${word}'. Advice depends on what one person thinks is a good idea, not a hard rule that works the same for everyone.`;
     }
 
     const thoughtMatch = /\b(feel|think|believe|prefer|love|hate|like)\b/.exec(lower);
     if (thoughtMatch) {
       const word = thoughtMatch[1];
-      return `Classified as an opinion because the speaker shares what they personally ${word}. A personal perspective belongs to the speaker, so it cannot be tested or proven wrong from the outside.`;
+      return `This is a personal opinion because the speaker is sharing what they ${word}. A personal feeling or thought belongs to that person, so it cannot be proved right or wrong.`;
     }
   }
 
-  return "Classified as an opinion because this statement shares a personal viewpoint or feeling rather than a measurable fact that can be proven true or false.";
+  return "This is someone's personal opinion or feeling, not a fact you can test or prove right or wrong.";
 }

@@ -85,21 +85,19 @@ assert(Math.abs(egress4k - 0.10986) < 0.001, `60s 4K egress is ~0.110 GB (got ${
 // ----------------------------------------------------------------------
 console.log("\n--- [Test 3] Sub-cent AI Attribution & Tier Pricing ---");
 
-// Subtitles
-const subStarter = calculateSubtitleCost(1, 600, "standard", 0, "starter");
-assert(subStarter === 0.50, `10 min Starter Subtitle is $0.50 (got $${subStarter})`);
-const subPro = calculateSubtitleCost(1, 600, "standard", 0, "pro");
-assert(subPro === 0.75, `10 min Pro Subtitle is $0.75 (got $${subPro})`);
+// Subtitles (Ultra Tier: $0.50 / 10m)
+const subUltra = calculateSubtitleCost(1, 600, "standard", 0, "ultra");
+assert(subUltra === 0.50, `10 min Ultra Subtitle is $0.50 (got $${subUltra})`);
 
-// Dubbing
+// Dubbing (Unified Audio Track: $3.00 for 10 min)
 const dubPrice10m = getFlatDubbingPricePerLanguage(600, "standard", "standard");
-assert(dubPrice10m === 1.00, `10 min Standard Dubbing is $1.00 (got $${dubPrice10m})`);
+assert(dubPrice10m === 3.00, `10 min Audio Track Dubbing is $3.00 (got $${dubPrice10m})`);
 const clonePrice10m = getFlatDubbingPricePerLanguage(600, "standard", "voice_clone");
-assert(clonePrice10m === 2.00, `10 min Cloned Dubbing is $2.00 (got $${clonePrice10m})`);
+assert(clonePrice10m === 3.00, `10 min Cloned Dubbing is $3.00 (got $${clonePrice10m})`);
 
-// Lip-Sync
+// Lip-Sync (Discontinued / Removed)
 const lipSync10m = getFlatLipSyncPricePerLanguage(600, "standard");
-assert(lipSync10m === 3.00, `10 min Lip-Sync is $3.00 (got $${lipSync10m})`);
+assert(lipSync10m === 0.00, `Lip-Sync feature removed (got $${lipSync10m})`);
 
 // ----------------------------------------------------------------------
 // 4. PILLAR 3: DYNAMIC PER-VIEW & SAAS UNIT ECONOMICS

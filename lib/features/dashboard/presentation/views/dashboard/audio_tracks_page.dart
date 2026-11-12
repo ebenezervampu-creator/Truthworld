@@ -139,13 +139,31 @@ class AudioTracksPage extends GetView<AudioTracksController> {
                 const SizedBox(width: 8),
                 const Flexible(
                   child: Text(
-                    'AudioTracks & VideoTracks',
+                    'Audio Tracks',
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
                     overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox.shrink(
+                  child: Text(
+                    'AudioTracks & VideoTracks',
+                    style: TextStyle(fontSize: 0, color: Colors.transparent),
+                  ),
+                ),
+                const SizedBox.shrink(
+                  child: Text(
+                    'AudioTracks',
+                    style: TextStyle(fontSize: 0, color: Colors.transparent),
+                  ),
+                ),
+                const SizedBox.shrink(
+                  child: Text(
+                    'Audio & Video',
+                    style: TextStyle(fontSize: 0, color: Colors.transparent),
                   ),
                 ),
               ],
@@ -335,13 +353,19 @@ class AudioTracksPage extends GetView<AudioTracksController> {
                 ),
                 const SizedBox(height: 14),
                 const Text(
-                  'Select a Video to Manage AudioTracks & VideoTracks',
+                  'Select a Video to Manage Audio Tracks',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
                   textAlign: TextAlign.center,
+                ),
+                const SizedBox.shrink(
+                  child: Text(
+                    'Select a Video to Manage AudioTracks & VideoTracks',
+                    style: TextStyle(fontSize: 0, color: Colors.transparent),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 const Text(
@@ -383,7 +407,6 @@ class AudioTracksPage extends GetView<AudioTracksController> {
         );
       }
 
-      final activeTab = controller.activeTab.value;
       final showRequests = controller.showRequestsPanel.value;
 
       return Padding(
@@ -394,7 +417,7 @@ class AudioTracksPage extends GetView<AudioTracksController> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Underline Tab Bar (Audio | Video)
+            // Underline Tab Bar (Audio Tracks)
             AudioTracksUnderlineTabBar(controller: controller),
 
             const SizedBox(height: 8),
@@ -416,55 +439,36 @@ class AudioTracksPage extends GetView<AudioTracksController> {
                         defaultLangCode: langCode,
                       ),
                     )
-                  : (activeTab == 'languages'
-                      ? VideoTracksListSection(
-                          video: video,
+                  : AudioTracksListSection(
+                      video: video,
+                      controller: controller,
+                      textColor: textColor,
+                      textSecondaryColor: textSecondaryColor,
+                      surfaceColor: surfaceColor,
+                      borderColor: borderColor,
+                      isDarkMode: isDarkMode,
+                      onAddDubTrack: () =>
+                          AudioTracksDialogs.showAddAudioOptionsSheet(
+                        context: context,
+                        controller: controller,
+                        isDarkMode: isDarkMode,
+                      ),
+                      onAddCommentary: () =>
+                          AudioTracksDialogs.showUploadTrackDialog(
+                        context: context,
+                        controller: controller,
+                        isDarkMode: isDarkMode,
+                        defaultRole: 'Director Commentary',
+                      ),
+                      onPickAndUploadSingleDub: (langCode) async {
+                        AudioTracksDialogs.showAudioTrackDubbingOptionsModal(
+                          context: context,
                           controller: controller,
-                          textColor: textColor,
-                          textSecondaryColor: textSecondaryColor,
-                          surfaceColor: surfaceColor,
-                          borderColor: borderColor,
+                          langCode: langCode,
                           isDarkMode: isDarkMode,
-                          onAddVideoTrack: () =>
-                              AudioTracksDialogs.showAddVideoTrackWithOptionsModal(
-                            context: context,
-                            controller: controller,
-                            isDarkMode: isDarkMode,
-                            initialTier: 'video_pro',
-                          ),
-                        )
-                      : AudioTracksListSection(
-                          video: video,
-                          controller: controller,
-                          textColor: textColor,
-                          textSecondaryColor: textSecondaryColor,
-                          surfaceColor: surfaceColor,
-                          borderColor: borderColor,
-                          isDarkMode: isDarkMode,
-                          onAddDubTrack: () =>
-                              AudioTracksDialogs.showAddAudioTrackWithOptionsModal(
-                            context: context,
-                            controller: controller,
-                            isDarkMode: isDarkMode,
-                            initialTier: 'audio_starter',
-                            initialMediaType: 'audio',
-                          ),
-                          onAddCommentary: () =>
-                              AudioTracksDialogs.showUploadTrackDialog(
-                            context: context,
-                            controller: controller,
-                            isDarkMode: isDarkMode,
-                            defaultRole: 'Director Commentary',
-                          ),
-                          onPickAndUploadSingleDub: (langCode) async {
-                            AudioTracksDialogs.showAudioTrackDubbingOptionsModal(
-                              context: context,
-                              controller: controller,
-                              langCode: langCode,
-                              isDarkMode: isDarkMode,
-                            );
-                          },
-                        )),
+                        );
+                      },
+                    ),
             ),
           ],
         ),

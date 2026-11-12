@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Top header for the Community Post Upload screen with back navigation.
@@ -23,7 +24,7 @@ class CommunityUploadHeader extends StatelessWidget {
                 if (Navigator.of(context).canPop()) {
                   Get.back();
                 } else {
-                  Get.offAllNamed('/studio');
+                  RouteStackObserver.navigateToStudio();
                 }
               },
               borderRadius: BorderRadius.circular(8),

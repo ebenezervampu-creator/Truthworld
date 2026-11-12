@@ -30,7 +30,8 @@
     "test:contracts": "jest tests/contracts --runInBand",
     "test:all": "npm run test && npm run test:legacy && npm run test:scalability && npm run test:p95-p99 && npm run test:load",
     "benchmark": "npx ts-node src/benchmark/index.ts",
-    "benchmark:scalability": "npx ts-node src/benchmark/backend_scalability.test.ts"
+    "benchmark:scalability": "npx ts-node src/benchmark/backend_scalability.test.ts",
+    "benchmark:dubbing": "npx ts-node src/benchmark/dubbing_live_benchmark.ts"
   },
   "engines": {
     "node": "22"

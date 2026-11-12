@@ -19,7 +19,6 @@ class AnimatedCredibilityButton extends StatefulWidget {
     this.label = 'AI Check',
     this.tooltip = 'Truth & Credibility Check',
     this.icon = Icons.verified_rounded,
-    this.score,
     super.key,
   });
 
@@ -27,7 +26,6 @@ class AnimatedCredibilityButton extends StatefulWidget {
   final String label;
   final String tooltip;
   final IconData icon;
-  final double? score;
 
   @override
   State<AnimatedCredibilityButton> createState() =>

@@ -12,8 +12,6 @@ import 'package:truthworld/theme/app_theme.dart';
 /// labels, confidence values, claims, and sources across all presentation surfaces.
 class ParsedFactCheckData {
   const ParsedFactCheckData({
-    required this.trustScore,
-    required this.normalizedScore,
     required this.trustLabel,
     required this.confidenceVal,
     required this.confidenceTier,
@@ -34,7 +32,6 @@ class ParsedFactCheckData {
     required this.needsUrgency,
     required this.scoreColor,
     required this.urgencyColor,
-    required this.scoreAvailable,
     this.summary = '',
     this.conclusion = '',
     this.conclusionSources = const [],
@@ -45,8 +42,6 @@ class ParsedFactCheckData {
 
   /// An empty state instance when no fact check data is present.
   static const empty = ParsedFactCheckData(
-    trustScore: null,
-    normalizedScore: null,
     trustLabel: 'ANALYZED',
     confidenceVal: 0.0,
     confidenceTier: '',
@@ -67,11 +62,7 @@ class ParsedFactCheckData {
     needsUrgency: false,
     scoreColor: AppColors.success,
     urgencyColor: AppColors.success,
-    scoreAvailable: false,
   );
-
-  final double? trustScore;
-  final double? normalizedScore;
   final String trustLabel;
   final double confidenceVal;
   final String confidenceTier;
@@ -95,7 +86,6 @@ class ParsedFactCheckData {
   final bool needsUrgency;
   final Color scoreColor;
   final Color urgencyColor;
-  final bool scoreAvailable;
   final bool isProvisional;
   final String factCheckTier;
   final bool isVideoFactChecked;
@@ -120,7 +110,7 @@ class ParsedFactCheckData {
         conclusion.isNotEmpty) {
       return false;
     }
-    if (isVideoFactChecked && trustScore != null && trustScore! > 0) {
+    if (isVideoFactChecked) {
       return false;
     }
     return true;
@@ -151,22 +141,15 @@ class FactCheckDataParser {
   static ParsedFactCheckData parse(
     Map<String, dynamic>? rawData, {
     UIReport? fallbackReport,
-    double? fallbackTrustScore,
     bool isVideoFactChecked = false,
   }) {
     if ((rawData == null || rawData.isEmpty) && fallbackReport == null) {
-      if (isVideoFactChecked && fallbackTrustScore != null && fallbackTrustScore > 0) {
-        final norm = fallbackTrustScore > 5
-            ? fallbackTrustScore
-            : fallbackTrustScore * 20;
-        final color = VideoAnalysisHelpers.getScoreColor(norm);
+      if (isVideoFactChecked) {
         return ParsedFactCheckData(
-          trustScore: fallbackTrustScore,
-          normalizedScore: norm,
-          trustLabel: VideoAnalysisHelpers.getRatingLabel(fallbackTrustScore),
-          confidenceVal: 0.5,
-          confidenceTier: 'Medium',
-          analysisState: isVideoFactChecked ? 'VERIFIED' : 'ANALYZED',
+          trustLabel: 'VERIFIED',
+          confidenceVal: 0.85,
+          confidenceTier: 'High',
+          analysisState: 'VERIFIED',
           viewerNote: '',
           claims: const [],
           claimResults: const [],
@@ -179,12 +162,12 @@ class FactCheckDataParser {
           falseCount: 0,
           isDisputed: false,
           isCaution: false,
-          isLowTrust: norm < 50,
-          needsUrgency: norm < 50,
-          scoreColor: color,
-          urgencyColor: norm < 50 ? AppColors.error : color,
-          scoreAvailable: true,
-          isVideoFactChecked: isVideoFactChecked,
+          isLowTrust: false,
+          needsUrgency: false,
+          scoreColor: AppColors.success,
+          urgencyColor: AppColors.success,
+          isVideoFactChecked: true,
+          conclusion: 'Truth verification complete. No verifiable empirical assertions evaluated.',
         );
       }
       return ParsedFactCheckData.empty;
@@ -202,30 +185,12 @@ class FactCheckDataParser {
     final isProvisional = data['isProvisional'] == true ||
         data['credibilityStatus'] == 'provisional_ready';
 
-    // 2. Trust Score
-    final rawScore = data['trustScore'] ??
-        data['trustIndex'] ??
-        data['score'] ??
-        data['videoRating'] ??
-        data['provisionalScore'] ??
-        fallbackReport?.summary.rating ??
-        (fallbackTrustScore != null && fallbackTrustScore > 0
-            ? fallbackTrustScore
-            : null);
-
-    final trustScore = (rawScore is num) ? rawScore.toDouble() : null;
-    final normalizedScore = trustScore != null
-        ? (trustScore > 5 ? trustScore : trustScore * 20)
-        : null;
-
-    // 3. Trust Label
+    // 2. Trust Label
     final trustLabel = (data['trustLabel'] ??
             data['label'] ??
             (fallbackReport?.summary.label.isNotEmpty == true
                 ? fallbackReport!.summary.label
-                : (trustScore != null
-                    ? VideoAnalysisHelpers.getRatingLabel(trustScore)
-                    : analysisState)))
+                : analysisState))
         .toString();
 
     // 4. Confidence
@@ -547,22 +512,18 @@ class FactCheckDataParser {
     final factorsMap = Map<String, dynamic>.from(factors);
 
     // 10. Metrics & urgency computation
-    final scoreColor = normalizedScore != null
-        ? VideoAnalysisHelpers.getScoreColor(normalizedScore)
-        : AppColors.success;
-
     final isDisputed = falseCount > 0 && falseCount >= verifiedCount;
     final isCaution = !isDisputed && cautionCount > verifiedCount;
-    final isLowTrust = normalizedScore != null && normalizedScore < 50;
-    final needsUrgency = isDisputed || isLowTrust;
+    final isLowTrust = isDisputed;
+    final needsUrgency = isDisputed || isCaution;
+
+    final scoreColor = isDisputed
+        ? AppColors.error
+        : (isCaution ? AppColors.warning : AppColors.success);
 
     final urgencyColor = isDisputed
         ? AppColors.error
         : (isCaution ? AppColors.warning : scoreColor);
-
-    final scoreAvailable = data['scoreAvailable'] == true ||
-        trustScore != null ||
-        claimsList.isNotEmpty;
 
     // 10.1 Synthesize conclusion if raw conclusion was a placeholder, empty, or formulaic
     var finalConclusion = cleanConclusion;
@@ -585,8 +546,6 @@ class FactCheckDataParser {
     }
 
     return ParsedFactCheckData(
-      trustScore: trustScore,
-      normalizedScore: normalizedScore,
       trustLabel: trustLabel,
       confidenceVal: confidenceVal,
       confidenceTier: confidenceTier,
@@ -610,7 +569,6 @@ class FactCheckDataParser {
       needsUrgency: needsUrgency,
       scoreColor: scoreColor,
       urgencyColor: urgencyColor,
-      scoreAvailable: scoreAvailable,
       isProvisional: isProvisional,
       isVideoFactChecked: isVideoFactChecked,
       factCheckTier: (data['factCheckTier'] ??

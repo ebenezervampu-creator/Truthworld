@@ -49,42 +49,48 @@ class DashboardViewRouter extends StatelessWidget {
       return _buildRouterSkeleton();
     }
 
+    final switcher = Obx(() {
+      final activeIndex = dashboardController.selectedIndex.value;
+      return AnimatedSwitcher(
+        duration: const Duration(milliseconds: 240),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (child, animation) {
+          final slide = Tween<Offset>(
+            begin: const Offset(0, 0.025),
+            end: Offset.zero,
+          ).animate(
+            CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            ),
+          );
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: slide,
+              child: child,
+            ),
+          );
+        },
+        child: KeyedSubtree(
+          key: ValueKey<int>(activeIndex),
+          child: _buildScreen(activeIndex, channelId, currentChannel),
+        ),
+      );
+    });
+
+    if (viewController.isDisposed) {
+      return switcher;
+    }
+
     return FadeTransition(
       opacity: viewController.fadeAnimation,
       child: SlideTransition(
         position: viewController.slideAnimation,
         child: ScaleTransition(
           scale: viewController.scaleAnimation,
-          child: Obx(() {
-            final activeIndex = dashboardController.selectedIndex.value;
-            return AnimatedSwitcher(
-              duration: const Duration(milliseconds: 240),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              transitionBuilder: (child, animation) {
-                final slide = Tween<Offset>(
-                  begin: const Offset(0, 0.025),
-                  end: Offset.zero,
-                ).animate(
-                  CurvedAnimation(
-                    parent: animation,
-                    curve: Curves.easeOutCubic,
-                  ),
-                );
-                return FadeTransition(
-                  opacity: animation,
-                  child: SlideTransition(
-                    position: slide,
-                    child: child,
-                  ),
-                );
-              },
-              child: KeyedSubtree(
-                key: ValueKey<int>(activeIndex),
-                child: _buildScreen(activeIndex, channelId, currentChannel),
-              ),
-            );
-          }),
+          child: switcher,
         ),
       ),
     );

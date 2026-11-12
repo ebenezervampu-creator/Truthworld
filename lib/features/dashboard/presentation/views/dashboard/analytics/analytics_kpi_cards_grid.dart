@@ -18,11 +18,12 @@ class AnalyticsKpiCardsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
+      final rangeLabel = controller.selectedDateRange.label;
       final items = [
         _KpiMetric(
           title: 'Total Views',
           value: controller.totalViewsFormatted,
-          subtitle: 'Real-time viewer watches',
+          subtitle: 'Viewer watches ($rangeLabel)',
           icon: Icons.visibility_rounded,
           accentColor: AppColors.info,
           trendLabel: '+14% vs prev',
@@ -30,7 +31,7 @@ class AnalyticsKpiCardsGrid extends StatelessWidget {
         _KpiMetric(
           title: 'Watch Time',
           value: controller.totalWatchTimeFormatted,
-          subtitle: 'Viewer retention hours',
+          subtitle: 'Retention hours ($rangeLabel)',
           icon: Icons.schedule_rounded,
           accentColor: AppColors.success,
           trendLabel: 'High Engagement',
@@ -38,7 +39,7 @@ class AnalyticsKpiCardsGrid extends StatelessWidget {
         _KpiMetric(
           title: 'Subscribers',
           value: controller.subscribersFormatted,
-          subtitle: 'Net audience growth',
+          subtitle: 'Net audience growth ($rangeLabel)',
           icon: Icons.people_alt_rounded,
           accentColor: const Color(0xFFA855F7),
           trendLabel: 'Channel Base',

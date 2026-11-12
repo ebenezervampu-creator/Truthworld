@@ -541,12 +541,9 @@ export const moderateContentManual = onRequest(
               source: "admin-manual-approval"
             }).catch(() => {});
 
-            const shouldRunCredibility = !!(
-              executionPlan.enablePath1 ||
-              executionPlan.enableTruthEngine ||
-              executionPlan.enableCredibility ||
-              executionPlan.enableFactChecking
-            );
+            const { isCredibilityEnabled, isLocalizationEnabled } = require("../pipeline/types");
+            const shouldRunCredibility = isCredibilityEnabled(executionPlan);
+            const shouldRunLocalization = isLocalizationEnabled(executionPlan);
 
             if (shouldRunCredibility) {
               await distribution.publish("fact-processing", {
@@ -555,6 +552,17 @@ export const moderateContentManual = onRequest(
                 jobId: jobDoc.id, userId,
                 timestamp: now,
                 data: { executionPlan },
+                retryCount: 0,
+                source: "admin-manual-approval"
+              }).catch(() => {});
+            }
+            if (shouldRunLocalization) {
+              await distribution.publish("dubbing-processing", {
+                eventId: `dub_manual_${jobDoc.id}`,
+                eventType: "dubbing-processing",
+                jobId: jobDoc.id, userId,
+                timestamp: now,
+                data: { videoUrl: jobData.videoUrl || "", executionPlan },
                 retryCount: 0,
                 source: "admin-manual-approval"
               }).catch(() => {});

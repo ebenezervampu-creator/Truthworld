@@ -14,11 +14,15 @@ class AddSubtitleTrackPage extends StatelessWidget {
   const AddSubtitleTrackPage({
     required this.controller,
     required this.isDarkMode,
+    this.initialLanguage,
+    this.initialCreationMode,
     super.key,
   });
 
   final SubtitlesController controller;
   final bool isDarkMode;
+  final String? initialLanguage;
+  final String? initialCreationMode;
 
   @override
   Widget build(BuildContext context) {
@@ -34,15 +38,17 @@ class AddSubtitleTrackPage extends StatelessWidget {
         isDarkMode ? AppColors.bgDivider : AppColors.bgSurface;
 
     // Reactive state for the page (Zero setState policy)
-    final creationMode = 'manual'.obs; // 'manual' | 'duplicate' | 'upload'
-    final selectedLanguage = Rxn<TranslationLanguage>();
-    final duplicateFromLang = (controller.selectedLanguage.value.isNotEmpty
-            ? controller.selectedLanguage.value
-            : (controller.availableLanguages.isNotEmpty
-                ? controller.availableLanguages.first
-                : ''))
-        .obs;
-    final titleController = TextEditingController();
+    final creationMode = (initialCreationMode ?? 'manual').obs; // 'manual' | 'duplicate' | 'upload'
+    final initialLangObj = initialLanguage != null
+        ? supportedLanguages.firstWhereOrNull((l) => l.code == normalizeLanguageCode(initialLanguage!))
+        : null;
+    final selectedLanguage = Rxn<TranslationLanguage>(initialLangObj);
+    final availableTracksWithSubs = controller.availableLanguagesWithSubtitles;
+    final defaultSourceLang = availableTracksWithSubs.isNotEmpty
+        ? (availableTracksWithSubs.contains('en') ? 'en' : availableTracksWithSubs.first)
+        : (controller.availableLanguages.isNotEmpty ? controller.availableLanguages.first : '');
+    final duplicateFromLang = defaultSourceLang.obs;
+    final titleController = TextEditingController(text: initialLangObj?.name ?? '');
     final titleError = RxnString();
     final pickedFile = Rxn<PlatformFile>();
     final searchQuery = ''.obs;
@@ -349,7 +355,8 @@ class AddSubtitleTrackPage extends StatelessWidget {
     required Color textColor,
     required Color textSecondaryColor,
   }) {
-    final hasExistingCues = controller.currentCues.isNotEmpty;
+    final hasExistingCues = controller.currentCues.isNotEmpty ||
+        controller.hasAnyPublishedSubtitles;
 
     return Obx(() {
       final current = creationMode.value;
@@ -554,16 +561,22 @@ class AddSubtitleTrackPage extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Obx(() {
+            final availableTracks = controller.availableLanguagesWithSubtitles.isNotEmpty
+                ? controller.availableLanguagesWithSubtitles
+                : controller.availableLanguages;
+            final currentSelected = duplicateFromLang.value.isNotEmpty && availableTracks.contains(duplicateFromLang.value)
+                ? duplicateFromLang.value
+                : (availableTracks.isNotEmpty ? availableTracks.first : null);
+
             return DropdownButtonFormField<String>(
-              initialValue: duplicateFromLang.value.isNotEmpty
-                  ? duplicateFromLang.value
-                  : null,
+              value: currentSelected,
               dropdownColor: surfaceColor,
-              items: controller.availableLanguages.map((code) {
+              items: availableTracks.map((code) {
+                final hasPublished = controller.hasPublishedSubtitles(code);
                 return DropdownMenuItem<String>(
                   value: code,
                   child: Text(
-                    '${controller.getLanguageName(code)} ($code)',
+                    '${controller.getLanguageName(code)} ($code)${hasPublished ? " • Available" : ""}',
                     style: TextStyle(fontSize: 13, color: textColor),
                   ),
                 );
@@ -825,7 +838,7 @@ class AddSubtitleTrackPage extends StatelessWidget {
               if (lang == null) return const SizedBox.shrink();
 
               final isAlreadyAdded =
-                  controller.availableLanguages.contains(code);
+                  controller.hasPublishedSubtitles(code);
 
               return Obx(() {
                 final isSelected = selectedLanguage.value?.code == code;
@@ -908,7 +921,7 @@ class AddSubtitleTrackPage extends StatelessWidget {
                         itemBuilder: (context, index) {
                           final lang = filtered[index];
                           final isAlreadyAdded =
-                              controller.availableLanguages.contains(lang.code);
+                              controller.hasPublishedSubtitles(lang.code);
 
                           return Obx(() {
                             final isSelected =
@@ -1146,7 +1159,7 @@ class AddSubtitleTrackPage extends StatelessWidget {
                       } else if (creationMode.value == 'duplicate') {
                         controller.addLanguageTrack(
                           lang.code,
-                          copyCuesFromCurrent: true,
+                          copyFromLanguage: duplicateFromLang.value,
                         );
                         Get.back<void>();
                       } else {

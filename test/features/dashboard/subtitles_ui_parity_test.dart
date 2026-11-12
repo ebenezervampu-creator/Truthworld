@@ -252,5 +252,47 @@ void main() {
         await tester.pump(const Duration(seconds: 2));
       },
     );
+
+    testWidgets(
+      'Subtitles card popup menu displays Download and Remove language subtitle labels instead of generic track labels',
+      (tester) async {
+        final controller = Get.put(SubtitlesController());
+        final mockVideo = createMockVideo();
+        controller.videos.assignAll([mockVideo]);
+        controller.filteredVideos.assignAll([mockVideo]);
+        controller.selectedVideo.value = mockVideo;
+        controller.availableLanguages.assignAll(['en', 'te']);
+
+        await tester.pumpWidget(
+          GetMaterialApp(
+            home: Scaffold(
+              body: SubtitlesListSection(
+                video: mockVideo,
+                controller: controller,
+                textColor: Colors.white,
+                textSecondaryColor: Colors.white70,
+                surfaceColor: const Color(0xFF161618),
+                borderColor: const Color(0xFF27272A),
+                isDarkMode: true,
+                onAddSubtitles: () {},
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Tap the more options menu on the Telugu card
+        final moreVertIcons = find.byIcon(Icons.more_vert);
+        expect(moreVertIcons, findsWidgets);
+        await tester.tap(moreVertIcons.at(1));
+        await tester.pumpAndSettle();
+
+        // Verify popup menu displays language-specific subtitle options
+        expect(find.text('Download Telugu Subtitle'), findsOneWidget);
+        expect(find.text('Remove Telugu Subtitle'), findsOneWidget);
+        expect(find.text('Download Track'), findsNothing);
+        expect(find.text('Remove Track'), findsNothing);
+      },
+    );
   });
 }

@@ -4,7 +4,7 @@ import 'package:truthworld/features/video/presentation/controllers/claim_comment
 import 'package:truthworld/features/video/presentation/widgets/analysis/comments/add_claim_comment_sheet.dart';
 
 import 'package:truthworld/core/utils/format_utils.dart';
-import 'package:truthworld/core/widgets/clickable_url_text.dart';
+import 'package:truthworld/core/utils/source_url_sanitizer.dart';
 import 'package:truthworld/features/video/data/models/claim_verdict_helper.dart';
 import 'package:truthworld/features/video/data/models/claim_verdict_localization.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -44,9 +44,18 @@ class VideoAnalysisClaimCard extends StatelessWidget {
     super.key,
   });
 
-  Future<void> _launchUrl(String? urlStr) async {
+  Future<void> _launchSource(
+    String? urlStr, {
+    Map<dynamic, dynamic>? source,
+    String? claimId,
+  }) async {
     if (urlStr == null || urlStr.trim().isEmpty) return;
-    await ClickableUrlText.launchUrlString(urlStr);
+    await SourceUrlSanitizer.launchSourceUrl(
+      url: urlStr,
+      source: source,
+      videoId: video.id,
+      claimId: claimId,
+    );
   }
 
   @override
@@ -69,9 +78,10 @@ class VideoAnalysisClaimCard extends StatelessWidget {
     // 2. Resolve top source attribution text & direct URL
     var sourceAttribution = '';
     String? sourceUrl;
+    Map<dynamic, dynamic>? firstSource;
 
     if (resolved.sources.isNotEmpty) {
-      final firstSource = resolved.sources.first;
+      firstSource = resolved.sources.first;
       sourceUrl = firstSource['url']?.toString() ?? firstSource['directUrl']?.toString();
       final pub = firstSource['publisher']?.toString() ??
           firstSource['domain']?.toString() ??
@@ -240,7 +250,14 @@ class VideoAnalysisClaimCard extends StatelessWidget {
                     const SizedBox(height: 5),
                     InkWell(
                       onTap: sourceUrl != null && sourceUrl.isNotEmpty
-                          ? () => _launchUrl(sourceUrl)
+                          ? () => _launchSource(
+                                sourceUrl,
+                                source: firstSource,
+                                claimId: (claim['claimId'] ??
+                                        claim['id'] ??
+                                        'claim_$index')
+                                    .toString(),
+                              )
                           : null,
                       borderRadius: BorderRadius.circular(4),
                       child: Row(

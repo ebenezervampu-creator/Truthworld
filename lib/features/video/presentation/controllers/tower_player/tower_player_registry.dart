@@ -7,10 +7,26 @@ import 'package:truthworld/features/video/presentation/controllers/tower_player_
 /// Global registry managing active TowerPlayerController instances and picture-in-picture coordination.
 class TowerPlayerRegistry {
   static final List<TowerPlayerController> _activePlayers = [];
+  static final Set<String> _disposedTags = <String>{};
 
   /// Read-only snapshot of currently active players
   static List<TowerPlayerController> get activePlayers =>
       List.unmodifiable(_activePlayers);
+
+  /// Mark a tag as having had its TowerPlayerController disposed
+  static void markDisposed(String tag) {
+    if (tag.isNotEmpty) {
+      _disposedTags.add(tag);
+    }
+  }
+
+  /// Whether a player tag was recently disposed
+  static bool isDisposed(String tag) => _disposedTags.contains(tag);
+
+  /// Clear the disposed state for a player tag
+  static void clearDisposed(String tag) {
+    _disposedTags.remove(tag);
+  }
 
   static void Function(BuildContext context, TowerPlayerController ctrl)?
       showMobileSettingsCallback;

@@ -81,21 +81,28 @@ class SearchSuggestionsEngine {
     }
 
     // 3. Remote Firestore queries across content types (videos, channels, topics)
-    if (normalized.length >= 3) {
+    if (normalized.isNotEmpty) {
       try {
         final results = await Future.wait([
           FirebaseFirestore.instance
               .collection(FirestoreCollections.videos)
-              .where('title', isGreaterThanOrEqualTo: normalized)
-              .where('title', isLessThanOrEqualTo: '$normalized\uf8ff')
-              .where('status', whereIn: const ['processed', 'published'])
+              .where('titleLowercase', isGreaterThanOrEqualTo: normalized)
+              .where('titleLowercase', isLessThanOrEqualTo: '$normalized\uf8ff')
               .limit(5)
               .get()
               .catchError(
                 (_) => FirebaseFirestore.instance
                     .collection(FirestoreCollections.videos)
-                    .limit(0)
-                    .get(),
+                    .where('title', isGreaterThanOrEqualTo: normalized)
+                    .where('title', isLessThanOrEqualTo: '$normalized\uf8ff')
+                    .limit(5)
+                    .get()
+                    .catchError(
+                      (_) => FirebaseFirestore.instance
+                          .collection(FirestoreCollections.videos)
+                          .limit(0)
+                          .get(),
+                    ),
               ),
           FirebaseFirestore.instance
               .collection('channels')
@@ -198,6 +205,13 @@ class SearchSuggestionsEngine {
         // Add matching videos
         for (final doc in results[0].docs) {
           final data = doc.data();
+          final status = (data['status'] as String?)?.toLowerCase();
+          if (status != null &&
+              status != 'processed' &&
+              status != 'published' &&
+              status != 'completed') {
+            continue;
+          }
           final title = data['title'] as String? ?? '';
           final key = title.toLowerCase();
           if (!seenIds.contains(doc.id) && !seenTexts.contains(key)) {

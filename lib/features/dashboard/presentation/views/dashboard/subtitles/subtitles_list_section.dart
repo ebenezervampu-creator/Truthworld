@@ -50,8 +50,10 @@ class SubtitlesListSection extends StatelessWidget {
         );
       }
 
+      final currentVideo = controller.selectedVideo.value ?? video;
+
       // Collect all configured/available languages
-      final baseLang = normalizeLanguageCode(video.language);
+      final baseLang = normalizeLanguageCode(currentVideo.language);
       final orderedLanguages = <String>[];
 
       // Always show primary / base language first
@@ -66,7 +68,7 @@ class SubtitlesListSection extends StatelessWidget {
       }
 
       // Add any existing subtitles in video metadata
-      for (final lang in video.mediaSubtitles.keys) {
+      for (final lang in currentVideo.mediaSubtitles.keys) {
         final l = normalizeLanguageCode(lang);
         if (!orderedLanguages.contains(l)) {
           orderedLanguages.add(l);
@@ -74,7 +76,7 @@ class SubtitlesListSection extends StatelessWidget {
       }
 
       // Add target video languages
-      for (final lang in video.languages) {
+      for (final lang in currentVideo.languages) {
         final code = normalizeLanguageCode(lang);
         if (!orderedLanguages.contains(code)) {
           orderedLanguages.add(code);
@@ -182,7 +184,7 @@ class SubtitlesListSection extends StatelessWidget {
               return AvailableSubtitleTrackCard(
                 langCode: code,
                 isBaseTrack: isBaseTrack,
-                video: video,
+                video: currentVideo,
                 controller: controller,
                 isDarkMode: isDarkMode,
               );
@@ -213,15 +215,17 @@ class AvailableSubtitleTrackCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final langName = controller.getLanguageName(langCode, includeNative: true);
+    final langSimpleName = controller.getLanguageName(langCode);
     final displayTitle = isBaseTrack ? '$langName (Original)' : langName;
 
     return Obx(() {
-      final subs = video.mediaSubtitles;
+      final currentVideo = controller.selectedVideo.value ?? video;
+      final subs = currentVideo.mediaSubtitles;
       final normCode = normalizeLanguageCode(langCode);
       final hasSubtitles =
           (subs.containsKey(langCode) && (subs[langCode]?.isNotEmpty ?? false)) ||
           (subs.containsKey(normCode) && (subs[normCode]?.isNotEmpty ?? false)) ||
-          (subs.containsKey(video.language) && (subs[video.language]?.isNotEmpty ?? false) && isBaseTrack);
+          (subs.containsKey(currentVideo.language) && (subs[currentVideo.language]?.isNotEmpty ?? false) && isBaseTrack);
 
       final isGenerating = controller.isGeneratingAI.value &&
           (controller.aiTargetLanguages.contains(langCode) ||
@@ -291,6 +295,7 @@ class AvailableSubtitleTrackCard extends StatelessWidget {
                         context: context,
                         controller: controller,
                         isDarkMode: isDarkMode,
+                        targetLanguageCode: langCode,
                       );
                     },
                     style: ElevatedButton.styleFrom(
@@ -337,10 +342,28 @@ class AvailableSubtitleTrackCard extends StatelessWidget {
                           langCode: langCode,
                           isDarkMode: isDarkMode,
                         );
+                      case 'copy_cues':
+                        final otherLang = controller.availableLanguagesWithSubtitles.firstWhereOrNull(
+                          (l) => normalizeLanguageCode(l) != normalizeLanguageCode(langCode),
+                        );
+                        if (otherLang != null) {
+                          controller.copyCuesFromTrack(
+                            sourceLangCode: otherLang,
+                            targetLangCode: langCode,
+                          );
+                          showSubtitlesCuesEditorModal(
+                            context: context,
+                            controller: controller,
+                            langCode: langCode,
+                            isDarkMode: isDarkMode,
+                          );
+                        }
                       case 'generate':
+                        controller.switchLanguage(langCode);
                         Get.to(() => GenerateAiSubtitlesPage(
                               controller: controller,
                               isDarkMode: isDarkMode,
+                              initialLanguage: langCode,
                             ));
                       case 'upload':
                         controller.switchLanguage(langCode);
@@ -356,7 +379,15 @@ class AvailableSubtitleTrackCard extends StatelessWidget {
                         controller.deleteLanguageTrack(langCode);
                     }
                   },
-                  itemBuilder: (ctx) => [
+                  itemBuilder: (ctx) {
+                    final otherLangForCopy = controller.availableLanguagesWithSubtitles.firstWhereOrNull(
+                      (l) => normalizeLanguageCode(l) != normalizeLanguageCode(langCode),
+                    );
+                    final otherLangName = otherLangForCopy != null
+                        ? controller.getLanguageName(otherLangForCopy)
+                        : null;
+
+                    return [
                     if (!isGenerating) ...[
                       const PopupMenuItem(
                         value: 'edit_cues',
@@ -376,6 +407,25 @@ class AvailableSubtitleTrackCard extends StatelessWidget {
                           ],
                         ),
                       ),
+                      if (otherLangName != null)
+                        PopupMenuItem(
+                          value: 'copy_cues',
+                          child: Row(
+                            children: [
+                              const Icon(Icons.copy_all_rounded,
+                                  color: Colors.white, size: 16),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Copy Cues from $otherLangName',
+                                  style: const TextStyle(
+                                      color: Colors.white, fontSize: 13),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       const PopupMenuItem(
                         value: 'generate',
                         child: Row(
@@ -413,17 +463,17 @@ class AvailableSubtitleTrackCard extends StatelessWidget {
                         ),
                       ),
                       if (hasSubtitles || isDraft)
-                        const PopupMenuItem(
+                        PopupMenuItem(
                           value: 'download',
                           child: Row(
                             children: [
-                              Icon(Icons.download_rounded,
+                              const Icon(Icons.download_rounded,
                                   color: Colors.white, size: 16),
-                              SizedBox(width: 10),
+                              const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
-                                  'Download Track',
-                                  style: TextStyle(
+                                  'Download $langSimpleName Subtitle',
+                                  style: const TextStyle(
                                       color: Colors.white, fontSize: 13),
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -432,17 +482,17 @@ class AvailableSubtitleTrackCard extends StatelessWidget {
                           ),
                         ),
                       if (!isBaseTrack)
-                        const PopupMenuItem(
+                        PopupMenuItem(
                           value: 'delete',
                           child: Row(
                             children: [
-                              Icon(Icons.delete_outline_rounded,
+                              const Icon(Icons.delete_outline_rounded,
                                   color: Colors.redAccent, size: 16),
-                              SizedBox(width: 10),
+                              const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
-                                  'Remove Track',
-                                  style: TextStyle(
+                                  'Remove $langSimpleName Subtitle',
+                                  style: const TextStyle(
                                       color: Colors.redAccent, fontSize: 13),
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -451,10 +501,11 @@ class AvailableSubtitleTrackCard extends StatelessWidget {
                           ),
                         ),
                     ],
-                  ],
-                ),
-              ],
-            ),
+                  ];
+                },
+              ),
+            ],
+          ),
 
             const SizedBox(height: 6),
 
@@ -506,15 +557,19 @@ class AvailableSubtitleTrackCard extends StatelessWidget {
                   color: AppColors.bgPage,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.info_outline_rounded,
+                    const Icon(Icons.info_outline_rounded,
                         color: AppColors.textSecondary, size: 16),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Subtitles track not added yet. Click Add to synthesize or upload.',
-                        style: TextStyle(
+                        controller.availableLanguagesWithSubtitles.any((l) =>
+                                normalizeLanguageCode(l) !=
+                                normalizeLanguageCode(langCode))
+                            ? 'Subtitles track not added yet. Click Add to synthesize with AI or copy from available subtitles.'
+                            : 'Subtitles track not added yet. Click Add to synthesize or upload.',
+                        style: const TextStyle(
                             color: AppColors.textSecondary, fontSize: 12),
                         overflow: TextOverflow.ellipsis,
                       ),

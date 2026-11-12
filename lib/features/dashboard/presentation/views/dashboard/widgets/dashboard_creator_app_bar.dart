@@ -32,7 +32,11 @@ class DashboardCreatorAppBar extends StatelessWidget
 
   ChannelNotificationsController _resolveNotificationsController() {
     if (Get.isRegistered<ChannelNotificationsController>()) {
-      return Get.find<ChannelNotificationsController>();
+      final existing = Get.find<ChannelNotificationsController>();
+      if (!existing.isDisposed) {
+        return existing;
+      }
+      Get.delete<ChannelNotificationsController>(force: true);
     }
     final chId = dashboardController.channelId.isNotEmpty
         ? dashboardController.channelId
@@ -40,12 +44,11 @@ class DashboardCreatorAppBar extends StatelessWidget
     final ownerId = viewController.getOwnerId(
       dashboardController.currentChannel.value ?? viewController.channel,
     );
-    return Get.put(
+    return Get.put<ChannelNotificationsController>(
       ChannelNotificationsController(
         channelId: chId,
         creatorId: ownerId,
       ),
-      permanent: false,
     );
   }
 

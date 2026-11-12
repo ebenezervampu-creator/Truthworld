@@ -246,7 +246,8 @@ class CreatorAnalyticsController extends BaseController
           final today = DateTime(now.year, now.month, now.day);
           final diff = videoWatchTime - dailySum;
           if (updatedDailyWatch.isEmpty || dailySum == 0) {
-            final daysToSpread = math.min(selectedDateRange.value.days, 7);
+            final daysVal = selectedDateRange.value.days;
+            final daysToSpread = daysVal > 0 ? math.min(daysVal, 7) : 7;
             final portion = diff ~/ daysToSpread;
             for (var i = daysToSpread - 1; i >= 0; i--) {
               final d = today.subtract(Duration(days: i));
@@ -410,20 +411,49 @@ class CreatorAnalyticsController extends BaseController
       var effectiveWatches = finalAnalytics.totalVideoWatches;
       var effectiveWatchSec = finalAnalytics.totalWatchTimeSeconds;
 
-      if (channelVideos.isNotEmpty) {
-        final totalV = channelVideos.fold<int>(
-          0,
-          (sum, v) => sum + v.viewCount,
-        );
-        final totalW = channelVideos.fold<int>(
-          0,
-          (sum, v) => sum + v.totalWatchTimeSeconds,
-        );
-        if (effectiveWatches <= 0 || totalV > effectiveWatches) {
-          effectiveWatches = totalV;
+      if (selectedDateRange.value == AnalyticsDateRange.allTime) {
+        if (channelVideos.isNotEmpty) {
+          final totalV = channelVideos.fold<int>(
+            0,
+            (sum, v) => sum + v.viewCount,
+          );
+          final totalW = channelVideos.fold<int>(
+            0,
+            (sum, v) => sum + v.totalWatchTimeSeconds,
+          );
+          if (effectiveWatches <= 0 || totalV > effectiveWatches) {
+            effectiveWatches = totalV;
+          }
+          if (effectiveWatchSec <= 0 || (totalW > 0 && totalW > effectiveWatchSec)) {
+            effectiveWatchSec = totalW;
+          }
         }
-        if (effectiveWatchSec <= 0 || (totalW > 0 && totalW > effectiveWatchSec)) {
-          effectiveWatchSec = totalW;
+      } else {
+        // Windowed date range (7 days, 28 days, 90 days, 1 year):
+        // Only estimate from channelVideos if no daily aggregated stats exist
+        if (effectiveWatches <= 0 && channelVideos.isNotEmpty) {
+          final range = selectedDateRange.value.calculateRange(
+            customStart: customStartDate.value,
+            customEnd: customEndDate.value,
+          );
+          final now = DateTime.now();
+          var windowV = 0;
+          var windowW = 0;
+          for (final v in channelVideos) {
+            final created = v.createdAt.toDate();
+            if (created.isAfter(range.start)) {
+              windowV += v.viewCount;
+              windowW += v.totalWatchTimeSeconds;
+            } else {
+              final ageDays = math.max(1, now.difference(created).inDays);
+              final winDays = math.min(selectedDateRange.value.days, ageDays);
+              final ratio = winDays / ageDays;
+              windowV += (v.viewCount * ratio).round();
+              windowW += (v.totalWatchTimeSeconds * ratio).round();
+            }
+          }
+          effectiveWatches = windowV;
+          effectiveWatchSec = windowW;
         }
       }
 
@@ -445,7 +475,8 @@ class CreatorAnalyticsController extends BaseController
         final today = DateTime(now.year, now.month, now.day);
         final diff = effectiveWatchSec - dailySum;
         if (updatedDailyWatch.isEmpty || dailySum == 0) {
-          final daysToSpread = math.min(selectedDateRange.value.days, 7);
+          final daysVal = selectedDateRange.value.days;
+          final daysToSpread = daysVal > 0 ? math.min(daysVal, 7) : 7;
           final portion = diff ~/ daysToSpread;
           for (var i = daysToSpread - 1; i >= 0; i--) {
             final d = today.subtract(Duration(days: i));
@@ -651,7 +682,8 @@ class CreatorAnalyticsController extends BaseController
                 final today = DateTime(now.year, now.month, now.day);
                 final diff = effectiveWatchSec - dailySum;
                 if (updatedDailyWatch.isEmpty || dailySum == 0) {
-                  final daysToSpread = math.min(selectedDateRange.value.days, 7);
+                  final daysVal = selectedDateRange.value.days;
+                  final daysToSpread = daysVal > 0 ? math.min(daysVal, 7) : 7;
                   final portion = diff ~/ daysToSpread;
                   for (var i = daysToSpread - 1; i >= 0; i--) {
                     final d = today.subtract(Duration(days: i));

@@ -17,6 +17,7 @@ import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/utils/subtitle_parser.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles/subtitle_cue_model.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles/subtitles_controller_base.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_media.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 
@@ -25,16 +26,38 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
   /// In-memory cache of parsed subtitle cues by "${videoId}_${langCode}"
   static final Map<String, List<SubtitleCue>> _cuesCache = {};
 
+  /// In-flight dedup map to eliminate redundant parallel download and parse cascades
+  static final Map<String, Future<void>> _inFlightParses = {};
+
   static void clearCuesCache([String? videoId]) {
     if (videoId != null) {
       _cuesCache.removeWhere((k, _) => k.startsWith('${videoId}_'));
+      _inFlightParses.removeWhere((k, _) => k.startsWith('${videoId}_'));
     } else {
       _cuesCache.clear();
+      _inFlightParses.clear();
     }
   }
 
   @override
   Future<void> parseCuesForLanguage(String langCode, String? urlOrData) async {
+    final video = selectedVideo.value;
+    final parseKey = '${video?.id ?? ""}_${langCode}_${urlOrData ?? ""}';
+    if (_inFlightParses.containsKey(parseKey)) {
+      await _inFlightParses[parseKey];
+      return;
+    }
+
+    final future = _parseCuesForLanguageInternal(langCode, urlOrData);
+    _inFlightParses[parseKey] = future;
+    try {
+      await future;
+    } finally {
+      _inFlightParses.remove(parseKey);
+    }
+  }
+
+  Future<void> _parseCuesForLanguageInternal(String langCode, String? urlOrData) async {
     final video = selectedVideo.value;
     final cacheKey = video != null ? '${video.id}_$langCode' : null;
 
@@ -48,33 +71,17 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
     }
 
     if (urlOrData == null || urlOrData.trim().isEmpty) {
-      // Check direct Firestore transcripts collection before displaying empty state
+      // Execute robust multi-source fallback before clearing cues
       if (video != null) {
-        try {
-          final tSnap = await firestore.collection('transcripts').doc(video.id).get();
-          if (tSnap.exists && tSnap.data() != null) {
-            final tData = tSnap.data()!;
-            if (tData['utterances'] != null || tData['segments'] != null || tData['words'] != null) {
-              final segments = await IsolateComputeUtils.parseSubtitlesAsync(jsonEncode(tData));
-              if (segments.isNotEmpty) {
-                final cues = segments.map((seg) {
-                  return SubtitleCue(
-                    id: UniqueKey().toString(),
-                    startTime: SubtitlesControllerBase.formatDurationToTimecode(seg.start),
-                    endTime: SubtitlesControllerBase.formatDurationToTimecode(seg.end),
-                    text: seg.text,
-                  );
-                }).toList();
-                if (cacheKey != null) {
-                  _cuesCache[cacheKey] = cues;
-                }
-                currentCues.value = cues;
-                setViewState(ViewState.success);
-                return;
-              }
-            }
+        final fallbackCues = await _resolveFallbackCues(video, langCode);
+        if (fallbackCues.isNotEmpty) {
+          if (cacheKey != null) {
+            _cuesCache[cacheKey] = fallbackCues;
           }
-        } catch (_) {}
+          currentCues.value = fallbackCues;
+          setViewState(ViewState.success);
+          return;
+        }
       }
       currentCues.clear();
       setViewState(ViewState.success);
@@ -87,7 +94,8 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
         urlOrData.startsWith('http://') ||
         urlOrData.startsWith('https://') ||
         urlOrData.startsWith('subtitles/') ||
-        urlOrData.startsWith('videos/')) {
+        urlOrData.startsWith('videos/') ||
+        urlOrData.startsWith('transcripts/')) {
       try {
         setViewState(ViewState.loading);
 
@@ -136,55 +144,264 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
           final targetUrl = downloadUrl.isNotEmpty ? downloadUrl : urlOrData;
           final headers = await StorageUtils.getMediaHeaders();
 
-          final response = await AppHttpClient.get(
-            Uri.parse(targetUrl),
-            headers: headers.isNotEmpty ? headers : null,
-          );
-          if (response.statusCode == 200) {
-            contentToParse = utf8.decode(response.bodyBytes, allowMalformed: true);
-          } else {
-            logger.error(
-              'Failed to download subtitle file from $targetUrl, status: ${response.statusCode}',
-              tag: SubtitlesControllerBase.subtitlesTag,
+          try {
+            final response = await AppHttpClient.get(
+              Uri.parse(targetUrl),
+              headers: headers.isNotEmpty ? headers : null,
             );
-            currentCues.clear();
-            setViewState(ViewState.success);
-            return;
-          }
+            if (response.statusCode == 200) {
+              contentToParse = utf8.decode(response.bodyBytes, allowMalformed: true);
+            } else {
+              logger.info(
+                'Primary subtitle file not found at $targetUrl (HTTP ${response.statusCode}), checking fallback transcripts/probes...',
+                tag: SubtitlesControllerBase.subtitlesTag,
+              );
+            }
+          } catch (_) {}
         }
       } catch (e, stack) {
-        logger.error(
-          'Error downloading/resolving remote subtitle link: $urlOrData',
-          error: e,
-          stackTrace: stack,
+        logger.info(
+          'Error downloading remote subtitle link: $urlOrData ($e), checking fallbacks...',
           tag: SubtitlesControllerBase.subtitlesTag,
         );
-        currentCues.clear();
+      }
+    }
+
+    if (contentToParse != urlOrData) {
+      final segments = await IsolateComputeUtils.parseSubtitlesAsync(contentToParse);
+      if (segments.isNotEmpty) {
+        final cues = segments.map((seg) {
+          return SubtitleCue(
+            id: UniqueKey().toString(),
+            startTime: SubtitlesControllerBase.formatDurationToTimecode(seg.start),
+            endTime: SubtitlesControllerBase.formatDurationToTimecode(seg.end),
+            text: seg.text,
+          );
+        }).toList();
+        if (cacheKey != null) {
+          _cuesCache[cacheKey] = cues;
+        }
+        currentCues.value = cues;
         setViewState(ViewState.success);
         return;
       }
     }
 
-    final segments = await IsolateComputeUtils.parseSubtitlesAsync(contentToParse);
-    if (segments.isNotEmpty) {
-      final cues = segments.map((seg) {
-        return SubtitleCue(
-          id: UniqueKey().toString(),
-          startTime: SubtitlesControllerBase.formatDurationToTimecode(seg.start),
-          endTime: SubtitlesControllerBase.formatDurationToTimecode(seg.end),
-          text: seg.text,
-        );
-      }).toList();
-      if (cacheKey != null) {
-        _cuesCache[cacheKey] = cues;
+    // If direct content parsing did not produce cues and content was raw VTT/SRT text
+    if (contentToParse == urlOrData &&
+        !urlOrData.startsWith('http') &&
+        !urlOrData.startsWith('gs://') &&
+        !urlOrData.startsWith('subtitles/') &&
+        !urlOrData.startsWith('videos/') &&
+        !urlOrData.startsWith('transcripts/')) {
+      final segments = await IsolateComputeUtils.parseSubtitlesAsync(contentToParse);
+      if (segments.isNotEmpty) {
+        final cues = segments.map((seg) {
+          return SubtitleCue(
+            id: UniqueKey().toString(),
+            startTime: SubtitlesControllerBase.formatDurationToTimecode(seg.start),
+            endTime: SubtitlesControllerBase.formatDurationToTimecode(seg.end),
+            text: seg.text,
+          );
+        }).toList();
+        if (cacheKey != null) {
+          _cuesCache[cacheKey] = cues;
+        }
+        currentCues.value = cues;
+        setViewState(ViewState.success);
+        return;
       }
-      currentCues.value = cues;
-      setViewState(ViewState.success);
-      return;
+    }
+
+    // 4. Comprehensive multi-source fallback recovery
+    if (video != null) {
+      final fallbackCues = await _resolveFallbackCues(video, langCode);
+      if (fallbackCues.isNotEmpty) {
+        if (cacheKey != null) {
+          _cuesCache[cacheKey] = fallbackCues;
+        }
+        currentCues.value = fallbackCues;
+        setViewState(ViewState.success);
+        return;
+      }
     }
 
     currentCues.clear();
     setViewState(ViewState.success);
+  }
+
+  /// Extracts subtitle cues from Firestore transcript document payload
+  Future<List<SubtitleCue>> _extractCuesFromTranscriptData(Map<String, dynamic> data) async {
+    try {
+      if (data['utterances'] != null ||
+          data['segments'] != null ||
+          data['words'] != null) {
+        final segs = await IsolateComputeUtils.parseSubtitlesAsync(jsonEncode(data));
+        if (segs.isNotEmpty) {
+          return segs.map((seg) => SubtitleCue(
+            id: UniqueKey().toString(),
+            startTime: SubtitlesControllerBase.formatDurationToTimecode(seg.start),
+            endTime: SubtitlesControllerBase.formatDurationToTimecode(seg.end),
+            text: seg.text,
+          )).toList();
+        }
+      }
+      if (data['text'] != null && (data['text'] as String).trim().isNotEmpty) {
+        final segs = await IsolateComputeUtils.parseSubtitlesAsync(data['text'] as String);
+        if (segs.isNotEmpty) {
+          return segs.map((seg) => SubtitleCue(
+            id: UniqueKey().toString(),
+            startTime: SubtitlesControllerBase.formatDurationToTimecode(seg.start),
+            endTime: SubtitlesControllerBase.formatDurationToTimecode(seg.end),
+            text: seg.text,
+          )).toList();
+        }
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  /// Resolves subtitle cues from Firestore transcripts, video_jobs, or Storage candidate probes
+  Future<List<SubtitleCue>> _resolveFallbackCues(Video video, String langCode) async {
+    final normCode = normalizeLanguageCode(langCode);
+    final videoLangCode = normalizeLanguageCode(video.language);
+    final isOriginalLang = normCode == videoLangCode ||
+        langCode == video.language ||
+        (videoLangCode == 'en' && normCode == 'en');
+
+    String? retrievedJobId = video.jobId;
+
+    // 1. If jobId is not on local model, retrieve from root video doc in Firestore
+    if (retrievedJobId == null || retrievedJobId.isEmpty) {
+      try {
+        final vSnap = await firestore
+            .collection(FirestoreCollections.videos)
+            .doc(video.id)
+            .get();
+        if (vSnap.exists && vSnap.data() != null) {
+          final data = vSnap.data()!;
+          retrievedJobId = (data['jobId'] as String?)?.trim();
+        }
+      } catch (_) {}
+    }
+
+    // 2. If track is for original spoken language, check Firestore transcripts collection
+    if (isOriginalLang) {
+      // 2.1 Check transcripts/{video.id}
+      try {
+        final tSnap = await firestore.collection('transcripts').doc(video.id).get();
+        if (tSnap.exists && tSnap.data() != null) {
+          final cues = await _extractCuesFromTranscriptData(tSnap.data()!);
+          if (cues.isNotEmpty) return cues;
+        }
+      } catch (_) {}
+
+      // 2.2 Check transcripts/{jobId}
+      if (retrievedJobId != null && retrievedJobId.isNotEmpty && retrievedJobId != video.id) {
+        try {
+          final jSnap = await firestore.collection('transcripts').doc(retrievedJobId).get();
+          if (jSnap.exists && jSnap.data() != null) {
+            final cues = await _extractCuesFromTranscriptData(jSnap.data()!);
+            if (cues.isNotEmpty) return cues;
+          }
+        } catch (_) {}
+      }
+
+      // 2.3 Check video_jobs/{jobId} artifacts.transcription
+      if (retrievedJobId != null && retrievedJobId.isNotEmpty) {
+        try {
+          final jobSnap = await firestore.collection('video_jobs').doc(retrievedJobId).get();
+          if (jobSnap.exists && jobSnap.data() != null) {
+            final jobData = jobSnap.data()!;
+            final artifacts = jobData['artifacts'] as Map<String, dynamic>?;
+            final transcription = artifacts?['transcription'] as Map<String, dynamic>?;
+            if (transcription != null) {
+              final cues = await _extractCuesFromTranscriptData(transcription);
+              if (cues.isNotEmpty) return cues;
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    // 3. Check Firestore video_jobs/{jobId} outputs.subtitles for this target language
+    if (retrievedJobId != null && retrievedJobId.isNotEmpty) {
+      try {
+        final jobSnap = await firestore.collection('video_jobs').doc(retrievedJobId).get();
+        if (jobSnap.exists && jobSnap.data() != null) {
+          final jobData = jobSnap.data()!;
+          final outputs = jobData['outputs'] as Map<String, dynamic>?;
+          final subs = outputs?['subtitles'] as Map<String, dynamic>?;
+          final targetSub = subs?[langCode] ?? subs?[normCode];
+          if (targetSub != null && targetSub is String && targetSub.isNotEmpty) {
+            final segs = await IsolateComputeUtils.parseSubtitlesAsync(targetSub);
+            if (segs.isNotEmpty) {
+              return segs.map((seg) => SubtitleCue(
+                id: UniqueKey().toString(),
+                startTime: SubtitlesControllerBase.formatDurationToTimecode(seg.start),
+                endTime: SubtitlesControllerBase.formatDurationToTimecode(seg.end),
+                text: seg.text,
+              )).toList();
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 4. Parallel storage probe across canonical candidate paths
+    final storage = FirebaseStorage.instance;
+    final probePaths = <String>[
+      'videos/${video.id}/subtitles/$normCode.vtt',
+      'videos/${video.id}/subtitles/$normCode.srt',
+      'subtitles/${video.id}/$normCode.vtt',
+      'subtitles/${video.id}/$normCode.srt',
+      if (isOriginalLang) ...[
+        'transcripts/${video.id}/full.json',
+        'transcripts/${video.id}.json',
+      ],
+      if (retrievedJobId != null && retrievedJobId.isNotEmpty && retrievedJobId != video.id) ...[
+        'videos/$retrievedJobId/subtitles/$normCode.vtt',
+        'videos/$retrievedJobId/subtitles/$normCode.srt',
+        'subtitles/$retrievedJobId/$normCode.vtt',
+        'subtitles/$retrievedJobId/$normCode.srt',
+        if (isOriginalLang) ...[
+          'transcripts/$retrievedJobId/full.json',
+          'transcripts/$retrievedJobId.json',
+        ],
+      ],
+    ];
+
+    try {
+      final probeFutures = probePaths.map((p) async {
+        try {
+          final bytes = await StorageUtils.getDataWithTimeout(
+            storage.ref(p),
+            timeout: const Duration(milliseconds: 1500),
+          );
+          if (bytes != null && bytes.isNotEmpty) {
+            return utf8.decode(bytes, allowMalformed: true);
+          }
+        } catch (_) {}
+        return null;
+      });
+
+      final probeResults = await Future.wait(probeFutures);
+      for (final raw in probeResults) {
+        if (raw != null && raw.isNotEmpty) {
+          final segs = await IsolateComputeUtils.parseSubtitlesAsync(raw);
+          if (segs.isNotEmpty) {
+            return segs.map((seg) => SubtitleCue(
+              id: UniqueKey().toString(),
+              startTime: SubtitlesControllerBase.formatDurationToTimecode(seg.start),
+              endTime: SubtitlesControllerBase.formatDurationToTimecode(seg.end),
+              text: seg.text,
+            )).toList();
+          }
+        }
+      }
+    } catch (_) {}
+
+    return [];
   }
 
   Future<void> saveCurrentSubtitles() async {
@@ -275,6 +492,22 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
 
       _cuesCache.removeWhere((k, _) => k.startsWith('${video.id}_'));
 
+      final updatedVideo = video.copyWith(mediaSubtitles: updatedSubs);
+      selectedVideo.value = updatedVideo;
+      if (ownerVideosMap.containsKey(video.id)) {
+        ownerVideosMap[video.id] = updatedVideo;
+      }
+      if (channelVideosMap.containsKey(video.id)) {
+        channelVideosMap[video.id] = updatedVideo;
+      }
+      final vIdx = videos.indexWhere((v) => v.id == video.id);
+      if (vIdx != -1) {
+        videos[vIdx] = updatedVideo;
+      }
+      final fIdx = filteredVideos.indexWhere((v) => v.id == video.id);
+      if (fIdx != -1) {
+        filteredVideos[fIdx] = updatedVideo;
+      }
       selectedVideo.refresh();
 
       hasUnsavedChanges.value = false;
@@ -373,6 +606,22 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
 
       _cuesCache.removeWhere((k, _) => k.startsWith('${video.id}_'));
 
+      final updatedVideo = video.copyWith(mediaSubtitles: updatedSubs);
+      selectedVideo.value = updatedVideo;
+      if (ownerVideosMap.containsKey(video.id)) {
+        ownerVideosMap[video.id] = updatedVideo;
+      }
+      if (channelVideosMap.containsKey(video.id)) {
+        channelVideosMap[video.id] = updatedVideo;
+      }
+      final vIdx = videos.indexWhere((v) => v.id == video.id);
+      if (vIdx != -1) {
+        videos[vIdx] = updatedVideo;
+      }
+      final fIdx = filteredVideos.indexWhere((v) => v.id == video.id);
+      if (fIdx != -1) {
+        filteredVideos[fIdx] = updatedVideo;
+      }
       selectedVideo.refresh();
 
       if (!availableLanguages.contains(trackKey)) {
@@ -401,28 +650,77 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
   Future<void> deleteLanguageTrack(String langCode) async {
     final video = selectedVideo.value;
     if (video == null) return;
+
+    final cleanCode = langCode.trim().toLowerCase();
+    final normCode = normalizeLanguageCode(cleanCode);
+    final baseLang = normalizeLanguageCode(video.language);
+
+    if (cleanCode == baseLang || normCode == baseLang) {
+      showError('Cannot remove original video subtitle.');
+      return;
+    }
+
     try {
       final updatedSubs = Map<String, String>.from(video.mediaSubtitles);
       updatedSubs.remove(langCode);
+      updatedSubs.remove(cleanCode);
+      updatedSubs.remove(normCode);
+      updatedSubs.removeWhere((k, _) {
+        final kLower = k.trim().toLowerCase();
+        final kNorm = normalizeLanguageCode(kLower);
+        return kLower == cleanCode ||
+            kNorm == normCode ||
+            kLower == normCode ||
+            kNorm == cleanCode;
+      });
+
       availableLanguages.remove(langCode);
+      availableLanguages.remove(cleanCode);
+      availableLanguages.remove(normCode);
+      availableLanguages.removeWhere((l) {
+        final lLower = l.trim().toLowerCase();
+        final lNorm = normalizeLanguageCode(lLower);
+        return lLower == cleanCode ||
+            lNorm == normCode ||
+            lLower == normCode ||
+            lNorm == cleanCode;
+      });
 
-      await firestore
-          .collection(FirestoreCollections.videos)
-          .doc(video.id)
-          .collection('media')
-          .doc('localization')
-          .set({
-            'subtitles': updatedSubs,
-            'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+      // If video has this language in target languages and no audio track uses it, remove from video.languages
+      final hasAudioTrack = video.audioTracks.containsKey(cleanCode) ||
+          video.audioTracks.containsKey(normCode) ||
+          video.audioTracks.keys.any((k) => normalizeLanguageCode(k) == normCode);
+      List<String>? updatedLanguages;
+      if (!hasAudioTrack) {
+        updatedLanguages = List<String>.from(video.languages)..removeWhere((l) {
+          final lLower = l.trim().toLowerCase();
+          final lNorm = normalizeLanguageCode(lLower);
+          return lLower == cleanCode || lNorm == normCode;
+        });
+      }
 
-      await firestore
-          .collection(FirestoreCollections.videos)
-          .doc(video.id)
-          .update({
-            'subtitles': updatedSubs,
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
+      final updatedVideo = video.copyWith(
+        mediaSubtitles: updatedSubs,
+        languages: updatedLanguages ?? video.languages,
+      );
+      selectedVideo.value = updatedVideo;
+
+      if (ownerVideosMap.containsKey(video.id)) {
+        ownerVideosMap[video.id] = updatedVideo;
+      }
+      if (channelVideosMap.containsKey(video.id)) {
+        channelVideosMap[video.id] = updatedVideo;
+      }
+      final vIdx = videos.indexWhere((v) => v.id == video.id);
+      if (vIdx != -1) {
+        videos[vIdx] = updatedVideo;
+        videos.refresh();
+      }
+      final fIdx = filteredVideos.indexWhere((v) => v.id == video.id);
+      if (fIdx != -1) {
+        filteredVideos[fIdx] = updatedVideo;
+        filteredVideos.refresh();
+      }
 
       VideoMediaService.localizationCache[video.id] = VideoMediaLocalization(
         subtitles: updatedSubs,
@@ -431,8 +729,13 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
       );
 
       _cuesCache.remove('${video.id}_$langCode');
+      _cuesCache.remove('${video.id}_$cleanCode');
+      _cuesCache.remove('${video.id}_$normCode');
 
-      if (selectedLanguage.value == langCode) {
+      final currentSelected = selectedLanguage.value.trim().toLowerCase();
+      if (currentSelected == cleanCode ||
+          normalizeLanguageCode(currentSelected) == normCode ||
+          currentSelected == langCode.toLowerCase()) {
         if (availableLanguages.isNotEmpty) {
           selectedLanguage.value = availableLanguages.first;
           hasUnsavedChanges.value = false;
@@ -443,12 +746,109 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
             currentCues.clear();
           }
         } else {
-          selectedLanguage.value = '';
+          selectedLanguage.value = baseLang;
           currentCues.clear();
         }
       }
+
       selectedVideo.refresh();
-      showSuccess('Removed ${getLanguageName(langCode)} track');
+
+      // Cloud Persistence: media/localization subcollection
+      final locRef = firestore
+          .collection(FirestoreCollections.videos)
+          .doc(video.id)
+          .collection('media')
+          .doc('localization');
+
+      final locUpdates = <String, dynamic>{
+        'subtitles': updatedSubs,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'subtitles.$cleanCode': FieldValue.delete(),
+        'subtitles.$normCode': FieldValue.delete(),
+        'subtitles.$langCode': FieldValue.delete(),
+        'media.subtitles.$cleanCode': FieldValue.delete(),
+        'media.subtitles.$normCode': FieldValue.delete(),
+        'media.subtitles.$langCode': FieldValue.delete(),
+      };
+      await locRef.set(locUpdates, SetOptions(merge: true)).catchError((e) {
+        logger.warning('Failed to update localization doc on delete: $e', tag: SubtitlesControllerBase.subtitlesTag);
+      });
+
+      // Cloud Persistence: main video doc
+      final videoRef = firestore
+          .collection(FirestoreCollections.videos)
+          .doc(video.id);
+
+      final videoUpdates = <String, dynamic>{
+        'subtitles': updatedSubs,
+        'media.subtitles': updatedSubs,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'subtitles.$cleanCode': FieldValue.delete(),
+        'subtitles.$normCode': FieldValue.delete(),
+        'subtitles.$langCode': FieldValue.delete(),
+        'media.subtitles.$cleanCode': FieldValue.delete(),
+        'media.subtitles.$normCode': FieldValue.delete(),
+        'media.subtitles.$langCode': FieldValue.delete(),
+        'mediaSubtitles.$cleanCode': FieldValue.delete(),
+        'mediaSubtitles.$normCode': FieldValue.delete(),
+        'mediaSubtitles.$langCode': FieldValue.delete(),
+      };
+      if (updatedLanguages != null) {
+        videoUpdates['languages'] = updatedLanguages;
+      }
+      await videoRef.set(videoUpdates, SetOptions(merge: true)).catchError((e) {
+        logger.warning('Failed to update video doc on delete: $e', tag: SubtitlesControllerBase.subtitlesTag);
+      });
+
+      // Clean video_jobs document
+      try {
+        final jobRef = firestore.collection('video_jobs').doc(video.id);
+        final jobSnap = await jobRef.get();
+        if (jobSnap.exists) {
+          final jData = jobSnap.data() ?? {};
+          final jobUpdates = <String, dynamic>{};
+          final outputs = jData['outputs'];
+          if (outputs is Map && outputs['subtitles'] is Map) {
+            final curOut = Map<String, dynamic>.from(outputs['subtitles'] as Map);
+            curOut.remove(cleanCode);
+            curOut.remove(normCode);
+            curOut.remove(langCode);
+            jobUpdates['outputs.subtitles'] = curOut;
+          }
+          if (jData['subtitles'] is Map) {
+            final curSubs = Map<String, dynamic>.from(jData['subtitles'] as Map);
+            curSubs.remove(cleanCode);
+            curSubs.remove(normCode);
+            curSubs.remove(langCode);
+            jobUpdates['subtitles'] = curSubs;
+          }
+          final stages = jData['stages'];
+          if (stages is Map) {
+            for (final code in [cleanCode, normCode, langCode]) {
+              if (stages.containsKey('subtitles_$code')) {
+                jobUpdates['stages.subtitles_$code'] = FieldValue.delete();
+              }
+              if (stages.containsKey('translating_$code')) {
+                jobUpdates['stages.translating_$code'] = FieldValue.delete();
+              }
+            }
+          }
+          if (jobUpdates.isNotEmpty) {
+            await jobRef.update(jobUpdates).catchError((_) {});
+          }
+        }
+      } catch (_) {}
+
+      // Delete storage files if available
+      try {
+        final storagePath = 'videos/${video.id}/subtitles/$cleanCode.vtt';
+        await FirebaseStorage.instance.ref().child(storagePath).delete().catchError((_) {});
+        final storageSrtPath = 'videos/${video.id}/subtitles/$cleanCode.srt';
+        await FirebaseStorage.instance.ref().child(storageSrtPath).delete().catchError((_) {});
+      } catch (_) {}
+
+      final langDisplayName = getLanguageName(langCode);
+      showSuccess('Removed $langDisplayName subtitle');
     } catch (e, stack) {
       logger.error('Failed to remove subtitle track', error: e, stackTrace: stack, tag: SubtitlesControllerBase.subtitlesTag);
       showError('Unable to remove subtitle track. Please try again.');

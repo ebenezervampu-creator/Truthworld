@@ -20,7 +20,7 @@ export interface SpeakerProfile {
   pitchBand:   "high" | "mid" | "deep";
   energy:      "high" | "moderate" | "low";
   ageTone:     "youthful" | "adult" | "mature";
-  role:        "host" | "guest" | "expert" | "caller" | "other"; // v5.3: Path 2 Role Awareness
+  role:        "host" | "guest" | "expert" | "caller" | "other"; // v5.3: Localization Role Awareness
   wordCount:   number;
   segments:    number;
 }

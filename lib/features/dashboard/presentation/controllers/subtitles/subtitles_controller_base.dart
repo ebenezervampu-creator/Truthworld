@@ -139,14 +139,52 @@ abstract class SubtitlesControllerBase extends BaseController
     currentCues.refresh();
   }
 
-  SubtitleTrackStatus getLanguageStatus(String code) {
+  bool hasPublishedSubtitles(String code) {
     final video = selectedVideo.value;
-    if (video == null) return SubtitleTrackStatus.notAdded;
+    if (video == null) return false;
     final subs = video.mediaSubtitles;
-    if (subs.containsKey(code) && (subs[code]?.isNotEmpty ?? false)) {
+    final normCode = normalizeLanguageCode(code);
+    final isBaseTrack = normCode == normalizeLanguageCode(video.language);
+    return (subs.containsKey(code) && (subs[code]?.isNotEmpty ?? false)) ||
+        (subs.containsKey(normCode) && (subs[normCode]?.isNotEmpty ?? false)) ||
+        (subs.containsKey(video.language) && (subs[video.language]?.isNotEmpty ?? false) && isBaseTrack);
+  }
+
+  bool get hasAnyPublishedSubtitles {
+    final video = selectedVideo.value;
+    if (video == null) return false;
+    return video.mediaSubtitles.values.any((s) => s.isNotEmpty);
+  }
+
+  List<String> get availableLanguagesWithSubtitles {
+    final video = selectedVideo.value;
+    if (video == null) return [];
+    final res = <String>[];
+    for (final k in video.mediaSubtitles.keys) {
+      final code = normalizeLanguageCode(k);
+      final val = video.mediaSubtitles[k];
+      if (val != null && val.isNotEmpty && !res.contains(code)) {
+        res.add(code);
+      }
+    }
+    return res;
+  }
+
+  SubtitleTrackStatus getLanguageStatus(String code) {
+    if (hasPublishedSubtitles(code)) {
       return SubtitleTrackStatus.published;
     }
-    if (availableLanguages.contains(code)) {
+    final normCode = normalizeLanguageCode(code);
+    if (isGeneratingAI.value &&
+        (aiTargetLanguages.contains(code) ||
+            aiTargetLanguages.contains(normCode) ||
+            aiLanguageStatuses[code] == 'generating' ||
+            aiLanguageStatuses[normCode] == 'generating')) {
+      return SubtitleTrackStatus.generating;
+    }
+    if ((selectedLanguage.value == code && currentCues.isNotEmpty) ||
+        availableLanguages.contains(code) ||
+        availableLanguages.contains(normCode)) {
       return SubtitleTrackStatus.draft;
     }
     return SubtitleTrackStatus.notAdded;

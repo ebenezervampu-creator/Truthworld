@@ -89,9 +89,6 @@ class VideoAIFeaturesOverviewCard extends StatelessWidget {
                 (video.isFactChecked ||
                     video.hasAiCredibility ||
                     hasRealFactCheckReport);
-            final effectiveTrustScore = cred.trustScore > 0
-                ? cred.trustScore
-                : (cred.claims.isNotEmpty ? video.trustScore : 0.0);
 
             // Missing features calculation
             final missingFeatures = <String>[];
@@ -513,8 +510,6 @@ class VideoAIFeaturesOverviewCard extends StatelessWidget {
                             spacing: 6,
                             runSpacing: 4,
                             children: [
-                              if (effectiveTrustScore > 0 && cred.claims.isNotEmpty)
-                                _buildChip('${effectiveTrustScore.toInt()}% Institutional Score'),
                               if (cred.claims.isNotEmpty)
                                 _buildChip('${cred.claims.length} Spoken Claims')
                               else
@@ -543,12 +538,6 @@ class VideoAIFeaturesOverviewCard extends StatelessWidget {
                             label: Text('View Full Report', style: _actionButtonTextStyle()),
                             onPressed: () {
                               final data = cred.toMap();
-                              if (cred.claims.isNotEmpty &&
-                                  (!data.containsKey('trustScore') ||
-                                      (data['trustScore'] as num? ?? 0) == 0) &&
-                                  effectiveTrustScore > 0) {
-                                data['trustScore'] = effectiveTrustScore;
-                              }
                               Get.bottomSheet(
                                 FactCheckReportWidget(
                                   data: data,

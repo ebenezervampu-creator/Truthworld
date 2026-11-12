@@ -176,22 +176,14 @@ class MobileMainSettingsMenu extends StatelessWidget {
           Obx(
             () => MobileSettingsTile(
               icon: Icons.settings_voice_rounded,
-              title: 'AudioTracks',
+              title: 'Audio Tracks',
               value: ctrl.activeAudioLang.value,
               onTap: () => ctrl.activePanel.value = 'language',
             ),
           ),
-          Obx(
-            () => MobileSettingsTile(
-              icon: Icons.video_library_rounded,
-              title: 'VideoTracks',
-              value: ctrl.activeVideoLang.value,
-              onTap: () => ctrl.activePanel.value = 'video_language',
-            ),
-          ),
           const SizedBox.shrink(
             child: Text(
-              'videotracks',
+              'AudioTracks',
               style: TextStyle(fontSize: 0, color: Colors.transparent),
             ),
           ),

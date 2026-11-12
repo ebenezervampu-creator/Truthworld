@@ -8,6 +8,7 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/core/utils/mentions_helper.dart';
+import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
@@ -246,7 +247,7 @@ mixin UploadSubmissionMixin on
       final totalAiComputeCost = dubbingCost + subtitleCost;
       if (totalAiComputeCost > 0 && !isDraft) {
         if (currentChan == null) {
-          const msg = 'Channel wallet could not be verified for paid AI subtitles/dubbing services. Please select a valid channel to proceed.';
+          const msg = 'Channel revenue could not be verified for paid AI subtitles/dubbing services. Please select a valid channel to proceed.';
           AppSnackbar.warning(msg);
           throw Exception(msg);
         }
@@ -259,7 +260,7 @@ mixin UploadSubmissionMixin on
           String detailMsg;
           if (dubbingCost > 0 && subtitleCost > 0) {
             detailMsg =
-                'AI Features are not free. Your channel balance of $balanceStr is insufficient for combined Dubbing (\$${dubbingCost.toStringAsFixed(2)}) and Subtitles (\$${subtitleCost.toStringAsFixed(2)}), totaling $totalStr.';
+                'AI Features are not free. Your channel revenue of $balanceStr is insufficient for combined Dubbing (\$${dubbingCost.toStringAsFixed(2)}) and Subtitles (\$${subtitleCost.toStringAsFixed(2)}), totaling $totalStr.';
           } else if (dubbingCost > 0) {
             final rate = ChannelWalletService.getFlatDubbingPricePerLanguage(
               durationSeconds: effectiveDurationSec,
@@ -268,16 +269,16 @@ mixin UploadSubmissionMixin on
               isVoiceClone: aiTTSVoiceType.value == 'cloned',
             );
             detailMsg =
-                'Dubbing is not free. Your channel balance of $balanceStr is insufficient for the flat dubbing cost of $totalStr (\$${rate.toStringAsFixed(2)}/lang × ${aiDubbingLanguages.length} languages for ${effectiveDurationSec}s video).';
+                'Dubbing is not free. Your channel revenue of $balanceStr is insufficient for the flat dubbing cost of $totalStr (\$${rate.toStringAsFixed(2)}/lang × ${aiDubbingLanguages.length} languages for ${effectiveDurationSec}s video).';
           } else {
             final rate = ChannelWalletService.getFlatSubtitlePricePerLanguage(
               durationSeconds: effectiveDurationSec,
               channelType: currentChan.channelType,
             );
             detailMsg =
-                'Subtitles are not free. Your channel balance of $balanceStr is insufficient for the subtitle cost of $totalStr (\$${rate.toStringAsFixed(2)}/lang × ${subLangsToBill.length} languages for ${effectiveDurationSec}s video).';
+                'Subtitles are not free. Your channel revenue of $balanceStr is insufficient for the subtitle cost of $totalStr (\$${rate.toStringAsFixed(2)}/lang × ${subLangsToBill.length} languages for ${effectiveDurationSec}s video).';
           }
-          final msg = '$detailMsg Please add funds to your wallet or reduce selected languages.';
+          final msg = '$detailMsg Please pay directly or reduce selected languages.';
           AppSnackbar.warning(msg);
           throw Exception(msg);
         }
@@ -303,11 +304,12 @@ mixin UploadSubmissionMixin on
               ),
               'voiceType': aiTTSVoiceType.value,
               'costUSD': dubbingCost,
+              'paidFromRevenue': true,
             },
           );
 
           if (dubbingTx == null) {
-            const msg = 'Unable to complete dubbing deduction from channel balance. Please check your wallet and try again.';
+            const msg = 'Unable to complete dubbing deduction from channel revenue. Please try again.';
             AppSnackbar.error(msg);
             throw Exception(msg);
           }
@@ -331,11 +333,12 @@ mixin UploadSubmissionMixin on
                 channelType: currentChan.channelType,
               ),
               'costUSD': subtitleCost,
+              'paidFromRevenue': true,
             },
           );
 
           if (subtitleTx == null) {
-            const msg = 'Unable to complete subtitle deduction from channel balance. Please check your wallet and try again.';
+            const msg = 'Unable to complete subtitle deduction from channel revenue. Please try again.';
             AppSnackbar.error(msg);
             throw Exception(msg);
           }
@@ -428,13 +431,13 @@ mixin UploadSubmissionMixin on
         'enableDiarization': aiDiarizationEnabled.value,
         'diarization': aiDiarizationEnabled.value,
         'speakerDiarization': aiDiarizationEnabled.value,
-        'enableLipSync': aiLipSyncEnabled.value,
-        'lipSync': aiLipSyncEnabled.value,
+        'enableLipSync': false,
+        'lipSync': false,
         'dubbingTier': aiDubbingTier.value,
-        'cinemaGrade': aiCinemaGradeEnabled.value,
-        'stemIsolation': aiStemIsolationEnabled.value,
-        'isometryMode': (aiDubbingTier.value == 'video_ultra' || aiDubbingTier.value == 'audio_ultra') ? 'strict_syllable' : 'natural',
-        'uncannyMitigation': aiDubbingTier.value == 'audio_ultra' ? 'cadence_lock' : 'none',
+        'cinemaGrade': false,
+        'stemIsolation': true,
+        'isometryMode': 'strict_syllable',
+        'uncannyMitigation': 'cadence_lock',
         'aiFeatures': buildFeaturesMap(
           pipelineStage: isDraft
               ? 'draft'
@@ -952,9 +955,7 @@ mixin UploadSubmissionMixin on
 
       uploadProgress.value = 0.0;
       resetUploads();
-      if (Get.currentRoute != '/studio') {
-        Get.offAllNamed('/studio');
-      }
+      RouteStackObserver.navigateToStudio();
     } on FirebaseException catch (e) {
       debugPrint('🔥 FirebaseException caught:');
       debugPrint('   Code: ${e.code}');

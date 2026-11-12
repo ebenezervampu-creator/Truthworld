@@ -56,23 +56,39 @@ class SearchEntityQueryEngine {
       ErrorHandler.log(e, stackTrace: s, tag: 'SearchEntityQueryEngine.searchVideos.keywords');
     }
 
-    // 2. Try prefix search with lowercase, TitleCase, and UPPERCASE
+    // 2. Try prefix search with titleLowercase (case-insensitive) and title fallback
     if (results.isEmpty) {
-      for (final qPrefix in [query, titleCased, query.toUpperCase()]) {
-        try {
-          final s = await _firestore
-              .collection('videos')
-              .where('title', isGreaterThanOrEqualTo: qPrefix)
-              .where('title', isLessThanOrEqualTo: '$qPrefix\uf8ff')
-              .limit(20)
-              .getCacheFirst();
-          for (final doc in s.docs) {
-            addResult(SearchResult.fromFirestore(doc), doc.data());
-          }
-        } catch (e, s) {
-          ErrorHandler.log(e, stackTrace: s, tag: 'SearchEntityQueryEngine.searchVideos.prefix');
+      try {
+        final s = await _firestore
+            .collection('videos')
+            .where('titleLowercase', isGreaterThanOrEqualTo: cleanQuery)
+            .where('titleLowercase', isLessThanOrEqualTo: '$cleanQuery\uf8ff')
+            .limit(20)
+            .getCacheFirst();
+        for (final doc in s.docs) {
+          addResult(SearchResult.fromFirestore(doc), doc.data());
         }
-        if (results.isNotEmpty) break;
+      } catch (e, s) {
+        ErrorHandler.log(e, stackTrace: s, tag: 'SearchEntityQueryEngine.searchVideos.titleLowercase');
+      }
+
+      if (results.isEmpty) {
+        for (final qPrefix in [query, titleCased, query.toUpperCase()]) {
+          try {
+            final s = await _firestore
+                .collection('videos')
+                .where('title', isGreaterThanOrEqualTo: qPrefix)
+                .where('title', isLessThanOrEqualTo: '$qPrefix\uf8ff')
+                .limit(20)
+                .getCacheFirst();
+            for (final doc in s.docs) {
+              addResult(SearchResult.fromFirestore(doc), doc.data());
+            }
+          } catch (e, s) {
+            ErrorHandler.log(e, stackTrace: s, tag: 'SearchEntityQueryEngine.searchVideos.prefix');
+          }
+          if (results.isNotEmpty) break;
+        }
       }
     }
 

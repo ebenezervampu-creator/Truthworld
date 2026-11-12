@@ -1,10 +1,19 @@
-export 'ambient_glow_theme.dart';
-export 'analog_vu_meter_theme.dart';
-export 'cosmic_nebula_theme.dart';
-export 'cyber_spectrum_theme.dart';
-export 'fluid_horizon_theme.dart';
-export 'holographic_cd_theme.dart';
-export 'lyrical_stage_theme.dart';
-export 'retro_vinyl_theme.dart';
-export 'vintage_cassette_theme.dart';
-export 'zen_aura_theme.dart';
+// Core architecture exports
+export 'core/audio_analysis_service.dart';
+export 'core/audio_theme_config.dart';
+export 'core/audio_theme_controller.dart';
+export 'core/audio_theme_interface.dart';
+export 'core/audio_theme_responsive.dart';
+
+// Presentation themes exports
+export 'themes/audiophile_spectral_theme.dart';
+export 'themes/fluid_aura_theme.dart';
+export 'themes/kinetic_syllable_theme.dart';
+export 'themes/obsidian_minimalist_theme.dart';
+export 'themes/truth_pulse_hologram_theme.dart';
+
+// Modular widgets exports
+export 'widgets/audio_artwork.dart';
+export 'widgets/audio_metadata.dart';
+export 'widgets/audio_progress_rail.dart';
+export 'widgets/credibility_indicator.dart';

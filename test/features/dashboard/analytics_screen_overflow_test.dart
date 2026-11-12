@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
+import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_screen.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -184,5 +185,37 @@ void main() {
     expect(find.byType(AnalyticsScreen), findsOneWidget);
     expect(find.text('Live Subscribers'), findsNothing);
     expect(find.text('Full Dashboard'), findsOneWidget);
+  });
+
+  testWidgets('AnalyticsScreen date range tabs switch active state on tap', (tester) async {
+    final controller = Get.put(
+      AnalyticsController(channelId: 'test_channel_tabs'),
+      tag: 'test_channel_tabs',
+    );
+    controller.rxIsLoading.value = false;
+
+    await tester.pumpWidget(
+      const GetMaterialApp(
+        home: AnalyticsScreen(
+          channelId: 'test_channel_tabs',
+          isDarkMode: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('7 days'), findsOneWidget);
+    expect(find.text('28 days'), findsOneWidget);
+    expect(find.text('90 days'), findsOneWidget);
+
+    await tester.tap(find.text('28 days'));
+    await tester.pumpAndSettle();
+
+    expect(controller.selectedDateRange, equals(AnalyticsDateRange.last28Days));
+
+    await tester.tap(find.text('90 days'));
+    await tester.pumpAndSettle();
+
+    expect(controller.selectedDateRange, equals(AnalyticsDateRange.last90Days));
   });
 }

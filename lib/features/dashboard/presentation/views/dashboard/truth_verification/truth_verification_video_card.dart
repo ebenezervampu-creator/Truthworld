@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_dialogs.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_full_inspector_modal.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_full_inspector_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_models.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
+import 'package:truthworld/features/video/presentation/views/video_analysis_screen.dart';
+import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Clean, professional, high-contrast Video Fact-Check Report Card.
@@ -27,6 +30,83 @@ class TruthVerificationVideoCard extends StatelessWidget {
   final void Function(String videoId) onApprove;
   final void Function(RealExtractedClaim claim)? onClaimSelected;
 
+  void _openAiCheck(BuildContext context) {
+    openAiCheck(
+      context,
+      videoItem: video,
+      channelId: channelId,
+    );
+  }
+
+  /// Opens the canonical AI Check page (VideoAnalysisScreen) for this video.
+  static Future<void> openAiCheck(
+    BuildContext context, {
+    required VideoFactCheckItem videoItem,
+    required String channelId,
+  }) async {
+    final baseVideo = videoItem.video ??
+        Video(
+          id: videoItem.id,
+          title: videoItem.title,
+          description: videoItem.summary,
+          thumbnailUrl: videoItem.thumbnailUrl,
+          ownerId: '',
+          channelId: channelId,
+          channelName: '',
+          category: videoItem.domain,
+          tags: const [],
+          isFactChecked: true,
+          isFactCheckApproved: videoItem.isFactCheckApproved,
+          factCheckReviewMode: videoItem.factCheckReviewMode,
+        );
+    final effectiveVideo = baseVideo.copyWith(
+      isFactChecked: true,
+      isFactCheckApproved: videoItem.isFactCheckApproved,
+      factCheckReviewMode: videoItem.factCheckReviewMode,
+    );
+
+    final tag = effectiveVideo.id;
+    final VideoController videoCtrl;
+    if (Get.isRegistered<VideoController>(tag: tag)) {
+      videoCtrl = Get.find<VideoController>(tag: tag);
+    } else {
+      videoCtrl = Get.put(VideoController(), tag: tag);
+    }
+    videoCtrl.rxVideo.value = effectiveVideo;
+
+    if (Get.isRegistered<VideoAnalysisController>(tag: tag)) {
+      Get.find<VideoAnalysisController>(tag: tag).setSelectedTab(0);
+    } else {
+      Get.put(VideoAnalysisController(), tag: tag).setSelectedTab(0);
+    }
+
+    if (videoCtrl.factCheckData.isEmpty) {
+      if (effectiveVideo.factCheckUrl.isNotEmpty &&
+          !videoCtrl.hasAttemptedFactCheck.value) {
+        videoCtrl.loadFactCheckData(effectiveVideo.factCheckUrl);
+      }
+      if (videoItem.summary.isNotEmpty ||
+          videoItem.claims.isNotEmpty ||
+          videoItem.sources.isNotEmpty) {
+        videoCtrl.factCheckData.value = {
+          'summary': videoItem.summary,
+          'viewerNote': videoItem.viewerNote,
+          'claims': videoItem.claims.map((c) => c.toMap()).toList(),
+          'sources': videoItem.sources,
+          'category': videoItem.domain,
+          'confidence': videoItem.confidence,
+          'factors': videoItem.factors,
+        };
+      }
+    }
+
+    await VideoAnalysisScreen.open(
+      context,
+      video: effectiveVideo,
+      controller: videoCtrl,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -38,11 +118,16 @@ class TruthVerificationVideoCard extends StatelessWidget {
           color: video.hasConcerns
               ? AppColors.error.withValues(alpha: 0.6)
               : AppColors.bgSurface,
-          width: 1.0,
         ),
       ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _openAiCheck(context),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 1. Video Thumbnail + Title + Status Ribbon
@@ -50,15 +135,7 @@ class TruthVerificationVideoCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               InkWell(
-                onTap: () {
-                  TruthVerificationFullInspectorPage.open(
-                    context,
-                    videoItem: video,
-                    channelId: channelId,
-                    isDarkMode: isDarkMode,
-                    onToggleApproval: onToggleApproval,
-                  );
-                },
+                onTap: () => _openAiCheck(context),
                 borderRadius: BorderRadius.circular(8),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
@@ -118,15 +195,7 @@ class TruthVerificationVideoCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     InkWell(
-                      onTap: () {
-                        TruthVerificationFullInspectorPage.open(
-                          context,
-                          videoItem: video,
-                          channelId: channelId,
-                          isDarkMode: isDarkMode,
-                          onToggleApproval: onToggleApproval,
-                        );
-                      },
+                      onTap: () => _openAiCheck(context),
                       borderRadius: BorderRadius.circular(4),
                       child: Text(
                         video.title,
@@ -307,15 +376,7 @@ class TruthVerificationVideoCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               ElevatedButton.icon(
-                onPressed: () {
-                  TruthVerificationFullInspectorPage.open(
-                    context,
-                    videoItem: video,
-                    channelId: channelId,
-                    isDarkMode: isDarkMode,
-                    onToggleApproval: onToggleApproval,
-                  );
-                },
+                onPressed: () => _openAiCheck(context),
                 icon: const Icon(
                   Icons.analytics_outlined,
                   size: 15,
@@ -346,6 +407,9 @@ class TruthVerificationVideoCard extends StatelessWidget {
           ),
         ],
       ),
+    ),
+  ),
+),
     );
   }
 

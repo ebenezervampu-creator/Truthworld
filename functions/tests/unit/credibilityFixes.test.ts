@@ -49,21 +49,53 @@ describe('Unit: Credibility System 8 Bug Remediations', () => {
   });
 
   describe('Bug 5: Safe Source URL & Permanent Canonical Domain Resolution', () => {
-    it('leaves standard non-redirect URLs untouched', async () => {
+    it('leaves verified non-redirect HTTP 200 URLs untouched', async () => {
       const regularUrl = 'https://www.reuters.com/world/article-12345';
-      const resolved = await verificationService.resolveSafeSourceUrl(regularUrl, 'reuters.com');
+      const mockVerifier = {
+        verifyUrl: jest.fn().mockResolvedValue({
+          inputUrl: regularUrl,
+          canonicalUrl: regularUrl,
+          finalDomain: 'reuters.com',
+          status: 'VERIFIED',
+          httpStatus: 200,
+          isSoft404: false,
+          redirectCount: 0,
+          checkedAt: Date.now(),
+        }),
+      } as any;
+      const serviceWithVerifier = new ClaimVerificationService('test-api-key', 0.6, {
+        urlVerifier: mockVerifier,
+      });
+
+      const resolved = await serviceWithVerifier.resolveSafeSourceUrl(regularUrl, 'reuters.com');
       expect(resolved).toBe(regularUrl);
+      expect(mockVerifier.verifyUrl).toHaveBeenCalledWith(regularUrl);
     });
 
-    it('resolves Vertex AI search redirect tokens to authentic canonical publisher domain on fallback', async () => {
+    it('rejects dead or unresolvable Vertex AI redirects with empty string instead of homepage fallback', async () => {
       const expiringVertexRedirect =
         'https://vertexaisearch.cloud.google.com/grounding-api-redirect/ABC123XYZ456TemporaryToken';
       const publisherDomain = 'apnews.com';
+      const mockVerifier = {
+        verifyUrl: jest.fn().mockResolvedValue({
+          inputUrl: expiringVertexRedirect,
+          canonicalUrl: '',
+          finalDomain: 'vertexaisearch.cloud.google.com',
+          status: 'NOT_FOUND',
+          httpStatus: 404,
+          isSoft404: false,
+          redirectCount: 0,
+          checkedAt: Date.now(),
+        }),
+      } as any;
+      const serviceWithVerifier = new ClaimVerificationService('test-api-key', 0.6, {
+        urlVerifier: mockVerifier,
+      });
 
-      const resolved = await verificationService.resolveSafeSourceUrl(expiringVertexRedirect, publisherDomain);
-      // Must not store expiring vertex redirect token
+      const resolved = await serviceWithVerifier.resolveSafeSourceUrl(expiringVertexRedirect, publisherDomain);
+      // Must never store expiring vertex redirect tokens OR substitute publisher homepages (Decision 1)
       expect(resolved).not.toContain('vertexaisearch.cloud.google.com');
-      expect(resolved).toBe('https://apnews.com');
+      expect(resolved).toBe('');
     });
   });
 

@@ -80,7 +80,6 @@ class SemanticLabels {
   /// Credibility badge (Zero Video Trust Score Policy)
   static String credibilityBadge({
     required bool isVerified,
-    double? trustScore,
   }) {
     if (!isVerified) return 'Not fact-checked';
     return 'Fact-checked on transparent claim ledger';

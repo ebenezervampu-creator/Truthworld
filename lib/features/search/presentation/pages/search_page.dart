@@ -137,14 +137,16 @@ class SearchPage extends StatelessWidget {
                 // Main content area
                 Expanded(
                   child: Obx(() {
+                    final hasExecuted = _searchCtrl.hasExecutedSearch.value;
+                    final executedQuery = _searchCtrl.executedQuery.value;
                     final query = _searchCtrl.searchQuery.value;
                     final results = _searchCtrl.searchResults;
                     final isLoading = _searchCtrl.isLoading;
                     final isLoadingMore = _searchCtrl.isLoadingMore.value;
                     final errorMsg = _searchCtrl.errorMessage;
 
-                    // CASE 1: Empty search state
-                    if (query.isEmpty) {
+                    // CASE 1: Initial empty state or user is still typing before executing search
+                    if (!hasExecuted || query.isEmpty) {
                       return _buildEmptyState(context);
                     }
 
@@ -203,11 +205,12 @@ class SearchPage extends StatelessWidget {
                     }
 
                     final hasAiBanner = _searchCtrl.activeAiIntent.value != null;
+                    final displayQuery = executedQuery.isNotEmpty ? executedQuery : query;
 
                     // CASE 4: No results and no AI banner
                     if (!hasAiBanner && results.isEmpty) {
                       return EmptySearchState(
-                        query: query,
+                        query: displayQuery,
                         onClearSearch: _searchCtrl.clearSearch,
                       );
                     }
@@ -220,7 +223,7 @@ class SearchPage extends StatelessWidget {
                         Expanded(
                           child: results.isEmpty
                               ? EmptySearchState(
-                                  query: query,
+                                  query: displayQuery,
                                   onClearSearch: _searchCtrl.clearSearch,
                                 )
                               : _buildResultsList(results, isLoadingMore),

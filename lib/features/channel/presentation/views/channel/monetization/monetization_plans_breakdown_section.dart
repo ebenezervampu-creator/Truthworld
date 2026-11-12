@@ -33,9 +33,11 @@ class ChannelPlansBreakdownSection extends StatelessWidget {
             children: [
               const Icon(Icons.layers, color: Colors.white, size: 22),
               const SizedBox(width: 10),
-              Text(
-                'Pro Channel Infrastructure Plans',
-                style: typography.headline.copyWith(color: Colors.white),
+              Expanded(
+                child: Text(
+                  'Pro Channel Infrastructure Plans',
+                  style: typography.headline.copyWith(color: Colors.white),
+                ),
               ),
             ],
           ),
@@ -84,7 +86,10 @@ class ChannelPlansBreakdownSection extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
+                        Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 8,
+                          runSpacing: 4,
                           children: [
                             const Text(
                               'Auto Pay for Infrastructure Plans',
@@ -94,7 +99,6 @@ class ChannelPlansBreakdownSection extends StatelessWidget {
                                 color: Colors.white,
                               ),
                             ),
-                            const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
@@ -167,13 +171,18 @@ class ChannelPlansBreakdownSection extends StatelessWidget {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                plan.title,
-                                style: typography.title.copyWith(
-                                  color: Colors.white,
+                              Expanded(
+                                child: Text(
+                                  plan.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: typography.title.copyWith(
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ),
-                              if (plan.isPopular)
+                              if (plan.isPopular) ...[
+                                const SizedBox(width: 8),
                                 Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 6,
@@ -194,6 +203,7 @@ class ChannelPlansBreakdownSection extends StatelessWidget {
                                     ),
                                   ),
                                 ),
+                              ],
                             ],
                           ),
                           const SizedBox(height: 8),
@@ -262,13 +272,15 @@ class ChannelPlansBreakdownSection extends StatelessWidget {
                                         )
                                       : Icon(
                                           canAfford
-                                              ? Icons.account_balance_wallet_rounded
+                                              ? Icons.payments_rounded
                                               : Icons.payment_rounded,
                                           color: Colors.white,
                                           size: 14,
                                         ),
                                   label: Text(
                                     isProcessingThis ? 'Connecting to Payment...' : buttonText,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: typography.caption.copyWith(
                                       color: Colors.white,
                                       fontWeight: FontWeight.bold,
@@ -373,6 +385,7 @@ class ChannelTierUpgradeCard extends StatelessWidget {
                     hasPending
                         ? 'Tier Change to $targetTypeStr Scheduled'
                         : 'Schedule Switch to $targetTypeStr (in $daysLeft Days)',
+                    textAlign: TextAlign.center,
                     style: typography.button.copyWith(
                       color: isCustom ? Colors.white : Colors.black,
                       fontWeight: FontWeight.bold,

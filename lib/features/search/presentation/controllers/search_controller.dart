@@ -85,6 +85,10 @@ class SearchController extends BaseController {
   final RxSet<String> watchedVideoIds = <String>{}.obs;
   final RxBool isNavigating = false.obs;
 
+  /// Search execution tracking (decouples live typing from submitted search)
+  final RxBool hasExecutedSearch = false.obs;
+  final RxString executedQuery = ''.obs;
+
   /// Cache statistics (for debugging)
   final RxMap<String, dynamic> cacheStats = <String, dynamic>{}.obs;
 
@@ -229,6 +233,12 @@ class SearchController extends BaseController {
       return;
     }
 
+    // Reset executed search flag when user edits the query away from what was submitted
+    if (hasExecutedSearch.value &&
+        query.trim().toLowerCase() != executedQuery.value.toLowerCase()) {
+      hasExecutedSearch.value = false;
+    }
+
     showSuggestions.value = true;
     searchQuery.value = query;
   }
@@ -297,6 +307,9 @@ class SearchController extends BaseController {
   Future<void> _executeSearch(String query) async {
     final (isValid, cleanQuery, _) = SearchFilterHelper.validateQuery(query);
     if (!isValid || cleanQuery.isEmpty) return;
+
+    hasExecutedSearch.value = true;
+    executedQuery.value = cleanQuery;
 
     final normalized = cleanQuery;
     if (normalized == _lastSearchQuery && searchResults.isNotEmpty) {
@@ -439,6 +452,8 @@ class SearchController extends BaseController {
     currentPage.value = 0;
     hasMoreResults.value = false;
     isShowingFallback.value = false;
+    hasExecutedSearch.value = false;
+    executedQuery.value = '';
   }
 
   void broadenSearch() {

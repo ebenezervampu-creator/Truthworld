@@ -100,13 +100,8 @@ class SearchResultRanker {
       if (item.type == ResultType.video &&
           item.category != null &&
           AppCategories.isFactCheckRelevant(item.category!)) {
-        if (item.isFactChecked || item.trustScore >= 3.5) {
-          score += 45.0; // Major priority push for fact-checked content
-          if (item.trustScore >= 4.0) {
-            score += 15.0; // Extra bonus for exceptional credibility
-          }
-        } else if (item.trustScore > 0.0 && item.trustScore < 2.0) {
-          score -= 30.0; // Demote low-credibility/flagged content
+        if (item.isFactChecked) {
+          score += 60.0; // Major priority push for fact-checked content
         }
       }
 

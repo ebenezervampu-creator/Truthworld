@@ -279,7 +279,7 @@ async function runTenClaimsEvaluation() {
       match: status === item.expectedVerdict,
       confidence,
       verificationMethod,
-      routedModel: isOpinionRouted ? 'none (opinion)' : isSensitive ? 'gemini-3.5-flash (sensitive)' : 'gemini-3.1-flash-lite',
+      routedModel: isOpinionRouted ? 'none (opinion)' : isSensitive ? 'gemini-2.5-flash (sensitive)' : 'gemini-2.5-flash',
       sourceTitle,
       sourceUrl,
       sourceTier,

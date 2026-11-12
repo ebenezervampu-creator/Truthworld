@@ -160,14 +160,14 @@ class SubtitlesLanguageRibbon extends StatelessWidget {
             return IconButton(
               icon: const Icon(Icons.remove_circle_outline_rounded),
               color: Colors.white,
-              tooltip: 'Delete Current Language Track',
+              tooltip: 'Delete Current Language Subtitle',
               onPressed: () {
                 final currentLang = controller.selectedLanguage.value;
                 Get.dialog<void>(
                   AlertDialog(
-                    title: const Text('Delete Language Track'),
+                    title: const Text('Delete Language Subtitle'),
                     content: Text(
-                      'Are you sure you want to remove the "${controller.getLanguageName(currentLang)}" subtitle track?',
+                      'Are you sure you want to remove the "${controller.getLanguageName(currentLang)}" subtitle?',
                     ),
                     actions: [
                       TextButton(

@@ -5,17 +5,11 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_ai_coach_tab.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_claim_card.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_conclusion_tab.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_dialogs.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_full_inspector_modal.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_full_inspector_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_models.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_opinions_tab.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_overview_tab.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_sources_tab.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_tab_bar.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_video_card.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -61,10 +55,6 @@ class TruthVerificationDashboardPage extends StatelessWidget {
   /// Global or deep-linked target video filter
   static final RxString targetVideoId = ''.obs;
 
-  /// Active tab index:
-  /// 0: Fact Claims, 1: Overview, 2: Video Reports, 3: Opinions & Context,
-  /// 4: Sources & Citations, 5: Conclusion & Insights, 6: Audit & Transparency, 7: Ask AI Truth Coach
-  final RxInt _selectedTab = 0.obs;
 
   final RxString _videoFilter = 'all'.obs; // 'all', 'concerns', 'pending', 'approved', 'disputed'
   final RxString _claimTierFilter = 'all'.obs; // 'all', 'verified', 'needs_source', 'high_concern', 'disputed'
@@ -289,7 +279,6 @@ class TruthVerificationDashboardPage extends StatelessWidget {
               }
 
               return Obx(() {
-                final activeTab = _selectedTab.value;
                 final targetId = targetVideoId.value;
                 final videoFilter = _videoFilter.value;
                 final query = _searchQuery.value.trim().toLowerCase();
@@ -353,8 +342,6 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                     videoItems.where((v) => v.isPendingApproval).toList();
                 final videosWithConcernsCount =
                     videoItems.where((v) => v.hasConcerns).length;
-                final opinionClaims =
-                    allClaims.where((c) => c.isOpinionOrBelief).toList();
                 final hasProvisionalVideo =
                     videoItems.any((v) => v.isProvisional);
 
@@ -363,18 +350,7 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                     // Top Header matching Channel Creation Wizard
                     _buildTopHeader(isDesktop),
 
-                    // Sleek Tab Bar pinned under header
-                    TruthVerificationTabBar(
-                      selectedTab: activeTab,
-                      onTabSelected: (idx) => _selectedTab.value = idx,
-                      claimsCount: allClaims.length,
-                      videosCount: videoItems.length,
-                      opinionsCount: opinionClaims.length,
-                      sourcesCount: videoItems.fold(0, (sum, v) => sum + v.sources.length),
-                      isDarkMode: isDarkMode,
-                    ),
-
-                    // Scrollable Tab Content
+                    // Scrollable Video Reports Content (direct video list)
                     Expanded(
                       child: SingleChildScrollView(
                         padding: EdgeInsets.symmetric(
@@ -405,68 +381,17 @@ class TruthVerificationDashboardPage extends StatelessWidget {
                               const SizedBox(height: 16),
                             ],
 
-                            // 4. Responsive Search Bar (Active for Claims, Videos, and Sources)
-                            if (activeTab == 0 || activeTab == 2 || activeTab == 6) ...[
-                              _buildSearchBar(activeTab, query),
-                              const SizedBox(height: 16),
-                            ],
+                            // 4. Responsive Search Bar
+                            _buildSearchBar(2, query),
+                            const SizedBox(height: 16),
 
-                            // 5. TAB CONTENT
-                            if (activeTab == 0) ...[
-                              // ── Tab 0: Fact Claims ──
-                              _buildFactClaimsTab(filteredClaims, allClaims, videoItems),
-                            ] else if (activeTab == 1) ...[
-                              // ── Tab 1: Overview ──
-                              TruthVerificationOverviewTab(
-                                videos: videoItems,
-                                allClaims: allClaims,
-                                isDarkMode: isDarkMode,
-                                onSwitchToTab: (idx) => _selectedTab.value = idx,
-                                targetVideoTitle: targetId.isNotEmpty && filteredVideos.isNotEmpty
-                                    ? filteredVideos.first.title
-                                    : null,
-                              ),
-                            ] else if (activeTab == 2) ...[
-                              // ── Tab 2: Video Reports ──
-                              _buildVideoReportsTab(
-                                filteredVideos,
-                                videoItems,
-                                videosWithConcernsCount,
-                                pendingVideos.length,
-                              ),
-                            ] else if (activeTab == 3) ...[
-                              // ── Tab 3: Opinions & Subjective Context ──
-                              TruthVerificationOpinionsTab(
-                                opinionClaims: opinionClaims,
-                                isDarkMode: isDarkMode,
-                              ),
-                            ] else if (activeTab == 4) ...[
-                              // ── Tab 4: Sources & Citations ──
-                              TruthVerificationSourcesTab(
-                                videos: videoItems,
-                                allClaims: allClaims,
-                                isDarkMode: isDarkMode,
-                              ),
-                            ] else if (activeTab == 5) ...[
-                              // ── Tab 5: Conclusion & Recommendations ──
-                              TruthVerificationConclusionTab(
-                                videos: videoItems,
-                                allClaims: allClaims,
-                                isDarkMode: isDarkMode,
-                                onSwitchToTab: (idx) => _selectedTab.value = idx,
-                              ),
-                            ] else if (activeTab == 6) ...[
-                              // ── Tab 6: Activity Audit Log ──
-                              _buildAuditActivityLogTab(filteredVideos.isNotEmpty ? filteredVideos : videoItems),
-                            ] else if (activeTab == 7) ...[
-                              // ── Tab 7: Ask AI Truth Coach ──
-                              TruthVerificationAiCoachTab(
-                                channelId: channelId,
-                                allClaims: allClaims,
-                                videos: videoItems,
-                                isDarkMode: isDarkMode,
-                              ),
-                            ],
+                            // 5. Video Reports Content (Sub-filter pills + List of Videos)
+                            _buildVideoReportsTab(
+                              filteredVideos,
+                              videoItems,
+                              videosWithConcernsCount,
+                              pendingVideos.length,
+                            ),
                           ],
                         ),
                       ),
@@ -482,9 +407,62 @@ class TruthVerificationDashboardPage extends StatelessWidget {
   }
 
   Widget _buildTopHeader(bool isDesktop) {
+    if (!isDesktop) {
+      return Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
+        decoration: const BoxDecoration(
+          color: AppColors.bgPage,
+          border: Border(
+            bottom: BorderSide(color: AppColors.bgSurface),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(
+                  Icons.verified_rounded,
+                  color: AppColors.success,
+                  size: 20,
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Factcheck',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: -0.5,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Channel Truth Intelligence console: claim verification, authoritative grounding & creator review.',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 10),
+            _buildStatusBadge(),
+          ],
+        ),
+      );
+    }
+
     return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: isDesktop ? 32 : 16,
+      padding: const EdgeInsets.symmetric(
+        horizontal: 32,
         vertical: 16,
       ),
       decoration: const BoxDecoration(
@@ -496,31 +474,35 @@ class TruthVerificationDashboardPage extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Expanded(
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  children: const [
+                  children: [
                     Icon(
                       Icons.verified_rounded,
                       color: AppColors.success,
                       size: 22,
                     ),
                     SizedBox(width: 8),
-                    Text(
-                      'Fact-Checks & Verification',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: -0.5,
+                    Flexible(
+                      child: Text(
+                        'Factcheck',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: -0.5,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                const Text(
+                SizedBox(height: 4),
+                Text(
                   'Channel Truth Intelligence console: claim verification, authoritative grounding & creator review.',
                   style: TextStyle(
                     fontSize: 13,
@@ -531,56 +513,60 @@ class TruthVerificationDashboardPage extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          Obx(() {
-            final published = _isPublished.value;
-            return InkWell(
-              onTap: () {
-                _isPublished.toggle();
-                if (_isPublished.value) {
-                  AppSnackbar.success('Credibility badges active on viewer player overlays.');
-                } else {
-                  AppSnackbar.info('Credibility overlays muted for viewers.');
-                }
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                decoration: BoxDecoration(
-                  color: AppColors.appBarSurface,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: published ? AppColors.success : AppColors.bgSurface,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 7,
-                      height: 7,
-                      decoration: BoxDecoration(
-                        color: published ? AppColors.success : AppColors.textTertiary,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      published ? 'Credibility Active' : 'Overlays Muted',
-                      style: TextStyle(
-                        fontFamily: TWTypography.uiFamily,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: published ? Colors.white : AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }),
+          _buildStatusBadge(),
         ],
       ),
     );
+  }
+
+  Widget _buildStatusBadge() {
+    return Obx(() {
+      final published = _isPublished.value;
+      return InkWell(
+        onTap: () {
+          _isPublished.toggle();
+          if (_isPublished.value) {
+            AppSnackbar.success('Credibility badges active on viewer player overlays.');
+          } else {
+            AppSnackbar.info('Credibility overlays muted for viewers.');
+          }
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: AppColors.appBarSurface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: published ? AppColors.success : AppColors.bgSurface,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(
+                  color: published ? AppColors.success : AppColors.textTertiary,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                published ? 'Credibility Active' : 'Overlays Muted',
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: published ? Colors.white : AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    });
   }
 
   Widget _buildPendingApprovalBanner(List<VideoFactCheckItem> pendingVideos) {
@@ -682,10 +668,10 @@ class TruthVerificationDashboardPage extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 14),
-          Expanded(
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+              children: [
                 Text(
                   'FAST TRIAGE • PROVISIONAL CREDIBILITY ACTIVE',
                   style: TextStyle(
@@ -990,9 +976,9 @@ class TruthVerificationDashboardPage extends StatelessWidget {
     bool isAlertHighlight = false,
     bool isWarningHighlight = false,
   }) {
-    Color bg = AppColors.appBarSurface;
-    Color fg = AppColors.textSecondary;
-    Color border = AppColors.bgSurface;
+    var bg = AppColors.appBarSurface;
+    var fg = AppColors.textSecondary;
+    var border = AppColors.bgSurface;
 
     if (isSelected) {
       bg = isAlertHighlight

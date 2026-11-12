@@ -212,7 +212,7 @@ class DashboardSidebarMenu extends StatelessWidget {
         // Creative Tools
         {
           'icon': Icons.spatial_audio_rounded,
-          'label': 'AudioTracks & VideoTracks',
+          'label': 'Audio Tracks',
           'action': 'select',
           'target': 7,
         },
@@ -236,7 +236,7 @@ class DashboardSidebarMenu extends StatelessWidget {
         },
         {
           'icon': Icons.verified_rounded,
-          'label': 'Fact-Checks & Verification',
+          'label': 'Factcheck',
           'action': 'select',
           'target': 15,
         },

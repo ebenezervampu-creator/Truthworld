@@ -8,7 +8,6 @@ import 'package:truthworld/theme/app_theme.dart';
 /// - Right: "Authenticity Index ⓘ" + Percentage + Emerald progress bar + "Review Mode: Open to users"
 /// - Bottom: 4 Equal Stat Boxes (Total Claims, Verified, Caution, False)
 class VerificationSummaryCard extends StatelessWidget {
-  final double? trustScore;
   final int totalClaims;
   final int verifiedCount;
   final int cautionCount;
@@ -22,7 +21,6 @@ class VerificationSummaryCard extends StatelessWidget {
     required this.verifiedCount,
     required this.cautionCount,
     required this.falseCount,
-    this.trustScore,
     this.reviewMode = 'Open to users',
     this.onInfoTap,
     this.isSidebar = false,

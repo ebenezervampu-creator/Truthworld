@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/audio_tracks_dialogs.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/dubbing_segment_editor_page.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -302,21 +303,13 @@ class AvailableAudioTrackCard extends StatelessWidget {
                     case 'cancel_generation':
                       controller.cancelDubbing(track.languageCode);
                     case 'generate_audio':
-                      AudioTracksDialogs.showAudioTrackDubbingOptionsModal(
-                        context: context,
-                        controller: controller,
-                        langCode: track.languageCode,
-                        isDarkMode: isDarkMode,
-                        initialTier: 'audio_starter',
-                      );
                     case 'generate_video':
                       AudioTracksDialogs.showAudioTrackDubbingOptionsModal(
                         context: context,
                         controller: controller,
                         langCode: track.languageCode,
                         isDarkMode: isDarkMode,
-                        initialTier: 'video_pro',
-                        initialMediaType: 'video',
+                        initialTier: 'audio_track',
                       );
                     case 'upload':
                       AudioTracksDialogs.showUploadTrackDialog(
@@ -327,6 +320,20 @@ class AvailableAudioTrackCard extends StatelessWidget {
                       );
                     case 'download':
                       controller.downloadAudioTrack(track);
+                    case 'edit_segments':
+                      final activeVid = controller.selectedVideo.value?.id ?? '';
+                      if (activeVid.isNotEmpty) {
+                        Get.to(
+                          () => DubbingSegmentEditorPage(
+                            videoId: activeVid,
+                            languageCode: track.languageCode,
+                            languageName: track.languageName,
+                            isDarkMode: isDarkMode,
+                            onRemastered: () =>
+                                controller.refreshVideoLocalization(activeVid),
+                          ),
+                        );
+                      }
                     case 'copy':
                       if (track.audioUrl.isNotEmpty) {
                         controller.exportTrackLinkToClipboard(track.audioUrl);
@@ -410,23 +417,7 @@ class AvailableAudioTrackCard extends StatelessWidget {
                           SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'Generate Audio Dubbing (Starter • Pro • Ultra)',
-                              style: TextStyle(color: Colors.white, fontSize: 13),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'generate_video',
-                      child: Row(
-                        children: [
-                          Icon(Icons.record_voice_over_rounded, color: AppColors.textLink, size: 16),
-                          SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Generate Video Dubbing & Lip-Sync (Video Pro • Video Ultra)',
+                              'Generate AI Audio Track',
                               style: TextStyle(color: Colors.white, fontSize: 13),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -451,6 +442,23 @@ class AvailableAudioTrackCard extends StatelessWidget {
                       ),
                     ),
                     if (track.audioUrl.isNotEmpty) ...[
+                      if (!track.isBaseTrack)
+                        const PopupMenuItem(
+                          value: 'edit_segments',
+                          child: Row(
+                            children: [
+                              Icon(Icons.tune_rounded, color: Colors.white, size: 16),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Edit Segments & Glossary',
+                                  style: TextStyle(color: Colors.white, fontSize: 13),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       const PopupMenuItem(
                         value: 'download',
                         child: Row(

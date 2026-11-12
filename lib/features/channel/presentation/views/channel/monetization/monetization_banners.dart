@@ -45,6 +45,7 @@ class ChannelScheduledChangeBanner extends StatelessWidget {
                   style: typography.title.copyWith(color: Colors.white),
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
@@ -202,6 +203,7 @@ class ChannelZeroWasteRolloverCard extends StatelessWidget {
                               style: typography.title.copyWith(color: Colors.white),
                             ),
                           ),
+                          const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(

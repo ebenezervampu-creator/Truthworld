@@ -5,21 +5,77 @@ import 'package:truthworld/features/dashboard/presentation/controllers/subtitles
 
 /// Mixin handling cue editing, additions, deletions, timing shifts, and search/replace
 mixin SubtitlesCuesMixin on SubtitlesControllerBase {
-  void addLanguageTrack(String langCode, {bool copyCuesFromCurrent = false}) {
-    if (availableLanguages.contains(langCode)) {
-      selectedLanguage.value = langCode;
-      hasUnsavedChanges.value = false;
-      final subs = selectedVideo.value?.mediaSubtitles ?? {};
-      if (subs.containsKey(langCode)) {
-        parseCuesForLanguage(langCode, subs[langCode]);
-      } else {
-        currentCues.clear();
+  Future<void> copyCuesFromTrack({
+    required String sourceLangCode,
+    required String targetLangCode,
+  }) async {
+    final normTarget = normalizeLanguageCode(targetLangCode);
+    final normSource = normalizeLanguageCode(sourceLangCode);
+
+    if (!availableLanguages.contains(normTarget) && !availableLanguages.contains(targetLangCode)) {
+      availableLanguages.add(normTarget);
+    }
+
+    final sourceCues = <SubtitleCue>[];
+    if (selectedLanguage.value == sourceLangCode || selectedLanguage.value == normSource) {
+      if (currentCues.isNotEmpty) {
+        sourceCues.addAll(currentCues);
       }
+    }
+
+    if (sourceCues.isEmpty) {
+      final video = selectedVideo.value;
+      final subs = video?.mediaSubtitles ?? {};
+      final subUrl = subs[sourceLangCode] ??
+          subs[normSource] ??
+          (normSource == normalizeLanguageCode(video?.language ?? '') ? subs[video?.language] : null);
+      if (subUrl != null && subUrl.isNotEmpty) {
+        await parseCuesForLanguage(sourceLangCode, subUrl);
+        sourceCues.addAll(currentCues);
+      }
+    }
+
+    selectedLanguage.value = normTarget;
+    if (sourceCues.isNotEmpty) {
+      recordSnapshot();
+      currentCues.value = sourceCues
+          .map((c) => SubtitleCue(
+                id: UniqueKey().toString(),
+                startTime: c.startTime,
+                endTime: c.endTime,
+                text: c.text,
+              ))
+          .toList();
+      hasUnsavedChanges.value = true;
+      currentCues.refresh();
+      showSuccess('Copied timings from ${getLanguageName(sourceLangCode)} to ${getLanguageName(targetLangCode)}');
+    } else {
+      currentCues.clear();
+      showInfo('Switched to ${getLanguageName(targetLangCode)} track.');
+    }
+  }
+
+  void addLanguageTrack(
+    String langCode, {
+    bool copyCuesFromCurrent = false,
+    String? copyFromLanguage,
+  }) {
+    if (copyFromLanguage != null && copyFromLanguage.isNotEmpty) {
+      copyCuesFromTrack(
+        sourceLangCode: copyFromLanguage,
+        targetLangCode: langCode,
+      );
       return;
     }
-    availableLanguages.add(langCode);
-    selectedLanguage.value = langCode;
+
+    final normCode = normalizeLanguageCode(langCode);
+    if (!availableLanguages.contains(langCode) && !availableLanguages.contains(normCode)) {
+      availableLanguages.add(normCode);
+    }
+
+    selectedLanguage.value = normCode;
     if (copyCuesFromCurrent && currentCues.isNotEmpty) {
+      recordSnapshot();
       currentCues.value = currentCues
           .map((c) => SubtitleCue(
                 id: UniqueKey().toString(),
@@ -29,8 +85,16 @@ mixin SubtitlesCuesMixin on SubtitlesControllerBase {
               ))
           .toList();
       hasUnsavedChanges.value = true;
+      currentCues.refresh();
     } else {
-      currentCues.clear();
+      final subs = selectedVideo.value?.mediaSubtitles ?? {};
+      if (subs.containsKey(langCode)) {
+        parseCuesForLanguage(langCode, subs[langCode]);
+      } else if (subs.containsKey(normCode)) {
+        parseCuesForLanguage(normCode, subs[normCode]);
+      } else {
+        currentCues.clear();
+      }
     }
     showSuccess('Added new track for ${getLanguageName(langCode)}');
   }

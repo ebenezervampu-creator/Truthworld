@@ -5,17 +5,7 @@ import 'package:truthworld/features/video/presentation/controllers/video_control
 mixin TowerPlayerTruthReportMixin on GetxController {
   VideoController? get videoController;
 
-  int? get truthReportScore {
-    final score = videoController?.video.trustScore;
-    if (score != null && score > 0) {
-      return score > 5.0 ? score.toInt() : (score * 20).toInt();
-    }
-    final rawScore = videoController?.factCheckData['trustScore'];
-    if (rawScore is num && rawScore > 0) {
-      return rawScore > 5.0 ? rawScore.toInt() : (rawScore * 20).toInt();
-    }
-    return null;
-  }
+  int? get truthReportScore => null;
 
   bool get isAnalyzingTruth =>
       videoController?.isLoadingFactCheck.value == true;

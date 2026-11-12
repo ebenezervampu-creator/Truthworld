@@ -209,31 +209,36 @@ class CopyrightDialogs {
                         : Colors.grey.shade300,
                   ),
                 ),
-                child: CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  value: is7DayScheduled,
-                  activeColor: AppColors.info,
-                  onChanged: (val) {
-                    setDialogState(() {
-                      is7DayScheduled = val ?? false;
-                    });
-                  },
-                  title: Text(
-                    'Give 7-day notice before takedown',
-                    style: TextStyle(
-                      fontFamily: TWTypography.uiFamily,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: primaryTextColor,
+                child: Material(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                  clipBehavior: Clip.antiAlias,
+                  child: CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    value: is7DayScheduled,
+                    activeColor: AppColors.info,
+                    onChanged: (val) {
+                      setDialogState(() {
+                        is7DayScheduled = val ?? false;
+                      });
+                    },
+                    title: Text(
+                      'Give 7-day notice before takedown',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: primaryTextColor,
+                      ),
                     ),
-                  ),
-                  subtitle: Text(
-                    'Allows the uploader 7 days to remove the video voluntarily to prevent receiving a copyright strike.',
-                    style: TextStyle(
-                      fontFamily: TWTypography.uiFamily,
-                      fontSize: 11,
-                      color: secondaryTextColor,
+                    subtitle: Text(
+                      'Allows the uploader 7 days to remove the video voluntarily to prevent receiving a copyright strike.',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontSize: 11,
+                        color: secondaryTextColor,
+                      ),
                     ),
                   ),
                 ),

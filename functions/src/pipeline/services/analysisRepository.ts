@@ -1,5 +1,6 @@
 import * as admin from "firebase-admin";
 import { logger } from "../utils/logger";
+import { sanitizeReportPayloadForClosedWorld } from "./urlVerificationService";
 
 export interface AnalysisManifest {
   analysisId: string;
@@ -42,6 +43,7 @@ export class GCSAnalysisRepository implements AnalysisRepository {
     category: "factChecks" | "final_outputs",
     data: any
   ): Promise<{ version: number; path: string }> {
+    const sanitizedData = sanitizeReportPayloadForClosedWorld(data);
     const bucket = admin.storage().bucket();
     const manifestFile = bucket.file(`${category}/${analysisId}/manifest.json`);
     
@@ -91,13 +93,13 @@ export class GCSAnalysisRepository implements AnalysisRepository {
       try {
         // Save the versioned file first (immutable, no race condition impact)
         const versionedFile = bucket.file(versionedPath);
-        await versionedFile.save(JSON.stringify(data), {
+        await versionedFile.save(JSON.stringify(sanitizedData), {
           metadata: { contentType: "application/json" }
         });
         
         // Save latest
         const latestFile = bucket.file(latestPath);
-        await latestFile.save(JSON.stringify(data), {
+        await latestFile.save(JSON.stringify(sanitizedData), {
           metadata: { contentType: "application/json" }
         });
         

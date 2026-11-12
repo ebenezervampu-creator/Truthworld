@@ -12,7 +12,6 @@ export const VIDEO_COLLECTION_SCHEMA: CollectionCreateSchema = {
     { name: "channelImage", type: "string", optional: true },
     { name: "thumbnailUrl", type: "string", optional: true },
     { name: "views", type: "int64" },
-    { name: "trustScore", type: "float", optional: true },
     { name: "isFactChecked", type: "bool", facet: true, optional: true },
     { name: "isTrusted", type: "bool", facet: true, optional: true },
     { name: "category", type: "string", facet: true, optional: true },

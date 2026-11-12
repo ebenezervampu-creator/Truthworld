@@ -80,15 +80,7 @@
         { "fieldPath": "uploadedAt", "order": "DESCENDING" }
       ]
     },
-    {
-      "collectionGroup": "videos",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "visibility", "order": "ASCENDING" },
-        { "fieldPath": "trustScore", "order": "DESCENDING" }
-      ]
-    },
+
     {
       "collectionGroup": "videos",
       "queryScope": "COLLECTION",
@@ -423,6 +415,14 @@
       "fields": [
         { "fieldPath": "channelId", "order": "ASCENDING" },
         { "fieldPath": "viewCount", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "videos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "channelId", "order": "ASCENDING" },
+        { "fieldPath": "viewCount", "order": "ASCENDING" }
       ]
     },
     {

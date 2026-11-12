@@ -69,7 +69,6 @@ class VideoFactCheckCard extends StatelessWidget {
       final parsed = FactCheckDataParser.parse(
         data,
         fallbackReport: controller.video.uiReport,
-        fallbackTrustScore: controller.video.trustScore > 0 ? controller.video.trustScore : null,
         isVideoFactChecked: controller.video.isFactChecked,
       );
 
@@ -106,9 +105,6 @@ class VideoFactCheckCard extends StatelessWidget {
         FactCheckDataParser.parse(
           data,
           fallbackReport: controller.video.uiReport,
-          fallbackTrustScore: controller.video.trustScore > 0
-              ? controller.video.trustScore
-              : null,
           isVideoFactChecked: controller.video.isFactChecked,
         );
 
@@ -167,8 +163,6 @@ class VideoFactCheckCard extends StatelessWidget {
             _buildHeader(
               context,
               parsed.trustLabel,
-              parsed.trustScore,
-              parsed.normalizedScore,
               parsed.scoreColor,
               parsed.confidenceTier,
               isDisputed: parsed.isDisputed,
@@ -178,11 +172,10 @@ class VideoFactCheckCard extends StatelessWidget {
               isFullGround: parsed.isFullGround,
             ),
 
-            // ── Animated Trust Progress Bar ──
-            if (parsed.normalizedScore != null || parsed.claims.isNotEmpty) ...[
+            // ── Animated Claims Breakdown Progress Bar ──
+            if (parsed.claims.isNotEmpty) ...[
               const SizedBox(height: 12),
               _buildAnimatedTrustBar(
-                parsed.normalizedScore ?? 100.0,
                 parsed.scoreColor,
                 totalClaims: parsed.claims.length,
                 verifiedCount: parsed.verifiedCount,
@@ -244,8 +237,6 @@ class VideoFactCheckCard extends StatelessWidget {
   Widget _buildHeader(
     BuildContext context,
     String trustLabel,
-    double? trustScore,
-    double? normalizedScore,
     Color scoreColor,
     String confidenceTier, {
     bool isDisputed = false,
@@ -368,9 +359,8 @@ class VideoFactCheckCard extends StatelessWidget {
     );
   }
 
-  // ── Animated Trust Progress Bar ──
+  // ── Animated Claims Breakdown Progress Bar ──
   Widget _buildAnimatedTrustBar(
-    double score,
     Color color, {
     int totalClaims = 0,
     int verifiedCount = 0,
@@ -421,25 +411,7 @@ class VideoFactCheckCard extends StatelessWidget {
         },
       );
     }
-    final targetValue = (score / 100.0).clamp(0.0, 1.0);
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: targetValue),
-      duration: const Duration(milliseconds: 900),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, _) {
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(3),
-          child: SizedBox(
-            height: 5,
-            child: LinearProgressIndicator(
-              value: value,
-              backgroundColor: Colors.white.withValues(alpha: 0.08),
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-            ),
-          ),
-        );
-      },
-    );
+    return const SizedBox.shrink();
   }
 
   // ── Animated Claim Breakdown Pills ──
@@ -758,9 +730,7 @@ class VideoFactCheckCard extends StatelessWidget {
     final timeStr = remainingHours > 0
         ? '${remainingHours}h ${remainingMins}m'
         : '${remainingMins}m';
-    final isLowTrust = vid.trustScore > 0 &&
-        ((vid.trustScore <= 5.0 && vid.trustScore < 2.5) ||
-            (vid.trustScore > 5.0 && vid.trustScore < 50.0));
+    final isLowTrust = (vid.factCheckStats != null && vid.factCheckStats!.incorrect > 0) || (vid.harmCapApplied == true);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),

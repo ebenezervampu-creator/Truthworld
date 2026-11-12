@@ -53,9 +53,9 @@ export const PIPELINE_CONFIG = {
    * 🧠 ROLE-BASED MODEL SELECTION (Vertex AI Hybrid Cost-Effective Architecture)
    *
    * Cost strategy:
-   * Workers (Flash-Lite: gemini-2.0-flash-lite)  → ultra-low-cost (~$0.075/1M in), high-throughput
+   * Unified Workhorse (Gemini 2.5 Flash)        → ultra-fast, high-throughput, low-cost multimodal engine
    * Baseline Workhorse (Gemini 2.5 Flash)       → fast, reliable multimodal pipeline (~$0.15/1M in)
-   * Truth Arbiter / Reasoning (3.8 Flash / 4)   → deep verification for sensitive/disputed domains
+   * Truth Arbiter / Reasoning (Gemini 2.5 Flash) → deep, robust verification for sensitive/disputed domains
    *
    * Saves ~50% on worker spend while ensuring frontier truth verification on sensitive claims.
    */
@@ -91,9 +91,41 @@ export const PIPELINE_CONFIG = {
   BATCH_SIZE_STANDARD: 12,
 
   /**
+   * Closed-World Citation & URL Verification Safeguards
+   * - LLM never generates URLs; cites only verified EvidenceCatalog IDs (E1, E2, ...)
+   * - Newer Gemini model rollout remains behind GEMINI_ENABLE_NEXT_GEN_MODEL flag
+   */
+  EVIDENCE_SCHEMA_VERSION: "v2_verified_urls",
+  CLOSED_WORLD_CITATIONS: {
+    ENFORCE_CITE_BY_ID: true,
+    ALLOW_UNVERIFIED_CACHE_SERVING: false,
+    MAX_REDIRECT_HOPS: 5,
+    URL_FETCH_TIMEOUT_MS: 4000,
+    MAX_HTML_BYTES: 65536,
+    MIN_RELEVANCE_SCORE: 0.12,
+  },
+  SEARCH_PROVIDERS: {
+    ENABLE_GOOGLE_GROUNDING: true,
+    ENABLE_PUBMED: true,
+    ENABLE_EUROPE_PMC: true,
+    ENABLE_CROSSREF: true,
+    ENABLE_OPENALEX: true,
+    ENABLE_WIKIPEDIA: true,
+    // External regional SERP coverage remains disabled until SERPER_API_KEY + flag enabled
+    ENABLE_SERPER_SEARCH: process.env.ENABLE_SERPER_SEARCH === "true",
+    get SERPER_API_KEY(): string {
+      return process.env.SERPER_API_KEY || "";
+    },
+  },
+  MODEL_ROLLOUT: {
+    ENABLE_NEXT_GEN_MODEL_EXPERIMENT: process.env.GEMINI_ENABLE_NEXT_GEN_MODEL === "true",
+    NEXT_GEN_VERIFICATION_MODEL: process.env.GEMINI_NEXT_GEN_MODEL || "gemini-3.8-flash",
+  },
+
+  /**
    * 🎯 SENSITIVE CLAIM DOMAINS (Risk-Based Dynamic Routing)
    *
-   * Claims in these domains are routed to verification model (gemini-3.5-flash).
+   * Claims in these domains are routed to verification model (gemini-2.5-flash).
    */
   SENSITIVE_DOMAINS: [
     "war", "election", "health", "death", "finance",
@@ -121,7 +153,7 @@ export const DEEP_RESEARCH_CONFIG = {
   BATCH_SIZE_GROUNDING: 10,         // parallel claims per Gemini call
   MAX_CLAIMS_INSTITUTIONAL: 50,     // cost-conscious cap for institutional tier
   MAX_CLAIMS_STANDARD: 35,          // cost-conscious cap for standard tier
-  FORCE_PRO_MODEL: false,           // cost-effective: uses gemini-3.5-flash
+  FORCE_PRO_MODEL: false,           // cost-effective: uses gemini-2.5-flash
   MIN_SOURCES_PER_CLAIM: 2,         // minimum sources required to mark a claim as grounded
   SOURCE_DIVERSITY_REQUIRED: true,  // reject results where all sources are the same domain
 } as const;

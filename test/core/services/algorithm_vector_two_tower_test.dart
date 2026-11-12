@@ -60,7 +60,6 @@ void main() {
       category: category,
       tags: const [],
       topics: topics,
-      trustScore: trustScore,
       isFactChecked: isFactChecked,
       status: VideoStatus.ready,
       visibility: 'public',
@@ -261,7 +260,6 @@ void main() {
         category: 'Science',
         topics: ['quantum'],
         embedding: createSyntheticEmbedding(primaryIndex: 120),
-        trustScore: 4.8,
       );
 
       final scored = algorithm.scoreVideo(video, RecommendationSurface.homeFeedAll);

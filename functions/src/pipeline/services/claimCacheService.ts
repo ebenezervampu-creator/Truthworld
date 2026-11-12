@@ -1,7 +1,14 @@
 import * as admin from "firebase-admin";
 import { VerifiedClaim, ClaimStatus, RichSource } from "../types";
+import { PIPELINE_CONFIG } from "../config";
 import { logger } from "../utils/logger";
 import { hashClaimText, hashSemanticClaimText } from "../utils/claim-normalization";
+import { sanitizeClaimResponse } from "../utils/claim-response-sanitizer";
+import {
+  enforceClosedWorldCitationFirewall,
+  isClosedWorldCacheEntryValid,
+  isVerifiedRichSource,
+} from "./urlVerificationService";
 
 interface L1CacheEntry {
   claim: Partial<VerifiedClaim>;
@@ -44,13 +51,19 @@ export class ClaimCacheService {
   private getFromL1(hash: string): Partial<VerifiedClaim> | null {
     const entry = ClaimCacheService.l1Cache.get(hash);
     if (!entry) return null;
-    if (Date.now() > entry.expiresAt) {
+    if (Date.now() > entry.expiresAt || !isClosedWorldCacheEntryValid(entry.claim)) {
       ClaimCacheService.l1Cache.delete(hash);
       return null;
     }
     // Refresh LRU order
     ClaimCacheService.l1Cache.delete(hash);
     ClaimCacheService.l1Cache.set(hash, entry);
+    if (entry.claim && typeof entry.claim.reasoning === "string") {
+      return {
+        ...entry.claim,
+        reasoning: sanitizeClaimResponse(entry.claim.reasoning, entry.claim.status),
+      };
+    }
     return entry.claim;
   }
 
@@ -108,16 +121,32 @@ export class ClaimCacheService {
         return null;
       }
 
+      // Closed-World Read Gate: reject legacy v1 or unverified URL cache entries so Claim re-verifies cleanly
+      if (!isClosedWorldCacheEntryValid(data)) {
+        logger.info(`[ClaimCache] Cache miss (stale/unverified schema) for: ${text.substring(0, 50)}...`);
+        doc.ref.delete().catch(() => {});
+        return null;
+      }
+
       // Record hit asynchronously
       doc.ref.update({
         hitCount: admin.firestore.FieldValue.increment(1),
         lastHitAt: admin.firestore.FieldValue.serverTimestamp()
       }).catch(() => {});
 
+      const verifiedRichSources = ((data.richSources || []) as RichSource[]).filter((s) => isVerifiedRichSource(s));
+      if (verifiedRichSources.length === 0) {
+        doc.ref.delete().catch(() => {});
+        return null;
+      }
+
+      const cleanReasoning = sanitizeClaimResponse(data.reasoning, data.status as ClaimStatus);
       const cachedClaim: Partial<VerifiedClaim> = {
         status: data.status as ClaimStatus,
-        reasoning: data.reasoning,
-        richSources: (data.richSources || []) as RichSource[],
+        reasoning: cleanReasoning,
+        richSources: verifiedRichSources,
+        verifiedAcademicMetadata: Array.isArray(data.verifiedAcademicMetadata) ? data.verifiedAcademicMetadata : undefined,
+        evidenceSchemaVersion: PIPELINE_CONFIG.EVIDENCE_SCHEMA_VERSION,
         verificationConfidence: data.confidence || 0.85,
         displayLabel: data.displayLabel,
         evidenceLevel: data.evidenceLevel,
@@ -141,48 +170,55 @@ export class ClaimCacheService {
 
   /**
    * Stores a verified claim in the persistent cache.
-   * Caches any grounded or authoritative claim with verification confidence >= 0.7.
+   * Closed-World Write Gate: rejects any claim without live HTTP-200 verified sources.
    */
   async set(claim: VerifiedClaim): Promise<void> {
     if (!ClaimCacheService.CACHE_ENABLED || !claim || !claim.text) return;
 
-    // Strict Quality Guard: Do NOT cache ungrounded timeouts, unverified stubs, or low-confidence noise
+    const firewalled = enforceClosedWorldCitationFirewall(claim);
+    const verifiedSources = (firewalled.richSources || []).filter((s) => isVerifiedRichSource(s));
+
+    // Strict Quality + Closed-World Guard: Do NOT cache ungrounded timeouts, unverified stubs, missing sources, or unverified URLs
     if (
-      !claim.status ||
-      claim.status === 'verification_timeout' ||
-      claim.status === 'unverified' ||
-      claim.verificationMethod === 'llm_training' ||
-      claim.sourceStatus === 'missing' ||
-      (claim as any).processingMetadata?.requiresCitationRetry === true ||
-      (claim.verificationConfidence !== undefined && claim.verificationConfidence < 0.65)
+      !firewalled.status ||
+      firewalled.status === 'verification_timeout' ||
+      firewalled.status === 'unverified' ||
+      firewalled.verificationMethod === 'llm_training' ||
+      firewalled.sourceStatus === 'missing' ||
+      verifiedSources.length === 0 ||
+      (firewalled as any).processingMetadata?.requiresCitationRetry === true ||
+      (firewalled.verificationConfidence !== undefined && firewalled.verificationConfidence < 0.65)
     ) {
       return;
     }
 
     try {
-      const exactHash = this.generateHash(claim.text);
-      const semanticHash = this.generateSemanticHash(claim.text);
+      const exactHash = this.generateHash(firewalled.text);
+      const semanticHash = this.generateSemanticHash(firewalled.text);
       const now = Date.now();
 
       // Dynamic TTL based on claim importance and nature (180 days for facts/constants, 45 days for dynamic news)
       let ttlDays = 45;
-      if (claim.nature === 'VERIFIABLE_FACT' || claim.nature === 'HISTORICAL_FACT') {
+      if (firewalled.nature === 'VERIFIABLE_FACT' || firewalled.nature === 'HISTORICAL_FACT') {
         ttlDays = 180;
       }
 
       const expiresAt = now + (ttlDays * 24 * 60 * 60 * 1000);
 
+      const sanitizedReasoning = sanitizeClaimResponse(firewalled.reasoning, firewalled.status);
       const cachePayload: Partial<VerifiedClaim> = {
-        status: claim.status,
-        reasoning: claim.reasoning,
-        richSources: claim.richSources || [],
-        verificationConfidence: claim.verificationConfidence || 0.85,
-        displayLabel: claim.displayLabel,
-        evidenceLevel: claim.evidenceLevel,
-        evidenceDetails: claim.evidenceDetails,
-        consensusDetails: claim.consensusDetails,
-        classificationConfidence: claim.classificationConfidence,
-        historicalEvidenceConfidence: claim.historicalEvidenceConfidence,
+        status: firewalled.status,
+        reasoning: sanitizedReasoning,
+        richSources: verifiedSources,
+        verifiedAcademicMetadata: firewalled.verifiedAcademicMetadata,
+        evidenceSchemaVersion: PIPELINE_CONFIG.EVIDENCE_SCHEMA_VERSION,
+        verificationConfidence: firewalled.verificationConfidence || 0.85,
+        displayLabel: firewalled.displayLabel,
+        evidenceLevel: firewalled.evidenceLevel,
+        evidenceDetails: firewalled.evidenceDetails,
+        consensusDetails: firewalled.consensusDetails,
+        classificationConfidence: firewalled.classificationConfidence,
+        historicalEvidenceConfidence: firewalled.historicalEvidenceConfidence,
         isGrounded: true,
         verificationMethod: 'cache_hit'
       };
@@ -192,21 +228,23 @@ export class ClaimCacheService {
 
       // 2. Persist to L2 Firestore in background
       await admin.firestore().collection(ClaimCacheService.COLLECTION).doc(exactHash).set({
-        originalText: claim.text,
-        normalizedText: claim.text.toLowerCase().trim(),
+        originalText: firewalled.text,
+        normalizedText: firewalled.text.toLowerCase().trim(),
         exactHash,
         semanticHash,
-        status: claim.status,
-        reasoning: claim.reasoning,
-        richSources: claim.richSources || [],
-        confidence: claim.verificationConfidence || 0.85,
-        nature: claim.nature || "VERIFIABLE_FACT",
-        displayLabel: claim.displayLabel || null,
-        evidenceLevel: claim.evidenceLevel || null,
-        evidenceDetails: claim.evidenceDetails || null,
-        consensusDetails: claim.consensusDetails || null,
-        classificationConfidence: claim.classificationConfidence || null,
-        historicalEvidenceConfidence: claim.historicalEvidenceConfidence || null,
+        evidenceSchemaVersion: PIPELINE_CONFIG.EVIDENCE_SCHEMA_VERSION,
+        status: firewalled.status,
+        reasoning: sanitizedReasoning,
+        richSources: verifiedSources,
+        verifiedAcademicMetadata: firewalled.verifiedAcademicMetadata || null,
+        confidence: firewalled.verificationConfidence || 0.85,
+        nature: firewalled.nature || "VERIFIABLE_FACT",
+        displayLabel: firewalled.displayLabel || null,
+        evidenceLevel: firewalled.evidenceLevel || null,
+        evidenceDetails: firewalled.evidenceDetails || null,
+        consensusDetails: firewalled.consensusDetails || null,
+        classificationConfidence: firewalled.classificationConfidence || null,
+        historicalEvidenceConfidence: firewalled.historicalEvidenceConfidence || null,
         isGrounded: true,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         expiresAt,
@@ -214,7 +252,7 @@ export class ClaimCacheService {
         lastHitAt: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
 
-      logger.info(`[ClaimCache] Cached verified grounded claim: "${claim.text.substring(0, 50)}..." (TTL: ${ttlDays}d)`);
+      logger.info(`[ClaimCache] Cached verified grounded claim (${PIPELINE_CONFIG.EVIDENCE_SCHEMA_VERSION}): "${firewalled.text.substring(0, 50)}..." (TTL: ${ttlDays}d)`);
     } catch (error) {
       logger.error("[ClaimCache] Failed to set cache", { error });
     }
@@ -268,13 +306,25 @@ export class ClaimCacheService {
           if (data && data.expiresAt && Date.now() > data.expiresAt) {
             return;
           }
+          if (!isClosedWorldCacheEntryValid(data)) {
+            doc.ref.delete().catch(() => {});
+            return;
+          }
+          const verifiedRichSources = ((data.richSources || []) as RichSource[]).filter((s) => isVerifiedRichSource(s));
+          if (verifiedRichSources.length === 0) {
+            doc.ref.delete().catch(() => {});
+            return;
+          }
           const idx = hashes.indexOf(doc.id);
           if (idx !== -1) {
             const originalText = remainingTexts[idx];
+            const cleanReasoning = sanitizeClaimResponse(data.reasoning, data.status as ClaimStatus);
             const cachedClaim: Partial<VerifiedClaim> = {
               status: data.status as ClaimStatus,
-              reasoning: data.reasoning,
-              richSources: (data.richSources || []) as RichSource[],
+              reasoning: cleanReasoning,
+              richSources: verifiedRichSources,
+              verifiedAcademicMetadata: Array.isArray(data.verifiedAcademicMetadata) ? data.verifiedAcademicMetadata : undefined,
+              evidenceSchemaVersion: PIPELINE_CONFIG.EVIDENCE_SCHEMA_VERSION,
               verificationConfidence: data.confidence || 0.85,
               displayLabel: data.displayLabel,
               evidenceLevel: data.evidenceLevel,
@@ -305,11 +355,19 @@ export class ClaimCacheService {
         if (!semSnap.empty) {
           const doc = semSnap.docs[0];
           const data = doc.data();
-          if (data && (!data.expiresAt || Date.now() <= data.expiresAt)) {
+          if (data && (!data.expiresAt || Date.now() <= data.expiresAt) && isClosedWorldCacheEntryValid(data)) {
+            const verifiedRichSources = ((data.richSources || []) as RichSource[]).filter((s) => isVerifiedRichSource(s));
+            if (verifiedRichSources.length === 0) {
+              doc.ref.delete().catch(() => {});
+              continue;
+            }
+            const cleanReasoning = sanitizeClaimResponse(data.reasoning, data.status as ClaimStatus);
             const cachedClaim: Partial<VerifiedClaim> = {
               status: data.status as ClaimStatus,
-              reasoning: data.reasoning,
-              richSources: (data.richSources || []) as RichSource[],
+              reasoning: cleanReasoning,
+              richSources: verifiedRichSources,
+              verifiedAcademicMetadata: Array.isArray(data.verifiedAcademicMetadata) ? data.verifiedAcademicMetadata : undefined,
+              evidenceSchemaVersion: PIPELINE_CONFIG.EVIDENCE_SCHEMA_VERSION,
               verificationConfidence: data.confidence || 0.85,
               displayLabel: data.displayLabel,
               evidenceLevel: data.evidenceLevel,

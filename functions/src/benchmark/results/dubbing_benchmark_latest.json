@@ -1,0 +1,26 @@
+{
+  "mode": "dry_run",
+  "timestampIso": "2026-11-11T08:11:11.050Z",
+  "sourceLanguage": "en",
+  "targetLanguage": "te",
+  "metrics": {
+    "sttWerRatio": 0,
+    "diarizationAccuracyRatio": 1,
+    "mneSource": "neural_isolation_subtraction",
+    "mneValidationStatus": "passed",
+    "mneDialogueBleedDb": -42.1,
+    "syllableBudgetComplianceRatio": 1,
+    "emotionTagPreservationRatio": 1,
+    "subtitleTagLeakCount": 0,
+    "durationDriftMs": 50,
+    "measuredIntegratedLufs": -14,
+    "elevenLabsCharsBilled": 0,
+    "estimatedCostUsd": 0,
+    "wallLatencyMs": 831
+  },
+  "overallScore10": 10,
+  "verdict": "CERTIFIED_DRY_RUN",
+  "notes": [
+    "Zero paid API credits expended (local FFmpeg & pipeline contract probe)."
+  ]
+}

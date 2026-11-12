@@ -35,9 +35,7 @@ class DubbingTierCard extends StatelessWidget {
         : '\$${cost.toStringAsFixed(2)} flat';
 
     final borderColor = isSelected
-        ? (tier.isCinemaGrade
-            ? AppColors.warning
-            : (tier.isLipSync ? AppColors.textLink : Colors.white))
+        ? const Color(0xFFA78BFA)
         : AppColors.bgSurface;
 
     final bgTint = isSelected
@@ -64,7 +62,7 @@ class DubbingTierCard extends StatelessWidget {
                   : Icons.radio_button_unchecked_rounded,
               size: 20,
               color: isSelected
-                  ? (tier.isCinemaGrade ? AppColors.warning : Colors.white)
+                  ? const Color(0xFFA78BFA)
                   : Colors.white30,
             ),
             const SizedBox(width: 12),
@@ -135,78 +133,21 @@ class DubbingTierCard extends StatelessWidget {
   }
 
   Widget _buildTierPill() {
-    if (tier.id == 'audio_starter') {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: AppColors.bgSurface,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: const Text(
-          'Standard Neural Voice',
-          style: TextStyle(fontSize: 10, color: Colors.white70, fontWeight: FontWeight.w600),
-        ),
-      );
-    } else if (tier.id == 'audio_ultra' || tier.isVoiceClone) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: AppColors.info.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: AppColors.info.withValues(alpha: 0.4)),
-        ),
-        child: const Text(
-          'Studio Voice Cloning',
-          style: TextStyle(fontSize: 10, color: Color(0xFFC4B5FD), fontWeight: FontWeight.bold),
-        ),
-      );
-    } else if (tier.isCinemaGrade) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: AppColors.warning.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
-        ),
-        child: const Text(
-          'Cinema Grade',
-          style: TextStyle(fontSize: 10, color: AppColors.warning, fontWeight: FontWeight.bold),
-        ),
-      );
-    } else if (tier.isLipSync) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: AppColors.info.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: AppColors.info.withValues(alpha: 0.4)),
-        ),
-        child: const Text(
-          'AI Lip-Sync',
-          style: TextStyle(fontSize: 10, color: AppColors.textLink, fontWeight: FontWeight.bold),
-        ),
-      );
-    }
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: AppColors.bgSurface,
+        color: AppColors.info.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: AppColors.info.withValues(alpha: 0.4)),
       ),
       child: const Text(
-        'Expressive Voice',
-        style: TextStyle(fontSize: 10, color: Colors.white70, fontWeight: FontWeight.w600),
+        'Studio Voice Cloning & Cadence Lock',
+        style: TextStyle(fontSize: 10, color: Color(0xFFC4B5FD), fontWeight: FontWeight.bold),
       ),
     );
   }
 
   String _getHighlightSubtitle() {
-    if (tier.id == 'audio_starter') return 'Natural neural narration';
-    if (tier.id == 'audio_pro') return 'Expressive emotional nuances';
-    if (tier.id == 'audio_ultra') return 'Full vocal identity match';
-    if (tier.id == 'video_pro') return 'Face & mouth synchronization';
-    if (tier.id == 'video_ultra') return 'Cinema theatrical visual sync';
-    return 'Studio vocal synthesis';
+    return 'Full vocal identity match, cadence locking & 100% BGM preserved';
   }
 }

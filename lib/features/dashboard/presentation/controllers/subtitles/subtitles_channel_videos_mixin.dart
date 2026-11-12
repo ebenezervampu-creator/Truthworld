@@ -238,6 +238,29 @@ mixin SubtitlesChannelVideosMixin on SubtitlesControllerBase {
       }));
     }
 
+    final orderedLangs = getOrderedLanguagesForVideo(video, subs);
+
+    if (orderedLangs.isEmpty) {
+      availableLanguages.value = ['en'];
+      selectedLanguage.value = 'en';
+      currentCues.clear();
+    } else {
+      availableLanguages.value = orderedLangs;
+      final defaultLang = determineDefaultLanguage(video, subs, orderedLangs);
+      selectedLanguage.value = defaultLang;
+      final subUrl = resolveSubtitleUrlForLanguage(video, defaultLang);
+      parseCuesForLanguage(defaultLang, subUrl);
+    }
+    selectedVideo.refresh();
+    initVideoPlayer(video);
+    _inFlightSelectingVideoId = null;
+  }
+
+  /// Generates the candidate ordered languages list for a video based on native language, subtitles, and localization.
+  List<String> getOrderedLanguagesForVideo(
+    Video video,
+    Map<String, String> subs,
+  ) {
     final orderedLangs = <String>[];
 
     // Always add primary video language first if defined, then 'en'
@@ -263,55 +286,128 @@ mixin SubtitlesChannelVideosMixin on SubtitlesControllerBase {
       }
     }
 
-    if (orderedLangs.isEmpty) {
-      availableLanguages.value = ['en'];
-      selectedLanguage.value = 'en';
-      currentCues.clear();
-    } else {
-      availableLanguages.value = orderedLangs;
-      final defaultLang =
-          orderedLangs.contains('en') ? 'en' : orderedLangs.first;
-      selectedLanguage.value = defaultLang;
-      final subUrl = subs[defaultLang] ??
-          subs[video.language] ??
-          (video.transcriptionUrl.isNotEmpty ? video.transcriptionUrl : null);
-      parseCuesForLanguage(defaultLang, subUrl);
+    return orderedLangs;
+  }
+
+  /// Determines the optimal initial language track for a video:
+  /// 1. Prefer original video language if it has subtitles or transcription
+  /// 2. Else prefer first language in mediaSubtitles that has an existing track
+  /// 3. Else prefer primaryLang if non-empty
+  /// 4. Else prefer 'en' if present in orderedLangs
+  /// 5. Fallback to orderedLangs.first
+  String determineDefaultLanguage(
+    Video video,
+    Map<String, String> subs,
+    List<String> orderedLangs,
+  ) {
+    if (orderedLangs.isEmpty) return 'en';
+
+    final primaryLang = normalizeLanguageCode(video.language);
+    String defaultLang = orderedLangs.first;
+    final hasPrimarySubs = primaryLang.isNotEmpty &&
+        (subs.containsKey(primaryLang) ||
+            subs.containsKey(video.language) ||
+            subs.keys.any((k) => normalizeLanguageCode(k) == primaryLang));
+    final hasPrimaryTranscript =
+        primaryLang.isNotEmpty && video.transcriptionUrl.isNotEmpty;
+
+    if (primaryLang.isNotEmpty && (hasPrimarySubs || hasPrimaryTranscript)) {
+      defaultLang = primaryLang;
+    } else if (subs.isNotEmpty) {
+      final firstSubKey = subs.keys.firstWhere(
+        (k) => subs[k]?.isNotEmpty ?? false,
+        orElse: () => '',
+      );
+      if (firstSubKey.isNotEmpty) {
+        defaultLang = normalizeLanguageCode(firstSubKey);
+      }
+    } else if (primaryLang.isNotEmpty && orderedLangs.contains(primaryLang)) {
+      defaultLang = primaryLang;
+    } else if (orderedLangs.contains('en')) {
+      defaultLang = 'en';
     }
-    selectedVideo.refresh();
-    initVideoPlayer(video);
-    _inFlightSelectingVideoId = null;
+
+    return defaultLang;
+  }
+
+  /// Resolves the subtitle URL for the specified language track.
+  /// Falls back to the video's original transcriptionUrl ONLY if this track is the video's original spoken language.
+  String? resolveSubtitleUrlForLanguage(Video video, String langCode) {
+    final normCode = normalizeLanguageCode(langCode);
+    final subs = video.mediaSubtitles;
+
+    // 1. Direct or normalized match in mediaSubtitles
+    String? subUrl = subs[langCode] ?? subs[normCode];
+    if (subUrl == null || subUrl.isEmpty) {
+      for (final entry in subs.entries) {
+        if (normalizeLanguageCode(entry.key) == normCode &&
+            entry.value.isNotEmpty) {
+          subUrl = entry.value;
+          break;
+        }
+      }
+    }
+
+    // 2. Base/original language fallback: only if this track matches the video's native language
+    if (subUrl == null || subUrl.isEmpty) {
+      final videoLangCode = normalizeLanguageCode(
+          video.language.isNotEmpty ? video.language : 'en');
+      final isOriginalLang = normCode == videoLangCode ||
+          langCode == video.language ||
+          (videoLangCode == 'en' && normCode == 'en');
+      if (isOriginalLang && video.transcriptionUrl.isNotEmpty) {
+        subUrl = video.transcriptionUrl;
+      }
+    }
+
+    return subUrl;
   }
 
   void listenToLanguageRequests(String videoId) {
     requestsSubscription?.cancel();
     isLoadingRequests.value = true;
-    requestsSubscription = firestore
-        .collection(FirestoreCollections.videos)
-        .doc(videoId)
-        .collection('language_requests')
-        .snapshots()
-        .listen(
-          (snapshot) {
-            final reqs = snapshot.docs
-                .map((doc) => LanguageRequest.fromMap(doc.data(), doc.id))
-                .toList();
-            reqs.sort((a, b) {
-              final countCompare = b.count.compareTo(a.count);
-              if (countCompare != 0) return countCompare;
-              return a.language.compareTo(b.language);
-            });
-            languageRequests.value = reqs;
-            isLoadingRequests.value = false;
-          },
-          onError: (e) {
-            logger.error(
-              'Error listening to language requests',
-              error: e,
+    try {
+      requestsSubscription = firestore
+          .collection(FirestoreCollections.videos)
+          .doc(videoId)
+          .collection('language_requests')
+          .snapshots()
+          .handleError((e) {
+            logger.info(
+              'Language requests stream subscription unavailable: $e',
               tag: SubtitlesControllerBase.subtitlesTag,
             );
             isLoadingRequests.value = false;
-          },
-        );
+          })
+          .listen(
+            (snapshot) {
+              final reqs = snapshot.docs
+                  .map((doc) => LanguageRequest.fromMap(doc.data(), doc.id))
+                  .toList();
+              reqs.sort((a, b) {
+                final countCompare = b.count.compareTo(a.count);
+                if (countCompare != 0) return countCompare;
+                return a.language.compareTo(b.language);
+              });
+              languageRequests.value = reqs;
+              isLoadingRequests.value = false;
+            },
+            onError: (e) {
+              logger.info(
+                'Error listening to language requests: $e',
+                tag: SubtitlesControllerBase.subtitlesTag,
+              );
+              isLoadingRequests.value = false;
+            },
+            cancelOnError: false,
+          );
+    } catch (e) {
+      logger.info(
+        'Error initiating language requests listener: $e',
+        tag: SubtitlesControllerBase.subtitlesTag,
+      );
+      isLoadingRequests.value = false;
+    }
   }
 
   void toggleRequestsPanel() {
@@ -339,35 +435,33 @@ mixin SubtitlesChannelVideosMixin on SubtitlesControllerBase {
 
     final targetLang = selectedLanguage.value;
     final video = selectedVideo.value;
-    final subs = video?.mediaSubtitles ?? {};
+    final String? subUrl = video != null
+        ? resolveSubtitleUrlForLanguage(video, targetLang)
+        : null;
 
-    // 1. Resolve subtitle URL from mediaSubtitles (exact or normalized match)
-    String? subUrl = subs[targetLang] ?? subs[normCode];
-    if (subUrl == null || subUrl.isEmpty) {
-      for (final entry in subs.entries) {
-        if (normalizeLanguageCode(entry.key) == normCode) {
-          subUrl = entry.value;
-          break;
-        }
+    parseCuesForLanguage(targetLang, subUrl);
+  }
+
+  /// Updates the original spoken language of the selected video.
+  Future<void> updateOriginalVideoLanguage(String newLangCode) async {
+    final v = selectedVideo.value;
+    if (v == null || newLangCode.isEmpty) return;
+    try {
+      await firestore
+          .collection(FirestoreCollections.videos)
+          .doc(v.id)
+          .update({'language': newLangCode});
+      final updatedVideo = v.copyWith(language: newLangCode);
+      selectedVideo.value = updatedVideo;
+      final normCode = normalizeLanguageCode(newLangCode);
+      if (!availableLanguages.contains(normCode) && !availableLanguages.contains(newLangCode)) {
+        availableLanguages.insert(0, normCode);
       }
-    }
-
-    // 2. Auto-fallback to video.transcriptionUrl for the base/original language
-    final isBaseLang = video != null &&
-        (normCode == normalizeLanguageCode(video.language) ||
-         normCode == 'en' ||
-         targetLang == video.language);
-
-    if ((subUrl == null || subUrl.isEmpty) && isBaseLang && video != null) {
-      if (video.transcriptionUrl.isNotEmpty) {
-        subUrl = video.transcriptionUrl;
-      }
-    }
-
-    if (subUrl != null && subUrl.isNotEmpty) {
-      parseCuesForLanguage(targetLang, subUrl);
-    } else {
-      parseCuesForLanguage(targetLang, null);
+      selectedVideo.refresh();
+      showSuccess('Original video language updated to ${getLanguageName(newLangCode)}.');
+    } catch (e) {
+      logger.error('Failed updating original video language', error: e, tag: 'SubtitlesController');
+      showError('Unable to update video language. Please try again.');
     }
   }
 }

@@ -82,24 +82,24 @@ export class RegistryService {
         pattern: /capital of (france|germany|india|usa|japan|united kingdom|canada|australia|brazil|italy|south africa|mexico|egypt)/i,
         resolve: (m: any) => ({
           status: 'correct',
-          reasoning: `Deterministically verified: The capital of ${m[1]} is an unambiguous, universally recognized geopolitical fact.`,
-          source: 'Institutional Registry (Geopolitical Geography)'
+          reasoning: `Official world maps and geography records show the capital of ${m[1]} is a well-established fact.`,
+          source: 'Official Geography Records'
         })
       },
       {
         pattern: /(speed of light in a vacuum|freezing point of pure water|boiling point of water at sea level)/i,
         resolve: () => ({
           status: 'correct',
-          reasoning: `Deterministically verified: Universal scientific constant verified against standard physical sciences registry.`,
-          source: 'Institutional Registry (Physical Sciences)'
+          reasoning: `Science textbooks and trusted physics agencies confirm this as a basic, proven science fact.`,
+          source: 'Standard Science Records'
         })
       },
       {
         pattern: /180th meridian (crosses|passes through) (alaska|the aleutian islands)/i,
         resolve: () => ({
           status: 'correct',
-          reasoning: `Deterministically verified: The 180th meridian passes through the Aleutian Islands.`,
-          source: 'Institutional Registry (Geographic Coordinates)'
+          reasoning: `World maps and geography records show the 180th meridian line passes through the Aleutian Islands.`,
+          source: 'Official Geography Records'
         })
       }
     ];

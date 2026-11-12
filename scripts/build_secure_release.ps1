@@ -73,11 +73,14 @@ if (-not (Test-Path $releasesDir)) {
     New-Item -ItemType Directory -Path $releasesDir -Force | Out-Null
 }
 
+$entryPoint = if (Test-Path (Join-Path $projectRoot "lib/main_$Flavor.dart")) { "lib/main_$Flavor.dart" } else { "lib/main.dart" }
+
 Write-Host "`n>>> [2/3] Compiling Secure Release Artifact ($Format)..." -ForegroundColor Yellow
+Write-Host "Target Entry Point:       $entryPoint" -ForegroundColor Cyan
 Write-Host "Output symbols directory: $symbolsDir" -ForegroundColor Cyan
 
 if ($Format -eq 'appbundle') {
-    flutter build appbundle --release --flavor $Flavor -t lib/main.dart --obfuscate --split-debug-info=$symbolsDir
+    flutter build appbundle --release --flavor $Flavor -t $entryPoint --obfuscate --split-debug-info=$symbolsDir
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to compile AppBundle for flavor: $Flavor"
     }
@@ -85,7 +88,7 @@ if ($Format -eq 'appbundle') {
     $source = Join-Path $projectRoot "build\app\outputs\bundle\${Flavor}Release\app-$Flavor-release.aab"
     $destination = Join-Path $releasesDir "truthworld-$Flavor-release-$timestamp.aab"
 } else {
-    flutter build apk --release --flavor $Flavor -t lib/main.dart --obfuscate --split-debug-info=$symbolsDir
+    flutter build apk --release --flavor $Flavor -t $entryPoint --obfuscate --split-debug-info=$symbolsDir
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to compile APK for flavor: $Flavor"
     }

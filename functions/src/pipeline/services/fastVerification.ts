@@ -89,6 +89,7 @@ ${truncatedText}
 CRITICAL RULES:
 - Do NOT verify opinions, beliefs, or subjective statements — skip them.
 - Focus ONLY on verifiable factual claims.
+- Keep "note" and "keyFindings" clear, simple, and easy for a 10-year-old to understand — never say "this claim" or "from internal data" or "training knowledge".
 - If the content is entertainment, satire, or opinion, set overallScore to 7.0 and note that in keyFindings.
 - If you cannot determine accuracy, rate the claim 5.0 (neutral).
 - NEVER invent facts. Rate based on confidence only.

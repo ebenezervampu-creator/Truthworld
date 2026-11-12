@@ -69,6 +69,30 @@ class RealExtractedClaim {
         v.contains('hyperbole') ||
         category.toLowerCase().contains('opinion');
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'videoId': videoId,
+      'videoTitle': videoTitle,
+      'claim': text,
+      'text': text,
+      'timestamp': timestamp,
+      'timestampSeconds': timestampSeconds,
+      'category': category,
+      'confidenceScore': confidenceScore,
+      'sourceCitation': sourceCitation,
+      'tier': tier.name,
+      'verdict': verdict,
+      'aiExplanation': aiExplanation,
+      'recommendedAction': recommendedAction,
+      'creatorActionNote': creatorActionNote,
+      'transcriptSnippet': transcriptSnippet,
+      'nature': nature,
+      'sourceUrl': sourceUrl,
+      'speaker': speaker,
+    };
+  }
 }
 
 class AuthoritativeSourceItem {
@@ -279,16 +303,9 @@ class TruthVerificationParser {
     final videoTitle = video.title.isNotEmpty ? video.title : 'Untitled Video';
     final thumbnailUrl = video.thumbnailUrl;
 
-    final score = ((data['trustScore'] ??
-            data['credibilityScore'] ??
-            data['rating'] ??
-            0.0) as num)
-        .toDouble();
-
     final parsedFactCheck = FactCheckDataParser.parse(
       data,
       fallbackReport: video.uiReport,
-      fallbackTrustScore: score > 0 ? score : null,
       isVideoFactChecked: video.isFactChecked,
     );
 

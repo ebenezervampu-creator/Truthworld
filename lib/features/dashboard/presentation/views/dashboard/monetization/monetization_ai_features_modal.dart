@@ -7,7 +7,6 @@ import 'package:truthworld/core/services/currency_localization_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_wallet_topup_sheet.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
@@ -116,7 +115,7 @@ class SpendRevenueBottomSheet {
                     child: Row(
                       children: [
                         Icon(
-                          Icons.account_balance_wallet_rounded,
+                          Icons.payments_rounded,
                           color: Colors.white,
                           size: 24,
                         ),
@@ -148,7 +147,7 @@ class SpendRevenueBottomSheet {
               ),
               const SizedBox(height: 6),
               Text(
-                'Available Spendable: \$${spendable.totalSpendableBalance.toStringAsFixed(2)} (\$${spendable.fundedBalance.toStringAsFixed(2)} Wallet + \$${spendable.totalRevenue.toStringAsFixed(2)} Revenue${spendable.rolloverCredit > 0 ? " + \$${spendable.rolloverCredit.toStringAsFixed(2)} Rollover" : ""})',
+                'Available Channel Revenue: \$${spendable.totalSpendableBalance.toStringAsFixed(2)}${spendable.rolloverCredit > 0 ? " (includes \$${spendable.rolloverCredit.toStringAsFixed(2)} rollover)" : ""}',
                 style: const TextStyle(
                   fontSize: 13,
                   color: AppColors.textSecondary,
@@ -167,7 +166,7 @@ class SpendRevenueBottomSheet {
                   children: [
                     Expanded(
                       child: Text(
-                        'Funded Wallet: \$${ch.walletBalanceUSD.toStringAsFixed(2)}',
+                        'Total Available: \$${spendable.totalSpendableBalance.toStringAsFixed(2)}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -178,27 +177,17 @@ class SpendRevenueBottomSheet {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        Get.back();
-                        ChannelWalletTopupSheet.show(
-                          context,
-                          channel: ch,
-                          onTopupSuccess: controller.refreshChannelData,
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.brand,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.success.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      icon: const Icon(Icons.add_rounded, color: Colors.black, size: 16),
-                      label: const Text(
-                        'Add Money',
+                      child: const Text(
+                        'Pay from Revenue / Direct',
                         style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 12,
+                          color: AppColors.success,
+                          fontSize: 11,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -302,7 +291,7 @@ class SpendRevenueBottomSheet {
                     controller.refreshChannelData();
                   } else {
                     AppSnackbar.warning(
-                      'Unable to apply balance for AI Subtitles. Please ensure your channel has sufficient funds or add money to your wallet.',
+                      'Unable to apply balance for AI Subtitles. Please ensure your channel has sufficient revenue.',
                     );
                   }
                 },
@@ -351,7 +340,7 @@ class SpendRevenueBottomSheet {
                     controller.refreshChannelData();
                   } else {
                     AppSnackbar.warning(
-                      'Unable to apply balance for AI Multilingual Dubbing. Please ensure your channel has sufficient funds or add money to your wallet.',
+                      'Unable to apply balance for AI Multilingual Dubbing. Please ensure your channel has sufficient revenue.',
                     );
                   }
                 },
@@ -440,7 +429,7 @@ class SpendRevenueBottomSheet {
                     controller.refreshChannelData();
                   } else {
                     AppSnackbar.warning(
-                      'Unable to apply balance for storage top-up. Please ensure your channel has sufficient funds or add money to your wallet.',
+                      'Unable to apply balance for storage top-up. Please ensure your channel has sufficient revenue.',
                     );
                   }
                 },
@@ -472,7 +461,7 @@ class SpendRevenueBottomSheet {
                     controller.refreshChannelData();
                   } else {
                     AppSnackbar.warning(
-                      'Unable to apply balance for bandwidth top-up. Please ensure your channel has sufficient funds or add money to your wallet.',
+                      'Unable to apply balance for bandwidth top-up. Please ensure your channel has sufficient revenue.',
                     );
                   }
                 },

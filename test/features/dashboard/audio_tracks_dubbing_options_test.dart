@@ -1,13 +1,18 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/data/models/channel_wallet_models.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/audio_track_dubbing_options_dialog.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/audio_track_dubbing_options_page.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/audio_tracks_dialogs.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/audio_tracks_list_section.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/theme/app_colors.dart';
+import 'package:truthworld/theme/app_theme.dart';
+
 import '../../test_helpers/mock_firebase.dart';
 
 void main() {
@@ -19,386 +24,415 @@ void main() {
 
   tearDown(Get.reset);
 
-  Video createSampleVideo({String duration = '00:45'}) {
+  Video buildSampleVideo({String duration = '01:00'}) {
     return Video(
-      id: 'video_zomato_123',
-      title: "Zomato's Food Transformation Story",
-      description: 'Zomato transforming Indian food ecosystem.',
-      videoUrl: 'https://example.com/zomato.mp4',
-      thumbnailUrl: 'https://example.com/zomato_thumb.jpg',
-      ownerId: 'user_1',
-      channelId: 'channel_1',
-      channelName: 'TruthWorld Business',
-      category: 'Business',
-      tags: const ['business', 'zomato'],
+      id: 'vid_dub_test_1',
+      title: 'TruthWorld Global Broadcast',
+      description: 'Sample test video',
+      videoUrl: 'https://example.com/video.mp4',
+      thumbnailUrl: 'https://example.com/thumb.jpg',
+      ownerId: 'owner_1',
+      channelId: 'chan_1',
+      channelName: 'TruthWorld Studio',
+      category: 'News',
+      tags: const ['truth'],
       duration: duration,
-      language: 'en',
-      status: 'Published',
-      visibility: 'Public',
-      audioTracks: const {
-        'en': 'https://example.com/zomato_en.mp3',
-      },
     );
   }
 
-  group('Audio Track Dubbing Options & Studio Guide Tests', () {
-    testWidgets('AudioTrackDubbingOptionsDialog renders AI Dubbing tab with all options', (tester) async {
-      tester.view.physicalSize = const Size(1200, 900);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+  Channel buildChannel({
+    String? dubbingDiscountType,
+    double? dubbingDiscountPercent,
+  }) {
+    final now = Timestamp.fromDate(DateTime(2026));
+    return Channel(
+      id: 'chan_1',
+      name: 'TruthWorld Studio',
+      nameLowercase: 'truthworld studio',
+      handle: '@truthworld',
+      handleLowercase: '@truthworld',
+      description: 'Test channel',
+      avatarUrl: '',
+      bannerUrl: '',
+      ownerId: 'owner_1',
+      createdAt: now,
+      updatedAt: now,
+      dubbingDiscountType: dubbingDiscountType,
+      dubbingDiscountPercent: dubbingDiscountPercent,
+    );
+  }
 
-      final controller = Get.put(AudioTracksController());
-      final sampleVideo = createSampleVideo();
-      controller.selectedVideo.value = sampleVideo;
+  group('Audio Track & Dubbing Redesigned UI & Multi-Language Tests', () {
+    testWidgets(
+      'AudioTrackDubbingOptionsPage renders Image-2 minimalist UI without overflow',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      await tester.pumpWidget(
-        GetMaterialApp(
-          home: Scaffold(
-            body: AudioTrackDubbingOptionsDialog(
-              controller: controller,
-              initialLangCode: 'zh',
-              isDarkMode: true,
+        final controller = Get.put(AudioTracksController());
+        controller.rxState.value = ViewState.idle;
+        controller.selectedVideo.value = buildSampleVideo();
+
+        final page = AudioTrackDubbingOptionsPage(
+          controller: controller,
+          initialLangCode: 'te',
+          isDarkMode: true,
+        );
+
+        await tester.pumpWidget(
+          GetMaterialApp(
+            theme: buildAppTheme(),
+            home: page,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+        expect(find.text('Audio Track & Dubbing'), findsOneWidget);
+        expect(
+          find.text(
+            'Create a new audio track or dub your video into another language.',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('AI Dubbing'), findsOneWidget);
+        expect(find.text('Direct Audio Track'), findsOneWidget);
+        expect(find.text('Target Language'), findsOneWidget);
+        expect(find.text('Telugu (తెలుగు)'), findsOneWidget);
+        expect(find.text('Voice Cloning'), findsOneWidget);
+        expect(find.text("Use the original speaker's voice."), findsOneWidget);
+        expect(find.text('Speaker Diarization'), findsOneWidget);
+        expect(
+          find.text('Detect and separate multiple speakers.'),
+          findsOneWidget,
+        );
+        expect(find.text('Voice Gender'), findsOneWidget);
+        expect(find.text('Auto'), findsOneWidget);
+        expect(find.text('Generate Audio Track'), findsOneWidget);
+        expect(find.text('Cancel'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'AudioTrackDubbingOptionsDialog renders AI Dubbing options and updates switches & voice gender sheet',
+      (tester) async {
+        final controller = Get.put(AudioTracksController());
+        controller.rxState.value = ViewState.idle;
+        controller.selectedVideo.value = buildSampleVideo();
+
+        final dialog = AudioTrackDubbingOptionsDialog(
+          controller: controller,
+          initialLangCode: 'te',
+          isDarkMode: true,
+        );
+
+        await tester.pumpWidget(
+          GetMaterialApp(
+            theme: buildAppTheme(),
+            home: Scaffold(body: dialog),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Audio Track & Dubbing'), findsOneWidget);
+        expect(find.text('Voice Cloning'), findsOneWidget);
+        expect(find.text('Speaker Diarization'), findsOneWidget);
+        expect(find.text('Voice Gender'), findsOneWidget);
+        expect(find.text('Auto'), findsOneWidget);
+        expect(find.text('Generate Audio Track'), findsOneWidget);
+
+        // Toggle Voice Cloning & Speaker Diarization switches
+        expect(dialog.voiceType.value, 'cloned');
+        expect(dialog.enableDiarization.value, isFalse);
+
+        final switches = find.byType(Switch);
+        expect(switches, findsNWidgets(2));
+        await tester.tap(switches.at(0));
+        await tester.pumpAndSettle();
+        expect(dialog.voiceType.value, 'standard');
+
+        await tester.tap(switches.at(1));
+        await tester.pumpAndSettle();
+        expect(dialog.enableDiarization.value, isTrue);
+
+        // Open Voice Gender picker bottom sheet and choose Male
+        await tester.tap(find.text('Voice Gender'));
+        await tester.pumpAndSettle();
+        expect(find.text('Male'), findsOneWidget);
+        expect(find.text('Female'), findsOneWidget);
+
+        await tester.tap(find.text('Male'));
+        await tester.pumpAndSettle();
+        expect(dialog.selectedVoiceGender.value, 'male');
+        expect(find.text('Male'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Supports selecting multiple target languages, displays removable chips, and updates CTA batch count',
+      (tester) async {
+        tester.view.physicalSize = const Size(420, 880);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final controller = Get.put(AudioTracksController());
+        controller.rxState.value = ViewState.idle;
+        controller.selectedVideo.value = buildSampleVideo();
+
+        final page = AudioTrackDubbingOptionsPage(
+          controller: controller,
+          initialLangCode: 'te',
+          isDarkMode: true,
+        );
+
+        await tester.pumpWidget(
+          GetMaterialApp(
+            theme: buildAppTheme(),
+            home: page,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Starts with 1 language ('te')
+        expect(page.selectedLangCodes, ['te']);
+        expect(find.text('Target Language'), findsOneWidget);
+        expect(find.text('Generate Audio Track'), findsOneWidget);
+
+        // Open language picker sheet
+        await tester.tap(find.text('Target Language'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Select Target Languages'), findsOneWidget);
+        expect(find.text('1 language selected'), findsOneWidget);
+
+        // Filter by Indian category so Hindi and Tamil appear immediately
+        await tester.tap(find.text('Indian'));
+        await tester.pumpAndSettle();
+
+        // Select Hindi and Tamil in the multi-select list
+        await tester.tap(find.text('Hindi (हिन्दी)'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Tamil (தமிழ்)'));
+        await tester.pumpAndSettle();
+
+        expect(page.selectedLangCodes, ['te', 'hi', 'ta']);
+        expect(find.text('3 languages selected'), findsOneWidget);
+
+        // Close picker via Done button
+        await tester.tap(find.text('Done'));
+        await tester.pumpAndSettle();
+
+        // Main UI switches to multi-language view
+        expect(find.text('Target Languages'), findsOneWidget);
+        expect(find.text('3 languages'), findsOneWidget);
+        expect(find.text('Generate 3 Audio Tracks'), findsOneWidget);
+        expect(find.text('Add'), findsOneWidget);
+
+        // Removing one language via chip close button updates reactive CTA count
+        await tester.tap(find.byIcon(Icons.close_rounded).first);
+        await tester.pumpAndSettle();
+
+        expect(page.selectedLangCodes, ['hi', 'ta']);
+        expect(find.text('2 languages'), findsOneWidget);
+        expect(find.text('Generate 2 Audio Tracks'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'Enforces max batch limit of 5 languages and prevents selecting original video language',
+      (tester) async {
+        final controller = Get.put(AudioTracksController());
+        controller.rxState.value = ViewState.idle;
+        controller.selectedVideo.value = buildSampleVideo(); // base language: en
+
+        final page = AudioTrackDubbingOptionsPage(
+          controller: controller,
+          initialLangCode: 'te',
+          isDarkMode: true,
+        );
+
+        await tester.pumpWidget(
+          GetMaterialApp(
+            theme: buildAppTheme(),
+            home: page,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Attempting to toggle source language 'en' must be ignored
+        page.state.toggleLanguage('en');
+        expect(page.selectedLangCodes, ['te']);
+
+        // Selecting a 6-language preset caps at 5 languages and excludes 'en'
+        page.state.selectLanguagePreset(['en', 'hi', 'ta', 'kn', 'ml', 'es']);
+        await tester.pumpAndSettle();
+
+        expect(page.selectedLangCodes.length, 5);
+        expect(page.selectedLangCodes.contains('en'), isFalse);
+        expect(find.text('5 languages'), findsOneWidget);
+        expect(find.text('Generate 5 Audio Tracks'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Respects free discount waiver and calculates transparent batch pricing without charm pricing',
+      (tester) async {
+        final controller = Get.put(AudioTracksController());
+        controller.rxState.value = ViewState.idle;
+        controller.selectedVideo.value = buildSampleVideo();
+
+        final dialog = AudioTrackDubbingOptionsDialog(
+          controller: controller,
+          initialLangCode: 'te',
+          isDarkMode: true,
+        );
+
+        await tester.pumpWidget(
+          GetMaterialApp(
+            theme: buildAppTheme(),
+            home: Scaffold(body: dialog),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Free / Super-Admin waiver channel
+        dialog.currentChannel.value = buildChannel(dubbingDiscountType: 'free');
+        dialog.spendableBalance.value = const SpendableBalance(
+          withdrawableRevenue: 0,
+          lockedRevenue: 0,
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Generate Audio Track'), findsOneWidget);
+        expect(find.textContaining('Pay'), findsNothing);
+
+        // Standard paid channel with 2 languages & $0 wallet shows clear Pay CTA
+        dialog.currentChannel.value = buildChannel();
+        dialog.state.toggleLanguage('hi');
+        await tester.pumpAndSettle();
+
+        expect(find.textContaining(r'Estimated total: $'), findsOneWidget);
+        expect(find.textContaining('& Generate 2 Tracks'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Direct Audio Track tab renders Studio Guide, download CTA, and multi-language upload rows',
+      (tester) async {
+        tester.view.physicalSize = const Size(420, 880);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final controller = Get.put(AudioTracksController());
+        controller.rxState.value = ViewState.idle;
+        controller.selectedVideo.value = buildSampleVideo();
+
+        final page = AudioTrackDubbingOptionsPage(
+          controller: controller,
+          initialLangCode: 'te',
+          isDarkMode: true,
+        );
+
+        await tester.pumpWidget(
+          GetMaterialApp(
+            theme: buildAppTheme(),
+            home: page,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Switch to Direct Audio Track tab
+        await tester.tap(find.text('Direct Audio Track'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('Where to Get Direct Audio Tracks (Studio Guide)'),
+          findsOneWidget,
+        );
+        expect(find.text('Download Original Audio'), findsOneWidget);
+        expect(find.text('Upload Finished Direct Audio Track'), findsOneWidget);
+        expect(find.text('Upload & Attach Track'), findsOneWidget);
+
+        // Selecting a second language shows per-language upload slots
+        page.state.toggleLanguage('hi');
+        await tester.pumpAndSettle();
+
+        expect(find.text('Attach Audio Files by Language'), findsOneWidget);
+        expect(find.text('Telugu (తెలుగు)'), findsWidgets);
+        expect(find.text('Hindi (हिन्दी)'), findsWidgets);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'AudioTracksListSection tapping Add opens AudioTrackDubbingOptionsPage for target language',
+      (tester) async {
+        tester.view.physicalSize = const Size(900, 760);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final controller = Get.put(AudioTracksController());
+        final sampleVideo = buildSampleVideo();
+        controller.rxState.value = ViewState.idle;
+        controller.videos.value = [sampleVideo];
+        controller.selectedVideo.value = sampleVideo;
+        controller.currentTracks.value = [
+          AudioTrackItem(
+            id: 'track_kn',
+            languageCode: 'kn',
+            languageName: 'Kannada (ಕನ್ನಡ)',
+            audioUrl: '',
+            status: 'Not added',
+          ),
+        ];
+
+        await tester.pumpWidget(
+          GetMaterialApp(
+            theme: buildAppTheme(),
+            home: Scaffold(
+              body: SizedBox(
+                height: 600,
+                child: AudioTracksListSection(
+                  video: sampleVideo,
+                  controller: controller,
+                  textColor: Colors.white,
+                  textSecondaryColor: Colors.white70,
+                  surfaceColor: Colors.black,
+                  borderColor: Colors.white12,
+                  isDarkMode: true,
+                  onAddDubTrack: () {},
+                  onAddCommentary: () {},
+                  onPickAndUploadSingleDub: (langCode) async {
+                    AudioTracksDialogs.showAudioTrackDubbingOptionsModal(
+                      context: Get.context!,
+                      controller: controller,
+                      langCode: langCode,
+                      isDarkMode: true,
+                    );
+                  },
+                ),
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      // Header & Language
-      expect(find.text('Audio Track & Dubbing Options'), findsOneWidget);
-      expect(find.text('Target Language:'), findsOneWidget);
+        final addFinder = find.text('Add');
+        expect(addFinder, findsOneWidget);
+        await tester.tap(addFinder);
+        await tester.pumpAndSettle();
 
-      // Tab switcher
-      expect(find.text('AI Voice Dubbing'), findsOneWidget);
-      expect(find.text('Direct Audio Track'), findsOneWidget);
-
-      // AI Dubbing options
-      expect(find.text('1. Vocal Identity & Synthesis Style'), findsOneWidget);
-      expect(find.text('Standard Neural Voice'), findsOneWidget);
-      expect(find.text('Studio Voice Cloning'), findsOneWidget);
-
-      // Diarization & Audio Ducking
-      expect(find.text('Speaker Diarization (Multi-Person Videos)'), findsOneWidget);
-      expect(find.textContaining('Smart Audio Ducking'), findsOneWidget);
-
-      // Live Pricing Card & Button
-      expect(find.text('AI Dubbing Flat Rate'), findsOneWidget);
-      expect(find.text('Start AI Voice Dubbing'), findsOneWidget);
-    });
-
-    testWidgets('AudioTrackDubbingOptionsDialog switches pricing reactively between Standard Dubbing and Studio Voice Cloning', (tester) async {
-      tester.view.physicalSize = const Size(1200, 900);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      final controller = Get.put(AudioTracksController());
-      final sampleVideo = createSampleVideo(duration: '00:45'); // duration 45s -> Shorts & Clips tier ($0.10 standard / $0.20 voice clone)
-      controller.selectedVideo.value = sampleVideo;
-
-      await tester.pumpWidget(
-        GetMaterialApp(
-          home: Scaffold(
-            body: AudioTrackDubbingOptionsDialog(
-              controller: controller,
-              initialLangCode: 'zh',
-              isDarkMode: true,
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // Standard Neural Voice is selected by default
-      expect(find.text('AI Dubbing Flat Rate'), findsOneWidget);
-      expect(find.text(r'$0.10'), findsOneWidget);
-
-      // Tap Studio Voice Cloning
-      await tester.ensureVisible(find.text('Studio Voice Cloning'));
-      await tester.tap(find.text('Studio Voice Cloning'));
-      await tester.pumpAndSettle();
-
-      // Flat rate card updates to Studio Voice Cloning rate ($0.30 for shorts in 5-tier pricing)
-      expect(find.text('Studio Voice Cloning Flat Rate'), findsOneWidget);
-      expect(find.text(r'$0.30'), findsOneWidget);
-
-      // Tap back to Standard Neural Voice
-      await tester.ensureVisible(find.text('Standard Neural Voice'));
-      await tester.tap(find.text('Standard Neural Voice'));
-      await tester.pumpAndSettle();
-
-      // Resets back to Standard Dubbing Flat Rate ($0.10)
-      expect(find.text('AI Dubbing Flat Rate'), findsOneWidget);
-      expect(find.text(r'$0.10'), findsOneWidget);
-    });
-
-    testWidgets('AudioTrackDubbingOptionsDialog respects Super Admin Free Dubbing waiver without balance errors', (tester) async {
-      tester.view.physicalSize = const Size(1200, 900);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      final controller = Get.put(AudioTracksController());
-      final sampleVideo = createSampleVideo(duration: '00:45');
-      controller.selectedVideo.value = sampleVideo;
-
-      final dialog = AudioTrackDubbingOptionsDialog(
-        controller: controller,
-        initialLangCode: 'te',
-        isDarkMode: true,
-      );
-
-      // Simulate Super Admin Free Dubbing benefit on the channel
-      final freeChannel = Channel.fromMap({
-        'name': 'TruthWorld Channel',
-        'handle': '@truthworld',
-        'dubbingDiscountType': 'free',
-        'dubbingDiscountPercent': 100.0,
-      }, 'channel_1');
-      dialog.currentChannel.value = freeChannel;
-
-      await tester.pumpWidget(
-        GetMaterialApp(
-          home: Scaffold(
-            body: dialog,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // Badges display FREE
-      expect(find.text('Google Chirp 3: HD • FREE'), findsOneWidget);
-      expect(find.text('Vocal Identity • FREE'), findsOneWidget);
-
-      // Pricing card displays 100% FREE (Super Admin)
-      expect(find.text('100% FREE (Super Admin)'), findsOneWidget);
-      expect(find.text('FREE'), findsOneWidget);
-
-      // Verify no overflow banner exists
-      expect(find.textContaining('OVERFLOWED'), findsNothing);
-
-      // Tap 'Start AI Voice Dubbing' - must NOT show Insufficient channel wallet balance
-      await tester.tap(find.text('Start AI Voice Dubbing'), warnIfMissed: false);
-      await tester.pump();
-
-      expect(find.textContaining('Insufficient channel wallet balance'), findsNothing);
-    });
-
-    testWidgets('AudioTrackDubbingOptionsDialog switches to Direct Audio Track tab and shows Studio Guide', (tester) async {
-      tester.view.physicalSize = const Size(1200, 900);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      final controller = Get.put(AudioTracksController());
-      final sampleVideo = createSampleVideo();
-      controller.selectedVideo.value = sampleVideo;
-
-      await tester.pumpWidget(
-        GetMaterialApp(
-          home: Scaffold(
-            body: AudioTrackDubbingOptionsDialog(
-              controller: controller,
-              initialLangCode: 'zh',
-              isDarkMode: true,
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // Tap Direct Audio Track tab
-      await tester.tap(find.text('Direct Audio Track'));
-      await tester.pumpAndSettle();
-
-      // Studio Guide items
-      expect(find.text('Where to Get Direct Audio Tracks (Studio Guide)'), findsOneWidget);
-      expect(find.text('Download Original Audio'), findsOneWidget);
-      expect(find.text('Download Reference Audio'), findsOneWidget);
-      expect(find.text('Translate & Record in External Studio / DAW'), findsOneWidget);
-      expect(find.text('Audio Specifications & Alignment Checklist'), findsOneWidget);
-
-      // Direct Track Upload section
-      expect(find.text('Upload Finished Direct Audio Track'), findsOneWidget);
-      expect(find.text('Click to select audio file (.mp3, .wav, .m4a, .aac)'), findsOneWidget);
-      expect(find.text('Upload & Attach Track'), findsOneWidget);
-    });
-
-    testWidgets('AudioTracksListSection displays Studio Direct Audio Guide and Add Dubbing Options', (tester) async {
-      tester.view.physicalSize = const Size(1200, 900);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      final controller = Get.put(AudioTracksController());
-      final sampleVideo = createSampleVideo();
-      controller.rxState.value = ViewState.idle;
-      controller.selectedVideo.value = sampleVideo;
-
-      // Add a track in Chinese with 'Not added' status matching user's screenshot
-      controller.currentTracks.value = [
-        AudioTrackItem(
-          id: 'v_en',
-          languageCode: 'en',
-          languageName: 'English (Original)',
-          audioUrl: 'https://example.com/en.mp3',
-          isBaseTrack: true,
-          status: 'Published',
-          role: 'Original video audio',
-        ),
-        AudioTrackItem(
-          id: 'v_zh',
-          languageCode: 'zh',
-          languageName: 'Chinese (中文 / Mandarin)',
-          audioUrl: '',
-          isBaseTrack: false,
-          status: 'Not added',
-          role: 'Dubbing',
-        ),
-      ];
-
-      await tester.pumpWidget(
-        GetMaterialApp(
-          home: Scaffold(
-            body: AudioTracksListSection(
-              video: sampleVideo,
-              controller: controller,
-              textColor: Colors.white,
-              textSecondaryColor: AppColors.textSecondary,
-              surfaceColor: const Color(0xFF161618),
-              borderColor: const Color(0xFF27272A),
-              isDarkMode: true,
-              onAddDubTrack: () {},
-              onAddCommentary: () {},
-              onPickAndUploadSingleDub: (lang) async {},
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // Studio Guide banner on Audio Track page
-      expect(find.text('Where to Get Direct Audio Tracks (Studio Guide)'), findsOneWidget);
-      expect(find.text('Download Reference Audio'), findsOneWidget);
-
-      // Chinese track with 'Not added' and 'Add' button
-      expect(find.text('Chinese (中文 / Mandarin)'), findsOneWidget);
-      expect(find.text('Not added'), findsOneWidget);
-      expect(find.text('Add'), findsOneWidget);
-
-      // Tapping 'Add' opens AudioTrackDubbingOptionsDialog
-      await tester.tap(find.text('Add'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Audio Track & Dubbing Options'), findsOneWidget);
-      expect(find.text('Start AI Voice Dubbing'), findsOneWidget);
-    });
-
-    testWidgets('Audio track displays Generating... badge when AI dubbing is in progress', (tester) async {
-      tester.view.physicalSize = const Size(1200, 900);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      final controller = Get.put(AudioTracksController());
-      final sampleVideo = createSampleVideo();
-      controller.rxState.value = ViewState.idle;
-      controller.selectedVideo.value = sampleVideo;
-
-      // Mark Chinese as currently generating AI dub
-      controller.generatingDubLanguages.add('zh');
-      controller.currentTracks.value = [
-        AudioTrackItem(
-          id: 'v_zh',
-          languageCode: 'zh',
-          languageName: 'Chinese (中文 / Mandarin)',
-          audioUrl: '',
-          isBaseTrack: false,
-          status: 'Generating...',
-          role: 'Dubbing',
-        ),
-      ];
-
-      await tester.pumpWidget(
-        GetMaterialApp(
-          home: Scaffold(
-            body: AudioTracksListSection(
-              video: sampleVideo,
-              controller: controller,
-              textColor: Colors.white,
-              textSecondaryColor: AppColors.textSecondary,
-              surfaceColor: const Color(0xFF161618),
-              borderColor: const Color(0xFF27272A),
-              isDarkMode: true,
-              onAddDubTrack: () {},
-              onAddCommentary: () {},
-              onPickAndUploadSingleDub: (lang) async {},
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 200));
-
-      expect(find.text('Chinese (中文 / Mandarin)'), findsOneWidget);
-      expect(find.text('Generating...'), findsOneWidget);
-    });
-
-    testWidgets('AudioTrackDubbingOptionsDialog shows ONLY Cloud Chirp 3: HD supported languages when no voice cloning', (tester) async {
-      tester.view.physicalSize = const Size(1200, 900);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      final controller = Get.put(AudioTracksController());
-      final sampleVideo = createSampleVideo();
-      controller.selectedVideo.value = sampleVideo;
-
-      await tester.pumpWidget(
-        GetMaterialApp(
-          home: Scaffold(
-            body: AudioTrackDubbingOptionsDialog(
-              controller: controller,
-              initialLangCode: 'te',
-              isDarkMode: true,
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // In standard mode (no voice cloning), Chirp 3: HD badge is shown
-      expect(find.text('Chirp 3: HD'), findsOneWidget);
-
-      // Verify dropdown items when no voice cloning
-      final dropdown = tester.widget<DropdownButton<String>>(find.byType(DropdownButton<String>));
-      final displayedCodes = dropdown.items!.map((item) => item.value!).toSet();
-
-      // Must contain Chirp 3: HD languages (Telugu, Hindi, Tamil, Kannada, Marathi, English, Spanish, etc.)
-      expect(displayedCodes.contains('te'), isTrue);
-      expect(displayedCodes.contains('hi'), isTrue);
-      expect(displayedCodes.contains('ta'), isTrue);
-      expect(displayedCodes.contains('kn'), isTrue);
-      expect(displayedCodes.contains('mr'), isTrue);
-      expect(displayedCodes.contains('en'), isTrue);
-
-      // Must NOT contain languages unsupported by Chirp 3: HD (e.g. Urdu, Nepali, Assamese, Sindhi)
-      expect(displayedCodes.contains('ur'), isFalse);
-      expect(displayedCodes.contains('ne'), isFalse);
-      expect(displayedCodes.contains('as'), isFalse);
-      expect(displayedCodes.contains('sd'), isFalse);
-
-      // Switch to Studio Voice Cloning
-      await tester.ensureVisible(find.text('Studio Voice Cloning'));
-      await tester.tap(find.text('Studio Voice Cloning'));
-      await tester.pumpAndSettle();
-
-      // Dropdown expands to include full supported languages (including Urdu, Nepali, etc.)
-      final clonedDropdown = tester.widget<DropdownButton<String>>(find.byType(DropdownButton<String>));
-      final clonedCodes = clonedDropdown.items!.map((item) => item.value!).toSet();
-      expect(clonedCodes.contains('ur'), isTrue);
-      expect(clonedCodes.contains('ne'), isTrue);
-    });
+        expect(find.text('Audio Track & Dubbing'), findsOneWidget);
+        expect(find.text('Generate Audio Track'), findsOneWidget);
+        expect(find.text('Kannada (ಕನ್ನಡ)'), findsOneWidget);
+      },
+    );
   });
 }

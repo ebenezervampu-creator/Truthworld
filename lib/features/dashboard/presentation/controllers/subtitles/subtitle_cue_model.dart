@@ -2,7 +2,8 @@
 enum SubtitleTrackStatus {
   published,
   draft,
-  notAdded;
+  notAdded,
+  generating;
 
   String get label {
     switch (this) {
@@ -12,6 +13,8 @@ enum SubtitleTrackStatus {
         return 'Draft';
       case SubtitleTrackStatus.notAdded:
         return 'Not added';
+      case SubtitleTrackStatus.generating:
+        return 'Generating...';
     }
   }
 }

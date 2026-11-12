@@ -21,10 +21,13 @@ import {
   TimedSegment,
   SpeakerInfo,
   ExecutionPlan,
+  isCredibilityEnabled,
+  isLocalizationEnabled,
 } from "../types";
 import { DistributionLayer } from "./04-distribution";
 import { EdgeLayer } from "./01-edge";
 import { aggregationLayer } from "./09-aggregation";
+import { refundDubbingFeeOnFailure } from "../services/refundService";
 import { logger } from "../utils/logger";
 import { costEngine } from "../services/cost-engine";
 import { reputationService } from "../services/reputationService"; // v7.3
@@ -166,6 +169,10 @@ export class TranscriptionLayer {
     });
 
     let transcriptionFinished = false;
+    let requestedDubbingOrSubtitles = isLocalizationEnabled(executionPlan);
+    let isCredibilityRequestedEarly = isCredibilityEnabled(executionPlan);
+    let dubbingSttFailed = false;
+    let dubbingSttFailureError: string | null = null;
 
     try {
       // 0. Google Cloud Content Moderation Pre-check (Cost Guard & Language Detection)
@@ -217,23 +224,48 @@ export class TranscriptionLayer {
         });
       }
 
-      let enhanced: EnhancedTranscriptionResult;
+      let enhanced!: EnhancedTranscriptionResult;
       let transcriptId: string | null = null;
       let attempts = 0;
 
-      // ── Language Routing Policy: AssemblyAI Universal-3.5 Pro vs. Google Cloud Chirp ──
-      // AssemblyAI Universal-3.5 Pro natively supports exactly 18 core languages:
-      // en (English), hi (Hindi), es (Spanish), fr (French), de (German), it (Italian),
-      // pt (Portuguese), ar (Arabic), zh (Mandarin Chinese), ja (Japanese), nl (Dutch),
-      // tr (Turkish), vi (Vietnamese), he (Hebrew), sv (Swedish), da (Danish), no (Norwegian), fi (Finnish).
-      // All other languages (Telugu, Tamil, Kannada, Malayalam, Bengali, Marathi, Gujarati, Punjabi, etc.)
-      // are routed directly to Google Cloud Chirp (chirp_2 / chirp) with Google Speech fallback.
+      // ── Language Routing Policy: AssemblyAI Universal-3.5 Pro (18 langs) & Sarvam AI (22+ Indic) = 39+ Languages ──
+      // In the Dubbing and Subtitle Pipeline:
+      // Strictly uses ONLY AssemblyAI Universal-3.5 Pro (18 languages) & Sarvam AI Saaras v4 (22+ Indic languages).
+      // Combined coverage: 18 + 21 unique Indic = 39 distinct languages (40+ dialects).
+      // Google Cloud Speech (@google-cloud/speech Chirp / Chirp 2) fallback is completely REMOVED.
       const ASSEMBLYAI_UNIVERSAL_35_LANGUAGES = new Set([
         "en", "hi", "es", "fr", "de", "it", "pt", "ar", "zh", "ja", "nl", "tr", "vi", "he", "sv", "da", "no", "fi"
       ]);
 
       const targetJobSnap = await db().collection("video_jobs").doc(jobId).get().catch(() => null);
-      const targetJobData = targetJobSnap?.exists ? targetJobSnap.data() : {};
+      const targetJobData: any = targetJobSnap?.exists ? targetJobSnap.data() : {};
+
+      const requestedSubtitles = Boolean(
+        executionPlan.genLangSubs === true ||
+        (Array.isArray(executionPlan.subtitleLanguages) && executionPlan.subtitleLanguages.length > 0) ||
+        (Array.isArray((executionPlan as any).features) && (executionPlan as any).features.includes("subtitles")) ||
+        (Array.isArray(targetJobData?.features) && targetJobData.features.includes("subtitles")) ||
+        (Array.isArray((targetJobData?.executionPlan as any)?.subtitleLanguages) && (targetJobData.executionPlan as any).subtitleLanguages.length > 0) ||
+        (targetJobData?.executionPlan as any)?.genLangSubs === true
+      );
+
+      const requestedDubbing = Boolean(
+        executionPlan.generateDubbing === true ||
+        (Array.isArray(executionPlan.dubbingLanguages) && executionPlan.dubbingLanguages.length > 0) ||
+        (executionPlan.dubbingMode && executionPlan.dubbingMode !== "none") ||
+        (Array.isArray((executionPlan as any).features) && (executionPlan as any).features.includes("dubbing")) ||
+        (Array.isArray(targetJobData?.features) && targetJobData.features.includes("dubbing")) ||
+        (Array.isArray((targetJobData?.executionPlan as any)?.dubbingLanguages) && (targetJobData.executionPlan as any).dubbingLanguages.length > 0) ||
+        (targetJobData?.executionPlan as any)?.generateDubbing === true ||
+        ((targetJobData?.executionPlan as any)?.dubbingMode && (targetJobData.executionPlan as any).dubbingMode !== "none")
+      );
+
+      const isDubbingOrSubtitles = requestedSubtitles || requestedDubbing;
+      const isCredibilityRequested =
+        isCredibilityEnabled(executionPlan) ||
+        isCredibilityEnabled(targetJobData?.executionPlan);
+      isCredibilityRequestedEarly = isCredibilityRequested;
+      requestedDubbingOrSubtitles = isDubbingOrSubtitles;
       
       // Source language resolution:
       // Must reflect the actual audio/video spoken language, NEVER target dubbing languages!
@@ -267,58 +299,133 @@ export class TranscriptionLayer {
         spokenLanguages: allSpokenLangs,
         isMultilingual: isMultilingualVideo,
         isCodeMixed: isCodeMixedVideo,
+        isDubbingOrSubtitles,
         confidence: langProbe.confidence,
         detectionSource: langProbe.detectionSource,
         scriptEvidence: langProbe.scriptEvidence,
       });
 
       // ── Universal Plan Tier Speech-to-Text (STT) Routing Policy ──
-      // Across ALL plan tiers:
+      // In Dubbing and Subtitle Pipeline:
       // 1. Indian languages (Telugu, Hindi, Tamil, Kannada, Malayalam, Marathi, Bengali, Gujarati, Punjabi, Odia, Urdu, Assamese, etc.):
-      //    -> Strictly routed to Sarvam AI (Saaras v4 — best-in-class Indic phonetics & code-mixed accuracy) with Google Cloud Chirp 2 fallback.
-      // 2. AssemblyAI Universal-3.5 Pro 18 core languages (en, es, fr, de, it, pt, ar, da, nl, fi, he, ja, zh, no, sv, tr, vi):
-      //    -> Strictly routed to AssemblyAI Universal-3.5 Pro with Google Cloud Chirp 2 fallback.
-      // 3. All remaining long-tail languages:
-      //    -> Routed to Google Cloud Chirp 2 (v2 Speech-to-Text API) with Google Speech / Gemini fallback.
+      //    -> Strictly routed to Sarvam AI (Saaras v4 — best-in-class Indic phonetics & code-mixed accuracy). NO Google Cloud Speech fallback.
+      // 2. AssemblyAI Universal-3.5 Pro natively supports 18 languages (en, hi, es, fr, de, it, pt, ar, zh, ja, nl, tr, vi, he, sv, da, no, fi):
+      //    -> Strictly routed to AssemblyAI Universal-3.5 Pro. NO Google Cloud Speech fallback.
+      //    -> Combined with Sarvam AI's 22+ Indic languages (with 'hi' shared), covers 39+ languages.
+      // 3. Google Cloud Speech (@google-cloud/speech) is REMOVED from the dubbing/subtitle pipeline.
       const isIndic = sarvamSpeechService.isIndicLanguage(resolvedSourceLang) && resolvedSourceLang !== "en";
-      const hasUniversal35 = resolvedSourceLang && !isIndic
+      const hasUniversal35 = resolvedSourceLang && (!isIndic || !isDubbingOrSubtitles)
         ? ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(resolvedSourceLang)
         : false;
+      let routeToAssemblyMultilingual = false;
+      let hasAssignedResult = false;
       let usedProvider: "assemblyai" | "google-speech" | "sarvam-ai" = isIndic
         ? "sarvam-ai"
-        : (hasUniversal35 ? "assemblyai" : "google-speech");
+        : (hasUniversal35 ? "assemblyai" : (isDubbingOrSubtitles ? "assemblyai" : "google-speech"));
 
       logger.info("[Transcription] Unified STT routing evaluation across all plan tiers", {
         jobId,
         resolvedSourceLang,
         isIndic,
         hasUniversal35,
+        isDubbingOrSubtitles,
         selectedProvider: usedProvider,
       });
 
       if (isMultilingualVideo && allSpokenLangs.length > 1) {
-        logger.info(`[Transcription] Multilingual video detected with ${allSpokenLangs.length} languages: [${allSpokenLangs.join(", ")}] — routing to Multilingual Neural Engine (Google Cloud Chirp 2)`, { jobId });
-        usedProvider = "google-speech";
-        enhanced = await this.transcribeWithChirpAndGoogleSpeech(
-          jobId,
-          userId,
-          accessibleUrl,
-          executionPlan,
-          resolvedSourceLang,
-          allSpokenLangs
-        );
-      } else if (isIndic) {
-        logger.info(`[Transcription] Routing Indian language '${resolvedSourceLang}' across all plan tiers to Sarvam AI Saaras v4`, { jobId });
-        const sarvamRes = await sarvamSpeechService.transcribe(jobId, accessibleUrl, resolvedSourceLang, executionPlan.enableDiarization);
+        if (isDubbingOrSubtitles) {
+          const hasIndicInMultilingual = allSpokenLangs.some((l) => sarvamSpeechService.isIndicLanguage(l) && l !== "en");
+          if (hasIndicInMultilingual) {
+            logger.info(`[Transcription] Multilingual Indic video detected: [${allSpokenLangs.join(", ")}] — routing strictly to Sarvam AI Saaras v4 for dubbing/subtitles`, { jobId });
+            const primaryIndic = allSpokenLangs.find((l) => sarvamSpeechService.isIndicLanguage(l) && l !== "en") || "te";
+            let sarvamRes: EnhancedTranscriptionResult | null = null;
+            let sAttempt = 0;
+            while (sAttempt < 3 && !sarvamRes) {
+              sAttempt++;
+              try {
+                sarvamRes = await sarvamSpeechService.transcribe(jobId, accessibleUrl, primaryIndic, executionPlan.enableDiarization);
+                if (sarvamRes) break;
+              } catch (sErr) {
+                logger.warn(`[Transcription] Sarvam attempt ${sAttempt}/3 failed:`, { error: String(sErr) });
+                if (sAttempt < 3) await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, sAttempt)));
+              }
+            }
+            if (sarvamRes) {
+              usedProvider = "sarvam-ai";
+              enhanced = sarvamRes;
+              hasAssignedResult = true;
+            } else {
+              const sttErr = `[Transcription] Sarvam AI Saaras v4 transcription failed for multilingual Indic video after 3 attempts. Google Cloud Speech fallback is removed for dubbing/subtitles.`;
+              if (isCredibilityRequested) {
+                dubbingSttFailed = true;
+                dubbingSttFailureError = sttErr;
+                logger.warn("[Transcription] Multilingual Sarvam AI failed — isolating dubbing/subtitles failure and falling back to Google Cloud Chirp 2 for independent Credibility analysis", { jobId });
+                usedProvider = "google-speech";
+                enhanced = await this.transcribeWithChirpAndGoogleSpeech(
+                  jobId,
+                  userId,
+                  accessibleUrl,
+                  executionPlan,
+                  primaryIndic,
+                  allSpokenLangs
+                );
+                hasAssignedResult = true;
+              } else {
+                throw new Error(sttErr);
+              }
+            }
+          } else {
+            logger.info(`[Transcription] Multilingual video detected: [${allSpokenLangs.join(", ")}] — routing strictly to AssemblyAI Universal-3.5 Pro for dubbing/subtitles`, { jobId });
+            resolvedSourceLang = ""; // Trigger language_detection in AssemblyAI Universal-3.5 Pro
+            usedProvider = "assemblyai";
+            routeToAssemblyMultilingual = true;
+          }
+        } else {
+          logger.info(`[Transcription] Multilingual video detected with ${allSpokenLangs.length} languages: [${allSpokenLangs.join(", ")}] — routing to Multilingual Neural Engine (Google Cloud Chirp 2)`, { jobId });
+          usedProvider = "google-speech";
+          enhanced = await this.transcribeWithChirpAndGoogleSpeech(
+            jobId,
+            userId,
+            accessibleUrl,
+            executionPlan,
+            resolvedSourceLang,
+            allSpokenLangs
+          );
+          hasAssignedResult = true;
+        }
+      }
+
+      if (!hasAssignedResult && isIndic && !routeToAssemblyMultilingual) {
+        logger.info(`[Transcription] Routing Indian language '${resolvedSourceLang}' strictly to Sarvam AI Saaras v4`, { jobId });
+        let sarvamRes: EnhancedTranscriptionResult | null = null;
+        let sAttempt = 0;
+        while (sAttempt < 3 && !sarvamRes) {
+          sAttempt++;
+          try {
+            sarvamRes = await sarvamSpeechService.transcribe(jobId, accessibleUrl, resolvedSourceLang, executionPlan.enableDiarization);
+            if (sarvamRes) break;
+          } catch (sErr) {
+            logger.warn(`[Transcription] Sarvam attempt ${sAttempt}/3 failed:`, { error: String(sErr) });
+            if (sAttempt < 3) await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, sAttempt)));
+          }
+        }
         if (sarvamRes) {
           usedProvider = "sarvam-ai";
           enhanced = sarvamRes;
+          hasAssignedResult = true;
+        } else if (isDubbingOrSubtitles && !isCredibilityRequested) {
+          throw new Error(`[Transcription] Sarvam AI Saaras v4 speech-to-text failed for Indic language '${resolvedSourceLang}' after 3 attempts. Dubbing and subtitle pipeline strictly uses Sarvam AI (Google Cloud Speech fallback removed).`);
         } else {
-          logger.warn(`[Transcription] Sarvam AI unconfigured or failed for '${resolvedSourceLang}' — falling back to Google Cloud Chirp 2`, { jobId });
+          if (isDubbingOrSubtitles) {
+            dubbingSttFailed = true;
+            dubbingSttFailureError = `Sarvam AI Saaras v4 speech-to-text failed for Indic language '${resolvedSourceLang}' after 3 attempts. Dubbing and subtitle pipeline strictly uses Sarvam AI.`;
+          }
+          logger.warn(`[Transcription] Sarvam AI unconfigured or failed for '${resolvedSourceLang}' — falling back to Google Cloud Chirp 2 for Credibility / non-subtitled path`, { jobId });
           usedProvider = "google-speech";
           enhanced = await this.transcribeWithChirpAndGoogleSpeech(jobId, userId, accessibleUrl, executionPlan, resolvedSourceLang, allSpokenLangs);
+          hasAssignedResult = true;
         }
-      } else if (hasUniversal35 && apiKey) {
+      } else if (!hasAssignedResult && (hasUniversal35 || routeToAssemblyMultilingual) && apiKey) {
         try {
           const headers = { authorization: apiKey, "content-type": "application/json" };
 
@@ -480,16 +587,30 @@ export class TranscriptionLayer {
                 : (/[\u0C00-\u0C7F]/u.test(fullAssemblyText) ? "te" : "te");
               
               if (sarvamSpeechService.isIndicLanguage(targetLangHint)) {
-                const sarvamRecover = await sarvamSpeechService.transcribe(jobId, accessibleUrl, targetLangHint, executionPlan.enableDiarization);
+                let sarvamRecover: EnhancedTranscriptionResult | null = null;
+                let rAttempt = 0;
+                while (rAttempt < 3 && !sarvamRecover) {
+                  rAttempt++;
+                  try {
+                    sarvamRecover = await sarvamSpeechService.transcribe(jobId, accessibleUrl, targetLangHint, executionPlan.enableDiarization);
+                    if (sarvamRecover) break;
+                  } catch (rErr) {
+                    if (rAttempt < 3) await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, rAttempt)));
+                  }
+                }
                 if (sarvamRecover) {
                   usedProvider = "sarvam-ai";
                   transcriptId = null;
                   enhanced = sarvamRecover;
+                } else if (isDubbingOrSubtitles) {
+                  logger.warn("[Transcription] Indic script recovery failed with Sarvam AI. Retaining AssemblyAI transcript without falling back to Google Cloud Speech.");
                 } else {
                   usedProvider = "google-speech";
                   transcriptId = null;
                   enhanced = await this.transcribeWithChirpAndGoogleSpeech(jobId, userId, accessibleUrl, executionPlan, targetLangHint, allSpokenLangs);
                 }
+              } else if (isDubbingOrSubtitles) {
+                logger.warn("[Transcription] Non-Indic script hallucination detected in dubbing/subtitles. Fallback to Google Cloud Speech is disabled.");
               } else {
                 usedProvider = "google-speech";
                 transcriptId = null;
@@ -497,18 +618,38 @@ export class TranscriptionLayer {
               }
             }
         } catch (assemblyError) {
-          logger.warn("[Transcription] AssemblyAI failed or language unsupported on Universal Pro — routing to Chirp and Google Cloud Speech-to-Text", {
-            jobId,
-            error: String(assemblyError),
-          });
+          if (isDubbingOrSubtitles && !isCredibilityRequested) {
+            logger.error("[Transcription] AssemblyAI Universal-3.5 Pro failed for dubbing/subtitles — strictly NO fallback to Google Cloud Speech", {
+              jobId,
+              error: String(assemblyError),
+            });
+            throw new Error(`[Transcription] AssemblyAI Universal-3.5 Pro speech-to-text failed: ${assemblyError instanceof Error ? assemblyError.message : String(assemblyError)}. Google Cloud Speech fallback is strictly removed for dubbing/subtitles.`);
+          } else {
+            if (isDubbingOrSubtitles) {
+              dubbingSttFailed = true;
+              dubbingSttFailureError = `AssemblyAI Universal-3.5 Pro speech-to-text failed: ${assemblyError instanceof Error ? assemblyError.message : String(assemblyError)}`;
+            }
+            logger.warn("[Transcription] AssemblyAI failed or language unsupported on Universal Pro — routing to Chirp and Google Cloud Speech-to-Text for Credibility / non-subtitled path", {
+              jobId,
+              error: String(assemblyError),
+            });
+            usedProvider = "google-speech";
+            transcriptId = null;
+            enhanced = await this.transcribeWithChirpAndGoogleSpeech(jobId, userId, accessibleUrl, executionPlan, resolvedSourceLang, allSpokenLangs);
+          }
+        }
+      } else if (!hasAssignedResult) {
+        if (isDubbingOrSubtitles && !isCredibilityRequested) {
+          throw new Error(`[Transcription] Language '${resolvedSourceLang}' is unsupported or AssemblyAI API key missing. Dubbing and subtitle pipeline strictly requires AssemblyAI Universal-3.5 Pro (18 languages) or Sarvam AI Saaras v4 (22+ Indic languages) (Google Cloud Speech fallback removed).`);
+        } else {
+          if (isDubbingOrSubtitles) {
+            dubbingSttFailed = true;
+            dubbingSttFailureError = `Language '${resolvedSourceLang}' is unsupported or AssemblyAI API key missing for strict dubbing/subtitles STT.`;
+          }
+          logger.info("[Transcription] Routing to Google Cloud Chirp first, then Google Cloud Speech-to-Text for Credibility / non-subtitled path", { jobId });
           usedProvider = "google-speech";
-          transcriptId = null;
           enhanced = await this.transcribeWithChirpAndGoogleSpeech(jobId, userId, accessibleUrl, executionPlan, resolvedSourceLang, allSpokenLangs);
         }
-      } else {
-        logger.info("[Transcription] Routing to Google Cloud Chirp first, then Google Cloud Speech-to-Text", { jobId });
-        usedProvider = "google-speech";
-        enhanced = await this.transcribeWithChirpAndGoogleSpeech(jobId, userId, accessibleUrl, executionPlan, resolvedSourceLang, allSpokenLangs);
       }
 
       // Ensure multilingual & code-mixed intelligence is attached to enhanced result
@@ -532,6 +673,7 @@ export class TranscriptionLayer {
         (new Set(enhanced.segments?.map(s => s.speaker).filter(Boolean)).size > 1);
 
       let nativeSubtitlesStored = false;
+      const subtitleProvider = enhanced.provider === "sarvam-ai" ? "sarvam-ai" : (enhanced.provider || "assemblyai-universal-3-5-pro");
       if (transcriptId && apiKey && usedProvider === "assemblyai" && !isMultiSpeakerDiarized) {
         nativeSubtitlesStored = await this.fetchAndStoreNativeSubtitles(jobId, transcriptId, enhanced.detectedLanguage, apiKey);
         if (!nativeSubtitlesStored && enhanced.segments && enhanced.segments.length > 0) {
@@ -541,7 +683,8 @@ export class TranscriptionLayer {
             enhanced.detectedLanguage,
             enhanced.segments,
             isMultiSpeakerDiarized,
-            enhanced.words
+            enhanced.words,
+            subtitleProvider
           );
         }
       } else {
@@ -550,7 +693,8 @@ export class TranscriptionLayer {
           enhanced.detectedLanguage,
           enhanced.segments,
           isMultiSpeakerDiarized,
-          enhanced.words
+          enhanced.words,
+          subtitleProvider
         );
       }
 
@@ -769,7 +913,7 @@ export class TranscriptionLayer {
       }
       if (!resolvedVideoLang) resolvedVideoLang = "en";
       // Fact-checking is available across all supported languages via Google Cloud
-      const isFactCheckingEnabled = !!(executionPlan.enablePath1 || executionPlan.enableTruthEngine);
+      const isFactCheckingEnabled = isCredibilityEnabled(executionPlan);
       const directFactCheckUrl = isFactCheckingEnabled
         ? `https://storage.googleapis.com/${bucketName}/factchecks/${jobId}/report.json`
         : "";
@@ -1022,7 +1166,6 @@ ${safeEnhancedText}
         gatewayStatus: "APPROVED",
         isFactChecked: existingVideoData.isFactChecked || false,
         isVerified: existingVideoData.isVerified || false,
-        trustScore: existingVideoData.trustScore ?? null,
         trustLabel: isFactCheckingEnabled ? (existingVideoData.trustLabel || "Pending Verification") : null,
         status: "published",
         visibility: existingVideoData.visibility || (executionPlan as any).visibility || "public",
@@ -1185,15 +1328,9 @@ ${safeEnhancedText}
         source: "transcription-polling"
       }));
 
-      // ── AFTER STEP 4: TRIGGER ONLY FEATURES REQUESTED BY THE CHANNEL ──
+      // ── AFTER STEP 4: TRIGGER ONLY INDEPENDENT SYSTEMS REQUESTED BY THE CHANNEL ──
 
-      // 1. Credibility Feature (Fact Checking & 3D Trust Score) - Available across all supported languages
-      const isCredibilityRequested = !!(
-        executionPlan.enablePath1 ||
-        executionPlan.enableTruthEngine ||
-        (executionPlan as any).enableCredibility ||
-        (executionPlan as any).enableFactChecking
-      );
+      // 1. Independent Credibility System (Fact Checking & 3D Trust Score) - Available across all supported languages
       const shouldRunCredibility = isCredibilityRequested;
 
       if (shouldRunCredibility) {
@@ -1211,17 +1348,41 @@ ${safeEnhancedText}
         logger.info(`[Transcription Gateway] Credibility feature NOT requested by channel for job ${jobId} — skipping fact-checking`);
       }
 
-      // 2. Multi-Resolution Video Transcoding (1040p, 720p, 480p, 360p) & Reach Engine — ALWAYS REQUIRED for Approved Videos
-      logger.info(`[Transcription Gateway] Video approved & published in Firestore — ALWAYS launching multi-resolution transcoding (1040p, 720p, 480p, 360p) for job ${jobId}`);
-      fanoutTasks.push(this.distribution.publish("dubbing-processing", {
-        eventId: `dub_${jobId}`,
-        eventType: "dubbing-processing",
-        jobId, userId,
-        timestamp: Date.now(),
-        data: { videoUrl, executionPlan },
-        retryCount: 0,
-        source: "transcription-polling"
-      }));
+      // 2. Independent Dubbing / Subtitles System — trigger ONLY when localization was requested and strict STT succeeded
+      const shouldRunLocalization = isLocalizationEnabled(executionPlan) || isDubbingOrSubtitles;
+      if (dubbingSttFailed && shouldRunLocalization) {
+        const failReason = dubbingSttFailureError || "Strict speech-to-text failed for dubbing/subtitles";
+        logger.error(`[Transcription Gateway] Isolating Dubbing/Subtitles STT failure for job ${jobId} (Credibility remains unaffected)`, { failReason });
+        if (requestedDubbing) {
+          fanoutTasks.push(EdgeLayer.failStage(jobId, "dubbing", failReason));
+        }
+        if (requestedSubtitles) {
+          fanoutTasks.push(EdgeLayer.failStage(jobId, "subtitles", failReason));
+        }
+        fanoutTasks.push(
+          EdgeLayer.upsertDubbingJob(jobId, { status: "failed", error: failReason, completedAt: Date.now() }),
+          refundDubbingFeeOnFailure({
+            jobId,
+            userId,
+            failedLanguages: executionPlan.dubbingLanguages || executionPlan.languages || [],
+            totalLanguages: executionPlan.dubbingLanguages || executionPlan.languages || [],
+            reason: failReason,
+          }).catch((refErr) => logger.error("[Transcription] Dubbing escrow rollback error:", refErr))
+        );
+      } else if (shouldRunLocalization) {
+        logger.info(`[Transcription Gateway] Localization requested for job ${jobId} — launching independent dubbing-processing`);
+        fanoutTasks.push(this.distribution.publish("dubbing-processing", {
+          eventId: `dub_${jobId}`,
+          eventType: "dubbing-processing",
+          jobId, userId,
+          timestamp: Date.now(),
+          data: { videoUrl, executionPlan },
+          retryCount: 0,
+          source: "transcription-polling"
+        }));
+      } else {
+        logger.info(`[Transcription Gateway] Dubbing & Subtitles NOT requested for job ${jobId} — skipping dubbing-processing`);
+      }
 
       await Promise.all(fanoutTasks);
       await this.distribution.markEventCompleted(eventId);
@@ -1241,7 +1402,24 @@ ${safeEnhancedText}
         msg = `AssemblyAI API Error: ${details || error.message}`;
       }
       if (!transcriptionFinished) {
-        await EdgeLayer.failJob(jobId, "transcription", msg);
+        if (requestedDubbingOrSubtitles) {
+          await EdgeLayer.failStage(jobId, "dubbing", msg);
+          await EdgeLayer.failStage(jobId, "subtitles", msg);
+          await EdgeLayer.upsertDubbingJob(jobId, { status: "failed", error: msg });
+          await refundDubbingFeeOnFailure({
+            jobId,
+            userId,
+            failedLanguages: executionPlan.dubbingLanguages || executionPlan.languages || [],
+            totalLanguages: executionPlan.dubbingLanguages || executionPlan.languages || [],
+            reason: msg,
+          }).catch((refErr) => logger.error("[Transcription] Dubbing failure refund error:", refErr));
+        }
+        if (isCredibilityRequestedEarly) {
+          await EdgeLayer.failStage(jobId, "transcription", msg);
+          await EdgeLayer.upsertCredibilityJob(jobId, { status: "failed", error: msg });
+        } else {
+          await EdgeLayer.failJob(jobId, "transcription", msg);
+        }
         const failVideoId = executionPlan.videoId || jobId;
         const failChannelId = (executionPlan as any).channelId || `channel_${userId}`;
         const failTitle = (executionPlan as any).title || "Uploaded Video";
@@ -2850,7 +3028,8 @@ Return STRICT JSON:
     language: string,
     segments: TimedSegment[],
     isDiarized?: boolean,
-    words?: WordTimestamp[]
+    words?: WordTimestamp[],
+    providerName?: string
   ): Promise<boolean> {
     if ((!segments || segments.length === 0) && (!words || words.length === 0)) {
       logger.info("[Transcription] No segments or words available to generate native subtitles", { jobId });
@@ -2989,7 +3168,7 @@ Return STRICT JSON:
             vttPath: `gs://${bucket.name}/${vttPath}`,
             jsonPath: `gs://${bucket.name}/${jsonPath}`,
             format: "native",
-            provider: "google-cloud-speech",
+            provider: providerName || "assemblyai-universal-3-5-pro",
             createdAt: Date.now(),
           }
         }

@@ -24,26 +24,36 @@ class ChannelRevenueRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: typography.body.copyWith(color: Colors.white)),
-          Row(
-            children: [
-              Text(
-                '₹${creatorShare.toStringAsFixed(0)}',
-                style: typography.body.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              if (platformShare > 0) ...[
-                const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: typography.body.copyWith(color: Colors.white),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 2,
+              children: [
                 Text(
-                  '(Platform: ₹${platformShare.toStringAsFixed(0)})',
-                  style: typography.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
+                  '₹${creatorShare.toStringAsFixed(0)}',
+                  style: typography.body.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
+                if (platformShare > 0)
+                  Text(
+                    '(Platform: ₹${platformShare.toStringAsFixed(0)})',
+                    style: typography.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
               ],
-            ],
+            ),
           ),
         ],
       ),
@@ -81,14 +91,16 @@ class ChannelRevenueBreakdownSection extends StatelessWidget {
           Row(
             children: [
               const Icon(
-                Icons.account_balance_wallet,
+                Icons.payments_rounded,
                 color: Colors.white,
                 size: 22,
               ),
               const SizedBox(width: 10),
-              Text(
-                'Revenue Breakdown (Monthly)',
-                style: typography.headline.copyWith(color: Colors.white),
+              Expanded(
+                child: Text(
+                  'Revenue Breakdown (Monthly)',
+                  style: typography.headline.copyWith(color: Colors.white),
+                ),
               ),
             ],
           ),
@@ -102,39 +114,46 @@ class ChannelRevenueBreakdownSection extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Creator Net Take-Home',
-                      style: typography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Creator Net Take-Home',
+                        style: typography.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '₹${breakdown.creatorPayout.toStringAsFixed(2)}',
-                      style: typography.display.copyWith(color: Colors.white),
-                    ),
-                  ],
+                      const SizedBox(height: 4),
+                      Text(
+                        '₹${breakdown.creatorPayout.toStringAsFixed(2)}',
+                        style: typography.display.copyWith(color: Colors.white),
+                      ),
+                    ],
+                  ),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      'Gross Channel Revenue',
-                      style: typography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'Gross Channel Revenue',
+                        textAlign: TextAlign.end,
+                        style: typography.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '₹${breakdown.grossRevenue.toStringAsFixed(2)}',
-                      style: typography.title.copyWith(color: Colors.white),
-                    ),
-                  ],
+                      const SizedBox(height: 4),
+                      Text(
+                        '₹${breakdown.grossRevenue.toStringAsFixed(2)}',
+                        textAlign: TextAlign.end,
+                        style: typography.title.copyWith(color: Colors.white),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),

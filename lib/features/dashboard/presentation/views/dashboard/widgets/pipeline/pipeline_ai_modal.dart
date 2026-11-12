@@ -613,7 +613,7 @@ void showGenerateAIFeaturesQuickModal(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  'Channel Wallet Balance:',
+                                  'Available Channel Revenue:',
                                   style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
                                 ),
                                 Text(

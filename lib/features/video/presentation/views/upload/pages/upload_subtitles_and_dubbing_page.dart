@@ -903,7 +903,7 @@ class UploadSubtitlesAndDubbingPage extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Charges are deducted directly from your Channel Wallet at-cost upon upload submission. If a language is dubbed, subtitles for that language are included complimentary.',
+            'Charges are deducted directly from your Channel Revenue at-cost upon upload submission, or directly paid. If a language is dubbed, subtitles for that language are included complimentary.',
             style: TextStyle(
               color: Color(0xFF71717A),
               fontSize: 11,

@@ -119,9 +119,6 @@ class FactCheckOverlay extends StatelessWidget {
                 final parsed = FactCheckDataParser.parse(
                   vc?.factCheckData,
                   fallbackReport: video?.uiReport,
-                  fallbackTrustScore: video != null && video.trustScore > 0
-                      ? video.trustScore
-                      : null,
                   isVideoFactChecked: video?.isFactChecked == true,
                 );
 
@@ -130,7 +127,6 @@ class FactCheckOverlay extends StatelessWidget {
                 }
 
                 final analysisState = parsed.analysisState;
-                final trustScore = parsed.trustScore;
                 final trustLabel = parsed.trustLabel;
                 final confidenceVal = parsed.confidenceVal;
                 final confidenceTier = parsed.confidenceTier;
@@ -160,7 +156,6 @@ class FactCheckOverlay extends StatelessWidget {
                     // 1. Hero Status & Credibility Card
                     FactCheckHeroCard(
                       analysisState: analysisState,
-                      trustScore: trustScore,
                       trustLabel: trustLabel,
                       confidenceVal: confidenceVal,
                       confidenceTier: confidenceTier,

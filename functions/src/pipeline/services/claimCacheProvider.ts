@@ -1,8 +1,13 @@
 import * as admin from "firebase-admin";
 import { VerifiedClaim, ExtractedClaim } from "../types";
+import { PIPELINE_CONFIG } from "../config";
 import { logger } from "../utils/logger";
 import { getCache, setCache } from "../utils/memory-cache";
 import { hashClaimText } from "../utils/claim-normalization";
+import {
+  enforceClosedWorldCitationFirewall,
+  isClosedWorldCacheEntryValid,
+} from "./urlVerificationService";
 
 const db = () => admin.firestore();
 
@@ -64,7 +69,9 @@ export class FirestoreClaimCacheProvider implements ClaimCacheProvider {
     
     // L1: memory-cache
     const mem = getCache(cacheKey);
-    if (mem) return mem as VerifiedClaim;
+    if (mem && isClosedWorldCacheEntryValid(mem)) {
+      return enforceClosedWorldCitationFirewall(mem as VerifiedClaim);
+    }
 
     // L2: Firestore
     try {
@@ -78,7 +85,17 @@ export class FirestoreClaimCacheProvider implements ClaimCacheProvider {
         return null;
       }
 
-      const claim = data.claim as VerifiedClaim;
+      if (!isClosedWorldCacheEntryValid(data)) {
+        logger.info("[FirestoreCache] Treating legacy/unverified claim_cache entry as cache miss", { claimHash });
+        doc.ref.delete().catch(() => {});
+        return null;
+      }
+
+      const claim = enforceClosedWorldCitationFirewall(data.claim as VerifiedClaim);
+      if ((claim.richSources || []).length === 0) {
+        doc.ref.delete().catch(() => {});
+        return null;
+      }
       setCache(cacheKey, claim, 3600); // 1 hour memory backup
 
       // Asynchronously update hit count and lastHitAt
@@ -95,20 +112,36 @@ export class FirestoreClaimCacheProvider implements ClaimCacheProvider {
   }
 
   async cacheVerifiedClaim(claim: VerifiedClaim, ttlSeconds: number): Promise<void> {
-    const textHash = this.hashClaim(claim.text);
+    const firewalled = enforceClosedWorldCitationFirewall(claim);
+    if (
+      !firewalled.status ||
+      firewalled.status === "verification_timeout" ||
+      firewalled.status === "unverified" ||
+      firewalled.sourceStatus === "missing" ||
+      !isClosedWorldCacheEntryValid(firewalled)
+    ) {
+      logger.info("[FirestoreCache] Write gate blocked unverified or missing-source claim from cache", {
+        text: claim.text?.substring(0, 50),
+        sourceStatus: firewalled.sourceStatus,
+      });
+      return;
+    }
+
+    const textHash = this.hashClaim(firewalled.text);
     const cacheKey = `claim_cache:${textHash}`;
 
     try {
-      setCache(cacheKey, claim, ttlSeconds);
+      setCache(cacheKey, firewalled, ttlSeconds);
 
       await db().collection(FirestoreClaimCacheProvider.COLLECTION).doc(textHash).set({
-        claim,
+        claim: firewalled,
+        evidenceSchemaVersion: PIPELINE_CONFIG.EVIDENCE_SCHEMA_VERSION,
         expiresAt: Date.now() + ttlSeconds * 1000,
         cachedAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: Date.now(),
         hitCount: 0,
       }, { merge: true });
-      logger.info("[FirestoreCache] Cached verified claim", { textHash, text: claim.text.substring(0, 50) });
+      logger.info("[FirestoreCache] Cached verified claim (v2_verified_urls)", { textHash, text: firewalled.text.substring(0, 50) });
     } catch (err) {
       logger.error("[FirestoreCache] Failed to cache claim", { textHash, err: String(err) });
     }

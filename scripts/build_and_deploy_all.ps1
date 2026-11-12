@@ -65,7 +65,7 @@ $apps = @(
     @{
         Name        = "Creator Studio"
         Id          = "studio"
-        Entry       = "lib/main.dart"
+        Entry       = "lib/main_studio.dart"
         Flavor      = "studio"
         PackageId   = "com.truthworld.studio"
         WebTarget   = "studio-app"
@@ -76,7 +76,7 @@ $apps = @(
     @{
         Name        = "Admin & Moderation"
         Id          = "admin"
-        Entry       = "lib/main.dart"
+        Entry       = "lib/main_admin.dart"
         Flavor      = "admin"
         PackageId   = "com.truthworld.admin"
         WebTarget   = "admin-portal"
@@ -87,7 +87,7 @@ $apps = @(
     @{
         Name        = "Advertiser Portal"
         Id          = "advertiser"
-        Entry       = "lib/main.dart"
+        Entry       = "lib/main_advertiser.dart"
         Flavor      = "advertiser"
         PackageId   = "com.truthworld.advertiser"
         WebTarget   = "advertiser-app"

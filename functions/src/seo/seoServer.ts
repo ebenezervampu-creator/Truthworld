@@ -36,6 +36,8 @@ import {
   generatePlaylistsSitemap,
   generateCommunityPostsSitemapShard
 } from "./sitemap/sitemapGenerator";
+import { KeyDiscoveryService } from "../pipeline/services/keyDiscoveryService";
+import { AuditPortalService } from "../pipeline/services/auditPortalService";
 
 let cachedIndexHtml: string | null = null;
 
@@ -416,6 +418,35 @@ export const seoServer = onRequest(
           }
         ]));
         return;
+      }
+      if (path === "/.well-known/truthworld-keys.json") {
+        res.set("Content-Type", "application/json");
+        res.set("Cache-Control", "public, max-age=3600");
+        res.status(200).send(JSON.stringify(KeyDiscoveryService.getWellKnownKeySet(), null, 2));
+        return;
+      }
+      if (path.startsWith("/audit/")) {
+        const packId = path.replace("/audit/", "").trim();
+        const pack = AuditPortalService.getPublishedPack(packId);
+        if (pack) {
+          res.set("Content-Type", "application/json");
+          res.set("Cache-Control", "public, max-age=3600");
+          res.status(200).send(JSON.stringify(pack, null, 2));
+          return;
+        } else {
+          try {
+            const snap = await admin.firestore().collection("public_audit_packs").doc(packId).get();
+            if (snap.exists) {
+              res.set("Content-Type", "application/json");
+              res.set("Cache-Control", "public, max-age=3600");
+              res.status(200).send(JSON.stringify(snap.data(), null, 2));
+              return;
+            }
+          } catch {}
+          res.set("Content-Type", "application/json");
+          res.status(404).send(JSON.stringify({ error: "Audit pack not found", packId }));
+          return;
+        }
       }
       if (path.startsWith("/.well-known/")) {
         res.set("X-Robots-Tag", "noindex, nofollow");

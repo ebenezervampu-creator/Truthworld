@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_wallet_topup_sheet.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_dubbing_controller.dart';
 
 /// Live pricing breakdown card for dubbing selection with ElevenLabs polish.
@@ -101,14 +100,7 @@ class DubbingPricingCard extends StatelessWidget {
                     'Free ($totalSelected languages)',
                     highlightColor: const Color(0xFF34D399),
                   ),
-                  if (controller.isLipSyncEnabled.value) ...[
-                    const SizedBox(height: 6),
-                    _buildMetricRow(
-                      'AI Visual Lip-Sync (LatentSync):',
-                      'Included in ${controller.currentProductionTier.name}',
-                      highlightColor: const Color(0xFF38BDF8),
-                    ),
-                  ],
+
                   if (controller.isCinemaGradeEnabled.value) ...[
                     const SizedBox(height: 6),
                     _buildMetricRow(
@@ -151,36 +143,26 @@ class DubbingPricingCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      'Wallet Balance: \$${wallet.toStringAsFixed(2)}',
+                      'Channel Revenue: \$${wallet.toStringAsFixed(2)}',
                       style: TextStyle(
-                        color: isInsufficient ? const Color(0xFFEF4444) : const Color(0xFFA1A1AA),
+                        color: isInsufficient ? const Color(0xFF60A5FA) : const Color(0xFFA1A1AA),
                         fontSize: 12,
                         fontWeight: isInsufficient ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
                     const SizedBox(height: 2),
                     if (isInsufficient)
-                      InkWell(
-                        onTap: () {
-                          if (controller.channel != null) {
-                            ChannelWalletTopupSheet.show(
-                              context,
-                              channel: controller.channel!,
-                            );
-                          }
-                        },
-                        child: const Text(
-                          '+ Add Funds',
-                          style: TextStyle(
-                            color: Color(0xFF60A5FA),
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
+                      const Text(
+                        'Direct Pay at Upload',
+                        style: TextStyle(
+                          color: Color(0xFF60A5FA),
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
                         ),
                       )
                     else
                       const Text(
-                        '100% At-Cost Platform Rate',
+                        'Deduct from Revenue',
                         style: TextStyle(
                           color: Color(0xFF34D399),
                           fontSize: 11,

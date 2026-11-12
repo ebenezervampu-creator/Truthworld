@@ -135,7 +135,6 @@ describe('End-to-End Pipeline: Video Uploaded to Aggregated Completion', () => {
         claimId: 'claim_1',
         text: 'Eggs are produced by female animals of many species including birds and reptiles',
         verdict: 'TRUE',
-        truthScore: 100,
         confidence: 0.99,
         source: 'Encyclopedia Britannica / Biological Classification Standards',
       },
@@ -143,16 +142,13 @@ describe('End-to-End Pipeline: Video Uploaded to Aggregated Completion', () => {
         claimId: 'claim_2',
         text: 'Unfertilized commercial eggs contain no developing embryo or heartbeat',
         verdict: 'TRUE',
-        truthScore: 100,
         confidence: 0.98,
         source: 'USDA Food Safety and Inspection Service / Poultry Science Association',
       },
     ];
 
     const credibilityReport = {
-      trustScore: 98,
       trustLabel: 'Verified High Accuracy',
-      truthScore: 99.0,
       confidence: 0.985,
       confidenceTier: 'high',
       claims: extractedClaims,
@@ -170,8 +166,6 @@ describe('End-to-End Pipeline: Video Uploaded to Aggregated Completion', () => {
       summary: 'All claims regarding biological structure and egg classifications were verified against authoritative biological and food regulatory authorities.',
       verifiedAt: Date.now(),
     };
-
-    expect(credibilityReport.trustScore).toBeGreaterThanOrEqual(90);
     expect(credibilityReport.factCheckStats.totalClaims).toBe(2);
     expect(credibilityReport.claims[0].verdict).toBe('TRUE');
 
@@ -208,7 +202,6 @@ describe('End-to-End Pipeline: Video Uploaded to Aggregated Completion', () => {
       adaptiveResolutions,
       transcriptionUrl: 'https://storage.googleapis.com/truthworld-1.firebasestorage.app/transcripts/' + videoId + '/full.json',
       factCheckUrl: credibilityReport.factCheckUrl,
-      trustScore: credibilityReport.trustScore,
       trustLabel: credibilityReport.trustLabel,
       subtitles,
       summary: moderationResult.summary,
@@ -224,7 +217,6 @@ describe('End-to-End Pipeline: Video Uploaded to Aggregated Completion', () => {
     expect(finalVideoDocument.stages.rendering.status).toBe('completed');
     expect(finalVideoDocument.stages.aggregation.status).toBe('completed');
     expect(finalVideoDocument.factCheckUrl).toContain('/latest.json');
-    expect(finalVideoDocument.trustScore).toBe(98);
     expect(finalVideoDocument.isVerified).toBe(true);
 
     // ══════════════════════════════════════════════════════════════════════

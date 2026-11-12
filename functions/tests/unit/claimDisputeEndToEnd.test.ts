@@ -136,13 +136,11 @@ describe('End-to-End: Sample Claim Dispute, Auto-Submission & Deep Re-Verificati
     // ══════════════════════════════════════════════════════════════════
     const beforeVideoData = {
       id: videoId,
-      trustScore: null, // Zero Video Trust Score
       factCheckDispute: null,
     };
 
     const afterVideoData = {
       id: videoId,
-      trustScore: null, // Zero Video Trust Score
       factCheckDispute: autoDisputePayload,
     };
 

@@ -157,8 +157,8 @@ class ClaimVerdictHelper {
       color: AppColors.info,
       icon: Icons.help_outline_rounded,
       category: 'Caution',
-      summaryTakeaway: 'This claim is currently undergoing evaluation.',
-      microTakeaway: 'Currently undergoing evaluation',
+      summaryTakeaway: 'We are still checking the facts on this.',
+      microTakeaway: 'Fact check in progress',
     );
   }
 
@@ -265,8 +265,8 @@ class ClaimVerdictHelper {
         icon: Icons.science_rounded,
         category: 'Verified',
         summaryTakeaway:
-            'Exploratory scientific candidate. This presents an alternative empirical hypothesis or challenger model currently undergoing investigation.',
-        microTakeaway: 'Active exploratory hypothesis',
+            'New idea still being studied. Scientists are testing this carefully, and final proof is still being gathered.',
+        microTakeaway: 'New scientific idea under study',
         confidenceText: confStr,
         confidenceVal: confidence,
       );
@@ -283,8 +283,8 @@ class ClaimVerdictHelper {
         icon: Icons.bolt_rounded,
         category: 'Caution',
         summaryTakeaway:
-            'Live developing event. Initial occurrences are confirmed, while casualty, damage, or operational statistics are actively evolving.',
-        microTakeaway: 'Fast-evolving live event',
+            'Breaking news story! The main event happened, while numbers and details are still updating.',
+        microTakeaway: 'Fast-changing live news',
         confidenceText: confStr,
         confidenceVal: confidence,
       );
@@ -333,10 +333,10 @@ class ClaimVerdictHelper {
             : Icons.sentiment_very_satisfied_rounded,
         category: 'Contextual',
         summaryTakeaway: isExaggeration
-            ? 'Figurative expression. This was used as conversational hyperbole or rhetorical exaggeration, not as an empirical claim.'
+            ? 'Just an exaggeration! This was said in a playful or dramatic way, not meant as an exact real-world number.'
             : 'Just for fun! This was a joke or parody, not meant to be taken as a real fact.',
         microTakeaway: isExaggeration
-            ? 'Rhetorical hyperbole, not literal'
+            ? 'Exaggeration for effect, not literal'
             : 'Humor or parody, not literal',
         confidenceText: confStr,
         confidenceVal: confidence,
@@ -379,7 +379,7 @@ class ClaimVerdictHelper {
         icon: Icons.psychology_rounded,
         category: 'Contextual',
         summaryTakeaway:
-            'Classified as an opinion because it shares a personal perspective or value judgment rather than a measurable fact.',
+            "This is someone's personal opinion or feeling, not a fact you can test or prove right or wrong.",
         microTakeaway: 'Personal viewpoint, not a testable fact',
         confidenceText: confStr,
         confidenceVal: confidence,
@@ -389,13 +389,13 @@ class ClaimVerdictHelper {
     // 9. Inconclusive / Unproven / Unsupported / Needs Context / Timeout
     var label = 'UNVERIFIED';
     var takeaway =
-        'We are still checking the facts for this claim.';
+        'We are still checking the facts on this.';
     var micro = 'Fact check in progress';
 
     if (rawStatus == 'needs_context' || rawStatus.contains('context')) {
       label = 'NEEDS CONTEXT';
       takeaway =
-          'Needs more context. Important background is missing to understand this claim fairly.';
+          'Needs more context. Important background details are missing to understand this fairly.';
       micro = 'Missing important background';
     } else if (rawStatus == 'outdated') {
       label = 'OUTDATED';
@@ -414,13 +414,13 @@ class ClaimVerdictHelper {
         rawStatus == 'limited_support') {
       label = 'UNSUPPORTED';
       takeaway =
-          'Nobody has found any real proof for this claim yet.';
+          'Nobody has found solid proof to back this up yet.';
       micro = 'No real proof found yet';
     } else if (rawStatus == 'verification_timeout' ||
         rawStatus.contains('timeout')) {
       label = 'EVALUATING';
       takeaway =
-          'We are still checking the facts for this claim.';
+          'We are still checking the facts on this.';
       micro = 'Fact check in progress';
     }
 
@@ -437,8 +437,8 @@ class ClaimVerdictHelper {
     );
   }
 
-  /// Explains clearly why our verification system configured this specific claim
-  /// as an opinion rather than a fact, in language a 10-year-old child can easily grasp.
+  /// Explains clearly why something was marked as an opinion rather than a fact,
+  /// in language a 10-year-old child can easily grasp.
   static String formatOpinionExplanation([String? claimText]) {
     if (claimText != null && claimText.trim().isNotEmpty) {
       final lower = claimText.toLowerCase();
@@ -446,29 +446,29 @@ class ClaimVerdictHelper {
       final vitalMatch = RegExp(r'\b(vital|essential|important|crucial|matters most|matter most)\b').firstMatch(lower);
       if (vitalMatch != null) {
         final word = vitalMatch.group(1);
-        return "Classified as an opinion because the speaker describes this as '$word'. While science can measure real facts like nutrients or numbers, deciding that something is '$word' is a personal value judgment, not a measurable fact.";
+        return "This is a personal opinion because the speaker calls it '$word'. Everyone decides what feels '$word' to them, so science cannot measure it like a plain fact.";
       }
 
       final bestMatch = RegExp(r'\b(best|worst|greatest|favorite|favourite|awesome|terrible|cool|boring)\b').firstMatch(lower);
       if (bestMatch != null) {
         final word = bestMatch.group(1);
-        return "Classified as an opinion because the speaker uses the word '$word'. Words like '$word' describe personal taste — everyone likes different things, and no science test can prove what is truly '$word'.";
+        return "This is a personal opinion because the speaker uses the word '$word'. Words like '$word' describe personal taste — everyone likes different things, so no test can prove what is truly '$word'.";
       }
 
       final adviceMatch = RegExp(r'\b(should|must|ought to|need to)\b').firstMatch(lower);
       if (adviceMatch != null) {
         final word = adviceMatch.group(1);
-        return "Classified as an opinion because the speaker is giving personal advice ('$word'). Advice depends on what someone personally recommends, not an absolute rule that can be proven true or false.";
+        return "This is personal advice because the speaker says '$word'. Advice depends on what one person thinks is a good idea, not a hard rule that works the same for everyone.";
       }
 
       final thoughtMatch = RegExp(r'\b(feel|think|believe|prefer|love|hate|like)\b').firstMatch(lower);
       if (thoughtMatch != null) {
         final word = thoughtMatch.group(1);
-        return 'Classified as an opinion because the speaker shares what they personally $word. A personal perspective belongs to the speaker, so it cannot be tested or proven wrong from the outside.';
+        return 'This is a personal opinion because the speaker is sharing what they $word. A personal feeling or thought belongs to that person, so it cannot be proved right or wrong.';
       }
     }
 
-    return 'Classified as an opinion because this statement shares a personal viewpoint or feeling rather than a measurable fact that can be proven true or false.';
+    return "This is someone's personal opinion or feeling, not a fact you can test or prove right or wrong.";
   }
 
   /// Cleans technical pipeline tags like `[RECOVERY PASS]` and clinical emojis
@@ -476,6 +476,7 @@ class ClaimVerdictHelper {
   static String cleanResponseText(dynamic raw, {String? claimText}) {
     if (raw == null) return '';
     var text = raw.toString().trim();
+    if (text.isEmpty) return '';
 
     // Strip internal pipeline prefixes
     text = text
@@ -494,11 +495,15 @@ class ClaimVerdictHelper {
         .replaceFirst(RegExp(r'^\[OFFLINE FALLBACK\]\s*', caseSensitive: false), '')
         .trim();
 
-    // Strip live search timeout annotations
+    // Strip live search timeout annotations and bracket tags
     text = text
         .replaceFirst(
           RegExp(r'\s*\(Live web search timed out;\s*flagged for async background re-grounding\)\.?\s*', caseSensitive: false),
           '',
+        )
+        .replaceAll(
+          RegExp(r'\s*\[Corroborated by Wikipedia:\s*([^\]]+?)(?:\.\.\.)?\]', caseSensitive: false),
+          r' Official info notes: $1.',
         )
         .trim();
 
@@ -509,8 +514,43 @@ class ClaimVerdictHelper {
           '',
         )
         .trim();
+    if (text.isEmpty) return '';
 
-    // Strip conversational first-person / AI memory disclaimers
+    // Replace legacy robotic / institutional fallback messages immediately
+    final legacyReplacements = <RegExp, String>{
+      RegExp(r'^Authoritative corroboration could not be recovered from indexed institutional public archives\.?$', caseSensitive: false):
+          'No clear outside sources or news reports were found to back this up yet.',
+      RegExp(r'^No accessible verified sources passed URL health checks to support this (?:claim|statement)\.?$', caseSensitive: false):
+          "We couldn't find working, trusted links to back this up yet.",
+      RegExp(r'^Recovered sources did not meet institutional authority standards for factual verification\.?$', caseSensitive: false):
+          'The links found were not from trusted news or official sources, so this cannot be confirmed yet.',
+      RegExp(r'^No admissible, high-authority sources could be recovered to corroborate this (?:claim|statement)\.?$', caseSensitive: false):
+          'No trusted news or official records were found to back this up yet.',
+      RegExp(r'^No independent documentation, official police records, or accredited news reports currently corroborate this (?:claim|statement) in indexed public archives\.?$', caseSensitive: false):
+          'No trusted news reports or official records have been found yet to back this up.',
+      RegExp(r'^Confirmed by official police reports, medical records, and accredited regional news coverage\.?$', caseSensitive: false):
+          'Official reports and trusted news stories back this up.',
+      RegExp(r'^Contradicted by verified public records and primary documentation;\s*the asserted details are inaccurate\.?$', caseSensitive: false):
+          'Trusted records and facts show this is not true.',
+      RegExp(r'^Verified via institutional claim cache\.?$', caseSensitive: false):
+          'Trusted records and outside reports back this up.',
+      RegExp(r'^Claim ID mismatch during verification\s*[—–-]\s*marked for re-analysis\.?$', caseSensitive: false):
+          'We are still double-checking the facts on this. Please check back soon.',
+      RegExp(r'^Claim evaluated against recovered documentary evidence\.?$', caseSensitive: false):
+          'Checked using trusted documents and outside reports.',
+      RegExp(r'^We retrieved potential sources, but conclusive evaluation could not be completed at this time\.?$', caseSensitive: false):
+          "We found a few possible links, but couldn't finish checking all the facts yet.",
+      RegExp(r'^Independent records and accredited news reports provide the authoritative context for this (?:claim|statement)\.?$', caseSensitive: false):
+          'Trusted records and news reports help explain the facts here.',
+    };
+    for (final entry in legacyReplacements.entries) {
+      if (entry.key.hasMatch(text)) {
+        return entry.value;
+      }
+    }
+
+    // Strip conversational first-person, AI memory, internal data, and indexed archive disclaimers
+    final beforeStrip = text;
     text = text
         .replaceAll(
           RegExp(r'I looked through all my stories and general knowledge[^.]*\.?', caseSensitive: false),
@@ -533,6 +573,18 @@ class ClaimVerdictHelper {
           '',
         )
         .replaceAll(
+          RegExp(r'\b(?:based on|from|using|according to|drawn from|in)\s+(?:my\s+|our\s+|the\s+)?(?:internal\s+)?(?:training\s+)?(?:data|knowledge|memory)\b[,.]?', caseSensitive: false),
+          ' ',
+        )
+        .replaceAll(
+          RegExp(r'\b(?:my\s+|our\s+)?(?:internal\s+training\s+(?:data|knowledge)|internal\s+(?:data|knowledge|memory)|training\s+(?:data|knowledge))\b\s*(?:shows?|says?|indicates?|confirms?|suggests?|states?)?,?\s*', caseSensitive: false),
+          ' ',
+        )
+        .replaceAll(
+          RegExp(r'\b(?:from|in)\s+indexed\s+(?:institutional\s+)?public\s+archives\b', caseSensitive: false),
+          ' ',
+        )
+        .replaceAll(
           RegExp(r"I couldn't find any common or famous story[^.]*\.?", caseSensitive: false),
           '',
         )
@@ -541,36 +593,38 @@ class ClaimVerdictHelper {
           '',
         )
         .replaceAll(
-          RegExp(r'\bas an AI,?\s*', caseSensitive: false),
+          RegExp(r'\b(?:as an AI|as a language model|I am an AI|I\x27m an AI)[^.]*[,.]?\s*', caseSensitive: false),
           '',
         )
         .trim();
+    final strippedAiMeta = text != beforeStrip;
 
     // Clean leading punctuation or conjunctions left over
     text = text.replaceFirst(RegExp(r'^[,;.\s]+'), '').trim();
 
-    // If string was reduced to empty or near empty, or still has conversational memory jargon:
-    if (text.length < 15 || RegExp(r'\b(?:from my memory|all my stories|in my memory)\b', caseSensitive: false).hasMatch(text)) {
-      text = 'Independent records and accredited news reports provide the authoritative context for this statement.';
+    // If AI meta phrases were stripped leaving nothing usable, or AI meta/internal jargon still remains:
+    if ((strippedAiMeta && text.length < 25) ||
+        RegExp(r'\b(?:from my memory|all my stories|in my memory|internal data|training data|indexed institutional)\b', caseSensitive: false).hasMatch(text)) {
+      text = 'Trusted records and news reports help explain the facts here.';
     }
 
     // Humanize robotic subjective/opinion classifications into simple, friendly language a 10-year-old can understand,
     // explicitly explaining WHY our system configured it as an opinion.
     if (RegExp(
-          r'(?:Classified\s+as\s+subjective\s+content|not\s+subject\s+to\s+factual\s+verification|subjective\s+content\s*[—–-]|purely\s+subjective\s+statement|subjective\s+opinion\s*[-—–]|cannot\s+be\s+factually\s+verified\s+because\s+it\s+is\s+an\s+opinion|This\s+is\s+someone\x27s\s+personal\s+point\s+of\s+view\s+or\s+feeling|Why\s+is\s+this\s+an\s+opinion\s+and\s+not\s+a\s+fact)',
+          r'(?:Classified\s+as\s+subjective\s+content|not\s+subject\s+to\s+factual\s+verification|subjective\s+content\s*[—–-]|purely\s+subjective\s+statement|subjective\s+opinion\s*[-—–]|cannot\s+be\s+factually\s+verified\s+because\s+it\s+is\s+an\s+opinion|This\s+is\s+someone\x27s\s+personal\s+point\s+of\s+view\s+or\s+feeling|Why\s+is\s+this\s+an\s+opinion\s+and\s+not\s+a\s+fact|Classified\s+as\s+an\s+opinion\s+because)',
           caseSensitive: false,
         ).hasMatch(text)) {
       return formatOpinionExplanation(claimText);
     }
 
-    // Humanize common stiff academic / robotic openings for kid-friendliness
+    // Humanize common stiff academic / robotic openings and remove meta labels like "this claim"
     text = text
         .replaceFirst(
           RegExp(r'^(?:Upon\s+)?(?:comprehensive\s+)?empirical\s+(?:investigation|verification|analysis)\s+(?:of\s+available\s+records\s+)?(?:indicates|demonstrates|confirms)\s+that\s+', caseSensitive: false),
-          'Official facts and records show that ',
+          'Real facts and records show that ',
         )
         .replaceFirst(
-          RegExp(r'^(?:Upon\s+)?investigative\s+synthesis\s+of\s+the\s+claim,\s*', caseSensitive: false),
+          RegExp(r'^(?:Upon\s+)?investigative\s+synthesis\s+of\s+(?:this|the)\s+(?:claim|statement),?\s*', caseSensitive: false),
           'After checking the facts, ',
         )
         .replaceFirst(
@@ -579,7 +633,7 @@ class ClaimVerdictHelper {
         )
         .replaceFirst(
           RegExp(r'^(?:The\s+asserted\s+(?:claim|proposition)\s+is\s+substantiated\s+by\s+)', caseSensitive: false),
-          'This is proven true by ',
+          'This is backed up by ',
         )
         .replaceFirst(
           RegExp(r'^(?:The\s+asserted\s+(?:claim|proposition)\s+exhibits\s+evidential\s+incongruity\s+with\s+)', caseSensitive: false),
@@ -593,10 +647,55 @@ class ClaimVerdictHelper {
           RegExp(r'^(?:Statistical\s+variance\s+metrics\s+demonstrate\s+that\s+)', caseSensitive: false),
           'The numbers show that ',
         )
-        .replaceFirst(
+        .replaceAll(
           RegExp(r'\b(?:the\s+claimant\s+posited\s+that)\b', caseSensitive: false),
-          'the speaker claimed that',
+          'the speaker said that',
+        )
+        .replaceAll(
+          RegExp(r'\b(?:the\s+asserted\s+(?:claim|proposition)|the\s+claimant\x27s\s+assertion)\b', caseSensitive: false),
+          'what was said',
+        )
+        .replaceAll(
+          RegExp(r'\bempirical\s+(?:assertion|evidence|corroboration)\b', caseSensitive: false),
+          'real proof',
+        )
+        .replaceAll(
+          RegExp(r'\bauthoritative\s+corroboration\b', caseSensitive: false),
+          'trusted proof',
+        )
+        .replaceAllMapped(
+          RegExp(r'\bbacks?\s+up\s+(?:this|the)\s+(?:claim|statement)\b', caseSensitive: false),
+          (m) => m.group(0)!.toLowerCase().startsWith('backs') ? 'backs this up' : 'back this up',
+        )
+        .replaceAllMapped(
+          RegExp(r'\b(supports?|corroborates?|substantiates?|confirms?|proves?|verifies?|refutes?|contradicts?|disputes?|debunks?|disproves?|evaluat(?:es?|ing)|check(?:s|ing)?)\s+(?:this|the)\s+(?:claim|statement)\b', caseSensitive: false),
+          (m) => '${m.group(1)} it',
+        )
+        .replaceAll(
+          RegExp(r'\bin\s+(?:this|the)\s+(?:claim|statement)\b', caseSensitive: false),
+          'shared here',
+        )
+        .replaceAllMapped(
+          RegExp(r'\b(for|about|of|to|on|against|with|regarding|concerning)\s+(?:this|the)\s+(?:claim|statement)\b', caseSensitive: false),
+          (m) => '${m.group(1)} this',
+        )
+        .replaceAllMapped(
+          RegExp(r'(?:^|([.!?]\s+))(?:This|The)\s+(?:claim|statement)\b'),
+          (m) => '${m.group(1) ?? ''}It',
+        )
+        .replaceAll(
+          RegExp(r'\b(?:this|the)\s+(?:claim|statement)\b', caseSensitive: false),
+          'it',
         );
+
+    text = text
+        .replaceAll(RegExp(r'\s{2,}'), ' ')
+        .replaceAllMapped(RegExp(r'\s+([,.;!?])'), (m) => m.group(1)!)
+        .trim();
+
+    if (text.isNotEmpty) {
+      text = text[0].toUpperCase() + text.substring(1);
+    }
 
     return text;
   }
@@ -612,7 +711,7 @@ class ClaimVerdictHelper {
           'The main points in this video match real facts from ',
         )
         .replaceFirst(
-          RegExp(r'^(?:Institutional|Empirical)\s+corroboration\s+substantiates\s+the\s+core\s+tenets\s+(?:of\s+this\s+video\s+)?', caseSensitive: false),
+          RegExp(r'^(?:Institutional|Empirical|Real|Trusted)\s+(?:corroboration|proof)\s+substantiates\s+the\s+core\s+tenets\s+(?:of\s+this\s+video\s+)?', caseSensitive: false),
           'Reliable experts and records back up what was said: ',
         )
         .replaceFirst(

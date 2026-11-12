@@ -47,7 +47,6 @@ class SearchRepositoryImpl extends BaseRepository implements SearchRepository {
       isKidFriendly: model.isKidFriendly,
       enableComments: model.enableComments,
       isMonetized: model.isMonetized,
-      trustScore: model.trustScore,
     );
   }
 

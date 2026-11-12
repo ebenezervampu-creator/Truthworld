@@ -315,58 +315,91 @@ class AudioTracksUploadManager with ContentValidationMixin {
       updatedAudioMap[cleanCode] = url.trim();
     }
 
-    final locUpdates = <String, dynamic>{
-      'audioTracks': updatedAudioMap,
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-    final videoUpdates = <String, dynamic>{
-      'audioTracks': updatedAudioMap,
-      'media.audioTracks': updatedAudioMap,
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-
-    if (isDeleting) {
-      locUpdates['audioTracks.$cleanCode'] = FieldValue.delete();
-      locUpdates['audioTracks.$langCode'] = FieldValue.delete();
-      locUpdates['media.audioTracks.$cleanCode'] = FieldValue.delete();
-      locUpdates['media.audioTracks.$langCode'] = FieldValue.delete();
-      videoUpdates['audioTracks.$cleanCode'] = FieldValue.delete();
-      videoUpdates['audioTracks.$langCode'] = FieldValue.delete();
-      videoUpdates['media.audioTracks.$cleanCode'] = FieldValue.delete();
-      videoUpdates['media.audioTracks.$langCode'] = FieldValue.delete();
-    }
-
     final locRef = _firestore
         .collection(FirestoreCollections.videos)
         .doc(video.id)
         .collection('media')
         .doc('localization');
 
-    await locRef.update(locUpdates).catchError((_) async {
-      await locRef.set(locUpdates, SetOptions(merge: true));
-    });
+    final locSnap = await locRef.get();
+    if (locSnap.exists) {
+      await locRef.update({
+        'audioTracks': updatedAudioMap,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } else {
+      await locRef.set({
+        'audioTracks': updatedAudioMap,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
 
     final videoRef = _firestore
         .collection(FirestoreCollections.videos)
         .doc(video.id);
 
-    await videoRef.update(videoUpdates).catchError((_) async {
-      await videoRef.set(videoUpdates, SetOptions(merge: true));
-    });
+    final videoSnap = await videoRef.get();
+    if (videoSnap.exists) {
+      final vData = videoSnap.data() ?? {};
+      final videoUpdates = <String, dynamic>{
+        'audioTracks': updatedAudioMap,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      if (vData['media'] is Map) {
+        videoUpdates['media.audioTracks'] = updatedAudioMap;
+      }
+      await videoRef.update(videoUpdates);
+    } else {
+      await videoRef.set({
+        'audioTracks': updatedAudioMap,
+        'media': {
+          'audioTracks': updatedAudioMap,
+        },
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
 
     if (isDeleting) {
+      final flatDeletes = <String, dynamic>{
+        'audioTracks.$cleanCode': FieldValue.delete(),
+        'audioTracks.$langCode': FieldValue.delete(),
+        'media.audioTracks.$cleanCode': FieldValue.delete(),
+        'media.audioTracks.$langCode': FieldValue.delete(),
+      };
+      await videoRef.set(flatDeletes, SetOptions(merge: true)).catchError((_) {});
+      await locRef.set(flatDeletes, SetOptions(merge: true)).catchError((_) {});
+
       try {
         final jobRef = _firestore.collection('video_jobs').doc(video.id);
         final jobSnap = await jobRef.get();
         if (jobSnap.exists) {
-          await jobRef.update({
-            'outputs.audioTracks.$cleanCode': FieldValue.delete(),
-            'outputs.audioTracks.$langCode': FieldValue.delete(),
-            'audioTracks.$cleanCode': FieldValue.delete(),
-            'audioTracks.$langCode': FieldValue.delete(),
-            'stages.dubbing_$cleanCode': FieldValue.delete(),
-            'stages.dubbing_$langCode': FieldValue.delete(),
-          });
+          final jData = jobSnap.data() ?? {};
+          final jobUpdates = <String, dynamic>{};
+          final outputs = jData['outputs'];
+          if (outputs is Map && outputs['audioTracks'] is Map) {
+            final curOut = Map<String, dynamic>.from(outputs['audioTracks'] as Map);
+            curOut.remove(cleanCode);
+            curOut.remove(langCode);
+            jobUpdates['outputs.audioTracks'] = curOut;
+          }
+          if (jData['audioTracks'] is Map) {
+            final curAud = Map<String, dynamic>.from(jData['audioTracks'] as Map);
+            curAud.remove(cleanCode);
+            curAud.remove(langCode);
+            jobUpdates['audioTracks'] = curAud;
+          }
+          final stages = jData['stages'];
+          if (stages is Map) {
+            if (stages.containsKey('dubbing_$cleanCode')) {
+              jobUpdates['stages.dubbing_$cleanCode'] = FieldValue.delete();
+            }
+            if (stages.containsKey('dubbing_$langCode')) {
+              jobUpdates['stages.dubbing_$langCode'] = FieldValue.delete();
+            }
+          }
+          if (jobUpdates.isNotEmpty) {
+            await jobRef.update(jobUpdates).catchError((_) {});
+          }
         }
       } catch (_) {}
     }

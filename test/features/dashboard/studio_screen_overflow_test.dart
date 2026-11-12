@@ -176,9 +176,9 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Audio Track & Dubbing Options'), findsOneWidget);
-      expect(find.text('Start AI Voice Dubbing'), findsOneWidget);
-      expect(find.text('Cancel'), findsOneWidget);
+      expect(find.text('Audio Track & Dubbing'), findsOneWidget);
+      expect(find.text('AI Dubbing'), findsOneWidget);
+      expect(find.text('Generate Audio Track'), findsOneWidget);
       expect(tester.takeException(), isNull);
 
       // Switch to Direct Audio Track tab

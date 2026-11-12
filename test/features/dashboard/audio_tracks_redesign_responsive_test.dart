@@ -130,10 +130,10 @@ void main() {
       expect(find.text('Audio & Video'), findsAtLeastNWidgets(1));
       expect(find.byIcon(Icons.video_library_outlined), findsOneWidget);
 
-      // 2. Underlined Tabs verification (Audio | Video)
+      // 2. Underlined Tabs verification (Audio Tracks only, VideoTracks tab completely removed)
       expect(find.byType(AudioTracksUnderlineTabBar), findsOneWidget);
-      expect(find.text('Audio'), findsNWidgets(2));
-      expect(find.text('Video'), findsOneWidget);
+      expect(find.text('Audio Tracks'), findsWidgets);
+      expect(find.text('VideoTracks'), findsNothing);
 
       // 4. Available Audio tracks header verification
       expect(find.text('Available Audio tracks'), findsOneWidget);
@@ -223,8 +223,8 @@ void main() {
 
       // Verify mobile components
       expect(find.byIcon(Icons.video_library_outlined), findsOneWidget);
-      expect(find.text('Audio'), findsNWidgets(2));
-      expect(find.text('Video'), findsOneWidget);
+      expect(find.text('Audio Tracks'), findsWidgets);
+      expect(find.text('VideoTracks'), findsNothing);
       expect(find.text('Available Audio tracks'), findsOneWidget);
       expect(find.text('Add audio track'), findsOneWidget);
 
@@ -263,9 +263,9 @@ void main() {
       await tester.tap(find.text('Open Add Audio Sheet'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Add Audio'), findsOneWidget);
-      expect(find.text('Generate Audio'), findsOneWidget);
-      expect(find.text('Add files'), findsOneWidget);
+      expect(find.text('Add Audio Track'), findsOneWidget);
+      expect(find.text('Generate Audio tracks'), findsOneWidget);
+      expect(find.text('Upload Audio track from device video/Audio'), findsOneWidget);
       expect(find.byIcon(Icons.auto_awesome_rounded), findsOneWidget);
       expect(find.byIcon(Icons.upload_file_rounded), findsOneWidget);
     });

@@ -67,12 +67,13 @@ export class MemoryDocumentRef {
   }
 
   async set(data: TestDocData, options?: { merge?: boolean }): Promise<void> {
-    const existing = options?.merge ? (this.store.get(this.path) || {}) : undefined;
-    const resolvedData = this.resolveFieldValues(data, existing);
     if (options?.merge) {
-      this.store.set(this.path, { ...existing, ...resolvedData });
+      const existing = this.cloneData(this.store.get(this.path) || {});
+      const merged = this.deepMerge(existing, data);
+      this.store.set(this.path, merged);
     } else {
-      this.store.set(this.path, { ...resolvedData });
+      const fresh = this.resolveNestedData(data);
+      this.store.set(this.path, fresh);
     }
   }
 
@@ -81,8 +82,25 @@ export class MemoryDocumentRef {
     if (!existing) {
       throw new Error(`NOT_FOUND: No document to update at ${this.path}`);
     }
-    const resolvedData = this.resolveFieldValues(data, existing);
-    this.store.set(this.path, { ...existing, ...resolvedData });
+    const next = this.cloneData(existing);
+    for (const [keyPath, rawVal] of Object.entries(data)) {
+      const curVal = keyPath.includes('.')
+        ? this.getNested(next, keyPath)
+        : next[keyPath];
+      const resolved = this.resolveSingleFieldValue(rawVal, curVal);
+      if (resolved.deleted) {
+        if (keyPath.includes('.')) {
+          this.deleteNested(next, keyPath);
+        } else {
+          delete next[keyPath];
+        }
+      } else if (keyPath.includes('.')) {
+        this.setNested(next, keyPath, resolved.value);
+      } else {
+        next[keyPath] = resolved.value;
+      }
+    }
+    this.store.set(this.path, next);
   }
 
   async create(data: TestDocData): Promise<void> {
@@ -98,24 +116,110 @@ export class MemoryDocumentRef {
     this.store.delete(this.path);
   }
 
-  private resolveFieldValues(data: TestDocData, existingData?: TestDocData): TestDocData {
+  private cloneData(data: TestDocData): TestDocData {
+    return JSON.parse(JSON.stringify(data));
+  }
+
+  private isPlainObject(val: unknown): val is Record<string, any> {
+    return (
+      val !== null &&
+      typeof val === 'object' &&
+      !Array.isArray(val) &&
+      !(val instanceof Date) &&
+      !(val instanceof Timestamp) &&
+      !(val as any).__op
+    );
+  }
+
+  private getNested(obj: TestDocData, path: string): any {
+    const parts = path.split('.');
+    let cur: any = obj;
+    for (const part of parts) {
+      if (cur == null || typeof cur !== 'object') return undefined;
+      cur = cur[part];
+    }
+    return cur;
+  }
+
+  private setNested(obj: TestDocData, path: string, value: any): void {
+    const parts = path.split('.');
+    let cur: any = obj;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (!this.isPlainObject(cur[part])) {
+        cur[part] = {};
+      }
+      cur = cur[part];
+    }
+    cur[parts[parts.length - 1]] = value;
+  }
+
+  private deleteNested(obj: TestDocData, path: string): void {
+    const parts = path.split('.');
+    let cur: any = obj;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (!this.isPlainObject(cur[part])) return;
+      cur = cur[part];
+    }
+    delete cur[parts[parts.length - 1]];
+  }
+
+  private resolveSingleFieldValue(
+    v: any,
+    existingVal: any
+  ): { deleted: boolean; value?: any } {
+    if (v && typeof v === 'object' && v.__op === 'serverTimestamp') {
+      return { deleted: false, value: new Date().toISOString() };
+    }
+    if (v && typeof v === 'object' && v.__op === 'increment') {
+      const cur = typeof existingVal === 'number' ? existingVal : 0;
+      return { deleted: false, value: cur + v.value };
+    }
+    if (v && typeof v === 'object' && v.__op === 'arrayUnion') {
+      const cur = Array.isArray(existingVal) ? existingVal : [];
+      return { deleted: false, value: Array.from(new Set([...cur, ...v.elements])) };
+    }
+    if (v && typeof v === 'object' && v.__op === 'arrayRemove') {
+      const cur = Array.isArray(existingVal) ? existingVal : [];
+      return { deleted: false, value: cur.filter((item: any) => !v.elements.includes(item)) };
+    }
+    if (v && typeof v === 'object' && v.__op === 'delete') {
+      return { deleted: true };
+    }
+    if (this.isPlainObject(v)) {
+      return { deleted: false, value: this.resolveNestedData(v) };
+    }
+    return { deleted: false, value: v };
+  }
+
+  private resolveNestedData(data: TestDocData): TestDocData {
     const result: TestDocData = {};
     for (const [k, v] of Object.entries(data)) {
-      if (v && typeof v === 'object' && v.__op === 'serverTimestamp') {
-        result[k] = new Date().toISOString();
-      } else if (v && typeof v === 'object' && v.__op === 'increment') {
-        const cur = existingData ? (existingData[k] || 0) : 0;
-        result[k] = cur + v.value;
-      } else if (v && typeof v === 'object' && v.__op === 'arrayUnion') {
-        const cur = Array.isArray(existingData?.[k]) ? existingData![k] : [];
-        result[k] = Array.from(new Set([...cur, ...v.elements]));
-      } else if (v && typeof v === 'object' && v.__op === 'delete') {
-        // field deletion
-      } else {
-        result[k] = v;
+      const resolved = this.resolveSingleFieldValue(v, undefined);
+      if (!resolved.deleted) {
+        result[k] = resolved.value;
       }
     }
     return result;
+  }
+
+  private deepMerge(target: TestDocData, source: TestDocData): TestDocData {
+    const out = this.cloneData(target);
+    for (const [k, v] of Object.entries(source)) {
+      if (this.isPlainObject(v)) {
+        const curTarget = this.isPlainObject(out[k]) ? out[k] : {};
+        out[k] = this.deepMerge(curTarget, v);
+      } else {
+        const resolved = this.resolveSingleFieldValue(v, out[k]);
+        if (resolved.deleted) {
+          delete out[k];
+        } else {
+          out[k] = resolved.value;
+        }
+      }
+    }
+    return out;
   }
 }
 

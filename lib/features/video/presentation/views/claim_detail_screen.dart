@@ -3,7 +3,6 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/network/app_http_client.dart';
 import 'package:truthworld/core/services/source_avatar_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
@@ -17,8 +16,11 @@ import 'package:truthworld/features/video/data/models/fact_check_data_parser.dar
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_media.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
+import 'package:truthworld/features/video/presentation/controllers/claim_detail_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/widgets/analysis/ai_chat/ai_credibility_chat_sheet.dart';
+import 'package:truthworld/features/video/presentation/widgets/analysis/claim_ledger_timeline.dart';
+import 'package:truthworld/features/video/presentation/widgets/analysis/claim_media_stage.dart';
 import 'package:truthworld/features/video/presentation/widgets/analysis/claim_sources_bottom_sheet.dart';
 import 'package:truthworld/features/video/presentation/widgets/analysis/comments/claim_community_notes_section.dart';
 import 'package:truthworld/features/video/presentation/widgets/analysis/video_analysis_helpers.dart';
@@ -27,7 +29,6 @@ import 'package:truthworld/features/video/presentation/widgets/claim_source_subm
 import 'package:truthworld/features/video/presentation/widgets/fact_check/fact_check_epistemic_banner.dart';
 import 'package:truthworld/routes/app_routes.dart';
 import 'package:truthworld/theme/app_theme.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// 🏛 ClaimDetailScreen
 ///
@@ -363,6 +364,16 @@ class ClaimDetailScreen extends StatelessWidget {
         ? FormatUtils.formatDuration(Duration(milliseconds: (startSec * 1000).toInt()))
         : '00:00';
 
+    // Initialize ClaimDetailController for desktop command center & timeline scrubbing
+    final detailTag = 'claim_${video.id}';
+    final detailCtrl = Get.isRegistered<ClaimDetailController>(tag: detailTag)
+        ? Get.find<ClaimDetailController>(tag: detailTag)
+        : Get.put(ClaimDetailController(initialIndex: claimIndex), tag: detailTag);
+
+    if (detailCtrl.currentClaimIndex.value != claimIndex) {
+      detailCtrl.currentClaimIndex.value = claimIndex;
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final isDesktop = constraints.maxWidth >= TWBreakpoints.desktop;
@@ -381,6 +392,7 @@ class ClaimDetailScreen extends StatelessWidget {
             startSec: startSec,
             timestampText: timestampText,
             controller: controller,
+            detailCtrl: detailCtrl,
           );
         }
         return _buildMobileScaffold(
@@ -402,7 +414,7 @@ class ClaimDetailScreen extends StatelessWidget {
     );
   }
 
-  // 🖥️ DESKTOP SCAFFOLD (Two-Column Layout for Desktop Screens >= 1024px)
+  // 🖥️ DESKTOP SCAFFOLD (Command Center Split View: Left 65% / Right 35%)
   Widget _buildDesktopScaffold(
     BuildContext context, {
     required Video video,
@@ -416,95 +428,244 @@ class ClaimDetailScreen extends StatelessWidget {
     required List<UISource> typedSources,
     required double? startSec,
     required String timestampText,
+    required ClaimDetailController detailCtrl,
     VideoController? controller,
   }) {
     return Scaffold(
       backgroundColor: AppColors.bgPage,
-      appBar: _buildDesktopAppBar(
-        context,
-        video: video,
-        claimIndex: claimIndex,
-        allClaims: allClaims,
-        allSources: allSources,
-        controller: controller,
-        cleanClaimText: cleanClaimText,
-        verdict: verdict,
-        typedSources: typedSources,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(kToolbarHeight),
+        child: Obx(() {
+          final activeIdx = detailCtrl.currentClaimIndex.value;
+          var curClaim = effectiveClaim;
+          if (allClaims.isNotEmpty && activeIdx >= 0 && activeIdx < allClaims.length) {
+            final c = allClaims[activeIdx];
+            if (c is Map) curClaim = c;
+          }
+          final curVerdict = ClaimVerdictHelper.resolveVerdict(curClaim);
+          final curDetails = VideoAnalysisHelpers.resolveRealClaimDetails(
+            curClaim,
+            activeIdx,
+            allSources,
+          );
+          final curCleanClaimText = curDetails.cleanText.isNotEmpty
+              ? curDetails.cleanText
+              : cleanClaimText;
+          final curTypedSources = <UISource>[];
+          for (final dynamic s in curDetails.sources) {
+            if (!SourceUrlSanitizer.isValidSource(s)) continue;
+            if (s is UISource) {
+              curTypedSources.add(s);
+            } else if (s is Map) {
+              curTypedSources.add(UISource.fromMap(Map<String, dynamic>.from(s)));
+            }
+          }
+
+          return _buildDesktopAppBar(
+            context,
+            video: video,
+            claimIndex: activeIdx,
+            allClaims: allClaims,
+            allSources: allSources,
+            controller: controller,
+            cleanClaimText: curCleanClaimText,
+            verdict: curVerdict,
+            typedSources: curTypedSources.isNotEmpty ? curTypedSources : typedSources,
+            detailCtrl: detailCtrl,
+          );
+        }),
       ),
       body: SafeArea(
         top: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1380),
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(28, 24, 28, 36),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Left Column: Claim Overview + Actions + Truth Intelligence Breakdown
-                  Expanded(
-                    flex: 7,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildDesktopTopClaimCard(
-                          context,
-                          index: claimIndex,
-                          verdict: verdict,
-                          timestampText: timestampText,
-                          claimText: cleanClaimText,
-                          startSec: startSec,
-                          controller: controller,
-                          video: video,
-                          initialClaim: effectiveClaim,
-                          onShareTap: () {
-                            final domain = typedSources.isNotEmpty ? typedSources.first.domain : null;
-                            _shareClaim(
-                              context,
-                              video: video,
-                              claimText: cleanClaimText,
-                              verdict: verdict,
-                              primarySourceDomain: domain,
-                              claimIndex: claimIndex,
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 20),
-                        _buildDesktopAiVerificationCard(
-                          context,
-                          responseText: responseText,
-                          sourcesCount: typedSources.length,
-                        ),
-                        const SizedBox(height: 20),
-                        ClaimCommunityNotesSection(
-                          videoId: video.id,
-                          claimIndex: claimIndex,
-                          claimText: cleanClaimText,
-                        ),
-                        const SizedBox(height: 20),
-                        const FactCheckEpistemicBanner(),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 24),
+        child: Obx(() {
+          final isDocked = detailCtrl.isAiChatDocked.value;
+          final activeIdx = detailCtrl.currentClaimIndex.value;
 
-                  // Right Column: Sources Sidebar Panel
-                  Expanded(
-                    flex: 5,
-                    child: _buildDesktopSourcesPanel(
-                      context,
-                      sources: typedSources,
-                      claimText: cleanClaimText,
-                      video: video,
-                      initialClaim: effectiveClaim,
+          var curClaim = effectiveClaim;
+          if (allClaims.isNotEmpty && activeIdx >= 0 && activeIdx < allClaims.length) {
+            final c = allClaims[activeIdx];
+            if (c is Map) curClaim = c;
+          }
+          final curVerdict = ClaimVerdictHelper.resolveVerdict(curClaim);
+          final curDetails = VideoAnalysisHelpers.resolveRealClaimDetails(
+            curClaim,
+            activeIdx,
+            allSources,
+          );
+          final curCleanClaimText = curDetails.cleanText.isNotEmpty
+              ? curDetails.cleanText
+              : cleanClaimText;
+          var curResponseText = curDetails.response;
+          if (curVerdict.isOpinion) {
+            if (curResponseText.isEmpty ||
+                curResponseText.contains('personal point of view') ||
+                curResponseText.contains('subjective content') ||
+                curResponseText.contains('not subject to factual verification') ||
+                curResponseText.contains('Why is this an opinion and not a fact?')) {
+              curResponseText = ClaimVerdictHelper.formatOpinionExplanation(curCleanClaimText);
+            }
+          }
+          final curStartSec = _extractStartSeconds(curClaim) ?? startSec;
+          final curTimestampText = curStartSec != null
+              ? FormatUtils.formatDuration(Duration(milliseconds: (curStartSec * 1000).toInt()))
+              : timestampText;
+
+          final curTypedSources = <UISource>[];
+          for (final dynamic s in curDetails.sources) {
+            if (!SourceUrlSanitizer.isValidSource(s)) continue;
+            if (s is UISource) {
+              curTypedSources.add(s);
+            } else if (s is Map) {
+              curTypedSources.add(UISource.fromMap(Map<String, dynamic>.from(s)));
+            }
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Left Pane: 65% when docked, 100% when collapsed
+              Expanded(
+                flex: isDocked ? 65 : 100,
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: isDocked ? double.infinity : 1380),
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(28, 20, 28, 36),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // 1. Video Player + Live Transcript (Command Media Stage)
+                          ClaimMediaStage(
+                            video: video,
+                            controller: controller,
+                            startSec: curStartSec,
+                            timestampText: curTimestampText,
+                            claimText: curCleanClaimText,
+                            onSeekToClaim: () {
+                              if (curStartSec != null) {
+                                final target = Duration(milliseconds: (curStartSec * 1000).toInt());
+                                controller?.videoPlayerController?.seekTo(target);
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 18),
+
+                          // 2. Claim Ledger Timeline
+                          if (allClaims.isNotEmpty) ...[
+                            ClaimLedgerTimeline(
+                              allClaims: allClaims,
+                              activeIndex: activeIdx,
+                              scrollController: detailCtrl.timelineScrollController,
+                              onClaimSelected: (newIdx) {
+                                detailCtrl.selectClaim(
+                                  index: newIdx,
+                                  allClaims: allClaims,
+                                  videoController: controller,
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 18),
+                          ],
+
+                          // 3. Top Claim Card
+                          _buildDesktopTopClaimCard(
+                            context,
+                            index: activeIdx,
+                            verdict: curVerdict,
+                            timestampText: curTimestampText,
+                            claimText: curCleanClaimText,
+                            startSec: curStartSec,
+                            controller: controller,
+                            video: video,
+                            initialClaim: curClaim,
+                            onAskAiTap: () {
+                              if (!isDocked) {
+                                detailCtrl.openAiChat();
+                              }
+                            },
+                            onShareTap: () {
+                              final domain = curTypedSources.isNotEmpty ? curTypedSources.first.domain : null;
+                              _shareClaim(
+                                context,
+                                video: video,
+                                claimText: curCleanClaimText,
+                                verdict: curVerdict,
+                                primarySourceDomain: domain,
+                                claimIndex: activeIdx,
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 20),
+
+                          // 4. Truth Intelligence Breakdown Card
+                          _buildDesktopAiVerificationCard(
+                            context,
+                            responseText: curResponseText,
+                            sourcesCount: curTypedSources.length,
+                          ),
+                          const SizedBox(height: 20),
+
+                          // 5. Sources Panel
+                          _buildDesktopSourcesPanel(
+                            context,
+                            sources: curTypedSources,
+                            claimText: curCleanClaimText,
+                            video: video,
+                            initialClaim: curClaim,
+                            claimIndex: activeIdx,
+                          ),
+                          const SizedBox(height: 20),
+
+                          // 6. Community Deliberation & Notes
+                          ClaimCommunityNotesSection(
+                            videoId: video.id,
+                            claimIndex: activeIdx,
+                            claimText: curCleanClaimText,
+                          ),
+                          const SizedBox(height: 20),
+
+                          // 7. Epistemic Transparency Banner
+                          const FactCheckEpistemicBanner(),
+                        ],
+                      ),
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
-        ),
+
+              // Right Pane: Persistent Truth AI Chat (35%)
+              if (isDocked) ...[
+                Container(
+                  width: 1,
+                  color: AppColors.bgDivider,
+                ),
+                Expanded(
+                  flex: 35,
+                  child: Container(
+                    color: const Color(0xFF000000),
+                    child: AiCredibilityChatSheet(
+                      video: video,
+                      scope: 'claim',
+                      claimIndex: activeIdx,
+                      claimText: curCleanClaimText,
+                      verdict: curVerdict.label,
+                      allSources: curClaim['sources'] as List? ?? allSources,
+                      allClaims: [curClaim],
+                      summary: curResponseText.isNotEmpty ? curResponseText : null,
+                      claimExplanation: curResponseText.isNotEmpty ? curResponseText : null,
+                      playbackSec: curStartSec,
+                      transcriptSnippet: curCleanClaimText,
+                      activeChapterTitle: 'Claim #${activeIdx + 1}',
+                      isEmbedded: true,
+                      onClose: () => detailCtrl.closeAiChat(),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          );
+        }),
       ),
     );
   }
@@ -520,6 +681,7 @@ class ClaimDetailScreen extends StatelessWidget {
     required String cleanClaimText,
     required ClaimVerdictInfo verdict,
     required List<UISource> typedSources,
+    ClaimDetailController? detailCtrl,
   }) {
     return AppBar(
       backgroundColor: AppColors.bgSurface,
@@ -611,14 +773,24 @@ class ClaimDetailScreen extends StatelessWidget {
                   padding: const EdgeInsets.all(4),
                   constraints: const BoxConstraints(),
                   onPressed: claimIndex > 0
-                      ? () => _navigateToClaim(
-                            context,
-                            video: video,
-                            targetIndex: claimIndex - 1,
-                            allClaims: allClaims,
-                            allSources: allSources,
-                            controller: controller,
-                          )
+                      ? () {
+                          if (detailCtrl != null) {
+                            detailCtrl.selectClaim(
+                              index: claimIndex - 1,
+                              allClaims: allClaims,
+                              videoController: controller,
+                            );
+                          } else {
+                            _navigateToClaim(
+                              context,
+                              video: video,
+                              targetIndex: claimIndex - 1,
+                              allClaims: allClaims,
+                              allSources: allSources,
+                              controller: controller,
+                            );
+                          }
+                        }
                       : null,
                 ),
                 const SizedBox(width: 4),
@@ -639,20 +811,65 @@ class ClaimDetailScreen extends StatelessWidget {
                   padding: const EdgeInsets.all(4),
                   constraints: const BoxConstraints(),
                   onPressed: claimIndex < allClaims.length - 1
-                      ? () => _navigateToClaim(
-                            context,
-                            video: video,
-                            targetIndex: claimIndex + 1,
-                            allClaims: allClaims,
-                            allSources: allSources,
-                            controller: controller,
-                          )
+                      ? () {
+                          if (detailCtrl != null) {
+                            detailCtrl.selectClaim(
+                              index: claimIndex + 1,
+                              allClaims: allClaims,
+                              videoController: controller,
+                            );
+                          } else {
+                            _navigateToClaim(
+                              context,
+                              video: video,
+                              targetIndex: claimIndex + 1,
+                              allClaims: allClaims,
+                              allSources: allSources,
+                              controller: controller,
+                            );
+                          }
+                        }
                       : null,
                 ),
               ],
             ),
           ),
           const SizedBox(width: 12),
+        ],
+        if (detailCtrl != null) ...[
+          Obx(() {
+            final isDocked = detailCtrl.isAiChatDocked.value;
+            return OutlinedButton.icon(
+              onPressed: () => detailCtrl.toggleAiChatDock(),
+              icon: Icon(
+                isDocked ? Icons.view_sidebar_rounded : Icons.auto_awesome_rounded,
+                size: 16,
+                color: isDocked ? const Color(0xFF2DD4BF) : Colors.white,
+              ),
+              label: Text(
+                isDocked ? 'Truth AI (35%)' : 'Dock Truth AI',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isDocked ? const Color(0xFF2DD4BF) : Colors.white,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(
+                  color: isDocked
+                      ? const Color(0xFF2DD4BF).withValues(alpha: 0.5)
+                      : Colors.white.withValues(alpha: 0.2),
+                  width: 0.8,
+                ),
+                backgroundColor: isDocked
+                    ? const Color(0xFF2DD4BF).withValues(alpha: 0.1)
+                    : Colors.transparent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              ),
+            );
+          }),
+          const SizedBox(width: 10),
         ],
         OutlinedButton.icon(
           onPressed: () {
@@ -701,6 +918,7 @@ class ClaimDetailScreen extends StatelessWidget {
     required Video video,
     required Map<dynamic, dynamic> initialClaim,
     VoidCallback? onShareTap,
+    VoidCallback? onAskAiTap,
   }) {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -898,6 +1116,10 @@ class ClaimDetailScreen extends StatelessWidget {
             children: [
               OutlinedButton.icon(
                 onPressed: () {
+                  if (onAskAiTap != null) {
+                    onAskAiTap();
+                    return;
+                  }
                   final explanation = (initialClaim['explanation'] ??
                           initialClaim['truthBreakdown'] ??
                           initialClaim['reasoning'] ??
@@ -915,6 +1137,9 @@ class ClaimDetailScreen extends StatelessWidget {
                     allClaims: [initialClaim],
                     summary: explanation.isNotEmpty ? explanation : null,
                     claimExplanation: explanation.isNotEmpty ? explanation : null,
+                    playbackSec: startSec,
+                    transcriptSnippet: claimText,
+                    activeChapterTitle: 'Claim #${index + 1}',
                   );
                 },
                 icon: const Icon(
@@ -1071,7 +1296,15 @@ class ClaimDetailScreen extends StatelessWidget {
     required String claimText,
     required Video video,
     Map<dynamic, dynamic>? initialClaim,
+    int claimIndex = 0,
   }) {
+    final sourceStatus = _resolveSourceStatus(initialClaim);
+    final academicMetadata = _extractAcademicMetadata(initialClaim);
+    final verifiedSources =
+        sourceStatus == 'missing' ? const <UISource>[] : sources;
+    final hasLiveSources = verifiedSources.isNotEmpty;
+    final claimId = _resolveClaimId(initialClaim, claimIndex);
+
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
@@ -1107,7 +1340,7 @@ class ClaimDetailScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  '${sources.length}',
+                  '${verifiedSources.length}',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
@@ -1138,7 +1371,9 @@ class ClaimDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Authoritative references & empirical citations cataloged for this claim.',
+            hasLiveSources
+                ? 'Verified sources confirmed live for this claim.'
+                : 'Verified source links are currently unavailable for this claim.',
             style: TextStyle(
               fontSize: 12,
               color: AppColors.textTertiary,
@@ -1153,24 +1388,29 @@ class ClaimDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 14),
 
-          // Sources List
-          if (sources.isNotEmpty) ...[
+          // Sources List or Honest Missing-Source Notice
+          if (hasLiveSources) ...[
             ListView.separated(
               shrinkWrap: true,
               primary: false,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: sources.length,
+              itemCount: verifiedSources.length,
               separatorBuilder: (_, _) => const SizedBox(height: 10),
               itemBuilder: (context, index) {
-                final s = sources[index];
-                return _buildDesktopSourceTile(context, s);
+                final s = verifiedSources[index];
+                return _buildDesktopSourceTile(
+                  context,
+                  s,
+                  videoId: video.id,
+                  claimId: claimId,
+                );
               },
             ),
             const SizedBox(height: 14),
             Row(
               children: [
                 Text(
-                  'Showing all ${sources.length} sources',
+                  'Showing all ${verifiedSources.length} sources',
                   style: TextStyle(
                     fontSize: 11.5,
                     color: AppColors.textTertiary,
@@ -1200,51 +1440,16 @@ class ClaimDetailScreen extends StatelessWidget {
               ],
             ),
           ] else ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 36),
-              child: Center(
-                child: Column(
-                  children: [
-                    const Icon(
-                      Icons.link_off_rounded,
-                      size: 36,
-                      color: AppColors.textTertiary,
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'No external citation links cataloged.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textTertiary,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    OutlinedButton.icon(
-                      onPressed: () => ClaimSourceSubmissionDialog.show(
-                        context: context,
-                        video: video,
-                        initialClaim: initialClaim ?? {'claim': claimText, 'text': claimText},
-                      ),
-                      icon: const Icon(Icons.add, size: 16, color: Colors.white),
-                      label: Text(
-                        'Provide the first source',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            _buildMissingSourcesCard(
+              context,
+              claimText: claimText,
+              video: video,
+              initialClaim: initialClaim,
             ),
+          ],
+          if (academicMetadata.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _buildAcademicMetadataSection(context, metadata: academicMetadata),
           ],
         ],
       ),
@@ -1252,14 +1457,24 @@ class ClaimDetailScreen extends StatelessWidget {
   }
 
   // Desktop Individual Source Tile
-  Widget _buildDesktopSourceTile(BuildContext context, UISource s) {
+  Widget _buildDesktopSourceTile(
+    BuildContext context,
+    UISource s, {
+    String? videoId,
+    String? claimId,
+  }) {
     final effectivePublisher = (s.publisher != null && s.publisher!.isNotEmpty)
         ? s.publisher!
         : (s.domain != null && s.domain!.isNotEmpty ? s.domain! : 'Verified Organization');
     final domainName = s.domain ?? SourceAvatarService.cleanDomain(s.url);
 
     return InkWell(
-      onTap: () => _launchSourceUrl(s.url),
+      onTap: () => _launchSourceUrl(
+        s.url,
+        source: s,
+        videoId: videoId,
+        claimId: claimId,
+      ),
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.all(12),
@@ -1507,6 +1722,7 @@ class ClaimDetailScreen extends StatelessWidget {
                         claimText: cleanClaimText,
                         video: video,
                         initialClaim: effectiveClaim,
+                        claimIndex: claimIndex,
                       ),
                       const SizedBox(height: 14),
 
@@ -1772,14 +1988,22 @@ class ClaimDetailScreen extends StatelessWidget {
     );
   }
 
-  // 🔗 3. Sources Card with Top 3 Avatars and "View all X sources"
+  // 🔗 3. Sources Card with Top Avatars and "View all X sources" (or Honest Unavailable Notice)
   Widget _buildSourcesCard(
     BuildContext context, {
     required List<UISource> sources,
     required String claimText,
     required Video video,
     Map<dynamic, dynamic>? initialClaim,
+    int claimIndex = 0,
   }) {
+    final sourceStatus = _resolveSourceStatus(initialClaim);
+    final academicMetadata = _extractAcademicMetadata(initialClaim);
+    final verifiedSources =
+        sourceStatus == 'missing' ? const <UISource>[] : sources;
+    final hasLiveSources = verifiedSources.isNotEmpty;
+    final claimId = _resolveClaimId(initialClaim, claimIndex);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1792,13 +2016,15 @@ class ClaimDetailScreen extends StatelessWidget {
         children: [
           // Header Row
           InkWell(
-            onTap: () => ClaimSourcesBottomSheet.show(
-              context,
-              sources: sources,
-              claimText: claimText,
-              video: video,
-              initialClaim: initialClaim,
-            ),
+            onTap: hasLiveSources
+                ? () => ClaimSourcesBottomSheet.show(
+                      context,
+                      sources: verifiedSources,
+                      claimText: claimText,
+                      video: video,
+                      initialClaim: initialClaim,
+                    )
+                : null,
             borderRadius: BorderRadius.circular(8),
             child: Row(
               children: [
@@ -1824,7 +2050,7 @@ class ClaimDetailScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
-                    '${sources.length}',
+                    '${verifiedSources.length}',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
@@ -1832,30 +2058,37 @@ class ClaimDetailScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 4),
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  size: 18,
-                  color: AppColors.textSecondary,
-                ),
+                if (hasLiveSources) ...[
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    size: 18,
+                    color: AppColors.textSecondary,
+                  ),
+                ],
               ],
             ),
           ),
           const SizedBox(height: 18),
 
-          // Sources Horizontal Rail (ChatGPT-style responsive cards)
-          if (sources.isNotEmpty)
+          // Sources Horizontal Rail or Honest Missing-Source Notice
+          if (hasLiveSources) ...[
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(),
               child: Row(
-                children: sources.take(8).map((s) {
+                children: verifiedSources.take(8).map((s) {
                   final domainName = s.domain ?? SourceAvatarService.cleanDomain(s.url);
                   return Container(
                     width: 175,
                     margin: const EdgeInsets.only(right: 10),
                     child: InkWell(
-                      onTap: () => _launchSourceUrl(s.url),
+                      onTap: () => _launchSourceUrl(
+                        s.url,
+                        source: s,
+                        videoId: video.id,
+                        claimId: claimId,
+                      ),
                       borderRadius: BorderRadius.circular(12),
                       child: Container(
                         padding: const EdgeInsets.all(12),
@@ -1923,67 +2156,69 @@ class ClaimDetailScreen extends StatelessWidget {
                   );
                 }).toList(),
               ),
-            )
-          else
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Center(
-                child: Text(
-                  'No external citation links cataloged.',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    color: AppColors.textTertiary,
+            ),
+            const SizedBox(height: 18),
+
+            // Action Button: "View all X sources"
+            InkWell(
+              onTap: () => ClaimSourcesBottomSheet.show(
+                context,
+                sources: verifiedSources,
+                claimText: claimText,
+                video: video,
+                initialClaim: initialClaim,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.08),
                   ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.format_list_bulleted_rounded,
+                      size: 18,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'View all ${verifiedSources.length} sources',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: AppColors.textSecondary,
+                    ),
+                  ],
                 ),
               ),
             ),
-          const SizedBox(height: 18),
-
-          // Action Button: "View all X sources"
-          InkWell(
-            onTap: () => ClaimSourcesBottomSheet.show(
+          ] else ...[
+            _buildMissingSourcesCard(
               context,
-              sources: sources,
               claimText: claimText,
               video: video,
               initialClaim: initialClaim,
             ),
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.08),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.format_list_bulleted_rounded,
-                    size: 18,
-                    color: Colors.white,
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    'View all ${sources.length} sources',
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const Spacer(),
-                  const Icon(
-                    Icons.chevron_right_rounded,
-                    size: 18,
-                    color: AppColors.textSecondary,
-                  ),
-                ],
-              ),
-            ),
-          ),
+          ],
+          if (academicMetadata.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _buildAcademicMetadataSection(context, metadata: academicMetadata),
+          ],
         ],
       ),
     );
@@ -2017,6 +2252,7 @@ class ClaimDetailScreen extends StatelessWidget {
             flex: 3,
             child: OutlinedButton(
               onPressed: () {
+                final startSec = initialClaim != null ? _extractStartSeconds(initialClaim) : null;
                 final explanation = (initialClaim?['explanation'] ??
                         initialClaim?['truthBreakdown'] ??
                         initialClaim?['reasoning'] ??
@@ -2034,6 +2270,9 @@ class ClaimDetailScreen extends StatelessWidget {
                   allClaims: initialClaim != null ? [initialClaim] : null,
                   summary: explanation.isNotEmpty ? explanation : null,
                   claimExplanation: explanation.isNotEmpty ? explanation : null,
+                  playbackSec: startSec,
+                  transcriptSnippet: claimText,
+                  activeChapterTitle: claimIndex != null ? 'Claim #${claimIndex + 1}' : null,
                 );
               },
               style: OutlinedButton.styleFrom(
@@ -2165,7 +2404,7 @@ class ClaimDetailScreen extends StatelessWidget {
 
     if (cleanText.isEmpty) {
       return Text(
-        'Checking the facts for this claim...',
+        'Checking the facts right now...',
         style: TextStyle(fontSize: fontSize, color: AppColors.textTertiary),
       );
     }
@@ -2231,23 +2470,331 @@ class ClaimDetailScreen extends StatelessWidget {
     return ms > 0 ? ms / 1000.0 : 0.0;
   }
 
-  Future<void> _launchSourceUrl(String? urlStr) async {
-    if (urlStr == null || urlStr.trim().isEmpty) return;
-    try {
-      final uri = Uri.parse(urlStr.startsWith('http') ? urlStr : 'https://$urlStr');
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-    } catch (e, s) {
-      ErrorHandler.log(e, stackTrace: s, tag: 'ClaimDetailScreen._launchSourceUrl');
+  String _resolveClaimId(Map<dynamic, dynamic>? claim, int claimIndex) {
+    final rawId = claim?['claimId'] ?? claim?['id'];
+    if (rawId != null && rawId.toString().trim().isNotEmpty) {
+      return rawId.toString().trim();
     }
+    return 'claim_$claimIndex';
+  }
+
+  String _resolveSourceStatus(Map<dynamic, dynamic>? claim) {
+    return (claim?['sourceStatus'] ?? claim?['sourcesStatus'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+  }
+
+  List<Map<String, dynamic>> _extractAcademicMetadata(
+    Map<dynamic, dynamic>? claim,
+  ) {
+    final raw = claim?['verifiedAcademicMetadata'];
+    if (raw is! List) return const [];
+    final items = <Map<String, dynamic>>[];
+    for (final entry in raw) {
+      if (entry is Map) {
+        final map = Map<String, dynamic>.from(entry);
+        final hasInfo = [
+          map['title'],
+          map['doi'],
+          map['pmid'],
+          map['pmcid'],
+          map['journal'],
+          map['publisher'],
+          map['authors'],
+        ].any((v) => v != null && v.toString().trim().isNotEmpty);
+        if (hasInfo) items.add(map);
+      }
+    }
+    return items;
+  }
+
+  Widget _buildMissingSourcesCard(
+    BuildContext context, {
+    required String claimText,
+    required Video video,
+    Map<dynamic, dynamic>? initialClaim,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+          width: 0.8,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.link_off_rounded,
+                size: 18,
+                color: AppColors.textSecondary,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Verified source links are currently unavailable',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'TruthWorld only displays source links confirmed live so you are never sent to broken or unverified pages.',
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => _searchWeb(claimText),
+                icon: const Icon(
+                  Icons.search_rounded,
+                  size: 16,
+                  color: Colors.white,
+                ),
+                label: const Text(
+                  'Search web',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.25)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => ClaimSourceSubmissionDialog.show(
+                  context: context,
+                  video: video,
+                  initialClaim:
+                      initialClaim ?? {'claim': claimText, 'text': claimText},
+                ),
+                icon: const Icon(
+                  Icons.add_link_rounded,
+                  size: 16,
+                  color: Colors.black,
+                ),
+                label: const Text(
+                  'Provide source',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAcademicMetadataSection(
+    BuildContext context, {
+    required List<Map<String, dynamic>> metadata,
+  }) {
+    if (metadata.isEmpty) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.025),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+          width: 0.8,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.school_outlined,
+                size: 16,
+                color: AppColors.textSecondary,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Academic Reference Metadata',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  'Non-clickable',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Verified bibliographic record. Direct public web links are unavailable or paywalled.',
+            style: TextStyle(
+              fontSize: 11.5,
+              color: AppColors.textTertiary,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...metadata.take(4).map((item) {
+            final title = (item['title'] ?? '').toString().trim();
+            final authors = item['authors'] is List
+                ? (item['authors'] as List)
+                    .map((a) => a.toString().trim())
+                    .where((a) => a.isNotEmpty)
+                    .take(3)
+                    .join(', ')
+                : (item['authors'] ?? '').toString().trim();
+            final journal =
+                (item['journal'] ?? item['publisher'] ?? '').toString().trim();
+            final year = (item['year'] ?? '').toString().trim();
+            final doi = (item['doi'] ?? '').toString().trim();
+            final pmid = (item['pmid'] ?? '').toString().trim();
+            final pmcid = (item['pmcid'] ?? '').toString().trim();
+
+            final metaParts = [
+              if (authors.isNotEmpty) authors,
+              if (journal.isNotEmpty) journal,
+              if (year.isNotEmpty) year,
+            ].join(' • ');
+            final idParts = [
+              if (doi.isNotEmpty) 'DOI: $doi',
+              if (pmid.isNotEmpty) 'PMID: $pmid',
+              if (pmcid.isNotEmpty) 'PMCID: $pmcid',
+            ].join('  |  ');
+
+            return Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.03),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.06),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (title.isNotEmpty)
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                        height: 1.3,
+                      ),
+                    ),
+                  if (metaParts.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      metaParts,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                  if (idParts.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      idParts,
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _launchSourceUrl(
+    String? urlStr, {
+    UISource? source,
+    String? videoId,
+    String? claimId,
+  }) async {
+    final targetUrl =
+        (urlStr != null && urlStr.trim().isEmpty == false) ? urlStr : source?.url;
+    if (targetUrl == null || targetUrl.trim().isEmpty) return;
+    await SourceUrlSanitizer.launchSourceUrl(
+      url: targetUrl,
+      title: source?.title,
+      publisher: source?.publisher,
+      domain: source?.domain,
+      source: source?.toMap(),
+      videoId: videoId,
+      claimId: claimId,
+    );
   }
 
   Future<void> _searchWeb(String claimText) async {
-    final query = claimText.trim();
-    if (query.isEmpty) return;
-    final searchUrl = 'https://www.google.com/search?q=${Uri.encodeComponent(query)}';
-    await _launchSourceUrl(searchUrl);
+    await SourceUrlSanitizer.launchWebSearch(query: claimText);
   }
 
   void _shareClaim(

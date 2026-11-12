@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/data/services/ai_credibility_chat_service.dart';
 
@@ -83,7 +84,6 @@ void main() {
         cachedSources: sampleSources,
         cachedClaims: sampleClaims,
         videoTitle: "Zomato's Big Transformation: From Food Delivery to a Consumer Empire",
-        trustScore: 68.0,
       );
 
       service.callableHandler = null;
@@ -300,6 +300,51 @@ void main() {
       expect(result.scope, equals('claim'));
     });
 
+    test('Conversational chat responds to question in claim scope instead of echoing exact claim breakdown', () async {
+      final service = AiCredibilityChatService.instance;
+      service.clearCache();
+      service.callableHandler = (_) async => throw Exception('Offline fallback');
+
+      final nehruSources = [
+        UISource(
+          title: 'Why was Nehru the chosen political heir of Mahatma Gandhi?',
+          url: 'https://quora.com/why-nehru-chosen',
+          domain: 'quora.com',
+          publisher: 'Historical Archives',
+          trustLevel: 'High',
+          type: 'Web',
+        ),
+      ];
+
+      const nehruExplanation =
+          "The claim holds historical basis. Mahatma Gandhi publicly indicated his preference for Jawaharlal Nehru as his successor and as India's first Prime Minister, despite significant support for Sardar Vallabhbhai Patel among the Provincial Congress Committees (PCCs).";
+
+      final result = await service.askCredibilityAi(
+        videoId: 'video_nehru_14',
+        userQuery: 'why gandhi declared Nehru as Prime Minster?',
+        scope: 'claim',
+        claimIndex: 13,
+        claimText: 'మనమూ జవహర్‌లాల్ నెహ్రూ నే ప్రైమ్ మినిస్టర్ చేదాము అనే అన్నారు',
+        verdict: 'MOSTLY TRUE',
+        claimExplanation: nehruExplanation,
+        cachedSources: nehruSources,
+        videoTitle: 'Real Face of Gandhi',
+      );
+
+      service.callableHandler = null;
+
+      // Must respond as a conversational chat addressing the user's specific question
+      expect(result.text.contains('Regarding your question about'), isTrue);
+      expect(result.text.contains('why gandhi declared Nehru as Prime Minster'), isTrue);
+      expect(result.text.contains('Key Historical Context & Verified Rationale'), isTrue);
+      expect(result.text.contains('International Diplomacy'), isTrue);
+      expect(result.text.contains('Sardar Vallabhbhai Patel'), isTrue);
+
+      // Must NOT be the raw static claim card
+      expect(result.text.startsWith('> "మనమూ జవహర్‌లాల్ నెహ్రూ నే ప్రైమ్ మినిస్టర్ చేదాము అనే అన్నారు"'), isFalse);
+      expect(result.text.contains('**Truth Intelligence Analysis:**\n'), isFalse);
+    });
+
     test('Heuristic fallback evaluates claim within holistic video scope when scope is video', () async {
       final service = AiCredibilityChatService.instance;
       service.clearCache();
@@ -312,7 +357,6 @@ void main() {
         cachedSources: sampleSources,
         cachedClaims: sampleClaims,
         videoTitle: "Zomato's Big Transformation",
-        trustScore: 84.0,
       );
 
       service.callableHandler = null;
@@ -412,6 +456,135 @@ void main() {
       expect(result.sources.first.url, equals('https://www.sec.gov/Archives/edgar/data/00012345/q1-2026.htm'));
       expect(result.sources.last.url, equals('https://www.reuters.com/business/company-q1-loss-2026'));
       expect(result.disclaimer, contains('Dispute submitted to the automated deep re-verification pipeline'));
+    });
+
+    test('Serializes playbackSec, transcriptSnippet, and activeChapterTitle in payload', () async {
+      final service = AiCredibilityChatService.instance;
+      service.clearCache();
+
+      Map<String, dynamic>? capturedPayload;
+      service.callableHandler = (payload) async {
+        capturedPayload = payload;
+        return {
+          'answer': 'Response anchored to 05:58.',
+          'sources': [],
+          'suggestedFollowups': ['Explain earlier statements'],
+        };
+      };
+
+      final result = await service.askCredibilityAi(
+        videoId: 'vid_nehru_14',
+        userQuery: 'what did the speaker just mean by that?',
+        scope: 'claim',
+        claimIndex: 13,
+        playbackSec: 358.0,
+        transcriptSnippet: 'మనమూ జవహర్‌లాల్ నెహ్రూ నే ప్రైమ్ మినిస్టర్ చేదాము అనే అన్నారు',
+        activeChapterTitle: 'Nomination Decision',
+      );
+
+      service.callableHandler = null;
+
+      expect(capturedPayload, isNotNull);
+      expect(capturedPayload!['playbackSec'], equals(358.0));
+      expect(capturedPayload!['transcriptSnippet'], equals('మనమూ జవహర్‌లాల్ నెహ్రూ నే ప్రైమ్ మినిస్టర్ చేదాము అనే అన్నారు'));
+      expect(capturedPayload!['activeChapterTitle'], equals('Nomination Decision'));
+      expect(result.text, equals('Response anchored to 05:58.'));
+    });
+
+    test('Heuristic fallback responds with temporal analysis and transcript citation for relative questions', () async {
+      final service = AiCredibilityChatService.instance;
+      service.clearCache();
+      service.callableHandler = (_) async => throw Exception('Network timeout');
+
+      final result = await service.askCredibilityAi(
+        videoId: 'vid_nehru_14',
+        userQuery: 'what did the speaker just mean by that?',
+        scope: 'claim',
+        claimIndex: 13,
+        playbackSec: 358.0,
+        transcriptSnippet: 'మనమూ జవహర్‌లాల్ నెహ్రూ నే ప్రైమ్ మినిస్టర్ చేదాము అనే అన్నారు',
+        activeChapterTitle: 'Nomination Decision',
+      );
+
+      service.callableHandler = null;
+
+      expect(result.text, contains('Temporal Video & Transcript Analysis (05:58)'));
+      expect(result.text, contains('Nomination Decision'));
+      expect(result.text, contains('మనమూ జవహర్‌లాల్ నెహ్రూ నే ప్రైమ్ మినిస్టర్ చేదాము అనే అన్నారు'));
+      expect(result.suggestedFollowups, contains('Did the speaker contradict an earlier claim?'));
+      expect(result.suggestedFollowups, contains('What sources verify what was said at 05:58?'));
+    });
+
+    test('Heuristic fallback analyzes self-contradiction and ledger consistency', () async {
+      final service = AiCredibilityChatService.instance;
+      service.clearCache();
+      service.callableHandler = (_) async => throw Exception('Network timeout');
+
+      final result = await service.askCredibilityAi(
+        videoId: 'vid_econ_2026',
+        userQuery: 'did the speaker contradict an earlier claim?',
+        scope: 'video',
+        playbackSec: 120.0,
+      );
+
+      service.callableHandler = null;
+
+      expect(result.text, contains('Temporal Video & Transcript Analysis (02:00)'));
+      expect(result.text, contains('Self-Contradiction & Claim Consistency Analysis'));
+      expect(result.text, contains('Ledger Alignment'));
+      expect(result.suggestedFollowups, contains('Did the speaker contradict an earlier claim?'));
+    });
+
+    test('streamCredibilityAi gracefully falls back to askCredibilityAi when stream encounters HTTP 503', () async {
+      final service = AiCredibilityChatService.instance;
+      service.clearCache();
+
+      // Simulate streaming failure with HTTP 503
+      service.streamedResponseHandler = () async {
+        return http.StreamedResponse(const Stream.empty(), 503);
+      };
+
+      // Set callableHandler to respond successfully
+      service.callableHandler = (_) async {
+        return {
+          'answer': 'Reliable fallback response from callable ledger verification.',
+          'sources': [
+            {
+              'title': 'Official Regulatory Filings',
+              'url': 'https://sec.gov/filing/123',
+              'publisher': 'SEC',
+            },
+          ],
+          'suggestedFollowups': ['Explain regulatory disclosures'],
+          'disclaimer': 'Verified from official records.',
+        };
+      };
+
+      final events = <CredibilityChatStreamEvent>[];
+      await for (final event in service.streamCredibilityAi(
+        videoId: 'vid_test_503',
+        userQuery: 'Is this claim supported by data?',
+        scope: 'video',
+      )) {
+        events.add(event);
+      }
+
+      service.streamedResponseHandler = null;
+      service.callableHandler = null;
+
+      expect(events, isNotEmpty);
+      // Must not emit error event because fallback succeeded
+      expect(events.any((e) => e.error != null), isFalse);
+
+      final metadata = events.firstWhere((e) => e.sources != null);
+      expect(metadata.sources?.first.title, equals('Official Regulatory Filings'));
+      expect(metadata.suggestedFollowups, contains('Explain regulatory disclosures'));
+
+      final textEvent = events.firstWhere((e) => e.textDelta != null);
+      expect(textEvent.textDelta, equals('Reliable fallback response from callable ledger verification.'));
+
+      final doneEvent = events.firstWhere((e) => e.isDone);
+      expect(doneEvent, isNotNull);
     });
   });
 }

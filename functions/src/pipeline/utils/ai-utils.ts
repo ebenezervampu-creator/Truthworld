@@ -107,8 +107,8 @@ export interface CircuitBreakerState {
 }
 
 export const CIRCUIT_DEFAULTS = {
-  BASE_OPEN_DURATION_MS: 15_000,  // 15 seconds for first trip
-  MAX_OPEN_DURATION_MS: 120_000,  // 2 minutes maximum
+  BASE_OPEN_DURATION_MS: 10_000,  // 10 seconds for first trip
+  MAX_OPEN_DURATION_MS: 25_000,   // 25 seconds maximum (prevents 540s Cloud Run request timeout starvation)
   HALF_OPEN_PROBE_DELAY_MS: 2_000,
   FIRESTORE_PATH: '_ai_health/circuit_breaker',
 } as const;
@@ -221,8 +221,8 @@ export async function getCircuitState(): Promise<CircuitBreakerState> {
 // ─── WATERFALL ROUTING ──────────────────────────────────────────────────────
 
 export interface ModelFallbackChain {
-  primary: string;           // e.g. 'gemini-3.5-flash'
-  fallback: string | null;   // e.g. 'gemini-3.1-flash-lite' or null if forcePrimary
+  primary: string;           // e.g. 'gemini-2.5-flash'
+  fallback: string | null;   // null or fallback model
   forcePrimary: boolean;     // if true, never fall back — wait and retry on primary
 }
 
@@ -320,11 +320,20 @@ export async function withAiRetry<T>(
     const circuitStatus = await checkCircuitBreaker();
     
     if (circuitStatus === 'wait') {
+      // If a fallback model is available and not forced to primary, switch immediately rather than sleeping
+      if (chain.fallback && !chain.forcePrimary && currentModel === chain.primary) {
+        logger.info(`[WaterfallRouting] Circuit open on ${chain.primary} → switching to fallback ${chain.fallback} immediately without pause`);
+        currentModel = chain.fallback;
+        continue;
+      }
+
       // Circuit is open — pause locally, do not hit the API
       const state = await getCircuitState();
-      const remainingMs = (state.openDurationMs) - (Date.now() - (state.trippedAt ?? 0));
+      const rawRemaining = (state.openDurationMs) - (Date.now() - (state.trippedAt ?? 0));
+      const remainingMs = Math.min(Math.max(rawRemaining, 0), CIRCUIT_DEFAULTS.MAX_OPEN_DURATION_MS);
+      if (options.signal?.aborted) throw new Error('ABORTED');
       logger.info(`[CircuitBreaker] Open. Pausing ${remainingMs}ms before retry.`);
-      await sleep(Math.max(remainingMs, 0) + CIRCUIT_DEFAULTS.HALF_OPEN_PROBE_DELAY_MS);
+      await sleep(remainingMs + CIRCUIT_DEFAULTS.HALF_OPEN_PROBE_DELAY_MS);
       attempts++;
       continue;
     }

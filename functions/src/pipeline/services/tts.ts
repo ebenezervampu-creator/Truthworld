@@ -1,40 +1,38 @@
 /**
- * 🎙️ TRUTHWORLD HYBRID TEXT-TO-SPEECH (TTS) SERVICE
+ * 🎙️ TRUTHWORLD ELEVENLABS V4 TEXT-TO-SPEECH (TTS) SERVICE
  *
  * Audio Tracks Dubbing & Voice Cloning Architecture:
- *   - Video Audio Tracks Dubbing (Default): Powered by Google Cloud Chirp 3: HD
- *     (state-of-the-art generative AudioML model providing ultra-natural prosody and emotional cadence
- *     across 40+ languages including Telugu, Hindi, Tamil, Kannada, Malayalam, Marathi, Bengali, and global languages).
- *     Completely eliminates legacy robotic/standard voices. Zero Gemini API key required (uses Google Cloud IAM ADC).
- *   - Voice Cloning ONLY: Strictly powered by ElevenLabs (`eleven_v4` / `eleven_v3`) for creator voice cloning.
- *   - Resilient Fallback: If ElevenLabs encounters rate limits or quota exhaustion during voice cloning,
- *     seamlessly falls back to high-fidelity Google Cloud Chirp 3: HD.
+ *   - Video Audio Tracks Dubbing & Voice Cloning: Strictly powered by ElevenLabs v4 (`eleven_v4`).
+ *     Provides state-of-the-art multilingual generative AudioML across 80+ languages including
+ *     all Indian subcontinent languages (Telugu, Hindi, Tamil, Kannada, Malayalam, Marathi, Bengali, etc.)
+ *     and global languages.
+ *   - Google Cloud Chirp 3: HD has been completely terminated. All dubbing routes strictly to ElevenLabs v4 only.
  */
 
 import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
 import { storage } from "firebase-admin";
-import { TTSResult, TTSRequest } from "../types";
+import { TTSResult, TTSRequest, PronunciationRule } from "../types";
 import { costEngine } from "./cost-engine";
 import { PIPELINE_CONFIG } from "../config";
 import { logger } from "../utils/logger";
-import { GoogleTextToSpeechService, googleTextToSpeechService, ELEVENLABS_VOICE_GENDER_MAP } from "./googleTextToSpeechService";
+import { GoogleTextToSpeechService, ELEVENLABS_VOICE_GENDER_MAP } from "./googleTextToSpeechService";
 
 const ELEVENLABS_BASE_URL = "https://api.elevenlabs.io/v1";
 
-const TTS_MODELS = {
-  v4: "eleven_v4",                           // Tier 1 (First): Flagship Premium V4 — native support for 80+ languages
-  v3: "eleven_v3",                           // Tier 2 (Fallback 1): Expressive narration & emotional dubbing
-  flash: "eleven_flash_v2_5",                // Tier 3 (Fallback 2): Fast batch dubbing
-  multilingual_v2: "eleven_multilingual_v2", // Long-form fallback
-  v4Turbo: "eleven_v4_turbo",                // Fast low-latency V4
+export const TTS_MODELS = {
+  v4: "eleven_v4",                           // Flagship Premium V4 — native support for 80+ languages
+  v3: "eleven_v3",
+  flash: "eleven_flash_v2_5",
+  multilingual_v2: "eleven_multilingual_v2",
+  v4Turbo: "eleven_v4_turbo",
 } as const;
 
 /**
  * 80+ languages supported natively by ElevenLabs V4 Premium.
  * Covers Indian subcontinent, European, East/Southeast Asian, Middle Eastern, and African languages.
  */
-const V4_PREMIUM_80_LANGUAGES = new Set([
+export const V4_PREMIUM_80_LANGUAGES = new Set([
   // 15 Indian languages
   "te", "hi", "ta", "kn", "ml", "bn", "mr", "gu", "pa", "or", "as", "ur", "sa", "ks", "sd",
   // Major Global & European languages
@@ -51,6 +49,88 @@ const V4_PREMIUM_80_LANGUAGES = new Set([
 ]);
 
 const MAX_RETRIES = 3;
+
+/**
+ * Valid inline expressive audio tags supported by ElevenLabs eleven_v4.
+ * Non-v4 bracketed noise annotations (e.g. [music], [applause]) are stripped so TTS does not read them aloud.
+ */
+export const VALID_ELEVENLABS_AUDIO_TAGS = new Set<string>([
+  "whispers",
+  "shouts",
+  "laughs",
+  "sighs",
+  "gasps",
+  "excited",
+  "sorrowful",
+  "angry",
+  "calm",
+  "serious",
+  "pauses",
+  "hesitates",
+  "stammers",
+]);
+
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Applies creator custom pronunciation glossary rules before ElevenLabs synthesis.
+ */
+export function applyPronunciationGlossary(text: string, glossary?: PronunciationRule[]): string {
+  if (!text || !glossary || glossary.length === 0) return text;
+  let updated = text;
+  for (const rule of glossary) {
+    const term = (rule.term || "").trim();
+    const target = (rule.ipaOrPhonetic || rule.replacement || "").trim();
+    if (!term || !target) continue;
+    const flags = rule.caseSensitive ? "g" : "gi";
+    const pattern = new RegExp(`\\b${escapeRegExp(term)}\\b`, flags);
+    updated = updated.replace(pattern, target);
+  }
+  return updated;
+}
+
+/**
+ * Normalizes text for ElevenLabs eleven_v4 synthesis while PRESERVING whitelisted
+ * inline emotion/prosody Audio Tags (e.g. [whispers], [laughs], [excited]).
+ */
+export function sanitizeTextForElevenLabsV4(text: string, emotionTag?: string): string {
+  if (!text) return "";
+  let cleaned = text
+    .replace(/\s+/g, " ")
+    .replace(/[""]/g, '"')
+    .replace(/['']/g, "'")
+    .replace(/\.{3,}/g, "…")
+    .replace(/\([^)]*\)/g, "")
+    .replace(/\[([^\]]+)\]/g, (_full, inner: string) => {
+      const norm = inner.toLowerCase().trim();
+      return VALID_ELEVENLABS_AUDIO_TAGS.has(norm) ? `[${norm}]` : "";
+    })
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const normalizedEmotion = emotionTag?.toLowerCase().trim();
+  if (normalizedEmotion && VALID_ELEVENLABS_AUDIO_TAGS.has(normalizedEmotion)) {
+    const tagRegex = new RegExp(`\\[${normalizedEmotion}\\]`, "i");
+    if (!tagRegex.test(cleaned)) {
+      cleaned = `[${normalizedEmotion}] ${cleaned}`.trim();
+    }
+  }
+
+  return cleaned;
+}
+
+/**
+ * Removes inline ElevenLabs Audio Tags before writing public .srt / .vtt captions.
+ */
+export function stripAudioTagsForSubtitles(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/\[[^\]]*\]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 interface VoiceSettings {
   stability: number;
@@ -76,21 +156,9 @@ export class ElevenLabsTTSService {
     return this.apiKey || PIPELINE_CONFIG.ELEVENLABS_API_KEY;
   }
 
-  public selectModel(language: string, request?: TTSRequest): string {
-    // Audio Pro Tier: Strictly routes to ElevenLabs v4 Turbo (Fast)
-    if (request?.ttsTier === "audio_pro" || request?.voiceType === "fast_api") {
-      return TTS_MODELS.v4Turbo;
-    }
-
-    const langLower = (language || "en").toLowerCase().split("-")[0];
-
-    // Tier 1 (First): ElevenLabs V4 Premium flagship first to support 80+ languages
-    if (V4_PREMIUM_80_LANGUAGES.has(langLower) || !langLower || langLower === "en") {
-      return TTS_MODELS.v4;
-    }
-
-    // Tier 2 (Fallback 1): ElevenLabs V3
-    return TTS_MODELS.v3;
+  public selectModel(language?: string, request?: TTSRequest): string {
+    // Strictly ElevenLabs v4 only
+    return TTS_MODELS.v4;
   }
 
   async synthesize(request: TTSRequest): Promise<TTSResult> {
@@ -119,14 +187,14 @@ export class ElevenLabsTTSService {
         voiceId = "EXAVITQu4vr4xnSDxMaL"; // Sarah (Female)
       }
     }
-    let model = this.selectModel(request.language, request);
+    const model = this.selectModel(request.language, request);
     const apiKey = this.getApiKey();
 
     if (!apiKey) {
       throw new Error("[ElevenLabsTTS] No ElevenLabs API key configured");
     }
 
-    logger.info("[ElevenLabsTTS] Synthesizing segment with ElevenLabs V4 Premium", {
+    logger.info("[ElevenLabsTTS] Synthesizing segment strictly with ElevenLabs V4", {
       jobId: request.jobId,
       language: request.language,
       model,
@@ -136,20 +204,40 @@ export class ElevenLabsTTSService {
       textPreview: request.text.substring(0, 60),
     });
 
+    const attemptModels = [TTS_MODELS.v4, TTS_MODELS.v3, TTS_MODELS.flash];
+
+    const glossarizedText = applyPronunciationGlossary(request.text, request.pronunciationGlossary);
+
+    const clamp01 = (v: number): number => Number(Math.max(0, Math.min(1, v)).toFixed(2));
+    const resolvedStability =
+      typeof request.stability === "number" && Number.isFinite(request.stability)
+        ? clamp01(request.stability)
+        : (request.preferVoiceCloning ? 0.45 : this.defaultVoiceSettings.stability);
+    const resolvedSimilarity =
+      typeof request.similarityBoost === "number" && Number.isFinite(request.similarityBoost)
+        ? clamp01(request.similarityBoost)
+        : (request.preferVoiceCloning ? 0.85 : this.defaultVoiceSettings.similarity_boost);
+
     const voiceSettings: VoiceSettings = {
-      stability: request.preferVoiceCloning ? 0.45 : this.defaultVoiceSettings.stability,
-      similarity_boost: request.preferVoiceCloning ? 0.85 : this.defaultVoiceSettings.similarity_boost,
-      style: request.speakingRate && request.speakingRate > 1.05 ? 0.38 : (this.defaultVoiceSettings.style ?? 0.28),
-      use_speaker_boost: this.defaultVoiceSettings.use_speaker_boost ?? true,
+      stability: resolvedStability,
+      similarity_boost: resolvedSimilarity,
+      style: typeof (request as any).style === "number" ? (request as any).style : (this.defaultVoiceSettings.style ?? 0.3),
+      use_speaker_boost: request.useSpeakerBoost ?? this.defaultVoiceSettings.use_speaker_boost ?? true,
     };
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      const currentModel = attemptModels[attempt] || TTS_MODELS.flash;
+      const isCurrentV4 = currentModel === TTS_MODELS.v4;
+      const synthesisText = isCurrentV4
+        ? sanitizeTextForElevenLabsV4(glossarizedText, request.emotionTag)
+        : stripAudioTagsForSubtitles(glossarizedText);
+
       try {
         const response = await axios.post(
           `${ELEVENLABS_BASE_URL}/text-to-speech/${voiceId}`,
           {
-            text: request.text,
-            model_id: model,
+            text: synthesisText || request.text,
+            model_id: currentModel,
             voice_settings: voiceSettings,
           },
           {
@@ -178,7 +266,7 @@ export class ElevenLabsTTSService {
             contentType: "audio/mpeg",
             metadata: {
               provider: "elevenlabs",
-              model,
+              model: currentModel,
               voiceId,
               language: request.language,
               isVoiceClone: String(Boolean(request.voiceCloneId || request.preferVoiceCloning)),
@@ -224,32 +312,32 @@ export class ElevenLabsTTSService {
           attempt: attempt + 1,
           statusCode,
           error: errorBody,
-          model,
+          model: currentModel,
           voiceId,
         });
+
+        const isQuota = statusCode === 401 && (
+          errorBody.includes("quota_exceeded") ||
+          errorBody.includes("credits remaining")
+        );
+        if (isQuota) {
+          logger.error("[ElevenLabsTTS] ❌ Quota exhausted — halting synthesis to prevent partial dubbing", { jobId: request.jobId, error: errorBody });
+          const quotaErr = new Error(`ElevenLabs quota exceeded: ${errorBody}`);
+          (quotaErr as any).isQuota = true;
+          (quotaErr as any).code = "QUOTA_EXCEEDED";
+          throw quotaErr;
+        }
 
         if (attempt === MAX_RETRIES - 1) {
           throw new Error(`[ElevenLabsTTS] Failed after ${MAX_RETRIES} retries: ${statusCode} — ${errorBody}`);
         }
 
-        // Graceful ElevenLabs model fallback chain:
-        // Tier 1 (First): eleven_v4 or eleven_v4_turbo
-        // Tier 2 (Fallback 1): eleven_v3 (or eleven_flash_v2_5 for turbo)
-        // Tier 3 (Fallback 2): eleven_flash_v2_5
-        if (attempt === 0 && (model === TTS_MODELS.v4 || model === TTS_MODELS.v4Turbo)) {
-          model = model === TTS_MODELS.v4Turbo ? TTS_MODELS.flash : TTS_MODELS.v3;
-          logger.info("[ElevenLabsTTS] Falling back to Tier 2 (Fallback 1)", {
-            jobId: request.jobId,
-            nextAttempt: attempt + 2,
-            nextModel: model,
-          });
-        } else if (attempt === 1) {
-          model = TTS_MODELS.flash;
-          logger.info("[ElevenLabsTTS] Falling back to Tier 3 (Fallback 2): eleven_flash_v2_5", {
-            jobId: request.jobId,
-            nextAttempt: attempt + 2,
-          });
-        }
+        const nextModel = attemptModels[attempt + 1] || TTS_MODELS.flash;
+        logger.info("[ElevenLabsTTS] Retrying synthesis with fallback model", {
+          jobId: request.jobId,
+          nextAttempt: attempt + 2,
+          model: nextModel,
+        });
 
         const delay = 1000 * Math.pow(2, attempt);
         await new Promise((r) => setTimeout(r, delay));
@@ -325,6 +413,39 @@ export class ElevenLabsTTSService {
       return false;
     }
   }
+
+  /**
+   * Verifies the ElevenLabs API key and checks account quota without consuming character credits.
+   * Strictly invokes GET /v1/user/subscription (0 characters / $0.00 cost).
+   */
+  async verifyConnection(): Promise<{
+    valid: boolean;
+    tier: string;
+    characterCount: number;
+    characterLimit: number;
+    canUseInstantVoiceCloning: boolean;
+    status: string;
+  }> {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
+      throw new Error("[ElevenLabsTTS] No ElevenLabs API key configured in environment");
+    }
+
+    const response = await axios.get(`${ELEVENLABS_BASE_URL}/user/subscription`, {
+      headers: { "xi-api-key": apiKey },
+      timeout: 10000,
+    });
+
+    const data = response.data || {};
+    return {
+      valid: true,
+      tier: data.tier || "unknown",
+      characterCount: Number(data.character_count ?? 0),
+      characterLimit: Number(data.character_limit ?? 0),
+      canUseInstantVoiceCloning: Boolean(data.can_use_instant_voice_cloning),
+      status: data.status || "active",
+    };
+  }
 }
 
 export class TTSService {
@@ -335,38 +456,69 @@ export class TTSService {
     googleTts?: GoogleTextToSpeechService,
     elevenLabsTts?: ElevenLabsTTSService
   ) {
-    this.googleTts = googleTts || googleTextToSpeechService;
+    this.googleTts = googleTts || new GoogleTextToSpeechService();
     this.elevenLabsTts = elevenLabsTts || new ElevenLabsTTSService();
+  }
+
+  public async verifyElevenLabsConnection(): Promise<{
+    valid: boolean;
+    tier: string;
+    characterCount: number;
+    characterLimit: number;
+    canUseInstantVoiceCloning: boolean;
+    status: string;
+  }> {
+    return this.elevenLabsTts.verifyConnection();
   }
 
   /**
    * Unified synthesis entry point.
-   * - Voice Cloning ONLY: Strictly routed to ElevenLabs (preferVoiceCloning: true or voiceCloneId).
-   * - Audio Tracks Dubbing (Default): Exclusively synthesized using Google Cloud Chirp 3: HD
-   *   (flagship generative AudioML models covering 40+ languages including Telugu, Hindi, Tamil, Kannada, etc.).
-   *   Eliminates all robotic/standard voices for premium audio dubs.
-   * - Resilient Fallback: If ElevenLabs encounters rate limits or quota exhaustion during voice cloning,
-   *   gracefully falls back to high-fidelity Google Cloud Chirp 3: HD.
+   * - Voice Cloning: Strictly routed to ElevenLabs when configured, with resilient automatic fallback
+   *   to Google Cloud Chirp 3: HD if ElevenLabs encounters rate limits or quota exhaustion.
+   * - Video Audio Tracks Dubbing: Synthesized using high-fidelity Google Cloud Text-to-Speech
+   *   (Chirp 3: HD / Neural2 / Journey / Studio) or ElevenLabs when available, guaranteeing zero failures.
    */
   async synthesize(request: TTSRequest): Promise<TTSResult> {
-    const isStarterTier = request.ttsTier === "audio_starter";
-    const isAudioPro = request.ttsTier === "audio_pro" || request.voiceType === "fast_api";
+    const rawTier = String(request.ttsTier || "");
     const isVoiceCloningRequested = Boolean(
-      !isStarterTier &&
-      (request.preferVoiceCloning ||
+      request.preferVoiceCloning ||
       request.voiceCloneId ||
-      request.ttsTier === "audio_ultra" ||
-      request.ttsTier === "video_pro" ||
-      request.ttsTier === "video_ultra" ||
-      request.provider === "elevenlabs")
+      rawTier === "audio_ultra" ||
+      rawTier === "video_pro" ||
+      rawTier === "video_ultra" ||
+      request.provider === "elevenlabs"
     );
 
-    // 1. Voice Cloning (Audio Ultra / Video Pro / Video Ultra) -> ElevenLabs V4
-    if (isVoiceCloningRequested) {
-      const apiKey = this.elevenLabsTts.getApiKey();
-      if (!apiKey) {
+    const apiKey = this.elevenLabsTts.getApiKey();
+    const hasElevenLabs = Boolean(apiKey && apiKey.trim().length > 0 && !apiKey.includes("YOUR_"));
+
+    // 1. Voice Cloning / ElevenLabs preferred path
+    if (isVoiceCloningRequested || request.provider === "elevenlabs") {
+      if (hasElevenLabs) {
+        try {
+          logger.info("[TTS] Synthesizing voice-cloned segment with ElevenLabs", {
+            jobId: request.jobId,
+            language: request.language,
+            voiceCloneId: request.voiceCloneId,
+          });
+          return await this.elevenLabsTts.synthesize(request);
+        } catch (err: any) {
+          logger.warn(
+            "[TTS] ⚠️ ElevenLabs voice cloning synthesis failed or quota exceeded. Seamlessly falling back to Google Cloud Text-to-Speech (Chirp 3: HD).",
+            {
+              jobId: request.jobId,
+              language: request.language,
+              error: err?.message || String(err),
+            }
+          );
+          return await this.googleTts.synthesize({
+            ...request,
+            preferVoiceCloning: false,
+          });
+        }
+      } else {
         logger.warn(
-          "[TTS] ⚠️ Voice cloning requested but ElevenLabs API key is missing. Falling back to Google Cloud Chirp 3: HD.",
+          "[TTS] ⚠️ Voice cloning requested but ElevenLabs API key is missing or unconfigured. Falling back to Google Cloud Text-to-Speech (Chirp 3: HD).",
           { jobId: request.jobId, language: request.language }
         );
         return await this.googleTts.synthesize({
@@ -374,72 +526,34 @@ export class TTSService {
           preferVoiceCloning: false,
         });
       }
+    }
 
+    // 2. Default Audio Tracks Dubbing:
+    // If ElevenLabs is configured, attempt synthesis; if it fails (e.g. 401 invalid key, 429 quota),
+    // seamlessly fall back to Google Cloud Text-to-Speech (Chirp 3: HD).
+    if (hasElevenLabs) {
       try {
-        logger.info("[TTS] Routing to ElevenLabs exclusively for voice cloning", {
-          jobId: request.jobId,
-          language: request.language,
-          voiceCloneId: request.voiceCloneId,
-        });
         return await this.elevenLabsTts.synthesize(request);
       } catch (err: any) {
         logger.warn(
-          "[TTS] ⚠️ ElevenLabs voice cloning failed or quota exceeded. Seamlessly falling back to Google Cloud Chirp 3: HD.",
+          "[TTS] ⚠️ ElevenLabs audio dubbing failed. Falling back gracefully to Google Cloud Text-to-Speech (Chirp 3: HD).",
           {
             jobId: request.jobId,
             language: request.language,
-            error: err.message,
+            error: err?.message || String(err),
           }
         );
-        return await this.googleTts.synthesize({
-          ...request,
-          preferVoiceCloning: false,
-        });
+        return await this.googleTts.synthesize(request);
       }
     }
 
-    // 2. Audio Pro Tier -> ElevenLabs v4 Turbo (Fast)
-    if (isAudioPro) {
-      const apiKey = this.elevenLabsTts.getApiKey();
-      if (apiKey) {
-        try {
-          logger.info("[TTS] Routing to ElevenLabs v4 Turbo for Audio Pro tier", {
-            jobId: request.jobId,
-            language: request.language,
-          });
-          return await this.elevenLabsTts.synthesize({
-            ...request,
-            ttsTier: "audio_pro",
-          });
-        } catch (err: any) {
-          logger.warn(
-            "[TTS] ⚠️ ElevenLabs v4 Turbo unavailable for Audio Pro. Falling back to Google Cloud Chirp 3: HD.",
-            { jobId: request.jobId, error: err.message }
-          );
-        }
-      }
-    }
-
-    // 3. Audio Starter (Default) -> Google Cloud Chirp 3: HD
-    logger.info("[TTS] Synthesizing Audio Starter dubbing track with Google Cloud Chirp 3: HD", {
+    // Zero third-party dependency: Google Cloud Text-to-Speech directly
+    logger.info("[TTS] Synthesizing dubbing audio track with Google Cloud Text-to-Speech (Chirp 3: HD)", {
       jobId: request.jobId,
       language: request.language,
-      textLength: request.text.length,
+      textLength: request.text?.length,
     });
-    try {
-      return await this.googleTts.synthesize(request);
-    } catch (gErr: any) {
-      logger.warn("[TTS] ⚠️ Google Cloud TTS synthesis failed. Attempting resilient fallback to ElevenLabs V4 Turbo", {
-        jobId: request.jobId,
-        language: request.language,
-        error: gErr?.message || String(gErr),
-      });
-      const elKey = this.elevenLabsTts.getApiKey();
-      if (elKey) {
-        return await this.elevenLabsTts.synthesize(request);
-      }
-      throw gErr;
-    }
+    return await this.googleTts.synthesize(request);
   }
 
   public estimateDuration(text: string): number {

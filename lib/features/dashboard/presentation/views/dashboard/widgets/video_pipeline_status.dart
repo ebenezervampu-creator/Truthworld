@@ -429,9 +429,6 @@ class VideoPipelineStatusWidget extends StatelessWidget {
 
     final jobOutputs =
         (jobDocData?['outputs'] as Map<String, dynamic>?) ?? {};
-    final outputsTrustScore =
-        (jobOutputs['trustScore'] as num?)?.toDouble();
-
     return StreamBuilder<VideoMediaCredibility>(
       stream: VideoMediaService().streamCredibility(video.id),
       builder: (context, credSnap) {
@@ -449,9 +446,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                 cred.factCheckStats!.totalClaims > 0);
 
         final hasRealFactChecking = hasRealFactCheckReport ||
-            (rawCredibilityStatus == 'completed' &&
-                (cred.claims.isNotEmpty ||
-                    (outputsTrustScore != null && outputsTrustScore > 0)));
+            (rawCredibilityStatus == 'completed' && cred.claims.isNotEmpty);
 
         final isSkippedOrNotRequested = rawCredibilityStatus == 'skipped' ||
             (rawCredibilityStatus == 'pending' &&
@@ -463,12 +458,6 @@ class VideoPipelineStatusWidget extends StatelessWidget {
             (hasRealFactChecking ||
                 (video.hasAiCredibility && !isSkippedOrNotRequested) ||
                 (video.isFactChecked && !isSkippedOrNotRequested));
-
-        final effectiveTrustScore = cred.trustScore > 0
-            ? cred.trustScore
-            : ((outputsTrustScore != null && outputsTrustScore > 0)
-                ? outputsTrustScore
-                : (cred.claims.isNotEmpty ? video.trustScore : 0.0));
 
         final rawSummary = cred.summary.isNotEmpty
             ? cred.summary
@@ -716,9 +705,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                             cred.trustLabel!.isNotEmpty)
                           _buildMiniBadge(
                             label: cred.trustLabel!,
-                            color: effectiveTrustScore >= 75
-                                ? AppColors.success
-                                : AppColors.warning,
+                            color: cred.trustLabel!.toLowerCase().contains('verified') || cred.trustLabel!.toLowerCase().contains('reliable') ? AppColors.success : AppColors.warning,
                           ),
                       ],
                     ),
@@ -752,12 +739,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                       ),
                       onPressed: () {
                         final factData = cred.toMap();
-                        if (cred.claims.isNotEmpty &&
-                            (!factData.containsKey('trustScore') ||
-                                (factData['trustScore'] as num? ?? 0) == 0) &&
-                            effectiveTrustScore > 0) {
-                          factData['trustScore'] = effectiveTrustScore;
-                        }
+                        
                         Get.bottomSheet(
                           FactCheckReportWidget(
                             data: factData,

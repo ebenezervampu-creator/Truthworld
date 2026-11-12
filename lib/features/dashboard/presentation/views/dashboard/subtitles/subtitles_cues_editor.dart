@@ -173,6 +173,7 @@ class SubtitlesCuesEditor extends StatelessWidget {
                                         GenerateAiSubtitlesPage(
                                           controller: controller,
                                           isDarkMode: isDarkMode,
+                                          initialLanguage: controller.selectedLanguage.value,
                                         )),
                                     icon: const Icon(
                                       Icons.auto_awesome_rounded,
@@ -195,6 +196,37 @@ class SubtitlesCuesEditor extends StatelessWidget {
                                       ),
                                     ),
                                   ),
+                                  Builder(builder: (context) {
+                                    final sourceLang = controller.availableLanguagesWithSubtitles.firstWhereOrNull(
+                                      (l) => normalizeLanguageCode(l) != normalizeLanguageCode(controller.selectedLanguage.value),
+                                    );
+                                    if (sourceLang == null) return const SizedBox.shrink();
+                                    return ElevatedButton.icon(
+                                      onPressed: () => controller.copyCuesFromTrack(
+                                        sourceLangCode: sourceLang,
+                                        targetLangCode: controller.selectedLanguage.value,
+                                      ),
+                                      icon: const Icon(
+                                        Icons.copy_all_rounded,
+                                        size: 15,
+                                        color: Colors.white,
+                                      ),
+                                      label: Text(
+                                        'Copy Cues from ${controller.getLanguageName(sourceLang)}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.bgSurfaceHigh,
+                                        foregroundColor: Colors.white,
+                                        side: BorderSide(
+                                          color: AppColors.brand.withValues(alpha: 0.3),
+                                        ),
+                                      ),
+                                    );
+                                  }),
                                   ElevatedButton.icon(
                                     onPressed: controller.addCueAtCurrentTime,
                                     icon: const Icon(

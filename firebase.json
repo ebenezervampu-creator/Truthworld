@@ -92,6 +92,13 @@
           }
         },
         {
+          "source": "/audit/**",
+          "function": {
+            "functionId": "seoServer",
+            "region": "asia-south1"
+          }
+        },
+        {
           "source": "/advertiser",
           "function": {
             "functionId": "seoServer",

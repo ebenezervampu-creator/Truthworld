@@ -88,11 +88,12 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
       final parsed = FactCheckDataParser.parse(
         reportData,
         fallbackReport: video.uiReport,
-        fallbackTrustScore: video.trustScore > 0 ? video.trustScore : null,
         isVideoFactChecked: video.isFactChecked,
       );
 
-      if (parsed.isEmpty || (parsed.claims.isEmpty && parsed.viewerNote.isEmpty)) {
+      if (!video.isFactChecked &&
+          (parsed.isEmpty ||
+              (parsed.claims.isEmpty && parsed.viewerNote.isEmpty))) {
         return VideoAnalysisEmptyFallback(video: video);
       }
 
@@ -514,7 +515,6 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
             verifiedCount: parsed.verifiedCount,
             cautionCount: parsed.cautionCount,
             falseCount: parsed.falseCount,
-            trustScore: parsed.trustScore ?? (video.trustScore > 0 ? video.trustScore : null),
             isSidebar: true,
           ),
           const SizedBox(height: 16),
@@ -673,7 +673,6 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                 allSources: parsed.parsedSources.isNotEmpty ? parsed.parsedSources : parsed.sources,
                 allClaims: parsed.claims,
                 summary: parsed.summary.isNotEmpty ? parsed.summary : parsed.conclusion,
-                trustScore: parsed.trustScore,
                 isEmbedded: true,
                 onClose: () => analysisCtrl.selectedTab.value = 0,
               );
@@ -787,7 +786,6 @@ class VideoAnalysisDesktopLayout extends StatelessWidget {
                       allSources: parsed.parsedSources.isNotEmpty ? parsed.parsedSources : parsed.sources,
                       allClaims: parsed.claims,
                       summary: parsed.summary.isNotEmpty ? parsed.summary : parsed.conclusion,
-                      trustScore: parsed.trustScore,
                     );
                   },
                 ),

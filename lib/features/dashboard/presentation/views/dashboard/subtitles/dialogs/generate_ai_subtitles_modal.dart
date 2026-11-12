@@ -4,7 +4,6 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_wallet_topup_sheet.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -234,10 +233,10 @@ class GenerateAiSubtitlesModal {
                             children: [
                               Row(
                                 children: [
-                                  Icon(Icons.wallet_rounded, size: 20, color: isDarkMode ? Colors.white : Colors.black87),
+                                  Icon(Icons.payments_outlined, size: 20, color: isDarkMode ? Colors.white : Colors.black87),
                                   const SizedBox(width: 8),
                                   Text(
-                                    'Estimated Wallet Cost:',
+                                    'Estimated Cost:',
                                     style: AppTextStyles.caption.copyWith(fontSize: 13),
                                   ),
                                   const Spacer(),
@@ -255,10 +254,10 @@ class GenerateAiSubtitlesModal {
                               Row(
                                 children: [
                                   Text(
-                                    'Spendable Balance:',
+                                    'Channel Revenue:',
                                     style: AppTextStyles.caption.copyWith(
                                       fontSize: 12,
-                                      color: isInsufficient ? AppColors.error : AppColors.textSecondary,
+                                      color: isInsufficient ? AppColors.warning : AppColors.textSecondary,
                                     ),
                                   ),
                                   const SizedBox(width: 6),
@@ -268,50 +267,42 @@ class GenerateAiSubtitlesModal {
                                       fontSize: 13,
                                       fontWeight: FontWeight.bold,
                                       color: isInsufficient
-                                          ? AppColors.error
+                                          ? AppColors.warning
                                           : (isDarkMode ? Colors.white : Colors.black),
                                     ),
                                   ),
                                   const Spacer(),
-                                  if (controller.currentChannel.value != null)
-                                    GestureDetector(
-                                      onTap: () {
-                                        ChannelWalletTopupSheet.show(
-                                          context,
-                                          channel: controller.currentChannel.value!,
-                                          onTopupSuccess: controller.refreshSpendableBalance,
-                                        );
-                                      },
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.brand,
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: const Text(
-                                          '+ Add Money',
-                                          style: TextStyle(
-                                            color: Colors.black,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: isInsufficient
+                                          ? AppColors.info.withValues(alpha: 0.15)
+                                          : AppColors.success.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      isInsufficient ? 'Direct Pay Ready' : 'Deduct from Revenue',
+                                      style: TextStyle(
+                                        color: isInsufficient ? AppColors.info : AppColors.success,
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.bold,
                                       ),
                                     ),
+                                  ),
                                 ],
                               ),
                               if (isInsufficient) ...[
                                 const SizedBox(height: 8),
                                 Row(
                                   children: [
-                                    const Icon(Icons.warning_amber_rounded, size: 14, color: AppColors.error),
+                                    const Icon(Icons.info_outline_rounded, size: 14, color: AppColors.info),
                                     const SizedBox(width: 6),
                                     Expanded(
                                       child: Text(
-                                        'Insufficient balance (\$${(roundedCost - bal).toStringAsFixed(2)} needed). Please add money to proceed.',
+                                        'Channel revenue (\$${bal.toStringAsFixed(2)}) is insufficient for \$${roundedCost.toInt()}. You can pay directly to proceed.',
                                         style: const TextStyle(
                                           fontSize: 11,
-                                          color: AppColors.error,
+                                          color: AppColors.textSecondary,
                                           fontWeight: FontWeight.w500,
                                         ),
                                       ),
@@ -329,19 +320,29 @@ class GenerateAiSubtitlesModal {
                           child: ElevatedButton.icon(
                             onPressed: selectedLangs.isEmpty
                                 ? null
-                                : () {
+                                : () async {
                                     if (isInsufficient) {
-                                      AppSnackbar.warning(
-                                        'Generating subtitles requires \$${roundedCost.toStringAsFixed(2)}, but channel wallet has \$${bal.toStringAsFixed(2)}. Please add money to your wallet.',
-                                        title: 'Insufficient Channel Balance',
-                                      );
-                                      if (controller.currentChannel.value != null && context.mounted) {
-                                        ChannelWalletTopupSheet.show(
-                                          context,
-                                          channel: controller.currentChannel.value!,
-                                          onTopupSuccess: controller.refreshSpendableBalance,
-                                        );
+                                      final chan = controller.currentChannel.value;
+                                      if (chan == null) {
+                                        AppSnackbar.error('Unable to verify channel. Please select a valid channel.');
+                                        return;
                                       }
+                                      Navigator.pop(context);
+                                      final paymentOk = await ChannelWalletService().payForSubtitlesWithCashfree(
+                                        channel: chan,
+                                        amountUSD: roundedCost,
+                                        targetLanguages: selectedLangs.toList(),
+                                        videoId: controller.selectedVideo.value?.id ?? '',
+                                      );
+                                      if (!paymentOk) {
+                                        AppSnackbar.error('Direct payment was not completed. Please try again.');
+                                        return;
+                                      }
+                                      controller.triggerSubtitlesGeneration(
+                                        targetLanguages: selectedLangs.toList(),
+                                        priorityMode: priorityMode.value,
+                                        isDirectlyPaid: true,
+                                      );
                                       return;
                                     }
                                     Navigator.pop(context);
@@ -351,14 +352,14 @@ class GenerateAiSubtitlesModal {
                                     );
                                   },
                             icon: Icon(
-                              isInsufficient ? Icons.account_balance_wallet_rounded : Icons.auto_awesome_rounded,
+                              isInsufficient ? Icons.payment_rounded : Icons.auto_awesome_rounded,
                               size: 16,
                               color: Colors.black,
                             ),
                             label: Text(
                               isInsufficient
-                                  ? 'Insufficient Funds — Add Money'
-                                  : 'Start AI Subtitle Pipeline',
+                                  ? 'Pay Directly (\$${roundedCost.toInt()}) & Start AI'
+                                  : 'Pay with Revenue & Start AI Subtitles',
                               style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,

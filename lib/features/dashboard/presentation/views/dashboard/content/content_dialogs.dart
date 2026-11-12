@@ -149,46 +149,7 @@ import 'package:truthworld/theme/app_theme.dart';
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.bgSurface,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.record_voice_over_rounded,
-                    color: Colors.white,
-                    size: 22,
-                  ),
-                ),
-                title: Text(
-                  'Video Dubbing & Neural Lip-Sync',
-                  style: AppTextStyles.titleMedium.copyWith(
-                    fontWeight: FontWeight.bold,
-                    fontFamily: TWTypography.brandFamily,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                subtitle: Text(
-                  'Video Pro (\$4) & Video Ultra (\$5) with LatentSync 1080p & Voice Cloning',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                onTap: () {
-                  Get.back<void>();
-                  showGenerateAIFeaturesDialog(
-                    context,
-                    video,
-                    controller,
-                    initialFeatures: {'dubbing'},
-                    initialDubbingTier: 'video_pro',
-                  );
-                },
-              ),
-              const Divider(height: 16, color: AppColors.bgDivider),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: AppColors.bgSurface,
                     shape: BoxShape.circle,
                   ),
@@ -207,7 +168,7 @@ import 'package:truthworld/theme/app_theme.dart';
                   ),
                 ),
                 subtitle: Text(
-                  'Starter (\$1), Pro (\$2), & Ultra (\$3) with Chirp HD & ElevenLabs v4',
+                  r'Studio voice cloning, cadence locking & 100% BGM preserved ($0.30/min)',
                   style: AppTextStyles.caption.copyWith(
                     color: AppColors.textSecondary,
                   ),
@@ -219,7 +180,7 @@ import 'package:truthworld/theme/app_theme.dart';
                     video,
                     controller,
                     initialFeatures: {'dubbing'},
-                    initialDubbingTier: 'audio_starter',
+                    initialDubbingTier: 'audio_track',
                   );
                 },
               ),

@@ -11,7 +11,8 @@ void main() {
       expect(info.color, const Color(0xFF06B6D4));
       expect(info.icon, Icons.science_rounded);
       expect(info.isVerified, isTrue);
-      expect(info.summaryTakeaway, contains('Exploratory scientific candidate'));
+      expect(info.summaryTakeaway, contains('New idea still being studied'));
+      expect(info.summaryTakeaway.toLowerCase(), isNot(contains('this claim')));
     });
 
     test('resolves developing_story to Developing Story verdict', () {
@@ -21,7 +22,8 @@ void main() {
       expect(info.color, const Color(0xFF3B82F6));
       expect(info.icon, Icons.bolt_rounded);
       expect(info.isCaution, isTrue);
-      expect(info.summaryTakeaway, contains('Live developing event'));
+      expect(info.summaryTakeaway, contains('Breaking news story!'));
+      expect(info.summaryTakeaway.toLowerCase(), isNot(contains('this claim')));
     });
 
     test('resolves rhetorical_exaggeration and hyperbole to contextual verdict', () {
@@ -30,7 +32,8 @@ void main() {
       expect(info.label, 'RHETORICAL EXAGGERATION');
       expect(info.color, const Color(0xFF38BDF8));
       expect(info.isContextual, isTrue);
-      expect(info.summaryTakeaway, contains('conversational hyperbole'));
+      expect(info.summaryTakeaway, contains('Just an exaggeration!'));
+      expect(info.summaryTakeaway.toLowerCase(), isNot(contains('this claim')));
 
       final claimMapInfo = ClaimVerdictHelper.resolveVerdict({
         'text': 'It rained a trillion gallons',

@@ -33,12 +33,12 @@ mixin HomeFeedAlgorithmTabsMixin on HomeFeedControllerBase {
               (a.likes * 0.3) +
               (a.commentCount * 0.2) +
               ((1.0 / daysA) * 100) +
-              (a.trustScore * 10);
+              ((a.isFactChecked || a.hasPublicAiCredibility) ? 50.0 : 0.0);
           final scoreB = (viewsB * 0.5) +
               (b.likes * 0.3) +
               (b.commentCount * 0.2) +
               ((1.0 / daysB) * 100) +
-              (b.trustScore * 10);
+              ((b.isFactChecked || b.hasPublicAiCredibility) ? 50.0 : 0.0);
           return scoreB.compareTo(scoreA);
         });
 
@@ -134,12 +134,12 @@ mixin HomeFeedAlgorithmTabsMixin on HomeFeedControllerBase {
             (a.likes * 0.3) +
             (a.commentCount * 0.2) +
             ((1.0 / daysA) * 100) +
-            (a.trustScore * 10);
+            ((a.isFactChecked || a.hasPublicAiCredibility) ? 50.0 : 0.0);
         final scoreB = (viewsB * 0.5) +
             (b.likes * 0.3) +
             (b.commentCount * 0.2) +
             ((1.0 / daysB) * 100) +
-            (b.trustScore * 10);
+            ((b.isFactChecked || b.hasPublicAiCredibility) ? 50.0 : 0.0);
         return scoreB.compareTo(scoreA);
       });
 

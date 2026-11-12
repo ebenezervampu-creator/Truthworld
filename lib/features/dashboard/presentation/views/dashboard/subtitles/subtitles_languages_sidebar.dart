@@ -193,6 +193,10 @@ class SubtitlesLanguagesSidebar extends StatelessWidget {
         bg = const Color(0xFF202020);
         text = const Color(0xFF888888);
         border = null;
+      case SubtitleTrackStatus.generating:
+        bg = const Color(0xFF1E293B);
+        text = const Color(0xFF38BDF8);
+        border = Border.all(color: const Color(0xFF0284C7).withValues(alpha: 0.6));
     }
 
     return Container(

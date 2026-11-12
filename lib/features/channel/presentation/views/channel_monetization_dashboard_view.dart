@@ -99,7 +99,7 @@ class ChannelMonetizationDashboardView extends StatelessWidget {
               ),
               const SizedBox(height: 20),
 
-              // Unified Channel Account Hub (Wallet + Revenue + Activity)
+              // Channel Account Hub (Revenue & Activity)
               ChannelAccountHubCard(channel: currentChannel),
               const SizedBox(height: 20),
 

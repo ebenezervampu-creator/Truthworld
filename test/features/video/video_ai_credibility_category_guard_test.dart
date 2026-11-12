@@ -90,7 +90,6 @@ void main() {
         channelName: 'Redx Media',
         category: 'Music',
         tags: const ['music', 'gospel', 'songs'],
-        trustScore: 100.0,
       );
 
       final entertainmentVideo = Video(
@@ -103,7 +102,6 @@ void main() {
         channelName: 'Laughs Hub',
         category: 'Entertainment',
         tags: const ['comedy', 'entertainment'],
-        trustScore: 100.0,
       );
 
       final factualVideo = Video(
@@ -118,7 +116,6 @@ void main() {
         tags: const ['news', 'finance'],
         isFactChecked: true,
         factCheckUrl: 'https://example.com/report.json',
-        trustScore: 92.0,
       );
 
       expect(musicVideo.isNonCredibilityCategory, isTrue);
@@ -134,19 +131,17 @@ void main() {
     test('2. FactCheckDataParser does not manufacture credibility data for unscored videos', () {
       final parsedUnchecked = FactCheckDataParser.parse(
         null,
-        fallbackTrustScore: 100.0,
       );
 
       expect(parsedUnchecked.isEmpty, isTrue);
 
       final parsedChecked = FactCheckDataParser.parse(
         null,
-        fallbackTrustScore: 85.0,
         isVideoFactChecked: true,
       );
 
       expect(parsedChecked.isEmpty, isFalse);
-      expect(parsedChecked.trustScore, 85.0);
+      expect(parsedChecked.isVideoFactChecked, isTrue);
     });
 
     testWidgets('3. VideoFactCheckCard renders SizedBox.shrink for Music video', (tester) async {
@@ -160,7 +155,6 @@ void main() {
         channelName: 'Redx Media',
         category: 'Music',
         tags: const ['music', 'christian'],
-        trustScore: 100.0,
       );
 
       final controller = VideoController();
@@ -193,7 +187,6 @@ void main() {
         channelName: 'Redx Media',
         category: 'Music',
         tags: const ['music'],
-        trustScore: 100.0,
       );
 
       final controller = VideoController();

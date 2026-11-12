@@ -17,6 +17,7 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
+import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/utils/web_platform_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
@@ -373,7 +374,7 @@ class VideoManagementController extends BaseController with ContentValidationMix
       await docRef.set(newVideo.toMap());
 
       uploadProgress.value = 0.0;
-      Get.offAllNamed('/studio');
+      RouteStackObserver.navigateToStudio();
       AppSnackbar.success(
         'Video uploaded successfully!',
       );
@@ -544,22 +545,24 @@ class VideoManagementController extends BaseController with ContentValidationMix
       final callable = FirebaseFunctions.instanceFor(region: 'asia-south1')
           .httpsCallable('permanentlyDeleteVideo');
       await callable.call({'videoId': videoId});
+    } on FirebaseFunctionsException catch (fnErr) {
+      final isAlreadyMissing = fnErr.code == 'not-found';
+      if (!isAlreadyMissing) {
+        ErrorHandler.log(
+          fnErr,
+          tag: 'VideoManagement.permanentlyDeleteVideoCallable',
+        );
+      }
+      await _fallbackDeleteVideoDoc(
+        videoId,
+        deleteParentDoc: !isAlreadyMissing,
+      );
     } catch (fnErr) {
       ErrorHandler.log(
         fnErr,
         tag: 'VideoManagement.permanentlyDeleteVideoCallable',
       );
-      // Fallback: client-side defensive recursive purge of known subcollections
-      await deleteKnownVideoSubcollections(videoId);
-      final firestore = FirebaseFirestore.instance;
-      // Mark as deleted first so any concurrent query immediately treats it as deleted
-      await firestore.collection(FirestoreCollections.videos).doc(videoId).update({
-        'status': 'deleted',
-        'isDeleted': true,
-        'deletedAt': FieldValue.serverTimestamp(),
-        'visibility': 'private',
-      }).catchError((_) {});
-      await firestore.collection(FirestoreCollections.videos).doc(videoId).delete().catchError((_) {});
+      await _fallbackDeleteVideoDoc(videoId, deleteParentDoc: true);
     }
 
     // Immediately evict from Comments tab controller if active
@@ -586,6 +589,26 @@ class VideoManagementController extends BaseController with ContentValidationMix
     }
   }
 
+  static Future<void> _fallbackDeleteVideoDoc(
+    String videoId, {
+    required bool deleteParentDoc,
+  }) async {
+    // Fallback: client-side defensive recursive purge of known subcollections
+    await deleteKnownVideoSubcollections(videoId);
+    if (!deleteParentDoc) return;
+    final firestore = FirebaseFirestore.instance;
+    // Mark as deleted first so any concurrent query immediately treats it as deleted
+    await firestore.collection(FirestoreCollections.videos).doc(videoId).update({
+      'status': 'deleted',
+      'isDeleted': true,
+      'deletedAt': FieldValue.serverTimestamp(),
+      'visibility': 'private',
+    }).catchError((_) {});
+    await firestore.collection(FirestoreCollections.videos).doc(videoId).delete().catchError((_) {});
+  }
+
+  /// Safely deletes a Firebase Storage asset by download URL, `gs://` URI, or bucket path,
+  /// treating already-absent objects (`object-not-found`) as a successful no-op.
   static Future<void> safeDeleteStorageUrl(String urlOrPath) async {
     final clean = urlOrPath.trim();
     if (clean.isEmpty) return;
@@ -599,6 +622,15 @@ class VideoManagementController extends BaseController with ContentValidationMix
           !clean.startsWith('assets/')) {
         await storage.ref(clean).delete();
       }
+    } on FirebaseException catch (e, stackTrace) {
+      if (e.code == 'object-not-found' || e.code == 'storage/object-not-found') {
+        return;
+      }
+      ErrorHandler.log(
+        e,
+        stackTrace: stackTrace,
+        tag: 'VideoManagement.safeDeleteStorageUrl',
+      );
     } catch (e, stackTrace) {
       ErrorHandler.log(
         e,
@@ -901,7 +933,7 @@ class VideoManagementController extends BaseController with ContentValidationMix
     List<String> sensitiveTopics = const [],
     bool autoChapters = true,
     String factCheckTier = 'standard',
-    String dubbingTier = 'video_pro',
+    String dubbingTier = 'audio_track',
   }) async {
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
@@ -938,7 +970,7 @@ class VideoManagementController extends BaseController with ContentValidationMix
       if (hasPaidFeatures && totalEstimatedCost > 0) {
         if (effectiveChannel == null) {
           AppSnackbar.warning(
-            'Unable to verify channel wallet for paid AI services. Please select a valid channel to proceed.',
+            'Unable to verify channel revenue for paid AI services. Please select a valid channel to proceed.',
           );
           return;
         }
@@ -950,7 +982,7 @@ class VideoManagementController extends BaseController with ContentValidationMix
           final balanceStr = '\$${balance.totalSpendableBalance.toStringAsFixed(2)}';
           final totalStr = '\$${totalEstimatedCost.toStringAsFixed(2)}';
           AppSnackbar.warning(
-            'AI services are not free. Your channel balance of $balanceStr is insufficient for the required services ($totalStr). Please add money to your wallet to proceed.',
+            'AI services are not free. Your channel revenue of $balanceStr is insufficient for the required services ($totalStr). Please pay directly to proceed.',
           );
           return;
         }
@@ -971,7 +1003,7 @@ class VideoManagementController extends BaseController with ContentValidationMix
 
         if (!paid) {
           AppSnackbar.error(
-            'Unable to complete wallet payment for AI features. Please check your wallet and try again.',
+            'Unable to complete deduction from channel revenue for AI features. Please try again.',
           );
           return;
         }
@@ -1005,7 +1037,7 @@ class VideoManagementController extends BaseController with ContentValidationMix
             'autoChapters': autoChapters,
             'factCheckTier': factCheckTier,
             'dubbingTier': dubbingTier,
-            'enableLipSync': tierObj.isLipSync,
+            'enableLipSync': false,
             'cinemaGrade': tierObj.isCinemaGrade,
             'isCinemaGrade': tierObj.isCinemaGrade,
             'stemIsolation': true,
@@ -1054,9 +1086,10 @@ class VideoManagementController extends BaseController with ContentValidationMix
             'generateDubbing': features.contains('dubbing'),
             'durationSeconds': durationSeconds,
             'factCheckTier': factCheckTier,
-            'enablePath1': features.contains('factcheck'),
-            'enablePath2':
-                features.contains('dubbing') || features.contains('subtitles'),
+            'enableCredibility': features.contains('factcheck'),
+            'factCheckEnabled': features.contains('factcheck'),
+            'enableDubbing': features.contains('dubbing'),
+            'enableSubtitles': features.contains('subtitles'),
             'autoChapters': autoChapters,
             'priorityMode': priorityMode,
           },

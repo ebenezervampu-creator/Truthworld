@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/services/guest_playback_limit_service.dart';
 import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/controls/player_controls.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/features/video/presentation/views/player/overlays/ad_overlay.dart';
@@ -34,6 +35,19 @@ class TowerCustomPlayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (tag != null && TowerPlayerRegistry.isDisposed(tag!)) {
+      return const SizedBox.shrink();
+    }
+
+    if (tag != null && !Get.isRegistered<TowerPlayerController>(tag: tag)) {
+      if (Get.isRegistered<VideoController>(tag: tag)) {
+        final vc = Get.find<VideoController>(tag: tag);
+        if (vc.isClosed || vc.isMiniplayerHandoffDone.value) {
+          return const SizedBox.shrink();
+        }
+      }
+    }
+
     final ctrl = Get.isRegistered<TowerPlayerController>(tag: tag)
         ? Get.find<TowerPlayerController>(tag: tag)
         : Get.put(
@@ -44,6 +58,10 @@ class TowerCustomPlayer extends StatelessWidget {
             tag: tag,
           );
 
+    if (ctrl.isClosed) {
+      return const SizedBox.shrink();
+    }
+
     // Register mobile settings bottom sheet callback to display settings at bottom
     TowerPlayerController.showMobileSettingsCallback =
         MobileSettingsBottomSheet.show;
@@ -52,6 +70,10 @@ class TowerCustomPlayer extends StatelessWidget {
       init: ctrl,
       tag: tag,
       builder: (c) {
+        if (c.isClosed) {
+          return const SizedBox.shrink();
+        }
+
         if (c.videoPlayerController != videoPlayerController ||
             (!c.isInitialized.value &&
                 videoPlayerController.value.isInitialized)) {
@@ -80,7 +102,10 @@ class TowerCustomPlayer extends StatelessWidget {
               },
               child: KeyboardListener(
                 focusNode: c.focusNode,
-                autofocus: true,
+                autofocus: kIsWeb ||
+                    defaultTargetPlatform == TargetPlatform.windows ||
+                    defaultTargetPlatform == TargetPlatform.macOS ||
+                    defaultTargetPlatform == TargetPlatform.linux,
                 onKeyEvent: c.handleKey,
                 child: Obx(
                   () => AbsorbPointer(

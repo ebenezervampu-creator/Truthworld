@@ -357,39 +357,11 @@ async function runTests() {
 
     const proRes = await lipSyncService.synchronizeLips({
       ...baseRequest,
-      dubbingTier: "video_pro",
+      dubbingTier: "audio_track",
     });
 
-    assert(proRes.status === "completed", "Pro tier returns status 'completed'");
-    assert(recordedPayload?.tier === "video_pro", "Payload includes tier='video_pro'");
-    assert(recordedPayload?.qualityMode === "pro", "Payload includes qualityMode='pro'");
-    assert(recordedPayload?.cinemaGrade === false, "Payload has cinemaGrade=false for Pro");
-
-    // Scenario 9: Ultra Cinema Tier Quality Dispatch Verification
-    console.log("\n--- [Scenario 9] Ultra Cinema Tier Quality Dispatch ---");
-    recordedPayload = null;
-    (axios as any).post = async (_url: string, payload: any) => {
-      recordedPayload = payload;
-      return {
-        data: {
-          status: "completed",
-          videoUrl: "https://storage.googleapis.com/test-bucket/ultra_lipsync.mp4",
-          engine: "latentsync_diffusion",
-          faceDetected: true,
-        },
-      };
-    };
-
-    const ultraRes = await lipSyncService.synchronizeLips({
-      ...baseRequest,
-      dubbingTier: "video_ultra",
-      cinemaGrade: true,
-    });
-
-    assert(ultraRes.status === "completed", "Ultra tier returns status 'completed'");
-    assert(recordedPayload?.tier === "video_ultra", "Payload includes tier='video_ultra'");
-    assert(recordedPayload?.qualityMode === "ultra", "Payload includes qualityMode='ultra'");
-    assert(recordedPayload?.cinemaGrade === true, "Payload includes cinemaGrade=true for Ultra");
+    assert(proRes.status === "completed", "Audio track fallback returns status 'completed'");
+    assert(recordedPayload?.tier === "standard", "Payload includes tier='standard'");
 
     // Restore mocks
     if (origFirestoreDescriptor) Object.defineProperty(admin, "firestore", origFirestoreDescriptor);

@@ -62,8 +62,6 @@ mixin TowerPlayerTracksMixin on GetxController {
   final RxList<VideoTrack> videoTracks = <VideoTrack>[].obs;
 
   bool get hasAlternateAudioTrack {
-    final ctrl = audioTrackController;
-    if (ctrl != null && !ctrl.value.hasError) return true;
     final lang = activeAudioLang.value.trim().toLowerCase();
     if (lang.isEmpty ||
         lang == 'off' ||
@@ -71,6 +69,7 @@ mixin TowerPlayerTracksMixin on GetxController {
         lang.startsWith('original')) {
       return false;
     }
+    final ctrl = audioTrackController;
     return ctrl != null && !ctrl.value.hasError;
   }
 
@@ -296,9 +295,6 @@ mixin TowerPlayerTracksMixin on GetxController {
           !track.label.toLowerCase().startsWith('original');
 
       if (isAlternateTrack) {
-        // 1. Immediately mute main video player so original audio does not bleed
-        videoPlayerController.setVolume(0.0);
-
         var trackUrl = track.url!.trim();
         if (!trackUrl.contains('token=')) {
           final ref = StorageUtils.getStorageRef(trackUrl);
@@ -332,6 +328,9 @@ mixin TowerPlayerTracksMixin on GetxController {
           ),
         );
         audioTrackController = newAudioCtrl;
+
+        // 1. Immediately mute main video player so original audio does not bleed
+        videoPlayerController.setVolume(0.0);
 
         void onAudioTrackError() {
           if (newAudioCtrl.value.hasError &&

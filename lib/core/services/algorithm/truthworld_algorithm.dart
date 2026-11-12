@@ -538,7 +538,6 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
         switch (psych.archetype) {
           case CognitiveArchetype.analyticalDeepDiver:
             if (video.isFactChecked) archetypeBonus += 2.0;
-            if (video.trustScore >= 4.0) archetypeBonus += 1.5;
             archetypeBonus += knowledgeQuality * 3.0;
             if (video.durationValue.inSeconds >= 300) archetypeBonus += 1.0;
           case CognitiveArchetype.curiousExplorer:
@@ -547,7 +546,6 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
             archetypeBonus += unexploredTopicCount * 0.8;
           case CognitiveArchetype.focusedSpecialist:
             archetypeBonus += knowledgeQuality * 2.0;
-            if (video.trustScore >= 4.0) archetypeBonus += 1.0;
           case CognitiveArchetype.actionOrientedConsumer:
             archetypeBonus += engagement * 2.5;
             archetypeBonus += freshness * 1.5;
@@ -559,7 +557,6 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
       } else {
         // Cold start fallback
         if (video.isFactChecked) archetypeBonus += 1.5;
-        if (video.trustScore >= 4.0) archetypeBonus += 1.0;
       }
 
       final creatorFairness = diversityConfig != null
@@ -570,10 +567,7 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
       var factCheckCategoryBoost = 0.0;
       if (AppCategories.isFactCheckRelevant(video.category)) {
         if (video.isFactChecked || video.hasPublicAiCredibility) {
-          factCheckCategoryBoost += 3.5;
-          if (video.trustScore >= 3.5) {
-            factCheckCategoryBoost += 1.5;
-          }
+          factCheckCategoryBoost += 5.0;
         }
       }
 

@@ -53,7 +53,6 @@ class VideoSerializer {
       'showLikeCount': video.showLikeCount,
       'showDislikeCount': video.showDislikeCount,
       'autoChaptersEnabled': video.autoChaptersEnabled,
-      'trustScore': video.trustScore,
       'sourceLinks': video.sourceLinks,
       'isFactChecked': video.isFactChecked,
       'factCheckTier': video.factCheckTier,

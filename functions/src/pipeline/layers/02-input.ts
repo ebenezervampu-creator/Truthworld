@@ -141,10 +141,10 @@ export class InputLayer {
   createExecutionPlan(jobId: string, config: UserConfig): ExecutionPlan {
     return {
       jobId,
-      enablePath1: config.enableFactCheck,
-      enablePath2: config.generateDubbing || config.genLangSubs,
-      enableTruthEngine: config.enableFactCheck,
-      enableReachEngine: config.generateDubbing || config.genLangSubs,
+      enableCredibility: config.enableFactCheck,
+      factCheckEnabled: config.enableFactCheck,
+      enableDubbing: config.generateDubbing,
+      enableSubtitles: config.genLangSubs,
       enableAuxiliary: config.enableFactCheck,
       languages: config.languages,
       dubbingMode: config.generateDubbing ? config.dubbingMode : "none",
@@ -163,11 +163,11 @@ export class InputLayer {
   estimateJobCost(plan: ExecutionPlan): number {
     let cost = 0;
 
-    if (plan.enablePath1) {
+    if (plan.enableCredibility ?? plan.factCheckEnabled) {
       cost += plan.maxClaims * COST_RATES.geminiCallPerClaim;
     }
 
-    if (plan.enablePath2) {
+    if ((plan.enableDubbing ?? plan.generateDubbing) || (plan.enableSubtitles ?? plan.genLangSubs)) {
       const words = COST_RATES.estimatedVideoDuration / 60 * COST_RATES.avgWordsPerMinute;
       const chars = words * COST_RATES.avgCharsPerWord;
       const langCount = plan.languages.length;

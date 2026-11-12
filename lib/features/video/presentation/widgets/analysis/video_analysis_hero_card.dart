@@ -5,8 +5,6 @@ import 'package:truthworld/theme/app_theme.dart';
 
   class VideoAnalysisHeroCard extends StatelessWidget {
   final String analysisState;
-  final bool scoreAvailable;
-  final double? trustScore;
   final String trustLabel;
   final double confidenceVal;
   final String confidenceTier;
@@ -18,8 +16,6 @@ import 'package:truthworld/theme/app_theme.dart';
 
   const VideoAnalysisHeroCard({
     required this.analysisState,
-    required this.scoreAvailable,
-    required this.trustScore,
     required this.trustLabel,
     required this.confidenceVal,
     required this.confidenceTier,
@@ -31,7 +27,7 @@ import 'package:truthworld/theme/app_theme.dart';
     super.key,
   });
 
-  bool get isNotScored => totalClaims == 0 || !scoreAvailable || trustScore == null;
+  bool get isNotScored => totalClaims == 0;
 
   @override
   Widget build(BuildContext context) {

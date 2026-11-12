@@ -314,10 +314,7 @@ class AlgorithmEngine {
 
     if (isTargetSurface && AppCategories.isFactCheckRelevant(video.category)) {
       if (video.isFactChecked || video.hasPublicAiCredibility) {
-        factCheckCategoryBoost += 3.5;
-        if (video.trustScore >= 3.5) {
-          factCheckCategoryBoost += 1.5;
-        }
+        factCheckCategoryBoost += 5.0;
       }
     }
 
@@ -410,13 +407,12 @@ class AlgorithmEngine {
   /// unverified content receives a fair baseline (0.90), and proven low-credibility
   /// or misleading content is demoted.
   static double computeCredibilityGate(Video video) {
-    final score = video.trustScore;
-    if (score >= 4.0) return 1.25;
-    if (score >= 3.0) return 1.15;
-    if (score >= 2.0) return 1.0;
-    if (score <= 0.0) return 0.90;
-    if (score >= 1.0) return 0.50;
-    return 0.20;
+    if (video.harmCapApplied ||
+        (video.factCheckStats != null && video.factCheckStats!.incorrect > 0)) {
+      return 0.50;
+    }
+    if (video.isFactChecked || video.hasPublicAiCredibility) return 1.25;
+    return 1.0;
   }
 
   /// Topic Affinity: Combines long-term interests + session interests + interest graph
@@ -625,12 +621,8 @@ class AlgorithmEngine {
 
     score += min(0.1, sourceCount * 0.02);
 
-    final factCheckConfidence = video.trustScore / 5.0;
-    score += factCheckConfidence * 0.20;
-
-    if (video.isFactChecked) score += 0.15;
-    if (video.isVerified && video.trustScore >= 3.5) score += 0.10;
-    score += min(0.05, video.trustScore * 0.01);
+    if (video.isFactChecked || video.hasPublicAiCredibility) score += 0.25;
+    if (video.isVerified) score += 0.10;
 
     if (video.coinBattlePairVideoId != null &&
         video.coinBattlePairVideoId!.isNotEmpty) {

@@ -64,7 +64,6 @@ class Video {
     this.showLikeCount = true,
     this.showDislikeCount = true,
     this.autoChaptersEnabled = true,
-    this.trustScore = 0.0,
     this.sourceLinks = const [],
     this.isFactChecked = false,
     this.factCheckTier = 'standard',
@@ -160,7 +159,6 @@ class Video {
       adaptiveResolutions: adaptiveResolutions,
       thumbnailVariants: thumbnailVariants,
       animatedPreviewUrl: animatedPreviewUrl,
-      trustScore: trustScore,
       trustLabel: trustLabel,
       mediaSubtitles: mediaSubtitles,
       dubbedVideos: dubbedVideos,
@@ -283,7 +281,6 @@ class Video {
   final bool showLikeCount;
   final bool showDislikeCount;
   final bool autoChaptersEnabled;
-  final double trustScore;
   final List<String>? sourceLinks;
   final bool isFactChecked;
   final String factCheckTier; // "short" | "standard" | "full_ground"
@@ -409,8 +406,6 @@ class Video {
   }
 
   int get views => viewCount;
-  double get truthScore => trustScore;
-  double get trustIndex => trustScore;
   Timestamp get uploadedAt => createdAt;
 
   Set<String>? _categoryTokens;
@@ -451,7 +446,6 @@ class Video {
               cached.uiReport!.summary.rating != null)) {
         return true;
       }
-      if (cached.trustScore > 0) return true;
       if (cached.factCheckStats != null &&
           cached.factCheckStats!.totalClaims > 0) {
         return true;
@@ -465,9 +459,7 @@ class Video {
       return true;
     }
     // If marked isFactChecked and has an authentic verified trust score
-    if (isFactChecked && trustScore > 0) {
-      return true;
-    }
+    if (isFactChecked) return true;
     return false;
   }
 
@@ -480,9 +472,7 @@ class Video {
   /// Duration of creator review grace period before automatic publication to viewers.
   /// Standard window is 48 hours; accelerated to 24 hours for high-risk / low-trust content (< 50% trust).
   Duration get factCheckGracePeriod {
-    final isHighRisk = trustScore > 0 &&
-        ((trustScore <= 5.0 && trustScore < 2.5) ||
-            (trustScore > 5.0 && trustScore < 50.0));
+    final isHighRisk = factCheckStats != null && factCheckStats!.incorrect > 0;
     return isHighRisk ? const Duration(hours: 24) : const Duration(hours: 48);
   }
 
@@ -589,7 +579,6 @@ class Video {
     bool? showLikeCount,
     bool? showDislikeCount,
     bool? autoChaptersEnabled,
-    double? trustScore,
     List<String>? sourceLinks,
     bool? isFactChecked,
     String? factCheckTier,
@@ -611,6 +600,8 @@ class Video {
     Map<String, String>? audioTracks,
     Map<String, String>? dubbedVideos,
     Map<String, String>? mediaSubtitles,
+    String? transcriptionUrl,
+    String? factCheckUrl,
     bool? isChannelTrusted,
     bool? isProvisional,
     double? provisionalScore,
@@ -663,7 +654,6 @@ class Video {
       showLikeCount: showLikeCount ?? this.showLikeCount,
       showDislikeCount: showDislikeCount ?? this.showDislikeCount,
       autoChaptersEnabled: autoChaptersEnabled ?? this.autoChaptersEnabled,
-      trustScore: trustScore ?? this.trustScore,
       sourceLinks: sourceLinks ?? this.sourceLinks,
       isFactChecked: isFactChecked ?? this.isFactChecked,
       factCheckTier: factCheckTier ?? this.factCheckTier,
@@ -687,6 +677,8 @@ class Video {
       audioTracks: audioTracks ?? this.audioTracks,
       dubbedVideos: dubbedVideos ?? this.dubbedVideos,
       mediaSubtitles: mediaSubtitles ?? this.mediaSubtitles,
+      transcriptionUrl: transcriptionUrl ?? this.transcriptionUrl,
+      factCheckUrl: factCheckUrl ?? this.factCheckUrl,
       isProvisional: isProvisional ?? this.isProvisional,
       provisionalScore: provisionalScore ?? this.provisionalScore,
       provisionalLabel: provisionalLabel ?? this.provisionalLabel,
@@ -730,7 +722,6 @@ class Video {
       isKidFriendly: isKidFriendly,
       enableComments: enableComments,
       isMonetized: isMonetized,
-      trustScore: trustScore,
       resubmitCount: resubmitCount,
     );
   }
@@ -770,7 +761,6 @@ class Video {
       isKidFriendly: entity.isKidFriendly,
       enableComments: entity.enableComments,
       isMonetized: entity.isMonetized,
-      trustScore: entity.trustScore,
     );
   }
 }

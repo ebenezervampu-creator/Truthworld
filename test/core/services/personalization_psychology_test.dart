@@ -46,7 +46,6 @@ void main() {
       category: category,
       tags: tags,
       topics: topics,
-      trustScore: trustScore,
       isFactChecked: isFactChecked,
       status: VideoStatus.ready,
       visibility: 'public',
@@ -198,7 +197,6 @@ void main() {
         title: 'Rigorous Peer-Reviewed Quantum Paper',
         channelId: 'science_channel',
         category: 'Science',
-        trustScore: 4.8,
       );
 
       final scored = algorithm.scoreVideo(
@@ -229,7 +227,6 @@ void main() {
         channelId: 'boston_dynamics',
         category: 'Technology',
         topics: ['robotics'],
-        trustScore: 4.5,
       );
 
       final normalVideo = createSampleVideo(
@@ -238,7 +235,6 @@ void main() {
         channelId: 'random_channel',
         category: 'Entertainment',
         topics: ['pranks'],
-        trustScore: 3.0,
         isFactChecked: false,
       );
 
@@ -269,7 +265,6 @@ void main() {
         channelId: 'phil_channel',
         category: 'Philosophy',
         topics: ['epistemology', 'metaphysics'],
-        trustScore: 4.2,
       );
 
       // Candidate 2: Video in user's comfort zone (Technology) with 0 contrast
@@ -279,7 +274,6 @@ void main() {
         channelId: 'flutter_channel',
         category: 'Technology',
         topics: ['flutter', 'coding'],
-        trustScore: 4.2,
       );
 
       final contrastUnexplored = flipCoinService.calculateUserContrastScore(
@@ -314,7 +308,6 @@ void main() {
         channelId: 'astro_channel',
         category: 'Science',
         topics: ['astrophysics'],
-        trustScore: 4.5,
       );
 
       final sameSideVideo = createSampleVideo(
@@ -381,7 +374,6 @@ void main() {
         channelId: 'philosophy_center',
         category: 'Philosophy',
         topics: ['epistemology', 'rationalism'],
-        trustScore: 4.9,
       );
 
       // Candidate 2: Already watched video (must be disqualified)
@@ -391,7 +383,6 @@ void main() {
         channelId: 'tech_channel',
         category: 'Technology',
         topics: ['architecture'],
-        trustScore: 4.8,
       );
 
       // Candidate 3: Comfort zone video already deeply explored with no unexplored topics

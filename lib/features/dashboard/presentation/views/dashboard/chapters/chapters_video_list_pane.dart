@@ -129,12 +129,15 @@ class ChaptersVideoListPane extends StatelessWidget {
                 size: 22,
               ),
               const SizedBox(width: 8),
-              Text(
-                'Video Chapters',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: textColor,
+              Expanded(
+                child: Text(
+                  'Video Chapters',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
                 ),
               ),
             ],

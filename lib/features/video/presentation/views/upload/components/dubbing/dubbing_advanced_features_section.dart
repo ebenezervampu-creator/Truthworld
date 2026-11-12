@@ -265,176 +265,64 @@ class DubbingAdvancedFeaturesSection extends StatelessWidget {
 
           const SizedBox(height: 10),
 
-          // 3b. Anti-Uncanny Cadence Locking (Audio Ultra exclusive)
-          Obx(() {
-            final isAudioUltra = controller.selectedDubbingTier.value == 'audio_ultra';
-            if (!isAudioUltra) return const SizedBox.shrink();
-
-            return Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF16152B),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: const Color(0xFFA78BFA).withValues(alpha: 0.35),
-                ),
+          // 3b. Anti-Uncanny Cadence Locking (Built into Audio Track)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF16152B),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: const Color(0xFFA78BFA).withValues(alpha: 0.35),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.sync_lock_outlined, color: Color(0xFFA78BFA), size: 18),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.sync_lock_outlined, color: Color(0xFFA78BFA), size: 18),
-                      const SizedBox(width: 10),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Anti-Uncanny Viseme Cadence Locking',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              'Clamps neural voice timing to original mouth closure endpoints to eliminate speech overhang on head-on vlog shots.',
-                              style: TextStyle(
-                                color: Color(0xFFA1A1AA),
-                                fontSize: 11.5,
-                                height: 1.35,
-                              ),
-                            ),
-                          ],
+                      Text(
+                        'Anti-Uncanny Viseme Cadence Locking',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFA78BFA).withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: const Color(0xFFA78BFA).withValues(alpha: 0.4)),
-                        ),
-                        child: const Text(
-                          'ACTIVE',
-                          style: TextStyle(
-                            color: Color(0xFFA78BFA),
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
-                          ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Clamps neural voice timing to original mouth closure endpoints to eliminate speech overhang on camera shots.',
+                        style: TextStyle(
+                          color: Color(0xFFA1A1AA),
+                          fontSize: 11.5,
+                          height: 1.35,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F0E1D),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Expanded(
-                          child: Text(
-                            'Need 100% video lip movement re-targeting on camera?',
-                            style: TextStyle(
-                              color: Color(0xFFD4D4D8),
-                              fontSize: 11,
-                            ),
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () => controller.selectTier('video_pro'),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            foregroundColor: const Color(0xFF38BDF8),
-                          ),
-                          child: const Text(
-                            'Switch to Video Pro (+\$0.10/min)',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-
-          // 4. AI Visual Lip-Sync (LatentSync)
-          Obx(() {
-            final isLipSync = controller.isLipSyncEnabled.value;
-            return Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: isLipSync
-                    ? const Color(0xFF181A24)
-                    : const Color(0xFF101116),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: isLipSync
-                      ? const Color(0xFF38BDF8).withValues(alpha: 0.5)
-                      : const Color(0xFF222430),
                 ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.face_retouching_natural, color: Color(0xFFA1A1AA), size: 18),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'AI Visual Lip-Sync (LatentSync)',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Diffuses natural mouth and lip visemes synchronized to translated dialogue with CodeFormer 1080p facial restoration.',
-                          style: TextStyle(
-                            color: Color(0xFFA1A1AA),
-                            fontSize: 11.5,
-                            height: 1.35,
-                          ),
-                        ),
-                      ],
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFA78BFA).withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: const Color(0xFFA78BFA).withValues(alpha: 0.4)),
+                  ),
+                  child: const Text(
+                    'ACTIVE',
+                    style: TextStyle(
+                      color: Color(0xFFA78BFA),
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
                     ),
                   ),
-                  Switch(
-                    value: isLipSync,
-                    activeColor: Colors.white,
-                    activeTrackColor: const Color(0xFF0284C7),
-                    onChanged: (val) {
-                      controller.isLipSyncEnabled.value = val;
-                      if (val && !controller.selectedDubbingTier.value.startsWith('video_')) {
-                        controller.selectTier('video_pro');
-                      } else if (!val && controller.selectedDubbingTier.value.startsWith('video_')) {
-                        controller.selectTier('audio_starter');
-                      }
-                    },
-                  ),
-                ],
-              ),
-            );
-          }),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

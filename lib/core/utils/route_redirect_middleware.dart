@@ -7,6 +7,8 @@ import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/deep_link/deep_link_url_parser.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_view_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 
 /// Middleware that redirects `/videoscreen` to `/watch?v=VIDEO_ID` *before*
@@ -377,6 +379,98 @@ class RouteStackObserver extends NavigatorObserver {
     } else {
       Get.offAllNamed('/');
     }
+  }
+
+  static String _normalizedPath(String? routeName) {
+    if (routeName == null || routeName.isEmpty) return '';
+    final parsed = Uri.tryParse(routeName);
+    final rawPath = parsed != null ? parsed.path : routeName.split('?').first;
+    return rawPath.toLowerCase().replaceAll(RegExp('/+'), '/');
+  }
+
+  static bool _isStudioHost() {
+    if (!kIsWeb) return false;
+    final host = Uri.base.host.toLowerCase();
+    return host.startsWith('studio') || host.contains('studio.truthworld.in');
+  }
+
+  /// Returns `true` when [routeName] targets the Creator Studio dashboard shell.
+  static bool isStudioDashboardPath(String? routeName) {
+    final path = _normalizedPath(routeName);
+    if (path.isEmpty) return false;
+    if (path == '/studio' ||
+        path == '/dashboard' ||
+        path == '/studio/chapters' ||
+        path == '/studio/trash' ||
+        path == '/studio/drafts' ||
+        path == '/studio/community') {
+      return true;
+    }
+    if ((path == '/' || path == '/home') &&
+        (AppFlavor.isStudio || _isStudioHost())) {
+      return true;
+    }
+    return false;
+  }
+
+  /// Predicate matching Creator Studio dashboard routes in the Navigator stack.
+  static bool isStudioDashboardRoute(Route<dynamic> route) {
+    return isStudioDashboardPath(route.settings.name);
+  }
+
+  static void _syncStudioReturnState({dynamic arguments}) {
+    if (Get.isRegistered<DashboardController>()) {
+      final dashboardCtrl = Get.find<DashboardController>();
+      if (!dashboardCtrl.isDisposed &&
+          arguments is Map &&
+          arguments['tab'] != null) {
+        final tabArg = arguments['tab'];
+        if (tabArg is int && tabArg >= 1 && tabArg <= 20) {
+          if (tabArg == 18 && !dashboardCtrl.isChannelMonetizationActive) {
+            dashboardCtrl.setSelectedIndex(1);
+          } else {
+            dashboardCtrl.setSelectedIndex(tabArg);
+          }
+        }
+      }
+    }
+    if (Get.isRegistered<DashboardViewController>()) {
+      final viewCtrl = Get.find<DashboardViewController>();
+      if (!viewCtrl.isDisposed) {
+        viewCtrl.ensureAnimationsVisible();
+      }
+    }
+  }
+
+  /// Safely navigates back to Creator Studio without duplicating `/studio` routes
+  /// or triggering GetX's `isDirty` controller-disposal race.
+  ///
+  /// When a Studio dashboard route is already in [routeStack], pops child routes
+  /// back to it via `Get.until`; otherwise replaces the stack with `/studio`.
+  static void navigateToStudio({
+    dynamic arguments,
+    Map<String, String>? parameters,
+  }) {
+    if (routeStack.isNotEmpty) {
+      if (isStudioDashboardRoute(routeStack.last)) {
+        _syncStudioReturnState(arguments: arguments);
+        return;
+      }
+      if (routeStack.any(isStudioDashboardRoute)) {
+        Get.until(isStudioDashboardRoute);
+        _syncStudioReturnState(arguments: arguments);
+        return;
+      }
+    } else if (isStudioDashboardPath(Get.currentRoute)) {
+      _syncStudioReturnState(arguments: arguments);
+      return;
+    }
+
+    Get.offAllNamed<dynamic>(
+      '/studio',
+      arguments: arguments,
+      parameters: parameters,
+    );
   }
 }
 
