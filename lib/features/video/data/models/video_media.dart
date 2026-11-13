@@ -79,6 +79,22 @@ class VideoMediaLocalization {
     'updatedAt': updatedAt ?? FieldValue.serverTimestamp(),
   };
 
+  VideoMediaLocalization copyWith({
+    Map<String, String>? subtitles,
+    Map<String, String>? dubbedVideos,
+    Map<String, String>? audioTracks,
+    Map<String, Map<String, String>>? commentaryVideos,
+    Timestamp? updatedAt,
+  }) {
+    return VideoMediaLocalization(
+      subtitles: subtitles ?? this.subtitles,
+      dubbedVideos: dubbedVideos ?? this.dubbedVideos,
+      audioTracks: audioTracks ?? this.audioTracks,
+      commentaryVideos: commentaryVideos ?? this.commentaryVideos,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
   static Map<String, String> _castStringMap(dynamic value) {
     if (value == null) return {};
     if (value is Map) {

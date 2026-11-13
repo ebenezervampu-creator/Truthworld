@@ -11,6 +11,7 @@ import 'package:truthworld/core/utils/cross_app_launcher.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification_dashboard_page.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
 import 'package:truthworld/features/notifications/presentation/views/notifications/widgets/notification_models.dart';
@@ -1043,6 +1044,7 @@ class NotificationNavigationHandler {
             final videoId = target.arguments?['videoId'] as String?;
             if (videoId != null && videoId.isNotEmpty) {
               ctrl.targetVideoId.value = videoId;
+              TruthVerificationDashboardPage.targetVideoId.value = videoId;
             }
             ctrl.applyRouteTargetIfPresent();
           }

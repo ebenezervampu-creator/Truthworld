@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:truthworld/core/config/app_flavor.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/logger_service.dart';
@@ -120,6 +121,10 @@ class UserNotificationService {
   Future<List<UserNotification>> fetchNotificationsViaCallable({
     int limit = 50,
   }) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null || currentUser.isAnonymous) {
+      return [];
+    }
     try {
       final callable = _functions.httpsCallable('getNotifications');
       final result = await callable.call({
@@ -146,14 +151,17 @@ class UserNotificationService {
 
   /// Mark notification as read securely via backend Callable Cloud Function and Firestore
   Future<bool> markAsRead(String notificationId, {String? userId}) async {
-    try {
-      final callable = _functions.httpsCallable('markNotificationRead');
-      await callable.call({'notificationId': notificationId});
-    } catch (e) {
-      logger.error(
-        'Failed to mark notification read via callable: $e',
-        tag: 'NOTIFICATIONS',
-      );
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null && !currentUser.isAnonymous) {
+      try {
+        final callable = _functions.httpsCallable('markNotificationRead');
+        await callable.call({'notificationId': notificationId});
+      } catch (e) {
+        logger.error(
+          'Failed to mark notification read via callable: $e',
+          tag: 'NOTIFICATIONS',
+        );
+      }
     }
 
     // Direct Firestore updates across collections for immediate UI responsiveness

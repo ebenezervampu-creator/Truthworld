@@ -9,6 +9,8 @@
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
     "test": "jest --runInBand --forceExit",
+    "test:pipeline": "jest tests/pipeline --runInBand --forceExit",
+    "test:dubbing": "jest tests/pipeline/elevenlabs_v4_dubbing.test.ts tests/pipeline/dubbing_quality_gate.test.ts tests/pipeline/dubbing_five_pillars.test.ts tests/pipeline/elevenlabs_zero_credit_verification.test.ts --runInBand --forceExit",
     "test:unit": "jest tests/unit --runInBand --forceExit",
     "test:integration": "jest tests/api tests/auth tests/callable tests/database tests/payment --runInBand",
     "test:api": "jest tests/api --runInBand",

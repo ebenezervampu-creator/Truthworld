@@ -17,6 +17,12 @@ mixin UploadAiFeaturesMixin on UploadControllerBase {
     return !categoriesWithoutFactCheck.contains(category);
   }
 
+  /// Toggle expansion of the unified AI features studio section
+  @override
+  void toggleAiFeaturesExpanded() {
+    isAiFeaturesExpanded.value = !isAiFeaturesExpanded.value;
+  }
+
   /// Whether Fact Checking is relevant for the currently selected category
   bool get isFactCheckRelevant =>
       isFactCheckNeededForCategory(selectedCategory.value);
@@ -115,6 +121,12 @@ mixin UploadAiFeaturesMixin on UploadControllerBase {
     ).toMap();
     map['providedSources'] = List<String>.from(providedSources);
     map['dubbingLanguages'] = List<String>.from(aiDubbingLanguages);
+    map['spokenLanguages'] = spokenLanguages.isNotEmpty
+        ? List<String>.from(spokenLanguages)
+        : [effectiveVideoLanguage];
+    map['primaryLanguage'] = effectiveVideoLanguage;
+    map['sourceLanguage'] = effectiveVideoLanguage;
+    map['isMultilingualSpoken'] = isMultilingualSpoken.value || spokenLanguages.length > 1;
     map['isFactCheckApproved'] =
         aiFactCheckReviewMode.value != 'first_to_creator';
     map['enableFactCheck'] = aiFactCheckEnabled.value;

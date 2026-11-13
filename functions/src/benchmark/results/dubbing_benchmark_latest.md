@@ -1,5 +1,5 @@
 # TruthWorld Dubbing Quality Benchmark Scorecard (DRY_RUN)
-- **Generated**: 2026-11-11T08:11:11.050Z
+- **Generated**: 2026-11-13T08:15:21.675Z
 - **Language Pair**: en -> te
 - **Verdict**: **CERTIFIED_DRY_RUN** (10/10)
 
@@ -14,7 +14,7 @@
 | Subtitle Tag Leak Count | 0 |
 | Container Duration Drift | 50 ms |
 | ElevenLabs Chars Billed | 0 ($0.0000) |
-| Wall Latency | 831 ms |
+| Wall Latency | 770 ms |
 
 ## Notes
 - Zero paid API credits expended (local FFmpeg & pipeline contract probe).

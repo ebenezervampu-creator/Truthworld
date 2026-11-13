@@ -2121,6 +2121,7 @@ class VideoController extends BaseController
 
 
   void onClose() {
+    disposeClaimStream();
 
     disposeDragToMiniplayer();
 

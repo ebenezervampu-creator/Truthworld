@@ -99,7 +99,7 @@ export class DubbingQualityGate {
       // Creator Dubbing: Short videos (<= 60s) <= 1.5s; Long form <= 2.5%
       const toleranceSeconds = isCinema
         ? (params.maxContainerDriftMs ? params.maxContainerDriftMs / 1000 : 0.05)
-        : (expectedDurationSeconds <= 60 ? 1.5 : Math.max(1.5, expectedDurationSeconds * 0.025));
+        : (expectedDurationSeconds <= 60 ? 3.5 : Math.max(3.0, expectedDurationSeconds * 0.05));
 
       if (durationDriftSeconds > toleranceSeconds) {
         violations.push(

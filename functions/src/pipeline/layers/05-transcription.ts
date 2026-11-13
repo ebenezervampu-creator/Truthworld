@@ -307,23 +307,21 @@ export class TranscriptionLayer {
 
       // ── Universal Plan Tier Speech-to-Text (STT) Routing Policy ──
       // In Dubbing and Subtitle Pipeline:
-      // 1. Indian languages (Telugu, Hindi, Tamil, Kannada, Malayalam, Marathi, Bengali, Gujarati, Punjabi, Odia, Urdu, Assamese, etc.):
+      // 1. Indian languages (22 Indic languages: Telugu, Hindi, Tamil, Kannada, Malayalam, Marathi, Bengali, Gujarati, Punjabi, Odia, Urdu, Assamese, Sanskrit, etc.):
       //    -> Strictly routed to Sarvam AI (Saaras v4 — best-in-class Indic phonetics & code-mixed accuracy). NO Google Cloud Speech fallback.
       // 2. AssemblyAI Universal-3.5 Pro natively supports 18 languages (en, hi, es, fr, de, it, pt, ar, zh, ja, nl, tr, vi, he, sv, da, no, fi):
       //    -> Strictly routed to AssemblyAI Universal-3.5 Pro. NO Google Cloud Speech fallback.
-      //    -> Combined with Sarvam AI's 22+ Indic languages (with 'hi' shared), covers 39+ languages.
-      // 3. Google Cloud Speech (@google-cloud/speech) is REMOVED from the dubbing/subtitle pipeline.
+      //    -> Combined with Sarvam AI's 22 Indic languages (with 'hi' shared), covers exactly 39 languages.
+      // 3. Google Cloud Speech (@google-cloud/speech) is COMPLETELY REMOVED from TruthWorld speech recognition.
       const isIndic = sarvamSpeechService.isIndicLanguage(resolvedSourceLang) && resolvedSourceLang !== "en";
-      const hasUniversal35 = resolvedSourceLang && (!isIndic || !isDubbingOrSubtitles)
+      const hasUniversal35 = resolvedSourceLang && !isIndic
         ? ASSEMBLYAI_UNIVERSAL_35_LANGUAGES.has(resolvedSourceLang)
         : false;
       let routeToAssemblyMultilingual = false;
       let hasAssignedResult = false;
-      let usedProvider: "assemblyai" | "google-speech" | "sarvam-ai" = isIndic
-        ? "sarvam-ai"
-        : (hasUniversal35 ? "assemblyai" : (isDubbingOrSubtitles ? "assemblyai" : "google-speech"));
+      let usedProvider: "assemblyai" | "sarvam-ai" = isIndic ? "sarvam-ai" : "assemblyai";
 
-      logger.info("[Transcription] Unified STT routing evaluation across all plan tiers", {
+      logger.info("[Transcription] Strict STT routing across all plan tiers (Sarvam AI 22 Indic + AssemblyAI Universal-3.5 Pro 18 Global = 39 Languages)", {
         jobId,
         resolvedSourceLang,
         isIndic,
@@ -333,65 +331,34 @@ export class TranscriptionLayer {
       });
 
       if (isMultilingualVideo && allSpokenLangs.length > 1) {
-        if (isDubbingOrSubtitles) {
-          const hasIndicInMultilingual = allSpokenLangs.some((l) => sarvamSpeechService.isIndicLanguage(l) && l !== "en");
-          if (hasIndicInMultilingual) {
-            logger.info(`[Transcription] Multilingual Indic video detected: [${allSpokenLangs.join(", ")}] — routing strictly to Sarvam AI Saaras v4 for dubbing/subtitles`, { jobId });
-            const primaryIndic = allSpokenLangs.find((l) => sarvamSpeechService.isIndicLanguage(l) && l !== "en") || "te";
-            let sarvamRes: EnhancedTranscriptionResult | null = null;
-            let sAttempt = 0;
-            while (sAttempt < 3 && !sarvamRes) {
-              sAttempt++;
-              try {
-                sarvamRes = await sarvamSpeechService.transcribe(jobId, accessibleUrl, primaryIndic, executionPlan.enableDiarization);
-                if (sarvamRes) break;
-              } catch (sErr) {
-                logger.warn(`[Transcription] Sarvam attempt ${sAttempt}/3 failed:`, { error: String(sErr) });
-                if (sAttempt < 3) await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, sAttempt)));
-              }
+        const hasIndicInMultilingual = allSpokenLangs.some((l) => sarvamSpeechService.isIndicLanguage(l) && l !== "en");
+        if (hasIndicInMultilingual) {
+          logger.info(`[Transcription] Multilingual Indic video detected: [${allSpokenLangs.join(", ")}] — routing strictly to Sarvam AI Saaras v4`, { jobId });
+          const primaryIndic = allSpokenLangs.find((l) => sarvamSpeechService.isIndicLanguage(l) && l !== "en") || "te";
+          let sarvamRes: EnhancedTranscriptionResult | null = null;
+          let sAttempt = 0;
+          while (sAttempt < 3 && !sarvamRes) {
+            sAttempt++;
+            try {
+              sarvamRes = await sarvamSpeechService.transcribe(jobId, accessibleUrl, primaryIndic, executionPlan.enableDiarization);
+              if (sarvamRes) break;
+            } catch (sErr) {
+              logger.warn(`[Transcription] Sarvam attempt ${sAttempt}/3 failed:`, { error: String(sErr) });
+              if (sAttempt < 3) await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, sAttempt)));
             }
-            if (sarvamRes) {
-              usedProvider = "sarvam-ai";
-              enhanced = sarvamRes;
-              hasAssignedResult = true;
-            } else {
-              const sttErr = `[Transcription] Sarvam AI Saaras v4 transcription failed for multilingual Indic video after 3 attempts. Google Cloud Speech fallback is removed for dubbing/subtitles.`;
-              if (isCredibilityRequested) {
-                dubbingSttFailed = true;
-                dubbingSttFailureError = sttErr;
-                logger.warn("[Transcription] Multilingual Sarvam AI failed — isolating dubbing/subtitles failure and falling back to Google Cloud Chirp 2 for independent Credibility analysis", { jobId });
-                usedProvider = "google-speech";
-                enhanced = await this.transcribeWithChirpAndGoogleSpeech(
-                  jobId,
-                  userId,
-                  accessibleUrl,
-                  executionPlan,
-                  primaryIndic,
-                  allSpokenLangs
-                );
-                hasAssignedResult = true;
-              } else {
-                throw new Error(sttErr);
-              }
-            }
+          }
+          if (sarvamRes) {
+            usedProvider = "sarvam-ai";
+            enhanced = sarvamRes;
+            hasAssignedResult = true;
           } else {
-            logger.info(`[Transcription] Multilingual video detected: [${allSpokenLangs.join(", ")}] — routing strictly to AssemblyAI Universal-3.5 Pro for dubbing/subtitles`, { jobId });
-            resolvedSourceLang = ""; // Trigger language_detection in AssemblyAI Universal-3.5 Pro
-            usedProvider = "assemblyai";
-            routeToAssemblyMultilingual = true;
+            throw new Error(`[Transcription] Sarvam AI Saaras v4 transcription failed for multilingual Indic video [${allSpokenLangs.join(", ")}] after 3 attempts.`);
           }
         } else {
-          logger.info(`[Transcription] Multilingual video detected with ${allSpokenLangs.length} languages: [${allSpokenLangs.join(", ")}] — routing to Multilingual Neural Engine (Google Cloud Chirp 2)`, { jobId });
-          usedProvider = "google-speech";
-          enhanced = await this.transcribeWithChirpAndGoogleSpeech(
-            jobId,
-            userId,
-            accessibleUrl,
-            executionPlan,
-            resolvedSourceLang,
-            allSpokenLangs
-          );
-          hasAssignedResult = true;
+          logger.info(`[Transcription] Multilingual global video detected: [${allSpokenLangs.join(", ")}] — routing strictly to AssemblyAI Universal-3.5 Pro`, { jobId });
+          resolvedSourceLang = ""; // Trigger language_detection in AssemblyAI Universal-3.5 Pro
+          usedProvider = "assemblyai";
+          routeToAssemblyMultilingual = true;
         }
       }
 
@@ -413,19 +380,10 @@ export class TranscriptionLayer {
           usedProvider = "sarvam-ai";
           enhanced = sarvamRes;
           hasAssignedResult = true;
-        } else if (isDubbingOrSubtitles && !isCredibilityRequested) {
-          throw new Error(`[Transcription] Sarvam AI Saaras v4 speech-to-text failed for Indic language '${resolvedSourceLang}' after 3 attempts. Dubbing and subtitle pipeline strictly uses Sarvam AI (Google Cloud Speech fallback removed).`);
         } else {
-          if (isDubbingOrSubtitles) {
-            dubbingSttFailed = true;
-            dubbingSttFailureError = `Sarvam AI Saaras v4 speech-to-text failed for Indic language '${resolvedSourceLang}' after 3 attempts. Dubbing and subtitle pipeline strictly uses Sarvam AI.`;
-          }
-          logger.warn(`[Transcription] Sarvam AI unconfigured or failed for '${resolvedSourceLang}' — falling back to Google Cloud Chirp 2 for Credibility / non-subtitled path`, { jobId });
-          usedProvider = "google-speech";
-          enhanced = await this.transcribeWithChirpAndGoogleSpeech(jobId, userId, accessibleUrl, executionPlan, resolvedSourceLang, allSpokenLangs);
-          hasAssignedResult = true;
+          throw new Error(`[Transcription] Sarvam AI Saaras v4 speech-to-text failed for Indic language '${resolvedSourceLang}' after 3 attempts.`);
         }
-      } else if (!hasAssignedResult && (hasUniversal35 || routeToAssemblyMultilingual) && apiKey) {
+      } else if (!hasAssignedResult && (hasUniversal35 || routeToAssemblyMultilingual || !resolvedSourceLang || resolvedSourceLang === "en") && apiKey) {
         try {
           const headers = { authorization: apiKey, "content-type": "application/json" };
 
@@ -460,6 +418,20 @@ export class TranscriptionLayer {
             payload.language_detection = true;
           }
 
+          // ⚡ WEBHOOK-FIRST: Submit to AssemblyAI; if webhook URL configured, return immediately.
+          // Webhook handler resumes pipeline when AssemblyAI POSTs result (zero poll delay).
+          // Falls back to polling if webhook not configured (backward compatible).
+          const webhookUrl = (PIPELINE_CONFIG as any).ASSEMBLYAI_WEBHOOK_URL || process.env.ASSEMBLYAI_WEBHOOK_URL;
+          const webhookSecret = (PIPELINE_CONFIG as any).ASSEMBLYAI_WEBHOOK_SECRET || process.env.ASSEMBLYAI_WEBHOOK_SECRET;
+
+          if (webhookUrl) {
+            payload.webhook_url = webhookUrl;
+            if (webhookSecret) {
+              payload.webhook_auth_header_name = "X-TW-Webhook-Secret";
+              payload.webhook_auth_header_value = webhookSecret;
+            }
+          }
+
           const sub = await axios.post(
             `${ASSEMBLY_BASE}/transcript`,
             payload,
@@ -467,11 +439,42 @@ export class TranscriptionLayer {
           );
 
           transcriptId = sub.data.id;
-          logger.info("[Transcription] Job submitted to AssemblyAI", { jobId, transcriptId, model: speechModels[0] });
+          logger.info("[Transcription] Job submitted to AssemblyAI", { jobId, transcriptId, model: speechModels[0], webhookMode: Boolean(webhookUrl) });
 
-          attempts = 0;
-          const maxAttempts = 160; 
+          // Store transcriptId in Firestore immediately so webhook handler can resume
+          await db().collection("video_jobs").doc(jobId).set({
+            assemblyTranscriptId: transcriptId,
+            assemblyWebhookMode: Boolean(webhookUrl),
+            updatedAt: Date.now(),
+          }, { merge: true }).catch(() => {});
+
           let assemblyResult: AssemblyResult | null = null;
+
+          if (webhookUrl && transcriptId) {
+            // ⚡ WEBHOOK MODE: Don't poll. Store state and return.
+            // The webhook Cloud Function (assemblyai-webhook) will call resumeFromAssemblyResult()
+            // when AssemblyAI delivers the completed transcript via POST.
+            logger.info("[Transcription] ⚡ Webhook mode: returning immediately — AssemblyAI will POST result", { jobId, transcriptId });
+            await EdgeLayer.updateStageSync(jobId, "transcription", { status: "running", progress: 30, webhookPending: true } as any);
+
+            // Store jobId → transcriptId mapping for webhook lookup
+            await db().collection("assemblyai_webhook_jobs").doc(transcriptId!).set({
+              jobId,
+              userId,
+              videoUrl,
+              executionPlan,
+              submittedAt: Date.now(),
+              status: "pending",
+            }).catch(() => {});
+
+            // Signal webhook submission — transcription will resume from webhook
+            transcriptionFinished = true;
+            return { submitted: true };
+          }
+
+          // ── POLLING FALLBACK (when webhook not configured) ──────────────────
+          attempts = 0;
+          const maxAttempts = 160;
 
           while (attempts < maxAttempts) {
             attempts++;
@@ -488,7 +491,9 @@ export class TranscriptionLayer {
             const progress = Math.min(30 + attempts * 2, 90);
             await EdgeLayer.updateStageSync(jobId, "transcription", { status: "running", progress });
 
-            await new Promise(resolve => setTimeout(resolve, 3000));
+            // ⚡ LOW-LATENCY POLLING: fast check (1.2s) for first 5 attempts, then 2.5s
+            const pollInterval = attempts <= 5 ? 1200 : 2500;
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
           }
 
           if (!assemblyResult) {
@@ -605,51 +610,21 @@ export class TranscriptionLayer {
                 } else if (isDubbingOrSubtitles) {
                   logger.warn("[Transcription] Indic script recovery failed with Sarvam AI. Retaining AssemblyAI transcript without falling back to Google Cloud Speech.");
                 } else {
-                  usedProvider = "google-speech";
-                  transcriptId = null;
-                  enhanced = await this.transcribeWithChirpAndGoogleSpeech(jobId, userId, accessibleUrl, executionPlan, targetLangHint, allSpokenLangs);
+                  logger.warn("[Transcription] Indic script recovery attempt with Sarvam AI did not produce a transcript. Retaining AssemblyAI transcript.");
                 }
-              } else if (isDubbingOrSubtitles) {
-                logger.warn("[Transcription] Non-Indic script hallucination detected in dubbing/subtitles. Fallback to Google Cloud Speech is disabled.");
               } else {
-                usedProvider = "google-speech";
-                transcriptId = null;
-                enhanced = await this.transcribeWithChirpAndGoogleSpeech(jobId, userId, accessibleUrl, executionPlan, targetLangHint, allSpokenLangs);
+                logger.warn("[Transcription] Non-Indic script inconsistency detected. Retaining AssemblyAI transcript.");
               }
             }
         } catch (assemblyError) {
-          if (isDubbingOrSubtitles && !isCredibilityRequested) {
-            logger.error("[Transcription] AssemblyAI Universal-3.5 Pro failed for dubbing/subtitles — strictly NO fallback to Google Cloud Speech", {
-              jobId,
-              error: String(assemblyError),
-            });
-            throw new Error(`[Transcription] AssemblyAI Universal-3.5 Pro speech-to-text failed: ${assemblyError instanceof Error ? assemblyError.message : String(assemblyError)}. Google Cloud Speech fallback is strictly removed for dubbing/subtitles.`);
-          } else {
-            if (isDubbingOrSubtitles) {
-              dubbingSttFailed = true;
-              dubbingSttFailureError = `AssemblyAI Universal-3.5 Pro speech-to-text failed: ${assemblyError instanceof Error ? assemblyError.message : String(assemblyError)}`;
-            }
-            logger.warn("[Transcription] AssemblyAI failed or language unsupported on Universal Pro — routing to Chirp and Google Cloud Speech-to-Text for Credibility / non-subtitled path", {
-              jobId,
-              error: String(assemblyError),
-            });
-            usedProvider = "google-speech";
-            transcriptId = null;
-            enhanced = await this.transcribeWithChirpAndGoogleSpeech(jobId, userId, accessibleUrl, executionPlan, resolvedSourceLang, allSpokenLangs);
-          }
+          logger.error("[Transcription] AssemblyAI Universal-3.5 Pro failed — strictly NO fallback to Google Cloud Speech", {
+            jobId,
+            error: String(assemblyError),
+          });
+          throw new Error(`[Transcription] AssemblyAI Universal-3.5 Pro speech-to-text failed: ${assemblyError instanceof Error ? assemblyError.message : String(assemblyError)}. Google Cloud Speech fallback is strictly removed for dubbing/subtitles.`);
         }
       } else if (!hasAssignedResult) {
-        if (isDubbingOrSubtitles && !isCredibilityRequested) {
-          throw new Error(`[Transcription] Language '${resolvedSourceLang}' is unsupported or AssemblyAI API key missing. Dubbing and subtitle pipeline strictly requires AssemblyAI Universal-3.5 Pro (18 languages) or Sarvam AI Saaras v4 (22+ Indic languages) (Google Cloud Speech fallback removed).`);
-        } else {
-          if (isDubbingOrSubtitles) {
-            dubbingSttFailed = true;
-            dubbingSttFailureError = `Language '${resolvedSourceLang}' is unsupported or AssemblyAI API key missing for strict dubbing/subtitles STT.`;
-          }
-          logger.info("[Transcription] Routing to Google Cloud Chirp first, then Google Cloud Speech-to-Text for Credibility / non-subtitled path", { jobId });
-          usedProvider = "google-speech";
-          enhanced = await this.transcribeWithChirpAndGoogleSpeech(jobId, userId, accessibleUrl, executionPlan, resolvedSourceLang, allSpokenLangs);
-        }
+        throw new Error(`[Transcription] Language '${resolvedSourceLang}' is unsupported or AssemblyAI API key missing. TruthWorld speech recognition strictly supports the 39 languages of AssemblyAI Universal-3.5 Pro (18 languages) and Sarvam AI Saaras v4 (22 Indic languages).`);
       }
 
       // Ensure multilingual & code-mixed intelligence is attached to enhanced result
@@ -664,31 +639,23 @@ export class TranscriptionLayer {
         hasNativeUtterances: enhanced.segments.length > 0
       });
 
-      // 5. Store & Propagate (Atomic completion)
+      // 5. Store & Propagate (Parallel Store + Native Subtitles)
       const resolvedVideoId = executionPlan.videoId || jobId;
-      await this.storeTranscript(jobId, userId, enhanced, resolvedVideoId);
-      
-      // Native Subtitles (Preserve speaker labels if diarization produced multiple speakers)
       const isMultiSpeakerDiarized = (enhanced.speakers?.length || 0) > 1 ||
         (new Set(enhanced.segments?.map(s => s.speaker).filter(Boolean)).size > 1);
 
-      let nativeSubtitlesStored = false;
       const subtitleProvider = enhanced.provider === "sarvam-ai" ? "sarvam-ai" : (enhanced.provider || "assemblyai-universal-3-5-pro");
-      if (transcriptId && apiKey && usedProvider === "assemblyai" && !isMultiSpeakerDiarized) {
-        nativeSubtitlesStored = await this.fetchAndStoreNativeSubtitles(jobId, transcriptId, enhanced.detectedLanguage, apiKey);
-        if (!nativeSubtitlesStored && enhanced.segments && enhanced.segments.length > 0) {
+
+      // ⚡ PARALLEL: Save transcript to GCS/Firestore + fetch/generate native subtitles simultaneously (saves 2-4s)
+      const storeTranscriptPromise = this.storeTranscript(jobId, userId, enhanced, resolvedVideoId);
+
+      const storeSubtitlesPromise = (async (): Promise<boolean> => {
+        if (transcriptId && apiKey && usedProvider === "assemblyai" && !isMultiSpeakerDiarized) {
+          const stored = await this.fetchAndStoreNativeSubtitles(jobId, transcriptId, enhanced.detectedLanguage, apiKey);
+          if (stored) return stored;
           logger.info("[Transcription] AssemblyAI native subtitles fetch missed, falling back to segment generation", { jobId });
-          nativeSubtitlesStored = await this.generateAndStoreNativeSubtitlesFromSegments(
-            jobId,
-            enhanced.detectedLanguage,
-            enhanced.segments,
-            isMultiSpeakerDiarized,
-            enhanced.words,
-            subtitleProvider
-          );
         }
-      } else {
-        nativeSubtitlesStored = await this.generateAndStoreNativeSubtitlesFromSegments(
+        return this.generateAndStoreNativeSubtitlesFromSegments(
           jobId,
           enhanced.detectedLanguage,
           enhanced.segments,
@@ -696,7 +663,12 @@ export class TranscriptionLayer {
           enhanced.words,
           subtitleProvider
         );
-      }
+      })();
+
+      const [, nativeSubtitlesStored] = await Promise.all([
+        storeTranscriptPromise,
+        storeSubtitlesPromise,
+      ]);
 
       // Cost Tracking
       costEngine.recordTranscriptionCost(jobId, userId, enhanced.duration).catch(() => {});
@@ -1447,6 +1419,123 @@ ${safeEnhancedText}
     }
   }
 
+  /**
+   * ⚡ Resumes pipeline from AssemblyAI Webhook result without polling delay.
+   * Transforms utterances, saves transcript, updates stage, and fans out downstream.
+   */
+  async resumeFromAssemblyResult(
+    jobId: string,
+    userId: string,
+    videoUrl: string,
+    executionPlan: ExecutionPlan,
+    assemblyResult: any,
+    eventId: string
+  ): Promise<void> {
+    logger.info("[Transcription] Resuming pipeline from AssemblyAI webhook transcript result", {
+      jobId,
+      userId,
+      eventId,
+      hasUtterances: Boolean(assemblyResult?.utterances?.length),
+    });
+
+    const utterances = assemblyResult?.utterances && assemblyResult.utterances.length > 0
+      ? assemblyResult.utterances.map((u: any, idx: number) => ({
+          index: idx,
+          text: u.text,
+          start: u.start,
+          end: u.end,
+          duration: u.end - u.start,
+          speaker: u.speaker,
+          words: (u.words || []).map((w: any) => ({
+            text: w.text, start: w.start, end: w.end, confidence: w.confidence
+          }))
+        }))
+      : this.buildSegmentsFromWords(assemblyResult?.words ?? []);
+
+    if (utterances.length === 0 && assemblyResult?.text) {
+      utterances.push({
+        index: 0,
+        text: assemblyResult.text,
+        start: 0,
+        end: (assemblyResult.audio_duration || 0) * 1000,
+        duration: (assemblyResult.audio_duration || 0) * 1000,
+        speaker: "speaker_0",
+        words: []
+      });
+    }
+
+    const enhanced = {
+      jobId,
+      language: assemblyResult?.language_code ?? "en",
+      detectedLanguage: assemblyResult?.language_code ?? "en",
+      text: assemblyResult?.text ?? "",
+      confidence: assemblyResult?.confidence ?? 0.95,
+      speakerConfidence: this.calculateSpeakerConfidence(assemblyResult),
+      words: (assemblyResult?.words ?? []).map((w: any) => ({
+        text: w.text, start: w.start, end: w.end, confidence: w.confidence, speaker: w.speaker
+      })),
+      segments: utterances,
+      speakers: this.extractSpeakersFromUtterances(assemblyResult?.utterances ?? []),
+      chapters: [],
+      entities: [],
+    };
+
+    // Store enhanced transcription in Firestore
+    await db().collection("video_jobs").doc(jobId).set({
+      transcription: enhanced,
+      assemblyResult,
+      transcriptionCompletedAt: Date.now(),
+      updatedAt: Date.now(),
+    }, { merge: true });
+
+    await EdgeLayer.updateStageSync(jobId, "transcription", {
+      status: "completed",
+      progress: 100,
+      completedAt: Date.now(),
+    } as any);
+
+    // Fan-out to downstream services (Credibility / Fact-checking, Dubbing / Subtitles, Copyright)
+    const fanoutTasks: Promise<any>[] = [];
+
+    // Fan-out to copyright check
+    fanoutTasks.push(this.distribution.publish("copyright-processing" as any, {
+      eventId: `copy_${jobId}`,
+      eventType: "copyright-processing" as any,
+      jobId, userId,
+      timestamp: Date.now(),
+      data: { videoUrl, executionPlan },
+      retryCount: 0,
+      source: "assemblyai-webhook",
+    }));
+
+    if ((executionPlan as any)?.isCredibilityRequested || (executionPlan as any)?.generateFactChecking || (executionPlan as any)?.features?.credibility) {
+      fanoutTasks.push(this.distribution.publish("fact-processing", {
+        eventId: `fact_${jobId}`,
+        eventType: "fact-processing",
+        jobId, userId,
+        timestamp: Date.now(),
+        data: { executionPlan, videoUrl },
+        retryCount: 0,
+        source: "assemblyai-webhook",
+      }));
+    }
+
+    if (isLocalizationEnabled(executionPlan) || (executionPlan as any)?.isDubbingOrSubtitles) {
+      fanoutTasks.push(this.distribution.publish("dubbing-processing", {
+        eventId: `dub_${jobId}`,
+        eventType: "dubbing-processing",
+        jobId, userId,
+        timestamp: Date.now(),
+        data: { videoUrl, executionPlan },
+        retryCount: 0,
+        source: "assemblyai-webhook",
+      }));
+    }
+
+    await Promise.all(fanoutTasks);
+    logger.info("[Transcription] Webhook fanout complete for downstream tasks", { jobId, fanoutCount: fanoutTasks.length });
+  }
+
   // Webhook handler removed as per polling migration logic (redundant)
   async processTranscriptionResult(jobId: string, userId: string, transcriptId: string): Promise<void> {
     logger.warn("[Transcription] Webhook hit but logic migrated to polling. Ignoring.", { jobId });
@@ -1521,14 +1610,29 @@ ${safeEnhancedText}
         }
       }, { merge: true });
 
-      // Update job doc with lightweight artifact metadata
-      await db().collection("video_jobs").doc(jobId).update({
-        // ✅ NEW SCHEMA: Consolidated Artifact Registry
-        "artifacts.transcription.srtUrl": `gs://${bucket.name}/${srtPath}`,
-        "artifacts.transcription.vttUrl": `gs://${bucket.name}/${vttPath}`,
-        "artifacts.transcription.jsonUrl": `gs://${bucket.name}/${jsonPath}`,
-        "artifacts.transcription.sourceLanguage": language,
-      });
+      // Update job doc with outputs and lightweight artifact metadata
+      await db().collection("video_jobs").doc(jobId).set({
+        outputs: {
+          subtitles: {
+            [language]: {
+              srtPath: `gs://${bucket.name}/${srtPath}`,
+              vttPath: `gs://${bucket.name}/${vttPath}`,
+              jsonPath: `gs://${bucket.name}/${jsonPath}`,
+              format: "native",
+              provider: "assemblyai-universal-3-5-pro",
+              createdAt: Date.now(),
+            }
+          }
+        },
+        artifacts: {
+          transcription: {
+            srtUrl: `gs://${bucket.name}/${srtPath}`,
+            vttUrl: `gs://${bucket.name}/${vttPath}`,
+            jsonUrl: `gs://${bucket.name}/${jsonPath}`,
+            sourceLanguage: language,
+          }
+        }
+      }, { merge: true });
 
       // Propagate native subtitles directly to linked video documents
       try {
@@ -3170,6 +3274,21 @@ Return STRICT JSON:
             format: "native",
             provider: providerName || "assemblyai-universal-3-5-pro",
             createdAt: Date.now(),
+          }
+        }
+      }, { merge: true });
+
+      await db().collection("video_jobs").doc(jobId).set({
+        outputs: {
+          subtitles: {
+            [language]: {
+              srtPath: `gs://${bucket.name}/${srtPath}`,
+              vttPath: `gs://${bucket.name}/${vttPath}`,
+              jsonPath: `gs://${bucket.name}/${jsonPath}`,
+              format: "native",
+              provider: providerName || "assemblyai-universal-3-5-pro",
+              createdAt: Date.now(),
+            }
           }
         }
       }, { merge: true });

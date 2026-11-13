@@ -623,12 +623,14 @@ class ChapterDialogs {
                                           );
                                           return;
                                         }
-                                        if (picked.bytes != null) {
+                                        final bytes = picked.bytes ??
+                                            await picked.xFile.readAsBytes();
+                                        if (bytes.isNotEmpty) {
                                           isUploading.value = true;
                                           final url = await controller
                                               .uploadChapterThumbnail(
                                             videoId: video.id,
-                                            bytes: picked.bytes!,
+                                            bytes: bytes,
                                             fileName: picked.name,
                                           );
                                           if (url != null &&

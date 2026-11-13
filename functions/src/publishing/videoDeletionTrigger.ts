@@ -20,6 +20,7 @@ import { onDocumentDeleted } from "firebase-functions/v2/firestore";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { logger } from "../pipeline/utils/logger";
 import { isCallableAdmin } from "../utils/auth";
+import { invalidateFeedGeneration } from "../shared/memory-cache";
 
 const BUCKET_NAME = process.env.STORAGE_BUCKET || "truthworld-1.firebasestorage.app";
 
@@ -42,6 +43,13 @@ export const onVideoDeletedCascade = onDocumentDeleted(
     const beforeData = event.data?.data();
 
     try {
+      // Invalidate edge/L1 public feed cache immediately upon video deletion
+      try {
+        invalidateFeedGeneration();
+      } catch (cacheErr) {
+        logger.warn(`[VideoCascadePurge] Failed to invalidate feed cache generation for ${videoId}:`, cacheErr);
+      }
+
       // 1. Recursive delete any subcollections remaining under videos/{videoId}
       const videoRef = db.collection("videos").doc(videoId);
       await db.recursiveDelete(videoRef).catch((err) => {
@@ -215,6 +223,13 @@ export const permanentlyDeleteVideo = onCall(
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           }).catch(() => {});
         }
+      }
+
+      // Invalidate edge/L1 public feed cache immediately upon video deletion
+      try {
+        invalidateFeedGeneration();
+      } catch (cacheErr) {
+        logger.warn(`[permanentlyDeleteVideo] Failed to invalidate feed cache generation for ${videoId}:`, cacheErr);
       }
 
       logger.info(`[permanentlyDeleteVideo] Successfully deleted video and cascaded assets: ${videoId}`);

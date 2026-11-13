@@ -11,19 +11,23 @@ class CacheMetadata {
     required this.cacheType,
     required this.generatedAt,
     required this.expiresAt,
-    this.schemaVersion = 2,
+    this.schemaVersion = 3,
     this.feedVersion = 1,
     this.queryHash = '',
+    this.eTag = '',
+    this.nextCursor,
   });
 
   factory CacheMetadata.fromMap(Map<String, dynamic> map) {
     return CacheMetadata(
-      schemaVersion: map['schemaVersion'] ?? 2,
+      schemaVersion: map['schemaVersion'] ?? 3,
       cacheType: map['cacheType'] ?? 'unknown',
       generatedAt: map['generatedAt'] ?? 0,
       expiresAt: map['expiresAt'] ?? 0,
       feedVersion: map['feedVersion'] ?? 1,
       queryHash: map['queryHash'] ?? '',
+      eTag: map['eTag'] ?? map['etag'] ?? '',
+      nextCursor: map['nextCursor'] as String?,
     );
   }
   final int schemaVersion;
@@ -32,6 +36,8 @@ class CacheMetadata {
   final int expiresAt;
   final int feedVersion;
   final String queryHash;
+  final String eTag;
+  final String? nextCursor;
 
   /// Whether the cache has passed its initial freshness window and should be revalidated in background.
   bool get isExpired => DateTime.now().millisecondsSinceEpoch > expiresAt;
@@ -51,6 +57,8 @@ class CacheMetadata {
     'expiresAt': expiresAt,
     'feedVersion': feedVersion,
     'queryHash': queryHash,
+    'eTag': eTag,
+    if (nextCursor != null) 'nextCursor': nextCursor,
   };
 }
 
@@ -177,13 +185,46 @@ class FeedCacheManager {
     }
   }
 
-  /// Persist feed videos to local storage with metadata header and TTL
+  /// Retrieve cached ETag if available and cache is not permanently expired
+  String? getETag(String cacheKey) {
+    try {
+      final rawData = _storage.read<Map>(cacheKey);
+      if (rawData == null) return null;
+      final metadataMap = rawData['metadata'];
+      if (metadataMap == null) return null;
+      final metadata = CacheMetadata.fromMap(Map<String, dynamic>.from(metadataMap));
+      if (metadata.isPermanentlyExpired() || metadata.schemaVersion != currentSchemaVersion) {
+        return null;
+      }
+      return metadata.eTag.isNotEmpty ? metadata.eTag : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Retrieve cached nextCursor if available
+  String? getNextCursor(String cacheKey) {
+    try {
+      final rawData = _storage.read<Map>(cacheKey);
+      if (rawData == null) return null;
+      final metadataMap = rawData['metadata'];
+      if (metadataMap == null) return null;
+      final metadata = CacheMetadata.fromMap(Map<String, dynamic>.from(metadataMap));
+      return metadata.nextCursor;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Persist feed videos to local storage with metadata header, ETag, nextCursor, and TTL
   void saveFeedToCache(
     String cacheKey,
     List<Video> videos, {
     Duration ttl = defaultTTL,
     int maxItems = 24,
     String cacheType = 'home_feed',
+    String? eTag,
+    String? nextCursor,
   }) {
     try {
       final nowMs = DateTime.now().millisecondsSinceEpoch;
@@ -194,6 +235,8 @@ class FeedCacheManager {
         cacheType: cacheType,
         generatedAt: nowMs,
         expiresAt: expiresMs,
+        eTag: eTag ?? '',
+        nextCursor: nextCursor,
       );
 
       final sanitizedVideos = VideoSanitizer.sanitizeForFeed(

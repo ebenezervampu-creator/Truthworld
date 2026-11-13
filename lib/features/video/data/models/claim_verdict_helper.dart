@@ -422,6 +422,21 @@ class ClaimVerdictHelper {
       takeaway =
           'We are still checking the facts on this.';
       micro = 'Fact check in progress';
+    } else if (rawStatus == 'deep_verifying' || rawStatus.contains('verifying')) {
+      label = 'VERIFYING';
+      takeaway =
+          'Multi-source factual corroboration in progress.';
+      micro = 'Verifying in real time';
+    } else if (rawStatus == 'provisional') {
+      label = 'PROVISIONAL';
+      takeaway =
+          'Preliminary fast scan complete. Deep multi-source verification in progress.';
+      micro = 'Preliminary scan';
+    } else if (rawStatus == 'extracted' || rawStatus == 'identified') {
+      label = 'IDENTIFIED';
+      takeaway =
+          'Verifiable claim detected on timeline. Verification queued.';
+      micro = 'Claim identified';
     }
 
     return ClaimVerdictInfo(

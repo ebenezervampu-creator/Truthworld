@@ -200,4 +200,92 @@ describe('Google Cloud Content Moderation (Decoupled from AssemblyAI Transcript)
     expect(decision.approved).toBe(true);
     expect(decision.policyAction).toBe('allow');
   });
+
+  it('6. Strictly REJECTS intense romantic/lustful content even if disguised under clean metadata and entertainment intent', () => {
+    const lustfulVideo: any = {
+      approved: false,
+      policyAction: 'reject',
+      topic: 'romance',
+      intent: 'entertainment',
+      riskLevel: 'high',
+      confidenceScore: 0.92,
+      policyReason: 'Visual frames show passionate deep kissing, sensual caressing on bed, and intimate physical contact violating family-friendly standards.',
+      explanation: 'Intense romantic/lustful physical intimacy exceeds family-friendly decorum guidelines.',
+      violationCategories: ['romantic_content'],
+      summary: 'A romantic video featuring intimate physical scenes.',
+      category: 'Entertainment',
+      detectedLanguage: 'en',
+    };
+
+    const decision = (contentModerationService as any).applyReviewPolicy(lustfulVideo);
+    expect(decision.approved).toBe(false);
+    expect(decision.policyAction).toBe('reject');
+  });
+
+  it('7. Overrides and REJECTS romantic/sexual content even if model erroneously returned policyAction: "allow"', () => {
+    const contradictoryLust: any = {
+      approved: true,
+      policyAction: 'allow', // Contradictory allow from model
+      topic: 'romantic_drama',
+      intent: 'entertainment',
+      riskLevel: 'high',
+      confidenceScore: 0.88,
+      policyReason: 'Contains bedroom romance and passionate kissing.',
+      explanation: 'Romantic clip from movie with physical intimacy.',
+      violationCategories: ['romantic_content'],
+      summary: 'Couple romance clip.',
+      category: 'Entertainment',
+      detectedLanguage: 'en',
+    };
+
+    const decision = (contentModerationService as any).applyReviewPolicy(contradictoryLust);
+    expect(decision.approved).toBe(false);
+    expect(['reject', 'manual_review']).toContain(decision.policyAction);
+  });
+
+  it('8. Enforces fail-closed: holds video in manual_review if moderation times out', async () => {
+    const mockTimeoutModel = {
+      generateContent: jest.fn().mockImplementation(() => {
+        return new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('MODERATION_TIMEOUT')), 10);
+        });
+      }),
+    };
+
+    const service = contentModerationService as any;
+    jest.spyOn(service, 'vertexAI', 'get').mockReturnValue({
+      getGenerativeModel: jest.fn(() => mockTimeoutModel),
+    });
+
+    const result = await contentModerationService.moderate(
+      'gs://truthworld-1.firebasestorage.app/videos/test_vid/original.mp4',
+      'video/mp4',
+      { title: 'My Love Story', description: 'Clean description', tags: ['love'] }
+    );
+
+    expect(result.approved).toBe(false);
+    expect(result.policyAction).toBe('manual_review');
+    expect(result.violationCategories).toContain('timeout_held_for_review');
+  });
+
+  it('9. Never allows video when policyReason reveals sensual/lustful intimacy despite clean metadata and allow action', () => {
+    const sneakyLust: any = {
+      approved: true,
+      policyAction: 'allow',
+      topic: 'love_story',
+      intent: 'entertainment',
+      riskLevel: 'low',
+      confidenceScore: 0.65,
+      policyReason: 'Couple shows passionate kissing and sensual bedroom intimacy in the video.',
+      explanation: 'Delivery has romantic moments.',
+      violationCategories: [],
+      summary: 'Love story video.',
+      category: 'Entertainment',
+      detectedLanguage: 'en',
+    };
+
+    const decision = (contentModerationService as any).applyReviewPolicy(sneakyLust);
+    expect(decision.approved).toBe(false);
+    expect(decision.policyAction).toBe('manual_review');
+  });
 });

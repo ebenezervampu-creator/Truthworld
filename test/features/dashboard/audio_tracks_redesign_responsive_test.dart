@@ -142,33 +142,17 @@ void main() {
         findsOneWidget,
       );
 
-      // 5. Action button verification
-      expect(find.text('Add audio track'), findsOneWidget);
+      // 5. Action buttons verification: + Audio button placed before Download button
+      expect(find.text('Audio'), findsWidgets);
+      expect(find.text('Download'), findsOneWidget);
 
-      // 6. Track items & badges verification
-      expect(find.text('English (Original)'), findsWidgets);
-      expect(find.text('Telugu'), findsWidgets);
-      expect(find.text('Hindi'), findsWidgets);
-      expect(find.text('Primary'), findsWidgets);
-      expect(find.text('Original video audio'), findsWidgets);
-      expect(find.text('Published'), findsWidgets);
-      expect(find.byType(Slider), findsWidgets);
+      // 6. Audio progress bar above download button and in track cards are removed
+      expect(find.byType(Slider), findsNothing);
 
-      await tester.scrollUntilVisible(
-        find.text('Tamil'),
-        200,
-        scrollable: find.byType(Scrollable).last,
-      );
-      expect(find.text('Tamil'), findsWidgets);
-
-      await tester.scrollUntilVisible(
-        find.text('Kannada'),
-        200,
-        scrollable: find.byType(Scrollable).last,
-      );
-      expect(find.text('Kannada'), findsWidgets);
-      expect(find.text('Draft'), findsWidgets);
-      expect(find.text('Not added'), findsWidgets);
+      // 7. Track items shown as language tabs in video player above
+      expect(find.textContaining('English'), findsWidgets);
+      expect(find.textContaining('Telugu'), findsWidgets);
+      expect(find.textContaining('Hindi'), findsWidgets);
     });
 
     testWidgets('Mobile layout (375x812 iPhone SE) is 100% responsive without overflow', (tester) async {
@@ -225,17 +209,9 @@ void main() {
       expect(find.byIcon(Icons.video_library_outlined), findsOneWidget);
       expect(find.text('Audio Tracks'), findsWidgets);
       expect(find.text('VideoTracks'), findsNothing);
-      expect(find.text('Available Audio tracks'), findsOneWidget);
-      expect(find.text('Add audio track'), findsOneWidget);
-
-      await tester.scrollUntilVisible(
-        find.text('Kannada'),
-        200,
-        scrollable: find.byType(Scrollable).last,
-      );
-      expect(find.text('Kannada'), findsWidgets);
-      expect(find.text('Published'), findsWidgets);
-      expect(find.text('Not added'), findsWidgets);
+      expect(find.text('Audio'), findsWidgets);
+      expect(find.text('Download'), findsOneWidget);
+      expect(find.byType(Slider), findsNothing);
     });
 
     testWidgets('showAddAudioOptionsSheet opens bottom sheet with Generate Audio and Add files options', (tester) async {

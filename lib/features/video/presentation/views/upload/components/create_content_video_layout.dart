@@ -86,7 +86,7 @@ class CreateContentVideoLayout extends StatelessWidget {
                                   ),
                                   const SizedBox(width: 32),
 
-                                  // Right Column (Sections 6-13: Category, Visibility, Playlist, Topic, Subtitles & Dubbing, Truth Verification, Diarization, Chapters)
+                                  // Right Column (Sections 6-10: Category, Visibility, Playlist, Topic, AI Features & Intelligence)
                                   Expanded(
                                     flex: 5,
                                     child: Column(
@@ -111,19 +111,7 @@ class CreateContentVideoLayout extends StatelessWidget {
                                               contentController.showCreateTopicModal(context, isDark),
                                         ),
                                         const SizedBox(height: 20),
-                                        CreateContentSubtitlesDubbingSection(
-                                          uploadController: uploadController,
-                                        ),
-                                        const SizedBox(height: 20),
-                                        CreateContentTruthVerificationSection(
-                                          uploadController: uploadController,
-                                        ),
-                                        const SizedBox(height: 20),
-                                        CreateContentSpeakerDiarizationSection(
-                                          uploadController: uploadController,
-                                        ),
-                                        const SizedBox(height: 20),
-                                        CreateContentAutoChaptersSection(
+                                        CreateContentUnifiedAiSection(
                                           uploadController: uploadController,
                                         ),
                                       ],
@@ -174,19 +162,7 @@ class CreateContentVideoLayout extends StatelessWidget {
                                         contentController.showCreateTopicModal(context, isDark),
                                   ),
                                   const SizedBox(height: 20),
-                                  CreateContentSubtitlesDubbingSection(
-                                    uploadController: uploadController,
-                                  ),
-                                  const SizedBox(height: 20),
-                                  CreateContentTruthVerificationSection(
-                                    uploadController: uploadController,
-                                  ),
-                                  const SizedBox(height: 20),
-                                  CreateContentSpeakerDiarizationSection(
-                                    uploadController: uploadController,
-                                  ),
-                                  const SizedBox(height: 20),
-                                  CreateContentAutoChaptersSection(
+                                  CreateContentUnifiedAiSection(
                                     uploadController: uploadController,
                                   ),
                                 ],

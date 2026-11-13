@@ -408,14 +408,32 @@ mixin MiniplayerHandoffMixin on
     final pos = currentPosition.value;
     final dur = totalDuration.value;
     if (video != null && pos.inSeconds > 0 && dur.inSeconds > 0) {
+      final isNearEnd = pos.inSeconds >= (dur.inSeconds - 10) || (pos.inSeconds / dur.inSeconds) >= 0.90;
       final pct = ((pos.inSeconds / dur.inSeconds) * 100.0).clamp(0.0, 100.0);
+      final isFullyWatched = pct >= 90.0 || isNearEnd;
+
       if (Get.isRegistered<WatchHistoryService>()) {
-        WatchHistoryService.to.saveLocalPosition(video.id, pos.inSeconds, pct);
-        unawaited(
-          WatchHistoryService.to.syncCrossDeviceResume(video.id, pos.inSeconds, pct),
+        WatchHistoryService.to.saveLocalPosition(
+          video.id,
+          pos.inSeconds,
+          pct,
+          totalDuration: dur.inSeconds,
         );
+        if (isFullyWatched) {
+          WatchHistoryService.to.markVideoFullyWatched(video.id);
+          WatchHistoryService.to.resetResumePosition(video.id);
+          VideoPlaybackHandoff.clear(video.id);
+        } else {
+          unawaited(
+            WatchHistoryService.to.syncCrossDeviceResume(video.id, pos.inSeconds, pct),
+          );
+          VideoPlaybackHandoff.registerResumePosition(video.id, pos);
+        }
+      } else if (!isFullyWatched) {
+        VideoPlaybackHandoff.registerResumePosition(video.id, pos);
+      } else {
+        VideoPlaybackHandoff.clear(video.id);
       }
-      VideoPlaybackHandoff.registerResumePosition(video.id, pos);
 
       final userId = Get.isRegistered<AuthService>() ? AuthService.to.uid : '';
       if (userId.isNotEmpty && Firebase.apps.isNotEmpty) {
@@ -444,9 +462,9 @@ mixin MiniplayerHandoffMixin on
                   'ownerId': video.ownerId,
                   'watchedAt': FieldValue.serverTimestamp(),
                   'watchedDuration': pos.inSeconds,
-                  'watchPercentage': pct,
-                  'isCompleted': pct >= 90.0,
-                  'lastPosition': pos.inSeconds,
+                  'watchPercentage': isFullyWatched ? 100.0 : pct,
+                  'isCompleted': isFullyWatched,
+                  'lastPosition': isFullyWatched ? 0 : pos.inSeconds,
                   'videoDuration': dur.inSeconds,
                 }, SetOptions(merge: true))
                 .catchError((e, s) {
@@ -505,6 +523,18 @@ mixin MiniplayerHandoffMixin on
 
     mode.value = MiniplayerMode.transitioning;
 
+    final durSec = totalDuration.value.inSeconds > 0
+        ? totalDuration.value.inSeconds
+        : video.durationSeconds;
+    final isNearEnd = durSec > 0 &&
+        (absPos.inSeconds >= (durSec - 10) || (absPos.inSeconds / durSec) >= 0.90);
+    final isFullyWatched = Get.isRegistered<WatchHistoryService>() &&
+        WatchHistoryService.to.isVideoFullyWatched(video.id, totalDuration: durSec);
+    final isNearStart = absPos < const Duration(seconds: 5);
+
+    final effectiveResume =
+        (isNearEnd || isFullyWatched || isNearStart) ? null : absPos;
+
     // Register active controller & live timestamp for handoff BEFORE navigating
     if (internalVpc != null && !kIsWeb) {
       try {
@@ -516,16 +546,26 @@ mixin MiniplayerHandoffMixin on
           tag: 'MiniplayerController.openFullScreen.removeListener',
         );
       }
-      VideoPlaybackHandoff.registerActiveController(
-        video.id,
-        internalVpc!,
-        position: absPos,
-      );
+      if (effectiveResume != null) {
+        VideoPlaybackHandoff.registerActiveController(
+          video.id,
+          internalVpc!,
+          position: effectiveResume,
+        );
+      } else {
+        VideoPlaybackHandoff.clear(video.id);
+        try {
+          internalVpc!.seekTo(Duration.zero);
+        } catch (_) {}
+      }
       // Set to null so dismiss() won't dispose it while handing over!
       internalVpc = null;
     } else {
-      // On web or when controller is null, ensure exact resume position is registered
-      VideoPlaybackHandoff.registerResumePosition(video.id, absPos);
+      if (effectiveResume != null) {
+        VideoPlaybackHandoff.registerResumePosition(video.id, effectiveResume);
+      } else {
+        VideoPlaybackHandoff.clear(video.id);
+      }
       if (kIsWeb && internalVpc != null) {
         try {
           internalVpc!.pause();
@@ -535,8 +575,10 @@ mixin MiniplayerHandoffMixin on
 
     final args = <String, dynamic>{
       'video': video,
-      'resumePosition': absPos.inMilliseconds,
-      'initialPosition': absPos,
+      if (effectiveResume != null) ...{
+        'resumePosition': effectiveResume.inMilliseconds,
+        'initialPosition': effectiveResume,
+      },
       'isFromMiniplayer': true,
       if (activeClip.value != null) 'clip': activeClip.value,
       'isAudioOnly': isAudioOnly.value,
@@ -547,7 +589,7 @@ mixin MiniplayerHandoffMixin on
     MiniplayerNavigationHelper.navigateToVideoScreen(
       video: video,
       routeArguments: args,
-      resumePosition: absPos,
+      resumePosition: effectiveResume,
     );
 
     // Give navigation transition 600ms to complete smoothly before cleaning up transitioning state.

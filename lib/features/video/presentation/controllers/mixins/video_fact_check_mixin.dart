@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:firebase_storage/firebase_storage.dart';
@@ -11,6 +12,7 @@ import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_media.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
+import 'package:truthworld/features/video/presentation/controllers/claim_stream_controller.dart';
 import 'package:truthworld/features/video/presentation/widgets/fact_check_report_widget.dart';
 
 /// Mixin handling AI fact-check data hydration and full disclosure reports.
@@ -22,9 +24,65 @@ mixin VideoFactCheckMixin on GetxController {
   final RxBool hasFactCheckError = false.obs;
   final RxBool hasAttemptedFactCheck = false.obs;
   String? _lastAttemptedFactCheckUrl;
+  StreamSubscription<List<ClaimResult>>? _claimStreamSubscription;
+
+  void attachClaimStreamListener(ClaimStreamController streamCtrl) {
+    _claimStreamSubscription?.cancel();
+    _claimStreamSubscription = streamCtrl.claims.listen((liveClaims) {
+      if (liveClaims.isNotEmpty &&
+          (factCheckData.isEmpty ||
+              factCheckData['isStreaming'] == true ||
+              factCheckData['isProvisional'] == true)) {
+        factCheckData.value = {
+          'isStreaming': true,
+          'isProvisional': liveClaims.any((c) =>
+              c.verdict.toLowerCase() == 'unverified' ||
+              c.verdict.toUpperCase() == 'EXTRACTED' ||
+              c.verdict.toUpperCase() == 'DEEP_VERIFYING' ||
+              c.verdict.toUpperCase() == 'PROVISIONAL'),
+          'credibilityStatus': 'streaming_verification',
+          'trustLabel': factCheckData['trustLabel'] ?? 'VERIFYING',
+          'viewerNote': 'Live multi-source fact-checking in progress.',
+          'summary': 'Live multi-source fact-checking in progress.',
+          'claims': liveClaims.map((c) => c.toMap()).toList(),
+        };
+        hasFactCheckError.value = false;
+        hasAttemptedFactCheck.value = true;
+      }
+    });
+  }
+
+  void disposeClaimStream() {
+    _claimStreamSubscription?.cancel();
+    _claimStreamSubscription = null;
+  }
 
   Future<void> loadFactCheckData([String? overrideUrl, bool force = false]) async {
     if (!video.hasAiCredibility) {
+      // Connect real-time claim streaming if video is being analyzed
+      if (video.id.isNotEmpty) {
+        final streamCtrl = ClaimStreamController.getOrCreate(video.id);
+        attachClaimStreamListener(streamCtrl);
+        if (streamCtrl.claims.isNotEmpty) {
+          factCheckData.value = {
+            'isStreaming': true,
+            'isProvisional': streamCtrl.claims.any((c) =>
+                c.verdict.toLowerCase() == 'unverified' ||
+                c.verdict.toUpperCase() == 'EXTRACTED' ||
+                c.verdict.toUpperCase() == 'DEEP_VERIFYING' ||
+                c.verdict.toUpperCase() == 'PROVISIONAL'),
+            'credibilityStatus': 'streaming_verification',
+            'trustLabel': 'VERIFYING',
+            'viewerNote': 'Live multi-source fact-checking in progress.',
+            'summary': 'Live multi-source fact-checking in progress.',
+            'claims': streamCtrl.claims.map((c) => c.toMap()).toList(),
+          };
+          hasFactCheckError.value = false;
+          hasAttemptedFactCheck.value = true;
+          return;
+        }
+      }
+
       factCheckData.clear();
       hasFactCheckError.value = false;
       hasAttemptedFactCheck.value = true;
@@ -140,6 +198,8 @@ mixin VideoFactCheckMixin on GetxController {
         }
       }
 
+      _claimStreamSubscription?.cancel();
+      _claimStreamSubscription = null;
       factCheckData.value = decoded;
       hasFactCheckError.value = false;
       hasAttemptedFactCheck.value = true;

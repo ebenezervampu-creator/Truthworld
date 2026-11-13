@@ -76,7 +76,14 @@ export class InputLayer {
   normalizeConfig(userId: string, partial: Partial<UserConfig>): UserConfig {
     const channelType = partial.channelType ?? "standard";
     const primary = partial.primaryLanguage ? normalizeLanguageCode(partial.primaryLanguage) : undefined;
-    const langs = normalizeLanguageCodes(partial.languages ?? (primary ? [primary] : ["en"]));
+    const spoken = Array.isArray(partial.spokenLanguages) && partial.spokenLanguages.length > 0
+      ? normalizeLanguageCodes(partial.spokenLanguages)
+      : (primary ? [primary] : undefined);
+
+    // If target languages are explicitly requested, use them.
+    // If NOT requested, default to spoken languages or primary language, NEVER force ["en"] on Indic/regional content!
+    const defaultTargetLangs = spoken && spoken.length > 0 ? spoken : (primary ? [primary] : ["en"]);
+    const langs = normalizeLanguageCodes(partial.languages && partial.languages.length > 0 ? partial.languages : defaultTargetLangs);
 
     let validatedDuration: number | undefined = undefined;
     if (partial.duration !== undefined) {
@@ -89,8 +96,9 @@ export class InputLayer {
     return {
       userId,
       channelType,
-      languages: langs.length > 0 ? langs : (primary ? [primary] : ["en"]),
+      languages: langs.length > 0 ? langs : defaultTargetLangs,
       primaryLanguage: primary,
+      spokenLanguages: spoken,
       dubbingMode: partial.dubbingMode ?? "none",
       genLangSubs: partial.genLangSubs ?? true,
       generateDubbing: partial.generateDubbing ?? false,
@@ -147,6 +155,8 @@ export class InputLayer {
       enableSubtitles: config.genLangSubs,
       enableAuxiliary: config.enableFactCheck,
       languages: config.languages,
+      primaryLanguage: config.primaryLanguage,
+      spokenLanguages: config.spokenLanguages,
       dubbingMode: config.generateDubbing ? config.dubbingMode : "none",
       generateDubbing: config.generateDubbing,
       genLangSubs: config.genLangSubs,
@@ -173,7 +183,8 @@ export class InputLayer {
       const langCount = plan.languages.length;
 
       const sourceLang = normalizeLanguageCode(plan.primaryLanguage || "en");
-      const foreignLangs = plan.languages.filter((l) => normalizeLanguageCode(l) !== sourceLang).length;
+      const spokenSet = new Set([sourceLang, ...(plan.spokenLanguages || []).map(normalizeLanguageCode)]);
+      const foreignLangs = plan.languages.filter((l) => !spokenSet.has(normalizeLanguageCode(l))).length;
       cost += chars * COST_RATES.translationPerCharacter * foreignLangs;
 
       if (plan.generateDubbing) {

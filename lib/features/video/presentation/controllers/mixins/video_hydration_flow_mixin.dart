@@ -321,7 +321,13 @@ mixin VideoHydrationFlowMixin on GetxController {
         (kIsWeb &&
             (Uri.base.queryParameters.containsKey('clipEnd') ||
                 Uri.base.queryParameters.containsKey('end')));
-    final rawResume = args?['resumePosition'] ?? args?['initialPosition'];
+    final totalSec = video.durationSeconds > 0
+        ? video.durationSeconds
+        : video.durationValue.inSeconds;
+    final isFullyWatched = Get.isRegistered<WatchHistoryService>() &&
+        WatchHistoryService.to.isVideoFullyWatched(video.id, totalDuration: totalSec);
+
+    final rawResume = isFullyWatched ? null : (args?['resumePosition'] ?? args?['initialPosition']);
     if (rawResume is Duration && rawResume > Duration.zero) {
       initialSeekPosition = rawResume;
     } else if (rawResume is int && rawResume > 0) {
@@ -340,6 +346,18 @@ mixin VideoHydrationFlowMixin on GetxController {
       final parsedTime = DeepLinkService.parseTimestamp(timeStr);
       if (parsedTime != null) {
         initialSeekPosition = parsedTime;
+      }
+    }
+
+    // YouTube Playback Parity: Never resume within first 5s or last 10s (or >= 90% of duration)
+    if (initialSeekPosition != null) {
+      final isNearEnd = totalSec > 0 &&
+          (initialSeekPosition! >= Duration(seconds: totalSec - 10) ||
+              (initialSeekPosition!.inSeconds / totalSec) >= 0.90);
+      final isNearStart = initialSeekPosition! < const Duration(seconds: 5);
+      if (isFullyWatched || isNearEnd || isNearStart) {
+        initialSeekPosition = null;
+        VideoPlaybackHandoff.clear(video.id);
       }
     }
     if (args?['isOffline'] == true) {
@@ -565,8 +583,25 @@ mixin VideoHydrationFlowMixin on GetxController {
       );
     }
 
-    if (initialSeekPosition == null && VideoPlaybackHandoff.hasActivePosition(video.id)) {
-      initialSeekPosition = VideoPlaybackHandoff.peekPosition(video.id);
+    final durSec = video.durationSeconds > 0
+        ? video.durationSeconds
+        : video.durationValue.inSeconds;
+    final isWatched = Get.isRegistered<WatchHistoryService>() &&
+        WatchHistoryService.to.isVideoFullyWatched(video.id, totalDuration: durSec);
+
+    if (initialSeekPosition == null && !isWatched && VideoPlaybackHandoff.hasActivePosition(video.id)) {
+      final peeked = VideoPlaybackHandoff.peekPosition(video.id);
+      if (peeked != null) {
+        final isNearEnd = durSec > 0 &&
+            (peeked >= Duration(seconds: durSec - 10) ||
+                (peeked.inSeconds / durSec) >= 0.90);
+        final isNearStart = peeked < const Duration(seconds: 5);
+        if (!isNearEnd && !isNearStart) {
+          initialSeekPosition = peeked;
+        } else {
+          VideoPlaybackHandoff.clear(video.id);
+        }
+      }
     }
     if (VideoPlaybackHandoff.isActive(video.id) || args?['isFromMiniplayer'] == true) {
       final prewarmed = VideoPlaybackHandoff.peekController(video.id);

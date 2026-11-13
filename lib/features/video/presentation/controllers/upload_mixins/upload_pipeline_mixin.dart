@@ -223,6 +223,11 @@ mixin UploadPipelineMixin on UploadControllerBase {
         'thumbnailUrl': '',
         'language': effectiveVideoLanguage,
         'sourceLanguage': effectiveVideoLanguage,
+        'primaryLanguage': effectiveVideoLanguage,
+        'spokenLanguages': spokenLanguages.isNotEmpty
+            ? spokenLanguages.toList()
+            : [effectiveVideoLanguage],
+        'isMultilingual': isMultilingualSpoken.value || spokenLanguages.length > 1,
         'likes': 0,
         'likeCount': 0,
         'dislikes': 0,

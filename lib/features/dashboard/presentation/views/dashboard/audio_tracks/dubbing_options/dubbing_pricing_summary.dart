@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/dubbing_options/dubbing_options_state.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_wallet_topup_sheet.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Minimal monochrome CTA footer for AI Audio Track & Dubbing generation.
@@ -70,16 +71,51 @@ class DubbingPricingSummary extends StatelessWidget {
           if (activeRate > 0) ...[
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: Text(
-                selectedCount > 1
-                    ? 'Estimated total: \$${activeRate.toStringAsFixed(2)} for $selectedCount languages'
-                    : 'Estimated total: \$${activeRate.toStringAsFixed(2)}',
-                textAlign: TextAlign.center,
-                style: typography.caption.copyWith(
-                  color: colors.textSecondary,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w500,
-                ),
+              child: Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 6,
+                runSpacing: 4,
+                children: [
+                  Text(
+                    selectedCount > 1
+                        ? 'Estimated total: \$${activeRate.toStringAsFixed(2)} for $selectedCount languages'
+                        : 'Estimated total: \$${activeRate.toStringAsFixed(2)}',
+                    textAlign: TextAlign.center,
+                    style: typography.caption.copyWith(
+                      color: colors.textSecondary,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (chan != null) ...[
+                    Text(
+                      '•',
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        ChannelWalletTopupSheet.show(
+                          context,
+                          channel: chan,
+                          onTopupSuccess: state.loadChannelBalance,
+                        );
+                      },
+                      child: Text(
+                        'Top Up Wallet',
+                        style: typography.caption.copyWith(
+                          color: Colors.white,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ],

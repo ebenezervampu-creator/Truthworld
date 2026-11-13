@@ -9,4 +9,5 @@ export 'audio_tracks_skeleton.dart';
 export 'audio_tracks_video_card.dart';
 export 'audio_tracks_video_sidebar.dart';
 export 'audio_tracks_workspace_header.dart';
+export 'multilingual_studio_video_player.dart';
 export 'video_tracks_list_section.dart';

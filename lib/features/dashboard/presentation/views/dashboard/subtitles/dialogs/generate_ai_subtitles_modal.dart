@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_wallet_topup_sheet.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -299,7 +300,7 @@ class GenerateAiSubtitlesModal {
                                     const SizedBox(width: 6),
                                     Expanded(
                                       child: Text(
-                                        'Channel revenue (\$${bal.toStringAsFixed(2)}) is insufficient for \$${roundedCost.toInt()}. You can pay directly to proceed.',
+                                        'Channel revenue (\$${bal.toStringAsFixed(2)}) is insufficient for \$${roundedCost.toInt()}. You can pay directly to proceed or top up your wallet.',
                                         style: const TextStyle(
                                           fontSize: 11,
                                           color: AppColors.textSecondary,
@@ -307,6 +308,27 @@ class GenerateAiSubtitlesModal {
                                         ),
                                       ),
                                     ),
+                                    if (controller.currentChannel.value != null) ...[
+                                      const SizedBox(width: 8),
+                                      GestureDetector(
+                                        onTap: () {
+                                          ChannelWalletTopupSheet.show(
+                                            context,
+                                            channel: controller.currentChannel.value!,
+                                            onTopupSuccess: () => controller.refreshSpendableBalance(),
+                                          );
+                                        },
+                                        child: Text(
+                                          'Top Up',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: isDarkMode ? Colors.white : Colors.black,
+                                            fontWeight: FontWeight.bold,
+                                            decoration: TextDecoration.underline,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ],

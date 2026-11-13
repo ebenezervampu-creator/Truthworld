@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_dubbing_controller.dart';
 import 'package:truthworld/features/video/presentation/views/upload/components/dubbing/dubbing_multi_language_picker_sheet.dart';
@@ -126,6 +127,10 @@ class UploadSubtitlesAndDubbingPage extends StatelessWidget {
                   children: [
                     // Header / Overview Banner
                     _buildOverviewBanner(context, isCustom),
+                    const SizedBox(height: 18),
+
+                    // 0. Spoken Video Language ("From") Card
+                    _buildSpokenLanguageCard(context: context, controller: uploadController),
                     const SizedBox(height: 18),
 
                     // 1. AI Subtitles & Translation Card
@@ -275,6 +280,358 @@ class UploadSubtitlesAndDubbingPage extends StatelessWidget {
     );
   }
 
+  Widget _buildSpokenLanguageCard({
+    required BuildContext context,
+    required UploadController controller,
+  }) {
+    const popularLanguages = [
+      {'code': 'auto', 'name': 'Auto-Detect', 'native': 'Auto'},
+      {'code': 'te', 'name': 'Telugu', 'native': 'తెలుగు'},
+      {'code': 'hi', 'name': 'Hindi', 'native': 'हिन्दी'},
+      {'code': 'en', 'name': 'English', 'native': 'English'},
+      {'code': 'ta', 'name': 'Tamil', 'native': 'தமிழ்'},
+      {'code': 'kn', 'name': 'Kannada', 'native': 'ಕನ್ನಡ'},
+      {'code': 'ml', 'name': 'Malayalam', 'native': 'മലയാളം'},
+      {'code': 'bn', 'name': 'Bengali', 'native': 'বাংলা'},
+      {'code': 'mr', 'name': 'Marathi', 'native': 'मराठी'},
+      {'code': 'gu', 'name': 'Gujarati', 'native': 'ગુજરાતી'},
+    ];
+
+    final currentPrimary = controller.primarySpokenLanguage.value.isEmpty
+        ? 'auto'
+        : controller.primarySpokenLanguage.value;
+    final isMultilingual = controller.isMultilingualSpoken.value;
+    final selectedSpoken = controller.spokenLanguages;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF14151B),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+          width: 1.2,
+        ),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0284C7).withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.record_voice_over_rounded,
+                  color: Color(0xFF38BDF8),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Spoken Video Language ("From")',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Free native subtitles are generated in this language without translation charges',
+                      style: TextStyle(
+                        color: Color(0xFFA1A1AA),
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Primary Language Chips (Top popular + custom selected + 50+ Languages Browse)
+          Builder(
+            builder: (context) {
+              final displayedChips = <Map<String, String>>[...popularLanguages];
+              if (!displayedChips.any((l) => l['code'] == currentPrimary)) {
+                final match = allSpokenLanguages.firstWhereOrNull((l) => l.code == currentPrimary);
+                if (match != null) {
+                  displayedChips.add({
+                    'code': match.code,
+                    'name': match.name,
+                    'native': match.nativeName,
+                  });
+                }
+              }
+
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ...displayedChips.map((lang) {
+                    final code = lang['code']!;
+                    final isSelected = currentPrimary == code;
+                    final label = lang['native'] != lang['name'] && code != 'auto'
+                        ? '${lang['name']} (${lang['native']})'
+                        : lang['name']!;
+
+                    return InkWell(
+                      onTap: () {
+                        controller.primarySpokenLanguage.value = code;
+                        if (code != 'auto' && !controller.spokenLanguages.contains(code)) {
+                          controller.spokenLanguages.insert(0, code);
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFF0284C7).withValues(alpha: 0.25)
+                              : const Color(0xFF1F2029),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isSelected
+                                ? const Color(0xFF38BDF8)
+                                : const Color(0xFF2C2E3C),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isSelected) ...[
+                              const Icon(Icons.check_circle_rounded, color: Color(0xFF38BDF8), size: 13),
+                              const SizedBox(width: 5),
+                            ],
+                            Text(
+                              label,
+                              style: TextStyle(
+                                color: isSelected ? Colors.white : Colors.white70,
+                                fontSize: 11.5,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                  InkWell(
+                    onTap: () => showSpokenLanguagePicker(
+                      context: context,
+                      controller: controller,
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1F2029),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.4)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.search, color: Color(0xFF38BDF8), size: 13),
+                          SizedBox(width: 4),
+                          Text(
+                            'More (39 Languages)',
+                            style: TextStyle(
+                              color: Color(0xFF38BDF8),
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+
+          const SizedBox(height: 14),
+
+          // More than 1 spoken language (Code-Mixed / Multilingual) Toggle
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1C24),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.alt_route_rounded,
+                  color: Color(0xFFA78BFA),
+                  size: 18,
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Video has more than 1 spoken language',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        'e.g. Telugu speech code-mixed with English words, or polyglot interviews',
+                        style: TextStyle(
+                          color: Color(0xFFA1A1AA),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: isMultilingual,
+                  activeColor: const Color(0xFFA78BFA),
+                  activeTrackColor: const Color(0xFF7C3AED).withValues(alpha: 0.4),
+                  inactiveThumbColor: Colors.white38,
+                  inactiveTrackColor: Colors.white10,
+                  onChanged: (val) {
+                    controller.isMultilingualSpoken.value = val;
+                    if (val && selectedSpoken.isEmpty && currentPrimary != 'auto') {
+                      selectedSpoken.add(currentPrimary);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          // If more than 1 spoken language: Secondary language selector
+          if (isMultilingual) ...[
+            const SizedBox(height: 12),
+            const Text(
+              'Select all languages spoken in this video:',
+              style: TextStyle(
+                color: Color(0xFFDDD6FE),
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Builder(
+              builder: (context) {
+                final multiChips = <Map<String, String>>[
+                  ...popularLanguages.where((l) => l['code'] != 'auto'),
+                ];
+                for (final code in selectedSpoken) {
+                  if (!multiChips.any((l) => l['code'] == code)) {
+                    final match = allSpokenLanguages.firstWhereOrNull((l) => l.code == code);
+                    if (match != null) {
+                      multiChips.add({
+                        'code': match.code,
+                        'name': match.name,
+                        'native': match.nativeName,
+                      });
+                    }
+                  }
+                }
+
+                return Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    ...multiChips.map((lang) {
+                      final code = lang['code']!;
+                      final isChecked = selectedSpoken.contains(code) || currentPrimary == code;
+                      final isPrimary = currentPrimary == code;
+
+                      return FilterChip(
+                        label: Text(
+                          isPrimary ? '${lang['name']} (Primary)' : lang['name']!,
+                          style: TextStyle(
+                            color: isChecked ? Colors.white : Colors.white70,
+                            fontSize: 11,
+                            fontWeight: isChecked ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                        selected: isChecked,
+                        selectedColor: const Color(0xFF7C3AED).withValues(alpha: 0.35),
+                        backgroundColor: const Color(0xFF1E202B),
+                        checkmarkColor: const Color(0xFFA78BFA),
+                        side: BorderSide(
+                          color: isChecked
+                              ? const Color(0xFFA78BFA)
+                              : Colors.white.withValues(alpha: 0.1),
+                        ),
+                        onSelected: isPrimary
+                            ? null // Primary cannot be deselected
+                            : (selected) {
+                                if (selected) {
+                                  if (!selectedSpoken.contains(code)) selectedSpoken.add(code);
+                                } else {
+                                  selectedSpoken.remove(code);
+                                }
+                              },
+                      );
+                    }),
+                    ActionChip(
+                      avatar: const Icon(Icons.add, color: Color(0xFFA78BFA), size: 14),
+                      label: const Text(
+                        'Add More Languages',
+                        style: TextStyle(
+                          color: Color(0xFFA78BFA),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      backgroundColor: const Color(0xFF2E1065).withValues(alpha: 0.25),
+                      side: BorderSide(color: const Color(0xFFA78BFA).withValues(alpha: 0.4)),
+                      onPressed: () => showSpokenLanguagePicker(
+                        context: context,
+                        controller: controller,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+            if (selectedSpoken.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF7C3AED).withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '🗣️ Multilingual Speech Active: ${selectedSpoken.map((c) => popularLanguages.firstWhere((p) => p['code'] == c, orElse: () => {'name': c})['name']).join(' + ')}',
+                  style: const TextStyle(
+                    color: Color(0xFFDDD6FE),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildSubtitlesCard({
     required BuildContext context,
     required UploadController controller,
@@ -318,7 +675,7 @@ class UploadSubtitlesAndDubbingPage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'AI Subtitles & Translation (130+ Languages)',
+                        'AI Subtitles & Translation (135+ Languages)',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 14,
@@ -328,7 +685,7 @@ class UploadSubtitlesAndDubbingPage extends StatelessWidget {
                       ),
                       SizedBox(height: 2),
                       Text(
-                        'Google Cloud Translation supported caption languages',
+                        'Google Cloud Translation API with Gemini 2.5 Flash',
                         style: TextStyle(
                           color: Color(0xFFA1A1AA),
                           fontSize: 11.5,
@@ -379,8 +736,8 @@ class UploadSubtitlesAndDubbingPage extends StatelessWidget {
                       Expanded(
                         child: Text(
                           selectedLanguages.isNotEmpty
-                              ? '${selectedLanguages.length} Languages Selected'
-                              : 'Select Subtitle Languages',
+                              ? '${selectedLanguages.length} Target Languages Selected'
+                              : r'Native Spoken Subtitles Only (Free • $0.00)',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: selectedLanguages.isNotEmpty ? FontWeight.bold : FontWeight.w500,
@@ -583,7 +940,7 @@ class UploadSubtitlesAndDubbingPage extends StatelessWidget {
                         children: [
                           const Flexible(
                             child: Text(
-                              'AI Audio Translation & Dubbing (70+ Languages)',
+                              'AI Audio Translation & Dubbing (78 Languages)',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 14,
@@ -618,7 +975,7 @@ class UploadSubtitlesAndDubbingPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       const Text(
-                        'Natural AI voice dubbing & studio vocal identity',
+                        'ElevenLabs v4 model (eleven_v4) neural dubbing & studio vocal identity',
                         style: TextStyle(
                           color: Color(0xFFA1A1AA),
                           fontSize: 11.5,

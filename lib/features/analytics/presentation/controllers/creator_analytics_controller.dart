@@ -7,6 +7,7 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/distributed_counter_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/utils/watch_time_formatter.dart';
 import 'package:truthworld/features/analytics/data/models/watch_event_model.dart';
 import 'package:truthworld/features/analytics/data/services/geolocation_service.dart';
 import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
@@ -155,6 +156,10 @@ class CreatorAnalyticsController extends BaseController
       isLoadingVideoAnalytics.value = true;
       videoLoadingError.value = '';
 
+      final matchingVideo = channelVideos.firstWhereOrNull((v) => v.id == videoId);
+      final currentVideoSeconds = matchingVideo?.totalWatchTimeSeconds ?? 0;
+      totalWatchTime.value = WatchTimeFormatter.format(currentVideoSeconds);
+
       final analytics = await _videoAnalyticsService.getVideoAnalytics(
         videoId,
         videoTitle: videoTitle,
@@ -164,7 +169,6 @@ class CreatorAnalyticsController extends BaseController
       );
 
       var finalAnalytics = analytics;
-      final matchingVideo = channelVideos.firstWhereOrNull((v) => v.id == videoId);
       var videoWatchTime = matchingVideo?.totalWatchTimeSeconds ?? 0;
       var videoViews = matchingVideo?.viewCount ?? 0;
       var videoDur = matchingVideo?.durationSeconds ?? 0;
@@ -537,17 +541,19 @@ class CreatorAnalyticsController extends BaseController
       }
 
       channelAnalytics.value = finalAnalytics;
-      updateChannelChartData(finalAnalytics, videos: channelVideos);
-      if (channelVideos.isNotEmpty) {
-        buildChannelRetentionFromVideos(channelVideos);
+      if (selectedVideoId.value.isEmpty) {
+        updateChannelChartData(finalAnalytics, videos: channelVideos);
+        if (channelVideos.isNotEmpty) {
+          buildChannelRetentionFromVideos(channelVideos);
+        }
+        updateChannelInsights(finalAnalytics);
+        updateChannelSummaryMetrics(
+          finalAnalytics,
+          buildTrendData: buildContinuousTrendData,
+          populateCountryChart: populateCountryChart,
+          days: selectedDateRange.value.days,
+        );
       }
-      updateChannelInsights(finalAnalytics);
-      updateChannelSummaryMetrics(
-        finalAnalytics,
-        buildTrendData: buildContinuousTrendData,
-        populateCountryChart: populateCountryChart,
-        days: selectedDateRange.value.days,
-      );
 
       // Bidirectional sync: notify active Studio DashboardController
       if (Get.isRegistered<DashboardController>()) {
@@ -725,12 +731,15 @@ class CreatorAnalyticsController extends BaseController
               );
               channelAnalytics.value = updated;
               channelLoadingError.value = '';
-              updateChannelSummaryMetrics(
-                updated,
-                buildTrendData: buildContinuousTrendData,
-                populateCountryChart: populateCountryChart,
-                days: selectedDateRange.value.days,
-              );
+              if (selectedVideoId.value.isEmpty) {
+                updateChannelSummaryMetrics(
+                  updated,
+                  buildTrendData: buildContinuousTrendData,
+                  populateCountryChart: populateCountryChart,
+                  days: selectedDateRange.value.days,
+                );
+                buildChannelRetentionFromVideos(channelVideos);
+              }
 
               // Bidirectional sync: notify active Studio DashboardController
               if (Get.isRegistered<DashboardController>()) {

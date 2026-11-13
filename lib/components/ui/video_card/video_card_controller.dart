@@ -10,6 +10,7 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/services/distributed_counter_service.dart';
+import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_feed_controller.dart';
@@ -391,16 +392,36 @@ class VideoCardController extends GetxController implements HoverPreviewClient {
 
     if (controller != null && isControllerInitialized.value) {
       final pos = controller.value.position;
-      if (pos > Duration.zero) {
+      final dur = controller.value.duration;
+      final durSec = dur.inSeconds > 0 ? dur.inSeconds : video.durationSeconds;
+      final isFullyWatched = Get.isRegistered<WatchHistoryService>() &&
+          WatchHistoryService.to.isVideoFullyWatched(video.id, totalDuration: durSec);
+      final isNearEnd = durSec > 0 &&
+          (pos >= Duration(seconds: durSec - 10) || (pos.inSeconds / durSec) >= 0.90);
+      final isNearStart = pos < const Duration(seconds: 5);
+
+      final isEligibleForResume =
+          pos > Duration.zero && !isFullyWatched && !isNearEnd && !isNearStart;
+
+      if (isEligibleForResume) {
         resumePos = pos;
         VideoPlaybackHandoff.registerResumePosition(video.id, pos);
+      } else {
+        VideoPlaybackHandoff.clear(video.id);
       }
+
       if (!kIsWeb) {
-        VideoPlaybackHandoff.registerActiveController(
-          video.id,
-          controller,
-          position: pos,
-        );
+        if (isEligibleForResume) {
+          VideoPlaybackHandoff.registerActiveController(
+            video.id,
+            controller,
+            position: pos,
+          );
+        } else {
+          try {
+            controller.dispose();
+          } catch (_) {}
+        }
       } else {
         try {
           controller.dispose();
@@ -416,7 +437,13 @@ class VideoCardController extends GetxController implements HoverPreviewClient {
       isControllerInitialized.value = false;
       isLoadingVideo.value = false;
     } else {
-      VideoPlaybackHandoff.prewarmVideo(video);
+      final isFullyWatched = Get.isRegistered<WatchHistoryService>() &&
+          WatchHistoryService.to.isVideoFullyWatched(video.id, totalDuration: video.durationSeconds);
+      if (isFullyWatched) {
+        VideoPlaybackHandoff.clear(video.id);
+      } else {
+        VideoPlaybackHandoff.prewarmVideo(video);
+      }
     }
 
     if (customOnTap != null) {

@@ -641,13 +641,35 @@ mixin VideoPlaybackEngineMixin on GetxController {
       }
 
       if (wasHandoff) {
-        if (newVpc.value.position <= const Duration(seconds: 1) &&
+        final durationSec = newVpc.value.duration.inSeconds;
+        final isNearEnd = durationSec > 0 &&
+            (newVpc.value.position >= Duration(seconds: durationSec - 10) ||
+                (newVpc.value.position.inSeconds / durationSec) >= 0.90);
+        final isFullyWatched = Get.isRegistered<WatchHistoryService>() &&
+            WatchHistoryService.to.isVideoFullyWatched(video.id, totalDuration: durationSec);
+
+        if (isNearEnd || isFullyWatched) {
+          debugPrint(
+            '[VideoController] 🔄 Handed off controller was near end or fully watched. Resetting to 0:00.',
+          );
+          await newVpc.seekTo(Duration.zero);
+          initialSeekPosition = null;
+        } else if (newVpc.value.position <= const Duration(seconds: 1) &&
             initialSeekPosition != null &&
             initialSeekPosition! > Duration.zero) {
-          debugPrint(
-            '[VideoController] ⏩ Pre-warmed handoff seeking to resume position: ${initialSeekPosition!.inSeconds}s',
-          );
-          await newVpc.seekTo(initialSeekPosition!);
+          final initNearEnd = durationSec > 0 &&
+              (initialSeekPosition! >= Duration(seconds: durationSec - 10) ||
+                  (initialSeekPosition!.inSeconds / durationSec) >= 0.90);
+          final initNearStart = initialSeekPosition! < const Duration(seconds: 5);
+          if (!initNearEnd && !initNearStart) {
+            debugPrint(
+              '[VideoController] ⏩ Pre-warmed handoff seeking to resume position: ${initialSeekPosition!.inSeconds}s',
+            );
+            await newVpc.seekTo(initialSeekPosition!);
+            _showResumeSnackbar(initialSeekPosition!.inSeconds, newVpc);
+          } else {
+            await newVpc.seekTo(Duration.zero);
+          }
           initialSeekPosition = null;
         } else {
           // Handed off controller is already at the live playing frame!
@@ -671,6 +693,10 @@ mixin VideoPlaybackEngineMixin on GetxController {
           currentResolution.value = match;
         }
       } else {
+        final durationSec = newVpc.value.duration.inSeconds;
+        final isFullyWatched = Get.isRegistered<WatchHistoryService>() &&
+            WatchHistoryService.to.isVideoFullyWatched(video.id, totalDuration: durationSec);
+
         if (activeClip.value != null) {
           final startMs = (activeClip.value!.startTime * 1000).toInt();
           debugPrint(
@@ -678,27 +704,37 @@ mixin VideoPlaybackEngineMixin on GetxController {
           );
           await newVpc.seekTo(Duration(milliseconds: startMs));
         } else if (initialSeekPosition != null && initialSeekPosition! > Duration.zero) {
-          debugPrint(
-            '[VideoController] ⏩ Seeking player to resume/start timestamp: ${initialSeekPosition!.inSeconds}s',
-          );
-          await newVpc.seekTo(initialSeekPosition!);
+          final isNearEnd = durationSec > 0 &&
+              (initialSeekPosition! >= Duration(seconds: durationSec - 10) ||
+                  (initialSeekPosition!.inSeconds / durationSec) >= 0.90);
+          final isNearStart = initialSeekPosition! < const Duration(seconds: 5);
+
+          if (!isNearEnd && !isFullyWatched && !isNearStart) {
+            debugPrint(
+              '[VideoController] ⏩ Seeking player to resume/start timestamp: ${initialSeekPosition!.inSeconds}s',
+            );
+            await newVpc.seekTo(initialSeekPosition!);
+            _showResumeSnackbar(initialSeekPosition!.inSeconds, newVpc);
+          } else {
+            debugPrint(
+              '[VideoController] 🔄 Video was completed or near boundary (${initialSeekPosition!.inSeconds}s / ${durationSec}s). Starting from beginning.',
+            );
+            await newVpc.seekTo(Duration.zero);
+            if (Get.isRegistered<WatchHistoryService>()) {
+              WatchHistoryService.to.resetResumePosition(video.id);
+            }
+          }
           initialSeekPosition = null; // Consume once
         } else {
-          final lastPos = WatchHistoryService.to.getLastPosition(video.id);
-          if (lastPos > 0 && lastPos < newVpc.value.duration.inSeconds - 10) {
+          final lastPos = Get.isRegistered<WatchHistoryService>()
+              ? WatchHistoryService.to.getLastPosition(video.id, totalDuration: durationSec)
+              : 0;
+          if (lastPos >= 5 && (durationSec <= 0 || lastPos < durationSec - 10)) {
             // Seek to last position
             await newVpc.seekTo(Duration(seconds: lastPos));
-
-            // Show resume snackbar
-            AppSnackbar.info(
-              'Resumed from ${Duration(seconds: lastPos).toString().split('.').first.padLeft(8, '0').substring(3)}',
-              title: 'Resuming Video',
-              actionLabel: 'Start Over',
-              onAction: () {
-                newVpc.seekTo(Duration.zero);
-              },
-              duration: const Duration(seconds: 5),
-            );
+            _showResumeSnackbar(lastPos, newVpc);
+          } else {
+            await newVpc.seekTo(Duration.zero);
           }
         }
 
@@ -881,6 +917,35 @@ mixin VideoPlaybackEngineMixin on GetxController {
     _safeDisposeVpc(videoPlayerController);
     videoPlayerController = null;
     isPlayerInitialized.value = false;
+  }
+
+  void _showResumeSnackbar(int resumeSeconds, VideoPlayerController vpc) {
+    if (resumeSeconds < 5) return;
+    final formattedTime = _formatResumeTimestamp(resumeSeconds);
+    AppSnackbar.info(
+      'Resumed from $formattedTime',
+      title: 'Resuming Video',
+      actionLabel: 'Start Over',
+      onAction: () {
+        vpc.seekTo(Duration.zero);
+        if (Get.isRegistered<WatchHistoryService>()) {
+          WatchHistoryService.to.resetResumePosition(video.id);
+        }
+        VideoPlaybackHandoff.clear(video.id);
+      },
+      duration: const Duration(seconds: 5),
+    );
+  }
+
+  String _formatResumeTimestamp(int seconds) {
+    final d = Duration(seconds: seconds);
+    final hours = d.inHours;
+    final minutes = d.inMinutes.remainder(60);
+    final secs = d.inSeconds.remainder(60);
+    if (hours > 0) {
+      return '$hours:${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+    }
+    return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
   }
 
 }

@@ -459,6 +459,9 @@ mixin UploadReactiveStorageMixin on UploadControllerBase {
 
   // AI Features
   @override
+  final RxBool isAiFeaturesExpanded = false.obs;
+
+  @override
   final RxBool aiTranscriptEnabled = true.obs;
   @override
   final RxBool aiChaptersEnabled = false.obs;
@@ -472,6 +475,14 @@ mixin UploadReactiveStorageMixin on UploadControllerBase {
   final RxBool aiLipSyncEnabled = false.obs;
   @override
   final RxBool aiSummaryEnabled = true.obs;
+  // Spoken Language Configuration ("From")
+  @override
+  final RxString primarySpokenLanguage = 'auto'.obs;
+  @override
+  final RxList<String> spokenLanguages = <String>[].obs;
+  @override
+  final RxBool isMultilingualSpoken = false.obs;
+
   @override
   final RxList<String> aiTranslationLanguages = <String>[].obs;
   @override

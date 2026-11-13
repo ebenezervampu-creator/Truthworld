@@ -1,9 +1,12 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks/studio_media_download_service.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/multi_audio_player_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/audio_track_dubbing_options_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks/audio_tracks_video_sidebar.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Clean modal dialogs and bottom sheets matching Channel Creation styling.
@@ -2105,6 +2108,526 @@ class AudioTracksDialogs {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Displays Studio Download modal for downloading video with selected language audio track,
+  /// supporting dynamic switching between English, Hindi, Telugu, Tamil, and other available languages.
+  static void showDubbedVideoDownloadModal({
+    required BuildContext context,
+    required Video video,
+    required AudioTrackOption? track,
+    required String langLabel,
+    required String cleanTitle,
+    required bool isBaseTrack,
+    required String dubbedVideoUrl,
+    required String audioUrl,
+    required AudioTracksController tracksController,
+    List<AudioTrackOption>? availableTracks,
+  }) {
+    // Collect all available tracks
+    final tracks = (availableTracks != null && availableTracks.isNotEmpty)
+        ? availableTracks
+        : MultilingualStudioPlayerController.buildTrackOptions(
+            video: video,
+            tracksController: tracksController,
+          );
+
+    final initialCode = track?.code ?? video.language;
+    final selectedLangCode = initialCode.obs;
+
+    Get.bottomSheet<void>(
+      Material(
+        color: AppColors.appBarSurface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        child: SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.85,
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Handle bar
+                  Center(
+                    child: Container(
+                      width: 38,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: AppColors.bgElevated,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+
+                  // Header with reactive language label
+                  Obx(() {
+                    final currentCode = selectedLangCode.value;
+                    final currentTrack = tracks.firstWhereOrNull((t) => t.code == currentCode);
+                    final currentLabel = currentTrack?.label ??
+                        tracksController.getLanguageName(currentCode);
+
+                    return Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: AppColors.bgSurface,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.download_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Download $currentLabel Media',
+                                style: const TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Select wanted language format for ${video.title}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 20),
+                          onPressed: () => Get.back<void>(),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
+                    );
+                  }),
+
+                  const SizedBox(height: 14),
+
+                  // Language Switcher Selector Bar
+                  if (tracks.length > 1) ...[
+                    const Text(
+                      'Select Language',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Obx(() {
+                      final currentCode = selectedLangCode.value;
+                      return SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            for (int i = 0; i < tracks.length; i++) ...[
+                              if (i > 0) const SizedBox(width: 8),
+                              _buildModalLanguagePill(
+                                label: tracks[i].label,
+                                isSelected: tracks[i].code == currentCode,
+                                onTap: () => selectedLangCode.value = tracks[i].code,
+                              ),
+                            ],
+                          ],
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 16),
+                  ],
+
+                  const Divider(height: 1, color: AppColors.bgSurface),
+                  const SizedBox(height: 14),
+
+                  // Reactive Main Download Options for Selected Language
+                  Obx(() {
+                    final currentCode = selectedLangCode.value;
+                    final currentTrack = tracks.firstWhereOrNull((t) => t.code == currentCode);
+                    final currentLabel = currentTrack?.label ??
+                        tracksController.getLanguageName(currentCode);
+
+                    final currentDubbed = currentTrack?.videoUrl ??
+                        video.dubbedVideos[currentCode] ??
+                        (currentCode == track?.code ? dubbedVideoUrl : '');
+
+                    final currentAudio = currentTrack?.audioUrl ??
+                        video.audioTracks[currentCode] ??
+                        (currentCode == track?.code ? audioUrl : '');
+
+                    final isBase = currentTrack?.isEmbedded == true ||
+                        currentCode == video.language ||
+                        currentCode == '__original__';
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Option 1: Video (.mp4) with active language audio
+                        InkWell(
+                          onTap: () async {
+                            Get.back<void>();
+                            await StudioMediaDownloadService.downloadDubbedVideo(
+                              video: video,
+                              langCode: currentCode,
+                              langLabel: currentLabel,
+                              cleanTitle: cleanTitle,
+                              track: currentTrack,
+                              tracksController: tracksController,
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: AppColors.bgPage,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.bgSurface),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.movie_creation_rounded,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Download Video with $currentLabel Audio (.mp4)',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13.5,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        currentDubbed.isNotEmpty
+                                            ? 'High-definition video rendered with $currentLabel audio stream'
+                                            : (isBase
+                                                ? 'Original video with native $currentLabel master audio'
+                                                : 'Complete MP4 video rendered with $currentLabel audio track'),
+                                        style: const TextStyle(
+                                          color: AppColors.textSecondary,
+                                          fontSize: 11.5,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Text(
+                                    'Video',
+                                    style: TextStyle(
+                                      color: Colors.black,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        // Option 2: Isolated Audio Track (.mp3)
+                        if (currentAudio.isNotEmpty || isBase)
+                          InkWell(
+                            onTap: () async {
+                              Get.back<void>();
+                              await StudioMediaDownloadService.downloadAudioTrack(
+                                video: video,
+                                langCode: currentCode,
+                                langLabel: currentLabel,
+                                cleanTitle: cleanTitle,
+                                track: currentTrack,
+                                tracksController: tracksController,
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: AppColors.bgPage,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppColors.bgSurface),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.audiotrack_rounded,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Download $currentLabel Audio Track Only (.mp3)',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13.5,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 3),
+                                        const Text(
+                                          'High-fidelity isolated audio stream for podcasting or studio mixing',
+                                          style: TextStyle(
+                                            color: AppColors.textSecondary,
+                                            fontSize: 11.5,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.bgSurface,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Text(
+                                      'Audio',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  }),
+
+                  // All Available Languages Quick-Download Section
+                  if (tracks.length > 1) ...[
+                    const SizedBox(height: 18),
+                    const Divider(height: 1, color: AppColors.bgSurface),
+                    const SizedBox(height: 14),
+                    const Row(
+                      children: [
+                        Icon(Icons.translate_rounded, size: 15, color: AppColors.textSecondary),
+                        SizedBox(width: 6),
+                        Text(
+                          'All Available Languages',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    ...tracks.map((t) {
+                      final hasAudio = (t.audioUrl != null && t.audioUrl!.isNotEmpty) ||
+                          (video.audioTracks[t.code]?.isNotEmpty ?? false) ||
+                          t.isEmbedded ||
+                          t.code == video.language;
+
+                      // Provide MP4 Video for ALL languages that have an Audio Track
+                      final hasVideo = hasAudio ||
+                          (t.videoUrl != null && t.videoUrl!.isNotEmpty) ||
+                          (video.dubbedVideos[t.code]?.isNotEmpty ?? false) ||
+                          t.isEmbedded ||
+                          t.code == video.language;
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.bgPage,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.bgSurface),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    t.label,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    t.isEmbedded
+                                        ? 'Original master'
+                                        : (hasAudio ? 'Dubbed video & audio' : 'Video track'),
+                                    style: const TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (hasVideo) ...[
+                              InkWell(
+                                onTap: () async {
+                                  Get.back<void>();
+                                  await StudioMediaDownloadService.downloadDubbedVideo(
+                                    video: video,
+                                    langCode: t.code,
+                                    langLabel: t.label,
+                                    cleanTitle: cleanTitle,
+                                    track: t,
+                                    tracksController: tracksController,
+                                  );
+                                },
+                                borderRadius: BorderRadius.circular(6),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Text(
+                                    'MP4 Video',
+                                    style: TextStyle(
+                                      color: Colors.black,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                            ],
+                            if (hasAudio)
+                              InkWell(
+                                onTap: () async {
+                                  Get.back<void>();
+                                  await StudioMediaDownloadService.downloadAudioTrack(
+                                    video: video,
+                                    langCode: t.code,
+                                    langLabel: t.label,
+                                    cleanTitle: cleanTitle,
+                                    track: t,
+                                    tracksController: tracksController,
+                                  );
+                                },
+                                borderRadius: BorderRadius.circular(6),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.bgSurface,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: Colors.white24),
+                                  ),
+                                  child: const Text(
+                                    'MP3 Audio',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+
+                  const SizedBox(height: 12),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+      isScrollControlled: true,
+    );
+  }
+
+  static Widget _buildModalLanguagePill({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    if (isSelected) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+          ),
+        ),
+      );
+    }
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.bgSurface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w500,
+            fontSize: 12,
+          ),
+        ),
       ),
     );
   }

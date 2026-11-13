@@ -355,10 +355,30 @@ export const onContentUploadedForModeration = onObjectFinalized(
           policyReason: result.policyReason,
         });
 
+        const now = Date.now();
+
         // Set video status to pending_review — not published, not rejected
         await db.collection("videos").doc(videoId).update({
           status: "pending_review",
         });
+
+        // Ensure in admin_review_queue so Admins can inspect and take action
+        await db.collection("admin_review_queue").doc(videoId).set({
+          jobId: videoData?.jobId || videoId,
+          videoId,
+          userId: videoData?.userId || videoData?.ownerId || videoData?.uploaderId || "unknown",
+          channelId: videoData?.channelId || null,
+          title: videoData?.title || "Untitled Video",
+          thumbnailUrl: videoData?.thumbnailUrl || null,
+          queuedAt: now,
+          status: "pending_review",
+          reason: result.policyReason || result.violationReason || "Flagged for manual review.",
+          topic: result.topic,
+          intent: result.intent,
+          riskLevel: result.riskLevel,
+          confidence: result.confidenceScore,
+          violationCategories: result.violationCategories || [],
+        }, { merge: true });
 
         // Pause the pipeline job — mark moderation stage as pending_review
         const jobsSnap = await db.collection("video_jobs")
@@ -378,9 +398,9 @@ export const onContentUploadedForModeration = onObjectFinalized(
               intent: result.intent,
               riskLevel: result.riskLevel,
               confidence: result.confidenceScore,
-              flaggedAt: Date.now(),
+              flaggedAt: now,
             },
-            updatedAt: Date.now(),
+            updatedAt: now,
           });
         }
 

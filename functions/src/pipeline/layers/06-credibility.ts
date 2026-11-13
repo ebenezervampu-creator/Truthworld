@@ -50,6 +50,7 @@ import { costEngine } from "../services/cost-engine";
 import { JobTokenTracker, normalizeToGcsUri } from "../utils/ai-utils";
 import { formatOpinionReasoning } from "../utils/opinion-formatting";
 import { SourceAvatarService } from "../services/sourceAvatarService";
+import { StreamingClaimProcessor } from "../services/streamingClaimProcessor";
 import { normalizeLanguageCode } from "../../shared/language-normalizer";
 
 const db = () => admin.firestore();
@@ -247,7 +248,7 @@ export class CredibilityEngine {
       logger.info("[Credibility] Stage 1: Resolving input source (transcript or Google Cloud direct media)", { jobId, traceId });
       let hasTranscript = false;
       try {
-        transcript = await this.loadTranscript(jobId);
+        transcript = await this.loadTranscript(jobId, targetVideoId);
         if (transcript && Array.isArray(transcript.utterances) && transcript.utterances.length > 0) {
           hasTranscript = true;
         }
@@ -395,6 +396,11 @@ export class CredibilityEngine {
         jobId, total: ranked.length, kept: topClaims.length, filtered: filteredCount, maxClaims, videoDurationSec
       });
 
+      // ⚡ PHASE 2: Register extracted claims immediately in Firestore subcollection for real-time streaming
+      await StreamingClaimProcessor.registerExtractedClaims(targetVideoId, topClaims).catch((err) => {
+        logger.warn("[Credibility] Non-fatal error registering initial claims stream", { err: err?.message });
+      });
+
       await EdgeLayer.updateStage(jobId, "credibility", { progress: 40 });
 
       // 4.5 NEW: Early Exit if no claims extracted (v5.0)
@@ -492,6 +498,11 @@ export class CredibilityEngine {
         }
       }
 
+      // ⚡ PHASE 2: Stream fast-path cache and registry hits immediately to viewer (< 100ms)
+      if (cached.length > 0 || stale.length > 0 || registryHits.length > 0) {
+        await StreamingClaimProcessor.publishResolvedClaims(targetVideoId, [...cached, ...stale, ...registryHits]).catch(() => {});
+      }
+
       // v14.0: Only force ALL claims as sensitive when Deep Research is active.
       // For standard tier, let per-claim pattern matching in isSensitiveClaim() handle routing.
       // Previously: deepResearchActive || domainInfo.isSensitive (caused ALL geopolitical claims → Pro)
@@ -525,6 +536,11 @@ export class CredibilityEngine {
         isGrounded: false,
         importance: claim.importance || 0.3,
       }));
+
+      // ⚡ PHASE 2: Stream labeled opinions immediately to viewer
+      if (labeledOpinions.length > 0) {
+        await StreamingClaimProcessor.publishResolvedClaims(targetVideoId, labeledOpinions).catch(() => {});
+      }
 
       let verified: VerifiedClaim[] = [];
       let batchStats = { completed: 0, timedOut: 0 };
@@ -733,6 +749,9 @@ export class CredibilityEngine {
         }
       }
 
+      // ⚡ PHASE 2: Stream all verified and recovered claims to Firestore subcollection
+      await StreamingClaimProcessor.publishResolvedClaims(targetVideoId, allVerified).catch(() => {});
+
       // v11.0: Evaluation Health Tracking — detect 0-evaluated-claims failure mode
       // v11.4: Include registry hits in routed count
       const factualRoutedCount = factual.length + registryHits.length;
@@ -810,8 +829,8 @@ export class CredibilityEngine {
       const explainableResults = this.buildExplainability(allVerified);
 
       // Save draft to credibility_drafts/{jobId}
-      await db().collection("credibility_drafts").doc(jobId).set({
-        verifiedClaims: allVerified,
+      // If verifiedClaims payload is large, offload to GCS to avoid Firestore 1MB document size limit
+      const draftPayload: Record<string, any> = {
         synthesisPending: true,
         synthesisTier,
         domainInfo,
@@ -827,10 +846,29 @@ export class CredibilityEngine {
         speakerIdentities,
         executionPlanRef: executionPlan,
         userId,
+        videoId: targetVideoId,
         pipelineStartMs: t0,
         savedAt: Date.now(),
-      });
-      logger.info("[Credibility] Verified claims draft persisted", { jobId });
+      };
+
+      const serializedClaims = JSON.stringify(allVerified);
+      if (serializedClaims.length > 500_000) {
+        const bucket = admin.storage().bucket();
+        const draftPath = `factChecks/${jobId}/draft_claims.json`;
+        await bucket.file(draftPath).save(serializedClaims, { contentType: "application/json" });
+        const draftGcsUri = `gs://${bucket.name}/${draftPath}`;
+        await db().collection("credibility_drafts").doc(jobId).set({
+          ...draftPayload,
+          draftGcsUri,
+        });
+        logger.info("[Credibility] Large verified claims draft offloaded to GCS", { jobId, draftGcsUri, size: serializedClaims.length });
+      } else {
+        await db().collection("credibility_drafts").doc(jobId).set({
+          ...draftPayload,
+          verifiedClaims: allVerified,
+        });
+        logger.info("[Credibility] Verified claims draft persisted", { jobId });
+      }
 
       // Safe fallback synthesis so claims and verifications show immediately
       const hasVerifiedClaims = allVerified.length > 0;
@@ -1520,10 +1558,10 @@ export class CredibilityEngine {
 
     // Update video_jobs and independent credibility_jobs with the factCheckUrl
     await Promise.all([
-      db().collection("video_jobs").doc(jobId).update({
-        "outputs.factCheckUrl": factCheckUrl,
+      db().collection("video_jobs").doc(jobId).set({
+        outputs: { factCheckUrl },
         updatedAt: Date.now(),
-      }),
+      }, { merge: true }).catch(() => {}),
       EdgeLayer.upsertCredibilityJob(jobId, {
         factCheckUrl,
         progress: 95,
@@ -1559,8 +1597,9 @@ export class CredibilityEngine {
       return;
     }
 
-    const {
+    let {
       verifiedClaims,
+      draftGcsUri,
       synthesisTier = "standard",
       speakerIdentities = {},
       evaluationHealth = {},
@@ -1568,7 +1607,20 @@ export class CredibilityEngine {
     } = draft;
     void executionPlanRef;
 
-    const transcript = await this.loadTranscript(jobId);
+    if (!verifiedClaims && draftGcsUri) {
+      try {
+        const bucket = admin.storage().bucket();
+        const path = draftGcsUri.replace(`gs://${bucket.name}/`, "");
+        const [content] = await bucket.file(path).download();
+        verifiedClaims = JSON.parse(content.toString());
+        logger.info("[CredibilityEngine.runSynthesisPass] Loaded verified claims from GCS draft", { jobId, count: verifiedClaims?.length });
+      } catch (gcsErr) {
+        logger.error("[CredibilityEngine.runSynthesisPass] Failed to load draft from GCS", { jobId, err: String(gcsErr) });
+        return;
+      }
+    }
+
+    const transcript = await this.loadTranscript(jobId, draft.videoId);
     if (!transcript) {
       logger.error("[CredibilityEngine.runSynthesisPass] Transcript not found", { jobId });
       return;
@@ -1709,9 +1761,10 @@ export class CredibilityEngine {
       metadata: { contentType: "application/json" }
     });
 
-    // Update videos/{jobId} document in Firestore
+    // Update videos document in Firestore
+    const targetVideoDocId = draft.videoId || jobId;
     try {
-      await db().collection("videos").doc(jobId).set({
+      await db().collection("videos").doc(targetVideoDocId).set({
         summary: synthesis.summary,
         viewerNote: synthesis.viewerNote,
         conclusion: synthesis.conclusion,
@@ -1723,6 +1776,13 @@ export class CredibilityEngine {
     }
 
     // Clean up draft
+    if (draft.draftGcsUri) {
+      try {
+        const bucket = admin.storage().bucket();
+        const path = draft.draftGcsUri.replace(`gs://${bucket.name}/`, "");
+        bucket.file(path).delete().catch(() => {});
+      } catch (_) {}
+    }
     await db().collection("credibility_drafts").doc(jobId).delete();
     logger.info("[CredibilityEngine.runSynthesisPass] Successfully completed async synthesis pass and deleted draft", { jobId });
   }
@@ -1755,8 +1815,11 @@ export class CredibilityEngine {
     return null;
   }
 
-  private async loadTranscript(jobId: string): Promise<any | null> {
-    const doc = await db().collection("transcripts").doc(jobId).get();
+  private async loadTranscript(jobId: string, videoId?: string): Promise<any | null> {
+    let doc = await db().collection("transcripts").doc(jobId).get();
+    if (!doc.exists && videoId) {
+      doc = await db().collection("transcripts").doc(videoId).get();
+    }
     return doc.exists ? doc.data() : null;
   }
 

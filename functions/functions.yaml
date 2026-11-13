@@ -3526,16 +3526,16 @@
       "entryPoint": "onVideoUpload"
     },
     "handleTranscription": {
-      "availableMemoryMb": 512,
+      "availableMemoryMb": 1024,
       "timeoutSeconds": 540,
-      "minInstances": 0,
-      "maxInstances": 2,
+      "minInstances": 1,
+      "maxInstances": 20,
       "ingressSettings": null,
-      "concurrency": null,
+      "concurrency": 2,
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
-      "cpu": "gcf_gen1",
+      "cpu": 1,
       "region": [
         "asia-south1"
       ],
@@ -3559,6 +3559,41 @@
         "retry": true
       },
       "entryPoint": "handleTranscription"
+    },
+    "handleTranscriptionComplete": {
+      "availableMemoryMb": 2048,
+      "timeoutSeconds": 540,
+      "minInstances": 1,
+      "maxInstances": 20,
+      "ingressSettings": null,
+      "concurrency": 2,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": 1,
+      "region": [
+        "asia-south1"
+      ],
+      "secretEnvironmentVariables": [
+        {
+          "key": "ELEVENLABS_API_KEY"
+        },
+        {
+          "key": "GOOGLE_TRANSLATION_API_KEY"
+        },
+        {
+          "key": "GEMINI_API_KEY"
+        }
+      ],
+      "labels": {},
+      "eventTrigger": {
+        "eventType": "google.cloud.pubsub.topic.v1.messagePublished",
+        "eventFilters": {
+          "topic": "transcription.completed"
+        },
+        "retry": true
+      },
+      "entryPoint": "handleTranscriptionComplete"
     },
     "handleCredibility": {
       "availableMemoryMb": 2048,
@@ -3619,16 +3654,16 @@
       "entryPoint": "handleCredibilitySynthesis"
     },
     "handleDubbing": {
-      "availableMemoryMb": 2048,
+      "availableMemoryMb": 4096,
       "timeoutSeconds": 540,
       "minInstances": 0,
       "maxInstances": 10,
       "ingressSettings": null,
-      "concurrency": null,
+      "concurrency": 4,
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
-      "cpu": "gcf_gen1",
+      "cpu": 2,
       "region": [
         "asia-south1"
       ],
@@ -4021,6 +4056,45 @@
       "labels": {},
       "callableTrigger": {},
       "entryPoint": "remasterDubbedAudioTrack"
+    },
+    "assemblyAiWebhook": {
+      "availableMemoryMb": 512,
+      "timeoutSeconds": 300,
+      "minInstances": 0,
+      "maxInstances": 5,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "httpsTrigger": {},
+      "entryPoint": "assemblyAiWebhook"
+    },
+    "recoverWebhookOutboxLeases": {
+      "availableMemoryMb": 512,
+      "timeoutSeconds": 120,
+      "minInstances": null,
+      "maxInstances": 10,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "scheduleTrigger": {
+        "schedule": "every 2 minutes",
+        "retryConfig": {}
+      },
+      "entryPoint": "recoverWebhookOutboxLeases"
     },
     "onVideoPublished": {
       "availableMemoryMb": 512,

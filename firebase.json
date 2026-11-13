@@ -36,7 +36,7 @@
       ],
       "rewrites": [
         {
-          "source": "/api/feed/**",
+          "source": "/api/feed{,/**}",
           "function": {
             "functionId": "publicFeedServer",
             "region": "asia-south1"

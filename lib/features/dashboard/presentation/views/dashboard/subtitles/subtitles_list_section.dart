@@ -7,7 +7,6 @@ import 'package:truthworld/features/dashboard/presentation/views/dashboard/subti
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/pages/generate_ai_subtitles_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/subtitles_cues_editor.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/subtitles_workspace_top_bar.dart';
-import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -222,10 +221,12 @@ class AvailableSubtitleTrackCard extends StatelessWidget {
       final currentVideo = controller.selectedVideo.value ?? video;
       final subs = currentVideo.mediaSubtitles;
       final normCode = normalizeLanguageCode(langCode);
-      final hasSubtitles =
+      final hasSubtitles = controller.hasPublishedSubtitles(langCode) ||
           (subs.containsKey(langCode) && (subs[langCode]?.isNotEmpty ?? false)) ||
           (subs.containsKey(normCode) && (subs[normCode]?.isNotEmpty ?? false)) ||
-          (subs.containsKey(currentVideo.language) && (subs[currentVideo.language]?.isNotEmpty ?? false) && isBaseTrack);
+          (subs.containsKey(currentVideo.language) && (subs[currentVideo.language]?.isNotEmpty ?? false) && isBaseTrack) ||
+          (isBaseTrack && currentVideo.transcriptionUrl.isNotEmpty) ||
+          (controller.resolveSubtitleUrlForLanguage(currentVideo, langCode)?.isNotEmpty ?? false);
 
       final isGenerating = controller.isGeneratingAI.value &&
           (controller.aiTargetLanguages.contains(langCode) ||
@@ -598,19 +599,19 @@ class AvailableSubtitleTrackCard extends StatelessWidget {
                         final isCurrent =
                             controller.selectedLanguage.value == langCode;
                         final String subtitleLabel;
-                        if (isCurrent) {
-                          if (controller.currentCues.isNotEmpty) {
-                            subtitleLabel =
-                                '${controller.currentCues.length} timed segments';
+                        if (isCurrent && controller.currentCues.isNotEmpty) {
+                          subtitleLabel =
+                              '${controller.currentCues.length} timed segments';
+                        } else {
+                          final cacheKey = '${currentVideo.id}_$langCode';
+                          final cached = SubtitlesStorageMixin.cuesCache[cacheKey];
+                          if (cached != null && cached.isNotEmpty) {
+                            subtitleLabel = '${cached.length} timed segments';
                           } else {
                             subtitleLabel = hasSubtitles
                                 ? 'Track published'
                                 : 'Subtitles track ready';
                           }
-                        } else {
-                          subtitleLabel = hasSubtitles
-                              ? 'Track published'
-                              : 'Subtitles track ready';
                         }
                         return Text(
                           subtitleLabel,

@@ -36,7 +36,13 @@ async function main() {
         const srcPath = path.join(srcFonts, file);
         const destPath = path.join(destFonts, file);
         if (fs.statSync(srcPath).isFile()) {
-          fs.copyFileSync(srcPath, destPath);
+          try {
+            fs.copyFileSync(srcPath, destPath);
+          } catch (copyErr) {
+            if (!fs.existsSync(destPath)) {
+              console.warn(`[manifest] Could not copy font ${file}:`, copyErr.message);
+            }
+          }
         }
       }
     }

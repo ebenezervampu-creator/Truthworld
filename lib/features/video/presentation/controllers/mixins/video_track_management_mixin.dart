@@ -355,10 +355,16 @@ mixin VideoTrackManagementMixin on GetxController {
 
   Future<void> fetchAvailableSubtitles() async {
     try {
-      var subs = video.mediaSubtitles;
+      var subs = Map<String, String>.from(video.mediaSubtitles);
       if (subs.isEmpty) {
         final loc = await VideoMediaService().getLocalization(video.id);
-        subs = loc.subtitles;
+        subs = Map<String, String>.from(loc.subtitles);
+      }
+      final primaryLang = normalizeLanguageCode(video.language.isNotEmpty ? video.language : 'en');
+      if (video.transcriptionUrl.isNotEmpty &&
+          !subs.containsKey(primaryLang) &&
+          !subs.containsKey(video.language)) {
+        subs[primaryLang] = video.transcriptionUrl;
       }
       if (subs.isEmpty) {
         debugPrint('[VideoController] ℹ️ No subtitles found in video metadata');

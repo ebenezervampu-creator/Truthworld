@@ -84,12 +84,12 @@ export interface ContentModerationResult {
 
 // ─── Intents grouped by nature ───────────────────────────────────────────────
 
-const JOURNALISTIC_INTENTS = new Set([
+export const JOURNALISTIC_INTENTS = new Set([
   "news_reporting", "documentary", "educational", "commentary",
   "review", "satire", "personal_experience",
 ]);
 
-const HARMFUL_INTENTS = new Set(["promotional", "instructional_harmful"]);
+export const HARMFUL_INTENTS = new Set(["promotional", "instructional_harmful"]);
 
 // ─── Community Guidelines Prompt (v3.0 — Intent-Aware & Demarcated) ─────────
 
@@ -103,8 +103,9 @@ TruthWorld operates two completely separate, independent systems. DO NOT CONFUSE
 
 1. YOUR ROLE — CONTENT MODERATION (DELIVERY & DECORUM):
    - Your ONLY job is to ensure the DELIVERY is clean, family-friendly, and safe for all audiences.
-   - You judge HOW it is said, NOT WHAT is said.
-   - You ONLY check for: Profanity & Vulgar Language, Sexually Explicit Content, Graphic Violence & Gore, Child Exploitation, Real-Money Gambling Promotion, and Step-by-Step Dangerous Physical Instructions (weapons/drug manufacturing).
+   - DELIVERY encompasses BOTH the VISUAL ELEMENTS in the video frames (physical actions, body language, intimacy, nudity, violence, clothing) AND the SPOKEN/AUDIO ELEMENTS (words, profanity, audio sounds, moaning).
+   - ABSOLUTE PRINCIPLE: VISUAL & AUDIO ACTIONS OVERRIDE CLEAN METADATA. Never allow a video with clean metadata (title, description, tags) and clean spoken words if the visual frames display prohibited content (lust, physical intimacy, bedroom romance, passionate kissing, nudity, or graphic gore). Both audio and video frames must be family-friendly.
+   - You ONLY check for: Profanity & Vulgar Language, Sexually Explicit Content, Intense Romantic/Lustful Content, Graphic Violence & Gore, Child Exploitation, Real-Money Gambling Promotion, and Step-by-Step Dangerous Physical Instructions (weapons/drug manufacturing).
    - You DO NOT evaluate factual truth, accuracy, scientific validity, political bias, or historical reality.
    - You MUST NEVER reject or flag content for being "false", "misleading", "a conspiracy theory", "revisionist", "unscientific", "radical", or "biased".
 
@@ -128,7 +129,7 @@ Our Credibility Engine fact-checks every claim in every video, provides source c
 - Religious debates, theological arguments, blasphemy accusations — ALLOWED — open debate platform.
 - Debates about ANY topic, however uncomfortable — ENCOURAGED — this is TruthWorld's purpose.
 
-**What we DO moderate is HOW content is delivered — it must be FAMILY-FRIENDLY.**
+**What we DO moderate is HOW content is delivered — it must be FAMILY-FRIENDLY across BOTH visual frames and audio.**
 **Our job is NOT to decide what is TRUE or FALSE. The Credibility Engine does that.**
 **Our job is ONLY to ensure the DELIVERY is clean, family-friendly, and appropriate for all audiences.**
 
@@ -236,16 +237,27 @@ REJECTED examples (actual profanity — WOULD be bleeped on TV):
 - Vulgar sexual language
 
 ### RULE 2: Sexually Explicit Content
-REJECT: Pornographic audio/video, explicit sexual descriptions designed to arouse, sexually exploitative content
-ALLOW: Clinical/educational sexual health discussions, consent education, reproductive health, moderate family-appropriate content
+CRITICAL VISUAL DIRECTIVE: Visual depictions override clean titles, descriptions, and audio.
+REJECT: Pornography, partial or complete nudity, provocative exposure of buttocks/breasts/genitalia, explicit sexual acts, simulated intercourse, sexualized touching, or explicit sexual descriptions designed to arouse.
+ALLOW: Clinical/educational sexual health discussions, maternal care/childbirth education, and reproductive health delivered with medical/educational decorum without sexualization.
 
 ### RULE 3: Graphic Visual Violence & Gore
 REJECT: Gratuitous visual depictions of real violence, torture imagery, real execution videos, fight compilations celebrating brutality for entertainment
 ALLOW: ALL verbal/audio discussion of violence, war history, crime news, documentaries — only reject graphic VISUAL depictions designed for shock
 
-### RULE 4: Intense Romantic/Lustful Content
-REJECT: Heavy romantic/sexual focus, dating/hookup promotion, physical intimacy designed to arouse, lustful behavior
-ALLOW: Healthy marriage content, wedding celebrations, moderate affection appropriate for family audiences, comedy sketches, arranged marriage matchmaking narratives (e.g. Pelli Choopulu), and relationship humor delivered cleanly without nudity or profanity
+### RULE 4: Intense Romantic/Lustful Content & Sensual Physical Intimacy
+CRITICAL VISUAL DIRECTIVE: Visual actions take absolute precedence over titles, descriptions, and audio. A clean title like "Romantic Moments", "Love Story", or "Film Scene" or soft background music CANNOT excuse lustful, erotic, or romantic physical intimacy.
+
+REJECT IMMEDIATELY (policyAction: "reject", riskLevel: "high" or "critical", violationCategories: ["romantic_content"] or ["sexual_content"]):
+- Passionate, deep, sensual, or prolonged kissing (French kissing, neck kissing, intimate lip-locking).
+- Bedroom scenes, lying in bed together in romantic or sexual intimacy, undressing, revealing sleepwear, lingerie, or cleavage designed to arouse.
+- Erotic or sensual physical caressing, rubbing, touching intimate or sensitive body areas, grinding, or simulated intimacy.
+- Sensual or suggestive dancing (twerking, body grinding, provocative pelvic movements).
+- Erotic or sensual audio (moaning, heavy breathing, seductive whispering/sounds).
+- Heavy romantic focus designed to stimulate lust or sexual arousal, dating/hookup promotion.
+
+ALLOW ONLY:
+- Chaste, family-friendly affection suitable for children and family television: holding hands, brief formal/greeting hugs, traditional wedding rituals (garland exchange, sindoor, walking around holy fire), modest comedy sketches, and arranged marriage matchmaking dialogues (e.g. Pelli Choopulu humor) delivered with ZERO sensual touching, ZERO passionate kissing, and ZERO romantic intimacy.
 
 ### RULE 5: Child Exploitation (Legal Requirement — Zero Tolerance)
 REJECT: Any content involving minors in sexual, exploitative, or abusive contexts. This is an absolute legal requirement.
@@ -351,14 +363,23 @@ Below are reference examples. Use these to calibrate your decisions.
 
 28. ❌ REJECT | "Top 10 most brutal kills in GTA 5 — so satisfying!" | topic: violent_gaming | intent: entertainment | riskLevel: high | policyReason: "Glorifies in-game violence, celebrating brutality as entertainment."
 
+29. ❌ REJECT | Video with clean title "True Love Story" and soft romantic instrumental music, but visual frames show a couple passionately kissing on a bed and caressing intimately | topic: romantic_intimacy | intent: entertainment | riskLevel: high | policyAction: reject | violationCategories: ["romantic_content"] | policyReason: "Visual frames show passionate kissing and sensual bedroom intimacy — not family-friendly delivery despite clean title and music."
+
+30. ❌ REJECT | Video with clean description and dialogue, but visuals show provocative sensual dancing with heavy body grinding and revealing clothing | topic: provocative_dance | intent: entertainment | riskLevel: high | policyAction: reject | violationCategories: ["sexual_content"] | policyReason: "Visual depictions of provocative, lustful dancing designed to arouse violate family-friendly standards."
+
+31. ❌ REJECT | Video clip from a romantic film showing actors engaging in deep, prolonged mouth-to-mouth kissing and sensual undressing | topic: movie_romance | intent: entertainment | riskLevel: high | policyAction: reject | violationCategories: ["romantic_content"] | policyReason: "Intense romantic intimacy and passionate kissing exceed TruthWorld family-friendly standards."
+
 ---
 
 ## REJECTION EXPLANATION REQUIREMENT
 
-When rejecting, your policyReason MUST describe the DELIVERY VIOLATION, not the topic.
+When rejecting, your policyReason MUST describe the DELIVERY VIOLATION (visual or audio), not the topic.
 
 ✅ GOOD: "Contains excessive profanity and vulgar slurs — not family-friendly delivery."
 ❌ BAD: "The video discusses hate speech."
+
+✅ GOOD: "Visual frames depict passionate kissing and sensual bedroom intimacy — not family-friendly."
+❌ BAD: "The video is about love."
 
 ✅ GOOD: "Actively promotes a gambling app with a referral code for real-money wagering."
 ❌ BAD: "The video talks about gambling."
@@ -386,15 +407,17 @@ You MUST return a JSON object matching this exact schema:
 }
 
 CRITICAL RULES:
-- When content has clean, family-friendly delivery (e.g. comedy sketches, arranged marriage narratives, matrimonial humor), you MUST set "policyAction": "allow", "approved": true, "riskLevel": "safe", and "violationCategories": [].
-- NEVER set policyAction to "reject" or approved to false when the delivery is family-friendly and has no community guidelines violations.
+- VISUAL & AUDIO PRIMACY: Visual frames and audio in the video stream take absolute precedence over metadata. An uploader CANNOT disguise a lustful, romantic, or sexually suggestive video behind a clean, innocent title or description.
+- When visual frames depict passionate kissing, sensual touching, bedroom romance, or provocative lustful behavior, you MUST set "policyAction": "reject", "approved": false, "riskLevel": "high" or "critical", and "violationCategories": ["romantic_content"] or ["sexual_content"].
+- When content has genuinely clean, family-friendly delivery across BOTH video frames and audio (e.g. comedy sketches, arranged marriage narratives, matrimonial humor), you MUST set "policyAction": "allow", "approved": true, "riskLevel": "safe", and "violationCategories": [].
+- NEVER set policyAction to "reject" or approved to false when the delivery is genuinely family-friendly and has no community guidelines violations.
 
 Valid violation categories: "profanity", "sexual_content", "graphic_violence", "romantic_content", "child_exploitation", "gambling_promotion", "dangerous_instructions", "violent_game_glorification"
 
 Valid content categories (must match casing exactly, default is 'Other'):
 'News', 'Politics', 'Business & Finance', 'Technology', 'Science', 'Health & Fitness', 'History', 'Education', 'Entertainment', 'Music', 'Sports', 'Gaming', 'Travel', 'Lifestyle', 'Comedy', 'Documentary', 'Movies', 'TV Shows', 'Vlogs', 'DIY & How-to', 'Fashion & Beauty', 'Food & Cooking', 'Business & Finance', 'Animation', 'Short Films', 'Motivation', 'History', 'Art & Design', 'Automotive', 'Animals & Pets', 'Spirituality', 'Nature & Wildlife', 'Kids & Family', 'Other'
 
-Remember: TruthWorld VERIFIES truth through its Credibility Engine. Your ONLY job is ensuring family-friendly DELIVERY. Reject for HOW it's said, NOT for WHAT is said.`;
+Remember: TruthWorld VERIFIES truth through its Credibility Engine. Your ONLY job is ensuring family-friendly DELIVERY across BOTH visual frames and audio. Reject for HOW it's delivered, NOT for WHAT is said.`;
 
 // ─── Content Category Normalization ──────────────────────────────────────────
 
@@ -663,9 +686,9 @@ export class ContentModerationService {
           policyAction: reviewDecision.policyAction,
           riskLevel: parsed.data.riskLevel,
           confidenceScore: parsed.data.confidenceScore,
-          policyReason: parsed.data.policyReason,
-          explanation: parsed.data.explanation,
-          violationReason: parsed.data.policyReason, // Backward compat
+          policyReason: reviewDecision.policyReason || parsed.data.policyReason,
+          explanation: reviewDecision.explanation || parsed.data.explanation,
+          violationReason: reviewDecision.policyReason || parsed.data.policyReason, // Backward compat
           violationCategories: parsed.data.violationCategories,
           summary: parsed.data.summary || "Summary unavailable.",
           category: finalCategory,
@@ -677,22 +700,22 @@ export class ContentModerationService {
         const errorMsg = error instanceof Error ? error.message : String(error);
         console.error(`[ContentModeration] Attempt ${attempt + 1}/${MAX_RETRIES} failed:`, errorMsg);
 
-        // Timeout = pass-through. Never reject a creator's video just because Gemini was slow.
-        // The video proceeds as approved; async re-moderation can flag it later.
+        // Timeout = Fail-closed. Never publish an unverified video to the community.
+        // Route to manual review so platform integrity is guaranteed.
         if (errorMsg === "MODERATION_TIMEOUT") {
           const processingTimeMs = Date.now() - t0;
-          console.warn(`[ContentModeration] Gemini timed out after ${processingTimeMs}ms — passing through as approved (async review queued)`);
+          console.warn(`[ContentModeration] Gemini timed out after ${processingTimeMs}ms — routing to manual review (fail-closed)`);
           return {
-            approved: true,
-            topic: "unknown",
+            approved: false,
+            topic: "pending_review",
             intent: "entertainment",
-            policyAction: "allow",
-            riskLevel: "low",
-            confidenceScore: 0,
-            policyReason: "",
-            explanation: "Moderation timed out — video approved pending async review.",
-            violationReason: "",
-            violationCategories: ["timeout_passthrough"],
+            policyAction: "manual_review",
+            riskLevel: "medium",
+            confidenceScore: 0.5,
+            policyReason: "Automated moderation timed out — held for manual verification review to safeguard community standards.",
+            explanation: "Automated scan exceeded time limit; held for admin review to protect platform trust.",
+            violationReason: "Temporarily held for review due to processing timeout.",
+            violationCategories: ["timeout_held_for_review"],
             summary: "", // Never pollute user-facing video summary with internal timeout messages
             category: "Other",
             processingTimeMs,
@@ -716,22 +739,23 @@ export class ContentModerationService {
           console.log(`[ContentModeration] Retryable error (attempt ${attempt + 1}/${MAX_RETRIES}). Retrying in ${delayMs}ms...`);
           await new Promise((resolve) => setTimeout(resolve, delayMs));
         } else if (attempt >= MAX_RETRIES - 1) {
-          // All retries exhausted — pass through as approved rather than rejecting
-          console.warn(`[ContentModeration] All ${MAX_RETRIES} retries exhausted — passing through as approved`);
+          // All retries exhausted — fail closed to manual review rather than approving blindly
+          const processingTimeMs = Date.now() - t0;
+          console.warn(`[ContentModeration] All ${MAX_RETRIES} retries exhausted — routing to manual review (fail-closed)`);
           return {
-            approved: true,
-            topic: "unknown",
+            approved: false,
+            topic: "pending_review",
             intent: "entertainment",
-            policyAction: "allow",
-            riskLevel: "low",
-            confidenceScore: 0,
-            policyReason: "",
-            explanation: "Moderation could not complete — video approved pending async review.",
-            violationReason: "",
-            violationCategories: ["retry_exhausted_passthrough"],
+            policyAction: "manual_review",
+            riskLevel: "medium",
+            confidenceScore: 0.5,
+            policyReason: "Automated moderation could not complete — held for manual verification review.",
+            explanation: "Automated retries exhausted; held for admin review to protect platform trust.",
+            violationReason: "Held for review due to automated processing limit.",
+            violationCategories: ["retry_exhausted_held_for_review"],
             summary: "", // Never pollute user-facing video summary with retry error messages
             category: "Other",
-            processingTimeMs: Date.now() - t0,
+            processingTimeMs,
           };
         } else {
           throw error;
@@ -745,104 +769,143 @@ export class ContentModerationService {
   /**
    * Apply confidence/intent-based review policy to Gemini's raw output.
    *
-   * This post-processing layer catches false positives by routing uncertain
-   * rejections to manual review instead of auto-rejecting.
+   * This post-processing layer catches false positives while strictly preventing
+   * illicit or lustful content from slipping through to the public feed.
    *
    * Decision matrix:
-   * ┌─────────────────────────┬──────────────────┬────────────────┐
-   * │ Intent                  │ Confidence       │ Action         │
-   * ├─────────────────────────┼──────────────────┼────────────────┤
-   * │ Journalistic/Educational│ < 0.75           │ Manual Review  │
-   * │ Promotional             │ ≥ 0.80           │ Auto Reject    │
-   * │ Instructional Harmful   │ ≥ 0.80           │ Auto Reject    │
-   * │ Any                     │ 0.50–0.80 mixed  │ Manual Review  │
-   * │ Any (approved)          │ any              │ Allow          │
-   * └─────────────────────────┴──────────────────┴────────────────┘
+   * ┌──────────────────────────────────────────────┬──────────────────┬────────────────┐
+   * │ Condition                                    │ Risk / Action    │ Final Action   │
+   * ├──────────────────────────────────────────────┼──────────────────┼────────────────┤
+   * │ Sexual / Romantic / Profanity / Violent Tag  │ High/Critical    │ Auto Reject    │
+   * │ Explicit Clean & Safe (Comedy / Marriage)    │ Safe & 0 Viols   │ Allow          │
+   * │ Ambiguous / Journalistic / Creative Intent   │ Borderline       │ Manual Review  │
+   * │ Clean Delivery & Safe Risk Level             │ Safe / Low       │ Allow          │
+   * └──────────────────────────────────────────────┴──────────────────┴────────────────┘
    */
-  private applyReviewPolicy(raw: GeminiModerationOutput): { approved: boolean; policyAction: string } {
-    // ─── 0. Contradiction Resolution & True Safety Guard ──────────────
-    // If risk level is safe, or if there are zero violation categories AND the policy reason
-    // explicitly states there are no violations / clean delivery / family-friendly / healthy marriage comedy,
-    // this is a clear false-positive rejection by the LLM or boolean schema inversion.
-    const hasZeroViolations = !raw.violationCategories || raw.violationCategories.length === 0;
-    const isExplicitlySafe = raw.riskLevel === "safe" || (hasZeroViolations && raw.riskLevel !== "critical" && raw.riskLevel !== "high");
+  private applyReviewPolicy(raw: GeminiModerationOutput): { approved: boolean; policyAction: string; policyReason?: string; explanation?: string } {
+    const categories = Array.isArray(raw.violationCategories) ? raw.violationCategories : [];
+    const hasViolations = categories.length > 0;
+    const isCriticalOrHigh = raw.riskLevel === "critical" || raw.riskLevel === "high";
 
+    // ─── 0. Strict Safety Override for Romantic / Sexual / Profane / Dangerous Violations ───
+    const hasSevereViolations = categories.some((cat) =>
+      ["sexual_content", "romantic_content", "profanity", "graphic_violence", "child_exploitation", "dangerous_instructions"].includes(cat)
+    );
+
+    // If severe visual or delivery violations were tagged or risk is high/critical, NEVER auto-allow
+    if (hasSevereViolations || isCriticalOrHigh) {
+      if (raw.policyAction === "reject" || !raw.approved) {
+        // High confidence or severe violation -> auto reject
+        if (raw.confidenceScore >= 0.70 || hasSevereViolations) {
+          return {
+            approved: false,
+            policyAction: "reject",
+            policyReason: raw.policyReason || "Content violates community standards for family-friendly decorum.",
+            explanation: raw.explanation || "Rejected due to visual or audio delivery violation.",
+          };
+        }
+        return {
+          approved: false,
+          policyAction: "manual_review",
+          policyReason: raw.policyReason || "Flagged for manual review due to sensitive delivery elements.",
+          explanation: raw.explanation || "Held for review.",
+        };
+      }
+
+      // If Gemini said "allow" but flagged severe violations or high/critical risk, this is a dangerous contradiction:
+      // Route immediately to manual review or reject — never allow!
+      console.warn("[ContentModeration] Contradiction detected: policyAction is 'allow' but high risk or severe violations present. Routing to manual_review.", {
+        riskLevel: raw.riskLevel,
+        violationCategories: categories,
+      });
+      return {
+        approved: false,
+        policyAction: "manual_review",
+        policyReason: raw.policyReason || "Held for manual verification due to elevated risk indicators.",
+        explanation: "Automated policy contradiction; routed to admin review for community safety.",
+      };
+    }
+
+    // ─── 1. True Clean & Safe Content Guard (Protects innocent creators / comedy sketches) ───
+    // ONLY allow false-positive correction when riskLevel is explicitly "safe", zero violations are tagged,
+    // AND the reasoning explicitly confirms clean family-friendly delivery.
     const reasonIndicatesClean =
       /without any violations|no violations?|clean delivery|family-friendly|appropriate for family|healthy marriage/i.test(
         `${raw.policyReason || ""} ${raw.explanation || ""}`
       );
 
-    if (isExplicitlySafe && (reasonIndicatesClean || raw.policyAction === "allow" || hasZeroViolations)) {
-      console.log("[ContentModeration] Clean/Safe content verified — approving without false positive rejection", {
-        topic: raw.topic,
-        intent: raw.intent,
-        riskLevel: raw.riskLevel,
-        policyReason: raw.policyReason,
-      });
-      return { approved: true, policyAction: "allow" };
+    if (raw.riskLevel === "safe" && !hasViolations) {
+      if (raw.policyAction === "allow" || reasonIndicatesClean) {
+        return {
+          approved: true,
+          policyAction: "allow",
+          policyReason: raw.policyReason,
+          explanation: raw.explanation,
+        };
+      }
     }
 
-    // ─── 1. If Gemini itself requested manual review ───────────────────
+    // ─── 2. If Gemini itself requested manual review ───────────────────
     if (raw.policyAction === "manual_review") {
-      console.log("[ContentModeration] Gemini flagged for manual review", {
-        topic: raw.topic,
-        intent: raw.intent,
-        confidence: raw.confidenceScore,
-      });
-      return { approved: false, policyAction: "manual_review" };
+      return {
+        approved: false,
+        policyAction: "manual_review",
+        policyReason: raw.policyReason || "Flagged for manual review.",
+        explanation: raw.explanation || "Held for admin review.",
+      };
     }
 
-    // ─── 2. If Gemini explicitly said allow ───────────────────────────
-    if (raw.policyAction === "allow" && (hasZeroViolations || raw.riskLevel !== "critical")) {
-      return { approved: true, policyAction: "allow" };
+    // ─── 3. Standard Approval Path ─────────────────────────────────────
+    if (raw.policyAction === "allow" && raw.approved && !hasViolations && raw.riskLevel !== "critical" && raw.riskLevel !== "high") {
+      // Check if policyReason or explanation mentions lustful or sexual terms despite "allow"
+      const mentionsSensual = /passionate kissing|sensual|erotic|bedroom|lustful|nudity|sexual/i.test(
+        `${raw.policyReason || ""} ${raw.explanation || ""}`
+      );
+      if (mentionsSensual) {
+        return {
+          approved: false,
+          policyAction: "manual_review",
+          policyReason: raw.policyReason || "Held for manual review due to sensual/erotic cues.",
+          explanation: "Sensual terms detected in analysis; held for admin verification.",
+        };
+      }
+
+      return {
+        approved: true,
+        policyAction: "allow",
+        policyReason: raw.policyReason,
+        explanation: raw.explanation,
+      };
     }
 
-    // ─── 3. Evaluate Rejections ───────────────────────────────────────
-    // Only treat as rejection if policyAction is explicitly "reject" OR (approved is false AND policyAction is NOT "allow")
+    // ─── 4. Standard Rejection Evaluation ──────────────────────────────
     const isGeminiReject = raw.policyAction === "reject" || (!raw.approved && raw.policyAction !== "allow");
-
     if (isGeminiReject) {
-      // Must have actual violation categories or high risk to auto-reject
-      const hasRealViolations = (raw.violationCategories || []).length > 0;
-
-      // High-confidence rejection on harmful intent with actual violations
-      if (HARMFUL_INTENTS.has(raw.intent) && raw.confidenceScore >= 0.80) {
-        return { approved: false, policyAction: "reject" };
+      if (hasViolations && (raw.confidenceScore >= 0.70 || hasSevereViolations)) {
+        return {
+          approved: false,
+          policyAction: "reject",
+          policyReason: raw.policyReason || "Content violates Community Guidelines.",
+          explanation: raw.explanation || "Rejected based on delivery standards.",
+        };
       }
 
-      // Rejection on journalistic/educational/entertainment/satire intent → route to manual_review if no critical risk
-      if (
-        JOURNALISTIC_INTENTS.has(raw.intent) ||
-        raw.intent === "entertainment" ||
-        raw.intent === "satire" ||
-        raw.intent === "personal_experience"
-      ) {
-        if (!hasRealViolations || raw.riskLevel !== "critical") {
-          console.log("[ContentModeration] Override: creative/journalistic intent detected on rejection without critical risk → manual_review", {
-            topic: raw.topic,
-            intent: raw.intent,
-            confidence: raw.confidenceScore,
-            riskLevel: raw.riskLevel,
-          });
-          return { approved: false, policyAction: "manual_review" };
-        }
-      }
-
-      // Low confidence rejection (< 0.75) or missing violation categories → manual review
-      if (raw.confidenceScore < 0.75 || !hasRealViolations) {
-        console.log("[ContentModeration] Override: low confidence or missing violation categories → manual_review", {
-          confidence: raw.confidenceScore,
-          violationCategories: raw.violationCategories,
-        });
-        return { approved: false, policyAction: "manual_review" };
-      }
-
-      // Default: trust the rejection
-      return { approved: false, policyAction: "reject" };
+      // Rejections without severe violations or with low confidence route to manual_review
+      return {
+        approved: false,
+        policyAction: "manual_review",
+        policyReason: raw.policyReason || "Held for manual verification review.",
+        explanation: raw.explanation || "Ambiguous intent or low confidence; held for admin decision.",
+      };
     }
 
-    // ─── 4. Default: trust approval ───────────────────────────────────
-    return { approved: true, policyAction: "allow" };
+    // ─── 5. Fallback ───────────────────────────────────────────────────
+    return {
+      approved: false,
+      policyAction: "manual_review",
+      policyReason: raw.policyReason || "Held for verification.",
+      explanation: "Held for review.",
+    };
   }
 }
 

@@ -8,6 +8,8 @@ import 'package:truthworld/features/analytics/presentation/controllers/revenue_a
 import 'package:truthworld/features/analytics/presentation/pages/revenue/revenue_withdrawal_threshold_card.dart';
 import 'package:truthworld/features/analytics/presentation/widgets/revenue_withdrawal_dialog.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_financial_history_page.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_wallet_topup_sheet.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/monetization_card_container.dart';
 import 'package:truthworld/theme/app_colors.dart';
 import 'package:truthworld/theme/tw_radius.dart';
@@ -151,7 +153,7 @@ class ChannelAccountHubCard extends StatelessWidget {
                               ),
                             ),
                             child: const Icon(
-                              Icons.payments_rounded,
+                              Icons.account_balance_wallet_rounded,
                               color: Colors.white,
                               size: 18,
                             ),
@@ -159,7 +161,7 @@ class ChannelAccountHubCard extends StatelessWidget {
                           const SizedBox(width: 10),
                           const Expanded(
                             child: Text(
-                              'Channel Revenue',
+                              'Channel Account',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
@@ -187,7 +189,7 @@ class ChannelAccountHubCard extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              'Monetization & Payouts Hub',
+                              'Unified Wallet & Monetization Hub',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
@@ -238,7 +240,7 @@ class ChannelAccountHubCard extends StatelessWidget {
                               ),
                             ),
                             child: const Icon(
-                              Icons.payments_rounded,
+                              Icons.account_balance_wallet_rounded,
                               color: Colors.white,
                               size: 18,
                             ),
@@ -249,7 +251,7 @@ class ChannelAccountHubCard extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text(
-                                  'Channel Revenue',
+                                  'Channel Account',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
@@ -259,7 +261,7 @@ class ChannelAccountHubCard extends StatelessWidget {
                                   ),
                                 ),
                                 Text(
-                                  'Monetization & Payouts Hub',
+                                  'Unified Wallet & Monetization Hub',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
@@ -335,7 +337,7 @@ class ChannelAccountHubCard extends StatelessWidget {
                     runSpacing: 8,
                     children: [
                       const Text(
-                        'Total Channel Revenue',
+                        'Total Purchasing Power & Spendable Balance',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,
@@ -476,7 +478,7 @@ class ChannelAccountHubCard extends StatelessWidget {
                   const Divider(color: AppColors.bgDivider, height: 1),
                   const SizedBox(height: 14),
 
-                  // ── Two-Way Financial Breakdown ──
+                  // ── Three-Way Financial Breakdown ──
                   LayoutBuilder(
                     builder: (context, constraints) {
                       final isNarrow = constraints.maxWidth < 400;
@@ -486,6 +488,10 @@ class ChannelAccountHubCard extends StatelessWidget {
                       final lockedText = isViewingINR
                           ? '₹${lockedINR.toStringAsFixed(2)}'
                           : '\$${lockedRevUSD.toStringAsFixed(2)}';
+                      final prefundedAndRolloverUSD = spendable.fundedBalance + spendable.rolloverCredit;
+                      final prefundedText = isViewingINR
+                          ? '₹${(prefundedAndRolloverUSD * rate).toStringAsFixed(2)}'
+                          : '\$${prefundedAndRolloverUSD.toStringAsFixed(2)}';
 
                       return isNarrow
                           ? Column(
@@ -504,6 +510,15 @@ class ChannelAccountHubCard extends StatelessWidget {
                                   amount: lockedText,
                                   subtitle: '7-Day Hold • In clearing',
                                   icon: Icons.hourglass_top_rounded,
+                                ),
+                                const SizedBox(height: 8),
+                                _buildSubMetricItem(
+                                  label: 'Pre-Funded Credits',
+                                  amount: prefundedText,
+                                  subtitle: isCustom && spendable.rolloverCredit > 0
+                                      ? 'Includes \$${spendable.rolloverCredit.toStringAsFixed(2)} rollover'
+                                      : 'Deposited for tools',
+                                  icon: Icons.savings_rounded,
                                 ),
                               ],
                             )
@@ -528,6 +543,17 @@ class ChannelAccountHubCard extends StatelessWidget {
                                     icon: Icons.hourglass_top_rounded,
                                   ),
                                 ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _buildSubMetricItem(
+                                    label: 'Pre-Funded Credits',
+                                    amount: prefundedText,
+                                    subtitle: isCustom && spendable.rolloverCredit > 0
+                                        ? 'Includes \$${spendable.rolloverCredit.toStringAsFixed(2)} safe rollover'
+                                        : 'Deposited for tools',
+                                    icon: Icons.savings_rounded,
+                                  ),
+                                ),
                               ],
                             );
                     },
@@ -540,15 +566,23 @@ class ChannelAccountHubCard extends StatelessWidget {
             // ── Primary Action Bar ──
             LayoutBuilder(
               builder: (context, actionConstraints) {
-                final cashOutBtn = ElevatedButton.icon(
-                  onPressed: () => _handleCashOutAction(context, withdrawableINR, liveChannel),
+                final addFundsBtn = ElevatedButton.icon(
+                  onPressed: () {
+                    ChannelWalletTopupSheet.show(
+                      context,
+                      channel: liveChannel,
+                      onTopupSuccess: () {
+                        controller?.refreshChannelData();
+                      },
+                    );
+                  },
                   icon: const Icon(
-                    Icons.account_balance_rounded,
+                    Icons.add_circle_outline_rounded,
                     color: Colors.black,
                     size: 17,
                   ),
                   label: const Text(
-                    'Cash Out',
+                    'Add Funds',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -567,12 +601,107 @@ class ChannelAccountHubCard extends StatelessWidget {
                   ),
                 );
 
+                final cashOutBtn = OutlinedButton.icon(
+                  onPressed: () => _handleCashOutAction(context, withdrawableINR, liveChannel),
+                  icon: const Icon(
+                    Icons.account_balance_rounded,
+                    color: Colors.white,
+                    size: 17,
+                  ),
+                  label: const Text(
+                    'Cash Out',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    backgroundColor: AppColors.bgSurfaceHover,
+                    side: BorderSide(
+                      color: AppColors.textPrimary.withValues(alpha: 0.2),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: TWRadius.mdBorderRadius,
+                    ),
+                  ),
+                );
+
                 return Row(
                   children: [
+                    Expanded(child: addFundsBtn),
+                    const SizedBox(width: 10),
                     Expanded(child: cashOutBtn),
                   ],
                 );
               },
+            ),
+            const SizedBox(height: 16),
+
+            // ── Financial History & Ledger Entry ──
+            InkWell(
+              onTap: () => ChannelFinancialHistoryPage.show(context, channel: liveChannel),
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.bgSurfaceHover,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppColors.textPrimary.withValues(alpha: 0.12),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.history_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Financial History & Ledger',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'View statements, payouts, spends & 8-year audit records',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppColors.textSecondary,
+                      size: 20,
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),

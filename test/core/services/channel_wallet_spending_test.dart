@@ -641,19 +641,19 @@ void main() {
       const sevenMinutesSeconds = 420; // 7 minutes
 
       // --- 10-MINUTE VIDEO VERIFICATION ---
-      // Audio Track Dubbing: $3.00 ($0.30/min)
+      // Standard Dubbing: $1.00
       final standardDubbing10m = ChannelWalletService.getFlatDubbingPricePerLanguage(
         durationSeconds: tenMinutesSeconds,
         voiceType: 'standard',
       );
-      expect(standardDubbing10m, equals(3.00));
+      expect(standardDubbing10m, equals(1.00));
 
-      // Studio Voice Cloning: $3.00
+      // Studio Voice Cloning: $2.00
       final voiceClone10m = ChannelWalletService.getFlatDubbingPricePerLanguage(
         durationSeconds: tenMinutesSeconds,
         voiceType: 'cloned',
       );
-      expect(voiceClone10m, equals(3.00));
+      expect(voiceClone10m, equals(2.00));
 
       // AI Visual Lip-Sync: $0.00 (Discontinued)
       final lipSync10m = ChannelWalletService.getFlatLipSyncPricePerLanguage(
@@ -662,19 +662,19 @@ void main() {
       expect(lipSync10m, equals(0.00));
 
       // --- 7-MINUTE VIDEO VERIFICATION (Proportional Cut) ---
-      // Audio Track Dubbing: $2.10 (7 min * $0.30)
+      // Standard Dubbing: $0.70 ($0.30 cut from $1.00)
       final standardDubbing7m = ChannelWalletService.getFlatDubbingPricePerLanguage(
         durationSeconds: sevenMinutesSeconds,
         voiceType: 'standard',
       );
-      expect(standardDubbing7m, equals(2.10));
+      expect(standardDubbing7m, equals(0.70));
 
-      // Studio Voice Cloning: $2.10
+      // Studio Voice Cloning: $1.40 ($0.60 cut from $2.00)
       final voiceClone7m = ChannelWalletService.getFlatDubbingPricePerLanguage(
         durationSeconds: sevenMinutesSeconds,
         voiceType: 'cloned',
       );
-      expect(voiceClone7m, equals(2.10));
+      expect(voiceClone7m, equals(1.40));
 
       // AI Visual Lip-Sync: $0.00 (Discontinued)
       final lipSync7m = ChannelWalletService.getFlatLipSyncPricePerLanguage(

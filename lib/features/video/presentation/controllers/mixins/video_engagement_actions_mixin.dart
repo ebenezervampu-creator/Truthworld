@@ -264,11 +264,18 @@ mixin VideoEngagementActionsMixin on GetxController {
         : 0.0;
 
     // Fast same-device local storage (0ms, works offline, 100% free)
-    WatchHistoryService.to.saveLocalPosition(video.id, currentPos, actualWatchPct);
+    WatchHistoryService.to.saveLocalPosition(
+      video.id,
+      currentPos,
+      actualWatchPct,
+      totalDuration: totalDuration,
+    );
 
     // Cross-device RTDB resume sync (throttled to 45s - zero-cost operation)
     if (currentWatchSeconds - lastReportedWatchTime >= _crossDeviceResumeIntervalSeconds) {
-      WatchHistoryService.to.syncCrossDeviceResume(video.id, currentPos, actualWatchPct);
+      final isNearEnd = (totalDuration > 0 && currentPos >= totalDuration - 10) || actualWatchPct >= 90.0;
+      final syncPos = isNearEnd ? 0 : currentPos;
+      WatchHistoryService.to.syncCrossDeviceResume(video.id, syncPos, actualWatchPct);
       lastReportedWatchTime = currentWatchSeconds;
     }
 

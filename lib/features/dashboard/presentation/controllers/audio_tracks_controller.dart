@@ -52,6 +52,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
   RxBool get isUploading => _uploadManager.isUploading;
   RxDouble get uploadProgress => _uploadManager.uploadProgress;
   RxString get uploadStatus => _uploadManager.uploadStatus;
+  RxString get uploadingLanguageCode => _uploadManager.uploadingLanguageCode;
 
   // Active Context delegation
   RxString get channelId => _contextManager.channelId;
@@ -241,6 +242,25 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
             continue;
           }
 
+          // 🚀 Fast-Track Progressive Check:
+          // If the audio track is already generated and published in cloud,
+          // complete immediately without waiting for any ticker delay!
+          final fastCachedUrl = (selectedVideo.value?.audioTracks[lang] ?? '').isNotEmpty
+              ? selectedVideo.value!.audioTracks[lang]!
+              : (VideoMediaService.localizationCache[vId]?.audioTracks[lang] ?? '');
+          if (fastCachedUrl.isNotEmpty && vId != null) {
+            _markLanguageDubCompleted(vId, lang, fastCachedUrl);
+            currentTracks.refresh();
+            await refreshVideoLocalization(vId);
+            final notifKey = '${vId}_$lang';
+            if (!_notifiedDubLanguages.contains(notifKey)) {
+              _notifiedDubLanguages.add(notifKey);
+              showSuccess('${getLanguageName(lang)} dubbed audio track is ready!');
+            }
+            updated = true;
+            continue;
+          }
+
           if (current.progress < 94) {
             final nextProgress = current.progress + 1;
             var step = current.stageStep;
@@ -258,6 +278,10 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
               step = 2;
               title = 'Translating speech to ${getLanguageName(lang)}';
               eta = '~15-20 sec';
+            } else {
+              step = 1;
+              title = 'Analyzing audio & transcribing dialogue';
+              eta = '~20-30 sec';
             }
             final updatedState = current.copyWith(
               progress: nextProgress,
@@ -383,6 +407,8 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
               if (nextProgress != current.progress || eta != current.etaText) {
                 final updatedState = current.copyWith(
                   progress: nextProgress,
+                  stageStep: 4,
+                  totalStepsText: 'Step 4 of 4',
                   stageTitle: stageTitle,
                   etaText: eta,
                 );
@@ -1961,6 +1987,9 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
           final completedAt = stage['completedAt'];
           if (completedAt is num) return completedAt.toInt();
           if (completedAt is Timestamp) return completedAt.millisecondsSinceEpoch;
+          final failedAt = stage['failedAt'];
+          if (failedAt is num) return failedAt.toInt();
+          if (failedAt is Timestamp) return failedAt.millisecondsSinceEpoch;
           final updatedAt = stage['updatedAt'];
           if (updatedAt is num) return updatedAt.toInt();
           if (updatedAt is Timestamp) return updatedAt.millisecondsSinceEpoch;
@@ -2074,36 +2103,43 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
           final dubProg = dubStage?['progress'] as num?;
           final transProg = transStage?['progress'] as num?;
 
-          if (singleDubStatus == 'running' ||
+          // Read real cloud progress directly if available
+          if (dubProg != null && dubProg > 0) {
+            calculatedProgress = dubProg.toInt();
+          } else if (singleDubStatus == 'running' ||
               (transStatus == 'completed' && singleDubStatus != 'failed')) {
-            stageStep = 3;
-            stageTitle = 'Synthesizing AI voice in ${getLanguageName(lang)}';
             final p = dubProg?.toInt() ?? 25;
             calculatedProgress = 60 + (p * 0.3).toInt().clamp(0, 30);
-            if (calculatedProgress >= 85) {
-              stageStep = 4;
-              stageTitle = 'Mastering audio ducking & synchronization';
-              eta = 'Finalizing shortly';
-            } else {
-              eta = '~10-15 sec';
-            }
           } else if (transStatus == 'running' ||
               (onDemandStatus == 'running' && (onDemandProg ?? 0) >= 30)) {
-            stageStep = 2;
-            stageTitle = 'Translating speech to ${getLanguageName(lang)}';
             final p = transProg?.toInt() ?? (onDemandProg?.toInt() ?? 25);
             calculatedProgress = 30 + (p * 0.3).toInt().clamp(0, 30);
-            eta = '~15-20 sec';
           } else {
-            stageStep = 1;
-            stageTitle = 'Analyzing audio & transcribing dialogue';
             calculatedProgress = (onDemandProg?.toInt() ?? 15).clamp(10, 30);
-            eta = '~20-30 sec';
           }
 
           final existingProgress = dubbingProgress[lang]?.progress ?? 0;
           if (calculatedProgress < existingProgress) {
             calculatedProgress = existingProgress;
+          }
+
+          // Strict alignment of Step and Title to calculatedProgress:
+          if (calculatedProgress >= 85) {
+            stageStep = 4;
+            stageTitle = 'Mastering audio ducking & synchronization';
+            eta = calculatedProgress >= 95 ? 'Syncing cloud tracks...' : 'Finalizing shortly';
+          } else if (calculatedProgress >= 55) {
+            stageStep = 3;
+            stageTitle = 'Synthesizing AI voice in ${getLanguageName(lang)}';
+            eta = '~10-15 sec';
+          } else if (calculatedProgress >= 28) {
+            stageStep = 2;
+            stageTitle = 'Translating speech to ${getLanguageName(lang)}';
+            eta = '~15-20 sec';
+          } else {
+            stageStep = 1;
+            stageTitle = 'Analyzing audio & transcribing dialogue';
+            eta = '~20-30 sec';
           }
 
           final progressState = AudioDubbingProgressState(

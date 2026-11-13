@@ -6,6 +6,7 @@ import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/domain/entities/video_entity.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
+import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/data/models/video/video_barrel.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
@@ -335,9 +336,20 @@ class Video {
   }
 
   // Getters lookup direct first, then VideoMediaService static caches
-  Map<String, String> get mediaSubtitles => _directMediaSubtitles.isNotEmpty
-      ? _directMediaSubtitles
-      : (VideoMediaService.localizationCache[id]?.subtitles ?? const {});
+  Map<String, String> get mediaSubtitles {
+    final direct = _directMediaSubtitles;
+    final cached = VideoMediaService.localizationCache[id]?.subtitles ?? const {};
+    final merged = Map<String, String>.from(cached)..addAll(direct);
+    if (transcriptionUrl.isNotEmpty) {
+      final origLang = language.isNotEmpty ? language : 'en';
+      final normOrig = normalizeLanguageCode(origLang);
+      final hasOrig = merged.keys.any((k) => normalizeLanguageCode(k) == normOrig);
+      if (!hasOrig) {
+        merged[origLang] = transcriptionUrl;
+      }
+    }
+    return merged;
+  }
   Map<String, String> get dubbedVideos => _directDubbedVideos.isNotEmpty
       ? _directDubbedVideos
       : (VideoMediaService.localizationCache[id]?.dubbedVideos ?? const {});

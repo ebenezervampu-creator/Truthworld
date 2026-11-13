@@ -146,7 +146,11 @@ class DubbingTierHeader extends StatelessWidget {
               ],
             ),
             Obx(() {
-              final tier = controller.currentProductionTier;
+              final activeTierId = controller.selectedDubbingTier.value;
+              final tier = DubbingProductionTier.allTiers.firstWhere(
+                (t) => t.id == activeTierId,
+                orElse: () => DubbingProductionTier.audioTrack,
+              );
               return Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(

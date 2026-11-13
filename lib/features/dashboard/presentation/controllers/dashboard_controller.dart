@@ -22,6 +22,7 @@ import 'package:truthworld/features/analytics/presentation/controllers/creator_a
 import 'package:truthworld/features/analytics/presentation/controllers/revenue_analytics_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audience_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks/audio_tracks_playback_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification_dashboard_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
@@ -2080,6 +2081,7 @@ class DashboardController extends BaseController {
     // Video ID targeting for Truth Verification, Copyright, or Content tabs
     if (vidId != null && vidId.isNotEmpty) {
       targetVideoId.value = vidId;
+      TruthVerificationDashboardPage.targetVideoId.value = vidId;
     }
   }
 

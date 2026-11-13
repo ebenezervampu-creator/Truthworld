@@ -9,6 +9,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/user_languages_service.dart';
+import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
@@ -204,6 +205,20 @@ mixin VideoPlaybackFlowMixin on GetxController {
           pos = videoPlayerController!.value.position;
         }
       } catch (_) {}
+
+      final durSec = isVpcInitialized && videoPlayerController != null
+          ? videoPlayerController!.value.duration.inSeconds
+          : video.durationSeconds;
+      final isNearEnd = durSec > 0 &&
+          (pos.inSeconds >= (durSec - 10) || (pos.inSeconds / durSec) >= 0.90);
+      final isFullyWatched = Get.isRegistered<WatchHistoryService>() &&
+          WatchHistoryService.to.isVideoFullyWatched(video.id, totalDuration: durSec);
+
+      if (isNearEnd || isFullyWatched) {
+        VideoPlaybackHandoff.clear(video.id);
+        return;
+      }
+
       final videoToPlay = video;
       final selectedResUrl = currentResolution.value?.url;
 

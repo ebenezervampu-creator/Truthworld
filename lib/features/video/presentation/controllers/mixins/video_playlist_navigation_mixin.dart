@@ -12,6 +12,7 @@ import 'package:truthworld/features/channel/presentation/controllers/channel_con
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playlist_controller.dart';
 import 'package:truthworld/features/video/presentation/services/video_playback_queue_service.dart';
 import 'package:video_player/video_player.dart';
@@ -93,6 +94,13 @@ mixin VideoPlaylistNavigationMixin on GetxController {
     final totalDuration = videoPlayerController?.value.duration.inSeconds ?? 0;
     flushRemainingWatchTime();
     syncWatchHistory(watchStopwatch.elapsed.inSeconds, totalDuration);
+
+    // YouTube Playback Parity: Once a video completes, clear any handoff state
+    // and reset resume position to 0:00 so subsequent views restart cleanly from beginning.
+    VideoPlaybackHandoff.clear(video.id);
+    if (Get.isRegistered<WatchHistoryService>()) {
+      WatchHistoryService.to.resetResumePosition(video.id);
+    }
 
     if (shouldLoop) {
       debugPrint('[VideoController] Looping video: ${video.id}');

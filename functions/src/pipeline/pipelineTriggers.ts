@@ -929,16 +929,18 @@ export const onVideoUpload = onObjectFinalized(
 /**
  * 🎤 Submit transcription — triggered by video-uploaded event
  *
- * CONFIG: minInstances=0, maxInstances=20, 1GiB, 540s timeout
+ * CONFIG: minInstances=1 (always-warm, eliminates cold-start), maxInstances=20, 1GiB, 540s timeout
  */
 export const handleTranscription = onMessagePublished(
   {
     topic: "video.uploaded",
     region: "asia-south1",
     timeoutSeconds: 540,
-    memory: "512MiB",
-    minInstances: 0,
-    maxInstances: 2,
+    memory: "1GiB",
+    minInstances: 1,  // ⚡ Always warm — eliminates cold-start latency
+    maxInstances: 20, // Scale to handle burst uploads
+    concurrency: 2,   // Allow 2 concurrent transcriptions per instance
+    cpu: 1,           // ⚡ 1 vCPU required when concurrency > 1
     retry: true,
     secrets: ["ASSEMBLYAI_KEY", "GEMINI_API_KEY", "SARVAM_API_KEY"],
   },
@@ -961,6 +963,72 @@ export const handleTranscription = onMessagePublished(
       );
     } catch (error) {
       logger.error("[handleTranscription] Processing failure", { error: String(error) });
+      throw error;
+    }
+  }
+);
+
+/**
+ * ⚡ Handle transcription complete (Webhook-first pipeline resumption)
+ *
+ * Triggered by topic 'transcription.completed' published by AssemblyAI Webhook.
+ * Enforces strict consumer idempotency gate using stable eventId 'stt_complete_${transcriptId}'.
+ * Resumes fact-checking and dubbing fanout without 3s polling delay.
+ */
+export const handleTranscriptionComplete = onMessagePublished(
+  {
+    topic: "transcription.completed",
+    region: "asia-south1",
+    timeoutSeconds: 540,
+    memory: "2GiB",
+    minInstances: 1, // ⚡ Always warm — eliminates cold-start latency
+    maxInstances: 20,
+    concurrency: 2,
+    cpu: 1,
+    retry: true,
+    secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY", "GEMINI_API_KEY"],
+  },
+  async (event) => {
+    try {
+      const { DistributionLayer } = require("./layers/04-distribution");
+      const parsedEvent = DistributionLayer.parseMessage(event.data.message);
+      const { jobId, userId, videoUrl, executionPlan, transcriptId, assemblyResult } = (parsedEvent.data || parsedEvent) as any;
+
+      // Stable consumer idempotency check (Finding C)
+      const eventId = parsedEvent.eventId || `stt_complete_${transcriptId}`;
+      const distribution = new DistributionLayer();
+      const status = await distribution.checkAndMarkEventId(eventId, jobId);
+      if (status === "COMPLETED") {
+        logger.info("[handleTranscriptionComplete] Duplicate event — already completed", { jobId, eventId });
+        return;
+      }
+      if (status === "PROCESSING") {
+        logger.info("[handleTranscriptionComplete] Event already in flight", { jobId, eventId });
+        return;
+      }
+
+      logger.info("[handleTranscriptionComplete] Resuming pipeline from webhook transcript", {
+        jobId,
+        transcriptId,
+        eventId,
+      });
+
+      const { TranscriptionLayer } = require("./layers/05-transcription");
+      const transcriptionLayer = new TranscriptionLayer();
+      await transcriptionLayer.resumeFromAssemblyResult(
+        jobId,
+        userId,
+        videoUrl,
+        executionPlan,
+        assemblyResult,
+        eventId
+      );
+
+      await distribution.markEventCompleted(eventId);
+    } catch (error) {
+      logger.error("[handleTranscriptionComplete] Error resuming pipeline from webhook transcript", {
+        error: String(error),
+      });
       throw error;
     }
   }
@@ -1050,16 +1118,18 @@ export const handleCredibilitySynthesis = onMessagePublished(
 /**
  * 🌍 Handle dubbing processing (Independent Localization System)
  *
- * CONFIG: minInstances=0, maxInstances=10, 2GiB, 540s timeout
+ * CONFIG: minInstances=1 (always-warm, eliminates cold-start), maxInstances=20, 4GiB, 540s timeout, 2 vCPU
  */
 export const handleDubbing = onMessagePublished(
   {
     topic: "dubbing.requested",
     region: "asia-south1",
     timeoutSeconds: 540,
-    memory: "2GiB",
-    minInstances: 0,
-    maxInstances: 10,
+    memory: "4GiB",   // ⚡ Headroom for parallel vocal isolation + M&E extraction
+    minInstances: 0,  // Scale-to-zero when idle for cost efficiency
+    maxInstances: 10, // Fit within Cloud Run 20 vCPU regional quota (10 instances × 2 vCPU = 20 vCPU)
+    concurrency: 4,   // ⚡ 4 concurrent dubbing jobs per instance (handles up to 40 concurrent jobs)
+    cpu: 2,           // ⚡ 2 vCPU for true parallel async execution
     retry: true,
     secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY", "GEMINI_API_KEY"],
   },
@@ -2017,5 +2087,8 @@ export const remasterDubbedAudioTrack = onCall(
     }
   }
 );
+
+// ⚡ AssemblyAI Webhook Endpoint & Outbox Lease Recovery Worker
+export { assemblyAiWebhook, recoverWebhookOutboxLeases } from "./webhooks/assemblyai-webhook";
 
 

@@ -385,8 +385,13 @@ export class AggregationLayer {
       const subtitlesMap: Record<string, any> = {};
       const flatSubtitles: Record<string, string> = {};
 
-      if (jobData?.outputs?.subtitles) {
-        for (const [lang, data] of Object.entries(jobData.outputs.subtitles) as [string, any][]) {
+      const combinedSubOutputs = {
+        ...(jobOutputsData?.subtitles || {}),
+        ...(jobData?.outputs?.subtitles || {}),
+      };
+
+      if (Object.keys(combinedSubOutputs).length > 0) {
+        for (const [lang, data] of Object.entries(combinedSubOutputs) as [string, any][]) {
           const url = data.vttPath || data.srtPath || data.url || data.subtitleUrl;
           if (!url) continue;
 
@@ -399,6 +404,24 @@ export class AggregationLayer {
             updatedAt: data.createdAt || data.updatedAt || Date.now(),
           };
           flatSubtitles[lang] = directUrl;
+        }
+      }
+
+      // Check artifacts.transcription for native source language subtitles fallback
+      if (sourceLang && !flatSubtitles[sourceLang]) {
+        const transArtifact = jobData?.artifacts?.transcription;
+        const sourceUrl = transArtifact?.srtUrl || transArtifact?.vttUrl || transArtifact?.jsonUrl;
+        if (sourceUrl) {
+          const directUrl = getDownloadUrl(sourceUrl);
+          subtitlesMap[sourceLang] = {
+            url: directUrl,
+            srtPath: transArtifact?.srtUrl ? getDownloadUrl(transArtifact.srtUrl) : directUrl,
+            vttPath: transArtifact?.vttUrl ? getDownloadUrl(transArtifact.vttUrl) : directUrl,
+            format: transArtifact?.srtUrl ? "srt" : (transArtifact?.vttUrl ? "vtt" : "json"),
+            language: sourceLang,
+            updatedAt: Date.now(),
+          };
+          flatSubtitles[sourceLang] = directUrl;
         }
       }
 
@@ -423,6 +446,23 @@ export class AggregationLayer {
           }
         }
       });
+
+      if (sourceLang && !flatSubtitles[sourceLang]) {
+        const transArtifact = jobData?.artifacts?.transcription;
+        const sourceUrl = transArtifact?.srtUrl || transArtifact?.vttUrl || transArtifact?.jsonUrl;
+        if (sourceUrl) {
+          const directUrl = getDownloadUrl(sourceUrl);
+          subtitlesMap[sourceLang] = {
+            url: directUrl,
+            srtPath: transArtifact?.srtUrl ? getDownloadUrl(transArtifact.srtUrl) : directUrl,
+            vttPath: transArtifact?.vttUrl ? getDownloadUrl(transArtifact.vttUrl) : directUrl,
+            format: transArtifact?.srtUrl ? "srt" : (transArtifact?.vttUrl ? "vtt" : "json"),
+            language: sourceLang,
+            updatedAt: Date.now(),
+          };
+          flatSubtitles[sourceLang] = directUrl;
+        }
+      }
 
       // Dubbing normalization
       const dubbedMap: Record<string, any> = {};
@@ -1166,6 +1206,23 @@ export class AggregationLayer {
           }
         }
       });
+
+      if (sourceLang && !flatSubtitles[sourceLang]) {
+        const transArtifact = jobData?.artifacts?.transcription;
+        const sourceUrl = transArtifact?.srtUrl || transArtifact?.vttUrl || transArtifact?.jsonUrl;
+        if (sourceUrl) {
+          const directUrl = getDownloadUrl(sourceUrl);
+          subtitlesMap[sourceLang] = {
+            url: directUrl,
+            srtPath: transArtifact?.srtUrl ? getDownloadUrl(transArtifact.srtUrl) : directUrl,
+            vttPath: transArtifact?.vttUrl ? getDownloadUrl(transArtifact.vttUrl) : directUrl,
+            format: transArtifact?.srtUrl ? "srt" : (transArtifact?.vttUrl ? "vtt" : "json"),
+            language: sourceLang,
+            updatedAt: Date.now(),
+          };
+          flatSubtitles[sourceLang] = directUrl;
+        }
+      }
 
       if (jobData?.outputs?.audioTracks) {
         for (const [lang, url] of Object.entries(jobData.outputs.audioTracks as Record<string, any>)) {

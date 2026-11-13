@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/ui_event.dart';
@@ -215,7 +216,30 @@ class BaseController extends GetxController implements IStateController {
       debugPrint(
         '🔄 [ViewState Transition] $_controllerName: ${rxState.value.name} -> ${state.name}',
       );
-      rxState.value = state;
+      if (WidgetsBinding.instance.schedulerPhase ==
+          SchedulerPhase.persistentCallbacks) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!isDisposed && rxState.value != state) {
+            rxState.value = state;
+          }
+        });
+      } else {
+        rxState.value = state;
+      }
+    }
+  }
+
+  /// Safely executes a state action callback, deferring via [addPostFrameCallback]
+  /// if the framework is currently in the persistentCallbacks build/layout phase.
+  void safeStateAction(VoidCallback action) {
+    if (isDisposed) return;
+    if (WidgetsBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!isDisposed) action();
+      });
+    } else {
+      action();
     }
   }
 

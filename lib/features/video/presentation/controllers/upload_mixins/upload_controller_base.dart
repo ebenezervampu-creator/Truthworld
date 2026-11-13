@@ -83,8 +83,13 @@ abstract class UploadControllerBase extends BaseController
     return code.toUpperCase();
   }
 
-  /// Effective spoken language code for this video: defaults to channel designated language.
-  String get effectiveVideoLanguage => channelLanguageCode;
+  /// Effective spoken language code for this video: defaults to primarySpokenLanguage or channel designated language.
+  String get effectiveVideoLanguage {
+    if (primarySpokenLanguage.value.isNotEmpty && primarySpokenLanguage.value != 'auto') {
+      return primarySpokenLanguage.value;
+    }
+    return channelLanguageCode;
+  }
 
   /// List of supported translation and audio languages
   List<TranslationLanguage> get supportedLanguagesList => supportedLanguages;
@@ -163,6 +168,8 @@ abstract class UploadControllerBase extends BaseController
   RxString get videoModerationSummary;
 
   // AI features
+  RxBool get isAiFeaturesExpanded;
+  void toggleAiFeaturesExpanded();
   RxBool get aiTranscriptEnabled;
   RxBool get aiChaptersEnabled;
   RxBool get aiGenerateSubtitles;
@@ -170,6 +177,9 @@ abstract class UploadControllerBase extends BaseController
   RxBool get aiDiarizationEnabled;
   RxBool get aiLipSyncEnabled;
   RxBool get aiSummaryEnabled;
+  RxString get primarySpokenLanguage;
+  RxList<String> get spokenLanguages;
+  RxBool get isMultilingualSpoken;
   RxList<String> get aiTranslationLanguages;
   RxList<String> get aiDubbingLanguages;
   RxString get aiDubbingTier;

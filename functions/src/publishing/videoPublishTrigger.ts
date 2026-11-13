@@ -20,6 +20,7 @@ import { ExecutionPlan, isCredibilityEnabled } from "../pipeline/types";
 import { logger } from "../pipeline/utils/logger";
 import { normalizeLanguageCode, normalizeLanguageCodes } from "../shared/language-normalizer";
 import { getFlatDubbingRatePerLanguage, getFlatSubtitleRatePerLanguage } from "../pipeline/pipelineTriggers";
+import { invalidateFeedGeneration } from "../shared/memory-cache";
 
 export const onVideoPublished = onDocumentUpdated(
   {
@@ -83,8 +84,7 @@ export const onVideoPublished = onDocumentUpdated(
     const isApproved =
       afterData.moderation?.status === "approved" ||
       afterData.isModerated === true ||
-      afterData.trustedModerationBypass === true ||
-      (afterData.moderation?.status === undefined && afterData.status !== "rejected");
+      afterData.trustedModerationBypass === true;
     const becameApproved = !wasApproved && isApproved;
 
     const isCurrentlyPublished =
@@ -96,7 +96,10 @@ export const onVideoPublished = onDocumentUpdated(
       afterData.status !== "uploading" &&
       afterData.status !== "draft" &&
       afterData.status !== "scheduled" &&
-      afterData.status !== "rejected";
+      afterData.status !== "rejected" &&
+      afterData.status !== "pending_review" &&
+      afterData.moderation?.status !== "manual_review" &&
+      afterData.moderation?.status !== "rejected";
 
     const wasPublished =
       beforeData?.status === "published" ||
@@ -112,6 +115,22 @@ export const onVideoPublished = onDocumentUpdated(
       isApproved &&
       notificationsNotSentYet &&
       (statusJustBecamePublished || becameApproved || becamePublished);
+
+    // ─── GATE 2.55: Invalidate L1 public feed cache on publish / unpublish ───
+    const wasPubliclyVisible = wasPublished && beforeData?.visibility === "public";
+    const isNowPubliclyVisible = isCurrentlyPublished && afterData.visibility === "public" && isApproved;
+    if ((!wasPubliclyVisible && isNowPubliclyVisible) || (wasPubliclyVisible && !isNowPubliclyVisible)) {
+      try {
+        invalidateFeedGeneration();
+        logger.info("[PublishGate] L1 Feed cache generation invalidated due to visibility/publish state change", {
+          videoId,
+          wasPubliclyVisible,
+          isNowPubliclyVisible,
+        });
+      } catch (cacheErr) {
+        logger.warn("[PublishGate] Failed to invalidate feed cache generation (non-critical):", cacheErr);
+      }
+    }
 
     // ─── GATE 2.6: Detect if status or moderation status became rejected ─────
     const wasRejected = beforeData?.status === "rejected" || beforeData?.moderation?.status === "rejected";

@@ -293,7 +293,8 @@ mixin TowerPlayerPlaybackControlMixin on GetxController {
             ? effectiveDuration
             : activePlayback.duration;
         if (totalDur > Duration.zero &&
-            activePlayback.position >= totalDur) {
+            activePlayback.position >=
+                totalDur - const Duration(milliseconds: 500)) {
           await activePlayback.seek(Duration.zero);
           await audioTrackController?.seekTo(Duration.zero);
         }

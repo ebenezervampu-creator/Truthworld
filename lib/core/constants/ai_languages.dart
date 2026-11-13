@@ -1,7 +1,8 @@
 /// Authoritative repository of AI-supported languages across TruthWorld:
-/// - 78 Languages for AI Audio Dubbing & Voice Cloning powered by ElevenLabs
-///   (Flash v2.5 / Multilingual v2 / Eleven v3).
-/// - 135+ Languages for Subtitles & Closed Captions powered by Google Cloud Translation API.
+/// - Source / Spoken Audio ("From"): Same 39 languages supported for both Subtitles and Dubbing,
+///   powered by AssemblyAI Universal-3.5 Pro (17 Global + Hindi & English) and Sarvam AI Saaras v4 (22 Indic languages).
+/// - AI Audio Dubbing Output ("To"): 78 Languages supported by ElevenLabs v4 model (eleven_v4).
+/// - Subtitles Output ("To"): 135+ Languages supported by Google Cloud Translation API with Gemini 2.5 Flash.
 class AILanguage {
   const AILanguage({
     required this.code,

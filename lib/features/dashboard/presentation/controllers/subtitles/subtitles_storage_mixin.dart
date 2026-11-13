@@ -26,6 +26,9 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
   /// In-memory cache of parsed subtitle cues by "${videoId}_${langCode}"
   static final Map<String, List<SubtitleCue>> _cuesCache = {};
 
+  /// Public accessor for cached subtitle cues
+  static Map<String, List<SubtitleCue>> get cuesCache => _cuesCache;
+
   /// In-flight dedup map to eliminate redundant parallel download and parse cascades
   static final Map<String, Future<void>> _inFlightParses = {};
 
@@ -63,9 +66,12 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
 
     // Fast-path: return cached cues immediately to avoid repeated network round-trips
     if (cacheKey != null && _cuesCache.containsKey(cacheKey) && _cuesCache[cacheKey]!.isNotEmpty) {
-      currentCues.value = _cuesCache[cacheKey]!
+      final cachedList = _cuesCache[cacheKey]!
           .map((c) => c.copyWith(id: UniqueKey().toString()))
           .toList();
+      safeStateAction(() {
+        currentCues.value = cachedList;
+      });
       setViewState(ViewState.success);
       return;
     }
@@ -78,12 +84,14 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
           if (cacheKey != null) {
             _cuesCache[cacheKey] = fallbackCues;
           }
-          currentCues.value = fallbackCues;
+          safeStateAction(() {
+            currentCues.value = fallbackCues;
+          });
           setViewState(ViewState.success);
           return;
         }
       }
-      currentCues.clear();
+      safeStateAction(currentCues.clear);
       setViewState(ViewState.success);
       return;
     }
@@ -159,7 +167,7 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
             }
           } catch (_) {}
         }
-      } catch (e, stack) {
+      } catch (e) {
         logger.info(
           'Error downloading remote subtitle link: $urlOrData ($e), checking fallbacks...',
           tag: SubtitlesControllerBase.subtitlesTag,
@@ -207,7 +215,9 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
         if (cacheKey != null) {
           _cuesCache[cacheKey] = cues;
         }
-        currentCues.value = cues;
+        safeStateAction(() {
+          currentCues.value = cues;
+        });
         setViewState(ViewState.success);
         return;
       }
@@ -220,13 +230,15 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
         if (cacheKey != null) {
           _cuesCache[cacheKey] = fallbackCues;
         }
-        currentCues.value = fallbackCues;
+        safeStateAction(() {
+          currentCues.value = fallbackCues;
+        });
         setViewState(ViewState.success);
         return;
       }
     }
 
-    currentCues.clear();
+    safeStateAction(currentCues.clear);
     setViewState(ViewState.success);
   }
 
@@ -269,7 +281,7 @@ mixin SubtitlesStorageMixin on SubtitlesControllerBase {
         langCode == video.language ||
         (videoLangCode == 'en' && normCode == 'en');
 
-    String? retrievedJobId = video.jobId;
+    var retrievedJobId = video.jobId;
 
     // 1. If jobId is not on local model, retrieve from root video doc in Firestore
     if (retrievedJobId == null || retrievedJobId.isEmpty) {

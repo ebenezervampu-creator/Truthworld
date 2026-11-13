@@ -8,6 +8,7 @@ import 'package:truthworld/features/video/presentation/views/upload/components/d
 import 'package:truthworld/features/video/presentation/views/upload/components/dubbing/dubbing_notice_banner.dart';
 import 'package:truthworld/features/video/presentation/views/upload/components/dubbing/dubbing_pricing_card.dart';
 import 'package:truthworld/features/video/presentation/views/upload/components/dubbing/dubbing_tier_header.dart';
+import 'package:truthworld/features/video/presentation/views/upload/components/spoken_language_selector_card.dart';
 
 /// Dedicated Dubbing Configuration, Voice Options & Pricing Page.
 /// Redesigned with ElevenLabs modern, minimalist dark aesthetic, clean typography,
@@ -148,6 +149,14 @@ class UploadDubbingPage extends StatelessWidget {
 
                       // 2. Video & Tier Context Header
                       DubbingTierHeader(controller: controller),
+                      const SizedBox(height: 16),
+
+                      // 2.5 Source Spoken Video Language ("From") Selector (39 languages)
+                      SpokenLanguageSelectorCard(
+                        controller: controller.uploadController,
+                        title: 'Source Spoken Video Language ("From")',
+                        subtitle: 'Speech recognition strictly supports 39 languages via AssemblyAI Universal-3.5 Pro & Sarvam AI',
+                      ),
                       const SizedBox(height: 16),
 
                       // 3. Pricing Breakdown Card

@@ -20,7 +20,7 @@ export interface ModelParams {
 export function getGenAI(): GoogleGenAI {
   if (!genAIInstance) {
     const project = process.env.GCP_PROJECT_ID || process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || "truthworld-1";
-    const location = process.env.GCP_LOCATION || "us-central1";
+    const location = process.env.GCP_LOCATION || "asia-south1";
     genAIInstance = new GoogleGenAI({
       vertexai: true,
       project,

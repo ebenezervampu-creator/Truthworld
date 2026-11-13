@@ -610,13 +610,6 @@ export const createCashfreeOrder = onCall(
       );
     }
 
-    if (purpose === "channel_wallet_topup") {
-      throw new HttpsError(
-        "failed-precondition",
-        "Channel wallet services have been discontinued. Audio tracks, subtitles, and add-ons can be paid directly or using channel revenue."
-      );
-    }
-
     if (purpose === "user_wallet_topup" || purpose === "user_topup") {
       throw new HttpsError(
         "failed-precondition",

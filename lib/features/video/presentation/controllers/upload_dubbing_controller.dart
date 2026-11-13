@@ -187,8 +187,13 @@ class UploadDubbingController extends GetxController {
     DubbingLanguageInfo(name: 'Kannada', nativeName: 'ಕನ್ನಡ', code: 'kn', region: 'indic'),
     DubbingLanguageInfo(name: 'Malayalam', nativeName: 'മലയാളം', code: 'ml', region: 'indic'),
     DubbingLanguageInfo(name: 'Punjabi', nativeName: 'ਪੰਜਾਬੀ', code: 'pa', region: 'indic'),
+    DubbingLanguageInfo(name: 'Odia', nativeName: 'ଓଡ଼ିଆ', code: 'or', region: 'indic'),
+    DubbingLanguageInfo(name: 'Assamese', nativeName: 'অসমীয়া', code: 'as', region: 'indic'),
     DubbingLanguageInfo(name: 'Urdu', nativeName: 'اردو', code: 'ur', region: 'indic'),
     DubbingLanguageInfo(name: 'Nepali', nativeName: 'नेपाली', code: 'ne', region: 'indic'),
+    DubbingLanguageInfo(name: 'Sanskrit', nativeName: 'संस्कृतम्', code: 'sa', region: 'indic'),
+    DubbingLanguageInfo(name: 'Kashmiri', nativeName: 'कॉशुर', code: 'ks', region: 'indic'),
+    DubbingLanguageInfo(name: 'Sindhi', nativeName: 'سنڌي', code: 'sd', region: 'indic'),
 
     // European Languages
     DubbingLanguageInfo(name: 'Turkish', nativeName: 'Türkçe', code: 'tr', region: 'european'),
@@ -233,15 +238,28 @@ class UploadDubbingController extends GetxController {
     DubbingLanguageInfo(name: 'Malay', nativeName: 'Bahasa Melayu', code: 'ms', region: 'asian'),
     DubbingLanguageInfo(name: 'Kazakh', nativeName: 'Қазақша', code: 'kk', region: 'asian'),
     DubbingLanguageInfo(name: 'Uzbek', nativeName: 'Oʻzbekcha', code: 'uz', region: 'asian'),
+    DubbingLanguageInfo(name: 'Burmese', nativeName: 'မြန်မာဘာသာ', code: 'my', region: 'asian'),
+    DubbingLanguageInfo(name: 'Khmer', nativeName: 'ភាសាខ្មែរ', code: 'km', region: 'asian'),
+    DubbingLanguageInfo(name: 'Lao', nativeName: 'ພາສາລາວ', code: 'lo', region: 'asian'),
+    DubbingLanguageInfo(name: 'Armenian', nativeName: 'Հայերեն', code: 'hy', region: 'asian'),
+    DubbingLanguageInfo(name: 'Mongolian', nativeName: 'Монгол хэл', code: 'mn', region: 'asian'),
+    DubbingLanguageInfo(name: 'Sinhala', nativeName: 'සිංහල', code: 'si', region: 'asian'),
 
     // Middle East & Africa
     DubbingLanguageInfo(name: 'Hebrew', nativeName: 'עברית', code: 'he', region: 'middle_east_africa'),
     DubbingLanguageInfo(name: 'Persian', nativeName: 'فارسی', code: 'fa', region: 'middle_east_africa'),
+    DubbingLanguageInfo(name: 'Kurdish', nativeName: 'کوردی', code: 'ku', region: 'middle_east_africa'),
+    DubbingLanguageInfo(name: 'Pashto', nativeName: 'پښتو', code: 'ps', region: 'middle_east_africa'),
     DubbingLanguageInfo(name: 'Afrikaans', nativeName: 'Afrikaans', code: 'af', region: 'middle_east_africa'),
     DubbingLanguageInfo(name: 'Azerbaijani', nativeName: 'Azərbaycan', code: 'az', region: 'middle_east_africa'),
     DubbingLanguageInfo(name: 'Somali', nativeName: 'Soomaali', code: 'so', region: 'middle_east_africa'),
     DubbingLanguageInfo(name: 'Swahili', nativeName: 'Kiswahili', code: 'sw', region: 'middle_east_africa'),
     DubbingLanguageInfo(name: 'Zulu', nativeName: 'isiZulu', code: 'zu', region: 'middle_east_africa'),
+    DubbingLanguageInfo(name: 'Xhosa', nativeName: 'isiXhosa', code: 'xh', region: 'middle_east_africa'),
+    DubbingLanguageInfo(name: 'Amharic', nativeName: 'አማርኛ', code: 'am', region: 'middle_east_africa'),
+    DubbingLanguageInfo(name: 'Hausa', nativeName: 'Hausa', code: 'ha', region: 'middle_east_africa'),
+    DubbingLanguageInfo(name: 'Yoruba', nativeName: 'Yorùbá', code: 'yo', region: 'middle_east_africa'),
+    DubbingLanguageInfo(name: 'Igbo', nativeName: 'Asụsụ Igbo', code: 'ig', region: 'middle_east_africa'),
   ];
 
   /// Filtered dubbing languages based on search and selected category

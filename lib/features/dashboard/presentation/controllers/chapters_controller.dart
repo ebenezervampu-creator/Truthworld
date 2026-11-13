@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
@@ -401,17 +402,54 @@ class ChaptersController extends BaseController with ContentValidationMixin {
     required String fileName,
   }) async {
     try {
-      final currentUid = _auth.currentUser?.uid;
-      final extension = fileName.split('.').last.toLowerCase();
-      final mimeType = (extension == 'png') ? 'image/png' : 'image/jpeg';
-      final path = 'thumbnails/$videoId/chapters/${DateTime.now().millisecondsSinceEpoch}_chapter.$extension';
+      final user = _auth.currentUser;
+      if (user == null) {
+        showError('Please sign in to upload chapter thumbnails.');
+        return null;
+      }
+
+      // Ensure fresh storage auth context and synchronized tokens
+      await user.getIdToken(true);
+      if (kIsWeb) {
+        await Future.delayed(const Duration(milliseconds: 300));
+      }
+
+      if (bytes.lengthInBytes > 2 * 1024 * 1024) {
+        showError('Selected chapter thumbnail exceeds the 2MB limit.');
+        return null;
+      }
+
+      final ext = fileName.contains('.')
+          ? fileName.split('.').last.toLowerCase()
+          : 'jpg';
+      String mimeType;
+      switch (ext) {
+        case 'png':
+          mimeType = 'image/png';
+          break;
+        case 'webp':
+          mimeType = 'image/webp';
+          break;
+        case 'gif':
+          mimeType = 'image/gif';
+          break;
+        case 'jpg':
+        case 'jpeg':
+        default:
+          mimeType = 'image/jpeg';
+          break;
+      }
+
+      final path =
+          'thumbnails/$videoId/chapters/${DateTime.now().millisecondsSinceEpoch}_chapter.$ext';
 
       final ref = FirebaseStorage.instance.ref().child(path);
       final metadata = SettableMetadata(
         contentType: mimeType,
         customMetadata: {
-          'uploaderId': currentUid ?? '',
+          'uploaderId': user.uid,
           'videoId': videoId,
+          'uploadedAt': DateTime.now().toIso8601String(),
         },
       );
 

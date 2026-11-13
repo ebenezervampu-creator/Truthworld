@@ -302,19 +302,22 @@ export class EdgeLayer {
 
   static async updateStageSync(jobId: string, stage: string, update: Partial<StageStatus>): Promise<void> {
     const now = Date.now();
+    const stageUpdate: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(update)) {
+      stageUpdate[k] = v;
+    }
     const fields: Record<string, unknown> = { 
       updatedAt: now,
-      version: admin.firestore.FieldValue.increment(1)
+      version: admin.firestore.FieldValue.increment(1),
+      stages: {
+        [stage]: stageUpdate,
+      },
     };
-    
-    for (const [k, v] of Object.entries(update)) {
-      fields[`stages.${stage}.${k}`] = v;
-    }
 
     let lastErr: any = null;
     for (let attempt = 1; attempt <= 4; attempt++) {
       try {
-        await db().collection("video_jobs").doc(jobId).update(fields);
+        await db().collection("video_jobs").doc(jobId).set(fields, { merge: true });
         return;
       } catch (err) {
         lastErr = err;
@@ -344,14 +347,18 @@ export class EdgeLayer {
     const fields: Record<string, unknown> = {
       updatedAt: now,
       version: admin.firestore.FieldValue.increment(1),
-      [`stages.${stage}.status`]: "failed",
-      [`stages.${stage}.error`]: errorMessage,
-      [`stages.${stage}.completedAt`]: now,
+      stages: {
+        [stage]: {
+          status: "failed",
+          error: errorMessage,
+          completedAt: now,
+        },
+      },
     };
 
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        await db().collection("video_jobs").doc(jobId).update(fields);
+        await db().collection("video_jobs").doc(jobId).set(fields, { merge: true });
         return;
       } catch (err) {
         const errMsg = String((err as any)?.message || err);
@@ -414,14 +421,18 @@ export class EdgeLayer {
       status: "failed",
       updatedAt: now,
       version: admin.firestore.FieldValue.increment(1),
-      [`stages.${stage}.status`]: "failed",
-      [`stages.${stage}.error`]: errorMessage,
-      [`stages.${stage}.completedAt`]: now,
+      stages: {
+        [stage]: {
+          status: "failed",
+          error: errorMessage,
+          completedAt: now,
+        },
+      },
     };
 
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        await db().collection("video_jobs").doc(jobId).update(fields);
+        await db().collection("video_jobs").doc(jobId).set(fields, { merge: true });
         return;
       } catch (err) {
         const errMsg = String((err as any)?.message || err);

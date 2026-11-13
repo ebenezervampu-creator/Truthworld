@@ -87,4 +87,50 @@ describe("Strictly ElevenLabs v4 Dubbing Pipeline (Chirp 3: HD Terminated)", () 
       "ElevenLabs API key is missing. Video dubbing strictly requires ElevenLabs v4."
     );
   });
+
+  test("4. Failover tier is strictly ElevenLabs v3 when v4 encounters error (zero Google fallback)", async () => {
+    const configuredEleven = new ElevenLabsTTSService("valid-test-key");
+    const attemptedModels: string[] = [];
+
+    // Spy on internal axios post
+    const axios = require("axios");
+    jest.spyOn(axios, "post").mockImplementation(async (...args: any[]) => {
+      const url = args[0] as string;
+      const body = args[1];
+      if (url.includes("/text-to-speech/")) {
+        attemptedModels.push(body.model_id);
+        if (body.model_id === "eleven_v4") {
+          const err: any = new Error("v4 transient service error");
+          err.response = { status: 500, data: "Temporary internal error" };
+          throw err;
+        }
+        // v3 succeeds
+        return {
+          data: Buffer.from("v3-audio-output-bytes"),
+        };
+      }
+      return { data: {} };
+    });
+
+    // Mock storage save
+    const admin = require("firebase-admin");
+    const mockFileSave = jest.fn().mockResolvedValue(true);
+    jest.spyOn(admin, "storage").mockReturnValue({
+      bucket: () => ({
+        name: "test-bucket",
+        file: () => ({ save: mockFileSave }),
+      }),
+    });
+
+    const tts = new TTSService(undefined, configuredEleven);
+    const result = await tts.synthesize({
+      jobId: "job_v4_to_v3",
+      language: "te",
+      text: "నమస్కారం",
+      voiceId: "ErXwobaYiN019PkySvjV",
+    });
+
+    expect(attemptedModels).toEqual(["eleven_v4", "eleven_v3"]);
+    expect(result.provider).toBe("elevenlabs");
+  });
 });

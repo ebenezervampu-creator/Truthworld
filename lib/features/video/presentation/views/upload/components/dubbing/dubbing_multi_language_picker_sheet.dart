@@ -28,8 +28,32 @@ const Map<String, String> languageToCountryMap = {
   'Kannada': 'India',
   'Malayalam': 'India',
   'Punjabi': 'India',
+  'Odia': 'India',
+  'Assamese': 'India',
+  'Sanskrit': 'India',
+  'Kashmiri': 'India',
+  'Sindhi': 'India',
+  'Bhojpuri': 'India',
+  'Maithili': 'India',
+  'Dogri': 'India',
+  'Konkani': 'India',
+  'Santali': 'India',
+  'Bodo': 'India',
   'Urdu': 'Pakistan',
   'Nepali': 'Nepal',
+  'Burmese': 'Myanmar',
+  'Khmer': 'Cambodia',
+  'Lao': 'Laos',
+  'Armenian': 'Armenia',
+  'Mongolian': 'Mongolia',
+  'Sinhala': 'Sri Lanka',
+  'Kurdish': 'Iraq',
+  'Pashto': 'Afghanistan',
+  'Amharic': 'Ethiopia',
+  'Hausa': 'Nigeria',
+  'Yoruba': 'Nigeria',
+  'Igbo': 'Nigeria',
+  'Xhosa': 'South Africa',
   'Turkish': 'Turkey',
   'Dutch': 'Netherlands',
   'Swedish': 'Sweden',
@@ -929,5 +953,248 @@ Widget _buildPresetButton({
         ),
       ),
     ),
+  );
+}
+
+/// Displays the language picker for Spoken ("From") Video Languages.
+/// Supports both single primary language selection and multilingual / code-mixed multi-selection across all 50+ languages.
+void showSpokenLanguagePicker({
+  required BuildContext context,
+  required UploadController controller,
+}) {
+  final searchController = TextEditingController();
+  final activeSearch = ''.obs;
+
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (ctx) {
+      return Material(
+        color: const Color(0xFF16171E),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        child: SizedBox(
+          height: MediaQuery.of(ctx).size.height * 0.85,
+          child: Column(
+            children: [
+              // Top drag handle
+              Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3F3F46),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+
+              // Header Row
+              _buildPickerHeader(
+                icon: Icons.record_voice_over_rounded,
+                iconColor: const Color(0xFF38BDF8),
+                iconBackgroundColor: const Color(0xFF0284C7).withValues(alpha: 0.18),
+                title: 'Select Spoken Video Language ("From")',
+                selectedCount: () => controller.isMultilingualSpoken.value
+                    ? controller.spokenLanguages.length
+                    : (controller.primarySpokenLanguage.value == 'auto' ? 0 : 1),
+                emptySubtitle: '39 languages supported via AssemblyAI Universal-3.5 Pro & Sarvam AI',
+                selectedSubtitleBuilder: (count) => controller.isMultilingualSpoken.value
+                    ? '$count spoken languages selected (code-mixed)'
+                    : '1 primary spoken language selected',
+                onClose: () => Navigator.pop(ctx),
+              ),
+
+              // Search Bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                child: Container(
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF101116),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF262834)),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.search, color: Colors.white70, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: searchController,
+                          maxLength: 100,
+                          buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+                          inputFormatters: TruthworldTextInputFormatters.withLimit(100),
+                          onChanged: (query) => activeSearch.value = query,
+                          style: const TextStyle(color: Colors.white, fontSize: 13.5),
+                          cursorColor: Colors.white,
+                          decoration: const InputDecoration(
+                            hintText: 'Search 39 spoken languages (e.g. Telugu, Hindi, Spanish)...',
+                            hintStyle: TextStyle(
+                              color: Color(0xFF71717A),
+                              fontSize: 13,
+                            ),
+                            border: InputBorder.none,
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      Obx(() {
+                        if (activeSearch.value.isNotEmpty) {
+                          return GestureDetector(
+                            onTap: () {
+                              searchController.clear();
+                              activeSearch.value = '';
+                            },
+                            child: const Icon(
+                              Icons.cancel,
+                              color: Color(0xFFA1A1AA),
+                              size: 18,
+                            ),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      }),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 6),
+              const Divider(color: Color(0xFF242632), height: 1),
+
+              // Language List
+              Expanded(
+                child: Obx(() {
+                  final q = activeSearch.value.trim().toLowerCase();
+                  final filtered = allSpokenLanguages.where((l) {
+                    if (q.isEmpty) return true;
+                    return l.name.toLowerCase().contains(q) ||
+                        l.nativeName.toLowerCase().contains(q) ||
+                        l.code.toLowerCase().contains(q);
+                  }).toList();
+
+                  if (filtered.isEmpty) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(32.0),
+                        child: Text(
+                          'No spoken languages match your search.',
+                          style: TextStyle(color: Color(0xFFA1A1AA), fontSize: 13),
+                        ),
+                      ),
+                    );
+                  }
+
+                  final isMultilingual = controller.isMultilingualSpoken.value;
+                  final primaryCode = controller.primarySpokenLanguage.value;
+
+                  return ListView.separated(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    itemCount: filtered.length,
+                    separatorBuilder: (c, i) => const Divider(
+                      color: Color(0xFF20222B),
+                      height: 1,
+                    ),
+                    itemBuilder: (c, i) {
+                      final item = filtered[i];
+                      return Obx(() {
+                        final isSelected = isMultilingual
+                            ? controller.spokenLanguages.contains(item.code)
+                            : (primaryCode == item.code || (primaryCode.isEmpty && item.code == 'auto'));
+
+                        return Material(
+                          color: isSelected
+                              ? const Color(0xFF0284C7).withValues(alpha: 0.12)
+                              : Colors.transparent,
+                          child: InkWell(
+                            onTap: () {
+                              if (isMultilingual) {
+                                if (controller.spokenLanguages.contains(item.code)) {
+                                  controller.spokenLanguages.remove(item.code);
+                                } else {
+                                  controller.spokenLanguages.add(item.code);
+                                  if (controller.primarySpokenLanguage.value == 'auto') {
+                                    controller.primarySpokenLanguage.value = item.code;
+                                  }
+                                }
+                              } else {
+                                controller.primarySpokenLanguage.value = item.code;
+                                if (item.code != 'auto') {
+                                  controller.spokenLanguages.assignAll([item.code]);
+                                } else {
+                                  controller.spokenLanguages.clear();
+                                }
+                                Navigator.pop(ctx);
+                              }
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                              child: Row(
+                                children: [
+                                  buildLanguageFlag(item.name),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          item.name,
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                          ),
+                                        ),
+                                        if (item.nativeName != item.name)
+                                          Text(
+                                            item.nativeName,
+                                            style: const TextStyle(
+                                              color: Color(0xFFA1A1AA),
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF20222B),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      item.code.toUpperCase(),
+                                      style: const TextStyle(
+                                        color: Color(0xFFA1A1AA),
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Icon(
+                                    isSelected
+                                        ? (isMultilingual ? Icons.check_box_rounded : Icons.radio_button_checked)
+                                        : (isMultilingual ? Icons.check_box_outline_blank_rounded : Icons.radio_button_unchecked),
+                                    color: isSelected ? const Color(0xFF38BDF8) : const Color(0xFF52525B),
+                                    size: 20,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      });
+                    },
+                  );
+                }),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
   );
 }

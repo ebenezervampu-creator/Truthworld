@@ -496,6 +496,38 @@ export class ClaimVerificationService {
       const remainingToVerify = claims;
       const preVerified: VerifiedClaim[] = [];
 
+      // ⚡ PHASE 3: Four-Tier Verification Cascade
+      // Evaluates Tier 1 (Cache), Tier 2 (Deterministic Registry), Tier 3 (Fast-Track LLM), and Tier 4 (Fused Grounding)
+      if (PIPELINE_CONFIG.ENABLE_FUSED_GROUNDING && options.groundingMode !== 'never') {
+        try {
+          const { VerificationCascadeService } = await import("./verificationCascadeService.js");
+          const cascadeResults = await VerificationCascadeService.executeCascade(
+            "", // Offline / no direct video subcollection stream target
+            remainingToVerify,
+            domainContext,
+            {
+              videoTitle: options.videoTitle,
+              videoDescription: options.videoDescription,
+              channelTitle: options.channelTitle,
+              topicContext: options.topicContext,
+              providedSources: options.providedSources,
+              signal,
+            }
+          );
+
+          if (Array.isArray(cascadeResults) && cascadeResults.length === remainingToVerify.length) {
+            logger.info(`[ClaimVerification] Four-Tier Cascade successfully verified ${cascadeResults.length} claims`, {
+              batchSize: remainingToVerify.length,
+            });
+            return [...preVerified, ...cascadeResults];
+          }
+        } catch (cascadeErr: any) {
+          logger.warn(`[ClaimVerification] Verification Cascade encountered an issue; falling back gracefully to legacy path`, {
+            err: cascadeErr?.message,
+          });
+        }
+      }
+
       // Fetch Tier-0 Wikipedia Context & Decoupled Closed-World EvidenceCatalogs in parallel
       const tier0Contexts = await tier0KnowledgeService.getBatchContext(
         remainingToVerify.map(c => ({ claimId: c.claimId, text: c.text }))
@@ -710,6 +742,7 @@ PROTOCOL:
       * Translate and correlate names, locations, and events across languages and scripts (e.g. Telugu "గోపిక" ↔ English "Gopika", "చైన్ సా దాడి" ↔ "chainsaw attack", "రాప్తాడు / అనంతపురం" ↔ "Raptadu / Anantapur").
       * When authoritative English or regional news articles verify the event, YOU MUST USE THEM to substantiate the claim.
       * NEVER respond with "UNSUPPORTED" or say "I cannot find from memory" or "from internal data" when live news or reports confirm the event!
+      * VERDICT LOCALIZATION MANDATE: Write the "summary", "verifiedFacts", and "missingEvidence" in the PRIMARY SPOKEN LANGUAGE of the claim/video (e.g., Telugu for Telugu claims, Hindi for Hindi claims, English for English claims). Do NOT force English verdict explanations on regional Indian language claims.
 ${tier0Injection}
 ### BATCH TO VERIFY (STRICT CITE-BY-ID CLOSED-WORLD MODE):
 ${remainingToVerify.map(c => {
@@ -749,9 +782,9 @@ RETURN JSON:
       "confidence": number (0-1),
       "freshness": "string",
       "citedEvidenceIds": ["E1", "E2"],
-      "summary": "Clear, short, everyday explanation a 10-year-old can easily understand, giving the real reason and facts without ever saying 'this claim', 'this statement', 'from internal data', or stiff AI jargon",
-      "verifiedFacts": ["Short, simple bullet points of confirmed facts written in everyday language"],
-      "missingEvidence": ["Short, simple bullet points of what proof is missing in everyday words"],
+      "summary": "Clear, short, everyday explanation a 10-year-old can easily understand in the primary spoken language of the video / claim (e.g. Telugu, Hindi, or English), giving the real reason and facts without ever saying 'this claim', 'this statement', 'from internal data', or stiff AI jargon",
+      "verifiedFacts": ["Short, simple bullet points of confirmed facts written in everyday language matching the video's spoken language"],
+      "missingEvidence": ["Short, simple bullet points of what proof is missing in everyday words matching the video's spoken language"],
       "sourceConsensus": "string",
       "riskLevel": "string",
       "publicNote": "string",
@@ -1901,7 +1934,7 @@ RETURN JSON:
             verificationConfidence: cached.verificationConfidence || 0.9,
             richSources: cached.richSources || [],
             verifiedAcademicMetadata: (cached as any).verifiedAcademicMetadata,
-            sources: (cached.richSources || []).map(s => s.title || s.domain || "Verified Source"),
+            sources: (cached.richSources || []).map((s: any) => s.title || s.domain || "Verified Source"),
             displayLabel: cached.displayLabel,
             evidenceLevel: cached.evidenceLevel || EvidenceLevel.STRONG,
             evidenceDetails: cached.evidenceDetails,
@@ -2226,12 +2259,12 @@ RETURN JSON:
           claim.publicNote = 'Evidence Inconclusive';
         }
       }
-      // ── Citation Retrieval Retry Pass ──
+      // ── Citation Retrieval Retry Pass (Capped at 5 to protect execution deadline) ──
       const claimsNeedingCitations = allVerified.filter(
         c => c.nature === ClaimNature.VERIFIABLE_FACT &&
              c.sourceStatus === 'missing' &&
              c.status !== 'verification_timeout'
-      );
+      ).slice(0, 5);
 
       if (claimsNeedingCitations.length > 0) {
         logger.info(`[ClaimVerification] Found ${claimsNeedingCitations.length} claims needing citation retrieval retry`);

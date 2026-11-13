@@ -53,19 +53,19 @@ void main() {
   group('Upload Subtitles Controller & Page Tests', () {
     test('1. Calculates flat pricing at-cost (0% platform profit) for standard and custom channels', () {
       final uploadCtrl = Get.put(UploadController());
-      uploadCtrl.videoDurationSeconds.value = 60; // 1 min -> $0.05 / lang at-cost
+      uploadCtrl.videoDurationSeconds.value = 360; // 6 mins -> $0.05 / lang at-cost (Standard Tier)
       uploadCtrl.selectedChannel.value = createTestChannel();
 
       final subCtrl = Get.put(UploadSubtitlesController());
       expect(subCtrl.flatSubtitleRatePerLang, equals(0.05));
 
       subCtrl.selectedLanguages.addAll(['Spanish', 'French', 'German']);
-      expect(subCtrl.calculatedCost, equals(0.09));
+      expect(subCtrl.calculatedCost, equals(0.15));
 
       // Switch to custom channel (exact same at-cost rate)
       uploadCtrl.selectedChannel.value = createTestChannel(isCustom: true);
       expect(subCtrl.flatSubtitleRatePerLang, equals(0.05));
-      expect(subCtrl.calculatedCost, equals(0.09));
+      expect(subCtrl.calculatedCost, equals(0.15));
     });
 
     test('2. Subtitles for dubbed languages are complimentary (free)', () {
@@ -179,19 +179,19 @@ void main() {
   group('Upload Dubbing Controller & Page Tests', () {
     test('1. Calculates dubbing cost and duration tiers properly at-cost', () {
       final uploadCtrl = Get.put(UploadController());
-      uploadCtrl.videoDurationSeconds.value = 300; // 5 min -> $0.50 at-cost ($0.10/min)
+      uploadCtrl.videoDurationSeconds.value = 300; // 5 min -> $1.50 at-cost ($0.30/min baseline)
       uploadCtrl.selectedChannel.value = createTestChannel();
 
       final dubCtrl = Get.put(UploadDubbingController());
-      expect(dubCtrl.flatDubbingRatePerLang, equals(0.50));
+      expect(dubCtrl.flatDubbingRatePerLang, equals(1.50));
 
       dubCtrl.selectedLanguages.addAll(['Spanish', 'Hindi', 'French']);
-      expect(dubCtrl.calculatedCost, equals(1.50));
+      expect(dubCtrl.calculatedCost, equals(4.50));
 
       // Custom channel (exact same at-cost rate)
       uploadCtrl.selectedChannel.value = createTestChannel(isCustom: true);
-      expect(dubCtrl.flatDubbingRatePerLang, equals(0.50));
-      expect(dubCtrl.calculatedCost, equals(1.50));
+      expect(dubCtrl.flatDubbingRatePerLang, equals(1.50));
+      expect(dubCtrl.calculatedCost, equals(4.50));
     });
 
     test('2. Protects against dubbing into channel native source language', () {
@@ -314,13 +314,18 @@ void main() {
 
   group('Separated Studio Sections Tests', () {
     testWidgets('1. CreateContentSubtitlesDubbingSection renders Subtitles and Dubbing section cleanly', (tester) async {
-      final uploadCtrl = Get.put(UploadController());
-      uploadCtrl.selectedChannel.value = createTestChannel();
-      uploadCtrl.videoDurationSeconds.value = 300;
+      late UploadController uploadCtrl;
 
       await pumpPageInHarness(
         tester,
-        CreateContentSubtitlesDubbingSection(uploadController: uploadCtrl),
+        Builder(
+          builder: (context) => CreateContentSubtitlesDubbingSection(uploadController: uploadCtrl),
+        ),
+        onBeforePump: () {
+          uploadCtrl = Get.put(UploadController());
+          uploadCtrl.selectedChannel.value = createTestChannel();
+          uploadCtrl.videoDurationSeconds.value = 300;
+        },
       );
 
       expect(find.text('10. Subtitles and Dubbing'), findsOneWidget);
@@ -330,12 +335,17 @@ void main() {
     });
 
     testWidgets('2. CreateContentTruthVerificationSection renders 11. TruthWorld Verification standalone cleanly', (tester) async {
-      final uploadCtrl = Get.put(UploadController());
-      uploadCtrl.selectedChannel.value = createTestChannel();
+      late UploadController uploadCtrl;
 
       await pumpPageInHarness(
         tester,
-        CreateContentTruthVerificationSection(uploadController: uploadCtrl),
+        Builder(
+          builder: (context) => CreateContentTruthVerificationSection(uploadController: uploadCtrl),
+        ),
+        onBeforePump: () {
+          uploadCtrl = Get.put(UploadController());
+          uploadCtrl.selectedChannel.value = createTestChannel();
+        },
       );
 
       expect(find.text('11. TruthWorld Verification'), findsOneWidget);
@@ -358,11 +368,16 @@ void main() {
     });
 
     testWidgets('3. CreateContentSpeakerDiarizationSection renders 12. Speaker Diarization and toggles', (tester) async {
-      final uploadCtrl = Get.put(UploadController());
+      late UploadController uploadCtrl;
 
       await pumpPageInHarness(
         tester,
-        CreateContentSpeakerDiarizationSection(uploadController: uploadCtrl),
+        Builder(
+          builder: (context) => CreateContentSpeakerDiarizationSection(uploadController: uploadCtrl),
+        ),
+        onBeforePump: () {
+          uploadCtrl = Get.put(UploadController());
+        },
       );
 
       expect(find.text('12. Speaker Diarization'), findsOneWidget);
@@ -376,11 +391,16 @@ void main() {
     });
 
     testWidgets('4. CreateContentAutoChaptersSection renders 13. Auto Chapters and toggles', (tester) async {
-      final uploadCtrl = Get.put(UploadController());
+      late UploadController uploadCtrl;
 
       await pumpPageInHarness(
         tester,
-        CreateContentAutoChaptersSection(uploadController: uploadCtrl),
+        Builder(
+          builder: (context) => CreateContentAutoChaptersSection(uploadController: uploadCtrl),
+        ),
+        onBeforePump: () {
+          uploadCtrl = Get.put(UploadController());
+        },
       );
 
       expect(find.text('13. Auto Chapters'), findsOneWidget);
@@ -405,11 +425,70 @@ void main() {
       );
 
       expect(find.text('Subtitles and Dubbing'), findsWidgets);
-      expect(find.text('AI Subtitles & Translation (130+ Languages)'), findsOneWidget);
-      expect(find.text('AI Audio Translation & Dubbing (70+ Languages)'), findsOneWidget);
+      expect(find.textContaining('AI Subtitles & Translation'), findsOneWidget);
+      expect(find.textContaining('AI Audio Translation & Dubbing'), findsOneWidget);
       expect(find.text('DUBBING IS NOT FREE'), findsOneWidget);
       expect(find.text('Live Pricing Breakdown'), findsOneWidget);
       expect(find.text('Save & Return to Studio'), findsOneWidget);
+    });
+
+    testWidgets('6. CreateContentUnifiedAiSection renders 5 feature chips and directly toggles features cleanly', (tester) async {
+      late UploadController uploadCtrl;
+      await pumpPageInHarness(
+        tester,
+        Builder(
+          builder: (context) => CreateContentUnifiedAiSection(uploadController: uploadCtrl),
+        ),
+        onBeforePump: () {
+          uploadCtrl = Get.put(UploadController());
+          uploadCtrl.selectedChannel.value = createTestChannel();
+          uploadCtrl.videoDurationSeconds.value = 300;
+          uploadCtrl.aiGenerateSubtitles.value = false;
+          uploadCtrl.aiGenerateDubbing.value = false;
+          uploadCtrl.aiFactCheckEnabled.value = false;
+          uploadCtrl.aiDiarizationEnabled.value = false;
+          uploadCtrl.aiChaptersEnabled.value = false;
+          uploadCtrl.isAiFeaturesExpanded.value = false;
+        },
+      );
+
+      // 1. Verify Card Header and all 5 chips
+      expect(find.text('10. AI Features & Intelligence'), findsOneWidget);
+      expect(find.text('AI Studio'), findsOneWidget);
+      expect(find.text('Subtitles'), findsOneWidget);
+      expect(find.text('Dubbing'), findsOneWidget);
+      expect(find.text('Factcheck'), findsOneWidget);
+      expect(find.text('Speaker Diarization'), findsOneWidget);
+      expect(find.text('Auto Chapters'), findsOneWidget);
+
+      // Guidance text visible when no studio languages are chosen yet
+      expect(find.textContaining('Tap Subtitles or Dubbing'), findsOneWidget);
+
+      // 2. Direct toggle Factcheck Chip
+      await tester.tap(find.text('Factcheck'));
+      await tester.pumpAndSettle();
+      expect(uploadCtrl.aiFactCheckEnabled.value, isTrue);
+      expect(find.text('Verified'), findsOneWidget);
+
+      // 3. Direct toggle Speaker Diarization Chip
+      await tester.tap(find.text('Speaker Diarization'));
+      await tester.pumpAndSettle();
+      expect(uploadCtrl.aiDiarizationEnabled.value, isTrue);
+
+      // 4. Direct toggle Auto Chapters Chip
+      await tester.tap(find.text('Auto Chapters'));
+      await tester.pumpAndSettle();
+      expect(uploadCtrl.aiChaptersEnabled.value, isTrue);
+
+      // Verify NO redundant bulky duplicate switches for these 3 features
+      expect(find.text('Truth Verification (Full Ground Truth)'), findsNothing);
+
+      // 5. Simulate configured Subtitles
+      uploadCtrl.aiGenerateSubtitles.value = true;
+      uploadCtrl.aiTranslationLanguages.assignAll(['Telugu', 'Hindi', 'Spanish']);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('AI Subtitles & Captions (3 languages)'), findsOneWidget);
+      expect(find.text('Configure'), findsOneWidget);
     });
   });
 }

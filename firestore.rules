@@ -937,6 +937,12 @@ service cloud.firestore {
       allow write: if false; // Only backend service account can write
     }
 
+    // Progressive Claim Streaming Subcollection (fact checking pipeline — publicly readable, backend write only)
+    match /videos/{videoId}/claims/{claimId} {
+      allow read: if true;
+      allow write: if false; // Strictly server-only; only Firebase Admin SDK / Cloud Functions pipeline writes claim documents
+    }
+
     // Video Transcripts Collection (Root level - pipeline generated, readable by authenticated users)
     match /transcripts/{transcriptId} {
       allow read: if isAuthenticated();

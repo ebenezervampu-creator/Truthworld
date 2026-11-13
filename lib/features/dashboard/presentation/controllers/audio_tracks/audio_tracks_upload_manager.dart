@@ -24,6 +24,7 @@ class AudioTracksUploadManager with ContentValidationMixin {
   final RxBool isUploading = false.obs;
   final RxDouble uploadProgress = 0.0.obs;
   final RxString uploadStatus = ''.obs;
+  final RxString uploadingLanguageCode = ''.obs;
 
   /// Uploads a single audio or video track file with content validation and progress tracking.
   Future<bool> uploadTrackFile({
@@ -56,6 +57,7 @@ class AudioTracksUploadManager with ContentValidationMixin {
     isUploading.value = true;
     uploadProgress.value = 0.0;
     uploadStatus.value = 'Preparing upload...';
+    uploadingLanguageCode.value = langCode;
 
     try {
       final fileBytes =
@@ -174,6 +176,7 @@ class AudioTracksUploadManager with ContentValidationMixin {
       isUploading.value = false;
       uploadProgress.value = 0.0;
       uploadStatus.value = '';
+      uploadingLanguageCode.value = '';
     }
   }
 
@@ -193,6 +196,7 @@ class AudioTracksUploadManager with ContentValidationMixin {
 
     isUploading.value = true;
     uploadProgress.value = 0.0;
+    uploadingLanguageCode.value = langCode;
     uploadStatus.value =
         'Uploading ${getSupportedLanguageName(langCode)} dubbed audio...';
 
@@ -287,6 +291,7 @@ class AudioTracksUploadManager with ContentValidationMixin {
       isUploading.value = false;
       uploadProgress.value = 0.0;
       uploadStatus.value = '';
+      uploadingLanguageCode.value = '';
     }
   }
 

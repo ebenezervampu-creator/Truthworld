@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
 import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
+import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
@@ -424,8 +425,8 @@ class VideoMapParser {
         final raw = data['media'] != null && data['media']['subtitles'] != null
             ? data['media']['subtitles']
             : (data['mediaSubtitles'] ?? data['subtitles']);
+        final res = <String, String>{};
         if (raw is Map) {
-          final res = <String, String>{};
           raw.forEach((k, v) {
             if (k != null) {
               if (v is String && v.isNotEmpty) {
@@ -438,9 +439,26 @@ class VideoMapParser {
               }
             }
           });
-          return res;
         }
-        return const <String, String>{};
+        // Auto-inject original language subtitle if transcriptionUrl or artifacts exist
+        final origLang = (data['language'] as String?)?.trim().isNotEmpty == true
+            ? (data['language'] as String).trim()
+            : 'en';
+        final normOrig = normalizeLanguageCode(origLang);
+        final hasOrig = res.keys.any((k) => normalizeLanguageCode(k) == normOrig);
+        if (!hasOrig) {
+          final candidateUrl = parsedTranscriptUrl.isNotEmpty
+              ? parsedTranscriptUrl
+              : (data['artifacts'] is Map && data['artifacts']['transcription'] is Map
+                  ? ((data['artifacts']['transcription']['srtUrl'] ??
+                      data['artifacts']['transcription']['vttUrl'] ??
+                      data['artifacts']['transcription']['jsonUrl']) as String?) ?? ''
+                  : '');
+          if (candidateUrl.isNotEmpty) {
+            res[origLang] = candidateUrl;
+          }
+        }
+        return res;
       }(),
       dubbedVideos: () {
         final raw = data['media'] != null && data['media']['dubbedVideos'] != null
@@ -624,7 +642,7 @@ class VideoMapParser {
           ? List<Map<String, dynamic>>.from(
               (data['provisionalClaims'] as List)
                   .whereType<Map>()
-                  .map((m) => Map<String, dynamic>.from(m)),
+                  .map(Map<String, dynamic>.from),
             )
           : const [],
       credibilityStatus: data['credibilityStatus']?.toString(),

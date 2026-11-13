@@ -157,7 +157,9 @@ void main() {
       expect(find.text('Generating...'), findsOneWidget);
 
       // 5. Tapping progress opens What's Next details modal
-      await tester.tap(find.textContaining('Step 2 of 4'));
+      await tester.ensureVisible(find.textContaining('Step 2 of 4'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('Step 2 of 4'), warnIfMissed: false);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 

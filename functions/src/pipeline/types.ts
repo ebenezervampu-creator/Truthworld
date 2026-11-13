@@ -2578,6 +2578,7 @@ export interface StageStatus {
   startedAt?: number;
   completedAt?: number;
   error?: string;
+  webhookPending?: boolean;
 }
 
 
@@ -2593,6 +2594,7 @@ export interface UserConfig {
   priority: 'low' | 'normal' | 'high';
   duration?: number; // duration in seconds
   primaryLanguage?: string;
+  spokenLanguages?: string[];
 }
 
 export interface ExecutionPlan {
@@ -2625,6 +2627,7 @@ export interface ExecutionPlan {
   expectedSpeakerCount?: '1' | '2-3' | '4+' | 'not_sure';
   contentFormat?: 'solo' | 'interview' | 'podcast' | 'debate' | 'commentary' | 'general';
   primaryLanguage?: string; // v7.2: Skip auto-detection
+  spokenLanguages?: string[]; // Multilingual / code-mixed spoken languages
   guestNames?: string[];    // v7.2: Persistent identity help
   sensitiveTopics?: ('health' | 'politics' | 'finance' | 'religion' | 'other')[]; // v7.2: Risk-aware scoring
   priorityMode?: 'speed' | 'balanced' | 'accuracy'; // v7.2: Pipeline depth control

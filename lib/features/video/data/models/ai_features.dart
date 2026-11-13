@@ -102,6 +102,72 @@ class AIFeatures {
 /// Language categories for UI grouping.
 enum LanguageCategory { global, indian, other }
 
+/// Model for a supported spoken video language (Speech-to-Text / Chirp v2 / Universal-3).
+class SpokenLanguageInfo {
+  const SpokenLanguageInfo({
+    required this.code,
+    required this.name,
+    required this.nativeName,
+    required this.region,
+  });
+
+  final String code;
+  final String name;
+  final String nativeName;
+  final String region; // 'indic', 'global', 'asian', 'european', 'middle_east_africa'
+}
+
+/// All 39 spoken languages supported by TruthWorld STT pipeline:
+/// - Sarvam AI Saaras v4 (22 Indic languages + English)
+/// - AssemblyAI Universal-3.5 Pro (18 Global languages + Hindi & English)
+const List<SpokenLanguageInfo> allSpokenLanguages = [
+  // Auto
+  SpokenLanguageInfo(code: 'auto', name: 'Auto-Detect', nativeName: 'Auto (Universal-3.5 & Sarvam)', region: 'global'),
+
+  // 22 Indic Languages (Sarvam AI Saaras v4)
+  SpokenLanguageInfo(code: 'te', name: 'Telugu', nativeName: 'తెలుగు', region: 'indic'),
+  SpokenLanguageInfo(code: 'hi', name: 'Hindi', nativeName: 'हिन्दी', region: 'indic'),
+  SpokenLanguageInfo(code: 'ta', name: 'Tamil', nativeName: 'தமிழ்', region: 'indic'),
+  SpokenLanguageInfo(code: 'kn', name: 'Kannada', nativeName: 'ಕನ್ನಡ', region: 'indic'),
+  SpokenLanguageInfo(code: 'ml', name: 'Malayalam', nativeName: 'മലയാളം', region: 'indic'),
+  SpokenLanguageInfo(code: 'bn', name: 'Bengali', nativeName: 'বাংলা', region: 'indic'),
+  SpokenLanguageInfo(code: 'mr', name: 'Marathi', nativeName: 'मराठी', region: 'indic'),
+  SpokenLanguageInfo(code: 'gu', name: 'Gujarati', nativeName: 'ગુજરાતી', region: 'indic'),
+  SpokenLanguageInfo(code: 'pa', name: 'Punjabi', nativeName: 'ਪੰਜਾਬੀ', region: 'indic'),
+  SpokenLanguageInfo(code: 'or', name: 'Odia', nativeName: 'ଓଡ଼ିଆ', region: 'indic'),
+  SpokenLanguageInfo(code: 'as', name: 'Assamese', nativeName: 'অসমীয়া', region: 'indic'),
+  SpokenLanguageInfo(code: 'ur', name: 'Urdu', nativeName: 'اردو', region: 'indic'),
+  SpokenLanguageInfo(code: 'sa', name: 'Sanskrit', nativeName: 'संस्कृतम्', region: 'indic'),
+  SpokenLanguageInfo(code: 'ne', name: 'Nepali', nativeName: 'नेपाली', region: 'indic'),
+  SpokenLanguageInfo(code: 'sd', name: 'Sindhi', nativeName: 'سنڌي', region: 'indic'),
+  SpokenLanguageInfo(code: 'ks', name: 'Kashmiri', nativeName: 'कॉशुर', region: 'indic'),
+  SpokenLanguageInfo(code: 'kok', name: 'Konkani', nativeName: 'कोंकणी', region: 'indic'),
+  SpokenLanguageInfo(code: 'doi', name: 'Dogri', nativeName: 'डोगरी', region: 'indic'),
+  SpokenLanguageInfo(code: 'mai', name: 'Maithili', nativeName: 'मैथिली', region: 'indic'),
+  SpokenLanguageInfo(code: 'bho', name: 'Bhojpuri', nativeName: 'भोजपुरी', region: 'indic'),
+  SpokenLanguageInfo(code: 'sat', name: 'Santali', nativeName: 'संताली', region: 'indic'),
+  SpokenLanguageInfo(code: 'brx', name: 'Bodo', nativeName: 'बड़ो', region: 'indic'),
+
+  // 17 Global & World Languages (AssemblyAI Universal-3.5 Pro)
+  SpokenLanguageInfo(code: 'en', name: 'English', nativeName: 'English', region: 'global'),
+  SpokenLanguageInfo(code: 'es', name: 'Spanish', nativeName: 'Español', region: 'global'),
+  SpokenLanguageInfo(code: 'fr', name: 'French', nativeName: 'Français', region: 'global'),
+  SpokenLanguageInfo(code: 'de', name: 'German', nativeName: 'Deutsch', region: 'global'),
+  SpokenLanguageInfo(code: 'it', name: 'Italian', nativeName: 'Italiano', region: 'european'),
+  SpokenLanguageInfo(code: 'pt', name: 'Portuguese', nativeName: 'Português', region: 'global'),
+  SpokenLanguageInfo(code: 'ar', name: 'Arabic', nativeName: 'العربية', region: 'middle_east_africa'),
+  SpokenLanguageInfo(code: 'zh', name: 'Chinese', nativeName: '中文 (普通话)', region: 'asian'),
+  SpokenLanguageInfo(code: 'ja', name: 'Japanese', nativeName: '日本語', region: 'asian'),
+  SpokenLanguageInfo(code: 'nl', name: 'Dutch', nativeName: 'Nederlands', region: 'european'),
+  SpokenLanguageInfo(code: 'tr', name: 'Turkish', nativeName: 'Türkçe', region: 'middle_east_africa'),
+  SpokenLanguageInfo(code: 'vi', name: 'Vietnamese', nativeName: 'Tiếng Việt', region: 'asian'),
+  SpokenLanguageInfo(code: 'he', name: 'Hebrew', nativeName: 'עברית', region: 'middle_east_africa'),
+  SpokenLanguageInfo(code: 'sv', name: 'Swedish', nativeName: 'Svenska', region: 'european'),
+  SpokenLanguageInfo(code: 'da', name: 'Danish', nativeName: 'Dansk', region: 'european'),
+  SpokenLanguageInfo(code: 'no', name: 'Norwegian', nativeName: 'Norsk', region: 'european'),
+  SpokenLanguageInfo(code: 'fi', name: 'Finnish', nativeName: 'Suomi', region: 'european'),
+];
+
 /// Supported languages for translation.
 class TranslationLanguage {
   const TranslationLanguage({
@@ -800,7 +866,7 @@ String normalizeLanguageCode(String? raw) {
 
   // If contains locale delimiter like en_us or en-US, extract base language code
   if (clean.contains('_') || clean.contains('-')) {
-    final base = clean.split(RegExp(r'[-_]')).first.toLowerCase();
+    final base = clean.split(RegExp('[-_]')).first.toLowerCase();
     if (base.length >= 2 && base.length <= 3) {
       clean = base;
     }

@@ -9,13 +9,13 @@ import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/data/models/channel.dart';
-import 'package:truthworld/data/models/channel_wallet_models.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles/subtitle_cue_model.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
-export 'package:truthworld/features/video/data/models/ai_features.dart' show normalizeLanguageCode;
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:video_player/video_player.dart';
+
+export 'package:truthworld/features/video/data/models/ai_features.dart' show normalizeLanguageCode;
 
 /// Base state and properties for SubtitlesController
 abstract class SubtitlesControllerBase extends BaseController
@@ -46,9 +46,13 @@ abstract class SubtitlesControllerBase extends BaseController
           .get();
       if (chanDoc.exists && chanDoc.data() != null) {
         final chan = Channel.fromMap(chanDoc.data()!, chanDoc.id);
-        currentChannel.value = chan;
+        safeStateAction(() {
+          currentChannel.value = chan;
+        });
         final bal = await ChannelWalletService().getSpendableBalanceForChannelId(chan.id);
-        spendableBalance.value = bal;
+        safeStateAction(() {
+          spendableBalance.value = bal;
+        });
       }
     } catch (e) {
       logger.warning('Could not refresh spendable balance: $e', tag: subtitlesTag);
@@ -144,16 +148,32 @@ abstract class SubtitlesControllerBase extends BaseController
     if (video == null) return false;
     final subs = video.mediaSubtitles;
     final normCode = normalizeLanguageCode(code);
-    final isBaseTrack = normCode == normalizeLanguageCode(video.language);
-    return (subs.containsKey(code) && (subs[code]?.isNotEmpty ?? false)) ||
+    final isBaseTrack = normCode == normalizeLanguageCode(video.language.isNotEmpty ? video.language : 'en');
+    if ((subs.containsKey(code) && (subs[code]?.isNotEmpty ?? false)) ||
         (subs.containsKey(normCode) && (subs[normCode]?.isNotEmpty ?? false)) ||
-        (subs.containsKey(video.language) && (subs[video.language]?.isNotEmpty ?? false) && isBaseTrack);
+        (subs.containsKey(video.language) && (subs[video.language]?.isNotEmpty ?? false) && isBaseTrack)) {
+      return true;
+    }
+
+    final resolved = resolveSubtitleUrlForLanguage(video, code);
+    if (resolved != null && resolved.trim().isNotEmpty) {
+      return true;
+    }
+
+    if (isBaseTrack) {
+      if (video.transcriptionUrl.isNotEmpty) return true;
+      if (selectedLanguage.value == code && currentCues.isNotEmpty) return true;
+    }
+
+    return false;
   }
 
   bool get hasAnyPublishedSubtitles {
     final video = selectedVideo.value;
     if (video == null) return false;
-    return video.mediaSubtitles.values.any((s) => s.isNotEmpty);
+    return video.mediaSubtitles.values.any((s) => s.isNotEmpty) ||
+        video.transcriptionUrl.isNotEmpty ||
+        hasPublishedSubtitles(video.language);
   }
 
   List<String> get availableLanguagesWithSubtitles {
@@ -166,6 +186,10 @@ abstract class SubtitlesControllerBase extends BaseController
       if (val != null && val.isNotEmpty && !res.contains(code)) {
         res.add(code);
       }
+    }
+    final baseLang = normalizeLanguageCode(video.language.isNotEmpty ? video.language : 'en');
+    if (!res.contains(baseLang) && hasPublishedSubtitles(baseLang)) {
+      res.add(baseLang);
     }
     return res;
   }
@@ -290,6 +314,7 @@ abstract class SubtitlesControllerBase extends BaseController
   Future<void> parseCuesForLanguage(String langCode, String? urlOrData);
   Future<void> initVideoPlayer(Video video);
   void disposeVideoPlayer();
+  String? resolveSubtitleUrlForLanguage(Video video, String langCode);
 
   static String formatDurationToTimecode(Duration duration) {
     final h = duration.inHours.toString().padLeft(2, '0');

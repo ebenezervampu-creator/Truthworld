@@ -23,8 +23,9 @@ class WatchTimePage extends StatelessWidget {
     final videoTitle = args['videoTitle'] as String? ?? '';
     final initialWatchTime = args['watchTime'] as String? ?? '';
 
-    // Immediately seed initial watch time if available to prevent showing 0 mins
-    if (initialWatchTime.isNotEmpty &&
+    // Immediately seed initial watch time if available to prevent showing 0 mins (only for channel)
+    if (videoId.isEmpty &&
+        initialWatchTime.isNotEmpty &&
         (controller.totalWatchTime.value == '0 mins' ||
             controller.totalWatchTime.value == '0h' ||
             controller.totalWatchTime.value.isEmpty)) {
@@ -169,10 +170,18 @@ class WatchTimePage extends StatelessWidget {
         children: [
           Obx(() {
             final isVideo = controller.selectedVideoId.value.isNotEmpty;
-            final videoTitle = controller.videoAnalytics.value?.title ?? '';
+            final currentVideo = isVideo
+                ? controller.channelVideos.firstWhereOrNull(
+                    (v) => v.id == controller.selectedVideoId.value,
+                  )
+                : null;
+            final videoTitle = (controller.videoAnalytics.value?.title.isNotEmpty == true)
+                ? controller.videoAnalytics.value!.title
+                : (currentVideo?.title ?? (args['videoTitle'] as String? ?? ''));
+
             return Text(
-              isVideo && videoTitle.isNotEmpty
-                  ? videoTitle
+              isVideo
+                  ? (videoTitle.isNotEmpty ? videoTitle : 'Video Watch Time')
                   : 'Total Watch Time',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -192,48 +201,35 @@ class WatchTimePage extends StatelessWidget {
               final currentVideo = controller.channelVideos.firstWhereOrNull(
                 (v) => v.id == controller.selectedVideoId.value,
               );
-              final expectedSeconds = (currentVideo != null && currentVideo.totalWatchTimeSeconds > 0)
-                  ? currentVideo.totalWatchTimeSeconds
-                  : (controller.videoAnalytics.value?.totalWatchTimeSeconds ?? 0);
+              final vAnalytics = controller.videoAnalytics.value;
+              final isMatchingVideoAnalytics =
+                  vAnalytics != null && vAnalytics.videoId == controller.selectedVideoId.value;
 
-              if (expectedSeconds > 0) {
-                final currentSeconds =
-                    controller.videoAnalytics.value?.totalWatchTimeSeconds ?? 0;
-                if ((displayTime.isEmpty ||
-                        displayTime == '0 mins' ||
-                        displayTime == '0h' ||
-                        displayTime == '0.0h') ||
-                    currentSeconds == 0 ||
-                    currentSeconds < expectedSeconds ||
-                    currentSeconds > expectedSeconds) {
-                  displayTime = WatchTimeFormatter.format(expectedSeconds);
-                }
-              }
-            } else if (controller.channelVideos.isNotEmpty) {
-              final totalSec = controller.channelVideos.fold<int>(
+              final videoSeconds = math.max(
+                currentVideo?.totalWatchTimeSeconds ?? 0,
+                isMatchingVideoAnalytics ? vAnalytics.totalWatchTimeSeconds : 0,
+              );
+              displayTime = WatchTimeFormatter.format(videoSeconds);
+            } else {
+              // Channel mode
+              final cAnalytics = controller.channelAnalytics.value;
+              final channelSecFromAnalytics = cAnalytics?.totalWatchTimeSeconds ?? 0;
+              final channelSecFromVideos = controller.channelVideos.fold<int>(
                 0,
                 (sum, v) => sum + v.totalWatchTimeSeconds,
               );
-              if ((displayTime.isEmpty ||
-                      displayTime == '0 mins' ||
-                      displayTime == '0h' ||
-                      displayTime == '0.0h') &&
-                  totalSec > 0) {
-                displayTime = WatchTimeFormatter.format(totalSec);
-              } else if (totalSec > 0) {
-                final currentSeconds =
-                    controller.channelAnalytics.value?.totalWatchTimeSeconds ?? 0;
-                final bestSec = math.max(currentSeconds, totalSec);
-                displayTime = WatchTimeFormatter.format(bestSec);
-              }
-            }
+              final bestChannelSec = math.max(channelSecFromAnalytics, channelSecFromVideos);
 
-            if ((displayTime.isEmpty ||
-                    displayTime == '0 mins' ||
-                    displayTime == '0h' ||
-                    displayTime == '0.0h') &&
-                initialWatchTime.isNotEmpty) {
-              displayTime = initialWatchTime;
+              if (bestChannelSec > 0) {
+                displayTime = WatchTimeFormatter.format(bestChannelSec);
+              } else if (displayTime.isEmpty ||
+                  displayTime == '0 mins' ||
+                  displayTime == '0h' ||
+                  displayTime == '0.0h') {
+                if (initialWatchTime.isNotEmpty) {
+                  displayTime = initialWatchTime;
+                }
+              }
             }
 
             return Text(
@@ -362,9 +358,12 @@ class WatchTimePage extends StatelessWidget {
             onTap: () {
               if (isSelected) {
                 controller.selectedVideoId.value = '';
-                controller.loadChannelAnalytics(
-                  controller.selectedChannelId.value,
-                );
+                final targetChan = controller.selectedChannelId.value.isNotEmpty
+                    ? controller.selectedChannelId.value
+                    : video.channelId;
+                if (targetChan.isNotEmpty) {
+                  controller.loadChannelAnalytics(targetChan);
+                }
               } else {
                 controller.selectedVideoId.value = video.id;
                 controller.loadVideoAnalytics(video.id, videoTitle: video.title);
@@ -378,20 +377,34 @@ class WatchTimePage extends StatelessWidget {
 
   Widget _buildInsightsGrid(CreatorAnalyticsController controller) {
     return Obx(() {
-      var avgDuration = controller.averageWatchTime.value;
-      if (avgDuration == '0s' || avgDuration == '0:00' || avgDuration.isEmpty) {
-        if (controller.selectedVideoId.value.isNotEmpty) {
-          final v = controller.channelVideos.firstWhereOrNull((v) => v.id == controller.selectedVideoId.value);
-          if (v != null && v.totalWatchTimeSeconds > 0 && v.viewCount > 0) {
-            avgDuration = CreatorGeoTaxonomyHelper.formatSeconds((v.totalWatchTimeSeconds / v.viewCount).round());
-          }
-        } else if (controller.channelVideos.isNotEmpty) {
-          final totalSec = controller.channelVideos.fold<int>(0, (s, v) => s + v.totalWatchTimeSeconds);
-          final totalV = controller.channelVideos.fold<int>(0, (s, v) => s + v.viewCount);
-          if (totalSec > 0 && totalV > 0) {
-            avgDuration = CreatorGeoTaxonomyHelper.formatSeconds((totalSec / totalV).round());
+      var avgDuration = '0s';
+      var returningViewers = 0;
+
+      if (controller.selectedVideoId.value.isNotEmpty) {
+        final currentVideo = controller.channelVideos.firstWhereOrNull(
+          (v) => v.id == controller.selectedVideoId.value,
+        );
+        final vAnalytics = controller.videoAnalytics.value;
+        final isMatching = vAnalytics != null && vAnalytics.videoId == controller.selectedVideoId.value;
+
+        if (isMatching && vAnalytics.averageWatchDuration > 0) {
+          avgDuration = CreatorGeoTaxonomyHelper.formatSeconds(vAnalytics.averageWatchDuration.toInt());
+          returningViewers = vAnalytics.returningViewers;
+        } else if (currentVideo != null && currentVideo.totalWatchTimeSeconds > 0 && currentVideo.viewCount > 0) {
+          avgDuration = CreatorGeoTaxonomyHelper.formatSeconds((currentVideo.totalWatchTimeSeconds / currentVideo.viewCount).round());
+        }
+      } else {
+        avgDuration = controller.averageWatchTime.value;
+        if (avgDuration == '0s' || avgDuration == '0:00' || avgDuration.isEmpty) {
+          if (controller.channelVideos.isNotEmpty) {
+            final totalSec = controller.channelVideos.fold<int>(0, (s, v) => s + v.totalWatchTimeSeconds);
+            final totalV = controller.channelVideos.fold<int>(0, (s, v) => s + v.viewCount);
+            if (totalSec > 0 && totalV > 0) {
+              avgDuration = CreatorGeoTaxonomyHelper.formatSeconds((totalSec / totalV).round());
+            }
           }
         }
+        returningViewers = controller.returningViewerCount.value;
       }
 
       return GridView.count(
@@ -410,7 +423,7 @@ class WatchTimePage extends StatelessWidget {
           ),
           _buildInsightItem(
             'Returning',
-            '${controller.returningViewerCount.value}',
+            '$returningViewers',
             Icons.person_add,
             const Color(0xFFEC4899),
           ),

@@ -227,7 +227,7 @@ export class MemoryCollectionRef {
   private _wheres: Array<{ field: string; op: string; val: any }> = [];
   private _orderBys: Array<{ field: string; dir: 'asc' | 'desc' }> = [];
   private _limit?: number;
-  private _startAfterDoc?: MemorySnapshot;
+  private _startAfterDocId?: string;
 
   constructor(
     public readonly path: string,
@@ -265,9 +265,23 @@ export class MemoryCollectionRef {
     return clone;
   }
 
-  startAfter(doc: MemorySnapshot): MemoryCollectionRef {
+  startAfter(...args: any[]): MemoryCollectionRef {
     const clone = this.clone();
-    clone._startAfterDoc = doc;
+    if (args.length > 0) {
+      const first = args[0];
+      if (first instanceof MemorySnapshot) {
+        clone._startAfterDocId = first.id;
+      } else {
+        const last = args[args.length - 1];
+        if (typeof last === 'string') {
+          clone._startAfterDocId = last;
+        } else if (typeof first === 'string') {
+          clone._startAfterDocId = first;
+        } else if (first && typeof first.id === 'string') {
+          clone._startAfterDocId = first.id;
+        }
+      }
+    }
     return clone;
   }
 
@@ -336,8 +350,8 @@ export class MemoryCollectionRef {
     }
 
     // 4. Handle pagination (startAfter)
-    if (this._startAfterDoc) {
-      const idx = filtered.findIndex((d) => d.id === this._startAfterDoc!.id);
+    if (this._startAfterDocId) {
+      const idx = filtered.findIndex((d) => d.id === this._startAfterDocId);
       if (idx !== -1) {
         filtered = filtered.slice(idx + 1);
       }
@@ -356,7 +370,7 @@ export class MemoryCollectionRef {
     clone._wheres = [...this._wheres];
     clone._orderBys = [...this._orderBys];
     clone._limit = this._limit;
-    clone._startAfterDoc = this._startAfterDoc;
+    clone._startAfterDocId = this._startAfterDocId;
     return clone;
   }
 }
@@ -458,6 +472,12 @@ export class InMemoryFirestore {
       out[k] = v;
     }
     return out;
+  }
+}
+
+export class FieldPath {
+  static documentId(): string {
+    return '__name__';
   }
 }
 

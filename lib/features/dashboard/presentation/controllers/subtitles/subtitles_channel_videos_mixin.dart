@@ -6,7 +6,6 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles/subtitles_controller_base.dart';
-import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
@@ -216,17 +215,24 @@ mixin SubtitlesChannelVideosMixin on SubtitlesControllerBase {
     // Parse existing mediaSubtitles map
     final subs = Map<String, String>.from(video.mediaSubtitles);
 
+    final primaryLang = normalizeLanguageCode(video.language.isNotEmpty ? video.language : 'en');
+
     // If local mediaSubtitles is empty, await localization subcollection; otherwise load in parallel
     if (subs.isEmpty) {
       final loc = await VideoMediaService().getLocalization(video.id);
       if (loc.subtitles.isNotEmpty) {
         subs.addAll(loc.subtitles);
-        selectedVideo.value = video.copyWith(mediaSubtitles: subs);
       }
     } else {
       unawaited(VideoMediaService().getLocalization(video.id).then((loc) {
         if (loc.subtitles.isNotEmpty && selectedVideo.value?.id == video.id) {
           final mergedSubs = Map<String, String>.from(selectedVideo.value!.mediaSubtitles)..addAll(loc.subtitles);
+          if (!mergedSubs.containsKey(primaryLang) && !mergedSubs.containsKey(video.language)) {
+            final origUrl = resolveSubtitleUrlForLanguage(video, primaryLang);
+            if (origUrl != null && origUrl.isNotEmpty) {
+              mergedSubs[primaryLang] = origUrl;
+            }
+          }
           selectedVideo.value = selectedVideo.value!.copyWith(mediaSubtitles: mergedSubs);
           for (final lang in loc.subtitles.keys) {
             final code = normalizeLanguageCode(lang);
@@ -237,6 +243,15 @@ mixin SubtitlesChannelVideosMixin on SubtitlesControllerBase {
         }
       }));
     }
+
+    // Ensure primary language subtitle track is populated if ready
+    if (!subs.containsKey(primaryLang) && !subs.containsKey(video.language)) {
+      final origUrl = resolveSubtitleUrlForLanguage(video, primaryLang);
+      if (origUrl != null && origUrl.isNotEmpty) {
+        subs[primaryLang] = origUrl;
+      }
+    }
+    selectedVideo.value = video.copyWith(mediaSubtitles: subs);
 
     final orderedLangs = getOrderedLanguagesForVideo(video, subs);
 
@@ -303,7 +318,7 @@ mixin SubtitlesChannelVideosMixin on SubtitlesControllerBase {
     if (orderedLangs.isEmpty) return 'en';
 
     final primaryLang = normalizeLanguageCode(video.language);
-    String defaultLang = orderedLangs.first;
+    var defaultLang = orderedLangs.first;
     final hasPrimarySubs = primaryLang.isNotEmpty &&
         (subs.containsKey(primaryLang) ||
             subs.containsKey(video.language) ||
@@ -332,12 +347,13 @@ mixin SubtitlesChannelVideosMixin on SubtitlesControllerBase {
 
   /// Resolves the subtitle URL for the specified language track.
   /// Falls back to the video's original transcriptionUrl ONLY if this track is the video's original spoken language.
+  @override
   String? resolveSubtitleUrlForLanguage(Video video, String langCode) {
     final normCode = normalizeLanguageCode(langCode);
     final subs = video.mediaSubtitles;
 
     // 1. Direct or normalized match in mediaSubtitles
-    String? subUrl = subs[langCode] ?? subs[normCode];
+    var subUrl = subs[langCode] ?? subs[normCode];
     if (subUrl == null || subUrl.isEmpty) {
       for (final entry in subs.entries) {
         if (normalizeLanguageCode(entry.key) == normCode &&
@@ -357,6 +373,20 @@ mixin SubtitlesChannelVideosMixin on SubtitlesControllerBase {
           (videoLangCode == 'en' && normCode == 'en');
       if (isOriginalLang && video.transcriptionUrl.isNotEmpty) {
         subUrl = video.transcriptionUrl;
+      }
+    }
+
+    // 3. In-memory localization cache check
+    if (subUrl == null || subUrl.isEmpty) {
+      final locSubs = VideoMediaService.localizationCache[video.id]?.subtitles ?? const {};
+      subUrl = locSubs[langCode] ?? locSubs[normCode];
+      if (subUrl == null || subUrl.isEmpty) {
+        for (final entry in locSubs.entries) {
+          if (normalizeLanguageCode(entry.key) == normCode && entry.value.isNotEmpty) {
+            subUrl = entry.value;
+            break;
+          }
+        }
       }
     }
 
@@ -435,7 +465,7 @@ mixin SubtitlesChannelVideosMixin on SubtitlesControllerBase {
 
     final targetLang = selectedLanguage.value;
     final video = selectedVideo.value;
-    final String? subUrl = video != null
+    final subUrl = video != null
         ? resolveSubtitleUrlForLanguage(video, targetLang)
         : null;
 

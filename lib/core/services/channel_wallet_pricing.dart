@@ -72,27 +72,44 @@ class ChannelWalletPricing {
   /// - Video Pro: $0.40 / min ($4.00 for 10-minute video)
   /// - Video Ultra (Hollywood Cinema Grade): $0.50 / min ($5.00 for 10-minute video)
   /// Transparent proportional per-minute pricing rate card:
-  /// - Audio Track (Studio Voice Cloning & 100% BGM Preservation): $0.30 / min ($3.00 for 10-minute video)
+  /// - Audio Starter: $0.10 / min ($1.00 for 10-minute video)
+  /// - Audio Pro: $0.20 / min ($2.00 for 10-minute video)
+  /// - Audio Track / Ultra (Studio Voice Cloning & 100% BGM Preservation): $0.30 / min ($3.00 for 10-minute video)
+  /// - Video Pro: $0.40 / min ($4.00 for 10-minute video)
+  /// - Video Ultra (Cinema Grade): $0.50 / min ($5.00 for 10-minute video)
   static const double perMinuteAudioTrackRate = 0.30;
 
-  // Backward-compatibility aliases
+  // Tier-specific rates ($0.30/min baseline for ElevenLabs v4 Studio Dubbing)
   static const double perMinuteAudioStarterRate = 0.30;
   static const double perMinuteAudioProRate = 0.30;
   static const double perMinuteAudioUltraRate = 0.30;
-  static const double perMinuteVideoProRate = 0.30;
-  static const double perMinuteVideoUltraRate = 0.30;
+  static const double perMinuteVideoProRate = 0.40;
+  static const double perMinuteVideoUltraRate = 0.50;
 
-  // Legacy aliases for backward compatibility
+  // Legacy aliases for backward compatibility ($0.30/min baseline)
   static const double perMinuteStandardDubbingRate = 0.30;
   static const double perMinuteVoiceCloneRate = 0.30;
-  static const double perMinuteLipSyncRate = 0.0;
+  static const double perMinuteLipSyncRate = 0.30;
 
   /// Production-Ready Dubbing Tiers Catalog
   static const List<DubbingProductionTier> productionTiers = DubbingProductionTier.allTiers;
 
   /// Resolve the per-minute rate for a given tier ID
   static double getTierRatePerMinute(String tierId) {
-    return perMinuteAudioTrackRate;
+    switch (tierId) {
+      case 'audio_starter':
+        return perMinuteAudioStarterRate;
+      case 'audio_pro':
+        return perMinuteAudioProRate;
+      case 'video_pro':
+        return perMinuteVideoProRate;
+      case 'video_ultra':
+        return perMinuteVideoUltraRate;
+      case 'audio_ultra':
+      case 'audio_track':
+      default:
+        return perMinuteAudioTrackRate;
+    }
   }
 
   /// Get the flat dubbing rate per language based on tier and duration.
@@ -118,9 +135,9 @@ class ChannelWalletPricing {
     double? discountPercent,
   }) {
     if (languageCount <= 0) return 0.0;
-    final effDiscount = (discountPercent != null
-            ? discountPercent
-            : (channel?.effectiveDubbingDiscountPercent ?? 0.0))
+    final effDiscount = (discountPercent ??
+            channel?.effectiveDubbingDiscountPercent ??
+            0.0)
         .clamp(0.0, 100.0);
 
     if (effDiscount >= 100.0 || (channel != null && channel.isDubbingFree)) {
@@ -137,52 +154,52 @@ class ChannelWalletPricing {
     return double.parse(baseCost.toStringAsFixed(2));
   }
 
-  /// Duration tier references for display, grouping, and ceiling calculation
+  /// Duration tier references for display, grouping, and ceiling calculation ($0.30/min baseline)
   static const List<DubbingDurationTier> dubbingDurationTiers = [
     DubbingDurationTier(
       id: 'tier_shorts',
       name: 'Shorts & Clips',
       durationLabel: '≤ 60s (Up to 1 min)',
       maxSeconds: 60,
-      standardFlatRatePerLanguage: 0.10,
-      customFlatRatePerLanguage: 0.10,
-      voiceCloneRatePerLanguage: 0.20,
+      standardFlatRatePerLanguage: 0.30,
+      customFlatRatePerLanguage: 0.30,
+      voiceCloneRatePerLanguage: 0.30,
     ),
     DubbingDurationTier(
       id: 'tier_mini',
       name: 'Mini Video',
       durationLabel: '1 to 5 mins (61s – 300s)',
       maxSeconds: 300,
-      standardFlatRatePerLanguage: 0.50,
-      customFlatRatePerLanguage: 0.50,
-      voiceCloneRatePerLanguage: 1.00,
+      standardFlatRatePerLanguage: 1.50,
+      customFlatRatePerLanguage: 1.50,
+      voiceCloneRatePerLanguage: 1.50,
     ),
     DubbingDurationTier(
       id: 'tier_standard',
       name: 'Standard Video',
       durationLabel: '5 to 10 mins (301s – 600s)',
       maxSeconds: 600,
-      standardFlatRatePerLanguage: 1.00,
-      customFlatRatePerLanguage: 1.00,
-      voiceCloneRatePerLanguage: 2.00,
+      standardFlatRatePerLanguage: 3.00,
+      customFlatRatePerLanguage: 3.00,
+      voiceCloneRatePerLanguage: 3.00,
     ),
     DubbingDurationTier(
       id: 'tier_extended',
       name: 'Extended Video',
       durationLabel: '10 to 30 mins (601s – 1800s)',
       maxSeconds: 1800,
-      standardFlatRatePerLanguage: 3.00,
-      customFlatRatePerLanguage: 3.00,
-      voiceCloneRatePerLanguage: 6.00,
+      standardFlatRatePerLanguage: 9.00,
+      customFlatRatePerLanguage: 9.00,
+      voiceCloneRatePerLanguage: 9.00,
     ),
     DubbingDurationTier(
       id: 'tier_longform',
       name: 'Long-Form Video',
       durationLabel: '30 to 60 mins (1801s – 3600s)',
       maxSeconds: 3600,
-      standardFlatRatePerLanguage: 6.00,
-      customFlatRatePerLanguage: 6.00,
-      voiceCloneRatePerLanguage: 12.00,
+      standardFlatRatePerLanguage: 18.00,
+      customFlatRatePerLanguage: 18.00,
+      voiceCloneRatePerLanguage: 18.00,
     ),
   ];
 
@@ -217,22 +234,22 @@ class ChannelWalletPricing {
     return dubbingDurationTiers[4];
   }
 
-  /// Base rates per minute
-  static const double standardDubbingRatePerLanguage = 0.10;
-  static const double standardDubbingMinCost = 0.10;
-  static const double standardDubbingCapCost = 10.00;
+  /// Base rates per minute ($0.30/min baseline)
+  static const double standardDubbingRatePerLanguage = 0.30;
+  static const double standardDubbingMinCost = 0.30;
+  static const double standardDubbingCapCost = 30.00;
 
-  static const double customDubbingRatePerLanguage = 0.10;
-  static const double customDubbingMinCost = 0.10;
-  static const double customDubbingCapCost = 10.00;
+  static const double customDubbingRatePerLanguage = 0.30;
+  static const double customDubbingMinCost = 0.30;
+  static const double customDubbingCapCost = 30.00;
 
-  static const double standardVoiceCloneRatePerLanguage = 0.20;
-  static const double standardVoiceCloneMinCost = 0.20;
-  static const double standardVoiceCloneCapCost = 20.00;
+  static const double standardVoiceCloneRatePerLanguage = 0.30;
+  static const double standardVoiceCloneMinCost = 0.30;
+  static const double standardVoiceCloneCapCost = 30.00;
 
-  static const double customVoiceCloneRatePerLanguage = 0.20;
-  static const double customVoiceCloneMinCost = 0.20;
-  static const double customVoiceCloneCapCost = 20.00;
+  static const double customVoiceCloneRatePerLanguage = 0.30;
+  static const double customVoiceCloneMinCost = 0.30;
+  static const double customVoiceCloneCapCost = 30.00;
 
   /// Get dubbing rate per language based on channel type and voice synthesis mode
   static double getDubbingRatePerLanguage(
@@ -289,9 +306,9 @@ class ChannelWalletPricing {
     if (languageCount <= 0) return 0.0;
 
     // Resolve applicable discount (Super Admin benefit)
-    final effDiscount = (discountPercent != null
-            ? discountPercent
-            : (channel?.effectiveDubbingDiscountPercent ?? 0.0))
+    final effDiscount = (discountPercent ??
+            channel?.effectiveDubbingDiscountPercent ??
+            0.0)
         .clamp(0.0, 100.0);
 
     if (effDiscount >= 100.0 || (channel != null && channel.isDubbingFree)) {
@@ -422,16 +439,16 @@ class ChannelWalletPricing {
 
   /// Calculate total cost for Subtitles (Ultra tier default)
   static double calculateSubtitleTierCost({
-    String tierId = 'ultra', // 'ultra'
     required int languageCount,
     required int durationSeconds,
+    String tierId = 'ultra', // 'ultra'
     Channel? channel,
     double? discountPercent,
   }) {
     if (languageCount <= 0) return 0.0;
-    final effDiscount = (discountPercent != null
-            ? discountPercent
-            : (channel?.effectiveSubtitlesDiscountPercent ?? 0.0))
+    final effDiscount = (discountPercent ??
+            channel?.effectiveSubtitlesDiscountPercent ??
+            0.0)
         .clamp(0.0, 100.0);
 
     if (effDiscount >= 100.0 || (channel != null && channel.isSubtitlesFree)) {
@@ -483,14 +500,41 @@ class ChannelWalletPricing {
     ChannelType channelType = ChannelType.standard,
     Channel? channel,
     double? discountPercent,
-    String tierId = 'ultra',
+    String? tierId,
   }) {
-    return calculateSubtitleTierCost(
-      tierId: tierId,
-      languageCount: languageCount,
-      durationSeconds: durationSeconds,
-      channel: channel,
-      discountPercent: discountPercent,
+    if (languageCount <= 0) return 0.0;
+    final isCustom = channelType == ChannelType.custom;
+    final minCost = isCustom ? customSubtitleMinCost : standardSubtitleMinCost;
+
+    if (tierId != null && tierId != 'ultra' && tierId != 'default' && tierId != 'starter') {
+      return calculateSubtitleTierCost(
+        tierId: tierId,
+        languageCount: languageCount,
+        durationSeconds: durationSeconds,
+        channel: channel,
+        discountPercent: discountPercent,
+      );
+    }
+
+    if (durationSeconds > 0) {
+      final tier = getSubtitleDurationTier(durationSeconds);
+      final rate = isCustom ? tier.customFlatRatePerLanguage : tier.standardFlatRatePerLanguage;
+      final rawCost = languageCount * rate;
+      final effDiscount = (discountPercent ??
+              channel?.effectiveSubtitlesDiscountPercent ??
+              0.0)
+          .clamp(0.0, 100.0);
+      if (effDiscount >= 100.0 || (channel != null && channel.isSubtitlesFree)) {
+        return 0.0;
+      }
+      final discounted = effDiscount > 0.0 ? rawCost * (1.0 - (effDiscount / 100.0)) : rawCost;
+      return double.parse(math.max(minCost, discounted).toStringAsFixed(2));
+    }
+
+    final rate = isCustom ? customSubtitleRatePerLanguage : standardSubtitleRatePerLanguage;
+    final capCost = isCustom ? customSubtitleCapCost : standardSubtitleCapCost;
+    return double.parse(
+      (languageCount * rate).clamp(minCost, capCost).toStringAsFixed(2),
     );
   }
 

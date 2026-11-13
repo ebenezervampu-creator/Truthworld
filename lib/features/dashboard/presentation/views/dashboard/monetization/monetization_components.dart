@@ -1,4 +1,5 @@
 export 'channel_account_hub_card.dart';
+export 'channel_financial_history_page.dart';
 export 'channel_wallet_card.dart';
 export 'channel_wallet_topup_sheet.dart';
 export 'monetization_ai_features_modal.dart';

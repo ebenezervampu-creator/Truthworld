@@ -389,7 +389,7 @@ void main() {
   });
 
   group('ChannelWalletCard', () {
-    testWidgets('renders empty widget since channel wallet feature is discontinued in favor of revenue and direct pay', (tester) async {
+    testWidgets('renders channel wallet balance, breakdown, and action buttons', (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
@@ -418,13 +418,13 @@ void main() {
       );
       await tester.pump(const Duration(seconds: 3));
 
-      expect(find.text('Channel Wallet'), findsNothing);
-      expect(find.text('STANDARD WALLET'), findsNothing);
-      expect(find.text('Total Spendable Balance'), findsNothing);
-      expect(find.text('Deposited Funds'), findsNothing);
-      expect(find.text('Add Money'), findsNothing);
-      expect(find.text('Spend on Features'), findsNothing);
-      expect(find.text('Recent Wallet Activity'), findsNothing);
+      expect(find.text('Channel Wallet'), findsOneWidget);
+      expect(find.text('STANDARD WALLET'), findsOneWidget);
+      expect(find.text('Total Spendable Balance'), findsOneWidget);
+      expect(find.text('Deposited Funds'), findsOneWidget);
+      expect(find.text('Add Money'), findsOneWidget);
+      expect(find.text('Spend on Features'), findsOneWidget);
+      expect(find.text('Recent Wallet Activity'), findsOneWidget);
     });
   });
 

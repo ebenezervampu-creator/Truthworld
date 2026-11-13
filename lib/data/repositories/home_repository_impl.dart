@@ -7,15 +7,20 @@ import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/domain/entities/topic_entity.dart';
 import 'package:truthworld/domain/entities/video_entity.dart';
 import 'package:truthworld/domain/repositories/home_repository.dart';
+import 'package:truthworld/features/home/data/datasources/edge_feed_remote_data_source.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
-/// Implementation of [HomeRepository] backed by Cloud Firestore.
+/// Implementation of [HomeRepository] backed by Edge CDN with Cloud Firestore fallback.
 class HomeRepositoryImpl extends BaseRepository implements HomeRepository {
   final FirebaseFirestore _firestore;
+  final EdgeFeedRemoteDataSource _edgeFeedDataSource;
 
-  HomeRepositoryImpl({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+  HomeRepositoryImpl({
+    FirebaseFirestore? firestore,
+    EdgeFeedRemoteDataSource? edgeFeedDataSource,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+        _edgeFeedDataSource = edgeFeedDataSource ?? EdgeFeedRemoteDataSource();
 
   @override
   Future<Result<List<VideoEntity>>> getHomeFeed({
@@ -24,6 +29,28 @@ class HomeRepositoryImpl extends BaseRepository implements HomeRepository {
     String? category,
     dynamic startAfter,
   }) async {
+    // 1. Edge-First Delivery: For page 1 or string-based opaque cursor
+    if (startAfter == null || startAfter is String) {
+      try {
+        final edgeRes = await _edgeFeedDataSource.fetchFeed(
+          feedType: 'home',
+          category: category,
+          limit: limit,
+          cursor: startAfter is String ? startAfter : null,
+        );
+        if (edgeRes.videos.isNotEmpty || edgeRes.isNotModified) {
+          return Result.success(edgeRes.videos);
+        }
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'HomeRepositoryImpl.getHomeFeed.edgeFallback',
+        );
+      }
+    }
+
+    // 2. Direct Firestore Fallback (offline, edge failure, or DocumentSnapshot cursor)
     return safeFetch(() async {
       var query = _firestore
           .collection(FirestoreCollections.videos)
@@ -55,6 +82,28 @@ class HomeRepositoryImpl extends BaseRepository implements HomeRepository {
     int limit = 20,
     dynamic startAfter,
   }) async {
+    // 1. Edge-First Delivery
+    if (startAfter == null || startAfter is String) {
+      try {
+        final edgeRes = await _edgeFeedDataSource.fetchFeed(
+          feedType: 'home',
+          category: category,
+          limit: limit,
+          cursor: startAfter is String ? startAfter : null,
+        );
+        if (edgeRes.videos.isNotEmpty || edgeRes.isNotModified) {
+          return Result.success(edgeRes.videos);
+        }
+      } catch (e, stackTrace) {
+        ErrorHandler.log(
+          e,
+          stackTrace: stackTrace,
+          tag: 'HomeRepositoryImpl.getVideosByCategory.edgeFallback',
+        );
+      }
+    }
+
+    // 2. Direct Firestore Fallback
     return safeFetch(() async {
       var query = _firestore
           .collection(FirestoreCollections.videos)

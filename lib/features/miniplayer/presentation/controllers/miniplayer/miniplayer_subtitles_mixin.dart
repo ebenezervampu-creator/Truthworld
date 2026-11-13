@@ -9,6 +9,7 @@ import 'package:truthworld/core/utils/isolate_compute_utils.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/utils/subtitle_parser.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer/miniplayer_state_base.dart';
+import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 
@@ -33,11 +34,17 @@ mixin MiniplayerSubtitlesMixin on MiniplayerStateBase {
     final video = currentVideo.value;
     if (video == null) return;
 
-    final subs = video.mediaSubtitles;
+    final subs = Map<String, String>.from(video.mediaSubtitles);
+    final primaryLang = normalizeLanguageCode(video.language.isNotEmpty ? video.language : 'en');
+    if (video.transcriptionUrl.isNotEmpty &&
+        !subs.containsKey(primaryLang) &&
+        !subs.containsKey(video.language)) {
+      subs[primaryLang] = video.transcriptionUrl;
+    }
     if (subs.isEmpty) return;
 
     // Find the primary/first available subtitle track
-    final selectedUrl = subs['en'] ?? subs.values.firstOrNull;
+    final selectedUrl = subs[primaryLang] ?? subs['en'] ?? subs.values.firstOrNull;
     if (selectedUrl == null) return;
 
     await fetchAndParseSubtitles(selectedUrl);

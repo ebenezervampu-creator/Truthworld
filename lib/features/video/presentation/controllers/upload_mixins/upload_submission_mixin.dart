@@ -64,10 +64,15 @@ mixin UploadSubmissionMixin on
     debugPrint('Starting final video metadata update (isDraft: $isDraft)...');
 
     final videoLang = effectiveVideoLanguage;
+    final effectiveSpokenLangs = spokenLanguages.isNotEmpty
+        ? spokenLanguages.toList()
+        : [videoLang];
 
-    final effectiveSelectedLangs = selectedLanguages.contains(videoLang)
-        ? selectedLanguages
-        : [videoLang, ...selectedLanguages];
+    final effectiveSelectedLangs = selectedLanguages.isEmpty
+        ? [videoLang]
+        : (selectedLanguages.contains(videoLang)
+            ? selectedLanguages
+            : [videoLang, ...selectedLanguages]);
 
     // Store metadata for multi-stage flow
     videoMetadata = {
@@ -79,6 +84,9 @@ mixin UploadSubmissionMixin on
       'tags': tags,
       'language': videoLang,
       'sourceLanguage': videoLang,
+      'primaryLanguage': videoLang,
+      'spokenLanguages': effectiveSpokenLangs,
+      'isMultilingual': effectiveSpokenLangs.length > 1 || isMultilingualSpoken.value,
       'languages': effectiveSelectedLangs,
     };
 
@@ -388,9 +396,16 @@ mixin UploadSubmissionMixin on
         'tags': validTags,
         'language': effectiveVideoLanguage,
         'sourceLanguage': effectiveVideoLanguage,
-        'languages': validLanguages.contains(effectiveVideoLanguage)
-            ? validLanguages
-            : [effectiveVideoLanguage, ...validLanguages],
+        'primaryLanguage': effectiveVideoLanguage,
+        'spokenLanguages': spokenLanguages.isNotEmpty
+            ? spokenLanguages.toList()
+            : [effectiveVideoLanguage],
+        'isMultilingual': isMultilingualSpoken.value || spokenLanguages.length > 1,
+        'languages': validLanguages.isEmpty
+            ? [effectiveVideoLanguage]
+            : (validLanguages.contains(effectiveVideoLanguage)
+                ? validLanguages
+                : [effectiveVideoLanguage, ...validLanguages]),
         'visibility': isDraft
             ? 'private'
             : (isScheduled.value ? 'private' : selectedVisibility.value),

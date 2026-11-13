@@ -76,8 +76,8 @@ describe('⚡ Low-Latency Dubbing & Progressive Delivery Architecture', () => {
       expect(mockDownload).toHaveBeenCalledTimes(45);
       expect(mockSave).toHaveBeenCalledTimes(1);
       expect(stitchedUrl).toBe('gs://truthworld-test-bucket/audio/job1/te/stitched.mp3');
-      // All chunks downloaded concurrently (mock returns quickly)
-      expect(durationMs).toBeLessThan(1000);
+      // All chunks downloaded concurrently in bounded batches
+      expect(durationMs).toBeLessThan(3500);
     });
 
     it('gracefully handles missing or failed chunk downloads and stitches remaining valid buffers', async () => {

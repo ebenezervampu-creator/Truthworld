@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles/pages/generate_ai_subtitles_page.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -69,6 +70,62 @@ void main() {
       expect(find.text('Subtitle Plan'), findsOneWidget);
       expect(find.text('Ultra Subtitles'), findsOneWidget);
       expect(find.text('Target Languages (0 Selected)'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Navigating to GenerateAiSubtitlesPage while controller state mutates does not throw markNeedsBuild during build',
+    (tester) async {
+      tester.view.physicalSize = const Size(1280, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final controller = Get.put(SubtitlesController());
+      final mockVideo = createMockVideo();
+      controller.videos.assignAll([mockVideo]);
+      controller.filteredVideos.assignAll([mockVideo]);
+      controller.selectedVideo.value = mockVideo;
+
+      // Host page with Obx watching controller.rxState and currentCues
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: Scaffold(
+            body: Obx(() {
+              return Column(
+                children: [
+                  Text('State: ${controller.state.name}'),
+                  Text('Cues count: ${controller.currentCues.length}'),
+                  ElevatedButton(
+                    onPressed: () {
+                      Get.to(() => GenerateAiSubtitlesPage(
+                            controller: controller,
+                            isDarkMode: true,
+                          ));
+                    },
+                    child: const Text('Open Page'),
+                  ),
+                ],
+              );
+            }),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Tap button to navigate to GenerateAiSubtitlesPage
+      await tester.tap(find.text('Open Page'));
+
+      // Concurrently trigger state transitions and cue updates
+      controller.setViewState(ViewState.loading);
+      controller.setViewState(ViewState.success);
+      controller.refreshSpendableBalance();
+
+      await tester.pumpAndSettle();
+
+      // Zero exceptions thrown during build or transition
+      expect(tester.takeException(), isNull);
+      expect(find.byType(GenerateAiSubtitlesPage), findsOneWidget);
     },
   );
 }

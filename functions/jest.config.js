@@ -37,11 +37,11 @@ module.exports = {
     'src/watchtime/**/*.ts',
     'src/search/**/*.ts',
     'src/channels/**/*.ts',
-    'src/pipeline/types.ts',
-    'src/pipeline/utils/*.ts',
+    'src/pipeline/**/*.ts',
     '!src/**/*.d.ts',
     '!src/**/__tests__/**',
     '!src/benchmark/**',
+    '!src/pipeline/benchmarks/**',
     '!src/seo/**',
     '!src/resolution/**'
   ],

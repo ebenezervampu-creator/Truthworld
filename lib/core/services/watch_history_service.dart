@@ -87,22 +87,24 @@ class WatchHistoryService extends GetxService {
                 final videoId = doc.id;
                 final percentage =
                     (data['watchPercentage'] as num?)?.toDouble() ?? 0.0;
-                final lastPos = (data['lastPosition'] as num?)?.toInt() ?? 0;
+                var lastPos = (data['lastPosition'] as num?)?.toInt() ?? 0;
                 final watchedDur = (data['watchedDuration'] as num?)?.toInt() ?? 0;
                 final vidDur = (data['videoDuration'] as num?)?.toInt() ?? 0;
 
                 _watchProgress[videoId] = percentage;
-                _lastPositions[videoId] = lastPos;
 
                 if (watchedDur > 0) {
                   _storage.write('cumulative_watch_$videoId', watchedDur);
                 }
                 if (percentage >= 90.0 ||
                     data['isCompleted'] == true ||
-                    (vidDur > 0 && watchedDur >= (vidDur * 0.90))) {
+                    (vidDur > 0 && watchedDur >= (vidDur * 0.90)) ||
+                    (vidDur > 0 && lastPos >= (vidDur - 10))) {
                   _storage.write('fully_watched_$videoId', true);
                   _watchProgress[videoId] = 100.0;
+                  lastPos = 0; // Completed videos always restart from the beginning (0:00)
                 }
+                _lastPositions[videoId] = lastPos;
               }
             },
             onError: (e) {
@@ -126,7 +128,11 @@ class WatchHistoryService extends GetxService {
                     final videoId = key.toString();
                     final pos = (raw['position'] as num?)?.toInt() ?? 0;
                     final pct = (raw['percentage'] as num?)?.toDouble() ?? 0.0;
-                    if (pos > 0) _lastPositions[videoId] = pos;
+                    if (pct >= 90.0 || isVideoFullyWatched(videoId)) {
+                      _lastPositions[videoId] = 0;
+                    } else if (pos > 0) {
+                      _lastPositions[videoId] = pos;
+                    }
                     if (pct > 0) _watchProgress[videoId] = pct;
                   }
                 });
@@ -151,11 +157,19 @@ class WatchHistoryService extends GetxService {
   /// Get watch progress percentage for a video (0.0 to 100.0)
   double getProgress(String videoId) {
     if (videoId.isEmpty) return 0.0;
+    if (_storage.read<bool>('fully_watched_$videoId') == true) {
+      return 100.0;
+    }
     final memoryVal = _watchProgress[videoId];
+    if (memoryVal != null && memoryVal >= 100.0) return 100.0;
     try {
       final local = _storage.read<Map<String, dynamic>>('resume_$videoId');
-      if (local != null && local['percentage'] is num) {
-        return (local['percentage'] as num).toDouble();
+      if (local != null) {
+        if (local['isCompleted'] == true) return 100.0;
+        if (local['percentage'] is num) {
+          final pct = (local['percentage'] as num).toDouble();
+          return pct >= 90.0 ? 100.0 : pct;
+        }
       }
     } catch (e, s) {
       ErrorHandler.log(
@@ -167,14 +181,41 @@ class WatchHistoryService extends GetxService {
     return memoryVal ?? 0.0;
   }
 
-  /// Get last watched position in seconds for a video (checking local storage first, then memory/RTDB/Firestore)
-  int getLastPosition(String videoId) {
+  /// Get last watched position in seconds for a video (checking local storage first, then memory/RTDB/Firestore).
+  ///
+  /// YouTube Playback Parity:
+  /// - Videos that have been fully watched (>= 90% or marked completed) always return 0 (start over).
+  /// - Positions within the first 5s return 0 (no micro-resumes).
+  /// - Positions within the last 10s or >= 90% of duration return 0 (never resume directly at the end).
+  int getLastPosition(String videoId, {int? totalDuration}) {
     if (videoId.isEmpty) return 0;
+
+    // 1. If video is already marked or verified as fully watched, resume position is strictly 0.
+    if (isVideoFullyWatched(videoId, totalDuration: totalDuration)) {
+      return 0;
+    }
+
     try {
       final local = _storage.read<Map<String, dynamic>>('resume_$videoId');
-      if (local != null && local['position'] is num) {
-        final pos = (local['position'] as num).toInt();
-        if (pos > 0) return pos;
+      if (local != null) {
+        if (local['isCompleted'] == true) return 0;
+        final pct = (local['percentage'] as num?)?.toDouble() ?? 0.0;
+        if (pct >= 90.0) return 0;
+
+        if (local['position'] is num) {
+          final pos = (local['position'] as num).toInt();
+          // YouTube threshold: ignore micro-progress in first 5s
+          if (pos < 5) return 0;
+
+          // YouTube threshold: within last 10s or >= 90% of duration, restart from 0
+          final dur = totalDuration ?? (local['duration'] as num?)?.toInt();
+          if (dur != null && dur > 0) {
+            if (pos >= (dur - 10) || (pos / dur) >= 0.90) {
+              return 0;
+            }
+          }
+          if (pos > 0) return pos;
+        }
       }
     } catch (e, s) {
       ErrorHandler.log(
@@ -183,23 +224,87 @@ class WatchHistoryService extends GetxService {
         tag: 'WatchHistoryService.getLastPosition',
       );
     }
-    return _lastPositions[videoId] ?? 0;
+
+    final memPos = _lastPositions[videoId] ?? 0;
+    if (memPos < 5) return 0;
+    if (totalDuration != null && totalDuration > 0) {
+      if (memPos >= (totalDuration - 10) || (memPos / totalDuration) >= 0.90) {
+        return 0;
+      }
+    }
+    return memPos;
+  }
+
+  /// Get resume position in seconds for playback (semantic alias for [getLastPosition]).
+  int getResumePosition(String videoId, {int? totalDuration}) =>
+      getLastPosition(videoId, totalDuration: totalDuration);
+
+  /// Reset playback resume position to 0 (beginning) while preserving watch history metrics
+  /// (e.g. 100% watched bar on thumbnail, cumulative watch time, and completion state).
+  void resetResumePosition(String videoId) {
+    if (videoId.isEmpty) return;
+    _lastPositions[videoId] = 0;
+    try {
+      final isWatched = isVideoFullyWatched(videoId);
+      final local = _storage.read<Map<String, dynamic>>('resume_$videoId');
+      final existingPct = (local != null && local['percentage'] is num)
+          ? (local['percentage'] as num).toDouble()
+          : (_watchProgress[videoId] ?? 0.0);
+      final effectivePct = isWatched ? 100.0 : existingPct;
+      _storage.write('resume_$videoId', {
+        'position': 0,
+        'percentage': effectivePct,
+        if (isWatched) 'isCompleted': true,
+        'updatedAt': DateTime.now().millisecondsSinceEpoch,
+      });
+      if (isWatched) {
+        _watchProgress[videoId] = 100.0;
+      }
+    } catch (e, s) {
+      ErrorHandler.log(
+        e,
+        stackTrace: s,
+        tag: 'WatchHistoryService.resetResumePosition',
+      );
+    }
+
+    final userId = Get.isRegistered<AuthService>() ? AuthService.to.uid : '';
+    if (userId.isNotEmpty) {
+      try {
+        _database.ref('playbackResume/$userId/$videoId').update({
+          'position': 0,
+          'updatedAt': ServerValue.timestamp,
+        }).catchError((_) {});
+      } catch (_) {}
+    }
   }
 
   /// Save local position immediately into GetStorage (called every few seconds during playback - 100% free, 0ms)
-  void saveLocalPosition(String videoId, int positionSeconds, double percentage) {
-    if (videoId.isEmpty || positionSeconds <= 0) return;
+  void saveLocalPosition(
+    String videoId,
+    int positionSeconds,
+    double percentage, {
+    int? totalDuration,
+  }) {
+    if (videoId.isEmpty || positionSeconds < 0) return;
+
+    final isNearEnd = (totalDuration != null && totalDuration > 0 && positionSeconds >= (totalDuration - 10)) ||
+        percentage >= 90.0;
+    final isFullyWatched = isVideoFullyWatched(videoId, totalDuration: totalDuration);
+
+    final effectivePos = (isNearEnd || isFullyWatched) ? 0 : positionSeconds;
+    final effectivePct = (isNearEnd || isFullyWatched) ? 100.0 : percentage;
 
     final currentPos = _lastPositions[videoId];
     final currentPct = _watchProgress[videoId];
 
-    final hasPosChanged = currentPos != positionSeconds;
-    final hasPctChanged = currentPct == null || (currentPct - percentage).abs() >= 1.0;
+    final hasPosChanged = currentPos != effectivePos;
+    final hasPctChanged = currentPct == null || (currentPct - effectivePct).abs() >= 1.0;
 
     if (hasPosChanged || hasPctChanged) {
       void applyUpdate() {
-        if (hasPosChanged) _lastPositions[videoId] = positionSeconds;
-        if (hasPctChanged) _watchProgress[videoId] = percentage;
+        if (hasPosChanged) _lastPositions[videoId] = effectivePos;
+        if (hasPctChanged) _watchProgress[videoId] = effectivePct;
       }
 
       if (WidgetsBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
@@ -213,8 +318,9 @@ class WatchHistoryService extends GetxService {
 
     try {
       _storage.write('resume_$videoId', {
-        'position': positionSeconds,
-        'percentage': percentage,
+        'position': effectivePos,
+        'percentage': effectivePct,
+        if (isNearEnd || isFullyWatched) 'isCompleted': true,
         'updatedAt': DateTime.now().millisecondsSinceEpoch,
       });
     } catch (e, s) {
@@ -232,7 +338,7 @@ class WatchHistoryService extends GetxService {
     int positionSeconds,
     double percentage,
   ) async {
-    final userId = AuthService.to.uid;
+    final userId = Get.isRegistered<AuthService>() ? AuthService.to.uid : '';
     if (userId.isEmpty || videoId.isEmpty || positionSeconds <= 0) return;
 
     try {
@@ -335,12 +441,14 @@ class WatchHistoryService extends GetxService {
     return false;
   }
 
-  /// Mark video as fully watched so repeat views never count watch time again
+  /// Mark video as fully watched so repeat views never count watch time again,
+  /// and reset playback resume position so subsequent views restart cleanly from 0:00.
   void markVideoFullyWatched(String videoId) {
     if (videoId.isEmpty) return;
     try {
       _storage.write('fully_watched_$videoId', true);
       _watchProgress[videoId] = 100.0;
+      resetResumePosition(videoId);
     } catch (e, s) {
       ErrorHandler.log(
         e,

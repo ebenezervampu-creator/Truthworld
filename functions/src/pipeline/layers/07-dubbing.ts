@@ -42,6 +42,8 @@ import {
   ttsService,
   sanitizeTextForElevenLabsV4,
   stripAudioTagsForSubtitles,
+  hasVerbalContent,
+  getAdaptiveTTSBatchSize,
 } from "../services/tts";
 import { mediaService, parseDurationToSeconds, parseAnyStorageUrl } from "../services/media";
 import { ELEVENLABS_VOICE_GENDER_MAP, ELEVENLABS_MULTI_SPEAKER_PALETTE } from "../services/googleTextToSpeechService";
@@ -62,7 +64,7 @@ import { filterVideoIds } from "../../utils/videosCollectionGuard";
 const db = () => admin.firestore();
 
 /** Max segments processed concurrently per TTS batch */
-const TTS_BATCH_SIZE = 25;
+export const TTS_BATCH_SIZE = 25;
 
 /**
  * Per-speaker persistent vocal baseline stored under
@@ -907,6 +909,92 @@ export class DubbingEngine {
     }
   }
 
+  // ─── Direct Audio Track Propagation ──────────────────────────────────────────
+
+  private async propagateAudioTrack(
+    jobId: string,
+    targetLang: string,
+    rawTargetLang: string,
+    directAudioUrl: string
+  ): Promise<void> {
+    try {
+      const jobSnap = await db().collection("video_jobs").doc(jobId).get();
+      const jobData = jobSnap.data() as JobData;
+      const rawLinkedVideoIds = jobData?.linkedVideoIds || [];
+      if (jobData?.videoId && !rawLinkedVideoIds.includes(jobData.videoId)) {
+        rawLinkedVideoIds.push(jobData.videoId);
+      }
+      const linkedVideoIds = filterVideoIds(rawLinkedVideoIds, "[Dubbing:audio-propagation]");
+
+      const dotAudioUpdates: Record<string, any> = {
+        audioTracks: {
+          [targetLang]: directAudioUrl,
+          ...(rawTargetLang && rawTargetLang !== targetLang ? { [rawTargetLang]: directAudioUrl } : {}),
+        },
+        media: {
+          audioTracks: {
+            [targetLang]: directAudioUrl,
+            ...(rawTargetLang && rawTargetLang !== targetLang ? { [rawTargetLang]: directAudioUrl } : {}),
+          },
+        },
+        [`audioTracks.${targetLang}`]: directAudioUrl,
+        [`media.audioTracks.${targetLang}`]: directAudioUrl,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+      if (rawTargetLang && rawTargetLang !== targetLang) {
+        dotAudioUpdates[`audioTracks.${rawTargetLang}`] = directAudioUrl;
+        dotAudioUpdates[`media.audioTracks.${rawTargetLang}`] = directAudioUrl;
+      }
+
+      for (const vid of linkedVideoIds) {
+        await db().collection("videos").doc(vid).set(dotAudioUpdates, { merge: true });
+
+        const locAudioUpdates: Record<string, any> = {
+          audioTracks: {
+            [targetLang]: directAudioUrl,
+            ...(rawTargetLang && rawTargetLang !== targetLang ? { [rawTargetLang]: directAudioUrl } : {}),
+          },
+          [`audioTracks.${targetLang}`]: directAudioUrl,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+        if (rawTargetLang && rawTargetLang !== targetLang) {
+          locAudioUpdates[`audioTracks.${rawTargetLang}`] = directAudioUrl;
+        }
+        await db().collection("videos").doc(vid).collection("media").doc("localization").set(locAudioUpdates, { merge: true });
+      }
+
+      const jobOutputAudioUpdate: Record<string, any> = {
+        audioTracks: {
+          [targetLang]: directAudioUrl,
+          ...(rawTargetLang && rawTargetLang !== targetLang ? { [rawTargetLang]: directAudioUrl } : {}),
+        },
+        [`audioTracks.${targetLang}`]: directAudioUrl,
+        updatedAt: Date.now(),
+      };
+      if (rawTargetLang && rawTargetLang !== targetLang) {
+        jobOutputAudioUpdate[`audioTracks.${rawTargetLang}`] = directAudioUrl;
+      }
+      await db().collection("job_outputs").doc(jobId).set(jobOutputAudioUpdate, { merge: true });
+
+      const videoJobAudioUpdate: Record<string, any> = {
+        outputs: {
+          audioTracks: {
+            [targetLang]: directAudioUrl,
+            ...(rawTargetLang && rawTargetLang !== targetLang ? { [rawTargetLang]: directAudioUrl } : {}),
+          },
+        },
+        [`outputs.audioTracks.${targetLang}`]: directAudioUrl,
+        updatedAt: Date.now(),
+      };
+      if (rawTargetLang && rawTargetLang !== targetLang) {
+        videoJobAudioUpdate[`outputs.audioTracks.${rawTargetLang}`] = directAudioUrl;
+      }
+      await db().collection("video_jobs").doc(jobId).set(videoJobAudioUpdate, { merge: true });
+    } catch (earlyPropErr) {
+      logger.warn("[Dubbing] Audio track propagation warning:", earlyPropErr);
+    }
+  }
+
   // ─── Per-language processing ──────────────────────────────────────────────────
 
   private async processLanguage(
@@ -933,9 +1021,10 @@ export class DubbingEngine {
     
     const updateTranslationStage = async (status: "running" | "completed" | "failed", progress: number, error?: string) => {
       const now = Date.now();
-      const payload: any = { status, progress };
+      const payload: any = { status, progress, updatedAt: now };
       if (status === "running") payload.startedAt = now;
       if (status === "completed") payload.completedAt = now;
+      if (status === "failed") payload.failedAt = now;
       if (error) payload.error = error;
 
       await EdgeLayer.updateStageSync(jobId, `translating_${targetLang}`, payload).catch(() => {});
@@ -946,15 +1035,24 @@ export class DubbingEngine {
 
     const updateDubbingStage = async (status: "running" | "completed" | "failed", progress: number, error?: string) => {
       const now = Date.now();
-      const payload: any = { status, progress };
+      const payload: any = { status, progress, updatedAt: now };
       if (status === "running") payload.startedAt = now;
       if (status === "completed") payload.completedAt = now;
+      if (status === "failed") payload.failedAt = now;
       if (error) payload.error = error;
 
       await EdgeLayer.updateStageSync(jobId, `dubbing_${targetLang}`, payload).catch(() => {});
       if (rawTargetLang && rawTargetLang.toLowerCase() !== targetLang.toLowerCase()) {
         await EdgeLayer.updateStageSync(jobId, `dubbing_${rawTargetLang}`, payload).catch(() => {});
       }
+      await EdgeLayer.updateStageSync(jobId, "dubbing", {
+        status: status === "failed" ? "running" : status,
+        progress: Math.min(100, Math.max(5, progress)),
+      }).catch(() => {});
+      await EdgeLayer.updateStageSync(jobId, "onDemandAI", {
+        status: status === "failed" ? "running" : status,
+        progress: Math.min(100, Math.max(10, progress)),
+      }).catch(() => {});
     };
 
     if (segments.length === 0) {
@@ -967,7 +1065,7 @@ export class DubbingEngine {
 
     try {
       // Proactively initialize dubbing stage to running so listeners know it's actively processing
-      await updateDubbingStage("running", 5);
+      await updateDubbingStage("running", 15);
 
       // A. Translate (skip if same language)
       if (targetLang !== sourceLang) {
@@ -1027,43 +1125,39 @@ export class DubbingEngine {
 
       const bucket = admin.storage().bucket();
       const transPath = `subtitles/${jobId}/${targetLang}.json`;
-      await bucket.file(transPath).save(JSON.stringify(dubbingSegs, null, 2), {
-        metadata: { contentType: "application/json" }
-      });
       const translationUrl = `gs://${bucket.name}/${transPath}`;
 
-      if (executionPlan.genLangSubs) {
-        // ✅ For source language: check if native AssemblyAI subtitles already exist
-        if (targetLang === sourceLang) {
-          const nativeUrl = await this.checkNativeSubtitles(jobId, targetLang);
+      // ⚡ PARALLEL: Save translation JSON + generate subtitles simultaneously (saves 2-5s)
+      let subGenPromise: Promise<{ srtUrl: string; vttUrl: string; jsonUrl: string } | null>;
+
+      if (executionPlan.genLangSubs && targetLang === sourceLang) {
+        subGenPromise = this.checkNativeSubtitles(jobId, targetLang).then((nativeUrl) => {
           if (nativeUrl) {
-            subtitleUrl = nativeUrl;
-            srtUrl = nativeUrl;
-            vttUrl = `gs://${bucket.name}/subtitles/${jobId}/${targetLang}.vtt`;
-            jsonUrl = translationUrl;
             logger.info("[Dubbing] Using native AssemblyAI subtitles for source lang", { jobId, targetLang });
-          } else {
-            const subRes = await this.generateSubtitles(jobId, dubbingSegs, targetLang);
-            subtitleUrl = subRes.srtUrl;
-            srtUrl = subRes.srtUrl;
-            vttUrl = subRes.vttUrl;
-            jsonUrl = subRes.jsonUrl;
+            return {
+              srtUrl: nativeUrl,
+              vttUrl: `gs://${bucket.name}/subtitles/${jobId}/${targetLang}.vtt`,
+              jsonUrl: translationUrl,
+            };
           }
-        } else {
-          // Translated subtitles always use our own alignment pipeline — generating .json, .vtt, and .srt
-          const subRes = await this.generateSubtitles(jobId, dubbingSegs, targetLang);
-          subtitleUrl = subRes.srtUrl;
-          srtUrl = subRes.srtUrl;
-          vttUrl = subRes.vttUrl;
-          jsonUrl = subRes.jsonUrl;
-        }
+          return this.generateSubtitles(jobId, dubbingSegs, targetLang);
+        });
       } else {
-        // Ensure all 3 subtitle formats (.json, .vtt, .srt) exist for every language subtitle
-        const subRes = await this.generateSubtitles(jobId, dubbingSegs, targetLang);
-        subtitleUrl = subRes.srtUrl;
-        srtUrl = subRes.srtUrl;
-        vttUrl = subRes.vttUrl;
-        jsonUrl = subRes.jsonUrl;
+        subGenPromise = this.generateSubtitles(jobId, dubbingSegs, targetLang);
+      }
+
+      const [, subResult] = await Promise.all([
+        bucket.file(transPath).save(JSON.stringify(dubbingSegs, null, 2), {
+          metadata: { contentType: "application/json" },
+        }),
+        subGenPromise,
+      ]);
+
+      if (subResult) {
+        subtitleUrl = subResult.srtUrl;
+        srtUrl = subResult.srtUrl;
+        vttUrl = subResult.vttUrl;
+        jsonUrl = subResult.jsonUrl;
       }
 
       // D. Persist results (Separated for Industry Standards)
@@ -1105,16 +1199,6 @@ export class DubbingEngine {
           }
 
           const subUpdates: Record<string, any> = {
-            subtitles: {
-              [targetLang]: directSubtitleUrl,
-              ...(rawTargetLang && rawTargetLang !== targetLang ? { [rawTargetLang]: directSubtitleUrl } : {}),
-            },
-            media: {
-              subtitles: {
-                [targetLang]: directSubtitleUrl,
-                ...(rawTargetLang && rawTargetLang !== targetLang ? { [rawTargetLang]: directSubtitleUrl } : {}),
-              },
-            },
             [`subtitles.${targetLang}`]: directSubtitleUrl,
             [`media.subtitles.${targetLang}`]: directSubtitleUrl,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -1125,15 +1209,11 @@ export class DubbingEngine {
           }
 
           for (const vid of linkedVideoIds) {
-            // Update top-level videos/{vid} document directly with nested and dot notation
+            // Update top-level videos/{vid} document directly using dot notation to preserve sibling tracks
             await db().collection("videos").doc(vid).set(subUpdates, { merge: true });
 
-            // Also update subcollection for backwards compatibility
+            // Also update subcollection for backwards compatibility using dot notation to preserve sibling tracks
             const locSubUpdates: Record<string, any> = {
-              subtitles: {
-                [targetLang]: directSubtitleUrl,
-                ...(rawTargetLang && rawTargetLang !== targetLang ? { [rawTargetLang]: directSubtitleUrl } : {}),
-              },
               [`subtitles.${targetLang}`]: directSubtitleUrl,
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             };
@@ -1221,11 +1301,17 @@ export class DubbingEngine {
           const isVoiceClone = true;
           const voiceType = "cloned";
 
+          await updateDubbingStage("running", 50);
           const ttsResult = await this.parallelTTSWithCache(
             jobId, userId, normalised, targetLang, voiceMapping, isVoiceClone, speakerGenderMapping,
-            speakerProfiles, acousticFingerprint, dubbingTier, voiceType, executionPlan.voiceGender
+            speakerProfiles, acousticFingerprint, dubbingTier, voiceType, executionPlan.voiceGender,
+            async (completed, total) => {
+              const progressPct = 50 + Math.round((completed / Math.max(1, total)) * 30);
+              await updateDubbingStage("running", Math.min(84, progressPct));
+            }
           );
           ttsUrls = ttsResult.urls;
+          await updateDubbingStage("running", 85);
 
           let totalDurationMs: number | undefined = undefined;
           let totalDurationSeconds = 0;
@@ -1480,101 +1566,31 @@ export class DubbingEngine {
             : "";
 
           if (directAudioUrl) {
-            try {
-              const jobSnap = await db().collection("video_jobs").doc(jobId).get();
-              const jobData = jobSnap.data() as JobData;
-              const rawLinkedVideoIds = jobData?.linkedVideoIds || [];
-              if (jobData?.videoId && !rawLinkedVideoIds.includes(jobData.videoId)) {
-                rawLinkedVideoIds.push(jobData.videoId);
-              }
-              // Guard: only allow UUID video IDs — never write to videos collection with a job_ ID
-              const linkedVideoIds = filterVideoIds(rawLinkedVideoIds, "[Dubbing:audio-propagation]");
-
-              const dotAudioUpdates: Record<string, any> = {
-                audioTracks: {
-                  [targetLang]: directAudioUrl,
-                  ...(rawTargetLang && rawTargetLang !== targetLang ? { [rawTargetLang]: directAudioUrl } : {}),
-                },
-                media: {
-                  audioTracks: {
-                    [targetLang]: directAudioUrl,
-                    ...(rawTargetLang && rawTargetLang !== targetLang ? { [rawTargetLang]: directAudioUrl } : {}),
-                  },
-                },
-                [`audioTracks.${targetLang}`]: directAudioUrl,
-                [`media.audioTracks.${targetLang}`]: directAudioUrl,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-              };
-              if (rawTargetLang && rawTargetLang !== targetLang) {
-                dotAudioUpdates[`audioTracks.${rawTargetLang}`] = directAudioUrl;
-                dotAudioUpdates[`media.audioTracks.${rawTargetLang}`] = directAudioUrl;
-              }
-
-              for (const vid of linkedVideoIds) {
-                await db().collection("videos").doc(vid).set(dotAudioUpdates, { merge: true });
-
-                const locAudioUpdates: Record<string, any> = {
-                  audioTracks: {
-                    [targetLang]: directAudioUrl,
-                    ...(rawTargetLang && rawTargetLang !== targetLang ? { [rawTargetLang]: directAudioUrl } : {}),
-                  },
-                  [`audioTracks.${targetLang}`]: directAudioUrl,
-                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                };
-                if (rawTargetLang && rawTargetLang !== targetLang) {
-                  locAudioUpdates[`audioTracks.${rawTargetLang}`] = directAudioUrl;
-                }
-                await db().collection("videos").doc(vid).collection("media").doc("localization").set(locAudioUpdates, { merge: true });
-              }
-
-              const jobOutputAudioUpdate: Record<string, any> = {
-                audioTracks: {
-                  [targetLang]: directAudioUrl,
-                  ...(rawTargetLang && rawTargetLang !== targetLang ? { [rawTargetLang]: directAudioUrl } : {}),
-                },
-                [`audioTracks.${targetLang}`]: directAudioUrl,
-                updatedAt: Date.now(),
-              };
-              if (rawTargetLang && rawTargetLang !== targetLang) {
-                jobOutputAudioUpdate[`audioTracks.${rawTargetLang}`] = directAudioUrl;
-              }
-              await db().collection("job_outputs").doc(jobId).set(jobOutputAudioUpdate, { merge: true });
-
-              const videoJobAudioUpdate: Record<string, any> = {
-                outputs: {
-                  audioTracks: {
-                    [targetLang]: directAudioUrl,
-                    ...(rawTargetLang && rawTargetLang !== targetLang ? { [rawTargetLang]: directAudioUrl } : {}),
-                  },
-                },
-                [`outputs.audioTracks.${targetLang}`]: directAudioUrl,
-                updatedAt: Date.now(),
-              };
-              if (rawTargetLang && rawTargetLang !== targetLang) {
-                videoJobAudioUpdate[`outputs.audioTracks.${rawTargetLang}`] = directAudioUrl;
-              }
-              await db().collection("video_jobs").doc(jobId).set(videoJobAudioUpdate, { merge: true });
-
-              await updateDubbingStage("completed", 100);
-              logger.info("[Dubbing] ⚡ Progressive Delivery: Audio track published immediately", { jobId, targetLang, directAudioUrl });
-            } catch (earlyPropErr) {
-              logger.warn("[Dubbing] Early audio track propagation warning:", earlyPropErr);
-            }
+            await this.propagateAudioTrack(jobId, targetLang, rawTargetLang, directAudioUrl);
+            await updateDubbingStage("completed", 100);
+            logger.info("[Dubbing] ⚡ Progressive Delivery: Audio track published immediately", { jobId, targetLang, directAudioUrl });
           }
 
-          try {
-            // Remux dubbed audio into video container cleanly via FFmpeg
-            videoResult = await mediaService.mergeAudioToVideo({
-              jobId, videoUrl, audioUrl, 
-              subtitleUrl: executionPlan.genLangSubs ? subtitleUrl : undefined,
-              language: targetLang, format: "mp4",
-              audioFilters: dspFilters, // Pass the mastering chain to FFmpeg
-              isPreMastered: masterAudioUrl !== rawDialogueUrl,
-            });
-          } catch (mergeErr) {
-            logger.warn("[Dubbing] Video remuxing skipped or deferred (audio track is intact):", mergeErr);
-            if (!videoResult) {
-              videoResult = videoUrl;
+          // If the user requested an audio track (audio_track tier), skip heavy video remuxing
+          // to eliminate 30-60s latency and reduce cloud compute overhead
+          if ((executionPlan as any).dubbingTier === "audio_track") {
+            videoResult = videoUrl;
+            logger.info("[Dubbing] Skipping video remuxing for audio-track tier (audio track is published)", { jobId, targetLang });
+          } else {
+            try {
+              // Remux dubbed audio into video container cleanly via FFmpeg
+              videoResult = await mediaService.mergeAudioToVideo({
+                jobId, videoUrl, audioUrl, 
+                subtitleUrl: executionPlan.genLangSubs ? subtitleUrl : undefined,
+                language: targetLang, format: "mp4",
+                audioFilters: dspFilters, // Pass the mastering chain to FFmpeg
+                isPreMastered: masterAudioUrl !== rawDialogueUrl,
+              });
+            } catch (mergeErr) {
+              logger.warn("[Dubbing] Video remuxing skipped or deferred (audio track is intact):", mergeErr);
+              if (!videoResult) {
+                videoResult = videoUrl;
+              }
             }
           }
 
@@ -1908,7 +1924,8 @@ export class DubbingEngine {
     acousticFingerprint?: any,
     dubbingTier?: string,
     voiceType?: string,
-    preferredVoiceGender?: "auto" | "male" | "female"
+    preferredVoiceGender?: "auto" | "male" | "female",
+    onProgress?: (completed: number, total: number) => Promise<void>
   ): Promise<{
     urls: string[];
     failedSegments: Array<{ index: number; text: string; error: string; isQuota: boolean }>;
@@ -1919,8 +1936,12 @@ export class DubbingEngine {
     const failedSegments: Array<{ index: number; text: string; error: string; isQuota: boolean }> = [];
     const speakerProfileCache = new Map<string, SpeakerVoiceProfile | null>();
 
-    for (let i = 0; i < segments.length; i += TTS_BATCH_SIZE) {
-      const batch = segments.slice(i, i + TTS_BATCH_SIZE);
+    const lastSegEnd = segments.length > 0 ? (segments[segments.length - 1].end || 0) : 0;
+    const adaptiveBatchSize = getAdaptiveTTSBatchSize(segments.length, lastSegEnd);
+    logger.info("[Dubbing] TTS adaptive batch size", { jobId, segments: segments.length, batchSize: adaptiveBatchSize, videoDurationMs: lastSegEnd });
+
+    for (let i = 0; i < segments.length; i += adaptiveBatchSize) {
+      const batch = segments.slice(i, i + adaptiveBatchSize);
 
       const batchUrls = await Promise.allSettled(
         batch.map(async (seg) => {
@@ -2041,7 +2062,9 @@ export class DubbingEngine {
           }).catch(() => {});
 
           // ✅ Cost tracking: record TTS cost for synthesized characters (Strictly ElevenLabs v4)
-          costEngine.recordTTSCost(jobId, userId, seg.translatedText.length, "elevenlabs").catch(() => {});
+          if (hasVerbalContent(seg.translatedText)) {
+            costEngine.recordTTSCost(jobId, userId, seg.translatedText.length, "elevenlabs").catch(() => {});
+          }
 
           // Store in cache for next time with strict tier and voice isolation
           await this.performanceLayer.cacheTTSResult(
@@ -2076,8 +2099,26 @@ export class DubbingEngine {
         }
       });
 
+      // 🛡️ Fail-fast guard: If any segment in the batch encountered quota exhaustion or tripped circuit breaker,
+      // halt remaining batches immediately to avoid burning downstream API requests or incurring cascade delays.
+      const criticalFailure = failedSegments.find(
+        (f) => f.isQuota || f.error.includes("circuit breaker is OPEN") || f.error.includes("QUOTA_EXCEEDED")
+      );
+      if (criticalFailure) {
+        logger.error("[Dubbing] Upstream TTS critical failure (quota exhaustion or circuit breaker OPEN) — halting remaining batches immediately", {
+          jobId,
+          error: criticalFailure.error,
+          processedSegments: i + batch.length,
+          totalSegments: segments.length,
+        });
+        break;
+      }
+
       const progress = 50 + Math.round(((i + batch.length) / segments.length) * 30);
       EdgeLayer.updateStage(jobId, "dubbing", { progress }).catch(() => {});
+      if (onProgress) {
+        await onProgress(i + batch.length, segments.length).catch(() => {});
+      }
     }
 
     return {

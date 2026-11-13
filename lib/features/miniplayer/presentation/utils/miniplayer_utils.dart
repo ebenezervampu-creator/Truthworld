@@ -61,9 +61,15 @@ class MiniplayerNavigationHelper {
         args['isAudioOnly'] = false;
       }
 
-      // Determine the best resume timestamp
-      var targetResume = resumePosition;
-      if (targetResume == null && args['resumePosition'] != null) {
+      // Determine the best resume timestamp with YouTube playback parity
+      final totalSec = video.durationSeconds > 0
+          ? video.durationSeconds
+          : video.durationValue.inSeconds;
+      final isFullyWatched = Get.isRegistered<WatchHistoryService>() &&
+          WatchHistoryService.to.isVideoFullyWatched(video.id, totalDuration: totalSec);
+
+      var targetResume = isFullyWatched ? null : resumePosition;
+      if (targetResume == null && !isFullyWatched && args['resumePosition'] != null) {
         final raw = args['resumePosition'];
         if (raw is Duration) {
           targetResume = raw;
@@ -72,16 +78,31 @@ class MiniplayerNavigationHelper {
         }
       }
 
-      if (targetResume == null || targetResume <= Duration.zero) {
+      if (!isFullyWatched && (targetResume == null || targetResume <= Duration.zero)) {
         final peeked = VideoPlaybackHandoff.peekPosition(video.id);
         if (peeked != null && peeked > Duration.zero) {
           targetResume = peeked;
         } else if (Get.isRegistered<WatchHistoryService>()) {
-          final historySec = WatchHistoryService.to.getLastPosition(video.id);
+          final historySec = WatchHistoryService.to.getLastPosition(video.id, totalDuration: totalSec);
           if (historySec > 0) {
             targetResume = Duration(seconds: historySec);
           }
         }
+      }
+
+      // YouTube-Grade Playback Parity:
+      // If the video was watched completely, or if targetResume is near the start (< 5s)
+      // or near the end (within last 10s or >= 90% of duration), start cleanly from 0:00!
+      final isNearEnd = totalSec > 0 && targetResume != null &&
+          (targetResume >= Duration(seconds: totalSec - 10) ||
+           (targetResume.inSeconds / totalSec) >= 0.90);
+      final isNearStart = targetResume != null && targetResume < const Duration(seconds: 5);
+
+      if (isFullyWatched || isNearEnd || isNearStart) {
+        targetResume = null;
+        args.remove('resumePosition');
+        args.remove('initialPosition');
+        VideoPlaybackHandoff.clear(video.id);
       }
 
       if (targetResume != null && targetResume > Duration.zero) {

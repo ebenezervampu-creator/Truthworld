@@ -316,6 +316,10 @@ mixin MiniplayerPlaybackMixin on MiniplayerStateBase, MiniplayerSubtitlesMixin {
       await vpc.pause();
       isPlaying.value = false;
     } else {
+      if (vpc.value.duration > Duration.zero &&
+          vpc.value.position >= vpc.value.duration) {
+        await vpc.seekTo(Duration.zero);
+      }
       HoverPreviewCoordinator.globalMute.value = true;
       try {
         await vpc.play();
@@ -589,8 +593,18 @@ mixin MiniplayerPlaybackMixin on MiniplayerStateBase, MiniplayerSubtitlesMixin {
                 totalSec > 0 &&
                 Get.isRegistered<WatchHistoryService>()) {
               final pct = ((posSec / totalSec) * 100.0).clamp(0.0, 100.0);
-              WatchHistoryService.to.saveLocalPosition(vid.id, posSec, pct);
-              VideoPlaybackHandoff.registerResumePosition(vid.id, val.position);
+              final isNearEnd = posSec >= (totalSec - 10) || pct >= 90.0;
+              WatchHistoryService.to.saveLocalPosition(
+                vid.id,
+                posSec,
+                pct,
+                totalDuration: totalSec,
+              );
+              if (isNearEnd) {
+                VideoPlaybackHandoff.clear(vid.id);
+              } else {
+                VideoPlaybackHandoff.registerResumePosition(vid.id, val.position);
+              }
             }
           }
         }
@@ -609,6 +623,13 @@ mixin MiniplayerPlaybackMixin on MiniplayerStateBase, MiniplayerSubtitlesMixin {
             val.duration > Duration.zero &&
             !val.isPlaying) {
           isPlaying.value = false;
+          final vid = currentVideo.value;
+          if (vid != null) {
+            VideoPlaybackHandoff.clear(vid.id);
+            if (Get.isRegistered<WatchHistoryService>()) {
+              WatchHistoryService.to.resetResumePosition(vid.id);
+            }
+          }
           if (isAutoplay.value &&
               activeClip.value == null &&
               !isNavigatingVideo.value) {

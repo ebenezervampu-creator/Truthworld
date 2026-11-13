@@ -125,9 +125,7 @@ void main() {
           isDarkMode: true,
         ),
         onBeforePump: () {
-          if (!Get.isRegistered<AudioTracksController>()) {
-            Get.put(AudioTracksController());
-          }
+          Get.lazyPut(AudioTracksController.new, fenix: true);
         },
       );
       expect(tester.takeException(), isNull);

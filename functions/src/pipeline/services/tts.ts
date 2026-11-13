@@ -12,20 +12,19 @@
 import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
 import { storage } from "firebase-admin";
+import * as streamLib from "stream";
 import { TTSResult, TTSRequest, PronunciationRule } from "../types";
 import { costEngine } from "./cost-engine";
 import { PIPELINE_CONFIG } from "../config";
 import { logger } from "../utils/logger";
-import { GoogleTextToSpeechService, ELEVENLABS_VOICE_GENDER_MAP } from "./googleTextToSpeechService";
+import { ELEVENLABS_VOICE_GENDER_MAP } from "./googleTextToSpeechService";
+import { createSilentMp3Buffer } from "./media";
 
 const ELEVENLABS_BASE_URL = "https://api.elevenlabs.io/v1";
 
 export const TTS_MODELS = {
-  v4: "eleven_v4",                           // Flagship Premium V4 — native support for 80+ languages
-  v3: "eleven_v3",
-  flash: "eleven_flash_v2_5",
-  multilingual_v2: "eleven_multilingual_v2",
-  v4Turbo: "eleven_v4_turbo",
+  v4: "eleven_v4",                           // Flagship Primary V4 — native support for 80+ languages for every video
+  v3: "eleven_v3",                           // Failover Tier 2 — fallback if any issue occurs with V4
 } as const;
 
 /**
@@ -132,6 +131,20 @@ export function stripAudioTagsForSubtitles(text: string): string {
     .trim();
 }
 
+/**
+ * Checks whether text contains articulable verbal content (characters, digits, letters)
+ * beyond punctuation, audio tags [laughs], parenthetical notes (applause), emojis, and whitespace.
+ */
+export function hasVerbalContent(text: string): boolean {
+  if (!text || typeof text !== "string") return false;
+  const noParens = text.replace(/\([^)]*\)/g, "");
+  const noTags = stripAudioTagsForSubtitles(noParens);
+  const stripped = noTags
+    .replace(/[\p{Extended_Pictographic}\uFE0F]/gu, "")
+    .replace(/[\s.,/#!$%^&*;:{}=\-_`~()?'"…\\|<>@+=[\]]/gu, "");
+  return stripped.trim().length > 0;
+}
+
 interface VoiceSettings {
   stability: number;
   similarity_boost: number;
@@ -139,12 +152,423 @@ interface VoiceSettings {
   use_speaker_boost?: boolean;
 }
 
+/**
+ * 🛡️ Global TTS Concurrency & Circuit Breaker Manager
+ *
+ * Prevents account-wide HTTP 429 cascades across multiple Cloud Function instances.
+ * Implements:
+ *   1. Account-wide concurrency lease throttling
+ *   2. Circuit Breaker for sustained upstream provider outages
+ *   3. Dynamic Retry-After header enforcement
+ */
+export class GlobalTTSConcurrencyManager {
+  private static activeSlots = 0;
+  private static consecutiveFailures = 0;
+  private static circuitState: "CLOSED" | "OPEN" | "HALF_OPEN" = "CLOSED";
+  private static circuitOpenedAt = 0;
+  private static isProbeActive = false;
+  private static readonly CIRCUIT_COOLDOWN_MS = 30000; // 30s cooling period
+  private static readonly MAX_FAILURES_BEFORE_TRIP = 5;
+  private static readonly LEASE_DURATION_MS = 30000; // 30s distributed lease TTL
+
+  public static getMaxConcurrency(): number {
+    return Math.max(1, parseInt(process.env.ELEVENLABS_MAX_CONCURRENCY || "15", 10));
+  }
+
+  public static getCircuitState(): "CLOSED" | "OPEN" | "HALF_OPEN" {
+    return this.circuitState;
+  }
+
+  public static getActiveSlots(): number {
+    return this.activeSlots;
+  }
+
+  public static resetForTesting(): void {
+    this.activeSlots = 0;
+    this.consecutiveFailures = 0;
+    this.circuitState = "CLOSED";
+    this.circuitOpenedAt = 0;
+    this.isProbeActive = false;
+  }
+
+  public static checkCircuit(): void {
+    const now = Date.now();
+    if (this.circuitState === "OPEN") {
+      if (now - this.circuitOpenedAt > this.CIRCUIT_COOLDOWN_MS) {
+        this.circuitState = "HALF_OPEN";
+        this.isProbeActive = false;
+        logger.info("[GlobalTTSConcurrencyManager] Circuit Breaker cooldown elapsed — entering HALF_OPEN state");
+      } else {
+        throw new Error("[GlobalTTSConcurrencyManager] Upstream TTS circuit breaker is OPEN due to sustained provider failures. Rejecting request to prevent cascading failure.");
+      }
+    }
+
+    if (this.circuitState === "HALF_OPEN") {
+      if (this.isProbeActive) {
+        throw new Error("[GlobalTTSConcurrencyManager] Circuit breaker is HALF_OPEN and currently testing upstream health with an active probe. Concurrent requests rejected.");
+      }
+      this.isProbeActive = true;
+      logger.info("[GlobalTTSConcurrencyManager] Dispatching single probe request in HALF_OPEN state");
+    }
+  }
+
+  public static recordSuccess(): void {
+    this.consecutiveFailures = 0;
+    this.isProbeActive = false;
+    this.circuitState = "CLOSED";
+
+    const isDistributedEnabled =
+      process.env.ENABLE_DISTRIBUTED_TTS_LEASING === "true" ||
+      (process.env.NODE_ENV === "production" && process.env.FUNCTIONS_EMULATOR !== "true");
+
+    if (isDistributedEnabled) {
+      try {
+        const admin = require("firebase-admin");
+        admin
+          .firestore()
+          .collection("system_concurrency")
+          .doc("elevenlabs_circuit_breaker")
+          .set(
+            {
+              state: "CLOSED",
+              consecutiveFailures: 0,
+              probeOwnerId: null,
+              probeLeaseExpiresAt: 0,
+              updatedAt: Date.now(),
+            },
+            { merge: true }
+          )
+          .catch(() => {});
+      } catch (_) {}
+    }
+  }
+
+  public static recordFailure(is5xxOrSevere: boolean): void {
+    const isDistributedEnabled =
+      process.env.ENABLE_DISTRIBUTED_TTS_LEASING === "true" ||
+      (process.env.NODE_ENV === "production" && process.env.FUNCTIONS_EMULATOR !== "true");
+
+    if (this.circuitState === "HALF_OPEN") {
+      this.circuitState = "OPEN";
+      this.circuitOpenedAt = Date.now();
+      this.isProbeActive = false;
+      this.consecutiveFailures = this.MAX_FAILURES_BEFORE_TRIP;
+      logger.error("[GlobalTTSConcurrencyManager] ⚠️ Probe request failed in HALF_OPEN state — circuit breaker tripped back to OPEN.");
+
+      if (isDistributedEnabled) {
+        try {
+          const admin = require("firebase-admin");
+          admin
+            .firestore()
+            .collection("system_concurrency")
+            .doc("elevenlabs_circuit_breaker")
+            .set(
+              {
+                state: "OPEN",
+                circuitOpenedAt: Date.now(),
+                probeOwnerId: null,
+                probeLeaseExpiresAt: 0,
+                consecutiveFailures: this.MAX_FAILURES_BEFORE_TRIP,
+                updatedAt: Date.now(),
+              },
+              { merge: true }
+            )
+            .catch(() => {});
+        } catch (_) {}
+      }
+      return;
+    }
+
+    if (!is5xxOrSevere) return;
+    this.consecutiveFailures++;
+    if (this.consecutiveFailures >= this.MAX_FAILURES_BEFORE_TRIP) {
+      this.circuitState = "OPEN";
+      this.circuitOpenedAt = Date.now();
+      this.isProbeActive = false;
+      logger.error(`[GlobalTTSConcurrencyManager] ⚠️ Upstream TTS circuit breaker TRIPPED to OPEN after ${this.consecutiveFailures} consecutive severe provider failures.`);
+
+      if (isDistributedEnabled) {
+        try {
+          const admin = require("firebase-admin");
+          admin
+            .firestore()
+            .collection("system_concurrency")
+            .doc("elevenlabs_circuit_breaker")
+            .set(
+              {
+                state: "OPEN",
+                circuitOpenedAt: Date.now(),
+                probeOwnerId: null,
+                probeLeaseExpiresAt: 0,
+                consecutiveFailures: this.consecutiveFailures,
+                updatedAt: Date.now(),
+              },
+              { merge: true }
+            )
+            .catch(() => {});
+        } catch (_) {}
+      }
+    }
+  }
+
+  /**
+   * Distributed circuit check coordinating across multiple Cloud Function instances.
+   */
+  private static async checkDistributedCircuit(): Promise<void> {
+    this.checkCircuit();
+
+    const isDistributedEnabled =
+      process.env.ENABLE_DISTRIBUTED_TTS_LEASING === "true" ||
+      (process.env.NODE_ENV === "production" && process.env.FUNCTIONS_EMULATOR !== "true");
+
+    if (!isDistributedEnabled) return;
+
+    try {
+      const admin = require("firebase-admin");
+      const firestore = admin.firestore();
+      const circuitRef = firestore.collection("system_concurrency").doc("elevenlabs_circuit_breaker");
+      const instanceId = process.env.HOSTNAME || `inst_${uuidv4().slice(0, 8)}`;
+      const now = Date.now();
+
+      const allowed = await firestore.runTransaction(async (tx: any) => {
+        const snap = await tx.get(circuitRef);
+        if (!snap.exists) {
+          tx.set(circuitRef, {
+            state: "CLOSED",
+            circuitOpenedAt: 0,
+            probeOwnerId: null,
+            probeLeaseExpiresAt: 0,
+            consecutiveFailures: 0,
+            generation: 1,
+            updatedAt: now,
+          });
+          return true;
+        }
+        const data = snap.data();
+        if (data.state === "OPEN") {
+          if (now - (data.circuitOpenedAt || 0) > GlobalTTSConcurrencyManager.CIRCUIT_COOLDOWN_MS) {
+            tx.update(circuitRef, {
+              state: "HALF_OPEN",
+              probeOwnerId: instanceId,
+              probeLeaseExpiresAt: now + 15000,
+              updatedAt: now,
+            });
+            GlobalTTSConcurrencyManager.circuitState = "HALF_OPEN";
+            GlobalTTSConcurrencyManager.isProbeActive = true;
+            return true;
+          }
+          GlobalTTSConcurrencyManager.circuitState = "OPEN";
+          GlobalTTSConcurrencyManager.circuitOpenedAt = data.circuitOpenedAt || now;
+          return false;
+        } else if (data.state === "HALF_OPEN") {
+          if (data.probeOwnerId === instanceId) {
+            return true;
+          }
+          if (data.probeLeaseExpiresAt && data.probeLeaseExpiresAt < now) {
+            tx.update(circuitRef, {
+              probeOwnerId: instanceId,
+              probeLeaseExpiresAt: now + 15000,
+              updatedAt: now,
+            });
+            GlobalTTSConcurrencyManager.circuitState = "HALF_OPEN";
+            GlobalTTSConcurrencyManager.isProbeActive = true;
+            return true;
+          }
+          return false;
+        }
+        GlobalTTSConcurrencyManager.circuitState = "CLOSED";
+        return true;
+      });
+
+      if (!allowed) {
+        throw new Error(
+          "[GlobalTTSConcurrencyManager] Distributed upstream TTS circuit breaker is OPEN or testing with a probe. Request rejected to prevent cluster-wide cascading failure."
+        );
+      }
+    } catch (err: any) {
+      if (err.message?.includes("circuit breaker is OPEN") || err.message?.includes("testing with a probe")) {
+        throw err;
+      }
+      logger.warn("[GlobalTTSConcurrencyManager] Distributed circuit check fell back to local state", {
+        err: err?.message,
+      });
+    }
+  }
+
+  /**
+   * Acquires a concurrency slot respecting account ceilings.
+   * Throws Error if slot cannot be acquired within timeoutMs (HARD CEILING: never exceeds maxConcurrency).
+   * In multi-instance mode (Firestore available and not test), coordinates via distributed lease documents
+   * with fencing tokens, heartbeat lease renewal, and fenced release verification.
+   */
+  public static async acquireSlot(timeoutMs = 15000): Promise<() => void> {
+    await this.checkDistributedCircuit();
+    const maxConcurrency = this.getMaxConcurrency();
+    const start = Date.now();
+
+    // 1. Process-local concurrency ceiling enforcement (Finding 3: Hard Timeout Limit)
+    while (this.activeSlots >= maxConcurrency) {
+      if (Date.now() - start > timeoutMs) {
+        throw new Error(
+          `[GlobalTTSConcurrencyManager] Concurrency slot acquisition timed out after ${timeoutMs}ms (activeSlots=${this.activeSlots}, max=${maxConcurrency}). Request rejected to prevent upstream provider quota exhaustion.`
+        );
+      }
+      const waitMs = 40 + Math.floor(Math.random() * 80);
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+
+    this.activeSlots++;
+
+    // 2. Distributed lease coordination across multi-instance Cloud Functions with Fencing & Heartbeat
+    let distributedSlotId: number | null = null;
+    let leaseOwnerId: string = "";
+    let activeFenceToken = 0;
+    let heartbeatTimer: NodeJS.Timeout | null = null;
+
+    const isDistributedEnabled =
+      process.env.ENABLE_DISTRIBUTED_TTS_LEASING === "true" ||
+      (process.env.NODE_ENV === "production" && process.env.FUNCTIONS_EMULATOR !== "true");
+
+    if (isDistributedEnabled) {
+      try {
+        const admin = require("firebase-admin");
+        const firestore = admin.firestore();
+        const instanceId = process.env.HOSTNAME || `inst_${uuidv4().slice(0, 8)}`;
+        leaseOwnerId = `${instanceId}_${uuidv4().slice(0, 8)}`;
+
+        while (distributedSlotId === null) {
+          if (Date.now() - start > timeoutMs) {
+            this.activeSlots = Math.max(0, this.activeSlots - 1);
+            throw new Error(
+              `[GlobalTTSConcurrencyManager] Distributed slot lease acquisition timed out after ${timeoutMs}ms across instances. Request rejected to protect ElevenLabs quota.`
+            );
+          }
+
+          for (let slot = 0; slot < maxConcurrency; slot++) {
+            const slotRef = firestore.collection("tts_account_leases").doc(`slot_${slot}`);
+            try {
+              const acquired = await firestore.runTransaction(async (tx: any) => {
+                const snap = await tx.get(slotRef);
+                const now = Date.now();
+                if (!snap.exists) {
+                  activeFenceToken = 1;
+                  tx.set(slotRef, {
+                    slot,
+                    instanceId,
+                    leaseOwnerId,
+                    fenceToken: 1,
+                    leaseExpiresAt: now + GlobalTTSConcurrencyManager.LEASE_DURATION_MS,
+                    acquiredAt: now,
+                    lastHeartbeatAt: now,
+                  });
+                  return true;
+                }
+                const data = snap.data();
+                if (!data.leaseExpiresAt || data.leaseExpiresAt < now) {
+                  activeFenceToken = (data.fenceToken || 0) + 1;
+                  tx.update(slotRef, {
+                    instanceId,
+                    leaseOwnerId,
+                    fenceToken: activeFenceToken,
+                    leaseExpiresAt: now + GlobalTTSConcurrencyManager.LEASE_DURATION_MS,
+                    acquiredAt: now,
+                    lastHeartbeatAt: now,
+                  });
+                  return true;
+                }
+                return false;
+              });
+
+              if (acquired) {
+                distributedSlotId = slot;
+                break;
+              }
+            } catch (_) {
+              // Contention on this specific slot doc; try next slot
+            }
+          }
+
+          if (distributedSlotId === null) {
+            const jitterMs = 50 + Math.floor(Math.random() * 100);
+            await new Promise((resolve) => setTimeout(resolve, jitterMs));
+          }
+        }
+
+        // Heartbeat renewal: renews lease every 10s as long as request is in flight
+        if (distributedSlotId !== null) {
+          const currentSlot = distributedSlotId;
+          const currentOwner = leaseOwnerId;
+          const currentToken = activeFenceToken;
+          heartbeatTimer = setInterval(async () => {
+            try {
+              const slotRef = firestore.collection("tts_account_leases").doc(`slot_${currentSlot}`);
+              await firestore.runTransaction(async (tx: any) => {
+                const snap = await tx.get(slotRef);
+                if (!snap.exists) return;
+                const data = snap.data();
+                // Fencing check: verify we still hold the unexpired lease and token matches
+                if (data.leaseOwnerId === currentOwner && data.fenceToken === currentToken) {
+                  tx.update(slotRef, {
+                    leaseExpiresAt: Date.now() + GlobalTTSConcurrencyManager.LEASE_DURATION_MS,
+                    lastHeartbeatAt: Date.now(),
+                  });
+                }
+              });
+            } catch (_) {}
+          }, 10000);
+        }
+      } catch (distErr: any) {
+        if (distErr.message?.includes("timed out") || distErr.message?.includes("circuit breaker")) {
+          throw distErr;
+        }
+        logger.warn("[GlobalTTSConcurrencyManager] Distributed lease check fell back to local bounding", {
+          err: distErr.message,
+        });
+      }
+    }
+
+    let released = false;
+    return () => {
+      if (!released) {
+        released = true;
+        GlobalTTSConcurrencyManager.activeSlots = Math.max(0, GlobalTTSConcurrencyManager.activeSlots - 1);
+        if (heartbeatTimer) {
+          clearInterval(heartbeatTimer);
+          heartbeatTimer = null;
+        }
+        if (distributedSlotId !== null) {
+          try {
+            const admin = require("firebase-admin");
+            const firestore = admin.firestore();
+            const slotRef = firestore.collection("tts_account_leases").doc(`slot_${distributedSlotId}`);
+            const currentOwner = leaseOwnerId;
+            const currentToken = activeFenceToken;
+            firestore
+              .runTransaction(async (tx: any) => {
+                const snap = await tx.get(slotRef);
+                if (!snap.exists) return;
+                const data = snap.data();
+                // Fencing verification: Only release if we still own the lease!
+                if (data.leaseOwnerId === currentOwner && data.fenceToken === currentToken) {
+                  tx.update(slotRef, {
+                    leaseExpiresAt: 0,
+                    releasedAt: Date.now(),
+                  });
+                }
+              })
+              .catch(() => {});
+          } catch (_) {}
+        }
+      }
+    };
+  }
+}
+
 export class ElevenLabsTTSService {
   private apiKey: string;
   private defaultVoiceSettings: VoiceSettings = {
     stability: 0.5,
     similarity_boost: 0.75,
-    style: 0.3,
     use_speaker_boost: true,
   };
 
@@ -190,8 +614,8 @@ export class ElevenLabsTTSService {
     const model = this.selectModel(request.language, request);
     const apiKey = this.getApiKey();
 
-    if (!apiKey) {
-      throw new Error("[ElevenLabsTTS] No ElevenLabs API key configured");
+    if (!apiKey || apiKey.trim().length === 0 || apiKey.includes("YOUR_") || apiKey.includes("placeholder")) {
+      throw new Error("ElevenLabs API key is missing. Video dubbing strictly requires ElevenLabs v4.");
     }
 
     logger.info("[ElevenLabsTTS] Synthesizing segment strictly with ElevenLabs V4", {
@@ -208,6 +632,42 @@ export class ElevenLabsTTSService {
 
     const glossarizedText = applyPronunciationGlossary(request.text, request.pronunciationGlossary);
 
+    // 🛡️ Zero-Credit Non-Speech / Empty Segment Guard:
+    // If text contains only audio tags, brackets, parentheses, punctuation, emojis, or whitespace
+    // (e.g. "(music)", "[silence]", "...", "[laughs]" without dialogue), do NOT invoke ElevenLabs.
+    // ElevenLabs rejects empty verbal text with HTTP 400 "input_text_empty".
+    const hasSpoken = hasVerbalContent(glossarizedText);
+    if (!hasSpoken) {
+      logger.info("[ElevenLabsTTS] Non-speech segment detected — producing silent audio chunk", {
+        jobId: request.jobId,
+        language: request.language,
+        originalText: request.text,
+      });
+
+      const silentMp3Buffer = await createSilentMp3Buffer(0.5);
+      const bucket = storage().bucket();
+      const filePath = `audio/${request.jobId}/${request.language}/chunk-${uuidv4()}.mp3`;
+      const file = bucket.file(filePath);
+
+      await file.save(silentMp3Buffer, {
+        contentType: "audio/mpeg",
+        metadata: {
+          cacheControl: "public, max-age=31536000",
+        },
+      });
+
+      const audioUrl = `gs://${bucket.name}/${filePath}`;
+      return {
+        jobId: request.jobId,
+        language: request.language,
+        audioUrl,
+        duration: 0.5,
+        format: "mp3",
+        provider: "elevenlabs",
+        voiceName: voiceId,
+      };
+    }
+
     const clamp01 = (v: number): number => Number(Math.max(0, Math.min(1, v)).toFixed(2));
     const resolvedStability =
       typeof request.stability === "number" && Number.isFinite(request.stability)
@@ -221,129 +681,177 @@ export class ElevenLabsTTSService {
     const voiceSettings: VoiceSettings = {
       stability: resolvedStability,
       similarity_boost: resolvedSimilarity,
-      style: typeof (request as any).style === "number" ? (request as any).style : (this.defaultVoiceSettings.style ?? 0.3),
       use_speaker_boost: request.useSpeakerBoost ?? this.defaultVoiceSettings.use_speaker_boost ?? true,
+      ...(typeof (request as any).style === "number" ? { style: (request as any).style } : {}),
     };
 
-    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      const currentModel = attemptModels[attempt] || TTS_MODELS.v3;
-      const isCurrentV4 = currentModel === TTS_MODELS.v4;
-      const synthesisText = isCurrentV4
-        ? sanitizeTextForElevenLabsV4(glossarizedText, request.emotionTag)
-        : stripAudioTagsForSubtitles(glossarizedText);
+    const releaseSlot = await GlobalTTSConcurrencyManager.acquireSlot();
 
-      try {
-        const response = await axios.post(
-          `${ELEVENLABS_BASE_URL}/text-to-speech/${voiceId}`,
-          {
-            text: synthesisText || request.text,
-            model_id: currentModel,
-            voice_settings: voiceSettings,
-          },
-          {
-            headers: {
-              "xi-api-key": apiKey,
-              "Content-Type": "application/json",
+    try {
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        const currentModel = attemptModels[attempt] || TTS_MODELS.v3;
+        const isCurrentV4 = currentModel === TTS_MODELS.v4;
+        const synthesisText = isCurrentV4
+          ? sanitizeTextForElevenLabsV4(glossarizedText, request.emotionTag)
+          : stripAudioTagsForSubtitles(glossarizedText);
+
+        try {
+          const response = await axios.post(
+            `${ELEVENLABS_BASE_URL}/text-to-speech/${voiceId}`,
+            {
+              text: synthesisText || request.text,
+              model_id: currentModel,
+              voice_settings: voiceSettings,
             },
-            params: {
-              output_format: "mp3_44100_128",
-            },
-            responseType: "arraybuffer",
-            timeout: 60000,
+            {
+              headers: {
+                "xi-api-key": apiKey,
+                "Content-Type": "application/json",
+              },
+              params: {
+                output_format: "mp3_44100_128",
+              },
+              responseType: "arraybuffer",
+              timeout: 60000,
+            }
+          );
+
+          if (!response.data || (response.data.byteLength !== undefined && response.data.byteLength === 0)) {
+            throw new Error("[ElevenLabsTTS] Empty audio response from ElevenLabs");
           }
-        );
 
-        if (!response.data || response.data.byteLength === 0) {
-          throw new Error("[ElevenLabsTTS] Empty audio response from ElevenLabs");
-        }
+          GlobalTTSConcurrencyManager.recordSuccess();
 
-        const bucket = storage().bucket();
-        const filePath = `audio/${request.jobId}/${request.language}/chunk-${uuidv4()}.mp3`;
-        const file = bucket.file(filePath);
+          const bucket = storage().bucket();
+          const filePath = `audio/${request.jobId}/${request.language}/chunk-${uuidv4()}.mp3`;
+          const file = bucket.file(filePath);
 
-        await file.save(response.data, {
-          metadata: {
-            contentType: "audio/mpeg",
+          // ⚡ Low latency: resumable: false performs direct single-shot PUT upload for small chunks
+          await file.save(response.data, {
+            resumable: false,
             metadata: {
-              provider: "elevenlabs",
-              model: currentModel,
-              voiceId,
-              language: request.language,
-              isVoiceClone: String(Boolean(request.voiceCloneId || request.preferVoiceCloning)),
+              contentType: "audio/mpeg",
+              metadata: {
+                provider: "elevenlabs",
+                model: currentModel,
+                voiceId,
+                language: request.language,
+                isVoiceClone: String(Boolean(request.voiceCloneId || request.preferVoiceCloning)),
+              },
             },
-          },
-        });
+          });
 
-        const audioUrl = `gs://${bucket.name}/${filePath}`;
-        costEngine.recordTTSCost(
-          request.jobId,
-          request.userId || "__tts__",
-          request.text.length,
-          "elevenlabs"
-        ).catch(() => {});
+          const audioUrl = `gs://${bucket.name}/${filePath}`;
+          costEngine.recordTTSCost(
+            request.jobId,
+            request.userId || "__tts__",
+            request.text.length,
+            "elevenlabs"
+          ).catch(() => {});
 
-        logger.info("[ElevenLabsTTS] ✅ Segment synthesized", {
-          jobId: request.jobId,
-          language: request.language,
-          audioUrl,
-          bytes: response.data.byteLength,
-        });
+          logger.info("[ElevenLabsTTS] ✅ Segment synthesized", {
+            jobId: request.jobId,
+            language: request.language,
+            audioUrl,
+            bytes: response.data.byteLength,
+          });
 
-        return {
-          jobId: request.jobId,
-          language: request.language,
-          audioUrl,
-          duration: this.estimateDuration(request.text),
-          format: "mp3",
-          provider: "elevenlabs",
-          voiceName: voiceId,
-        };
-      } catch (error: any) {
-        const statusCode = error.response?.status;
-        const errorBody = error.response?.data
-          ? Buffer.isBuffer(error.response.data) || error.response.data instanceof ArrayBuffer
-            ? new TextDecoder().decode(error.response.data)
-            : JSON.stringify(error.response.data)
-          : error.message;
+          return {
+            jobId: request.jobId,
+            language: request.language,
+            audioUrl,
+            duration: this.estimateDuration(request.text),
+            format: "mp3",
+            provider: "elevenlabs",
+            voiceName: voiceId,
+          };
+        } catch (error: any) {
+          const statusCode = error.response?.status;
+          GlobalTTSConcurrencyManager.recordFailure(Boolean(statusCode && statusCode >= 500));
+          let errorBody = error.message;
+          if (error.response?.data) {
+            try {
+              if (Buffer.isBuffer(error.response.data) || error.response.data instanceof ArrayBuffer) {
+                errorBody = new TextDecoder().decode(error.response.data);
+              } else if (typeof error.response.data === "string") {
+                errorBody = error.response.data;
+              } else if (typeof (error.response.data as any)?.pipe === "function" || error.response.data instanceof streamLib.Readable) {
+                errorBody = error.message || "ElevenLabs stream error";
+              } else {
+                errorBody = JSON.stringify(error.response.data);
+              }
+            } catch (_) {
+              errorBody = error.message || "ElevenLabs error";
+            }
+          }
 
-        logger.error("[ElevenLabsTTS] ❌ ElevenLabs API error", {
-          jobId: request.jobId,
-          language: request.language,
-          attempt: attempt + 1,
-          statusCode,
-          error: errorBody,
-          model: currentModel,
-          voiceId,
-        });
+          logger.error("[ElevenLabsTTS] ❌ ElevenLabs API error", {
+            jobId: request.jobId,
+            language: request.language,
+            attempt: attempt + 1,
+            statusCode,
+            error: errorBody,
+            model: currentModel,
+            voiceId,
+          });
 
-        const isQuota = statusCode === 401 && (
-          errorBody.includes("quota_exceeded") ||
-          errorBody.includes("credits remaining")
-        );
-        if (isQuota) {
-          logger.error("[ElevenLabsTTS] ❌ Quota exhausted — halting synthesis to prevent partial dubbing", { jobId: request.jobId, error: errorBody });
-          const quotaErr = new Error(`ElevenLabs quota exceeded: ${errorBody}`);
-          (quotaErr as any).isQuota = true;
-          (quotaErr as any).code = "QUOTA_EXCEEDED";
-          throw quotaErr;
+          const isQuota = statusCode === 401 && (
+            errorBody.includes("quota_exceeded") ||
+            errorBody.includes("credits remaining")
+          );
+          if (isQuota) {
+            logger.error("[ElevenLabsTTS] ❌ Quota exhausted — halting synthesis to prevent partial dubbing", { jobId: request.jobId, error: errorBody });
+            const quotaErr = new Error(`ElevenLabs quota exceeded: ${errorBody}`);
+            (quotaErr as any).isQuota = true;
+            (quotaErr as any).code = "QUOTA_EXCEEDED";
+            throw quotaErr;
+          }
+
+          const isRateLimitOrConcurrency = statusCode === 429 || (
+            typeof errorBody === "string" && (
+              errorBody.includes("too_many_concurrent_requests") ||
+              errorBody.includes("concurrent_requests_exceeded") ||
+              errorBody.includes("rate_limit")
+            )
+          );
+          if (isRateLimitOrConcurrency && attempt < MAX_RETRIES - 1) {
+            const retryAfterHeader = error.response?.headers?.["retry-after"];
+            let jitterMs = Math.floor(Math.random() * 1000) + 1200 * Math.pow(2, attempt);
+            if (retryAfterHeader) {
+              const parsedSec = parseInt(retryAfterHeader, 10);
+              if (!isNaN(parsedSec) && parsedSec > 0) {
+                jitterMs = Math.max(jitterMs, parsedSec * 1000);
+              }
+            }
+            logger.warn(`[ElevenLabsTTS] ⚠️ Rate limit / concurrency limit hit (HTTP 429). Jittered backoff for ${jitterMs}ms before retry.`, {
+              jobId: request.jobId,
+              attempt: attempt + 1,
+              error: errorBody,
+              retryAfterHeader,
+            });
+            await new Promise((r) => setTimeout(r, jitterMs));
+            continue;
+          }
+
+          if (attempt === MAX_RETRIES - 1) {
+            throw new Error(`[ElevenLabsTTS] Failed after 2 attempts (Tier 1 ${TTS_MODELS.v4} and Tier 2 fallback ${TTS_MODELS.v3}): ${statusCode} — ${errorBody}`);
+          }
+
+          const nextModel = attemptModels[attempt + 1];
+          logger.info("[ElevenLabsTTS] Retrying synthesis with single fallback model", {
+            jobId: request.jobId,
+            nextAttempt: attempt + 2,
+            model: nextModel,
+          });
+
+          const delay = 1000 * Math.pow(2, attempt);
+          await new Promise((r) => setTimeout(r, delay));
         }
-
-        if (attempt === MAX_RETRIES - 1) {
-          throw new Error(`[ElevenLabsTTS] Failed after 2 attempts (Tier 1 ${TTS_MODELS.v4} and Tier 2 fallback ${TTS_MODELS.v3}): ${statusCode} — ${errorBody}`);
-        }
-
-        const nextModel = attemptModels[attempt + 1];
-        logger.info("[ElevenLabsTTS] Retrying synthesis with single fallback model", {
-          jobId: request.jobId,
-          nextAttempt: attempt + 2,
-          model: nextModel,
-        });
-
-        const delay = 1000 * Math.pow(2, attempt);
-        await new Promise((r) => setTimeout(r, delay));
       }
+      throw new Error("[ElevenLabsTTS] Synthesize failed after all retries");
+    } finally {
+      releaseSlot();
     }
-    throw new Error("[ElevenLabsTTS] Synthesize failed after all retries");
   }
 
   private estimateDuration(text: string): number {
@@ -449,14 +957,12 @@ export class ElevenLabsTTSService {
 }
 
 export class TTSService {
-  private googleTts: GoogleTextToSpeechService;
   private elevenLabsTts: ElevenLabsTTSService;
 
   constructor(
-    googleTts?: GoogleTextToSpeechService,
+    _legacyProvider?: any,
     elevenLabsTts?: ElevenLabsTTSService
   ) {
-    this.googleTts = googleTts || new GoogleTextToSpeechService();
     this.elevenLabsTts = elevenLabsTts || new ElevenLabsTTSService();
   }
 
@@ -473,87 +979,30 @@ export class TTSService {
 
   /**
    * Unified synthesis entry point.
-   * - Voice Cloning: Strictly routed to ElevenLabs when configured, with resilient automatic fallback
-   *   to Google Cloud Chirp 3: HD if ElevenLabs encounters rate limits or quota exhaustion.
-   * - Video Audio Tracks Dubbing: Synthesized using high-fidelity Google Cloud Text-to-Speech
-   *   (Chirp 3: HD / Neural2 / Journey / Studio) or ElevenLabs when available, guaranteeing zero failures.
+   * - Video Audio Tracks Dubbing & Voice Cloning: Strictly powered by ElevenLabs v4 (`eleven_v4`).
+   *   If any issue occurs, the single failover tier is ElevenLabs v3 (`eleven_v3`).
+   *   Google Cloud Text-to-Speech (Chirp 3: HD / Neural2 / etc.) has been completely terminated.
+   *   All dubbing strictly routes to ElevenLabs (eleven_v4 -> eleven_v3) with zero other models or providers.
    */
   async synthesize(request: TTSRequest): Promise<TTSResult> {
-    const rawTier = String(request.ttsTier || "");
-    const isVoiceCloningRequested = Boolean(
-      request.preferVoiceCloning ||
-      request.voiceCloneId ||
-      rawTier === "audio_ultra" ||
-      rawTier === "video_pro" ||
-      rawTier === "video_ultra" ||
-      request.provider === "elevenlabs"
-    );
-
     const apiKey = this.elevenLabsTts.getApiKey();
-    const hasElevenLabs = Boolean(apiKey && apiKey.trim().length > 0 && !apiKey.includes("YOUR_"));
-
-    // 1. Voice Cloning / ElevenLabs preferred path
-    if (isVoiceCloningRequested || request.provider === "elevenlabs") {
-      if (hasElevenLabs) {
-        try {
-          logger.info("[TTS] Synthesizing voice-cloned segment with ElevenLabs", {
-            jobId: request.jobId,
-            language: request.language,
-            voiceCloneId: request.voiceCloneId,
-          });
-          return await this.elevenLabsTts.synthesize(request);
-        } catch (err: any) {
-          logger.warn(
-            "[TTS] ⚠️ ElevenLabs voice cloning synthesis failed or quota exceeded. Seamlessly falling back to Google Cloud Text-to-Speech (Chirp 3: HD).",
-            {
-              jobId: request.jobId,
-              language: request.language,
-              error: err?.message || String(err),
-            }
-          );
-          return await this.googleTts.synthesize({
-            ...request,
-            preferVoiceCloning: false,
-          });
-        }
-      } else {
-        logger.warn(
-          "[TTS] ⚠️ Voice cloning requested but ElevenLabs API key is missing or unconfigured. Falling back to Google Cloud Text-to-Speech (Chirp 3: HD).",
-          { jobId: request.jobId, language: request.language }
-        );
-        return await this.googleTts.synthesize({
-          ...request,
-          preferVoiceCloning: false,
-        });
-      }
+    if (!apiKey || apiKey.trim().length === 0 || apiKey.includes("YOUR_") || apiKey.includes("placeholder")) {
+      logger.error("[TTS] ❌ ElevenLabs API key is missing. Video dubbing strictly requires ElevenLabs v4.", {
+        jobId: request.jobId,
+        language: request.language,
+      });
+      throw new Error("ElevenLabs API key is missing. Video dubbing strictly requires ElevenLabs v4.");
     }
 
-    // 2. Default Audio Tracks Dubbing:
-    // If ElevenLabs is configured, attempt synthesis; if it fails (e.g. 401 invalid key, 429 quota),
-    // seamlessly fall back to Google Cloud Text-to-Speech (Chirp 3: HD).
-    if (hasElevenLabs) {
-      try {
-        return await this.elevenLabsTts.synthesize(request);
-      } catch (err: any) {
-        logger.warn(
-          "[TTS] ⚠️ ElevenLabs audio dubbing failed. Falling back gracefully to Google Cloud Text-to-Speech (Chirp 3: HD).",
-          {
-            jobId: request.jobId,
-            language: request.language,
-            error: err?.message || String(err),
-          }
-        );
-        return await this.googleTts.synthesize(request);
-      }
-    }
-
-    // Zero third-party dependency: Google Cloud Text-to-Speech directly
-    logger.info("[TTS] Synthesizing dubbing audio track with Google Cloud Text-to-Speech (Chirp 3: HD)", {
+    logger.info("[TTS] Synthesizing audio track strictly with ElevenLabs (Tier 1: eleven_v4, Tier 2 failover: eleven_v3)", {
       jobId: request.jobId,
       language: request.language,
+      voiceCloneId: request.voiceCloneId,
+      preferVoiceCloning: request.preferVoiceCloning,
       textLength: request.text?.length,
     });
-    return await this.googleTts.synthesize(request);
+
+    return await this.elevenLabsTts.synthesize(request);
   }
 
   public estimateDuration(text: string): number {
@@ -571,3 +1020,27 @@ export class TTSService {
 
 export const elevenLabsTtsService = new ElevenLabsTTSService();
 export const ttsService = new TTSService();
+
+export const DEFAULT_MAX_ELEVENLABS_CONCURRENCY = 15;
+
+/**
+ * Adaptive TTS batch size: maximizes ElevenLabs concurrency per video duration
+ * while strictly adhering to provider concurrency limits to prevent HTTP 429 cascades.
+ *
+ * Concurrency tier ceilings:
+ *   - Creator tier: 5
+ *   - Pro tier: 10
+ *   - Scale tier: 15 (default)
+ *   - Business/Enterprise tier: 30+ (via ELEVENLABS_MAX_CONCURRENCY)
+ */
+export function getAdaptiveTTSBatchSize(
+  segmentCount: number,
+  videoDurationMs: number,
+  maxConcurrency: number = parseInt(process.env.ELEVENLABS_MAX_CONCURRENCY || "15", 10)
+): number {
+  const cap = Math.max(1, maxConcurrency);
+  if (videoDurationMs <= 0) return Math.min(25, cap);
+  if (videoDurationMs < 180_000) return Math.min(segmentCount, cap);    // ≤ 3 min: bounded mega-batch
+  if (videoDurationMs < 600_000) return Math.min(50, cap);             // 3–10 min: bounded batch
+  return Math.min(25, cap);                                            // >10 min: conservative
+}

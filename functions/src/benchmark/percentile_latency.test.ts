@@ -12,7 +12,14 @@
  * 5. Dynamic SEO Route Matching: P95 <= 0.05ms, P99 <= 0.10ms
  * 6. Search Tokenizer & Relevance Scoring: P95 <= 0.10ms, P99 <= 0.30ms
  * 7. Distributed Counter Shard Aggregation: P95 <= 0.05ms, P99 <= 0.15ms
+ * 8. L1 Feed Memory Cache Lookup & Eviction SLA: P95 <= 0.50ms, P99 <= 1.00ms
+ * 9. L1 Full In-Process Serving Pipeline (Lookup + JSON + ETag): P95 <= 1.00ms, P99 <= 2.00ms
  */
+
+import * as crypto from "crypto";
+process.env.NODE_ENV = "test";
+import { DualBoundedLruCache } from "../shared/memory-cache";
+import { isWeakETagMatch } from "../feed/publicFeedServer";
 
 interface LatencyStats {
   suiteName: string;
@@ -29,6 +36,7 @@ interface LatencyStats {
   p99BudgetMs: number;
   p95Pass: boolean;
   p99Pass: boolean;
+  opsPerSec: number;
 }
 
 function computePercentiles(
@@ -49,6 +57,7 @@ function computePercentiles(
   const p95Ms = sorted[Math.floor(n * 0.95)];
   const p99Ms = sorted[Math.floor(n * 0.99)];
   const p999Ms = sorted[Math.floor(n * 0.999)];
+  const opsPerSec = sum > 0 ? Math.round((n / sum) * 1000) : 0;
 
   return {
     suiteName,
@@ -65,6 +74,7 @@ function computePercentiles(
     p99BudgetMs,
     p95Pass: p95Ms <= p95BudgetMs,
     p99Pass: p99Ms <= p99BudgetMs,
+    opsPerSec,
   };
 }
 
@@ -390,6 +400,148 @@ function benchmarkDistributedCounterSharding(): LatencyStats {
 }
 
 // ---------------------------------------------------------------------------
+// 8. L1 Feed Memory Cache Lookup & Eviction SLA
+// ---------------------------------------------------------------------------
+function benchmarkL1FeedCache(): LatencyStats {
+  const cache = new DualBoundedLruCache({
+    maxEntries: 150,
+    maxTotalBytes: 16 * 1024 * 1024,
+    maxEntryBytes: 256 * 1024,
+    defaultTtlSeconds: 60,
+  });
+
+  const sampleFeedPayload = {
+    feed: Array.from({ length: 24 }, (_, i) => ({
+      id: `vid_benchmark_${i}`,
+      title: `TruthWorld Video Benchmark Headline ${i}`,
+      videoUrl: `https://storage.googleapis.com/truthworld/videos/vid_${i}.mp4`,
+      thumbnailUrl: `https://storage.googleapis.com/truthworld/thumbs/vid_${i}.jpg`,
+      views: 1250 + i * 50,
+      likes: 420 + i * 10,
+      createdAt: Date.now() - i * 3600000,
+    })),
+    count: 24,
+    hasMore: true,
+    category: "all",
+    lang: "all",
+  };
+
+  // Pre-seed 50 cache entries
+  for (let c = 0; c < 50; c++) {
+    cache.set(`edge_feed_home_cat_${c % 10}_lang_en_24_p1`, sampleFeedPayload, 60);
+  }
+
+  const iterations = 10000;
+  const durations: number[] = new Array(iterations);
+
+  // Warmup
+  for (let i = 0; i < 500; i++) {
+    cache.get(`edge_feed_home_cat_${i % 10}_lang_en_24_p1`);
+  }
+
+  for (let i = 0; i < iterations; i++) {
+    const key = `edge_feed_home_cat_${i % 10}_lang_en_24_p1`;
+    const t0 = process.hrtime.bigint();
+    cache.get(key);
+    const t1 = process.hrtime.bigint();
+    durations[i] = Number(t1 - t0) / 1_000_000;
+  }
+
+  return computePercentiles("L1 Feed Memory Cache Lookup", durations, 0.50, 1.00);
+}
+
+// ---------------------------------------------------------------------------
+// 9. L1 Full In-Process Serving Pipeline (Lookup + Serialization + ETag + 304)
+// ---------------------------------------------------------------------------
+function benchmarkL1FullPipeline(): LatencyStats {
+  const cache = new DualBoundedLruCache({
+    maxEntries: 150,
+    maxTotalBytes: 16 * 1024 * 1024,
+    maxEntryBytes: 256 * 1024,
+    defaultTtlSeconds: 60,
+  });
+
+  const sampleFeedPayload = {
+    feed: Array.from({ length: 24 }, (_, i) => ({
+      id: `vid_pipeline_${i}`,
+      title: `TruthWorld Comprehensive Benchmark Video Item ${i}`,
+      videoUrl: `https://storage.googleapis.com/truthworld/videos/vid_${i}.mp4`,
+      thumbnailUrl: `https://storage.googleapis.com/truthworld/thumbs/vid_${i}.jpg`,
+      views: 2400 + i * 80,
+      likes: 850 + i * 20,
+      createdAt: Date.now() - i * 3600000,
+      category: "science",
+      lang: "en",
+    })),
+    count: 24,
+    hasMore: true,
+    category: "science",
+    lang: "en",
+    cachedAt: new Date().toISOString(),
+    edgeServed: true,
+  };
+
+  // Seed cache
+  for (let c = 0; c < 20; c++) {
+    cache.set(`edge_feed_home_cat_${c % 5}_lang_en_24_p1`, sampleFeedPayload, 60);
+  }
+
+  // Pre-compute an ETag for simulating conditional 304 requests
+  const sampleJson = JSON.stringify(sampleFeedPayload);
+  const sampleETag = 'W/"' + crypto.createHash("sha256").update(sampleJson).digest("hex").substring(0, 24) + '"';
+
+  const batches = 5;
+  const iterationsPerBatch = 2000;
+  const totalIterations = batches * iterationsPerBatch;
+  const durations: number[] = new Array(totalIterations);
+
+  let durationIndex = 0;
+
+  // Warmup
+  for (let w = 0; w < 500; w++) {
+    const cached = cache.get(`edge_feed_home_cat_0_lang_en_24_p1`);
+    if (cached) {
+      const s = JSON.stringify(cached);
+      crypto.createHash("sha256").update(s).digest("hex");
+    }
+  }
+
+  for (let b = 0; b < batches; b++) {
+    for (let i = 0; i < iterationsPerBatch; i++) {
+      const key = `edge_feed_home_cat_${i % 5}_lang_en_24_p1`;
+      const clientETag = i % 2 === 0 ? sampleETag : 'W/"different_etag"';
+
+      const t0 = process.hrtime.bigint();
+
+      // 1. In-process cache retrieval & recency touch
+      let cached = cache.get<typeof sampleFeedPayload>(key);
+      if (!cached) {
+        cache.set(key, sampleFeedPayload, 60);
+        cached = sampleFeedPayload;
+      }
+
+      // 2. Response serialization
+      const serialized = JSON.stringify(cached);
+
+      // 3. RFC 9110 SHA-256 ETag generation
+      const computedETag =
+        'W/"' + crypto.createHash("sha256").update(serialized).digest("hex").substring(0, 24) + '"';
+
+      // 4. Weak comparison conditional 304 evaluation
+      const is304 = isWeakETagMatch(clientETag, computedETag);
+      if (is304 && !computedETag) {
+        throw new Error("Invalid ETag state");
+      }
+
+      const t1 = process.hrtime.bigint();
+      durations[durationIndex++] = Number(t1 - t0) / 1_000_000;
+    }
+  }
+
+  return computePercentiles("L1 Full In-Process Pipeline (Lookup+ETag)", durations, 1.00, 2.00);
+}
+
+// ---------------------------------------------------------------------------
 // Main Runner & Formatted Summary Report
 // ---------------------------------------------------------------------------
 function main() {
@@ -405,37 +557,41 @@ function main() {
     benchmarkSeoRouteMatcher(),
     benchmarkSearchScorer(),
     benchmarkDistributedCounterSharding(),
+    benchmarkL1FeedCache(),
+    benchmarkL1FullPipeline(),
   ];
 
   console.log("Latency Results Summary (in milliseconds):");
-  console.log("----------------------------------------------------------------------------------------------------------------------");
+  console.log("--------------------------------------------------------------------------------------------------------------------------------");
   console.log(
-    "Suite Name".padEnd(42) +
-    "Samples".padEnd(10) +
-    "Min".padEnd(10) +
-    "Mean".padEnd(10) +
-    "P50".padEnd(10) +
-    "P90".padEnd(10) +
-    "P95".padEnd(10) +
-    "P99".padEnd(10) +
-    "Max".padEnd(10)
+    "Suite Name".padEnd(44) +
+    "Samples".padEnd(9) +
+    "Min".padEnd(9) +
+    "Mean".padEnd(9) +
+    "P50".padEnd(9) +
+    "P90".padEnd(9) +
+    "P95".padEnd(9) +
+    "P99".padEnd(9) +
+    "Max".padEnd(9) +
+    "Throughput".padStart(13)
   );
-  console.log("----------------------------------------------------------------------------------------------------------------------");
+  console.log("--------------------------------------------------------------------------------------------------------------------------------");
 
   for (const s of suites) {
     console.log(
-      s.suiteName.padEnd(42) +
-      String(s.samples).padEnd(10) +
-      s.minMs.toFixed(4).padEnd(10) +
-      s.meanMs.toFixed(4).padEnd(10) +
-      s.p50Ms.toFixed(4).padEnd(10) +
-      s.p90Ms.toFixed(4).padEnd(10) +
-      s.p95Ms.toFixed(4).padEnd(10) +
-      s.p99Ms.toFixed(4).padEnd(10) +
-      s.maxMs.toFixed(4).padEnd(10)
+      s.suiteName.padEnd(44) +
+      String(s.samples).padEnd(9) +
+      s.minMs.toFixed(4).padEnd(9) +
+      s.meanMs.toFixed(4).padEnd(9) +
+      s.p50Ms.toFixed(4).padEnd(9) +
+      s.p90Ms.toFixed(4).padEnd(9) +
+      s.p95Ms.toFixed(4).padEnd(9) +
+      s.p99Ms.toFixed(4).padEnd(9) +
+      s.maxMs.toFixed(4).padEnd(9) +
+      `${s.opsPerSec.toLocaleString()} ops/s`.padStart(13)
     );
   }
-  console.log("----------------------------------------------------------------------------------------------------------------------\n");
+  console.log("--------------------------------------------------------------------------------------------------------------------------------\n");
 
   console.log("--- P95 & P99 SLA Enforcement Checks ---");
   for (const s of suites) {

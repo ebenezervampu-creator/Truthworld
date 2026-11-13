@@ -1858,7 +1858,6 @@ class GenerateAiSubtitlesPage extends StatelessWidget {
                     targetLanguages: selectedLangs.toList(),
                     priorityMode: priorityMode.value,
                     subtitleTier: selectedTier.value,
-                    isDirectlyPaid: false,
                   );
                 }
               : null,

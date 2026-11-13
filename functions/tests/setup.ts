@@ -19,7 +19,7 @@ process.env.GCLOUD_PROJECT = 'truthworld-test-safe';
 process.env.PROJECT_ID = 'truthworld-test-safe';
 
 import * as admin from 'firebase-admin';
-import { testFirestore, FieldValue, Timestamp } from './helpers/mockFirestore';
+import { testFirestore, FieldValue, Timestamp, FieldPath } from './helpers/mockFirestore';
 import { decodeMockToken } from './helpers/authHelper';
 
 // Ensure Firebase Admin is initialized in test mode
@@ -130,6 +130,7 @@ const mockAppCheck = {
 let firestoreSpy = jest.spyOn(admin, 'firestore').mockReturnValue(testFirestore as any);
 (admin.firestore as any).FieldValue = FieldValue;
 (admin.firestore as any).Timestamp = Timestamp;
+(admin.firestore as any).FieldPath = FieldPath;
 
 let authSpy = jest.spyOn(admin, 'auth').mockReturnValue(mockAuth as any);
 let storageSpy = jest.spyOn(admin, 'storage').mockReturnValue({
@@ -144,6 +145,7 @@ function ensureAdminMocks() {
   firestoreSpy.mockReturnValue(testFirestore as any);
   (admin.firestore as any).FieldValue = FieldValue;
   (admin.firestore as any).Timestamp = Timestamp;
+  (admin.firestore as any).FieldPath = FieldPath;
 
   if (!jest.isMockFunction(admin.auth)) {
     authSpy = jest.spyOn(admin, 'auth').mockReturnValue(mockAuth as any);

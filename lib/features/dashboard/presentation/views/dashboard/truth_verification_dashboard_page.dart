@@ -5,6 +5,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/ux/user_feedback_sanitizer.dart';
 import 'package:truthworld/core/widgets/studio_loading_indicator.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_claim_card.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_dialogs.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification/truth_verification_full_inspector_modal.dart';
@@ -41,16 +42,24 @@ class TruthVerificationDashboardPage extends StatelessWidget {
     required this.channelId,
     required this.isDarkMode,
     this.initialVideoId,
+    this.videosStream,
     super.key,
   }) {
     if (initialVideoId != null && initialVideoId!.isNotEmpty) {
-      targetVideoId.value = initialVideoId!;
+      if (targetVideoId.value != initialVideoId) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (targetVideoId.value != initialVideoId) {
+            targetVideoId.value = initialVideoId!;
+          }
+        });
+      }
     }
   }
 
   final String channelId;
   final bool isDarkMode;
   final String? initialVideoId;
+  final Stream<QuerySnapshot>? videosStream;
 
   /// Global or deep-linked target video filter
   static final RxString targetVideoId = ''.obs;
@@ -224,10 +233,11 @@ class TruthVerificationDashboardPage extends StatelessWidget {
           final isDesktop = constraints.maxWidth >= 900;
 
           return StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('videos')
-                .where('channelId', isEqualTo: channelId)
-                .snapshots(),
+            stream: videosStream ??
+                FirebaseFirestore.instance
+                    .collection('videos')
+                    .where('channelId', isEqualTo: channelId)
+                    .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 ErrorHandler.log(
@@ -279,7 +289,9 @@ class TruthVerificationDashboardPage extends StatelessWidget {
               }
 
               return Obx(() {
-                final targetId = targetVideoId.value;
+                final targetId = targetVideoId.value.isNotEmpty
+                    ? targetVideoId.value
+                    : (initialVideoId ?? '');
                 final videoFilter = _videoFilter.value;
                 final query = _searchQuery.value.trim().toLowerCase();
 
@@ -725,7 +737,12 @@ class TruthVerificationDashboardPage extends StatelessWidget {
             ),
           ),
           TextButton(
-            onPressed: () => targetVideoId.value = '',
+            onPressed: () {
+              targetVideoId.value = '';
+              if (Get.isRegistered<DashboardController>()) {
+                Get.find<DashboardController>().targetVideoId.value = '';
+              }
+            },
             child: const Text(
               'Clear Filter',
               style: TextStyle(

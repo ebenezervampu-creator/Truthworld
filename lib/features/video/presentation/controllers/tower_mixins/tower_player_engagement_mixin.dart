@@ -5,6 +5,7 @@ import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
+import 'package:truthworld/features/video/presentation/controllers/claim_stream_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/playback_source.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
@@ -92,8 +93,26 @@ mixin TowerPlayerEngagementMixin on GetxController {
   }
 
   List<ClaimResult> get availableClaims {
-    final claims = videoController?.video.uiReport?.keyClaims;
-    if (claims != null && claims.isNotEmpty) return claims;
+    // 1. If video has completed fact-checking with keyClaims in uiReport, prioritize final report
+    final uiClaims = videoController?.video.uiReport?.keyClaims;
+    if (uiClaims != null && uiClaims.isNotEmpty && videoController?.video.isFactChecked == true) {
+      return uiClaims;
+    }
+
+    // 2. Check for live progressive claims streaming from ClaimStreamController
+    final vId = videoController?.video.id;
+    if (vId != null && vId.isNotEmpty) {
+      final tag = 'claim_stream_$vId';
+      if (Get.isRegistered<ClaimStreamController>(tag: tag)) {
+        final streamCtrl = Get.find<ClaimStreamController>(tag: tag);
+        if (streamCtrl.claims.isNotEmpty) {
+          return streamCtrl.claims;
+        }
+      }
+    }
+
+    // 3. Fallback to existing uiReport or raw factCheckData
+    if (uiClaims != null && uiClaims.isNotEmpty) return uiClaims;
     final rawClaims = videoController?.factCheckData['claims'] ??
         videoController?.factCheckData['uiReport']?['keyClaims'];
     if (rawClaims is List && rawClaims.isNotEmpty) {

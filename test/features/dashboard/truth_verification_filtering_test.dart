@@ -330,5 +330,32 @@ void main() {
       expect(find.byType(VideoAnalysisScreen), findsNothing);
       expect(find.text('Inspect Full Report'), findsOneWidget);
     });
+
+    testWidgets('mounting TruthVerificationDashboardPage with initialVideoId inside Obx does not trigger setState during build',
+        (tester) async {
+      final dummyRx = 0.obs;
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: Scaffold(
+            body: Obx(() {
+              // Read an observable to simulate an Obx parent build phase
+              dummyRx.value;
+              return TruthVerificationDashboardPage(
+                channelId: 'test_channel_obx',
+                isDarkMode: true,
+                initialVideoId: 'video_deep_linked_123',
+              );
+            }),
+          ),
+        ),
+      );
+
+      // Verify no exception was thrown during Obx build phase
+      expect(tester.takeException(), isNull);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(TruthVerificationDashboardPage), findsOneWidget);
+    });
   });
 }

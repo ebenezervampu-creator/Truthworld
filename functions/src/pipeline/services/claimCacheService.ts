@@ -25,6 +25,101 @@ interface L1CacheEntry {
  * Slashes pipeline costs by up to 99.9% on recurring news, trending events,
  * and cross-video viral claims by bypassing LLM token generation & Google Search grounding.
  */
+
+/**
+ * 🛡️ Detects time-sensitive or breaking news assertions whose verification
+ * status is volatile over short horizons.
+ */
+export function isTimeSensitiveClaim(text: string): boolean {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  return /\b(today|yesterday|this morning|this afternoon|tonight|just now|breaking|recently|this week|this month|this year|current|presently)\b/i.test(lower);
+}
+
+/**
+ * 🛡️ PROPOSITION ALIGNMENT CHECK
+ *
+ * Epistemic Requirement (Tier 1): A similarity score of 0.94 alone must never
+ * authorize verdict reuse.
+ *
+ * Enforces:
+ * 1. Polarity / Negation alignment (rejects negation flips).
+ * 2. Antonym / Directional verb alignment (e.g. rose vs fell, won vs lost, increase vs decrease).
+ * 3. Exact numerical quantity and percentage matching.
+ * 4. Temporal scope and year consistency.
+ */
+export function validatePropositionAlignment(
+  cachedText: string,
+  incomingText: string
+): { isAligned: boolean; reason?: string } {
+  if (!cachedText || !incomingText) return { isAligned: false, reason: 'empty_text' };
+
+  const normCached = cachedText.toLowerCase();
+  const normIncoming = incomingText.toLowerCase();
+
+  if (normCached.trim() === normIncoming.trim()) {
+    return { isAligned: true };
+  }
+
+  // 1. Negation & Polarity Inversion Check
+  const negationRegex = /\b(not|never|no|neither|nor|cannot|can't|didn't|doesn't|don't|won't|untrue|false|fake)\b/g;
+  const cachedNegations = normCached.match(negationRegex) || [];
+  const incomingNegations = normIncoming.match(negationRegex) || [];
+  if (cachedNegations.length % 2 !== incomingNegations.length % 2) {
+    return { isAligned: false, reason: 'polarity_inversion' };
+  }
+
+  // 2. Antonym / Directional Verb Inversions
+  const antonymPairs: Array<[string, string]> = [
+    ['increase', 'decrease'],
+    ['rose', 'fell'],
+    ['growth', 'decline'],
+    ['won', 'lost'],
+    ['approved', 'rejected'],
+    ['accepted', 'denied'],
+    ['alive', 'dead'],
+    ['guilty', 'innocent'],
+    ['safe', 'dangerous'],
+    ['cured', 'worsened'],
+  ];
+  for (const [a, b] of antonymPairs) {
+    const cachedHasA = normCached.includes(a);
+    const cachedHasB = normCached.includes(b);
+    const incomingHasA = normIncoming.includes(a);
+    const incomingHasB = normIncoming.includes(b);
+    if ((cachedHasA && incomingHasB) || (cachedHasB && incomingHasA)) {
+      return { isAligned: false, reason: `antonym_direction_mismatch: ${a} vs ${b}` };
+    }
+  }
+
+  // 3. Temporal Scope & Year Check (evaluated before generic numbers)
+  const extractYears = (t: string) => {
+    return (t.match(/\b(19\d\d|20\d\d)\b/g) || []).sort();
+  };
+  const cachedYears = extractYears(normCached);
+  const incomingYears = extractYears(normIncoming);
+  if (cachedYears.length > 0 || incomingYears.length > 0) {
+    if (cachedYears.join(',') !== incomingYears.join(',')) {
+      return { isAligned: false, reason: `temporal_year_mismatch: [${cachedYears}] vs [${incomingYears}]` };
+    }
+  }
+
+  // 4. Numbers, Percentages, and Quantities Check (excluding 4-digit years)
+  const extractNumbers = (t: string) => {
+    const raw = t.match(/\b\d+(?:\.\d+)?%?\b/g) || [];
+    return raw.filter(w => !/^(?:19|20)\d\d$/.test(w)).sort();
+  };
+  const cachedNums = extractNumbers(normCached);
+  const incomingNums = extractNumbers(normIncoming);
+  if (cachedNums.length > 0 || incomingNums.length > 0) {
+    if (cachedNums.join(',') !== incomingNums.join(',')) {
+      return { isAligned: false, reason: `numerical_quantity_mismatch: [${cachedNums}] vs [${incomingNums}]` };
+    }
+  }
+
+  return { isAligned: true };
+}
+
 export class ClaimCacheService {
   private static readonly COLLECTION = "claim_cache";
   private static readonly CACHE_ENABLED = true;
@@ -114,6 +209,28 @@ export class ClaimCacheService {
       const data = doc.data();
       if (!data) return null;
 
+      // Tier 1 Guard: If retrieved via semantic hash fallback, strictly validate proposition alignment!
+      if (doc.id !== exactHash) {
+        const cachedOriginal = data.originalText || data.normalizedText || '';
+        const alignment = validatePropositionAlignment(cachedOriginal, text);
+        if (!alignment.isAligned) {
+          logger.info(`[ClaimCache] Semantic cache hit rejected due to proposition mismatch: ${alignment.reason}`, {
+            incoming: text,
+            cached: cachedOriginal,
+          });
+          return null;
+        }
+      }
+
+      // Tier 1 Guard: Capped TTL for time-sensitive / breaking news claims (max 3h)
+      if (isTimeSensitiveClaim(text)) {
+        const createdMs = data.createdAt?.toMillis ? data.createdAt.toMillis() : (typeof data.createdAt === 'number' ? data.createdAt : 0);
+        if (createdMs > 0 && Date.now() - createdMs > 3 * 60 * 60 * 1000) {
+          logger.info(`[ClaimCache] Cache entry rejected for time-sensitive claim (age > 3h): "${text.substring(0, 50)}..."`);
+          return null;
+        }
+      }
+
       // Check TTL (default 180 days for historical, 30 days for general)
       const now = Date.now();
       if (data.expiresAt && now > data.expiresAt) {
@@ -197,10 +314,19 @@ export class ClaimCacheService {
       const semanticHash = this.generateSemanticHash(firewalled.text);
       const now = Date.now();
 
-      // Dynamic TTL based on claim importance and nature (180 days for facts/constants, 45 days for dynamic news)
-      let ttlDays = 45;
-      if (firewalled.nature === 'VERIFIABLE_FACT' || firewalled.nature === 'HISTORICAL_FACT') {
-        ttlDays = 180;
+      // Domain-specific and nature-specific content-aware TTL (v16.0)
+      let ttlDays = 30; // default 30 days
+      const domainKey = String((firewalled as any).claimDomain || firewalled.ontology || '').toLowerCase();
+      if (firewalled.nature === 'HISTORICAL_FACT' || domainKey.includes('history')) {
+        ttlDays = 180; // 6 months: settled history
+      } else if (firewalled.nature === 'VERIFIABLE_FACT' && (domainKey.includes('science') || domainKey.includes('physics') || domainKey.includes('chem'))) {
+        ttlDays = 90;  // 3 months: peer-reviewed science
+      } else if (domainKey.includes('breaking') || domainKey.includes('crisis') || domainKey.includes('disaster')) {
+        ttlDays = 0.125; // 3 hours: fast-evolving breaking news
+      } else if (domainKey.includes('politic') || domainKey.includes('election')) {
+        ttlDays = 7;   // 7 days: political news cycles
+      } else if (domainKey.includes('finance') || domainKey.includes('market') || domainKey.includes('stock')) {
+        ttlDays = 2;   // 2 days: financial metrics
       }
 
       const expiresAt = now + (ttlDays * 24 * 60 * 60 * 1000);
@@ -233,6 +359,8 @@ export class ClaimCacheService {
         exactHash,
         semanticHash,
         evidenceSchemaVersion: PIPELINE_CONFIG.EVIDENCE_SCHEMA_VERSION,
+        citedDomains: Array.from(new Set(verifiedSources.map(s => s.domain).filter(Boolean))),
+        citedDois: Array.from(new Set(verifiedSources.map((s: any) => s.doi || (s as any).verifiedAcademicMetadata?.doi).filter(Boolean))),
         status: firewalled.status,
         reasoning: sanitizedReasoning,
         richSources: verifiedSources,
@@ -356,6 +484,19 @@ export class ClaimCacheService {
           const doc = semSnap.docs[0];
           const data = doc.data();
           if (data && (!data.expiresAt || Date.now() <= data.expiresAt) && isClosedWorldCacheEntryValid(data)) {
+            // Tier 1 Guard: Proposition alignment verification on batch semantic fallback
+            const cachedOriginal = data.originalText || data.normalizedText || '';
+            const alignment = validatePropositionAlignment(cachedOriginal, text);
+            if (!alignment.isAligned) {
+              logger.info(`[ClaimCache] Semantic batch cache hit rejected due to proposition mismatch: ${alignment.reason}`);
+              continue;
+            }
+            if (isTimeSensitiveClaim(text)) {
+              const createdMs = data.createdAt?.toMillis ? data.createdAt.toMillis() : (typeof data.createdAt === 'number' ? data.createdAt : 0);
+              if (createdMs > 0 && Date.now() - createdMs > 3 * 60 * 60 * 1000) {
+                continue;
+              }
+            }
             const verifiedRichSources = ((data.richSources || []) as RichSource[]).filter((s) => isVerifiedRichSource(s));
             if (verifiedRichSources.length === 0) {
               doc.ref.delete().catch(() => {});
@@ -405,6 +546,45 @@ export class ClaimCacheService {
   static clearL1Cache(): void {
     ClaimCacheService.l1Cache.clear();
   }
+
+  /**
+   * 🛡️ Invalidate cached claims citing a retracted URL, domain, or DOI.
+   * Purges from both L1 memory cache and persistent L2 Firestore cache.
+   */
+  public static async invalidateForRetractedSource(urlOrDoi: string): Promise<number> {
+    if (!urlOrDoi) return 0;
+    const clean = urlOrDoi.toLowerCase().trim();
+    let invalidatedCount = 0;
+
+    // 1. Purge L1 Memory Cache
+    for (const [key, entry] of ClaimCacheService.l1Cache.entries()) {
+      const sources = entry.claim.richSources || [];
+      const hasRetracted = sources.some(s =>
+        (s.url && s.url.toLowerCase().includes(clean)) ||
+        (s.domain && clean.includes(s.domain.toLowerCase()))
+      );
+      if (hasRetracted) {
+        ClaimCacheService.l1Cache.delete(key);
+        invalidatedCount++;
+      }
+    }
+
+    // 2. Invalidate L2 Firestore Cache
+    try {
+      const snap = await admin.firestore().collection(ClaimCacheService.COLLECTION)
+        .where("citedDomains", "array-contains", clean)
+        .limit(100)
+        .get();
+
+      for (const doc of snap.docs) {
+        await doc.ref.delete().catch(() => {});
+        invalidatedCount++;
+      }
+    } catch (_) {}
+
+    return invalidatedCount;
+  }
+
 }
 
 export const claimCacheService = new ClaimCacheService();

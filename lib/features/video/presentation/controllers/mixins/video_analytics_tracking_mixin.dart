@@ -361,8 +361,9 @@ mixin VideoAnalyticsTrackingMixin on GetxController {
             'watchedDuration': effectiveWatch,
             'watchPercentage': percentage,
             'isCompleted': percentage >= 90.0,
-            'lastPosition':
-                videoPlayerController?.value.position.inSeconds ?? 0,
+            'lastPosition': percentage >= 90.0
+                ? 0
+                : (videoPlayerController?.value.position.inSeconds ?? 0),
             'videoDuration': effectiveDuration,
           }, SetOptions(merge: true));
 

@@ -49,93 +49,43 @@ class DubbingLanguagesGrid extends StatelessWidget {
         Obx(() {
           final count = controller.selectedLanguages.length;
           final hasSelection = count > 0;
+          final firstLang = hasSelection ? controller.selectedLanguages.first : '';
 
-          return InkWell(
+          return GestureDetector(
             onTap: () => showDubbingMultiLanguagePicker(
               context: context,
               controller: controller,
             ),
-            borderRadius: BorderRadius.circular(10),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFF14151B),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: hasSelection
-                      ? const Color(0xFFA78BFA).withValues(alpha: 0.5)
-                      : const Color(0xFF262834),
-                  width: hasSelection ? 1.2 : 1.0,
-                ),
+                color: const Color(0xFF121212),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF27272A)),
               ),
               child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF7C3AED).withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Icon(
-                      Icons.translate,
-                      color: Color(0xFFA78BFA),
-                      size: 18,
-                    ),
+                  buildLanguageFlag(
+                    hasSelection ? firstLang : 'English',
+                    width: 26,
+                    height: 18,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          hasSelection
-                              ? '$count Target ${count == 1 ? "Language" : "Languages"} Configured'
-                              : 'Select Dubbing Languages (70+ Available)',
-                          style: TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.bold,
-                            color: hasSelection ? Colors.white : Colors.white70,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          hasSelection
-                              ? 'Tap to add, remove, or modify languages'
-                              : 'Tap to open multi-language country selector',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.white.withValues(alpha: 0.5),
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      hasSelection
+                          ? (count == 1 ? firstLang : '$count Target Languages Selected')
+                          : 'Select Dubbing Languages',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1F212A),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: const Color(0xFF2D303E)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          hasSelection ? 'Edit' : 'Browse',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Icon(
-                          Icons.keyboard_arrow_down,
-                          color: Colors.white70,
-                          size: 16,
-                        ),
-                      ],
-                    ),
+                  const Icon(
+                    Icons.keyboard_arrow_down,
+                    color: Colors.white,
                   ),
                 ],
               ),

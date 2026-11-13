@@ -36,6 +36,20 @@ class UploadSubtitlesController extends GetxController {
     selectedLanguages.assignAll(normalized);
     isSubtitlesEnabled.value = uploadController.aiTranslationLanguages.isEmpty ||
         uploadController.aiGenerateSubtitles.value;
+
+    // Reactively sync when user picks languages via the country-style multi-language picker sheet
+    ever<List<String>>(uploadController.aiTranslationLanguages, (langs) {
+      final updated = <String>{};
+      for (final raw in langs) {
+        final match = findLanguage(raw);
+        if (match != null) {
+          updated.add(match.name);
+        } else if (raw.trim().isNotEmpty) {
+          updated.add(raw.trim());
+        }
+      }
+      selectedLanguages.assignAll(updated);
+    });
   }
 
   /// Find matching TranslationLanguage from any string (name, code, or nativeName)
@@ -108,11 +122,9 @@ class UploadSubtitlesController extends GetxController {
   SubtitleDurationTier get subtitleTier =>
       ChannelWalletService.getSubtitleDurationTier(durationSeconds);
 
-  double get flatSubtitleRatePerLang =>
-      ChannelWalletService.getFlatSubtitlePricePerLanguage(
-        durationSeconds: durationSeconds,
-        channelType: channelType,
-      );
+  double get flatSubtitleRatePerLang => isCustomChannel
+      ? subtitleTier.customFlatRatePerLanguage
+      : subtitleTier.standardFlatRatePerLanguage;
 
   /// Languages that are also selected for Dubbing (Subtitles are included free for dubbed languages)
   Set<String> get dubbedLanguages {

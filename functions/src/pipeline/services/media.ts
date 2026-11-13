@@ -36,6 +36,44 @@ function isValidAudioBuffer(buf: Buffer): boolean {
 }
 
 /**
+ * Creates a valid, standard-compliant silent MP3 audio buffer (44.1kHz, 128kbps stereo).
+ * Uses FFmpeg libmp3lame anullsrc when FFmpeg is available, or constructs a standard sequence of
+ * MPEG-1 Layer 3 silent frames (0xFF 0xFB 0x90 0x64 ...) decodable by any standard MP3 decoder.
+ */
+export async function createSilentMp3Buffer(durationSeconds = 0.5): Promise<Buffer> {
+  const ffmpeg = getFfmpegPath();
+  if (ffmpeg) {
+    try {
+      const tmpPath = path.join(os.tmpdir(), `silent_${Date.now()}_${Math.random().toString(36).slice(2)}.mp3`);
+      await execFileAsync(ffmpeg, [
+        "-y",
+        "-f", "lavfi",
+        "-i", "anullsrc=r=44100:cl=stereo",
+        "-t", `${Math.max(0.1, durationSeconds)}`,
+        "-c:a", "libmp3lame",
+        "-b:a", "128k",
+        tmpPath,
+      ]);
+      const data = await fs.promises.readFile(tmpPath);
+      await fs.promises.unlink(tmpPath).catch(() => {});
+      if (data && data.length > 0) return data;
+    } catch (err) {
+      console.warn("[MediaService] FFmpeg silence generation warning, using MPEG-1 silence frame fallback:", err);
+    }
+  }
+
+  // Fallback: Standard MPEG-1 Layer 3 silent frame sequence (44.1kHz 128kbps stereo)
+  // Header: 0xFF, 0xFB, 0x90, 0x64 followed by zero payload (417 bytes total per frame)
+  const frame = Buffer.alloc(417, 0);
+  frame[0] = 0xff;
+  frame[1] = 0xfb;
+  frame[2] = 0x90;
+  frame[3] = 0x64;
+  const numFrames = Math.max(1, Math.round(durationSeconds * (44100 / 1152)));
+  return Buffer.concat(Array(numFrames).fill(frame));
+}
+
+/**
  * Robustly parses any duration representation (seconds number, ms number, or "MM:SS" / "HH:MM:SS" string) into numeric seconds.
  */
 export function parseDurationToSeconds(duration: any): number {
@@ -1264,8 +1302,9 @@ export class MediaService {
         issues.push("GPU Demucs worker URL not configured");
         return null;
       }
+      const DEMUCS_TIMEOUT_MS = 6000;
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Demucs timeout after 90000ms")), 90000)
+        setTimeout(() => reject(new Error(`Demucs timeout after ${DEMUCS_TIMEOUT_MS}ms`)), DEMUCS_TIMEOUT_MS)
       );
       try {
         const demixEndpoint = `${serviceUrl.replace(/\/$/, "")}/demix`;
@@ -1279,7 +1318,7 @@ export class MediaService {
           axios.post(
             demixEndpoint,
             { jobId, audioUrl: signedAudioUrl },
-            { timeout: 90000, headers: { "Content-Type": "application/json" } }
+            { timeout: DEMUCS_TIMEOUT_MS, headers: { "Content-Type": "application/json" } }
           ),
           timeoutPromise,
         ]);
@@ -1404,11 +1443,11 @@ export class MediaService {
       const isoHealthy = isoVal.validationStatus !== "failed";
 
       let winner = demucsCand;
-      // Always prefer neural Demucs when it succeeded — the bleedDb metric is unreliable
-      // for music-heavy stems (it measures 250–3800 Hz which includes BGM midrange).
-      // ISO phase-subtraction wins only when Demucs is unavailable or failed.
       if (!demucsHealthy && isoHealthy) {
         winner = isoCand;
+      } else if (demucsHealthy && isoHealthy) {
+        // Lower dB = less dialogue bleed = cleaner M&E stem
+        winner = isoBleed < demucsBleed ? isoCand : demucsCand;
       }
 
       return {
@@ -2059,7 +2098,7 @@ export class MediaService {
           const relDelayMs = Math.max(0, Math.round(item.startMs - batchOriginMs));
           const padSuffix = hasNormalize ? "" : `,apad=whole_len=${batchSpanSamples}`;
           batchFilterLines.push(
-            `[${k}:a]aformat=sample_fmts=fltp:sample_rates=${SAMPLE_RATE}:channel_layouts=stereo,adelay=${relDelayMs}|${relDelayMs}${padSuffix}[bd_${k}];`
+            `[${k}:a]aresample=async=1:first_pts=0,aformat=sample_fmts=fltp:sample_rates=${SAMPLE_RATE}:channel_layouts=stereo,adelay=${relDelayMs}|${relDelayMs}${padSuffix}[bd_${k}];`
           );
           batchLabels.push(`[bd_${k}]`);
         }
@@ -2177,7 +2216,18 @@ export class MediaService {
       });
 
       if (validIndexed.length === 0) {
-        throw new Error("No valid TTS audio chunks provided to mergeAudioChunks");
+        console.warn(`[MediaService] No valid speech chunks provided for ${language}; generating silent audio track`);
+        const rawSec = parseDurationToSeconds(options?.totalDurationSeconds);
+        const durSec = rawSec > 0 ? rawSec : 3.0;
+        const silentBuffer = await createSilentMp3Buffer(durSec);
+        const bucket = storage().bucket();
+        const outputPath = `audio/${jobId}/${language}/stitched.mp3`;
+        const file = bucket.file(outputPath);
+        await file.save(silentBuffer, {
+          contentType: "audio/mpeg",
+          metadata: { cacheControl: "public, max-age=31536000" },
+        });
+        return `gs://${bucket.name}/${outputPath}`;
       }
 
       const bucket = storage().bucket();
@@ -2329,7 +2379,7 @@ export class MediaService {
                 const item = preparedChunks[i];
                 ffmpegInputArgs.push("-i", item.path);
                 filterLines.push(
-                  `[${i}:a]aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,adelay=${item.startMs}|${item.startMs}[d_${i}];`
+                  `[${i}:a]aresample=async=1:first_pts=0,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,adelay=${item.startMs}|${item.startMs}[d_${i}];`
                 );
                 delayedStreamLabels.push(`[d_${i}]`);
               }

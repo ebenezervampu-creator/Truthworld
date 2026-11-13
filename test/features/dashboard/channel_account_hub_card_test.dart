@@ -6,6 +6,7 @@ import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_account_hub_card.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization/channel_financial_history_page.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import '../../test_helpers/mock_firebase.dart';
 
@@ -90,28 +91,35 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
 
       // Header
-      expect(find.text('Channel Revenue'), findsOneWidget);
-      expect(find.text('Monetization & Payouts Hub'), findsOneWidget);
+      expect(find.text('Channel Account'), findsOneWidget);
+      expect(find.text('Unified Wallet & Monetization Hub'), findsOneWidget);
       expect(find.text('CUSTOM ACCOUNT'), findsOneWidget);
 
-      // Hero Total Channel Revenue
-      expect(find.text('Total Channel Revenue'), findsOneWidget);
+      // Hero Total Purchasing Power
+      expect(find.text('Total Purchasing Power & Spendable Balance'), findsOneWidget);
 
-      // Sub-metrics (Wallet option removed)
+      // 3-Way Sub-metrics
       expect(find.text('Withdrawable Cash'), findsOneWidget);
       expect(find.text('Locked Earnings'), findsOneWidget);
-      expect(find.text('Pre-Funded Credits'), findsNothing);
+      expect(find.text('Pre-Funded Credits'), findsOneWidget);
 
-      // Core Action Buttons (Add Funds wallet button removed)
-      expect(find.text('Add Funds'), findsNothing);
+      // Core Action Buttons
+      expect(find.text('Add Funds'), findsOneWidget);
       expect(find.text('Cash Out'), findsOneWidget);
       expect(find.text('Spend on AI'), findsNothing);
 
-      // Financial History & Ledger Option removed from Earnings Tab
-      expect(find.text('Financial History & Ledger'), findsNothing);
-      expect(find.text('View statements, payouts, spends & 8-year audit records'), findsNothing);
+      // Financial History & Ledger Entry (Replaces Unified Activity Feed clutter)
+      expect(find.text('Financial History & Ledger'), findsOneWidget);
+      expect(find.text('View statements, payouts, spends & 8-year audit records'), findsOneWidget);
       expect(find.text('Unified Activity Feed'), findsNothing);
       expect(find.text('All Activity'), findsNothing);
+
+      // Tap Financial History & Ledger to open Financial History & Ledger page
+      await tester.ensureVisible(find.text('Financial History & Ledger'));
+      await tester.tap(find.text('Financial History & Ledger'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byType(ChannelFinancialHistoryPage), findsOneWidget);
     });
 
     testWidgets('UnifiedChannelTransaction maps categories and formatting accurately', (tester) async {
@@ -184,6 +192,29 @@ void main() {
       expect(csv.contains('Date,Transaction ID,Type,Category,Description,Status,Inflow (Credit),Outflow (Debit),Currency'), isTrue);
       expect(csv.contains('tx_1,revenueEarned,revenueEarned,"Ad Revenue Allocation",completed,1500.00,0.00,INR'), isTrue);
       expect(csv.contains('payout_1,payout,Payout Request,"Bank Withdrawal",completed,0.00,500.00,INR'), isTrue);
+    });
+
+    testWidgets('ChannelFinancialHistoryPage renders range selectors, search bar and statutory footer', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: ChannelFinancialHistoryPage(channel: testChannel),
+        ),
+      );
+      await tester.pump(const Duration(seconds: 2));
+
+      expect(find.text('Financial History & Ledger'), findsOneWidget);
+      expect(find.textContaining('8-Year Statutory Archive'), findsWidgets);
+      expect(find.text('Last 30 Days'), findsOneWidget);
+      expect(find.text('Last 90 Days'), findsOneWidget);
+      expect(find.textContaining('Current FY'), findsOneWidget);
+      expect(find.text('All Time (8-Year Audit)'), findsOneWidget);
+      expect(find.text('TOTAL CREDITS (INFLOW)'), findsOneWidget);
+      expect(find.text('TOTAL DEBITS (OUTFLOW)'), findsOneWidget);
+      expect(find.textContaining('Companies Act 2013 §128'), findsOneWidget);
     });
 
     test('Cost-Effective Ledger Caching: memoizes queries and invalidates accurately', () async {

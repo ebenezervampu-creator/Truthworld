@@ -189,6 +189,11 @@ class VideoPlaybackHandoff {
     return _activePositions.remove(videoId);
   }
 
+  /// Explicitly clear registered resume position for a video ID without disposing pre-warmed controllers.
+  static void clearResumePosition(String videoId) {
+    _activePositions.remove(videoId);
+  }
+
   /// Inspect the active resume position for a video ID without clearing it.
   static Duration? peekPosition(String videoId) {
     return _activePositions[videoId];

@@ -14,17 +14,18 @@ import 'package:video_player/video_player.dart';
 
 /// Represents a single selectable audio track (base or dubbed language).
 class AudioTrackOption {
-  // true => original video audio
-
   const AudioTrackOption({
     required this.code,
     required this.label,
     this.audioUrl,
+    this.videoUrl,
     this.isEmbedded = false,
   });
+
   final String code;
   final String label;
   final String? audioUrl; // null => use video's embedded audio
+  final String? videoUrl; // non-null => pre-rendered dubbed video available
   final bool isEmbedded;
 }
 
@@ -59,6 +60,11 @@ class MultiAudioPlayerController extends BaseController {
   final selectedTrack = Rxn<AudioTrackOption>();
   final RxBool isChangingTrack = false.obs;
 
+  // ── Resolution state (Strictly non-raw processed streams) ──────────────────
+  final RxList<VideoResolutionV2> availableResolutions = <VideoResolutionV2>[].obs;
+  final Rx<VideoResolutionV2?> currentResolution = Rx<VideoResolutionV2?>(null);
+  final RxBool isSwitchingResolution = false.obs;
+
   final RxBool showControls = true.obs;
   final RxBool isFullscreen = false.obs;
   final RxDouble playbackSpeed = 1.0.obs;
@@ -67,6 +73,7 @@ class MultiAudioPlayerController extends BaseController {
   VideoPlayerController? _videoCtrl;
   final AudioPlayer _dubPlayer = AudioPlayer();
   Timer? _flashControlsTimer;
+  String _baseVideoUrl = '';
 
   bool _dubMode = false; // true when a dubbed audio overlay is active
   bool _seeking = false;
@@ -93,12 +100,110 @@ class MultiAudioPlayerController extends BaseController {
 
   // ── Public API ────────────────────────────────────────────────────────────────
 
+  /// Checks if a given URL is a raw video file (which must NEVER be played directly).
+  static bool isRawVideoUrl(String url) {
+    final lower = url.trim().toLowerCase();
+    return lower.endsWith('original.mp4') ||
+        lower.contains('/original/') ||
+        lower.endsWith('.raw');
+  }
+
+  /// Rebuilds the ChewieController instance with brand styling.
+  void rebuildChewieController({required double aspectRatio}) {
+    chewieController?.dispose();
+    chewieController = ChewieController(
+      videoPlayerController: _videoCtrl!,
+      showControls: false,
+      allowedScreenSleep: false,
+      aspectRatio: aspectRatio,
+      placeholder: const ColoredBox(
+        color: AppColors.bgPage,
+        child: Center(
+          child: CircularProgressIndicator(color: AppColors.brand),
+        ),
+      ),
+      errorBuilder: (context, errorMessage) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(
+              errorMessage,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 13,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        );
+      },
+      materialProgressColors: ChewieProgressColors(
+        playedColor: AppColors.brand,
+        handleColor: AppColors.brand,
+        bufferedColor: AppColors.brand.withValues(alpha: 0.33),
+        backgroundColor: AppColors.brand.withValues(alpha: 0.2),
+      ),
+      cupertinoProgressColors: ChewieProgressColors(
+        playedColor: AppColors.brand,
+        handleColor: AppColors.brand,
+        bufferedColor: AppColors.brand.withValues(alpha: 0.33),
+        backgroundColor: AppColors.brand.withValues(alpha: 0.2),
+      ),
+    );
+  }
+
+  /// Switches active playback resolution dynamically, seeking to current position without interruption.
+  Future<void> switchResolution(VideoResolutionV2 res) async {
+    if (currentResolution.value?.url == res.url) return;
+    isSwitchingResolution.value = true;
+
+    try {
+      final currentPos = position.value;
+      final wasPlaying = isPlaying.value;
+
+      currentResolution.value = res;
+      final resolvedUrl = await StorageUtils.resolveUrl(res.url);
+      final target = resolvedUrl.isNotEmpty ? resolvedUrl : StorageUtils.getFastDownloadUrl(res.url);
+      if (target.isEmpty) throw Exception('Unable to resolve resolution stream');
+
+      final newCtrl = VideoPlayerController.networkUrl(
+        Uri.parse(target),
+        httpHeaders: StorageUtils.getSyncMediaHeaders(),
+        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+      );
+      await newCtrl.initialize();
+
+      _videoCtrl?.removeListener(_onVideoTick);
+      await _videoCtrl?.dispose();
+      _videoCtrl = newCtrl;
+      _baseVideoUrl = target;
+      _videoCtrl!.addListener(_onVideoTick);
+
+      if (currentPos > Duration.zero && currentPos < _videoCtrl!.value.duration) {
+        await _videoCtrl!.seekTo(currentPos);
+      }
+
+      rebuildChewieController(
+        aspectRatio: _videoCtrl!.value.aspectRatio > 0 ? _videoCtrl!.value.aspectRatio : 16 / 9,
+      );
+
+      if (wasPlaying) {
+        play();
+      }
+    } catch (e, s) {
+      logger.error('Failed switching resolution to ${res.label}', error: e, stackTrace: s, tag: _tag);
+    } finally {
+      isSwitchingResolution.value = false;
+    }
+  }
+
   /// Call once with the video URL and the list of audio track options.
   Future<void> initialize(
     String videoUrl, {
     required List<AudioTrackOption> tracks,
     String? preferredTrackCode,
     Video? video,
+    VideoResolutionV2? targetResolution,
   }) async {
     isInitializing.value = true;
     hasError.value = false;
@@ -116,22 +221,36 @@ class MultiAudioPlayerController extends BaseController {
       final candidateUrls = <String>[];
       if (video != null) {
         final resolutions = await StudioVideoResolutionResolver.resolveResolutions(video);
-        final defaultRes = StudioVideoResolutionResolver.pickDefaultResolution(resolutions);
-        if (defaultRes != null) {
-          candidateUrls.add(defaultRes.url);
-        }
-        for (final r in resolutions) {
-          if (!candidateUrls.contains(r.url)) {
-            candidateUrls.add(r.url);
+        availableResolutions.value = resolutions;
+
+        if (targetResolution != null) {
+          currentResolution.value = targetResolution;
+          candidateUrls.add(targetResolution.url);
+        } else {
+          final defaultRes = StudioVideoResolutionResolver.pickDefaultResolution(resolutions);
+          currentResolution.value = defaultRes;
+          if (defaultRes != null) {
+            candidateUrls.add(defaultRes.url);
+          }
+          for (final r in resolutions) {
+            if (!candidateUrls.contains(r.url)) {
+              candidateUrls.add(r.url);
+            }
           }
         }
       }
 
-      if (videoUrl.trim().isNotEmpty && !candidateUrls.contains(videoUrl.trim())) {
+      // STRICT ZERO RAW VIDEO: Never add raw URLs
+      if (videoUrl.trim().isNotEmpty && !isRawVideoUrl(videoUrl) && !candidateUrls.contains(videoUrl.trim())) {
         candidateUrls.add(videoUrl.trim());
       }
 
+      if (candidateUrls.isEmpty) {
+        throw Exception('No playable processed video resolutions found. Transcoding in progress.');
+      }
+
       VideoPlayerController? initializedCtrl;
+      String? successfulBaseUrl;
       for (final rawUrl in candidateUrls) {
         try {
           final resolvedUrl = await StorageUtils.resolveUrl(rawUrl);
@@ -145,6 +264,7 @@ class MultiAudioPlayerController extends BaseController {
           );
           await ctrl.initialize();
           initializedCtrl = ctrl;
+          successfulBaseUrl = target;
           break;
         } catch (err) {
           logger.warning('Failed candidate stream: $rawUrl ($err)', tag: _tag);
@@ -156,60 +276,29 @@ class MultiAudioPlayerController extends BaseController {
       }
 
       _videoCtrl = initializedCtrl;
+      _baseVideoUrl = successfulBaseUrl ?? '';
       _videoCtrl!.addListener(_onVideoTick);
 
-      chewieController?.dispose();
-      chewieController = ChewieController(
-        videoPlayerController: _videoCtrl!,
-        showControls: false,
-        allowedScreenSleep: false,
+      rebuildChewieController(
         aspectRatio: _videoCtrl!.value.aspectRatio > 0 ? _videoCtrl!.value.aspectRatio : 16 / 9,
-        placeholder: const ColoredBox(
-          color: AppColors.bgPage,
-          child: Center(
-            child: CircularProgressIndicator(color: AppColors.brand),
-          ),
-        ),
-        errorBuilder: (context, errorMessage) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(
-                errorMessage,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 13,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          );
-        },
-        materialProgressColors: ChewieProgressColors(
-          playedColor: AppColors.brand,
-          handleColor: AppColors.brand,
-          bufferedColor: AppColors.brand.withValues(alpha: 0.33),
-          backgroundColor: AppColors.brand.withValues(alpha: 0.2),
-        ),
-        cupertinoProgressColors: ChewieProgressColors(
-          playedColor: AppColors.brand,
-          handleColor: AppColors.brand,
-          bufferedColor: AppColors.brand.withValues(alpha: 0.33),
-          backgroundColor: AppColors.brand.withValues(alpha: 0.2),
-        ),
       );
 
       duration.value = _videoCtrl!.value.duration;
       availableTracks.value = tracks;
 
       // Pick starting track
-      final preferred = tracks.firstWhereOrNull(
-        (t) => t.code == (preferredTrackCode ?? 'en'),
-      );
-      await _selectTrackInternal(
-        preferred ?? tracks.first,
-        seek: Duration.zero,
-      );
+      if (tracks.isNotEmpty) {
+        final preferred = tracks.firstWhereOrNull(
+          (t) => t.code == (preferredTrackCode ?? 'en'),
+        );
+        final initialTrack = preferred ?? tracks.firstOrNull;
+        if (initialTrack != null) {
+          await _selectTrackInternal(
+            initialTrack,
+            seek: Duration.zero,
+          );
+        }
+      }
 
       isInitializing.value = false;
       play();
@@ -233,11 +322,18 @@ class MultiAudioPlayerController extends BaseController {
     final resumePos = position.value;
     final wasPlaying = isPlaying.value;
 
-    await _pauseAll();
-    await _selectTrackInternal(track, seek: resumePos);
-
-    if (wasPlaying) play();
-    isChangingTrack.value = false;
+    try {
+      await _pauseAll();
+      await _selectTrackInternal(track, seek: resumePos);
+      if (wasPlaying) play();
+    } catch (e, s) {
+      logger.error('Failed switching audio track to ${track.code}', error: e, stackTrace: s, tag: _tag);
+      _dubMode = false;
+      _videoCtrl?.setVolume(_effectiveVolume());
+      if (wasPlaying) play();
+    } finally {
+      isChangingTrack.value = false;
+    }
   }
 
   void play() {
@@ -300,18 +396,128 @@ class MultiAudioPlayerController extends BaseController {
   }) async {
     selectedTrack.value = track;
 
-    if (track.isEmbedded || track.audioUrl == null || track.audioUrl!.isEmpty) {
-      // Use the video's own audio
-      _dubMode = false;
-      await _dubPlayer.stop();
-      _videoCtrl?.setVolume(_effectiveVolume());
-    } else {
-      // Dubbed track – mute the video, play dubbed audio in sync
+    try {
+      // 1. Dubbed video container (pre-rendered MP4 with dubbed language audio)
+      if (track.videoUrl != null && track.videoUrl!.isNotEmpty) {
+        _dubMode = false;
+        await _dubPlayer.stop();
+
+        final rawVideo = track.videoUrl!;
+        final resolvedVideo = await StorageUtils.resolveUrl(rawVideo);
+        final target = resolvedVideo.isNotEmpty ? resolvedVideo : StorageUtils.getFastDownloadUrl(rawVideo);
+
+        if (target.isNotEmpty && _videoCtrl?.dataSource != target) {
+          final newCtrl = VideoPlayerController.networkUrl(
+            Uri.parse(target),
+            httpHeaders: StorageUtils.getSyncMediaHeaders(),
+            videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+          );
+          await newCtrl.initialize();
+
+          _videoCtrl?.removeListener(_onVideoTick);
+          await _videoCtrl?.dispose();
+          _videoCtrl = newCtrl;
+          _videoCtrl!.addListener(_onVideoTick);
+
+          if (seek > Duration.zero && seek < _videoCtrl!.value.duration) {
+            await _videoCtrl!.seekTo(seek);
+          }
+          _videoCtrl!.setVolume(_effectiveVolume());
+
+          rebuildChewieController(
+            aspectRatio: _videoCtrl!.value.aspectRatio > 0 ? _videoCtrl!.value.aspectRatio : 16 / 9,
+          );
+          duration.value = _videoCtrl!.value.duration;
+        }
+        return;
+      }
+
+      // 2. Base / embedded track (or no separate dubbed audio)
+      if (track.isEmbedded || track.audioUrl == null || track.audioUrl!.isEmpty) {
+        _dubMode = false;
+        await _dubPlayer.stop();
+
+        // Restore base video stream if currently playing a dubbed video
+        if (_baseVideoUrl.isNotEmpty && _videoCtrl?.dataSource != _baseVideoUrl) {
+          try {
+            final newCtrl = VideoPlayerController.networkUrl(
+              Uri.parse(_baseVideoUrl),
+              httpHeaders: StorageUtils.getSyncMediaHeaders(),
+              videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+            );
+            await newCtrl.initialize();
+
+            _videoCtrl?.removeListener(_onVideoTick);
+            await _videoCtrl?.dispose();
+            _videoCtrl = newCtrl;
+            _videoCtrl!.addListener(_onVideoTick);
+
+            if (seek > Duration.zero && seek < _videoCtrl!.value.duration) {
+              await _videoCtrl!.seekTo(seek);
+            }
+            rebuildChewieController(
+              aspectRatio: _videoCtrl!.value.aspectRatio > 0 ? _videoCtrl!.value.aspectRatio : 16 / 9,
+            );
+            duration.value = _videoCtrl!.value.duration;
+          } catch (e) {
+            logger.warning('Unable to switch back to base video stream: $e', tag: _tag);
+          }
+        }
+
+        _videoCtrl?.setVolume(_effectiveVolume());
+        return;
+      }
+
+      // 3. Dubbed audio overlay track (video frames from base video + synced audio from just_audio)
       _dubMode = true;
+
+      // Restore base video if needed
+      if (_baseVideoUrl.isNotEmpty && _videoCtrl?.dataSource != _baseVideoUrl) {
+        try {
+          final newCtrl = VideoPlayerController.networkUrl(
+            Uri.parse(_baseVideoUrl),
+            httpHeaders: StorageUtils.getSyncMediaHeaders(),
+            videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+          );
+          await newCtrl.initialize();
+
+          _videoCtrl?.removeListener(_onVideoTick);
+          await _videoCtrl?.dispose();
+          _videoCtrl = newCtrl;
+          _videoCtrl!.addListener(_onVideoTick);
+
+          if (seek > Duration.zero && seek < _videoCtrl!.value.duration) {
+            await _videoCtrl!.seekTo(seek);
+          }
+          rebuildChewieController(
+            aspectRatio: _videoCtrl!.value.aspectRatio > 0 ? _videoCtrl!.value.aspectRatio : 16 / 9,
+          );
+          duration.value = _videoCtrl!.value.duration;
+        } catch (e) {
+          logger.warning('Unable to switch back to base video stream: $e', tag: _tag);
+        }
+      }
+
       _videoCtrl?.setVolume(0);
-      await _dubPlayer.setUrl(track.audioUrl!);
-      await _dubPlayer.seek(seek);
-      _dubPlayer.setVolume(_effectiveVolume());
+
+      final rawAudioUrl = track.audioUrl!;
+      final resolvedAudio = await StorageUtils.resolveUrl(rawAudioUrl);
+      final targetAudio = resolvedAudio.isNotEmpty ? resolvedAudio : StorageUtils.getFastDownloadUrl(rawAudioUrl);
+
+      if (targetAudio.isNotEmpty) {
+        await _dubPlayer.setUrl(
+          targetAudio,
+          headers: StorageUtils.getSyncMediaHeaders(),
+        );
+        if (seek > Duration.zero) {
+          await _dubPlayer.seek(seek);
+        }
+        _dubPlayer.setVolume(_effectiveVolume());
+      }
+    } catch (e, s) {
+      logger.error('Failed selecting track ${track.code}: $e', error: e, stackTrace: s, tag: _tag);
+      _dubMode = false;
+      _videoCtrl?.setVolume(_effectiveVolume());
     }
   }
 
